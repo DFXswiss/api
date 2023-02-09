@@ -34,7 +34,7 @@ import { WalletService } from '../wallet/wallet.service';
 import { KycInfo } from './dto/kyc-info.dto';
 import { Country } from 'src/shared/models/country/country.entity';
 import { WebhookService } from '../../services/webhook/webhook.service';
-import { KycDocumentType, KycFilesDto } from './dto/kyc-files.dto';
+import { KycDocumentType, KycFileDto } from './dto/kyc-file.dto';
 import { SpiderApiService } from '../../services/spider/spider-api.service';
 import { User } from '../user/user.entity';
 import { KycDataDto } from './dto/kyc-data.dto';
@@ -294,17 +294,18 @@ export class KycService {
     return userData;
   }
 
-  // --- GET COMPANY KYC //
+  // --- GET COMPANY KYC --- //
 
-  async getAllKycData(walletId: number): Promise<User[]> {
+  async getAllKycData(walletId: number): Promise<KycDataDto[]> {
     const wallet = await this.walletRepo.findOne({
       where: { id: walletId },
       relations: ['users', 'users.userData'],
     });
-    return wallet.users;
+
+    return wallet.users.map((b) => this.toKycDataDto(b));
   }
 
-  async getKycDocuments(address: string, walletId: number): Promise<DocumentInfo[]> {
+  async getKycFiles(address: string, walletId: number): Promise<KycFileDto[]> {
     const wallet = await this.walletRepo.findOne({ where: { id: walletId } });
     const user = await this.userRepo.findOne({
       where: { address, wallet: { id: walletId } },
@@ -315,14 +316,10 @@ export class KycService {
 
     const allDocuments = await this.spiderApiService.getDocumentInfos(user.userData.id, false);
 
-    return allDocuments.filter(
-      (document) =>
-        ([KycDocument.ONLINE_IDENTIFICATION, KycDocument.VIDEO_IDENTIFICATION, KycDocument.CHATBOT_ONBOARDING].includes(
-          document.document,
-        ) &&
-          document.label == 'Report') ||
-        document.document == KycDocument.INCORPORATION_CERTIFICATE,
-    );
+    return Object.values(KycDocumentType)
+      .map((type) => ({ type, info: this.getDocumentInfoFor(type, allDocuments) }))
+      .filter((d) => d.info != null)
+      .map(({ type, info }) => this.toKycFileDto(type, info));
   }
 
   async getKycFile(address: string, walletId: number, kycDocumentType: KycDocumentType): Promise<any> {
@@ -335,53 +332,19 @@ export class KycService {
     if (user.wallet.id != wallet.id) throw new ForbiddenException('User not from wallet');
 
     const allDocuments = await this.spiderApiService.getDocumentInfos(user.userData.id, false);
+    const document = this.getDocumentInfoFor(kycDocumentType, allDocuments);
 
-    switch (kycDocumentType) {
-      case KycDocumentType.IDENTIFICATION:
-        const identInfo = allDocuments.filter(
-          (document) =>
-            (KycDocument.ONLINE_IDENTIFICATION == document.document ||
-              KycDocument.VIDEO_IDENTIFICATION == document.document) &&
-            document.label == 'Report',
-        )[0];
-        return await this.spiderApiService.getDocument<string>(
-          user.userData.id,
-          false,
-          identInfo.document,
-          identInfo.version,
-          identInfo.part,
-        );
-
-      case KycDocumentType.INCORPORATION_CERTIFICATE:
-        const incorporationInfo = allDocuments.filter(
-          (document) => KycDocument.INCORPORATION_CERTIFICATE == document.document,
-        )[0];
-        return await this.spiderApiService.getDocument<string>(
-          user.userData.id,
-          false,
-          incorporationInfo.document,
-          incorporationInfo.version,
-          incorporationInfo.part,
-        );
-
-      case KycDocumentType.CHATBOT:
-        const chatbotInfo = allDocuments.filter((document) => KycDocument.CHATBOT_ONBOARDING == document.document)[0];
-        return await this.spiderApiService.getDocument<string>(
-          user.userData.id,
-          false,
-          chatbotInfo.document,
-          chatbotInfo.version,
-          chatbotInfo.part,
-        );
-    }
+    return await this.spiderApiService.getDocument<any>(
+      user.userData.id,
+      false,
+      document.document,
+      document.version,
+      document.part,
+    );
   }
 
-  // HELPER METHODS //
-  async toKycDataDtoList(users: User[]): Promise<KycDataDto[]> {
-    return Promise.all(users.map((b) => this.toKycDataDto(b)));
-  }
-
-  private async toKycDataDto(user: User): Promise<KycDataDto> {
+  // --- HELPER METHODS --- //
+  private toKycDataDto(user: User): KycDataDto {
     return {
       address: user.address,
       kycStatus: this.webhookService.getKycWebhookStatus(user.userData.kycStatus, user.userData.kycType),
@@ -389,27 +352,33 @@ export class KycService {
     };
   }
 
-  async toKycFilesDtoList(documentInfoList: DocumentInfo[]): Promise<KycFilesDto[]> {
-    return Promise.all(documentInfoList.map((b) => this.toKycFilesDto(b)));
-  }
-
-  private async toKycFilesDto(documentInfo: DocumentInfo): Promise<KycFilesDto> {
+  private toKycFileDto(type: KycDocumentType, info: DocumentInfo): KycFileDto {
     return {
-      kycType: this.mapKycDocumentType(documentInfo.document),
-      contentType: documentInfo.contentType,
-      name: documentInfo.fileName,
+      type: type,
+      contentType: info.contentType,
     };
   }
 
-  private mapKycDocumentType(kycDocument: KycDocument): KycDocumentType {
-    switch (kycDocument) {
-      case KycDocument.ONLINE_IDENTIFICATION:
-      case KycDocument.VIDEO_IDENTIFICATION:
-        return KycDocumentType.IDENTIFICATION;
-      case KycDocument.CHATBOT_ONBOARDING:
-        return KycDocumentType.CHATBOT;
-      case KycDocument.INCORPORATION_CERTIFICATE:
-        return KycDocumentType.INCORPORATION_CERTIFICATE;
+  private getDocumentInfoFor(type: KycDocumentType, documents: DocumentInfo[]): DocumentInfo | undefined {
+    switch (type) {
+      case KycDocumentType.IDENTIFICATION:
+        return (
+          this.getReportDocumentInfo(KycDocument.ONLINE_IDENTIFICATION, documents) ??
+          this.getReportDocumentInfo(KycDocument.VIDEO_IDENTIFICATION, documents)
+        );
+
+      case KycDocumentType.CHATBOT:
+        return this.getReportDocumentInfo(KycDocument.CHATBOT_ONBOARDING, documents);
+
+      case KycDocumentType.INCORPORATION_CERTIFICATE:
+        return documents.find((d) => d.document === KycDocument.INCORPORATION_CERTIFICATE);
+
+      default:
+        throw new BadRequestException(`Document type ${type} is not supported`);
     }
+  }
+
+  private getReportDocumentInfo(type: KycDocument, documents: DocumentInfo[]): DocumentInfo | undefined {
+    return documents.find((d) => d.document === type && d.label === 'Report');
   }
 }

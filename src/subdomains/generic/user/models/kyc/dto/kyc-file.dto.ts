@@ -1,9 +1,8 @@
 import { KycContentType } from '../../../services/spider/dto/spider.dto';
 
-export class KycFilesDto {
-  name: string;
+export class KycFileDto {
+  type: KycDocumentType;
   contentType: KycContentType;
-  kycType: KycDocumentType;
 }
 
 export enum KycDocumentType {
