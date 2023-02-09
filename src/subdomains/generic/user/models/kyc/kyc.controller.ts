@@ -15,6 +15,8 @@ import { KycDataTransferDto } from './dto/kyc-data-transfer.dto';
 import { KycInfo } from './dto/kyc-info.dto';
 import { Country } from 'src/shared/models/country/country.entity';
 import { KycWebhookTriggerDto } from './dto/kyc-webhook-trigger.dto';
+import { KycDocumentType, KycFileDto } from './dto/kyc-file.dto';
+import { KycDataDto } from './dto/kyc-data.dto';
 
 @ApiTags('KYC')
 @Controller('kyc')
@@ -36,6 +38,34 @@ export class KycController {
   @ApiExcludeEndpoint()
   async triggerWebhook(@Body() dto: KycWebhookTriggerDto): Promise<void> {
     await this.kycService.triggerWebhook(dto.userDataId, dto.reason);
+  }
+
+  // --- KYC COMPANY Calls --- //
+  @Get('users')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
+  @ApiOkResponse({ type: KycDataDto, isArray: true })
+  async getAllKycData(@GetJwt() jwt: JwtPayload): Promise<KycDataDto[]> {
+    return this.kycService.getAllKycData(jwt.id);
+  }
+
+  @Get(':id/documents')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
+  @ApiOkResponse({ type: KycFileDto, isArray: true })
+  async getKycFiles(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<KycFileDto[]> {
+    return this.kycService.getKycFiles(id, jwt.id);
+  }
+
+  @Get(':id/documents/:type')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
+  async getKycFile(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Param('type') type: KycDocumentType,
+  ): Promise<any> {
+    return this.kycService.getKycFile(id, jwt.id, type);
   }
 
   // --- JWT Calls --- //

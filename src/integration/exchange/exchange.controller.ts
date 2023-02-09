@@ -25,6 +25,7 @@ import { BitpandaService } from './services/bitpanda.service';
 import { BitstampService } from './services/bitstamp.service';
 import { ExchangeService } from './services/exchange.service';
 import { KrakenService } from './services/kraken.service';
+import { KucoinService } from './services/kucoin.service';
 
 @ApiTags('exchange')
 @Controller('exchange')
@@ -36,6 +37,7 @@ export class ExchangeController {
     private readonly binanceService: BinanceService,
     private readonly bitstampService: BitstampService,
     private readonly bitpandaService: BitpandaService,
+    private readonly kucoinService: KucoinService,
   ) {}
 
   @Get(':exchange/balances')
@@ -97,7 +99,7 @@ export class ExchangeController {
     @Query('from') from: string,
     @Query('to') to: string,
   ): Promise<Order[]> {
-    return await this.getExchange(exchange).getOpenTrades(from.toUpperCase(), to.toUpperCase());
+    return await this.getExchange(exchange).getOpenTrades(from?.toUpperCase(), to?.toUpperCase());
   }
 
   @Get(':exchange/trade/history')
@@ -109,7 +111,7 @@ export class ExchangeController {
     @Query('from') from: string,
     @Query('to') to: string,
   ): Promise<Trade[]> {
-    return await this.getExchange(exchange).getTrades(from.toUpperCase(), to.toUpperCase());
+    return await this.getExchange(exchange).getTrades(from?.toUpperCase(), to?.toUpperCase());
   }
 
   @Get('trade/:id')
@@ -166,6 +168,8 @@ export class ExchangeController {
         return this.bitstampService;
       case 'bitpanda':
         return this.bitpandaService;
+      case 'kucoin':
+        return this.kucoinService;
       default:
         throw new BadRequestException(`No service for exchange '${exchange}'`);
     }
