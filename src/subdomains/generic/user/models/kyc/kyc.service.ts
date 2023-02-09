@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
@@ -305,14 +304,12 @@ export class KycService {
     return wallet.users.map((b) => this.toKycDataDto(b));
   }
 
-  async getKycFiles(address: string, walletId: number): Promise<KycFileDto[]> {
-    const wallet = await this.walletRepo.findOne({ where: { id: walletId } });
+  async getKycFiles(userAddress: string, walletId: number): Promise<KycFileDto[]> {
     const user = await this.userRepo.findOne({
-      where: { address, wallet: { id: walletId } },
+      where: { address: userAddress, wallet: { id: walletId } },
       relations: ['userData', 'wallet'],
     });
     if (!user) throw new NotFoundException('User not found');
-    if (user.wallet.id != wallet.id) throw new ForbiddenException('User not from wallet');
 
     const allDocuments = await this.spiderApiService.getDocumentInfos(user.userData.id, false);
 
@@ -322,14 +319,12 @@ export class KycService {
       .map(({ type, info }) => this.toKycFileDto(type, info));
   }
 
-  async getKycFile(address: string, walletId: number, kycDocumentType: KycDocumentType): Promise<any> {
-    const wallet = await this.walletRepo.findOne({ where: { id: walletId } });
+  async getKycFile(userAddress: string, walletId: number, kycDocumentType: KycDocumentType): Promise<any> {
     const user = await this.userRepo.findOne({
-      where: { address, wallet: { id: walletId } },
+      where: { address: userAddress, wallet: { id: walletId } },
       relations: ['userData', 'wallet'],
     });
     if (!user) throw new NotFoundException('User not found');
-    if (user.wallet.id != wallet.id) throw new ForbiddenException('User not from wallet');
 
     const allDocuments = await this.spiderApiService.getDocumentInfos(user.userData.id, false);
     const document = this.getDocumentInfoFor(kycDocumentType, allDocuments);

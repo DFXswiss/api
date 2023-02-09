@@ -40,7 +40,7 @@ export class KycController {
     await this.kycService.triggerWebhook(dto.userDataId, dto.reason);
   }
 
-  // --- KYC COMPANY Calls //
+  // --- KYC COMPANY Calls --- //
   @Get('users')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
@@ -50,7 +50,9 @@ export class KycController {
   }
 
   @Get(':id/documents')
-  @ApiOkResponse({ type: KycFileDto })
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
+  @ApiOkResponse({ type: KycFileDto, isArray: true })
   async getKycFiles(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<KycFileDto[]> {
     return this.kycService.getKycFiles(id, jwt.id);
   }
