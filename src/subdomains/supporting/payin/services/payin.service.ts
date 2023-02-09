@@ -170,7 +170,7 @@ export class PayInService {
         amlCheck: AmlCheck.PASS,
         asset: Not(IsNull()),
       },
-      relations: ['route'],
+      relations: ['route', 'asset'],
     });
 
     if (payIns.length === 0) return;
@@ -195,7 +195,7 @@ export class PayInService {
         returnTxId: IsNull(),
         asset: Not(IsNull()),
       },
-      relations: ['route'],
+      relations: ['route', 'asset'],
     });
 
     if (payIns.length === 0) return;
@@ -215,7 +215,7 @@ export class PayInService {
   private async retryPayIns(): Promise<void> {
     const payIns = await this.payInRepository.find({
       where: { status: PayInStatus.WAITING_FOR_PRICE_REFERENCE, asset: Not(IsNull()) },
-      relations: ['route'],
+      relations: ['route', 'asset'],
     });
 
     if (payIns.length === 0) return;
@@ -236,8 +236,9 @@ export class PayInService {
     const payIns = await this.payInRepository.find({
       where: {
         status: In([PayInStatus.FORWARDED, PayInStatus.RETURNED]),
+        isConfirmed: false,
       },
-      relations: ['route'],
+      relations: ['route', 'asset'],
     });
 
     if (payIns.length === 0) return;
