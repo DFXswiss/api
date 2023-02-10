@@ -84,7 +84,7 @@ export class CryptoInput extends IEntity {
   @Column({ length: 256, nullable: true })
   amlCheck: AmlCheck;
 
-  @Column({ nullable: true })
+  @Column({ length: 256, nullable: true })
   purpose: PayInPurpose;
 
   @ManyToOne(() => DepositRoute, { eager: true, nullable: true })
