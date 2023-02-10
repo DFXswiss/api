@@ -68,20 +68,13 @@ export class BuyFiatRegistrationService {
           buyFiat = BuyFiat.createFromPayIn(payIn, sellRoute);
         }
 
-        // ignore DeFiChain AccountToUtxos for sell
-        if (payIn.txType === 'AccountToUtxos') {
-          console.log('Ignoring AccountToUtxos DeFiChain input on sell route. Pay-in:', payIn);
-          await this.payInService.ignorePayIn(payIn, PayInPurpose.SELL_CRYPTO, sellRoute);
-          continue;
-        }
-
-        const amlCheck = await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.SELL_CRYPTO, sellRoute);
+        const amlCheck = await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_FIAT, sellRoute);
         buyFiat.addAmlCheck(amlCheck);
 
         await this.buyFiatRepo.save(buyFiat);
       } catch (e) {
         if (e instanceof SmallAmountException) {
-          await this.payInService.ignorePayIn(payIn, PayInPurpose.SELL_CRYPTO, sellRoute);
+          await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_FIAT, sellRoute);
 
           continue;
         }

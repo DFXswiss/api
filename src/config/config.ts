@@ -314,7 +314,7 @@ export class Configuration {
         },
         DeFiChain: {
           DFI: 0.01,
-          USD: 1, // token value in usdt
+          USDT: 0.4,
         },
       },
     },

@@ -1,3 +1,4 @@
+import { Lock } from 'src/shared/utils/lock';
 import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
 import { InWalletTransaction, UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
@@ -5,7 +6,6 @@ import { Config } from 'src/config/config';
 import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { RouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
@@ -25,9 +25,10 @@ export interface HistoryAmount {
 
 @Injectable()
 export class PayInDeFiChainService extends PayInJellyfishService {
+  private readonly convertTokensLock = new Lock(7200);
   private client: DeFiClient;
 
-  private readonly utxoTxTypes = ['receive', 'AccountToUtxos', 'blockReward'];
+  private readonly utxoTxTypes = ['receive', 'blockReward'];
   private readonly tokenTxTypes = [
     'AccountToAccount',
     'AnyAccountsToAccounts',
@@ -96,6 +97,8 @@ export class PayInDeFiChainService extends PayInJellyfishService {
 
   @Interval(900000)
   async convertTokens(): Promise<void> {
+    if (!this.convertTokensLock.acquire()) return;
+
     try {
       await this.client.checkSync();
 
@@ -130,9 +133,8 @@ export class PayInDeFiChainService extends PayInJellyfishService {
             }
 
             // check for min. deposit
-            // TODO: remove temporary DUSD pool fix
-            const usdtAmount = asset === 'DUSD' ? amount : await this.client.testCompositeSwap(asset, 'USDT', amount);
-            if (usdtAmount < Config.blockchain.default.minDeposit.DeFiChain.USD * 0.4) {
+            const usdtAmount = await this.client.testCompositeSwap(asset, 'USDT', amount);
+            if (usdtAmount < Config.blockchain.default.minDeposit.DeFiChain.USDT) {
               console.log('Retrieving small token:', token);
 
               await this.doTokenTx(
@@ -142,23 +144,6 @@ export class PayInDeFiChainService extends PayInJellyfishService {
                     utxo,
                   ]),
               );
-            } else {
-              const route = await this.getDepositRoute(token.owner);
-              if (route?.type === RouteType.STAKING) {
-                console.log('Doing token conversion:', token);
-
-                if (asset === 'DFI') {
-                  // to UTXO
-                  await this.doTokenTx(token.owner, async (utxo) =>
-                    this.client.toUtxo(token.owner, token.owner, amount, [utxo]),
-                  );
-                } else {
-                  // to DFI
-                  await this.doTokenTx(token.owner, async (utxo) =>
-                    this.client.compositeSwap(token.owner, asset, token.owner, 'DFI', amount, [utxo]),
-                  );
-                }
-              }
             }
           }
         } catch (e) {
@@ -167,6 +152,8 @@ export class PayInDeFiChainService extends PayInJellyfishService {
       }
     } catch (e) {
       console.error('Exception during token conversion:', e);
+    } finally {
+      this.convertTokensLock.release();
     }
   }
 

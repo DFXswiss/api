@@ -9,7 +9,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 
 export enum PayInPurpose {
   STAKING = 'Staking',
-  SELL_CRYPTO = 'SellCrypto',
+  BUY_FIAT = 'BuyFiat',
   BUY_CRYPTO = 'BuyCrypto',
 }
 
@@ -81,7 +81,7 @@ export class CryptoInput extends IEntity {
   @Column({ default: false })
   isConfirmed: boolean;
 
-  @Column({ length: 256, default: AmlCheck.FAIL })
+  @Column({ length: 256, nullable: true })
   amlCheck: AmlCheck;
 
   @Column({ nullable: true })
@@ -161,9 +161,15 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
-  triggerReturn(purpose: PayInPurpose, returnAddress: BlockchainAddress, route: DepositRoute): this {
+  triggerReturn(
+    purpose: PayInPurpose,
+    returnAddress: BlockchainAddress,
+    route: DepositRoute,
+    amlCheck: AmlCheck,
+  ): this {
     this.purpose = purpose;
     this.route = route;
+    this.amlCheck = amlCheck;
     this.status = PayInStatus.TO_RETURN;
     this.sendType = PayInSendType.RETURN;
     this.destinationAddress = returnAddress;

@@ -13,6 +13,11 @@ export class BuyCryptoInitSpecification {
     const { asset, btcAmount, usdtAmount } = cryptoInput;
 
     switch (asset.blockchain) {
+      case Blockchain.DEFICHAIN: {
+        if (usdtAmount < Config.blockchain.default.minDeposit.DeFiChain.USDT) this.throw(cryptoInput);
+        break;
+      }
+
       case Blockchain.BITCOIN: {
         if (btcAmount < Config.blockchain.default.minDeposit.Bitcoin.BTC) this.throw(cryptoInput);
         break;
