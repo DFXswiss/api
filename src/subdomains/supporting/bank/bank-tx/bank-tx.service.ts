@@ -15,7 +15,6 @@ import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { BankTxReturnService } from '../bank-tx-return/bank-tx-return.service';
 import { BankTxRepeatService } from '../bank-tx-repeat/bank-tx-repeat.service';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
-import { KeyType } from 'src/shared/utils/util';
 
 @Injectable()
 export class BankTxService {
@@ -98,7 +97,7 @@ export class BankTxService {
     return await this.bankTxRepo.save({ ...bankTx, ...dto });
   }
 
-  async getBankTxByParam(paramName: KeyType<BankTx, any>, param: BankTx[keyof BankTx]): Promise<BankTx> {
+  async getBankTxByKey(key: string, value: any): Promise<BankTx> {
     return this.bankTxRepo
       .createQueryBuilder('bankTx')
       .select('bankTx')
@@ -112,7 +111,7 @@ export class BankTxService {
       .leftJoinAndSelect('sellUser.userData', 'sellUserData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('sellUserData.users', 'sellUsers')
-      .where(`bankTx.${paramName} = :param`, { param: param })
+      .where(`bankTx.${key} = :param`, { param: value })
       .getOne();
   }
 

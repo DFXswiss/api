@@ -127,11 +127,15 @@ export class BuyService {
     return this.buyRepo.find({ user: { id: userId } });
   }
 
-  async getBuyByBankUsage(bankUsage: string): Promise<Buy> {
-    return this.buyRepo.findOne({
-      where: { bankUsage },
-      relations: ['user', 'user.userData', 'user.userData.users'],
-    });
+  async getBuyByKey(key: string, value: any): Promise<Buy> {
+    return this.buyRepo
+      .createQueryBuilder('buy')
+      .select('buy')
+      .leftJoinAndSelect('buy.user', 'user')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('userData.users', 'users')
+      .where(`buy.${key} = :param`, { param: value })
+      .getOne();
   }
 
   async updateBuy(userId: number, buyId: number, dto: UpdateBuyDto): Promise<Buy> {

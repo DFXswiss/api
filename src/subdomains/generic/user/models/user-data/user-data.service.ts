@@ -19,7 +19,7 @@ import { Config } from 'src/config/config';
 import { ReferenceType, SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
 import { UserRepository } from '../user/user.repository';
 import { SpiderApiService } from 'src/subdomains/generic/user/services/spider/spider-api.service';
-import { Util, KeyType } from 'src/shared/utils/util';
+import { Util } from 'src/shared/utils/util';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { KycProcessService } from '../kyc/kyc-process.service';
 import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
@@ -71,12 +71,12 @@ export class UserDataService {
     });
   }
 
-  async getUserDataByParam(paramName: KeyType<UserData, any>, param: UserData[keyof UserData]): Promise<UserData> {
+  async getUserDataByKey(key: string, value: any): Promise<UserData> {
     return this.userDataRepo
       .createQueryBuilder('userData')
       .select('userData')
       .leftJoinAndSelect('userData.users', 'users')
-      .where(`userData.${paramName} = :param`, { param: param })
+      .where(`userData.${key} = :param`, { param: value })
       .getOne();
   }
 

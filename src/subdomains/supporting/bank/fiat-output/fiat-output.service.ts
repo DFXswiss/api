@@ -38,10 +38,7 @@ export class FiatOutputService {
     return await this.fiatOutputRepo.save({ ...entity, ...dto });
   }
 
-  async getFiatOutputByParam(
-    paramName: KeyType<FiatOutput, any>,
-    param: FiatOutput[keyof FiatOutput],
-  ): Promise<FiatOutput> {
+  async getFiatOutputByKey(key: string, value: any): Promise<FiatOutput> {
     return this.fiatOutputRepo
       .createQueryBuilder('fiatOutput')
       .select('fiatOutput')
@@ -50,7 +47,7 @@ export class FiatOutputService {
       .leftJoinAndSelect('sell.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
-      .where(`fiatOutput.${paramName} = :param`, { param: param })
+      .where(`fiatOutput.${key} = :param`, { param: value })
       .getOne();
   }
 }

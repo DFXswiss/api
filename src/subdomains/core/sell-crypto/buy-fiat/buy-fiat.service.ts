@@ -5,7 +5,7 @@ import { CryptoInput } from '../../../../mix/models/crypto-input/crypto-input.en
 import { Sell } from '../sell/sell.entity';
 import { Between, In, IsNull } from 'typeorm';
 import { UpdateBuyFiatDto } from './dto/update-buy-fiat.dto';
-import { Util, KeyType } from 'src/shared/utils/util';
+import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { SellRepository } from '../sell/sell.repository';
 import { SellService } from '../sell/sell.service';
@@ -119,7 +119,7 @@ export class BuyFiatService {
     return entity;
   }
 
-  async getBuyFiatByParam(paramName: KeyType<BuyFiat, any>, param: BuyFiat[keyof BuyFiat]): Promise<BuyFiat> {
+  async getBuyFiatByKey(key: string, value: any): Promise<BuyFiat> {
     return this.buyFiatRepo
       .createQueryBuilder('buyFiat')
       .select('buyFiat')
@@ -127,7 +127,7 @@ export class BuyFiatService {
       .leftJoinAndSelect('sell.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
-      .where(`buyFiat.${paramName} = :param`, { param: param })
+      .where(`buyFiat.${key} = :param`, { param: value })
       .getOne();
   }
 

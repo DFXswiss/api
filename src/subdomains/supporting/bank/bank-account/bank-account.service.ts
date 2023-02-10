@@ -31,11 +31,14 @@ export class BankAccountService {
       .getMany();
   }
 
-  async getBankAccountByIban(iban: string): Promise<BankAccount> {
-    return await this.bankAccountRepo.findOne({
-      where: { iban },
-      relations: ['userData', 'userData.users'],
-    });
+  async getBankAccountByKey(key: string, value: any): Promise<BankAccount> {
+    return this.bankAccountRepo
+      .createQueryBuilder('bankAccount')
+      .select('bankAccount')
+      .leftJoinAndSelect('bankAccount.userData', 'userData')
+      .leftJoinAndSelect('userData.users', 'users')
+      .where(`bankAccount.${key} = :param`, { param: value })
+      .getOne();
   }
 
   async createBankAccount(userId: number, dto: CreateBankAccountDto): Promise<BankAccount> {

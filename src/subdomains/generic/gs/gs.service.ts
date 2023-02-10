@@ -20,6 +20,19 @@ import { UserService } from '../user/models/user/user.service';
 import { DbQueryBaseDto, DbQueryDto } from './dto/db-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 
+export enum SupportTable {
+  USER_DATA = 'userData',
+  USER = 'user',
+  BUY = 'buy',
+  SELL = 'sell',
+  BUY_CRYPTO = 'buyCrypto',
+  BUY_FIAT = 'buyFiat',
+  BANK_TX = 'bankTx',
+  BANK_ACCOUNT = 'bankAccount',
+  CRYPTO_INPUT = 'cryptoInput',
+  FIAT_OUTPUT = 'fiatOutput',
+}
+
 @Injectable()
 export class GsService {
   constructor(
@@ -101,78 +114,41 @@ export class GsService {
   //*** HELPER METHODS ***//
 
   private async getUserData(query: SupportDataQuery): Promise<UserData> {
-    if (query.userDataId) {
-      return await this.userDataService.getUserData(+query.userDataId);
-    } else if (query.userAddress) {
-      return await this.userService.getUserByAddress(query.userAddress).then((user) => user?.userData);
-    } else if (query.depositAddress) {
-      return await this.sellService.getSellByAddress(query.depositAddress).then((sell) => sell?.user.userData);
-    } else if (query.iban) {
-      return await this.bankAccountService.getBankAccountByIban(query.iban).then((bankAcc) => bankAcc?.userData);
-    } else if (query.ref) {
-      return await this.userService.getRefUser(query.ref).then((user) => user?.userData);
-    } else if (query.bankUsage) {
-      return await this.buyService.getBuyByBankUsage(query.bankUsage).then((buy) => buy?.user.userData);
-    } else if (query.kycFileId) {
-      return await this.userDataService.getUserDataByParam('kycFileId', query.kycFileId);
-    } else if (query.kycCustomerId) {
-      return await this.userDataService.getUserDataByParam('kycCustomerId', query.kycCustomerId);
-    } else if (query.kycHash) {
-      return await this.userDataService.getUserDataByParam('kycHash', query.kycHash);
-    } else if (query.mail) {
-      return await this.userDataService.getUserDataByParam('mail', query.mail);
-    } else if (query.buyCryptoId) {
-      return await this.buyCryptoService
-        .getBuyCryptoByParam('id', query.buyCryptoId)
-        .then((buyCrypto) => (buyCrypto?.buy ? buyCrypto?.buy.user.userData : buyCrypto?.cryptoRoute?.user.userData));
-    } else if (query.buyCryptoTxId) {
-      return await this.buyCryptoService
-        .getBuyCryptoByParam('txId', query.buyCryptoTxId)
-        .then((buyCrypto) => (buyCrypto?.buy ? buyCrypto?.buy.user.userData : buyCrypto?.cryptoRoute?.user.userData));
-    } else if (query.bankTxId) {
-      return await this.bankTxService
-        .getBankTxByParam('id', query.bankTxId)
-        .then((bankTx) =>
-          bankTx?.buyCrypto ? bankTx?.buyCrypto.buy.user.userData : bankTx?.buyFiat?.sell.user.userData,
-        );
-    } else if (query.bankTxEndToEndId) {
-      return await this.bankTxService
-        .getBankTxByParam('endToEndId', query.bankTxEndToEndId)
-        .then((bankTx) =>
-          bankTx?.buyCrypto ? bankTx?.buyCrypto.buy.user.userData : bankTx?.buyFiat?.sell.user.userData,
-        );
-    } else if (query.bankTxInstructionId) {
-      return await this.bankTxService
-        .getBankTxByParam('instructionId', query.bankTxInstructionId)
-        .then((bankTx) =>
-          bankTx?.buyCrypto ? bankTx?.buyCrypto.buy.user.userData : bankTx?.buyFiat?.sell.user.userData,
-        );
-    } else if (query.bankTxRemittanceInfo) {
-      return await this.bankTxService
-        .getBankTxByParam('remittanceInfo', query.bankTxRemittanceInfo)
-        .then((bankTx) =>
-          bankTx?.buyCrypto ? bankTx?.buyCrypto.buy.user.userData : bankTx?.buyFiat?.sell.user.userData,
-        );
-    } else if (query.cryptoInputId) {
-      return await this.cryptoInputService
-        .getCryptoInputByParam('id', query.cryptoInputId)
-        .then((cryptoInput) => cryptoInput?.route.user.userData);
-    } else if (query.cryptoInputInTxId) {
-      return await this.cryptoInputService
-        .getCryptoInputByParam('inTxId', query.cryptoInputInTxId)
-        .then((cryptoInput) => cryptoInput?.route.user.userData);
-    } else if (query.cryptoInputOutTxId) {
-      return await this.cryptoInputService
-        .getCryptoInputByParam('outTxId', query.cryptoInputOutTxId)
-        .then((cryptoInput) => cryptoInput?.route.user.userData);
-    } else if (query.fiatOutputId) {
-      return await this.fiatOutputService
-        .getFiatOutputByParam('id', query.fiatOutputId)
-        .then((fiatOutput) => fiatOutput?.buyFiat.sell.user.userData);
-    } else if (query.buyFiatId) {
-      return await this.buyFiatService
-        .getBuyFiatByParam('id', query.buyFiatId)
-        .then((buyFiat) => buyFiat?.sell.user.userData);
+    switch (query.table) {
+      case SupportTable.USER_DATA:
+        return await this.userDataService.getUserDataByKey(query.key, query.value);
+      case SupportTable.USER:
+        return await this.userService.getUserByKey(query.key, query.value).then((user) => user?.userData);
+      case SupportTable.BUY:
+        return await this.buyService.getBuyByKey(query.key, query.value).then((buy) => buy?.user.userData);
+      case SupportTable.SELL:
+        return await this.sellService.getSellByKey(query.key, query.value).then((sell) => sell?.user.userData);
+      case SupportTable.BUY_CRYPTO:
+        return await this.buyCryptoService
+          .getBuyCryptoByKey(query.key, query.value)
+          .then((buyCrypto) => (buyCrypto?.buy ? buyCrypto?.buy.user.userData : buyCrypto?.cryptoRoute?.user.userData));
+      case SupportTable.BUY_FIAT:
+        return await this.buyFiatService
+          .getBuyFiatByKey(query.key, query.value)
+          .then((buyFiat) => buyFiat?.sell.user.userData);
+      case SupportTable.BANK_ACCOUNT:
+        return await this.bankAccountService
+          .getBankAccountByKey(query.key, query.value)
+          .then((bankAcc) => bankAcc?.userData);
+      case SupportTable.BANK_TX:
+        return await this.bankTxService
+          .getBankTxByKey(query.key, query.value)
+          .then((bankTx) =>
+            bankTx?.buyCrypto ? bankTx?.buyCrypto.buy.user.userData : bankTx?.buyFiat?.sell.user.userData,
+          );
+      case SupportTable.CRYPTO_INPUT:
+        return await this.cryptoInputService
+          .getCryptoInputByKey(query.key, query.value)
+          .then((cryptoInput) => cryptoInput?.route.user.userData);
+      case SupportTable.FIAT_OUTPUT:
+        return await this.fiatOutputService
+          .getFiatOutputByKey(query.key, query.value)
+          .then((fiatOutput) => fiatOutput?.buyFiat.sell.user.userData);
     }
   }
 
