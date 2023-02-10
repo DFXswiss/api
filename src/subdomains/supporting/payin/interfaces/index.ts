@@ -5,6 +5,7 @@ export interface PayInEntry {
   address: BlockchainAddress;
   txId: string;
   txType: string;
+  txSequence?: number;
   blockHeight: number | null;
   amount: number;
   asset: Asset | null;
