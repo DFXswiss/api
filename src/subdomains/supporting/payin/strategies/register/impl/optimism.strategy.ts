@@ -43,7 +43,7 @@ export class OptimismStrategy extends EvmStrategy {
 
   async addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void> {
     const btc = await this.assetService.getAssetByQuery({
-      dexName: 'BTC',
+      dexName: 'WBTC',
       blockchain: Blockchain.ETHEREUM,
       type: AssetType.TOKEN,
     });
