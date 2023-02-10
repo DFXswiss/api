@@ -60,11 +60,12 @@ export class KycController {
   @Get(':id/documents/:type')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
+  @ApiOkResponse({ type: Buffer })
   async getKycFile(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
     @Param('type') type: KycDocumentType,
-  ): Promise<any> {
+  ): Promise<Buffer> {
     return this.kycService.getKycFile(id, jwt.id, type);
   }
 

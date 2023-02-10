@@ -1,4 +1,4 @@
-import { createDefaultBuy } from 'src/subdomains/core/buy-crypto/route/__mocks__/buy.entity.mock';
+import { createDefaultBuy } from 'src/subdomains/core/buy-crypto/routes/buy/__mocks__/buy.entity.mock';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AmlCheck } from '../../enums/aml-check.enum';
 import { BuyCrypto } from '../buy-crypto.entity';

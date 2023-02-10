@@ -1,9 +1,13 @@
+import { HttpService } from 'src/shared/services/http.service';
 import { EvmClient } from './evm-client';
 
 export abstract class EvmService {
   protected readonly client: EvmClient;
 
   constructor(
+    http: HttpService,
+    scanApiUrl: string,
+    scanApiKey: string,
     gatewayUrl: string,
     apiKey: string,
     walletAddress: string,
@@ -12,6 +16,9 @@ export abstract class EvmService {
     swapTokenAddress: string,
     client: {
       new (
+        http: HttpService,
+        scanApiUrl: string,
+        scanApiKey: string,
         gatewayUrl: string,
         privateKey: string,
         dfxAddress: string,
@@ -21,6 +28,9 @@ export abstract class EvmService {
     },
   ) {
     this.client = new client(
+      http,
+      scanApiUrl,
+      scanApiKey,
       `${gatewayUrl}/${apiKey ?? ''}`,
       walletPrivateKey,
       walletAddress,

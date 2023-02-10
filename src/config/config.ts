@@ -6,8 +6,12 @@ import * as path from 'path';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
 import { Asset, FeeTier } from 'src/shared/models/asset/asset.entity';
-import { MinDeposit } from 'src/mix/models/deposit/dto/min-deposit.dto';
+import { MinDeposit } from 'src/subdomains/supporting/address-pool/deposit/dto/min-deposit.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+
+export enum Process {
+  PAY_IN = 'PayIn',
+}
 
 export function GetConfig(): Configuration {
   return new Configuration();
@@ -310,11 +314,17 @@ export class Configuration {
         },
         DeFiChain: {
           DFI: 0.01,
-          USD: 1, // token value in usdt
+          USDT: 0.4,
         },
       },
     },
+    evm: {
+      encryptionKey: process.env.EVM_ENCRYPTION_KEY,
+      minimalPreparationFee: 0.00000001,
+    },
     ethereum: {
+      ethScanApiUrl: process.env.ETH_SCAN_API_URL,
+      ethScanApiKey: process.env.ETH_SCAN_API_KEY,
       ethWalletAddress: process.env.ETH_WALLET_ADDRESS,
       ethWalletPrivateKey: process.env.ETH_WALLET_PRIVATE_KEY,
       ethGatewayUrl: process.env.ETH_GATEWAY_URL,
@@ -323,6 +333,8 @@ export class Configuration {
       swapTokenAddress: process.env.ETH_SWAP_TOKEN_ADDRESS,
     },
     bsc: {
+      bscScanApiUrl: process.env.BSC_SCAN_API_URL,
+      bscScanApiKey: process.env.BSC_SCAN_API_KEY,
       bscWalletAddress: process.env.BSC_WALLET_ADDRESS,
       bscWalletPrivateKey: process.env.BSC_WALLET_PRIVATE_KEY,
       bscGatewayUrl: process.env.BSC_GATEWAY_URL,
@@ -330,6 +342,8 @@ export class Configuration {
       swapTokenAddress: process.env.BSC_SWAP_TOKEN_ADDRESS,
     },
     optimism: {
+      optimismScanApiUrl: process.env.OPTIMISM_SCAN_API_URL,
+      optimismScanApiKey: process.env.OPTIMISM_SCAN_API_KEY,
       optimismWalletAddress: process.env.OPTIMISM_WALLET_ADDRESS,
       optimismWalletPrivateKey: process.env.OPTIMISM_WALLET_PRIVATE_KEY,
       optimismGatewayUrl: process.env.OPTIMISM_GATEWAY_URL,
@@ -338,6 +352,8 @@ export class Configuration {
       swapTokenAddress: process.env.OPTIMISM_SWAP_TOKEN_ADDRESS,
     },
     arbitrum: {
+      arbitrumScanApiUrl: process.env.ARBITRUM_SCAN_API_URL,
+      arbitrumScanApiKey: process.env.ARBITRUM_SCAN_API_KEY,
       arbitrumWalletAddress: process.env.ARBITRUM_WALLET_ADDRESS,
       arbitrumWalletPrivateKey: process.env.ARBITRUM_WALLET_PRIVATE_KEY,
       arbitrumGatewayUrl: process.env.ARBITRUM_GATEWAY_URL,
@@ -489,6 +505,8 @@ export class Configuration {
     Object.entries(deposit)
       .filter(([key, _]) => filter?.includes(key) ?? true)
       .map(([key, value]) => ({ amount: value, asset: key }));
+
+  processDisabled = (processName: Process) => (process.env.DISABLED_PROCESSES?.split(',') ?? []).includes(processName);
 }
 
 @Injectable()

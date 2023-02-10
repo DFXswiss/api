@@ -329,7 +329,7 @@ export class KycService {
     const allDocuments = await this.spiderApiService.getDocumentInfos(user.userData.id, false);
     const document = this.getDocumentInfoFor(kycDocumentType, allDocuments);
 
-    return await this.spiderApiService.getDocument<any>(
+    return this.spiderApiService.getBinaryDocument(
       user.userData.id,
       false,
       document.document,
@@ -341,17 +341,14 @@ export class KycService {
   // --- HELPER METHODS --- //
   private toKycDataDto(user: User): KycDataDto {
     return {
-      address: user.address,
+      id: user.address,
       kycStatus: this.webhookService.getKycWebhookStatus(user.userData.kycStatus, user.userData.kycType),
       kycHash: user.userData.kycHash,
     };
   }
 
-  private toKycFileDto(type: KycDocumentType, info: DocumentInfo): KycFileDto {
-    return {
-      type: type,
-      contentType: info.contentType,
-    };
+  private toKycFileDto(type: KycDocumentType, { contentType }: DocumentInfo): KycFileDto {
+    return { type, contentType };
   }
 
   private getDocumentInfoFor(type: KycDocumentType, documents: DocumentInfo[]): DocumentInfo | undefined {

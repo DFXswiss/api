@@ -1,21 +1,17 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { CryptoInputType } from 'src/mix/models/crypto-input/crypto-input.entity';
-import { createCustomCryptoInput } from 'src/mix/models/crypto-input/__mocks__/crypto-input.entity.mock';
-import { CryptoRouteRepository } from 'src/mix/models/crypto-route/crypto-route.repository';
-import { CryptoRouteService } from 'src/mix/models/crypto-route/crypto-route.service';
-import { createCustomCryptoHistory } from 'src/mix/models/crypto-route/dto/__mocks__/crypto-history.dto.mock';
+import { CryptoRouteRepository } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.repository';
+import { CryptoRouteService } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.service';
+import { createCustomHistory } from 'src/subdomains/core/history/dto/__mocks__/history.dto.mock';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
-import { BuyFiatService } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fiat.service';
+import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxRepository } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.repository';
 import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
-import { BuyRepository } from '../../../route/buy.repository';
-import { BuyService } from '../../../route/buy.service';
-import { createCustomBuyHistory } from '../../../route/dto/__mocks__/buy-history.dto.mock';
+import { createCustomBuyHistory } from '../../../routes/buy/dto/__mocks__/buy-history.dto.mock';
 import { BuyCrypto } from '../../entities/buy-crypto.entity';
 import { createCustomBuyCrypto } from '../../entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
@@ -23,7 +19,11 @@ import { BuyCryptoBatchService } from '../buy-crypto-batch.service';
 import { BuyCryptoDexService } from '../buy-crypto-dex.service';
 import { BuyCryptoNotificationService } from '../buy-crypto-notification.service';
 import { BuyCryptoOutService } from '../buy-crypto-out.service';
+import { BuyCryptoRegistrationService } from '../buy-crypto-registration.service';
 import { BuyCryptoService } from '../buy-crypto.service';
+import { BuyRepository } from '../../../routes/buy/buy.repository';
+import { BuyService } from '../../../routes/buy/buy.service';
+import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 
 enum MockBuyData {
   DEFAULT,
@@ -48,6 +48,7 @@ describe('BuyCryptoService', () => {
   let buyCryptoBatchService: BuyCryptoBatchService;
   let buyCryptoOutService: BuyCryptoOutService;
   let buyCryptoDexService: BuyCryptoDexService;
+  let buyCryptoRegistrationService: BuyCryptoRegistrationService;
   let buyCryptoNotificationService: BuyCryptoNotificationService;
   let userService: UserService;
   let buyFiatService: BuyFiatService;
@@ -66,6 +67,7 @@ describe('BuyCryptoService', () => {
     buyCryptoOutService = createMock<BuyCryptoOutService>();
     buyCryptoDexService = createMock<BuyCryptoDexService>();
     buyCryptoNotificationService = createMock<BuyCryptoNotificationService>();
+    buyCryptoRegistrationService = createMock<BuyCryptoRegistrationService>();
     userService = createMock<UserService>();
     buyFiatService = createMock<BuyFiatService>();
     webhookService = createMock<WebhookService>();
@@ -86,6 +88,7 @@ describe('BuyCryptoService', () => {
         { provide: BuyCryptoOutService, useValue: buyCryptoOutService },
         { provide: BuyCryptoDexService, useValue: buyCryptoDexService },
         { provide: BuyCryptoNotificationService, useValue: buyCryptoNotificationService },
+        { provide: BuyCryptoRegistrationService, useValue: buyCryptoRegistrationService },
         { provide: UserService, useValue: userService },
         { provide: BuyFiatService, useValue: buyFiatService },
         { provide: WebhookService, useValue: webhookService },
@@ -147,9 +150,7 @@ describe('BuyCryptoService', () => {
           wantedData = [
             createCustomBuyCrypto({
               outputDate: date,
-              cryptoInput: createCustomCryptoInput({
-                type: CryptoInputType.BUY_CRYPTO,
-              }),
+              cryptoInput: createCustomCryptoInput({}),
               ...txCrypto,
               outputAsset: createCustomAsset({ dexName: 'BTC' }),
             }),
@@ -210,7 +211,7 @@ describe('BuyCryptoService', () => {
     setup(MockBuyData.CRYPTO_HISTORY, date);
 
     await expect(service.getCryptoHistory(1, 1)).resolves.toStrictEqual([
-      createCustomCryptoHistory({
+      createCustomHistory({
         date: date,
         ...txCrypto,
       }),
