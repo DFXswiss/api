@@ -102,6 +102,7 @@ export class CryptoInput extends IEntity {
     address: BlockchainAddress,
     txId: string,
     txType: string,
+    txSequence: number | null,
     blockHeight: number,
     amount: number,
     asset: Asset,
@@ -113,6 +114,7 @@ export class CryptoInput extends IEntity {
     payIn.address = address;
     payIn.inTxId = txId;
     payIn.txType = txType;
+    payIn.txSequence = txSequence;
     payIn.blockHeight = blockHeight;
     payIn.amount = amount;
     payIn.asset = asset;

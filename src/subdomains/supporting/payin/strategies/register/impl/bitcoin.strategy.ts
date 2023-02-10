@@ -144,6 +144,7 @@ export class BitcoinStrategy extends JellyfishStrategy {
         address: BlockchainAddress.create(u.address, Blockchain.BITCOIN),
         txId: u.txid,
         txType: null,
+        txSequence: u.vout,
         blockHeight: null,
         amount: u.amount.toNumber(),
         asset,
