@@ -67,11 +67,13 @@ export class PayInService {
     payInId: number,
     purpose: PayInPurpose,
     returnAddress: BlockchainAddress,
-    route: DepositRoute,
+    route: Staking | Sell | CryptoRoute,
   ): Promise<void> {
     const payIn = await this.payInRepository.findOne(payInId);
 
-    payIn.triggerReturn(purpose, returnAddress, route);
+    const amlCheck = await this.doAmlCheck(payIn, route);
+
+    payIn.triggerReturn(purpose, returnAddress, route, amlCheck);
 
     await this.payInRepository.save(payIn);
   }
@@ -193,6 +195,7 @@ export class PayInService {
         status: In([PayInStatus.TO_RETURN, PayInStatus.PREPARING, PayInStatus.PREPARED]),
         sendType: PayInSendType.RETURN,
         returnTxId: IsNull(),
+        amlCheck: AmlCheck.PASS,
         asset: Not(IsNull()),
       },
       relations: ['route', 'asset'],
@@ -235,7 +238,7 @@ export class PayInService {
   private async checkConfirmations(): Promise<void> {
     const payIns = await this.payInRepository.find({
       where: {
-        status: In([PayInStatus.FORWARDED, PayInStatus.RETURNED]),
+        status: In([PayInStatus.FORWARDED]),
         isConfirmed: false,
       },
       relations: ['route', 'asset'],

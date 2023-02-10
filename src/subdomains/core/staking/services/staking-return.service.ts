@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
@@ -25,7 +24,7 @@ export class StakingReturnService {
   private async filterStakingPayIns(allPayIns: CryptoInput[]): Promise<[CryptoInput, Staking][]> {
     const stakings = await this.stakingRepository.find({
       where: { deposit: Not(IsNull()) },
-      relations: ['deposit', 'user'],
+      relations: ['deposit', 'user', 'user.userData'],
     });
 
     return this.pairRoutesWithPayIns(stakings, allPayIns);
@@ -47,18 +46,6 @@ export class StakingReturnService {
 
   private async returnPayIns(payInsPairs: [CryptoInput, Staking][]): Promise<void> {
     for (const [payIn, staking] of payInsPairs) {
-      // only DFI coins for staking
-      if (payIn.asset.type !== AssetType.COIN) {
-        console.log(
-          `Ignoring non-DFI DeFiChain input (${payIn.amount} ${payIn.asset}) on staking route. History entry:`,
-          history,
-        );
-
-        await this.payInService.ignorePayIn(payIn, PayInPurpose.STAKING, staking);
-
-        return;
-      }
-
       await this.payInService.returnPayIn(
         payIn.id,
         PayInPurpose.STAKING,

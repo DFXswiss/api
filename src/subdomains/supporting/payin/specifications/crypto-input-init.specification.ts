@@ -4,16 +4,13 @@ import { CryptoInput } from '../entities/crypto-input.entity';
 
 export class CryptoInputInitSpecification {
   public static isSatisfiedBy(input: CryptoInput): boolean {
-    const { asset, amount, usdtAmount } = input;
+    const { asset, amount } = input;
 
     // min. deposit
     if (asset) {
       switch (asset.blockchain) {
         case Blockchain.DEFICHAIN: {
-          if (
-            (asset.dexName === 'DFI' && amount < Config.blockchain.default.minDeposit.DeFiChain.DFI) ||
-            (asset.dexName !== 'DFI' && usdtAmount < Config.blockchain.default.minDeposit.DeFiChain.USD * 0.4)
-          ) {
+          if (asset.dexName === 'DFI' && amount < Config.blockchain.default.minDeposit.DeFiChain.DFI) {
             throw new Error(`Ignoring too small DeFiChain input (${amount} ${asset.dexName})`);
           }
 

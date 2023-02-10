@@ -82,7 +82,7 @@ export abstract class RegisterStrategy {
     if (p == null) return null;
 
     if (p.asset && p.asset.category === AssetCategory.POOL_PAIR) {
-      console.log(`Ignoring pool-pair input (${p.amount} ${p.asset}). PayIn entry:`, p);
+      console.log(`Ignoring pool-pair input (${p.amount} ${p.asset.uniqueName}). PayIn entry:`, p);
       return null;
     }
 
@@ -93,7 +93,7 @@ export abstract class RegisterStrategy {
     if (p == null) return null;
 
     if (p.asset && !p.asset.sellable) {
-      console.log(`Ignoring unsellable input (${p.amount} ${p.asset}). PayIn entry:`, p);
+      console.log(`Ignoring unsellable input (${p.amount} ${p.asset.uniqueName}). PayIn entry:`, p);
       return null;
     }
 
