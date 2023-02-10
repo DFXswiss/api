@@ -7,13 +7,23 @@ import { BuyFiat } from '../buy-fiat.entity';
 export class BuyFiatInitSpecification {
   public static isSatisfiedBy(buyFiat: BuyFiat): boolean {
     const { cryptoInput } = buyFiat;
-    const { asset, btcAmount, usdtAmount } = cryptoInput;
+    const { asset, btcAmount, usdtAmount, amount } = cryptoInput;
 
     if (!cryptoInput) return true;
 
     switch (asset.blockchain) {
       case Blockchain.DEFICHAIN: {
-        if (usdtAmount < Config.blockchain.default.minDeposit.DeFiChain.USDT) this.throw(cryptoInput);
+        if (
+          /**
+           * @note
+           * duplicate check for DFI min amount left here on purpose, constraints in CryptoInputInitSpecification might change
+           */
+          (asset.dexName === 'DFI' && amount < Config.blockchain.default.minDeposit.DeFiChain.DFI) ||
+          (asset.dexName !== 'DFI' && usdtAmount < Config.blockchain.default.minDeposit.DeFiChain.USDT)
+        ) {
+          this.throw(cryptoInput);
+        }
+
         break;
       }
 
