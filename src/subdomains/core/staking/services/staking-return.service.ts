@@ -24,7 +24,7 @@ export class StakingReturnService {
   private async filterStakingPayIns(allPayIns: CryptoInput[]): Promise<[CryptoInput, Staking][]> {
     const stakings = await this.stakingRepository.find({
       where: { deposit: Not(IsNull()) },
-      relations: ['deposit', 'user'],
+      relations: ['deposit', 'user', 'user.userData'],
     });
 
     return this.pairRoutesWithPayIns(stakings, allPayIns);
