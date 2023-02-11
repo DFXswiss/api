@@ -1,14 +1,14 @@
-import { Sell } from 'src/subdomains/core/sell-crypto/sell/sell.entity';
+import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { Entity, Column, OneToMany, ManyToOne, Index } from 'typeorm';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { Staking } from '../../../../../mix/models/staking/staking.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
-import { StakingRefReward } from 'src/mix/models/staking-ref-reward/staking-ref-reward.entity';
-import { CryptoRoute } from 'src/mix/models/crypto-route/crypto-route.entity';
-import { Buy } from 'src/subdomains/core/buy-crypto/route/buy.entity';
+import { StakingRefReward } from 'src/subdomains/core/staking/entities/staking-ref-reward.entity';
+import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
+import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
+import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 
 export enum UserStatus {
   NA = 'NA',

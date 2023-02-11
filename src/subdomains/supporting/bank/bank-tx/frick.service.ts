@@ -146,19 +146,24 @@ export class FrickService {
   async getFrickTransactions(lastModificationTime: string): Promise<Partial<BankTx>[]> {
     if (!Config.bank.frick.credentials.key) return [];
 
-    const { transactions } = await this.getTransactions(new Date(lastModificationTime));
-    if (!transactions) return [];
+    let transactions: Transaction[];
+    try {
+      transactions = await this.getTransactions(new Date(lastModificationTime));
+      if (!transactions) return [];
 
-    // get additional information (required for ABA transactions)
-    for (const transaction of transactions) {
-      if (transaction.serviceType == ServiceType.SWIFT && transaction.orderId) {
-        const txDetail = await this.getTransaction(transaction.orderId);
-        transaction.creditor = { ...transaction.creditor, ...txDetail?.creditor };
-        transaction.debitor = { ...transaction.debitor, ...txDetail?.debitor };
+      // get additional information (required for ABA transactions)
+      for (const transaction of transactions) {
+        if (transaction.serviceType == ServiceType.SWIFT && transaction.orderId) {
+          const txDetail = await this.getTransaction(transaction.orderId);
+          transaction.creditor = { ...transaction.creditor, ...txDetail?.creditor };
+          transaction.debitor = { ...transaction.debitor, ...txDetail?.debitor };
+        }
       }
+      return transactions.map((t) => this.parseTransaction(t));
+    } catch (e) {
+      console.error('Failed to get Bank Frick transactions:', e, transactions);
+      return [];
     }
-
-    return transactions.map((t) => this.parseTransaction(t));
   }
 
   async getBalance(): Promise<Account[]> {
@@ -166,14 +171,15 @@ export class FrickService {
     return accounts;
   }
 
-  private async getTransactions(fromDate: Date, toDate: Date = new Date()): Promise<Transactions> {
+  private async getTransactions(fromDate: Date, toDate: Date = new Date()): Promise<Transaction[]> {
     const params = {
       fromDate: Util.isoDate(fromDate),
       toDate: Util.isoDate(toDate),
       maxResults: 2500,
       status: TransactionState.BOOKED,
     };
-    return await this.callApi<Transactions>(`transactions`, 'GET', params);
+    const transactions = await this.callApi<Transactions>(`transactions`, 'GET', params);
+    return transactions?.transactions;
   }
 
   private async getTransaction(orderId: number): Promise<undefined | Transaction> {
@@ -204,6 +210,7 @@ export class FrickService {
       txCurrency: tx.currency,
       chargeCurrency: tx.currency,
       ...this.getCustomerInformation(tx),
+      creditDebitIndicator: tx.amount > 0 ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT,
       remittanceInfo: tx.reference,
       type: tx.type === TransactionType.INTERNAL ? BankTxType.INTERNAL : null,
       accountIban: tx.direction == TransactionDirection.OUTGOING ? tx.debitor.iban : tx.creditor.iban,
@@ -227,7 +234,6 @@ export class FrickService {
   private getCustomerInformation(tx: Transaction): {
     name?: string;
     addressLine1?: string;
-    creditDebitIndicator: BankTxIndicator;
     iban: string;
     aba: string;
     country: string;
@@ -237,13 +243,12 @@ export class FrickService {
     bic: string;
   } {
     const account = tx.direction == TransactionDirection.OUTGOING ? tx.creditor : tx.debitor;
-
+    if (!account) return undefined;
     return {
       aba: account.aba,
       addressLine1: account.address,
       bankName: account.creditInstitution,
       bic: account.bic,
-      creditDebitIndicator: tx.amount > 0 ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT,
       country: account.country,
       city: account.city,
       iban: account.iban,

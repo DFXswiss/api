@@ -1,38 +1,39 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { CreateUserDto } from 'src/subdomains/generic/user/models/user/dto/create-user.dto';
 import { AuthService } from './auth.service';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { RealIP } from 'nestjs-real-ip';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { SignMessageDto } from './dto/sign-message.dto';
+import { AuthResponseDto } from './dto/auth-response.dto';
+import { ChallengeDto } from './dto/challenge.dto';
 
-@ApiTags('auth')
+@ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('signUp')
-  signUp(@Body() dto: CreateUserDto, @RealIP() ip: string): Promise<{ accessToken: string }> {
+  @ApiCreatedResponse({ type: AuthResponseDto })
+  signUp(@Body() dto: CreateUserDto, @RealIP() ip: string): Promise<AuthResponseDto> {
     return this.authService.signUp(dto, ip);
   }
 
   @Post('signIn')
-  signIn(@Body() credentials: AuthCredentialsDto): Promise<{ accessToken: string }> {
+  @ApiCreatedResponse({ type: AuthResponseDto })
+  signIn(@Body() credentials: AuthCredentialsDto): Promise<AuthResponseDto> {
     return this.authService.signIn(credentials);
   }
 
   @Get('signMessage')
-  getSignMessage(@Query('address') address: string): { message: string; blockchains: Blockchain[] } {
+  @ApiOkResponse({ type: SignMessageDto })
+  getSignMessage(@Query('address') address: string): SignMessageDto {
     return this.authService.getSignInfo(address);
   }
 
-  @Post('company/signIn')
-  signInCompany(@Body() credentials: AuthCredentialsDto): Promise<{ accessToken: string }> {
-    return this.authService.companySignIn(credentials);
-  }
-
-  @Post('company/challenge')
-  companyChallenge(@Query('address') address: string): Promise<{ challenge: string }> {
+  @Get('challenge')
+  @ApiCreatedResponse({ type: ChallengeDto })
+  companyChallenge(@Query('address') address: string): Promise<ChallengeDto> {
     return this.authService.getCompanyChallenge(address);
   }
 }

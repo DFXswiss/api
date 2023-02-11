@@ -1,15 +1,19 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { HttpService } from 'src/shared/services/http.service';
 import { EvmClient } from '../shared/evm/evm-client';
 
 export class ArbitrumClient extends EvmClient {
   constructor(
+    http: HttpService,
+    scanApiUrl: string,
+    scanApiKey: string,
     gatewayUrl: string,
     privateKey: string,
     dfxAddress: string,
     swapContractAddress: string,
     swapTokenAddress: string,
   ) {
-    super(gatewayUrl, privateKey, dfxAddress, swapContractAddress, swapTokenAddress);
+    super(http, scanApiUrl, scanApiKey, gatewayUrl, privateKey, dfxAddress, swapContractAddress, swapTokenAddress);
   }
 
   /**

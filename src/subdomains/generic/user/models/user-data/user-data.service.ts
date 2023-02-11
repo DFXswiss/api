@@ -142,7 +142,8 @@ export class UserDataService {
       this.countryService.getCountry(data.organizationCountry?.id ?? user.organizationCountry?.id),
     ]);
     if (!country || (!isPersonalAccount && !organizationCountry)) throw new BadRequestException('Country not found');
-    if (!country.isEnabled(user.kycType)) throw new BadRequestException(`Country not allowed for ${user.kycType}`);
+    if (!country.isEnabled(user.kycType) || (!isPersonalAccount && !organizationCountry.isEnabled(user.kycType)))
+      throw new BadRequestException(`Country not allowed for ${user.kycType}`);
 
     if (isPersonalAccount) {
       data.organizationName = null;

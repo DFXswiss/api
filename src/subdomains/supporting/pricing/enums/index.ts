@@ -1,6 +1,7 @@
 export enum PriceRequestContext {
   BUY_CRYPTO = 'BuyCrypto',
   STAKING_REWARD = 'StakingReward',
+  PAY_IN = 'PayIn',
 }
 
 export enum Fiat {
@@ -14,6 +15,11 @@ export enum USDStableCoin {
   USDC = 'USDC',
   USDT = 'USDT',
   BUSD = 'BUSD',
+}
+
+export enum Bitcoin {
+  BTC = 'BTC',
+  BTCB = 'BTCB',
 }
 
 export enum Altcoin {

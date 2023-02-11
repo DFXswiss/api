@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import { TransformFnParams } from 'class-transformer';
 import { BinaryLike, createHash, createSign, KeyLike } from 'crypto';
 import { XMLValidator, XMLParser } from 'fast-xml-parser';
@@ -86,6 +87,27 @@ export class Util {
 
   static isoDate(date: Date): string {
     return date.toISOString().split('T')[0];
+  }
+
+  // --- ENCRYPTION --- //
+
+  static encrypt(input: string, key: string): string {
+    const cipher = crypto.createCipheriv('aes-256-cbc', crypto.scryptSync(key, 'GfG', 32), Buffer.alloc(16, 0));
+
+    let encrypted = cipher.update(input);
+    encrypted = Buffer.concat([encrypted, cipher.final()]);
+
+    return encrypted.toString('hex');
+  }
+
+  static decrypt(input: string, key: string): string {
+    const encryptedText = Buffer.from(input, 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-cbc', crypto.scryptSync(key, 'GfG', 32), Buffer.alloc(16, 0));
+
+    let decrypted = decipher.update(encryptedText);
+    decrypted = Buffer.concat([decrypted, decipher.final()]);
+
+    return decrypted.toString();
   }
 
   // --- MISC --- //

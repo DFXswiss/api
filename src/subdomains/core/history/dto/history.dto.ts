@@ -23,6 +23,9 @@ export class HistoryDto {
   @ApiPropertyOptional()
   txId: string;
 
+  @ApiPropertyOptional()
+  txUrl: string;
+
   @ApiProperty()
   date: Date;
 

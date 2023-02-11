@@ -1,6 +1,6 @@
 import { Controller, UseGuards, Post, Put, Param, Body, Get } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -11,7 +11,7 @@ import { BankAccountDto } from './dto/bank-account.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
 
-@ApiTags('bankAccount')
+@ApiTags('BankAccount')
 @Controller('bankAccount')
 export class BankAccountController {
   constructor(private readonly bankAccountService: BankAccountService) {}
@@ -19,7 +19,7 @@ export class BankAccountController {
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiResponse({ status: 200, type: BankAccountDto, isArray: true })
+  @ApiOkResponse({ type: BankAccountDto, isArray: true })
   async getAllUserBankAccount(@GetJwt() jwt: JwtPayload): Promise<BankAccountDto[]> {
     return this.bankAccountService.getUserBankAccounts(jwt.id).then((l) => this.toDtoList(l));
   }
@@ -27,7 +27,7 @@ export class BankAccountController {
   @Post()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiResponse({ status: 201, type: BankAccountDto })
+  @ApiCreatedResponse({ type: BankAccountDto })
   async createBankAccount(
     @GetJwt() jwt: JwtPayload,
     @Body() createBankAccountDto: CreateBankAccountDto,
@@ -38,7 +38,7 @@ export class BankAccountController {
   @Put(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiResponse({ status: 200, type: BankAccountDto })
+  @ApiOkResponse({ type: BankAccountDto })
   async updateBankAccount(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
@@ -59,6 +59,7 @@ export class BankAccountController {
       label: bankAccount.label,
       preferredCurrency: bankAccount.preferredCurrency,
       sepaInstant: bankAccount.sctInst ?? false,
+      active: bankAccount.active,
     };
   }
 }

@@ -1,12 +1,17 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Entity, OneToOne, Column } from 'typeorm';
-import { BuyFiat } from '../../../core/sell-crypto/buy-fiat/buy-fiat.entity';
+import { Entity, OneToOne, Column, JoinColumn } from 'typeorm';
+import { BuyFiat } from '../../../core/sell-crypto/process/buy-fiat.entity';
+import { BankTx } from '../bank-tx/bank-tx.entity';
 import { TransactionCharge } from '../bank-tx/frick.service';
 
 @Entity()
 export class FiatOutput extends IEntity {
   @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.fiatOutput, { nullable: true })
   buyFiat?: BuyFiat;
+
+  @OneToOne(() => BankTx, { nullable: true })
+  @JoinColumn()
+  bankTx: BankTx;
 
   @Column({ length: 256, nullable: false })
   type: string;
@@ -20,7 +25,7 @@ export class FiatOutput extends IEntity {
   @Column({ type: 'integer', nullable: true })
   batchId?: number;
 
-  @Column({ type: 'integer', nullable: true })
+  @Column({ type: 'float', nullable: true })
   batchAmount?: number;
 
   @Column({ length: 256, nullable: true })
@@ -92,12 +97,12 @@ export class FiatOutput extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   isApprovedDate?: Date;
 
+  @Column({ default: false })
+  isComplete?: boolean;
+
   @Column({ length: 256, nullable: true })
   info?: string;
 
   @Column({ type: 'datetime2', nullable: true })
   outputDate?: Date;
-
-  @Column({ type: 'integer', nullable: true })
-  bankTxId?: number;
 }

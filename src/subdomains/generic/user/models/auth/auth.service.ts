@@ -24,6 +24,7 @@ import { Util } from 'src/shared/utils/util';
 import { Interval } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
+import { ChallengeDto } from './dto/challenge.dto';
 
 export interface ChallengeData {
   created: Date;
@@ -71,21 +72,25 @@ export class AuthService {
     return { accessToken: this.generateUserToken(user) };
   }
 
-  async signIn({ address, signature, key }: AuthCredentialsDto): Promise<{ accessToken: string }> {
-    const user = await this.userRepo.getByAddress(address);
+  async signIn(dto: AuthCredentialsDto): Promise<{ accessToken: string }> {
+    const isCompany = this.hasChallenge(dto.address);
+    if (isCompany) return this.companySignIn(dto);
+
+    const user = await this.userRepo.getByAddress(dto.address);
     if (!user) throw new NotFoundException('User not found');
 
-    if (!this.verifySignature(address, signature, key)) throw new UnauthorizedException('Invalid credentials');
+    if (!this.verifySignature(dto.address, dto.signature, dto.key))
+      throw new UnauthorizedException('Invalid credentials');
 
     // TODO: temporary code to update old wallet signatures
-    if (user.signature.length !== 88 && key === undefined) {
-      await this.userRepo.update({ id: user.id }, { signature: signature });
+    if (user.signature.length !== 88 && dto.key === undefined) {
+      await this.userRepo.update({ id: user.id }, { signature: dto.signature });
     }
 
     return { accessToken: this.generateUserToken(user) };
   }
 
-  async companySignIn(dto: AuthCredentialsDto): Promise<{ accessToken: string }> {
+  private async companySignIn(dto: AuthCredentialsDto): Promise<{ accessToken: string }> {
     const wallet = await this.walletRepo.findOne({ where: { address: dto.address } });
     if (!wallet || !wallet.isKycClient) throw new NotFoundException('Wallet not found');
 
@@ -95,7 +100,7 @@ export class AuthService {
     return { accessToken: this.generateCompanyToken(wallet) };
   }
 
-  async getCompanyChallenge(address: string): Promise<{ challenge: string }> {
+  async getCompanyChallenge(address: string): Promise<ChallengeDto> {
     const wallet = await this.walletRepo.findOne({ where: { address: address } });
     if (!wallet || !wallet.isKycClient) throw new BadRequestException('Wallet not found/invalid');
 
@@ -157,6 +162,10 @@ export class AuthService {
     this.challengeList.delete(address);
 
     return this.cryptoService.verifySignature(challengeData.challenge, address, signature, key);
+  }
+
+  private hasChallenge(address: string): boolean {
+    return this.challengeList.has(address);
   }
 
   private generateUserToken(user: User): string {

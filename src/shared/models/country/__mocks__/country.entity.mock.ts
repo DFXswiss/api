@@ -5,6 +5,7 @@ const defaultCountry: Partial<Country> = {
   symbol: 'DE',
   name: 'Germany',
   dfxEnable: true,
+  lockEnable: true,
   ipEnable: true,
   maerkiBaumannEnable: true,
   updated: undefined,

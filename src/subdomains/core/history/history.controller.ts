@@ -10,7 +10,7 @@ import {
   Headers,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -18,7 +18,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { BuyFiatService } from '../sell-crypto/buy-fiat/buy-fiat.service';
+import { BuyFiatService } from '../sell-crypto/process/buy-fiat.service';
 import { HistoryTransactionType, HistoryDto, TypedHistoryDto } from './dto/history.dto';
 import { HistoryQuery } from './dto/history-query.dto';
 import { CoinTrackingHistoryDto } from './dto/coin-tracking-history.dto';
@@ -26,7 +26,7 @@ import { HistoryService } from './history.service';
 import { BuyCryptoService } from '../buy-crypto/process/services/buy-crypto.service';
 import { Response } from 'express';
 
-@ApiTags('history')
+@ApiTags('History')
 @Controller('history')
 export class HistoryController {
   private files: { [key: number]: StreamableFile } = {};
@@ -42,7 +42,7 @@ export class HistoryController {
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiResponse({ status: 200, type: TypedHistoryDto, isArray: true })
+  @ApiOkResponse({ type: TypedHistoryDto, isArray: true })
   async getHistory(@GetJwt() jwt: JwtPayload): Promise<TypedHistoryDto[]> {
     return [
       await this.buyCryptoService.getBuyHistory(jwt.id).then(this.addType(HistoryTransactionType.BUY)),
@@ -54,7 +54,7 @@ export class HistoryController {
   }
 
   @Get('CT')
-  @ApiResponse({ status: 200, type: CoinTrackingHistoryDto, isArray: true })
+  @ApiOkResponse({ type: CoinTrackingHistoryDto, isArray: true })
   async getCoinTrackingApiHistory(
     @Query() query: HistoryQuery,
     @Headers('DFX-ACCESS-KEY') key: string,
@@ -73,6 +73,7 @@ export class HistoryController {
   @Post('csv')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiCreatedResponse()
   async createCsv(@GetJwt() jwt: JwtPayload, @Query() query: HistoryQuery): Promise<number> {
     const csvFile = await this.historyService.getHistoryCsv(jwt.id, jwt.address, query);
     const fileKey = Util.randomId();
@@ -83,6 +84,7 @@ export class HistoryController {
 
   @Get('csv')
   @ApiBearerAuth()
+  @ApiOkResponse({ type: StreamableFile })
   async getCsv(@Query('key') key: string, @Res({ passthrough: true }) res: Response): Promise<StreamableFile> {
     const csvFile = this.files[+key];
     if (!csvFile) throw new NotFoundException('File not found');

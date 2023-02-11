@@ -16,14 +16,14 @@ export class UpdateUserDto {
   @IsString()
   phone?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: EntityDto })
   @IsOptional()
   @IsObject()
   @ValidateNested()
   @Type(() => EntityDto)
   language?: Language;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: EntityDto })
   @IsOptional()
   @IsObject()
   @ValidateNested()

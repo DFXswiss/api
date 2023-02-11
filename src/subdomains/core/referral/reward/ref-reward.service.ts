@@ -6,6 +6,7 @@ import { RefReward } from './ref-reward.entity';
 import { UpdateRefRewardDto } from './dto/update-ref-reward.dto';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { Util } from 'src/shared/utils/util';
+import { TransactionDetailsDto } from '../../statistic/dto/statistic.dto';
 
 @Injectable()
 export class RefRewardService {
@@ -102,10 +103,7 @@ export class RefRewardService {
     }
   }
 
-  async getTransactions(
-    dateFrom: Date = new Date(0),
-    dateTo: Date = new Date(),
-  ): Promise<{ fiatAmount: number; fiatCurrency: string; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
+  async getTransactions(dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<TransactionDetailsDto[]> {
     const refRewards = await this.rewardRepo.find({
       where: { outputDate: Between(dateFrom, dateTo) },
     });

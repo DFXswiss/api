@@ -16,11 +16,9 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { WalletService } from '../wallet/wallet.service';
 import { Between, Like, Not } from 'typeorm';
 import { AccountType } from '../user-data/account-type.enum';
-import { CfpSettings } from 'src/subdomains/core/statistic/cfp.service';
-import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfiTaxService } from 'src/integration/blockchain/ain/services/dfi-tax.service';
 import { Config } from 'src/config/config';
-import { ApiKey } from './dto/api-key.dto';
+import { ApiKeyDto } from './dto/api-key.dto';
 import { KycService } from '../kyc/kyc.service';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
@@ -43,7 +41,6 @@ export class UserService {
     private readonly userDataService: UserDataService,
     private readonly kycService: KycService,
     private readonly walletService: WalletService,
-    private readonly settingService: SettingService,
     private readonly dfiTaxService: DfiTaxService,
     private readonly apiKeyService: ApiKeyService,
     private readonly geoLocationService: GeoLocationService,
@@ -400,7 +397,7 @@ export class UserService {
   }
 
   // --- API KEY --- //
-  async createApiKey(userId: number, filter: HistoryFilter): Promise<ApiKey> {
+  async createApiKey(userId: number, filter: HistoryFilter): Promise<ApiKeyDto> {
     const user = await this.userRepo.findOne(userId);
     if (!user) throw new BadRequestException('User not found');
     if (user.apiKeyCT) throw new ConflictException('API key already exists');
@@ -484,13 +481,5 @@ export class UserService {
     return this.userRepo
       .findOne({ id }, { select: ['id', 'cfpVotes'] })
       .then((u) => (u.cfpVotes ? JSON.parse(u.cfpVotes) : {}));
-  }
-
-  async updateCfpVotes(id: number, votes: CfpVotes): Promise<CfpVotes> {
-    const isVotingOpen = await this.settingService.getObj<CfpSettings>('cfp').then((s) => s.votingOpen);
-    if (!isVotingOpen) throw new BadRequestException('Voting is currently not allowed');
-
-    await this.userRepo.update(id, { cfpVotes: JSON.stringify(votes) });
-    return votes;
   }
 }

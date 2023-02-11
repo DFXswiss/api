@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { WalletRepository } from 'src/subdomains/generic/user/models/wallet/wallet.repository';
-import { User } from '../user/user.entity';
 import { Wallet } from './wallet.entity';
 
 @Injectable()
@@ -14,14 +13,6 @@ export class WalletService {
 
   async getAllExternalServices(): Promise<Wallet[]> {
     return await this.walletRepo.find({ where: { isKycClient: true } });
-  }
-
-  async getAllKycData(walletId: number): Promise<User[]> {
-    const wallet = await this.walletRepo.findOne({
-      where: { id: walletId },
-      relations: ['users', 'users.userData'],
-    });
-    return wallet.users;
   }
 
   public getApiKeyInternal(name: string): string {

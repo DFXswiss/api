@@ -53,12 +53,18 @@ export class OlkypayService {
   async getOlkyTransactions(lastModificationTime: string): Promise<Partial<BankTx>[]> {
     if (!Config.bank.olkypay.credentials.clientId) return [];
 
-    const transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1));
-    if (!transactions) return [];
+    let transactions: Transaction[];
+    try {
+      transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1));
+      if (!transactions) return [];
 
-    const bank = await this.bankService.getBankInternal(BankName.OLKY, 'EUR');
+      const bank = await this.bankService.getBankInternal(BankName.OLKY, 'EUR');
 
-    return transactions.map((t) => this.parseTransaction(t, bank));
+      return transactions.map((t) => this.parseTransaction(t, bank));
+    } catch (e) {
+      console.error('Failed to get Bank Olky transactions:', e, transactions);
+      return [];
+    }
   }
 
   private async getTransactions(fromDate: Date, toDate: Date = new Date()): Promise<Transaction[]> {
@@ -118,7 +124,7 @@ export class OlkypayService {
     switch (tx.codeInterbancaireInterne) {
       case TransactionType.SENT:
         return {
-          name: tx.line1.split('Virement Inst Client : ')[1],
+          name: tx.line1.split('Virement Inst Client : ')[1] ?? tx.line1.split('Virement SEPA Client : ')[1],
         };
       case TransactionType.RECEIVED:
         return {

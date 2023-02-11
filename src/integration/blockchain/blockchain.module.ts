@@ -7,8 +7,6 @@ import { OptimismModule } from './optimism/optimism.module';
 
 @Module({
   imports: [AinModule, BscModule, EthereumModule, OptimismModule, ArbitrumModule],
-  controllers: [],
-  providers: [],
   exports: [AinModule, BscModule, EthereumModule, OptimismModule, ArbitrumModule],
 })
 export class BlockchainModule {}

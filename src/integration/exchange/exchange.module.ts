@@ -7,7 +7,7 @@ import { Module } from '@nestjs/common';
 import { SharedModule } from 'src/shared/shared.module';
 import { CurrencyService } from './services/currency.service';
 import { FixerService } from './services/fixer.service';
-import { FtxService } from './services/ftx.service';
+import { KucoinService } from './services/kucoin.service';
 import { ConversionService } from './services/conversion.service';
 
 @Module({
@@ -18,7 +18,7 @@ import { ConversionService } from './services/conversion.service';
     BinanceService,
     BitstampService,
     BitpandaService,
-    FtxService,
+    KucoinService,
     FixerService,
     CurrencyService,
     ConversionService,
@@ -28,7 +28,7 @@ import { ConversionService } from './services/conversion.service';
     BinanceService,
     BitstampService,
     BitpandaService,
-    FtxService,
+    KucoinService,
     FixerService,
     CurrencyService,
     ConversionService,

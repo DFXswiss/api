@@ -74,6 +74,9 @@
     "utxoSpenderAddress": {
       "value": "xxx"
     },
+    "evmEncryptionKey": {
+      "value": "xxx"
+    },
     "ethWalletAddress": {
       "value": "xxx"
     },
@@ -91,6 +94,12 @@
     },
     "ethSwapTokenAddress": {
       "value": "0xb4fbf271143f4fbf7b91a5ded31805e42b2208d6"
+    },
+    "ethScanApiUrl": {
+      "value": "https://api-goerli.etherscan.io/api"
+    },
+    "ethScanApiKey": {
+      "value": "xxx"
     },
     "optimismWalletAddress": {
       "value": "xxx"
@@ -110,6 +119,12 @@
     "optimismSwapTokenAddress": {
       "value": ""
     },
+    "optimismScanApiUrl": {
+      "value": "https://api-goerli-optimistic.etherscan.io/api"
+    },
+    "optimismScanApiKey": {
+      "value": "xxx"
+    },
     "arbitrumWalletAddress": {
       "value": "xxx"
     },
@@ -128,6 +143,12 @@
     "arbitrumSwapTokenAddress": {
       "value": ""
     },
+    "arbitrumScanApiUrl": {
+      "value": "https://api-goerli.arbiscan.io/api"
+    },
+    "arbitrumScanApiKey": {
+      "value": "xxx"
+    },
     "bscWalletAddress": {
       "value": "xxx"
     },
@@ -143,7 +164,10 @@
     "bscSwapTokenAddress": {
       "value": "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd"
     },
-    "btcCollectorAddress": {
+    "bscScanApiUrl": {
+      "value": "https://api-testnet.bscscan.com/api"
+    },
+    "bscScanApiKey": {
       "value": "xxx"
     },
     "btcOutWalletAddress": {
@@ -264,6 +288,9 @@
       "value": "xxx"
     },
     "azureClientSecret": {
+      "value": "xxx"
+    },
+    "taliumApiKey": {
       "value": "xxx"
     }
   }

@@ -1,8 +1,47 @@
 import { AccountHistory, AccountResult, UTXO as SpendUTXO } from '@defichain/jellyfish-api-core/dist/category/account';
+import { ProposalStatus, ProposalType } from '@defichain/jellyfish-api-core/dist/category/governance';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import BigNumber from 'bignumber.js';
 import { HttpService } from 'src/shared/services/http.service';
 import { NodeClient, NodeCommand, NodeMode } from './node-client';
+
+export interface Proposal {
+  proposalId: string;
+  title: string;
+  context: string;
+  contextHash: string;
+  creationHeight: number;
+  status: ProposalStatus;
+  type: ProposalType;
+  amount: number;
+  payoutAddress: string;
+  currentCycle: number;
+  totalCycles: number;
+  cycleEndHeight: number;
+  proposalEndHeight: number;
+  votingPeriod: number;
+  quorum: string;
+  votesPossible: number;
+  votesPresent: number;
+  votesPresentPct: string;
+  votesYes: number;
+  votesYesPct: string;
+  approvalThreshold: string;
+  fee: number;
+}
+
+enum VoteResult {
+  YES = 'YES',
+  NO = 'NO',
+  NEUTRAL = 'NEUTRAL',
+}
+
+export interface ProposalVote {
+  proposalId: string;
+  masternodeId: string;
+  cycle: number;
+  vote: VoteResult;
+}
 
 export class DeFiClient extends NodeClient {
   constructor(http: HttpService, url: string, scheduler: SchedulerRegistry, mode: NodeMode) {
@@ -10,19 +49,13 @@ export class DeFiClient extends NodeClient {
   }
 
   // common
-  async getHistories(addresses: string[], fromBlock: number, toBlock: number): Promise<AccountHistory[]> {
-    let results = [];
-    for (const address of addresses) {
-      results = results.concat(await this.getHistory(address, fromBlock, toBlock));
-    }
-    return results;
-  }
-
-  private async getHistory(address: string, fromBlock: number, toBlock: number): Promise<AccountHistory[]> {
+  async getHistory(fromBlock: number, toBlock: number, address?: string): Promise<AccountHistory[]> {
     return this.callNode((c) =>
       c.account.listAccountHistory(address, {
         depth: toBlock - fromBlock,
         maxBlockHeight: toBlock,
+        no_rewards: true,
+        limit: 1000000,
       }),
     );
   }
@@ -163,5 +196,22 @@ export class DeFiClient extends NodeClient {
 
   async removePoolLiquidity(address: string, amount: string, utxos?: SpendUTXO[]): Promise<string> {
     return this.callNode((c) => c.poolpair.removePoolLiquidity(address, amount, { utxos }), true);
+  }
+
+  //Voting
+
+  async listProposal(): Promise<Proposal[]> {
+    return this.callNode((c) => c.call('listgovproposals', ['all', 'all', 0, { limit: 1000000 }], 'number'), true);
+  }
+
+  async getProposal(proposalId: string): Promise<Proposal> {
+    return this.callNode((c) => c.call('getgovproposal', [proposalId], 'number'), true);
+  }
+
+  async listVotes(proposalId: string): Promise<ProposalVote[]> {
+    return this.callNode(
+      (c) => c.call('listgovproposalvotes', [proposalId, 'all', 0, { limit: 1000000 }], 'number'),
+      true,
+    );
   }
 }
