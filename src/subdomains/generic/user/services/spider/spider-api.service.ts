@@ -80,7 +80,7 @@ export class SpiderApiService {
         ],
       };
 
-      return await this.callApi<SubmitResponse[]>('customers/contract-linked-list', 'POST', [person]);
+      return this.callApi<SubmitResponse[]>('customers/contract-linked-list', 'POST', [person]);
     } else {
       return this.callApi<CreateResponse>('customers/simple', 'POST', customer);
     }
@@ -99,7 +99,7 @@ export class SpiderApiService {
       relationTypes: [KycRelationType.CONTRACTING_PARTNER],
     };
 
-    return await this.callApi<SubmitResponse[]>('customers/contract-linked-list', 'POST', [person, organization]);
+    return this.callApi<SubmitResponse[]>('customers/contract-linked-list', 'POST', [person, organization]);
   }
 
   private buildCustomer(id: number, user: UserData): Partial<Customer> {
@@ -379,7 +379,7 @@ export class SpiderApiService {
         identType === KycDocument.INITIATE_CHATBOT_IDENTIFICATION ? Config.kyc.chatbotStyle : undefined,
     };
 
-    return await this.callApi<InitiateResponse[]>(`customers/initiate-${identType}-sessions`, 'POST', data).then(
+    return this.callApi<InitiateResponse[]>(`customers/initiate-${identType}-sessions`, 'POST', data).then(
       (r) => r[0],
     );
   }

@@ -17,7 +17,7 @@ export class BankDataController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async updateBankData(@Param('id') id: string, @Body() dto: BankDataDto): Promise<BankData> {
-    return await this.bankDataService.updateBankData(+id, dto);
+    return this.bankDataService.updateBankData(+id, dto);
   }
 
   @Delete(':id')
@@ -25,6 +25,6 @@ export class BankDataController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async deleteBankData(@Param('id') id: string): Promise<void> {
-    return await this.bankDataService.deleteBankData(+id);
+    return this.bankDataService.deleteBankData(+id);
   }
 }

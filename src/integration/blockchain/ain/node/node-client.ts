@@ -133,7 +133,7 @@ export class NodeClient {
   }
 
   private async unlock(timeout = 60): Promise<any> {
-    return await this.call((client: ApiClient) =>
+    return this.call((client: ApiClient) =>
       client.call(NodeCommand.UNLOCK, [Config.blockchain.default.walletPassword, timeout], 'number'),
     );
   }

@@ -20,7 +20,7 @@ export class BankTxRepeatService {
 
     entity = this.bankTxRepeatRepo.create({ bankTx });
 
-    return await this.bankTxRepeatRepo.save(entity);
+    return this.bankTxRepeatRepo.save(entity);
   }
 
   async update(id: number, dto: UpdateBankTxRepeatDto): Promise<BankTxRepeat> {
@@ -58,11 +58,11 @@ export class BankTxRepeatService {
 
     Util.removeNullFields(entity);
 
-    return await this.bankTxRepeatRepo.save({ ...update, ...entity });
+    return this.bankTxRepeatRepo.save({ ...update, ...entity });
   }
 
   async getAllUserRepeats(userIds: number[]): Promise<BankTxRepeat[]> {
-    return await this.bankTxRepeatRepo.find({
+    return this.bankTxRepeatRepo.find({
       where: { userId: In(userIds) },
       relations: ['bankTx', 'sourceBankTx', 'chargebackBankTx'],
     });

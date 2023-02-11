@@ -74,15 +74,15 @@ export class StakingService {
   }
 
   async getStakingByUserAddresses(addresses: string[]): Promise<Staking[]> {
-    return await this.stakingRepo.find({ where: { user: { address: In(addresses) } }, relations: ['user'] });
+    return this.stakingRepo.find({ where: { user: { address: In(addresses) } }, relations: ['user'] });
   }
 
   async getStakingByDepositAddresses(addresses: string[]): Promise<Staking[]> {
-    return await this.stakingRepo.find({ where: { deposit: { address: In(addresses) } }, relations: ['deposit'] });
+    return this.stakingRepo.find({ where: { deposit: { address: In(addresses) } }, relations: ['deposit'] });
   }
 
   async getStakingByCryptoRoute(cryptos: CryptoRoute[]) {
-    return await this.stakingRepo.find({
+    return this.stakingRepo.find({
       deposit: { id: In(cryptos.map((b) => b.targetDeposit?.id)) },
     });
   }
@@ -133,7 +133,7 @@ export class StakingService {
   }
 
   async getTotalStakingRewards(): Promise<number> {
-    return await this.stakingRepo
+    return this.stakingRepo
       .createQueryBuilder('staking')
       .select('SUM(rewardVolume)', 'rewardVolume')
       .getRawOne<{ rewardVolume: number }>()
@@ -141,7 +141,7 @@ export class StakingService {
   }
 
   async getStakingBalance(stakingIds: number[], date?: Date): Promise<{ id: number; balance: number }[]> {
-    return await this.cryptoStakingRepo
+    return this.cryptoStakingRepo
       .getActiveEntries(date)
       .select('cryptoStaking.stakingRouteId', 'id')
       .addSelect('SUM(inputAmount)', 'balance')
@@ -151,7 +151,7 @@ export class StakingService {
   }
 
   async getAllStakingBalance(date?: Date): Promise<{ id: number; balance: number }[]> {
-    return await this.cryptoStakingRepo
+    return this.cryptoStakingRepo
       .getActiveEntries(date)
       .select('cryptoStaking.stakingRouteId', 'id')
       .addSelect('SUM(inputAmount)', 'balance')
@@ -160,7 +160,7 @@ export class StakingService {
   }
 
   async getTotalStakingBalance(date?: Date): Promise<number> {
-    return await this.cryptoStakingRepo
+    return this.cryptoStakingRepo
       .getActiveEntries(date)
       .select('SUM(inputAmount)', 'balance')
       .getRawOne<{ balance: number }>()
@@ -246,6 +246,6 @@ export class StakingService {
 
     return sellRoutes
       ? sellRoutes.find((r) => r.deposit.id === depositId)
-      : await this.sellService.getSellRepo().findOne({ where: { deposit: { id: depositId } } });
+      : this.sellService.getSellRepo().findOne({ where: { deposit: { id: depositId } } });
   }
 }

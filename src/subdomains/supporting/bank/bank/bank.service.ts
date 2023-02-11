@@ -17,11 +17,11 @@ export class BankService {
   constructor(private bankRepo: BankRepository, private countryService: CountryService) {}
 
   async getAllBanks(): Promise<Bank[]> {
-    return await this.bankRepo.find();
+    return this.bankRepo.find();
   }
 
   async getBankInternal(name: BankName, currency: string): Promise<Bank> {
-    return await this.bankRepo.findOne({ where: { name, currency } });
+    return this.bankRepo.findOne({ where: { name, currency } });
   }
 
   // --- BankSelector --- //

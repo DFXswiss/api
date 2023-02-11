@@ -50,14 +50,14 @@ export class StakingRefRewardService {
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<StakingRefReward[]> {
-    return await this.stakingRefRewardRepo.find({
+    return this.stakingRefRewardRepo.find({
       where: { user: { id: In(userIds) }, outputDate: Between(dateFrom, dateTo), txId: Not(IsNull()) },
       relations: ['user'],
     });
   }
 
   async getAllUserRewards(userIds: number[]): Promise<StakingRefReward[]> {
-    return await this.stakingRefRewardRepo.find({
+    return this.stakingRefRewardRepo.find({
       where: { user: { id: In(userIds) } },
       relations: ['user'],
     });

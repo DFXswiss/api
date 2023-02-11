@@ -72,7 +72,7 @@ export class OlkypayService {
       toDate,
     )}`;
 
-    return await this.callApi<Transaction[]>(url);
+    return this.callApi<Transaction[]>(url);
   }
 
   async getBalance(): Promise<Balance> {
@@ -177,7 +177,7 @@ export class OlkypayService {
       client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
     });
 
-    return await this.http.request<TokenAuth>({
+    return this.http.request<TokenAuth>({
       url: `${this.loginUrl}`,
       method: 'POST',
       data: data,

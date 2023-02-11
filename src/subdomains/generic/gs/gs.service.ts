@@ -98,17 +98,17 @@ export class GsService {
 
   private async getUserData(query: SupportDataQuery): Promise<UserData> {
     if (query.userDataId) {
-      return await this.userDataService.getUserData(+query.userDataId);
+      return this.userDataService.getUserData(+query.userDataId);
     } else if (query.userAddress) {
-      return await this.userService.getUserByAddress(query.userAddress).then((user) => user?.userData);
+      return this.userService.getUserByAddress(query.userAddress).then((user) => user?.userData);
     } else if (query.depositAddress) {
-      return await this.sellService.getSellByAddress(query.depositAddress).then((sell) => sell?.user.userData);
+      return this.sellService.getSellByAddress(query.depositAddress).then((sell) => sell?.user.userData);
     } else if (query.iban) {
-      return await this.bankAccountService.getBankAccountByIban(query.iban).then((bankAcc) => bankAcc?.userData);
+      return this.bankAccountService.getBankAccountByIban(query.iban).then((bankAcc) => bankAcc?.userData);
     } else if (query.ref) {
-      return await this.userService.getRefUser(query.ref).then((user) => user?.userData);
+      return this.userService.getRefUser(query.ref).then((user) => user?.userData);
     } else if (query.bankUsage) {
-      return await this.buyService.getBuyByBankUsage(query.bankUsage).then((buy) => buy?.user.userData);
+      return this.buyService.getBuyByBankUsage(query.bankUsage).then((buy) => buy?.user.userData);
     }
   }
 

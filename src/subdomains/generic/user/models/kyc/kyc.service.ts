@@ -99,7 +99,7 @@ export class KycService {
   async getKycCountries(code: string, userId?: number): Promise<Country[]> {
     const user = await this.getUser(code, userId);
 
-    return await this.countryService.getCountriesByKycType(user.kycType);
+    return this.countryService.getCountriesByKycType(user.kycType);
   }
 
   async updateKycData(code: string, data: KycUserDataDto, userId?: number): Promise<KycInfo> {
@@ -193,7 +193,7 @@ export class KycService {
     // create customer, if not existing
     await this.spiderService.createCustomer(userData.id, userData.surname);
 
-    return await this.spiderService.uploadDocument(
+    return this.spiderService.uploadDocument(
       userData.id,
       false,
       kycDocument,
@@ -239,7 +239,7 @@ export class KycService {
     userData.kycType = lockUser ? KycType.LOCK : KycType.DFX;
 
     // start KYC
-    return await this.kycProcess.startKycProcess(userData);
+    return this.kycProcess.startKycProcess(userData);
   }
 
   async getKycStatus(code: string, userId?: number): Promise<KycInfo> {
@@ -275,7 +275,7 @@ export class KycService {
   // --- GET USER --- //
 
   private async getUser(code: string, userId?: number): Promise<UserData> {
-    return userId ? await this.getUserById(userId) : await this.getUserByKycCode(code);
+    return userId ? this.getUserById(userId) : this.getUserByKycCode(code);
   }
 
   private async getUserById(id: number): Promise<UserData> {

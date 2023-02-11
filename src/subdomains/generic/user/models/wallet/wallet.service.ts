@@ -12,7 +12,7 @@ export class WalletService {
   }
 
   async getAllExternalServices(): Promise<Wallet[]> {
-    return await this.walletRepo.find({ where: { isKycClient: true } });
+    return this.walletRepo.find({ where: { isKycClient: true } });
   }
 
   public getApiKeyInternal(name: string): string {

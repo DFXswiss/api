@@ -190,7 +190,7 @@ export class DexDeFiChainService {
   private async getTargetAmount(sourceAsset: Asset, sourceAmount: number, targetAsset: Asset): Promise<number> {
     return targetAsset.dexName === sourceAsset.dexName
       ? sourceAmount
-      : await this.#dexClient.testCompositeSwap(sourceAsset.dexName, targetAsset.dexName, sourceAmount);
+      : this.#dexClient.testCompositeSwap(sourceAsset.dexName, targetAsset.dexName, sourceAmount);
   }
 
   private async checkAssetAvailability(asset: Asset, requiredAmount: number): Promise<void> {
@@ -219,7 +219,7 @@ export class DexDeFiChainService {
       const availableAmount = await this.getAssetAvailability(swapAsset);
       if (availableAmount === 0) return 0;
 
-      return this.#dexClient.testCompositeSwap(swapAsset.dexName, targetAsset.dexName, availableAmount);
+      return await this.#dexClient.testCompositeSwap(swapAsset.dexName, targetAsset.dexName, availableAmount);
     } catch (e) {
       console.warn(
         `Could not find purchasable amount for swapAsset: ${swapAsset.dexName}, targetAsset: ${targetAsset.dexName}`,
@@ -267,7 +267,7 @@ export class DexDeFiChainService {
     maxSlippage: number,
   ): Promise<number | undefined> {
     return (await this.settingService.get('slippage-protection')) === 'on'
-      ? await this.calculateMaxTargetAssetPrice(swapAsset, targetAsset, maxSlippage)
+      ? this.calculateMaxTargetAssetPrice(swapAsset, targetAsset, maxSlippage)
       : undefined;
   }
 

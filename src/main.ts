@@ -1,9 +1,9 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import helmet from 'helmet';
-import * as morgan from 'morgan';
-import * as cors from 'cors';
-import * as appInsights from 'applicationinsights';
+import morgan from 'morgan';
+import cors from 'cors';
+import appInsights from 'applicationinsights';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
 import { AllExceptionFilter } from './shared/filters/exception.filter';

@@ -41,7 +41,7 @@ export class PayInService {
   }
 
   async getAllUserTransactions(userIds: number[]): Promise<CryptoInput[]> {
-    return await this.payInRepository.find({
+    return this.payInRepository.find({
       where: { route: { user: { id: In(userIds) } } },
       relations: ['route', 'route.user'],
     });
@@ -157,7 +157,7 @@ export class PayInService {
   async doAmlCheck(payIn: CryptoInput, route: Staking | Sell | CryptoRoute): Promise<AmlCheck> {
     try {
       const strategy = this.registerStrategies.getRegisterStrategy(payIn.asset);
-      return strategy.doAmlCheck(payIn, route);
+      return await strategy.doAmlCheck(payIn, route);
     } catch (e) {
       console.error(`Error during AML check for pay-in ID: ${payIn.id}`, e);
     }

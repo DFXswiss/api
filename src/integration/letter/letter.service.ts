@@ -34,7 +34,7 @@ export class LetterService {
   constructor(private readonly http: HttpService) {}
 
   async sendLetter(sendLetterDTO: SendLetterDto): Promise<boolean> {
-    return await this.http
+    return this.http
       .post<LetterResponse>(`${Config.letter.url}/setJob`, {
         auth: Config.letter.auth,
         letter: {
@@ -52,7 +52,7 @@ export class LetterService {
   }
 
   async getBalance(): Promise<number> {
-    return await this.http
+    return this.http
       .post<BalanceResponse>(`${Config.letter.url}/getBalance`, { auth: Config.letter.auth })
       .then((r) => +r.balance.value);
   }

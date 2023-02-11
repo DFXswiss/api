@@ -135,7 +135,7 @@ export class Util {
 
       // action/error handling
       const doAction = async () =>
-        await action().catch((e) => {
+        action().catch((e) => {
           if (catchErrors) return undefined;
 
           abort = true;

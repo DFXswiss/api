@@ -28,7 +28,7 @@ export class StakingRewardService {
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<StakingReward[]> {
-    return await this.stakingRewardRepo.find({
+    return this.stakingRewardRepo.find({
       where: { staking: { user: { id: In(userIds) } }, outputDate: Between(dateFrom, dateTo), txId: Not(IsNull()) },
       relations: ['staking', 'staking.user'],
       order: { id: 'ASC' },
@@ -36,7 +36,7 @@ export class StakingRewardService {
   }
 
   async getAllUserRewards(userIds: number[]): Promise<StakingReward[]> {
-    return await this.stakingRewardRepo.find({
+    return this.stakingRewardRepo.find({
       where: { staking: { user: { id: In(userIds) } } },
       relations: ['staking', 'staking.user'],
     });

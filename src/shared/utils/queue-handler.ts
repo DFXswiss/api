@@ -41,7 +41,7 @@ export class QueueHandler {
   async handle<T>(action: () => Promise<T>): Promise<T> {
     const item = new QueueItem(action, this.timeout);
     this.queue.push(item);
-    return await item.wait();
+    return item.wait();
   }
 
   async doWork() {

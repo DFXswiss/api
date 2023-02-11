@@ -194,7 +194,7 @@ export abstract class EvmStrategy extends SendStrategy {
         `Cannot proceed with fee conversion, could not find target asset representation for asset ${targetAsset.dexName} ${targetAsset.blockchain}`,
       );
 
-    return await this.getFeeReferenceAmount(sourceAsset, sourceAmount, targetAssetRepresentation);
+    return this.getFeeReferenceAmount(sourceAsset, sourceAmount, targetAssetRepresentation);
   }
 
   private async getFeeReferenceAmount(fromAsset: Asset, fromAmount: number, toAsset: Asset): Promise<number> {

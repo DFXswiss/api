@@ -142,7 +142,7 @@ export class CryptoRouteService {
     const crypto = await this.cryptoRepo.findOne({ id: cryptoId, user: { id: userId } });
     if (!crypto) throw new NotFoundException('Crypto route not found');
 
-    return await this.cryptoRepo.save({ ...crypto, ...dto });
+    return this.cryptoRepo.save({ ...crypto, ...dto });
   }
 
   //*** GETTERS ***//

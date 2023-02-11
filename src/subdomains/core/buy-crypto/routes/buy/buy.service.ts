@@ -139,7 +139,7 @@ export class BuyService {
     const buy = await this.buyRepo.findOne({ id: buyId, user: { id: userId } });
     if (!buy) throw new NotFoundException('Buy route not found');
 
-    return await this.buyRepo.save({ ...buy, ...dto });
+    return this.buyRepo.save({ ...buy, ...dto });
   }
 
   //*** GETTERS ***//
