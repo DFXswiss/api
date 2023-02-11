@@ -49,22 +49,22 @@ export class UserService {
   ) {}
 
   async getAllUser(): Promise<User[]> {
-    return await this.userRepo.find();
+    return this.userRepo.find();
   }
 
   async getUser(userId: number, loadUserData = false): Promise<User> {
-    return await this.userRepo.findOne(userId, { relations: loadUserData ? ['userData'] : [] });
+    return this.userRepo.findOne(userId, { relations: loadUserData ? ['userData'] : [] });
   }
 
   async getUserByAddress(address: string): Promise<User> {
-    return await this.userRepo.findOne({ where: { address }, relations: ['userData', 'userData.users'] });
+    return this.userRepo.findOne({ where: { address }, relations: ['userData', 'userData.users'] });
   }
 
   async getUserDto(userId: number, detailed = false): Promise<UserDetailDto> {
     const user = await this.userRepo.findOne(userId, { relations: ['userData'] });
     if (!user) throw new NotFoundException('User not found');
 
-    return await this.toDto(user, detailed);
+    return this.toDto(user, detailed);
   }
 
   async getAllLinkedUsers(id: number): Promise<LinkedUserOutDto[]> {
@@ -86,7 +86,7 @@ export class UserService {
   }
 
   async getRefUser(ref: string): Promise<User> {
-    return await this.userRepo.findOne({ where: { ref }, relations: ['userData', 'userData.users'] });
+    return this.userRepo.findOne({ where: { ref }, relations: ['userData', 'userData.users'] });
   }
 
   async createUser(dto: CreateUserDto, userIp: string, userOrigin?: string, userData?: UserData): Promise<User> {
@@ -124,7 +124,7 @@ export class UserService {
     const user = await this.userRepo.findOne(id);
     if (!user) throw new NotFoundException('User not found');
 
-    return await this.userRepo.save({ ...user, ...update });
+    return this.userRepo.save({ ...user, ...update });
   }
 
   private async checkIpCountry(userIp: string): Promise<string> {
@@ -375,7 +375,7 @@ export class UserService {
   }
 
   public async getTotalRefRewards(): Promise<number> {
-    return await this.userRepo
+    return this.userRepo
       .createQueryBuilder('user')
       .select('SUM(paidRefCredit)', 'paidRefCredit')
       .getRawOne<{ paidRefCredit: number }>()

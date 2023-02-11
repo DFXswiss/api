@@ -48,7 +48,7 @@ export class DexService {
         throw new Error(`No check liquidity strategy for asset ${targetAsset.uniqueName}`);
       }
 
-      return strategy.checkLiquidity(request);
+      return await strategy.checkLiquidity(request);
     } catch (e) {
       console.error(e.message);
 
@@ -191,7 +191,7 @@ export class DexService {
   }
 
   async getPendingOrdersCount(asset: Asset): Promise<number> {
-    return await this.liquidityOrderRepo.count({
+    return this.liquidityOrderRepo.count({
       where: [
         { targetAsset: asset, isComplete: false },
         { targetAsset: asset, isReady: false },

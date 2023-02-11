@@ -91,7 +91,7 @@ export class ExchangeService implements PriceProvider {
     key: string,
     network?: string,
   ): Promise<WithdrawalResponse> {
-    return await this.callApi((e) => e.withdraw(token, amount, address, undefined, { key, network }));
+    return this.callApi((e) => e.withdraw(token, amount, address, undefined, { key, network }));
   }
 
   async getWithdraw(id: string, token: string): Promise<Transaction> {
@@ -250,7 +250,7 @@ export class ExchangeService implements PriceProvider {
   }
 
   private async pollOrder(order: Order): Promise<Order> {
-    return await Util.poll<Order>(
+    return Util.poll<Order>(
       () => this.callApi((e) => e.fetchOrder(order.id, order.symbol)),
       (o) => [OrderStatus.CLOSED, OrderStatus.CANCELED].includes(o?.status as OrderStatus),
       5000,

@@ -31,7 +31,7 @@ export class KycProcessService {
 
   // --- GENERAL METHODS --- //
   async startKycProcess(userData: UserData): Promise<UserData> {
-    return await this.goToStatus(userData, userData.kycType === KycType.LOCK ? KycStatus.ONLINE_ID : KycStatus.CHATBOT);
+    return this.goToStatus(userData, userData.kycType === KycType.LOCK ? KycStatus.ONLINE_ID : KycStatus.CHATBOT);
   }
 
   async checkKycProcess(userData: UserData): Promise<UserData> {
@@ -39,13 +39,13 @@ export class KycProcessService {
     if (userData.kycStatus === KycStatus.CHATBOT) {
       const chatbotProgress = await this.getKycProgress(userData.id, userData.kycStatus);
       if (chatbotProgress === DocumentState.COMPLETED) {
-        return await this.chatbotCompleted(userData);
+        return this.chatbotCompleted(userData);
       }
     }
 
     // retrigger, if failed
     if (userData.kycState === KycState.FAILED) {
-      return await this.goToStatus(userData, userData.kycStatus);
+      return this.goToStatus(userData, userData.kycStatus);
     }
 
     return userData;
@@ -53,7 +53,7 @@ export class KycProcessService {
 
   async getKycProgress(userDataId: number, kycStatus: KycStatus): Promise<DocumentState> {
     const documentType = KycDocuments[kycStatus].document;
-    return await this.spiderService.getDocumentState(userDataId, documentType);
+    return this.spiderService.getDocumentState(userDataId, documentType);
   }
 
   async goToStatus(userData: UserData, status: KycStatus): Promise<UserData> {
@@ -137,8 +137,8 @@ export class KycProcessService {
     const isVipUser = await this.hasRole(userData.id, UserRole.VIP);
 
     return isVipUser
-      ? await this.goToStatus(userData, KycStatus.VIDEO_ID)
-      : await this.goToStatus(userData, KycStatus.ONLINE_ID);
+      ? this.goToStatus(userData, KycStatus.VIDEO_ID)
+      : this.goToStatus(userData, KycStatus.ONLINE_ID);
   }
 
   async storeChatbotResult(userData: UserData): Promise<UserData> {
@@ -188,7 +188,7 @@ export class KycProcessService {
         .catch(() => null);
     }
 
-    return await this.goToStatus(userData, KycStatus.CHECK);
+    return this.goToStatus(userData, KycStatus.CHECK);
   }
 
   async identInReview(userData: UserData, result: IdentResultDto): Promise<UserData> {
@@ -200,7 +200,7 @@ export class KycProcessService {
   async identFailed(userData: UserData, result: IdentResultDto): Promise<UserData> {
     userData = await this.storeIdentResult(userData, result);
 
-    return await this.stepFailed(userData);
+    return this.stepFailed(userData);
   }
 
   async storeIdentResult(userData: UserData, result: IdentResultDto): Promise<UserData> {
@@ -219,7 +219,7 @@ export class KycProcessService {
 
   // --- HELPER METHODS --- //
   private async hasRole(userDataId: number, role: UserRole): Promise<boolean> {
-    return await this.userRepo.findOne({ where: { userData: { id: userDataId }, role } }).then((u) => u != null);
+    return this.userRepo.findOne({ where: { userData: { id: userDataId }, role } }).then((u) => u != null);
   }
 
   private async updateSpiderData(userData: UserData, initiateData: InitiateResponse) {
@@ -237,7 +237,7 @@ export class KycProcessService {
         : sessionData.identIdentificationId;
     }
 
-    return await this.spiderDataRepo.save(spiderData);
+    return this.spiderDataRepo.save(spiderData);
   }
 
   private async getSessionData(

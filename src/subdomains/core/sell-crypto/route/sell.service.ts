@@ -94,7 +94,7 @@ export class SellService {
     const sell = await this.sellRepo.findOne({ id: sellId, user: { id: userId } });
     if (!sell) throw new NotFoundException('Sell route not found');
 
-    return await this.sellRepo.save({ ...sell, ...dto });
+    return this.sellRepo.save({ ...sell, ...dto });
   }
 
   async count(): Promise<number> {

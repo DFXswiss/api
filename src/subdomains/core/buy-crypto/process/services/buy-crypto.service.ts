@@ -72,7 +72,7 @@ export class BuyCryptoService {
     // buy
     if (buyId) entity.buy = await this.getBuy(buyId);
 
-    return await this.buyCryptoRepo.save(entity);
+    return this.buyCryptoRepo.save(entity);
   }
 
   async update(id: number, dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
@@ -188,7 +188,7 @@ export class BuyCryptoService {
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<BuyCrypto[]> {
-    return await this.buyCryptoRepo.find({
+    return this.buyCryptoRepo.find({
       where: [
         { buy: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
         { cryptoRoute: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
@@ -202,7 +202,7 @@ export class BuyCryptoService {
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<BuyCrypto[]> {
-    return await this.buyCryptoRepo.find({
+    return this.buyCryptoRepo.find({
       where: { usedRef: In(refCodes), outputDate: Between(dateFrom, dateTo) },
       relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
     });
@@ -343,14 +343,14 @@ export class BuyCryptoService {
   // Admin Support Tool methods
 
   async getAllRefTransactions(refCodes: string[]): Promise<BuyCrypto[]> {
-    return await this.buyCryptoRepo.find({
+    return this.buyCryptoRepo.find({
       where: { usedRef: In(refCodes) },
       relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
     });
   }
 
   async getAllUserTransactions(userIds: number[]): Promise<BuyCrypto[]> {
-    return await this.buyCryptoRepo.find({
+    return this.buyCryptoRepo.find({
       where: [{ buy: { user: { id: In(userIds) } } }, { cryptoRoute: { user: { id: In(userIds) } } }],
       relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
     });

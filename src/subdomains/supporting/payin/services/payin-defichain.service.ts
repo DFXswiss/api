@@ -62,7 +62,7 @@ export class PayInDeFiChainService extends PayInJellyfishService {
   async getNewTransactionsHistorySince(lastHeight: number): Promise<AccountHistory[]> {
     const { blocks: currentHeight } = await this.client.checkSync();
 
-    return await this.client
+    return this.client
       .getHistory(lastHeight + 1, currentHeight)
       .then((i) => i.filter((h) => [...this.utxoTxTypes, ...this.tokenTxTypes].includes(h.type)))
       // get receive history
@@ -140,7 +140,7 @@ export class PayInDeFiChainService extends PayInJellyfishService {
               await this.doTokenTx(
                 token.owner,
                 async (utxo) =>
-                  await this.client.sendToken(token.owner, Config.blockchain.default.dexWalletAddress, asset, amount, [
+                  this.client.sendToken(token.owner, Config.blockchain.default.dexWalletAddress, asset, amount, [
                     utxo,
                   ]),
               );
@@ -183,7 +183,7 @@ export class PayInDeFiChainService extends PayInJellyfishService {
   }
 
   private async getFeeUtxo(address: string): Promise<UTXO | undefined> {
-    return await this.client
+    return this.client
       .getUtxo()
       .then((utxos) =>
         utxos.find(
@@ -196,7 +196,7 @@ export class PayInDeFiChainService extends PayInJellyfishService {
   }
 
   private async sendFeeUtxo(address: string): Promise<string> {
-    return await this.client.sendUtxo(
+    return this.client.sendUtxo(
       Config.blockchain.default.utxoSpenderAddress,
       address,
       Config.blockchain.default.minDeposit.DeFiChain.DFI / 2,
