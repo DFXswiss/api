@@ -30,10 +30,12 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
         this.designateSend(payIn, type);
 
         const savedPayIn = await this.payInRepo.save(payIn);
-        await this.deFiChainService.sendToken(savedPayIn, (outTxId: string) =>
-          // TODO -> this have to be tested carefully
-          this.updatePayInWithSendData(savedPayIn, type, outTxId),
-        );
+        await this.deFiChainService.sendToken(savedPayIn, async (outTxId: string) => {
+          this.updatePayInWithSendData(savedPayIn, type, outTxId);
+          console.log(`Token pay-in ${savedPayIn.id} sent:`, savedPayIn);
+
+          await this.payInRepo.save(savedPayIn);
+        });
       } catch (e) {
         console.error(`Failed to send DeFiChain token input ${payIn.id} of type ${type}`, e);
       }
