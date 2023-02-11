@@ -53,7 +53,7 @@ export class NodeClient {
   async checkSync(): Promise<{ headers: number; blocks: number }> {
     const { blocks, headers } = await this.getInfo();
 
-    if (blocks < headers - 1) throw new Error(`Node not in sync by ${headers - blocks} block(s)`);
+    if (blocks < headers - 1) throw new Error(`Node ${this.mode} not in sync by ${headers - blocks} block(s)`);
 
     return { headers, blocks };
   }

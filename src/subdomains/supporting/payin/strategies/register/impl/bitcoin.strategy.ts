@@ -82,7 +82,7 @@ export class BitcoinStrategy extends JellyfishStrategy {
     try {
       await this.processNewPayInEntries();
     } catch (e) {
-      console.error('Exception during DeFiChain pay in checks:', e);
+      console.error('Exception during Bitcoin pay in checks:', e);
     } finally {
       this.lock.release();
     }
