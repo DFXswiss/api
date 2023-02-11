@@ -3,7 +3,7 @@ import { AppModule } from './app.module';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import cors from 'cors';
-import appInsights from 'applicationinsights';
+import * as AppInsights from 'applicationinsights';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
 import { AllExceptionFilter } from './shared/filters/exception.filter';
@@ -13,9 +13,9 @@ import { PaymentWebhookDto } from './subdomains/generic/user/services/webhook/dt
 
 async function bootstrap() {
   if (process.env.APPINSIGHTS_INSTRUMENTATIONKEY) {
-    appInsights.setup().setAutoDependencyCorrelation(true).setAutoCollectConsole(true, true);
-    appInsights.defaultClient.context.tags[appInsights.defaultClient.context.keys.cloudRole] = 'dfx-api';
-    appInsights.start();
+    AppInsights.setup().setAutoDependencyCorrelation(true).setAutoCollectConsole(true, true);
+    AppInsights.defaultClient.context.tags[AppInsights.defaultClient.context.keys.cloudRole] = 'dfx-api';
+    AppInsights.start();
   }
 
   const app = await NestFactory.create(AppModule);
