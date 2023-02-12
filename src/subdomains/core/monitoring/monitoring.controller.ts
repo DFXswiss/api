@@ -19,7 +19,7 @@ export class MonitoringController {
     @Query('subsystem') subsystem: string,
     @Query('metric') metric: string,
   ): Promise<SystemState | SubsystemState | Metric> {
-    return await this.monitoringService.getState(subsystem, metric);
+    return this.monitoringService.getState(subsystem, metric);
   }
 
   @Post('data')
@@ -31,6 +31,6 @@ export class MonitoringController {
     @Query('metric') metric: string,
     @Body() data: unknown,
   ): Promise<void> {
-    return await this.monitoringService.onWebhook(subsystem, metric, data);
+    return this.monitoringService.onWebhook(subsystem, metric, data);
   }
 }

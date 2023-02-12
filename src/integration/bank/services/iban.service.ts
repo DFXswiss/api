@@ -93,6 +93,6 @@ export class IbanService {
   }
 
   async getBalance(): Promise<number> {
-    return await this.http.get<IbanBalance>(`${this.baseUrl}/get_balance`, Config.sepaTools).then((r) => r.balance);
+    return this.http.get<IbanBalance>(`${this.baseUrl}/get_balance`, Config.sepaTools).then((r) => r.balance);
   }
 }

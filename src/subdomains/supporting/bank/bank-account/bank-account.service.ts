@@ -76,7 +76,7 @@ export class BankAccountService {
     if (!bankAccount) throw new NotFoundException('BankAccount not found');
 
     const update = await this.updateEntity(dto, bankAccount);
-    return await this.bankAccountRepo.save(update);
+    return this.bankAccountRepo.save(update);
   }
 
   // --- INTERNAL METHODS --- //
@@ -91,7 +91,7 @@ export class BankAccountService {
 
   async getOrCreateBankAccount(iban: string, userId: number): Promise<BankAccount> {
     const { id: userDataId, kycType: kycType } = await this.userDataService.getUserDataByUser(userId);
-    return await this.getOrCreateBankAccountInternal(iban, userDataId, kycType);
+    return this.getOrCreateBankAccountInternal(iban, userDataId, kycType);
   }
 
   // --- HELPER METHODS --- //

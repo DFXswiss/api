@@ -50,6 +50,14 @@ export class NodeClient {
     return this.callNode((c) => c.blockchain.getBlockchainInfo());
   }
 
+  async checkSync(): Promise<{ headers: number; blocks: number }> {
+    const { blocks, headers } = await this.getInfo();
+
+    if (blocks < headers - 1) throw new Error(`Node ${this.mode} not in sync by ${headers - blocks} block(s)`);
+
+    return { headers, blocks };
+  }
+
   async getBlock(hash: string): Promise<Block<string>> {
     return this.callNode((c) => c.blockchain.getBlock(hash, 1));
   }
@@ -125,7 +133,7 @@ export class NodeClient {
   }
 
   private async unlock(timeout = 60): Promise<any> {
-    return await this.call((client: ApiClient) =>
+    return this.call((client: ApiClient) =>
       client.call(NodeCommand.UNLOCK, [Config.blockchain.default.walletPassword, timeout], 'number'),
     );
   }

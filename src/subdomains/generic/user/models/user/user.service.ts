@@ -16,7 +16,6 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { WalletService } from '../wallet/wallet.service';
 import { Between, Like, Not } from 'typeorm';
 import { AccountType } from '../user-data/account-type.enum';
-import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfiTaxService } from 'src/integration/blockchain/ain/services/dfi-tax.service';
 import { Config } from 'src/config/config';
 import { ApiKeyDto } from './dto/api-key.dto';
@@ -34,7 +33,6 @@ import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { CfpSettings } from 'src/subdomains/core/statistic/dto/cfp.dto';
 
 @Injectable()
 export class UserService {
@@ -43,7 +41,6 @@ export class UserService {
     private readonly userDataService: UserDataService,
     private readonly kycService: KycService,
     private readonly walletService: WalletService,
-    private readonly settingService: SettingService,
     private readonly dfiTaxService: DfiTaxService,
     private readonly apiKeyService: ApiKeyService,
     private readonly geoLocationService: GeoLocationService,
@@ -52,11 +49,11 @@ export class UserService {
   ) {}
 
   async getAllUser(): Promise<User[]> {
-    return await this.userRepo.find();
+    return this.userRepo.find();
   }
 
   async getUser(userId: number, loadUserData = false): Promise<User> {
-    return await this.userRepo.findOne(userId, { relations: loadUserData ? ['userData'] : [] });
+    return this.userRepo.findOne(userId, { relations: loadUserData ? ['userData'] : [] });
   }
 
   async getUserByKey(key: string, value: any): Promise<User> {
@@ -73,7 +70,7 @@ export class UserService {
     const user = await this.userRepo.findOne(userId, { relations: ['userData'] });
     if (!user) throw new NotFoundException('User not found');
 
-    return await this.toDto(user, detailed);
+    return this.toDto(user, detailed);
   }
 
   async getAllLinkedUsers(id: number): Promise<LinkedUserOutDto[]> {
@@ -95,7 +92,7 @@ export class UserService {
   }
 
   async getRefUser(ref: string): Promise<User> {
-    return await this.userRepo.findOne({ where: { ref }, relations: ['userData', 'userData.users'] });
+    return this.userRepo.findOne({ where: { ref }, relations: ['userData', 'userData.users'] });
   }
 
   async createUser(dto: CreateUserDto, userIp: string, userOrigin?: string, userData?: UserData): Promise<User> {
@@ -133,7 +130,7 @@ export class UserService {
     const user = await this.userRepo.findOne(id);
     if (!user) throw new NotFoundException('User not found');
 
-    return await this.userRepo.save({ ...user, ...update });
+    return this.userRepo.save({ ...user, ...update });
   }
 
   private async checkIpCountry(userIp: string): Promise<string> {
@@ -384,7 +381,7 @@ export class UserService {
   }
 
   public async getTotalRefRewards(): Promise<number> {
-    return await this.userRepo
+    return this.userRepo
       .createQueryBuilder('user')
       .select('SUM(paidRefCredit)', 'paidRefCredit')
       .getRawOne<{ paidRefCredit: number }>()
@@ -490,13 +487,5 @@ export class UserService {
     return this.userRepo
       .findOne({ id }, { select: ['id', 'cfpVotes'] })
       .then((u) => (u.cfpVotes ? JSON.parse(u.cfpVotes) : {}));
-  }
-
-  async updateCfpVotes(id: number, votes: CfpVotes): Promise<CfpVotes> {
-    const isVotingOpen = await this.settingService.getObj<CfpSettings>('cfp').then((s) => s.votingOpen);
-    if (!isVotingOpen) throw new BadRequestException('Voting is currently not allowed');
-
-    await this.userRepo.update(id, { cfpVotes: JSON.stringify(votes) });
-    return votes;
   }
 }

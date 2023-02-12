@@ -7,7 +7,7 @@ import { BitpandaService } from '../../../../integration/exchange/services/bitpa
 import { BitstampService } from '../../../../integration/exchange/services/bitstamp.service';
 import { CurrencyService } from '../../../../integration/exchange/services/currency.service';
 import { FixerService } from '../../../../integration/exchange/services/fixer.service';
-import { FtxService } from '../../../../integration/exchange/services/ftx.service';
+import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
 import { KrakenService } from '../../../../integration/exchange/services/kraken.service';
 import { DfiPricingDexService } from '../services/dfi-pricing-dex.service';
 import { PriceRequestContext } from '../enums';
@@ -19,7 +19,7 @@ describe('Pricing Module Integration Tests', () => {
   let binanceService: BinanceService;
   let bitstampService: BitstampService;
   let bitpandaService: BitpandaService;
-  let ftxService: FtxService;
+  let kucoinService: KucoinService;
   let currencyService: CurrencyService;
   let fixerService: FixerService;
   let dfiDexService: DfiPricingDexService;
@@ -28,7 +28,7 @@ describe('Pricing Module Integration Tests', () => {
   let binanceServiceGetPriceSpy: jest.SpyInstance;
   let bitstampServiceGetPriceSpy: jest.SpyInstance;
   let bitpandaServiceGetPriceSpy: jest.SpyInstance;
-  let ftxServiceGetPriceSpy: jest.SpyInstance;
+  let kucoinServiceGetPriceSpy: jest.SpyInstance;
   let currencyServiceGetPriceSpy: jest.SpyInstance;
   let fixerServiceGetPriceSpy: jest.SpyInstance;
   let dfiDexServiceGetPriceSpy: jest.SpyInstance;
@@ -41,7 +41,7 @@ describe('Pricing Module Integration Tests', () => {
     binanceService = mock<BinanceService>({ name: 'Binance' });
     bitstampService = mock<BitstampService>({ name: 'Bitstamp' });
     bitpandaService = mock<BitpandaService>({ name: 'Bitpanda' });
-    ftxService = mock<FtxService>({ name: 'Ftx' });
+    kucoinService = mock<KucoinService>({ name: 'Kucoin' });
     currencyService = mock<CurrencyService>({ name: 'CurrencyService' });
     fixerService = mock<FixerService>({ name: 'FixerService' });
     dfiDexService = mock<DfiPricingDexService>({ name: 'DfiPricingDexService' });
@@ -52,7 +52,7 @@ describe('Pricing Module Integration Tests', () => {
       binanceService,
       bitstampService,
       bitpandaService,
-      ftxService,
+      kucoinService,
       currencyService,
       fixerService,
       dfiDexService,
@@ -62,7 +62,7 @@ describe('Pricing Module Integration Tests', () => {
     binanceServiceGetPriceSpy = jest.spyOn(binanceService, 'getPrice');
     bitstampServiceGetPriceSpy = jest.spyOn(bitstampService, 'getPrice');
     bitpandaServiceGetPriceSpy = jest.spyOn(bitpandaService, 'getPrice');
-    ftxServiceGetPriceSpy = jest.spyOn(ftxService, 'getPrice');
+    kucoinServiceGetPriceSpy = jest.spyOn(kucoinService, 'getPrice');
     currencyServiceGetPriceSpy = jest.spyOn(currencyService, 'getPrice');
     fixerServiceGetPriceSpy = jest.spyOn(fixerService, 'getPrice');
     dfiDexServiceGetPriceSpy = jest.spyOn(dfiDexService, 'getPrice');
@@ -73,7 +73,7 @@ describe('Pricing Module Integration Tests', () => {
     binanceServiceGetPriceSpy.mockClear();
     bitstampServiceGetPriceSpy.mockClear();
     bitpandaServiceGetPriceSpy.mockClear();
-    ftxServiceGetPriceSpy.mockClear();
+    kucoinServiceGetPriceSpy.mockClear();
     currencyServiceGetPriceSpy.mockClear();
     fixerServiceGetPriceSpy.mockClear();
     dfiDexServiceGetPriceSpy.mockClear();
@@ -136,8 +136,8 @@ describe('Pricing Module Integration Tests', () => {
       .spyOn(binanceService, 'getPrice')
       .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 0.014 }));
 
-    ftxServiceGetPriceSpy = jest
-      .spyOn(ftxService, 'getPrice')
+    kucoinServiceGetPriceSpy = jest
+      .spyOn(kucoinService, 'getPrice')
       .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 0.014 }));
 
     const request = { context: PriceRequestContext.BUY_CRYPTO, correlationId: '1', from: 'BNB', to: 'BTC' };
@@ -177,8 +177,8 @@ describe('Pricing Module Integration Tests', () => {
         createCustomPrice({ source, target, price: 71.3 }),
       );
 
-    ftxServiceGetPriceSpy = jest
-      .spyOn(ftxService, 'getPrice')
+    kucoinServiceGetPriceSpy = jest
+      .spyOn(kucoinService, 'getPrice')
       .mockImplementationOnce(async (source: string, target: string) =>
         createCustomPrice({ source, target, price: 71.3 }),
       );
@@ -223,8 +223,8 @@ describe('Pricing Module Integration Tests', () => {
         createCustomPrice({ source, target, price: 71.3 }),
       );
 
-    ftxServiceGetPriceSpy = jest
-      .spyOn(ftxService, 'getPrice')
+    kucoinServiceGetPriceSpy = jest
+      .spyOn(kucoinService, 'getPrice')
       .mockImplementationOnce(async (source: string, target: string) =>
         createCustomPrice({ source, target, price: 0.081 }),
       )
@@ -267,8 +267,8 @@ describe('Pricing Module Integration Tests', () => {
       .spyOn(binanceService, 'getPrice')
       .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 12.38 }));
 
-    ftxServiceGetPriceSpy = jest
-      .spyOn(ftxService, 'getPrice')
+    kucoinServiceGetPriceSpy = jest
+      .spyOn(kucoinService, 'getPrice')
       .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 12.38 }));
 
     const request = { context: PriceRequestContext.BUY_CRYPTO, correlationId: '1', from: 'BTC', to: 'ETH' };

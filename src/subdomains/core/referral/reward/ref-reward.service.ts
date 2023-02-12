@@ -62,14 +62,14 @@ export class RefRewardService {
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<RefReward[]> {
-    return await this.rewardRepo.find({
+    return this.rewardRepo.find({
       where: { user: { id: In(userIds) }, outputDate: Between(dateFrom, dateTo), txId: Not(IsNull()) },
       relations: ['user'],
     });
   }
 
   async getAllUserRewards(userIds: number[]): Promise<RefReward[]> {
-    return await this.rewardRepo.find({
+    return this.rewardRepo.find({
       where: { user: { id: In(userIds) } },
       relations: ['user'],
     });

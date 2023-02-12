@@ -22,10 +22,10 @@ export class CountryService {
   async getCountriesByKycType(kycType: KycType): Promise<Country[]> {
     switch (kycType) {
       case KycType.DFX:
-        return await this.countryRepo.find({ where: { dfxEnable: true } });
+        return this.countryRepo.find({ where: { dfxEnable: true } });
 
       case KycType.LOCK:
-        return await this.countryRepo.find({ where: { lockEnable: true } });
+        return this.countryRepo.find({ where: { lockEnable: true } });
     }
   }
 }

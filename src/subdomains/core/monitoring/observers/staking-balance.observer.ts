@@ -4,13 +4,13 @@ import { WhaleService } from 'src/integration/blockchain/ain/whale/whale.service
 import { Config } from 'src/config/config';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
-import { CryptoInput } from 'src/mix/models/crypto-input/crypto-input.entity';
-import { CryptoStakingRepository } from 'src/mix/models/crypto-staking/crypto-staking.repository';
-import { MasternodeRepository } from 'src/mix/models/masternode/masternode.repository';
-import { PayoutType } from 'src/mix/models/staking-reward/staking-reward.entity';
+import { CryptoStakingRepository } from 'src/subdomains/core/staking/repositories/crypto-staking.repository';
+import { MasternodeRepository } from 'src/subdomains/supporting/masternode/masternode.repository';
+import { PayoutType } from 'src/subdomains/core/staking/entities/staking-reward.entity';
 import { Util } from 'src/shared/utils/util';
 import { getCustomRepository, IsNull, Not } from 'typeorm';
-import { DepositRoute } from 'src/mix/models/route/deposit-route.entity';
+import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
+import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 
 interface StakingData {
   stakingBalance: { actual: number; should: number; difference: number };

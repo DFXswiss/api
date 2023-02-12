@@ -9,10 +9,11 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { AmlReason } from '../enums/aml-reason.enum';
 import { BuyCryptoFee } from './buy-crypto-fees.entity';
 import { Price } from 'src/integration/exchange/dto/price.dto';
-import { CryptoInput } from 'src/mix/models/crypto-input/crypto-input.entity';
-import { CryptoRoute } from 'src/mix/models/crypto-route/crypto-route.entity';
+import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
-import { Buy } from '../../route/buy.entity';
+import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { BuyCryptoInitSpecification } from '../specifications/buy-crypto-init.specification';
+import { Buy } from '../../routes/buy/buy.entity';
 
 export enum BuyCryptoStatus {
   WAITING_FOR_LOWER_FEE = 'WaitingForLowerFee',
@@ -29,7 +30,7 @@ export class BuyCrypto extends IEntity {
   @ManyToOne(() => Buy, (buy) => buy.buyCryptos, { nullable: true })
   buy: Buy;
 
-  @OneToOne(() => CryptoInput, (input) => input.buyCrypto, { nullable: true })
+  @OneToOne(() => CryptoInput, { nullable: true })
   @JoinColumn()
   cryptoInput: CryptoInput;
 
@@ -126,6 +127,19 @@ export class BuyCrypto extends IEntity {
 
   @Column({ length: 256, nullable: true })
   status: BuyCryptoStatus;
+
+  //*** FACTORY METHODS ***//
+
+  static createFromPayIn(payIn: CryptoInput, cryptoRoute: CryptoRoute): BuyCrypto {
+    const entity = new BuyCrypto();
+
+    entity.cryptoInput = payIn;
+    entity.cryptoRoute = cryptoRoute;
+
+    BuyCryptoInitSpecification.isSatisfiedBy(entity);
+
+    return entity;
+  }
 
   defineAssetExchangePair(): { outputReferenceAssetName: string; type: AssetType } | null {
     this.outputAsset = this.target?.asset;

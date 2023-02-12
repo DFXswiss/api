@@ -7,26 +7,26 @@ export class CreateUserDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @Matches(GetConfig().addressFormat)
+  @Matches(GetConfig().formats.address)
   address: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @Matches(GetConfig().signatureFormat)
+  @Matches(GetConfig().formats.signature)
   signature: string;
 
   @ApiPropertyOptional()
   @IsNotEmpty()
   @IsString()
-  @Matches(GetConfig().keyFormat)
+  @Matches(GetConfig().formats.key)
   @ValidateIf((dto: CreateUserDto) => CryptoService.isCardanoAddress(dto.address))
   key?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @Matches(/^(\w{1,3}-\w{1,3})$/)
+  @Matches(GetConfig().formats.ref)
   usedRef: string;
 
   @ApiPropertyOptional()

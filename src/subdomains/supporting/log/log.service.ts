@@ -10,6 +10,6 @@ export class LogService {
   async create(dto: CreateLogDto): Promise<Log> {
     const entity = this.logRepo.create(dto);
 
-    return await this.logRepo.save(entity);
+    return this.logRepo.save(entity);
   }
 }

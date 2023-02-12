@@ -4,7 +4,7 @@ import { MainNet } from '@defichain/jellyfish-network';
 import { isEthereumAddress } from 'class-validator';
 import { verifyMessage } from 'ethers/lib/utils';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import * as verifyCardanoSignature from '@cardano-foundation/cardano-verify-datasignature';
+import verifyCardanoSignature from '@cardano-foundation/cardano-verify-datasignature';
 
 @Injectable()
 export class CryptoService {
@@ -69,11 +69,6 @@ export class CryptoService {
   }
 
   private verifyCardano(message: string, address: string, signature: string, key?: string): boolean {
-    return (verifyCardanoSignature as unknown as (a: string, b: string, c: string, d: string) => boolean)(
-      signature,
-      key,
-      message,
-      address,
-    );
+    return verifyCardanoSignature(signature, key, message, address);
   }
 }

@@ -71,9 +71,8 @@ export class BuyCryptoBatchService {
 
       for (const batch of batches) {
         const savedBatch = await this.buyCryptoBatchRepo.save(batch);
-        const { dexName, type, blockchain } = savedBatch.outputAsset;
         console.info(
-          `Created buy crypto batch. Batch ID: ${savedBatch.id}. Asset: ${dexName} ${type} ${blockchain}. Transaction(s) count ${batch.transactions.length}`,
+          `Created buy crypto batch. Batch ID: ${savedBatch.id}. Asset: ${savedBatch.outputAsset.uniqueName}. Transaction(s) count ${batch.transactions.length}`,
         );
       }
     } catch (e) {
@@ -336,9 +335,8 @@ export class BuyCryptoBatchService {
       batch.checkAndRecordFeesEstimations(effectivePurchaseFee, payoutFee);
 
       if (inputBatchLength !== batch.transactions.length) {
-        const { dexName, type, blockchain } = batch.outputAsset;
         console.log(
-          `Optimized batch for output asset: ${dexName} ${type} ${blockchain}. ${
+          `Optimized batch for output asset: ${batch.outputAsset.uniqueName}. ${
             inputBatchLength - batch.transactions.length
           } removed from the batch`,
         );
@@ -383,17 +381,17 @@ export class BuyCryptoBatchService {
       const { outputReferenceAmount, outputAsset: oa, outputReferenceAsset: ora, transactions } = batch;
 
       const maxPurchasableTargetAmountMessage = maxPurchasableTargetAmount
-        ? `${maxPurchasableTargetAmount} ${oa.dexName} ${oa.type} ${oa.blockchain}.`
+        ? `${maxPurchasableTargetAmount} ${oa.uniqueName}.`
         : 'zero or unknown';
 
       const maxPurchasableReferenceAmountMessage = maxPurchasableReferenceAmount
-        ? `${maxPurchasableReferenceAmount} ${ora.dexName} ${ora.type} ${ora.blockchain}.`
+        ? `${maxPurchasableReferenceAmount} ${ora.uniqueName}.`
         : 'zero or unknown';
 
       const message = `
         ${error.message}
-        Required reference amount: ${outputReferenceAmount} ${ora.dexName} ${ora.type} ${ora.blockchain}.
-        Available amount: ${availableAmount} ${oa.dexName} ${oa.type} ${oa.blockchain}.
+        Required reference amount: ${outputReferenceAmount} ${ora.uniqueName}.
+        Available amount: ${availableAmount} ${oa.uniqueName}.
         Maximum purchasable amount (target asset, approximately): ${maxPurchasableTargetAmountMessage}.
         Maximum purchasable amount (reference asset, approximately): ${maxPurchasableReferenceAmountMessage}.
       `;

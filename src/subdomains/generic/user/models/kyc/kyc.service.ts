@@ -15,7 +15,7 @@ import {
   KycType,
   UserData,
 } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { KycDocument } from '../../services/spider/dto/spider.dto';
+import { DocumentInfo, KycDocument } from '../../services/spider/dto/spider.dto';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
 import { UserDataService } from '../user-data/user-data.service';
@@ -33,6 +33,10 @@ import { WalletService } from '../wallet/wallet.service';
 import { KycInfo } from './dto/kyc-info.dto';
 import { Country } from 'src/shared/models/country/country.entity';
 import { WebhookService } from '../../services/webhook/webhook.service';
+import { KycDocumentType, KycFileDto } from './dto/kyc-file.dto';
+import { SpiderApiService } from '../../services/spider/spider-api.service';
+import { User } from '../user/user.entity';
+import { KycDataDto } from './dto/kyc-data.dto';
 
 @Injectable()
 export class KycService {
@@ -43,6 +47,7 @@ export class KycService {
     private readonly walletRepo: WalletRepository,
     private readonly walletService: WalletService,
     private readonly spiderService: SpiderService,
+    private readonly spiderApiService: SpiderApiService,
     private readonly spiderSyncService: SpiderSyncService,
     private readonly countryService: CountryService,
     private readonly kycProcess: KycProcessService,
@@ -94,7 +99,7 @@ export class KycService {
   async getKycCountries(code: string, userId?: number): Promise<Country[]> {
     const user = await this.getUser(code, userId);
 
-    return await this.countryService.getCountriesByKycType(user.kycType);
+    return this.countryService.getCountriesByKycType(user.kycType);
   }
 
   async updateKycData(code: string, data: KycUserDataDto, userId?: number): Promise<KycInfo> {
@@ -188,7 +193,7 @@ export class KycService {
     // create customer, if not existing
     await this.spiderService.createCustomer(userData.id, userData.surname);
 
-    return await this.spiderService.uploadDocument(
+    return this.spiderService.uploadDocument(
       userData.id,
       false,
       kycDocument,
@@ -234,7 +239,7 @@ export class KycService {
     userData.kycType = lockUser ? KycType.LOCK : KycType.DFX;
 
     // start KYC
-    return await this.kycProcess.startKycProcess(userData);
+    return this.kycProcess.startKycProcess(userData);
   }
 
   async getKycStatus(code: string, userId?: number): Promise<KycInfo> {
@@ -270,7 +275,7 @@ export class KycService {
   // --- GET USER --- //
 
   private async getUser(code: string, userId?: number): Promise<UserData> {
-    return userId ? await this.getUserById(userId) : await this.getUserByKycCode(code);
+    return userId ? this.getUserById(userId) : this.getUserByKycCode(code);
   }
 
   private async getUserById(id: number): Promise<UserData> {
@@ -286,5 +291,86 @@ export class KycService {
     });
     if (!userData) throw new NotFoundException('User not found');
     return userData;
+  }
+
+  // --- GET COMPANY KYC --- //
+
+  async getAllKycData(walletId: number): Promise<KycDataDto[]> {
+    const wallet = await this.walletRepo.findOne({
+      where: { id: walletId },
+      relations: ['users', 'users.userData'],
+    });
+
+    return wallet.users.map((b) => this.toKycDataDto(b));
+  }
+
+  async getKycFiles(userAddress: string, walletId: number): Promise<KycFileDto[]> {
+    const user = await this.userRepo.findOne({
+      where: { address: userAddress, wallet: { id: walletId } },
+      relations: ['userData', 'wallet'],
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const allDocuments = await this.spiderApiService.getDocumentInfos(user.userData.id, false);
+
+    return Object.values(KycDocumentType)
+      .map((type) => ({ type, info: this.getDocumentInfoFor(type, allDocuments) }))
+      .filter((d) => d.info != null)
+      .map(({ type, info }) => this.toKycFileDto(type, info));
+  }
+
+  async getKycFile(userAddress: string, walletId: number, kycDocumentType: KycDocumentType): Promise<any> {
+    const user = await this.userRepo.findOne({
+      where: { address: userAddress, wallet: { id: walletId } },
+      relations: ['userData', 'wallet'],
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const allDocuments = await this.spiderApiService.getDocumentInfos(user.userData.id, false);
+    const document = this.getDocumentInfoFor(kycDocumentType, allDocuments);
+
+    return this.spiderApiService.getBinaryDocument(
+      user.userData.id,
+      false,
+      document.document,
+      document.version,
+      document.part,
+    );
+  }
+
+  // --- HELPER METHODS --- //
+  private toKycDataDto(user: User): KycDataDto {
+    return {
+      id: user.address,
+      kycStatus: this.webhookService.getKycWebhookStatus(user.userData.kycStatus, user.userData.kycType),
+      kycHash: user.userData.kycHash,
+    };
+  }
+
+  private toKycFileDto(type: KycDocumentType, { contentType }: DocumentInfo): KycFileDto {
+    return { type, contentType };
+  }
+
+  private getDocumentInfoFor(type: KycDocumentType, documents: DocumentInfo[]): DocumentInfo | undefined {
+    switch (type) {
+      case KycDocumentType.IDENTIFICATION:
+        return (
+          this.getReportDocumentInfo(KycDocument.ONLINE_IDENTIFICATION, documents) ??
+          this.getReportDocumentInfo(KycDocument.VIDEO_IDENTIFICATION, documents)
+        );
+
+      case KycDocumentType.CHATBOT:
+        return this.getReportDocumentInfo(KycDocument.CHATBOT_ONBOARDING, documents);
+
+      case KycDocumentType.INCORPORATION_CERTIFICATE:
+        return documents.find((d) => d.document === KycDocument.INCORPORATION_CERTIFICATE);
+
+      default:
+        throw new BadRequestException(`Document type ${type} is not supported`);
+    }
+  }
+
+  private getReportDocumentInfo(type: KycDocument, documents: DocumentInfo[]): DocumentInfo | undefined {
+    return documents.find((d) => d.document === type && d.label === 'Report');
   }
 }
