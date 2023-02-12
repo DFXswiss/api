@@ -126,7 +126,7 @@ export class GsService {
       case SupportTable.BUY_CRYPTO:
         return await this.buyCryptoService
           .getBuyCryptoByKey(query.key, query.value)
-          .then((buyCrypto) => (buyCrypto?.buy ? buyCrypto?.buy.user.userData : buyCrypto?.cryptoRoute?.user.userData));
+          .then((buyCrypto) => buyCrypto?.user.userData);
       case SupportTable.BUY_FIAT:
         return await this.buyFiatService
           .getBuyFiatByKey(query.key, query.value)

@@ -58,7 +58,7 @@ export class CryptoInput extends IEntity {
   @ManyToOne(() => Asset, { nullable: false, eager: true })
   asset: Asset;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 256, nullable: false })
   type: CryptoInputType;
 
   @ManyToOne(() => DepositRoute, { nullable: false })
