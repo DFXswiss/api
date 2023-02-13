@@ -4,7 +4,6 @@ import { Lock } from 'src/shared/utils/lock';
 import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../entities/payout-order.entity';
 import { PayoutOrderFactory } from '../factories/payout-order.factory';
 import { PayoutOrderRepository } from '../repositories/payout-order.repository';
-import { DuplicatedEntryException } from '../exceptions/duplicated-entry.exception';
 import { PayoutLogService } from './payout-log.service';
 import { FeeRequest, FeeResult, PayoutRequest } from '../interfaces';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
@@ -33,23 +32,12 @@ export class PayoutService {
 
   async doPayout(request: PayoutRequest): Promise<void> {
     try {
-      const { context, correlationId } = request;
-
-      const existingOrder = await this.payoutOrderRepo.findOne({ context, correlationId });
-
-      if (existingOrder) {
-        throw new DuplicatedEntryException(
-          `Payout order for context ${context} and correlationId ${correlationId} already exists. Order ID: ${existingOrder.id}`,
-        );
-      }
-
       const order = this.payoutOrderFactory.createOrder(request);
 
       await this.payoutOrderRepo.save(order);
     } catch (e) {
-      if (e instanceof DuplicatedEntryException) throw e;
-
       console.error(e);
+
       throw new Error(
         `Error while trying to create PayoutOrder for context ${request.context} and correlationId: ${request.correlationId}`,
       );
