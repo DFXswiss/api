@@ -1,6 +1,6 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Entity, OneToOne, Column, JoinColumn } from 'typeorm';
-import { BuyFiat } from '../../../core/sell-crypto/buy-fiat/buy-fiat.entity';
+import { BuyFiat } from '../../../core/sell-crypto/process/buy-fiat.entity';
 import { BankTx } from '../bank-tx/bank-tx.entity';
 import { TransactionCharge } from '../bank-tx/frick.service';
 

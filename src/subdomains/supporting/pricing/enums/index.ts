@@ -1,6 +1,7 @@
 export enum PriceRequestContext {
   BUY_CRYPTO = 'BuyCrypto',
   STAKING_REWARD = 'StakingReward',
+  PAY_IN = 'PayIn',
 }
 
 export enum Fiat {

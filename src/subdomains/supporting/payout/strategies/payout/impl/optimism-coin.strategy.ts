@@ -27,4 +27,8 @@ export class OptimismCoinStrategy extends EvmStrategy {
   protected getFeeAsset(): Promise<Asset> {
     return this.assetService.getOptimismCoin();
   }
+
+  protected async getPayoutCompletionData(payoutTxId: string): Promise<[boolean, number]> {
+    return this.optimismService.getPayoutCompletionData(payoutTxId);
+  }
 }

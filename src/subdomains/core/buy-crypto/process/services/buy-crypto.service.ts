@@ -13,31 +13,32 @@ import { Lock } from 'src/shared/utils/lock';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
-import { Interval } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { BuyCryptoBatchService } from './buy-crypto-batch.service';
 import { BuyCryptoOutService } from './buy-crypto-out.service';
 import { BuyCryptoDexService } from './buy-crypto-dex.service';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { AmlCheck } from '../enums/aml-check.enum';
-import { CryptoInput } from 'src/mix/models/crypto-input/crypto-input.entity';
-import { CryptoRoute } from 'src/mix/models/crypto-route/crypto-route.entity';
-import { CryptoRouteService } from 'src/mix/models/crypto-route/crypto-route.service';
-import { CryptoHistoryDto } from 'src/mix/models/crypto-route/dto/crypto-history.dto';
+import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
+import { CryptoRouteService } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.service';
 import { HistoryDto } from 'src/subdomains/core/history/dto/history.dto';
-import { Buy } from '../../route/buy.entity';
-import { BuyRepository } from '../../route/buy.repository';
-import { BuyService } from '../../route/buy.service';
-import { BuyHistoryDto } from '../../route/dto/buy-history.dto';
+import { BuyHistoryDto } from '../../routes/buy/dto/buy-history.dto';
 import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
-import { BuyFiatService } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fiat.service';
+import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
+import { BuyCryptoRegistrationService } from './buy-crypto-registration.service';
+import { Buy } from '../../routes/buy/buy.entity';
+import { BuyRepository } from '../../routes/buy/buy.repository';
+import { BuyService } from '../../routes/buy/buy.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
+import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 @Injectable()
 export class BuyCryptoService {
-  private readonly lock = new Lock(1800);
+  private readonly registerLock = new Lock(1800);
+  private readonly processLock = new Lock(7200);
 
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
@@ -52,6 +53,7 @@ export class BuyCryptoService {
     private readonly buyCryptoBatchService: BuyCryptoBatchService,
     private readonly buyCryptoOutService: BuyCryptoOutService,
     private readonly buyCryptoDexService: BuyCryptoDexService,
+    private readonly buyCryptoRegistrationService: BuyCryptoRegistrationService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly userService: UserService,
     private readonly webhookService: WebhookService,
@@ -70,16 +72,7 @@ export class BuyCryptoService {
     // buy
     if (buyId) entity.buy = await this.getBuy(buyId);
 
-    return await this.buyCryptoRepo.save(entity);
-  }
-
-  async createFromCrypto(cryptoInput: CryptoInput): Promise<BuyCrypto> {
-    const entity = this.buyCryptoRepo.create();
-
-    entity.cryptoInput = cryptoInput;
-    entity.cryptoRoute = cryptoInput.route as CryptoRoute;
-
-    return await this.buyCryptoRepo.save(entity);
+    return this.buyCryptoRepo.save(entity);
   }
 
   async update(id: number, dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
@@ -149,17 +142,31 @@ export class BuyCryptoService {
     return entity;
   }
 
-  @Interval(60000)
+  @Cron(CronExpression.EVERY_MINUTE)
+  async checkCryptoPayIn() {
+    if ((await this.settingService.get('crypto-crypto')) !== 'on') return;
+    if (!this.registerLock.acquire()) return;
+
+    try {
+      await this.buyCryptoRegistrationService.registerCryptoPayIn();
+    } catch (e) {
+      console.error('Error during buy-crypto pay-in registration', e);
+    } finally {
+      this.registerLock.release();
+    }
+  }
+
+  @Cron(CronExpression.EVERY_MINUTE)
   async process() {
     if ((await this.settingService.get('buy-process')) !== 'on') return;
-    if (!this.lock.acquire()) return;
+    if (!this.processLock.acquire()) return;
 
     await this.buyCryptoBatchService.batchTransactionsByAssets();
     await this.buyCryptoDexService.secureLiquidity();
     await this.buyCryptoOutService.payoutTransactions();
     await this.buyCryptoNotificationService.sendNotificationMails();
 
-    this.lock.release();
+    this.processLock.release();
   }
 
   async updateVolumes(): Promise<void> {
@@ -181,7 +188,7 @@ export class BuyCryptoService {
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<BuyCrypto[]> {
-    return await this.buyCryptoRepo.find({
+    return this.buyCryptoRepo.find({
       where: [
         { buy: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
         { cryptoRoute: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
@@ -195,7 +202,7 @@ export class BuyCryptoService {
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<BuyCrypto[]> {
-    return await this.buyCryptoRepo.find({
+    return this.buyCryptoRepo.find({
       where: { usedRef: In(refCodes), outputDate: Between(dateFrom, dateTo) },
       relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
     });
@@ -212,7 +219,7 @@ export class BuyCryptoService {
       .then((buyCryptos) => buyCryptos.map(this.toHistoryDto));
   }
 
-  async getCryptoHistory(userId: number, routeId?: number): Promise<CryptoHistoryDto[]> {
+  async getCryptoHistory(userId: number, routeId?: number): Promise<HistoryDto[]> {
     const where = { user: { id: userId }, id: routeId };
     Util.removeNullFields(where);
     return this.buyCryptoRepo
@@ -233,6 +240,10 @@ export class BuyCryptoService {
       outputAmount: buyCrypto.outputAmount,
       outputAsset: buyCrypto.outputAsset?.dexName,
       txId: buyCrypto.txId,
+      txUrl:
+        buyCrypto.outputAsset && buyCrypto.txId
+          ? `${BlockchainExplorerUrls[buyCrypto.outputAsset.blockchain]}/${buyCrypto.txId}`
+          : undefined,
       isComplete: buyCrypto.isComplete,
       date: buyCrypto.outputDate,
     };
@@ -332,14 +343,14 @@ export class BuyCryptoService {
   // Admin Support Tool methods
 
   async getAllRefTransactions(refCodes: string[]): Promise<BuyCrypto[]> {
-    return await this.buyCryptoRepo.find({
+    return this.buyCryptoRepo.find({
       where: { usedRef: In(refCodes) },
       relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
     });
   }
 
   async getAllUserTransactions(userIds: number[]): Promise<BuyCrypto[]> {
-    return await this.buyCryptoRepo.find({
+    return this.buyCryptoRepo.find({
       where: [{ buy: { user: { id: In(userIds) } } }, { cryptoRoute: { user: { id: In(userIds) } } }],
       relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
     });

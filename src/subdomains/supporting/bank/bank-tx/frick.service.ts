@@ -189,7 +189,7 @@ export class FrickService {
 
   async getAccounts(): Promise<Accounts> {
     const url = `accounts`;
-    return await this.callApi<Accounts>(url);
+    return this.callApi<Accounts>(url);
   }
 
   // --- PARSING --- //

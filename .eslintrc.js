@@ -16,6 +16,8 @@ module.exports = {
   },
   ignorePatterns: ['.eslintrc.js'],
   rules: {
+    'no-return-await': 'off',
+    '@typescript-eslint/return-await': ['warn', 'in-try-catch'],
     '@typescript-eslint/no-floating-promises': 'warn',
     '@typescript-eslint/interface-name-prefix': 'off',
     '@typescript-eslint/explicit-function-return-type': 'off',

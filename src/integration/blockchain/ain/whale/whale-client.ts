@@ -14,10 +14,10 @@ export class WhaleClient {
   }
 
   async getBalance(address: string): Promise<string> {
-    return await this.client.address.getBalance(address);
+    return this.client.address.getBalance(address);
   }
 
   async getTx(txId: string): Promise<Transaction> {
-    return await this.client.transactions.get(txId);
+    return this.client.transactions.get(txId);
   }
 }

@@ -32,7 +32,7 @@ export class Asset extends IEntity {
   @Column({ length: 256 })
   name: string;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 256 })
   uniqueName: string;
 
   @Column({ length: 256, nullable: true })

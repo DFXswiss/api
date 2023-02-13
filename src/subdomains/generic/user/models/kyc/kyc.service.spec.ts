@@ -8,6 +8,7 @@ import { HttpService } from 'src/shared/services/http.service';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { SpiderSyncService } from 'src/subdomains/generic/user/services/spider/spider-sync.service';
 import { SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
+import { SpiderApiService } from '../../services/spider/spider-api.service';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { LinkService } from '../link/link.service';
 import { AccountType } from '../user-data/account-type.enum';
@@ -44,6 +45,7 @@ describe('KycService', () => {
   let httpService: HttpService;
   let walletService: WalletService;
   let webhookService: WebhookService;
+  let spiderApiService: SpiderApiService;
 
   const defaultCountry = createDefaultCountry();
 
@@ -133,6 +135,7 @@ describe('KycService', () => {
     userDataService = createMock<UserDataService>();
     userDataRepo = createMock<UserDataRepository>();
     spiderService = createMock<SpiderService>();
+    spiderApiService = createMock<SpiderApiService>();
     spiderSyncService = createMock<SpiderSyncService>();
     countryService = createMock<CountryService>();
     kycProcess = createMock<KycProcessService>();
@@ -149,6 +152,7 @@ describe('KycService', () => {
         { provide: UserDataService, useValue: userDataService },
         { provide: UserDataRepository, useValue: userDataRepo },
         { provide: SpiderService, useValue: spiderService },
+        { provide: SpiderApiService, useValue: spiderApiService },
         { provide: SpiderSyncService, useValue: spiderSyncService },
         { provide: CountryService, useValue: countryService },
         { provide: KycProcessService, useValue: kycProcess },
@@ -222,7 +226,7 @@ describe('KycService', () => {
 
     const kycHash = kycHashFor(MockUserData.EMPTY);
 
-    const testCall = async () => await service.getKycStatus(kycHash);
+    const testCall = async () => service.getKycStatus(kycHash);
 
     await expect(testCall).rejects.toThrow(NotFoundException);
     await expect(testCall).rejects.toThrowError('User not found');
@@ -271,7 +275,7 @@ describe('KycService', () => {
 
     const kycHash = kycHashFor(MockUserData.EMPTY);
 
-    const testCall = async () => await service.requestKyc(kycHash);
+    const testCall = async () => service.requestKyc(kycHash);
 
     await expect(testCall).rejects.toThrow(NotFoundException);
     await expect(testCall).rejects.toThrowError('User not found');
@@ -282,7 +286,7 @@ describe('KycService', () => {
 
     const userDataId = userDataIdFor(MockUserData.EMPTY);
 
-    const testCall = async () => await service.requestKyc('', userDataId);
+    const testCall = async () => service.requestKyc('', userDataId);
 
     await expect(testCall).rejects.toThrow(NotFoundException);
     await expect(testCall).rejects.toThrowError('User not found');
@@ -330,7 +334,7 @@ describe('KycService', () => {
 
     const kycHash = kycHashFor(MockUserData.EMPTY);
 
-    const testCall = async () => await service.updateKycData(kycHash, updatePersonalData);
+    const testCall = async () => service.updateKycData(kycHash, updatePersonalData);
 
     await expect(testCall).rejects.toThrow(NotFoundException);
     await expect(testCall).rejects.toThrowError('User not found');
@@ -341,7 +345,7 @@ describe('KycService', () => {
 
     const userDataId = userDataIdFor(MockUserData.EMPTY);
 
-    const testCall = async () => await service.updateKycData('', updatePersonalData, userDataId);
+    const testCall = async () => service.updateKycData('', updatePersonalData, userDataId);
 
     await expect(testCall).rejects.toThrow(NotFoundException);
     await expect(testCall).rejects.toThrowError('User not found');

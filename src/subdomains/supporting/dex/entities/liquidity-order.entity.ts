@@ -10,6 +10,7 @@ export enum LiquidityOrderContext {
   CREATE_POOL_PAIR = 'CreatePoolPair',
   PRICING = 'Pricing',
   LIQUIDITY_MANAGEMENT = 'LiquidityManagement',
+  PAY_IN = 'PayIn',
 }
 
 export enum LiquidityOrderType {

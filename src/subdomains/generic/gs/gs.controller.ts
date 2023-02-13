@@ -19,7 +19,7 @@ export class GsController {
     keys: string[];
     values: any;
   }> {
-    return await this.gsService.getRawData(query);
+    return this.gsService.getRawData(query);
   }
 
   @Post('db/custom')
@@ -30,7 +30,7 @@ export class GsController {
     keys: string[];
     values: any;
   }> {
-    return await this.gsService.getExtendedData(query);
+    return this.gsService.getExtendedData(query);
   }
 
   @Get('support')
@@ -38,6 +38,6 @@ export class GsController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
   async getSupportData(@Query() query: SupportDataQuery): Promise<SupportReturnData> {
-    return await this.gsService.getSupportData(query);
+    return this.gsService.getSupportData(query);
   }
 }

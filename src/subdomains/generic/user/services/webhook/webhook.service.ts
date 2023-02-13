@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { HttpService } from 'src/shared/services/http.service';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { BuyFiat } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fiat.entity';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { WalletService } from '../../models/wallet/wallet.service';
 import { UserRepository } from '../../models/user/user.repository';
@@ -11,6 +10,7 @@ import { KycWebhookData, KycWebhookStatus } from './dto/kyc-webhook.dto';
 import { PaymentWebhookState, PaymentWebhookData, PaymentWebhookType } from './dto/payment-webhook.dto';
 import { WebhookType, WebhookDto } from './dto/webhook.dto';
 import { User } from '../../models/user/user.entity';
+import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 
 @Injectable()
 export class WebhookService {
