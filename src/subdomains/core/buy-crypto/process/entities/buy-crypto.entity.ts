@@ -16,7 +16,6 @@ import { BuyCryptoInitSpecification } from '../specifications/buy-crypto-init.sp
 import { Buy } from '../../routes/buy/buy.entity';
 
 export enum BuyCryptoStatus {
-  CREATED = 'Created',
   WAITING_FOR_LOWER_FEE = 'WaitingForLowerFee',
   IN_PROGRESS = 'InProgress',
   PAYING_OUT = 'PayingOut',
