@@ -66,12 +66,10 @@ export class BuyFiatRegistrationService {
 
         if (!buyFiat) {
           buyFiat = BuyFiat.createFromPayIn(payIn, sellRoute);
+          await this.buyFiatRepo.save(buyFiat);
         }
 
-        const amlCheck = await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_FIAT, sellRoute);
-        buyFiat.addAmlCheck(amlCheck);
-
-        await this.buyFiatRepo.save(buyFiat);
+        await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_FIAT, sellRoute);
       } catch (e) {
         if (e instanceof SmallAmountException) {
           await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_FIAT, sellRoute);
