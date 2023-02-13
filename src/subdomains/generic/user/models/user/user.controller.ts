@@ -99,14 +99,6 @@ export class UserController {
     return this.userService.getCfpVotes(jwt.id);
   }
 
-  @Put('cfpVotes')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiExcludeEndpoint()
-  async updateCfpVotes(@GetJwt() jwt: JwtPayload, @Body() votes: CfpVotes): Promise<CfpVotes> {
-    return this.userService.updateCfpVotes(jwt.id, votes);
-  }
-
   // --- ADMIN --- //
   @Get('ref')
   @ApiBearerAuth()

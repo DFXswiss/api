@@ -180,10 +180,8 @@ export class BuyCryptoBatch extends IEntity {
     }
 
     if (reBatchTransactions.length === 0) {
-      const { dexName, type, blockchain } = this.outputAsset;
-
       throw new Error(
-        `Cannot re-batch transactions in batch, liquidity limit is too low. Out asset: ${dexName} ${type} ${blockchain}`,
+        `Cannot re-batch transactions in batch, liquidity limit is too low. Out asset: ${this.outputAsset.uniqueName}`,
       );
     }
 

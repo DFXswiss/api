@@ -1,5 +1,5 @@
 import { mock } from 'jest-mock-extended';
-import { createCustomBuy } from 'src/subdomains/core/buy-crypto/route/__mocks__/buy.entity.mock';
+import { createCustomBuy } from 'src/subdomains/core/buy-crypto/routes/buy/__mocks__/buy.entity.mock';
 import { CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { Price } from 'src/integration/exchange/dto/price.dto';

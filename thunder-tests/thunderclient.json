@@ -2210,5 +2210,24 @@
       }
     ],
     "tests": []
+  },
+  {
+    "_id": "71ac3044-4fb8-4c14-929b-f4bbfe287047",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "d2f7cd4d-c5d6-4e6c-96cd-30239037d951",
+    "name": "Create Random Deposits",
+    "url": "{{url}}/v1/deposit",
+    "method": "POST",
+    "sortNum": 770000,
+    "created": "2023-01-29T12:18:57.143Z",
+    "modified": "2023-02-07T14:30:27.893Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"blockchain\": \"Ethereum\",\n  \"count\": 2 \n}",
+      "form": []
+    },
+    "tests": []
   }
 ]

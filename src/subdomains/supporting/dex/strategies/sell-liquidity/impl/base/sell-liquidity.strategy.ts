@@ -20,9 +20,7 @@ export abstract class SellLiquidityStrategy {
   protected abstract getFeeAsset(): Promise<Asset>;
 
   protected async handleSellLiquidityError(request: SellLiquidityRequest, e: Error): Promise<void> {
-    const { dexName, blockchain, type } = request.sellAsset;
-
-    const errorMessage = `Error while trying to sell liquidity of ${dexName} ${blockchain} ${type}`;
+    const errorMessage = `Error while trying to sell liquidity of ${request.sellAsset.uniqueName}`;
     console.error(errorMessage, e);
 
     throw new Error(errorMessage);

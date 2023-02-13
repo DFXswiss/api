@@ -72,9 +72,8 @@ export class BuyCryptoBatchService {
 
       for (const batch of batches) {
         const savedBatch = await this.buyCryptoBatchRepo.save(batch);
-        const { dexName, type, blockchain } = savedBatch.outputAsset;
         console.info(
-          `Created buy crypto batch. Batch ID: ${savedBatch.id}. Asset: ${dexName} ${type} ${blockchain}. Transaction(s) count ${batch.transactions.length}`,
+          `Created buy crypto batch. Batch ID: ${savedBatch.id}. Asset: ${savedBatch.outputAsset.uniqueName}. Transaction(s) count ${batch.transactions.length}`,
         );
       }
     } catch (e) {
@@ -337,9 +336,8 @@ export class BuyCryptoBatchService {
       batch.checkAndRecordFeesEstimations(effectivePurchaseFee, payoutFee);
 
       if (inputBatchLength !== batch.transactions.length) {
-        const { dexName, type, blockchain } = batch.outputAsset;
         console.log(
-          `Optimized batch for output asset: ${dexName} ${type} ${blockchain}. ${
+          `Optimized batch for output asset: ${batch.outputAsset.uniqueName}. ${
             inputBatchLength - batch.transactions.length
           } removed from the batch`,
         );

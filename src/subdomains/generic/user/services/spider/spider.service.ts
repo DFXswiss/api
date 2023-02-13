@@ -64,8 +64,8 @@ export class SpiderService {
     referenceType: ReferenceType,
   ): Promise<boolean> {
     return referenceType == ReferenceType.CONTRACT
-      ? await this.spiderApi.renameContractReference(oldReference, newReference)
-      : await this.spiderApi.renameCustomerReference(oldReference, newReference);
+      ? this.spiderApi.renameContractReference(oldReference, newReference)
+      : this.spiderApi.renameCustomerReference(oldReference, newReference);
   }
 
   async initializeCustomer(user: UserData): Promise<void> {
@@ -219,7 +219,7 @@ export class SpiderService {
   }
 
   async initiateIdentification(userDataId: number, identType: KycDocument): Promise<InitiateResponse> {
-    return await this.spiderApi.initiateIdentification(userDataId, false, identType);
+    return this.spiderApi.initiateIdentification(userDataId, false, identType);
   }
 
   async getChatbotResult(userDataId: number, isOrganization: boolean): Promise<ChatbotResult> {
@@ -241,7 +241,7 @@ export class SpiderService {
   }
 
   async getOnlineIdLog(userData: UserData, version: string): Promise<IdentificationLog | undefined> {
-    return await this.spiderApi.getDocument<IdentificationLog>(
+    return this.spiderApi.getDocument<IdentificationLog>(
       userData.id,
       false,
       KycDocument.ONLINE_IDENTIFICATION,

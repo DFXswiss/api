@@ -16,7 +16,7 @@ describe('Config', () => {
     const config = new Configuration();
     expect(Config.transformToMinDeposit(config.blockchain.default.minDeposit.DeFiChain)).toStrictEqual([
       { amount: 0.01, asset: 'DFI' },
-      { amount: 1, asset: 'USD' },
+      { amount: 0.4, asset: 'USDT' },
     ]);
   });
 
@@ -29,9 +29,9 @@ describe('Config', () => {
 
   it('should transform configs min deposit to a min deposit array and filter for DFI and USD', () => {
     const config = new Configuration();
-    expect(Config.transformToMinDeposit(config.blockchain.default.minDeposit.DeFiChain, ['DFI', 'USD'])).toStrictEqual([
+    expect(Config.transformToMinDeposit(config.blockchain.default.minDeposit.DeFiChain, ['DFI', 'USDT'])).toStrictEqual([
       { amount: 0.01, asset: 'DFI' },
-      { amount: 1, asset: 'USD' },
+      { amount: 0.4, asset: 'USDT' },
     ]);
   });
 

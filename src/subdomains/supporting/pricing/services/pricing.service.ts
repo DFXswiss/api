@@ -7,7 +7,7 @@ import { BitpandaService } from '../../../../integration/exchange/services/bitpa
 import { BitstampService } from '../../../../integration/exchange/services/bitstamp.service';
 import { CurrencyService } from '../../../../integration/exchange/services/currency.service';
 import { FixerService } from '../../../../integration/exchange/services/fixer.service';
-import { FtxService } from '../../../../integration/exchange/services/ftx.service';
+import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
 import { KrakenService } from '../../../../integration/exchange/services/kraken.service';
 import { BadPriceRequestException } from '../exceptions/bad-price-request.exception';
 import { PathNotConfiguredException } from '../exceptions/path-not-configured.exception';
@@ -43,7 +43,7 @@ export class PricingService {
     private readonly binanceService: BinanceService,
     private readonly bitstampService: BitstampService,
     private readonly bitpandaService: BitpandaService,
-    private readonly ftxService: FtxService,
+    private readonly kucoinService: KucoinService,
     private readonly currencyService: CurrencyService,
     private readonly fixerService: FixerService,
     private readonly dfiDexService: DfiPricingDexService,
@@ -110,7 +110,7 @@ export class PricingService {
           },
           reference: {
             overwrite: 'BTC',
-            providers: [this.binanceService, this.bitstampService, this.bitpandaService],
+            providers: [this.binanceService, this.bitstampService],
           },
         }),
       ]),
@@ -125,7 +125,7 @@ export class PricingService {
           },
           reference: {
             fallback: 'BTC',
-            providers: [this.ftxService, this.krakenService, this.bitstampService, this.bitpandaService],
+            providers: [this.kucoinService, this.krakenService, this.bitstampService, this.bitpandaService],
           },
         }),
       ]),
@@ -139,7 +139,7 @@ export class PricingService {
             providers: [this.krakenService],
           },
           reference: {
-            providers: [this.binanceService, this.bitstampService, this.bitpandaService],
+            providers: [this.binanceService, this.bitstampService],
           },
         }),
         new PriceStep({
@@ -148,7 +148,7 @@ export class PricingService {
             providers: [this.binanceService],
           },
           reference: {
-            providers: [this.ftxService, this.krakenService, this.bitstampService, this.bitpandaService],
+            providers: [this.kucoinService, this.krakenService, this.bitstampService, this.bitpandaService],
           },
         }),
       ]),
@@ -162,7 +162,7 @@ export class PricingService {
             providers: [this.binanceService],
           },
           reference: {
-            providers: [this.ftxService, this.krakenService, this.bitstampService, this.bitpandaService],
+            providers: [this.kucoinService, this.krakenService, this.bitstampService, this.bitpandaService],
           },
         }),
         new PriceStep({
@@ -171,7 +171,7 @@ export class PricingService {
             providers: [this.binanceService],
           },
           reference: {
-            providers: [this.ftxService, this.krakenService, this.bitstampService, this.bitpandaService],
+            providers: [this.kucoinService, this.krakenService, this.bitstampService, this.bitpandaService],
           },
         }),
       ]),
@@ -184,7 +184,7 @@ export class PricingService {
             providers: [this.binanceService],
           },
           reference: {
-            providers: [this.ftxService, this.krakenService, this.bitstampService, this.bitpandaService],
+            providers: [this.kucoinService, this.krakenService, this.bitstampService, this.bitpandaService],
           },
         }),
       ]),
@@ -229,7 +229,7 @@ export class PricingService {
             providers: [this.krakenService],
           },
           reference: {
-            providers: [this.binanceService, this.bitstampService, this.bitpandaService],
+            providers: [this.binanceService, this.bitstampService],
           },
         }),
         new PriceStep({

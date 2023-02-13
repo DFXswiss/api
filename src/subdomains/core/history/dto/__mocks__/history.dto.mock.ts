@@ -1,0 +1,22 @@
+import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
+import { HistoryDto } from 'src/subdomains/core/history/dto/history.dto';
+
+const defaultHistory: HistoryDto = {
+  inputAmount: 0.0006,
+  inputAsset: 'BTC',
+  outputAmount: 0.0005,
+  outputAsset: 'BTC',
+  date: new Date(),
+  isComplete: false,
+  txId: 'TX_INPUT_ID_01',
+  txUrl: 'https://defiscan.live/transactions/TX_ID_01',
+  amlCheck: AmlCheck.PASS,
+};
+
+export function createDefaultHistory(): HistoryDto {
+  return defaultHistory;
+}
+
+export function createCustomHistory(customValues: Partial<HistoryDto>): HistoryDto {
+  return { ...defaultHistory, ...customValues };
+}

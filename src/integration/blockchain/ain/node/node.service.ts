@@ -44,7 +44,7 @@ export class NodeService {
   // --- HEALTH CHECK API --- //
 
   async checkNodes(): Promise<NodeError[]> {
-    return await Promise.all(Object.values(NodeType).map((type) => this.checkNodePair(type))).then((errors) =>
+    return Promise.all(Object.values(NodeType).map((type) => this.checkNodePair(type))).then((errors) =>
       errors.reduce((prev, curr) => prev.concat(curr), []),
     );
   }

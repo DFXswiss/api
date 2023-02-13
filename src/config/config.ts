@@ -2,12 +2,16 @@ import { Injectable, Optional } from '@nestjs/common';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { Exchange } from 'ccxt';
 import { I18nJsonParser, I18nOptions } from 'nestjs-i18n';
-import * as path from 'path';
+import { join } from 'path';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
 import { Asset, FeeTier } from 'src/shared/models/asset/asset.entity';
-import { MinDeposit } from 'src/mix/models/deposit/dto/min-deposit.dto';
+import { MinDeposit } from 'src/subdomains/supporting/address-pool/deposit/dto/min-deposit.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+
+export enum Process {
+  PAY_IN = 'PayIn',
+}
 
 export function GetConfig(): Configuration {
   return new Configuration();
@@ -26,7 +30,7 @@ export class Configuration {
   defaultTwitterUrl = 'https://twitter.com/DFX_Swiss';
   defaultVolumeDecimal = 2;
   defaultPercentageDecimal = 2;
-  defaultDailyTradingLimit = 1000; // EUR
+  defaultDailyTradingLimit = 990; // EUR
   apiKeyVersionCT = '0'; // single digit hex number
   azureIpSubstring = '169.254';
 
@@ -35,6 +39,16 @@ export class Configuration {
     red: '#F5516C',
     lightBlue: '#0A355C',
     darkBlue: '#072440',
+  };
+
+  formats = {
+    address:
+      this.environment === 'prd'
+        ? /^(8\w{33}|d\w{33}|d\w{41}|0x\w{40}|(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39})$/
+        : /^((7|8)\w{33}|(t|d)\w{33}|(t|d)\w{41}|0x\w{40}|(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}|stake[a-z0-9]{54})$/,
+    signature: /^(.{87}=|[a-f0-9]{130}|[a-f0-9x]{132}|[a-f0-9]{582})$/,
+    key: /^[a-f0-9]{84}$/,
+    ref: /^(\w{1,3}-\w{1,3})$/,
   };
 
   database: TypeOrmModuleOptions = {
@@ -59,7 +73,7 @@ export class Configuration {
     fallbackLanguage: this.defaultLanguage,
     parser: I18nJsonParser,
     parserOptions: {
-      path: path.join(__dirname, '../shared/i18n/'),
+      path: join(__dirname, '../shared/i18n/'),
       watch: true,
     },
   };
@@ -82,7 +96,7 @@ export class Configuration {
       },
     },
     challenge: {
-      expiresIn: +process.env.CHALLENGE_EXPIRES_IN ?? 10,
+      expiresIn: +(process.env.CHALLENGE_EXPIRES_IN ?? 10),
     },
     signMessage:
       'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_DeFiChain_address_and_are_in_possession_of_its_private_key._Your_ID:_',
@@ -164,7 +178,7 @@ export class Configuration {
         },
       },
       template: {
-        dir: path.join(__dirname, '../subdomains/supporting/notification/templates'),
+        dir: join(__dirname, '../subdomains/supporting/notification/templates'),
         adapter: new HandlebarsAdapter(),
         options: {
           strict: true,
@@ -300,11 +314,17 @@ export class Configuration {
         },
         DeFiChain: {
           DFI: 0.01,
-          USD: 1, // token value in usdt
+          USDT: 0.4,
         },
       },
     },
+    evm: {
+      encryptionKey: process.env.EVM_ENCRYPTION_KEY,
+      minimalPreparationFee: 0.00000001,
+    },
     ethereum: {
+      ethScanApiUrl: process.env.ETH_SCAN_API_URL,
+      ethScanApiKey: process.env.ETH_SCAN_API_KEY,
       ethWalletAddress: process.env.ETH_WALLET_ADDRESS,
       ethWalletPrivateKey: process.env.ETH_WALLET_PRIVATE_KEY,
       ethGatewayUrl: process.env.ETH_GATEWAY_URL,
@@ -313,6 +333,8 @@ export class Configuration {
       swapTokenAddress: process.env.ETH_SWAP_TOKEN_ADDRESS,
     },
     bsc: {
+      bscScanApiUrl: process.env.BSC_SCAN_API_URL,
+      bscScanApiKey: process.env.BSC_SCAN_API_KEY,
       bscWalletAddress: process.env.BSC_WALLET_ADDRESS,
       bscWalletPrivateKey: process.env.BSC_WALLET_PRIVATE_KEY,
       bscGatewayUrl: process.env.BSC_GATEWAY_URL,
@@ -320,6 +342,8 @@ export class Configuration {
       swapTokenAddress: process.env.BSC_SWAP_TOKEN_ADDRESS,
     },
     optimism: {
+      optimismScanApiUrl: process.env.OPTIMISM_SCAN_API_URL,
+      optimismScanApiKey: process.env.OPTIMISM_SCAN_API_KEY,
       optimismWalletAddress: process.env.OPTIMISM_WALLET_ADDRESS,
       optimismWalletPrivateKey: process.env.OPTIMISM_WALLET_PRIVATE_KEY,
       optimismGatewayUrl: process.env.OPTIMISM_GATEWAY_URL,
@@ -328,6 +352,8 @@ export class Configuration {
       swapTokenAddress: process.env.OPTIMISM_SWAP_TOKEN_ADDRESS,
     },
     arbitrum: {
+      arbitrumScanApiUrl: process.env.ARBITRUM_SCAN_API_URL,
+      arbitrumScanApiKey: process.env.ARBITRUM_SCAN_API_KEY,
       arbitrumWalletAddress: process.env.ARBITRUM_WALLET_ADDRESS,
       arbitrumWalletPrivateKey: process.env.ARBITRUM_WALLET_PRIVATE_KEY,
       arbitrumGatewayUrl: process.env.ARBITRUM_GATEWAY_URL,
@@ -468,20 +494,6 @@ export class Configuration {
     };
   }
 
-  get addressFormat(): RegExp {
-    return this.environment === 'prd'
-      ? /^(8\w{33}|d\w{33}|d\w{41}|0x\w{40}|(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39})$/
-      : /^((7|8)\w{33}|(t|d)\w{33}|(t|d)\w{41}|0x\w{40}|(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}|stake[a-z0-9]{54})$/;
-  }
-
-  get signatureFormat(): RegExp {
-    return /^(.{87}=|[a-f0-9]{130}|[a-f0-9x]{132}|[a-f0-9]{582})$/;
-  }
-
-  get keyFormat(): RegExp {
-    return /^[a-f0-9]{84}$/;
-  }
-
   get configuredFeeLimit(): number | null {
     const limit = Number.parseFloat(process.env.BUY_CRYPTO_FEE_LIMIT);
 
@@ -493,6 +505,8 @@ export class Configuration {
     Object.entries(deposit)
       .filter(([key, _]) => filter?.includes(key) ?? true)
       .map(([key, value]) => ({ amount: value, asset: key }));
+
+  processDisabled = (processName: Process) => (process.env.DISABLED_PROCESSES?.split(',') ?? []).includes(processName);
 }
 
 @Injectable()

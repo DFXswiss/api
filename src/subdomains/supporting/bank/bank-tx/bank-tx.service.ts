@@ -68,7 +68,7 @@ export class BankTxService {
       throw new ConflictException(`There is already a bank tx with the accountServiceRef: ${bankTx.accountServiceRef}`);
 
     entity = await this.bankTxRepo.create(bankTx);
-    return await this.bankTxRepo.save(entity);
+    return this.bankTxRepo.save(entity);
   }
 
   async storeSepaFiles(files: string[]): Promise<(BankTxBatch | Error)[]> {
@@ -94,7 +94,7 @@ export class BankTxService {
       }
     }
 
-    return await this.bankTxRepo.save({ ...bankTx, ...dto });
+    return this.bankTxRepo.save({ ...bankTx, ...dto });
   }
 
   // --- HELPER METHODS --- //
