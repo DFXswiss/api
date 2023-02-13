@@ -39,7 +39,7 @@ export abstract class EvmStrategy extends PayoutStrategy {
   async checkPayoutCompletionData(orders: PayoutOrder[]): Promise<void> {
     for (const order of orders) {
       try {
-        const [isComplete, payoutFee] = await this.payoutEvmService.getPayoutCompletionData(order.payoutTxId);
+        const [isComplete, payoutFee] = await this.getPayoutCompletionData(order.payoutTxId);
 
         if (isComplete) {
           order.complete();
@@ -51,5 +51,9 @@ export abstract class EvmStrategy extends PayoutStrategy {
         console.error(`Error in checking EVM payout order completion. Order ID: ${order.id}`, e);
       }
     }
+  }
+
+  protected async getPayoutCompletionData(payoutTxId: string): Promise<[boolean, number]> {
+    return this.payoutEvmService.getPayoutCompletionData(payoutTxId);
   }
 }

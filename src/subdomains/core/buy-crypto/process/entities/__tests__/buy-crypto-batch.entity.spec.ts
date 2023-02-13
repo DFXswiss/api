@@ -1,4 +1,4 @@
-import { createCustomBuy } from 'src/subdomains/core/buy-crypto/route/__mocks__/buy.entity.mock';
+import { createCustomBuy } from 'src/subdomains/core/buy-crypto/routes/buy/__mocks__/buy.entity.mock';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { Util } from 'src/shared/utils/util';
 import { createCustomUser } from 'src/subdomains/generic/user/models/user/__mocks__/user.entity.mock';

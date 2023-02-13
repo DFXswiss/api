@@ -212,7 +212,7 @@ export class SpiderSyncService {
   }
 
   private async handleFailed(userData: UserData): Promise<UserData> {
-    return await this.kycProcess.stepFailed(userData);
+    return this.kycProcess.stepFailed(userData);
   }
 
   private async handleExpiring(userData: UserData): Promise<UserData> {

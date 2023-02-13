@@ -40,7 +40,7 @@ export class BtcClient extends NodeClient {
   async sendMany(payload: { addressTo: string; amount: number }[], feeRate: number): Promise<string> {
     const batch = payload.reduce((acc, p) => ({ ...acc, [p.addressTo]: `${p.amount}` }), {});
 
-    return await this.callNode<{ txid: string }>(
+    return this.callNode<{ txid: string }>(
       (c) =>
         c.call(
           NodeCommand.SEND,

@@ -1,5 +1,5 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { Method } from 'axios';
+import { Method, ResponseType } from 'axios';
 import { createHash } from 'crypto';
 import { Config } from 'src/config/config';
 import { RiskState, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -80,7 +80,7 @@ export class SpiderApiService {
         ],
       };
 
-      return await this.callApi<SubmitResponse[]>('customers/contract-linked-list', 'POST', [person]);
+      return this.callApi<SubmitResponse[]>('customers/contract-linked-list', 'POST', [person]);
     } else {
       return this.callApi<CreateResponse>('customers/simple', 'POST', customer);
     }
@@ -99,7 +99,7 @@ export class SpiderApiService {
       relationTypes: [KycRelationType.CONTRACTING_PARTNER],
     };
 
-    return await this.callApi<SubmitResponse[]>('customers/contract-linked-list', 'POST', [person, organization]);
+    return this.callApi<SubmitResponse[]>('customers/contract-linked-list', 'POST', [person, organization]);
   }
 
   private buildCustomer(id: number, user: UserData): Partial<Customer> {
@@ -213,15 +213,30 @@ export class SpiderApiService {
     return this.callApi(`customers/${this.reference(customerId, isOrganization)}/documents`);
   }
 
+  async getBinaryDocument(
+    customerId: number,
+    isOrganization: boolean,
+    document: KycDocument,
+    version: string,
+    part: string,
+  ): Promise<Buffer> {
+    return this.getDocument(customerId, isOrganization, document, version, part, 'arraybuffer').then(Buffer.from);
+  }
+
   async getDocument<T>(
     customerId: number,
     isOrganization: boolean,
     document: KycDocument,
     version: string,
     part: string,
+    responseType?: ResponseType,
   ): Promise<T> {
     return this.callApi<T>(
       `customers/${this.reference(customerId, isOrganization)}/documents/${document}/versions/${version}/parts/${part}`,
+      'GET',
+      undefined,
+      undefined,
+      responseType,
     );
   }
 
@@ -364,7 +379,7 @@ export class SpiderApiService {
         identType === KycDocument.INITIATE_CHATBOT_IDENTIFICATION ? Config.kyc.chatbotStyle : undefined,
     };
 
-    return await this.callApi<InitiateResponse[]>(`customers/initiate-${identType}-sessions`, 'POST', data).then(
+    return this.callApi<InitiateResponse[]>(`customers/initiate-${identType}-sessions`, 'POST', data).then(
       (r) => r[0],
     );
   }
@@ -378,8 +393,14 @@ export class SpiderApiService {
     return this.reference(id) + '_placeholder';
   }
 
-  private async callApi<T>(url: string, method: Method = 'GET', data?: any, contentType?: any): Promise<T> {
-    return this.request<T>(url, method, data, contentType).catch((e: HttpError) => {
+  private async callApi<T>(
+    url: string,
+    method: Method = 'GET',
+    data?: any,
+    contentType?: string,
+    responseType?: ResponseType,
+  ): Promise<T> {
+    return this.request<T>(url, method, data, contentType, responseType).catch((e: HttpError) => {
       if (e.response?.status === 404) {
         return null;
       }
@@ -392,7 +413,8 @@ export class SpiderApiService {
     url: string,
     method: Method,
     data?: any,
-    contentType?: any,
+    contentType?: string,
+    responseType?: ResponseType,
     nthTry = 3,
     getNewKey = false,
   ): Promise<T> {
@@ -403,6 +425,7 @@ export class SpiderApiService {
         url: `${this.baseUrl}/${version}/${url}`,
         method: method,
         data: data,
+        responseType,
         headers: {
           'Content-Type': contentType ?? 'application/json',
           'Session-Key': this.sessionKey,
@@ -410,7 +433,7 @@ export class SpiderApiService {
       });
     } catch (e) {
       if (nthTry > 1 && [403, 500].includes(e.response?.status)) {
-        return this.request(url, method, data, contentType, nthTry - 1, e.response?.status === 403);
+        return this.request(url, method, data, contentType, responseType, nthTry - 1, e.response?.status === 403);
       }
       throw e;
     }

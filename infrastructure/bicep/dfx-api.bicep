@@ -39,6 +39,8 @@ param stakingWalletAddress string
 param utxoSpenderAddress string
 param btcOutWalletAddress string
 
+@secure()
+param evmEncryptionKey string
 param ethWalletAddress string
 @secure()
 param ethWalletPrivateKey string
@@ -47,6 +49,9 @@ param ethGatewayUrl string
 param ethApiKey string
 param ethSwapContractAddress string
 param ethSwapTokenAddress string
+param ethScanApiUrl string
+@secure()
+param ethScanApiKey string
 
 param optimismWalletAddress string
 @secure()
@@ -56,6 +61,9 @@ param optimismGatewayUrl string
 param optimismApiKey string
 param optimismSwapContractAddress string
 param optimismSwapTokenAddress string
+param optimismScanApiUrl string
+@secure()
+param optimismScanApiKey string
 
 param arbitrumWalletAddress string
 @secure()
@@ -65,6 +73,9 @@ param arbitrumGatewayUrl string
 param arbitrumApiKey string
 param arbitrumSwapContractAddress string
 param arbitrumSwapTokenAddress string
+param arbitrumScanApiUrl string
+@secure()
+param arbitrumScanApiKey string
 
 param bscWalletAddress string
 @secure()
@@ -72,6 +83,9 @@ param bscWalletPrivateKey string
 param bscGatewayUrl string
 param bscSwapContractAddress string
 param bscSwapTokenAddress string
+param bscScanApiUrl string
+@secure()
+param bscScanApiKey string
 
 param buyCryptoFeeLimit string
 
@@ -551,6 +565,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: utxoSpenderAddress
         }
         {
+          name: 'EVM_ENCRYPTION_KEY'
+          value: evmEncryptionKey
+        }
+        {
           name: 'ETH_WALLET_ADDRESS'
           value: ethWalletAddress
         }
@@ -573,6 +591,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'ETH_SWAP_TOKEN_ADDRESS'
           value: ethSwapTokenAddress
+        }
+        {
+          name: 'ETH_SCAN_API_URL'
+          value: ethScanApiUrl
+        }
+        {
+          name: 'ETH_SCAN_API_KEY'
+          value: ethScanApiKey
         }
         {
           name: 'OPTIMISM_WALLET_ADDRESS'
@@ -599,6 +625,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: optimismSwapTokenAddress
         }
         {
+          name: 'OPTIMISM_SCAN_API_URL'
+          value: optimismScanApiUrl
+        }
+        {
+          name: 'OPTIMISM_SCAN_API_KEY'
+          value: optimismScanApiKey
+        }
+        {
           name: 'ARBITRUM_WALLET_ADDRESS'
           value: arbitrumWalletAddress
         }
@@ -623,6 +657,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: arbitrumSwapTokenAddress
         }
         {
+          name: 'ARBITRUM_SCAN_API_URL'
+          value: arbitrumScanApiUrl
+        }
+        {
+          name: 'ARBITRUM_SCAN_API_KEY'
+          value: arbitrumScanApiKey
+        }
+        {
           name: 'BSC_WALLET_ADDRESS'
           value: bscWalletAddress
         }
@@ -641,6 +683,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'BSC_SWAP_TOKEN_ADDRESS'
           value: bscSwapTokenAddress
+        }
+        {
+          name: 'BSC_SCAN_API_URL'
+          value: bscScanApiUrl
+        }
+        {
+          name: 'BSC_SCAN_API_KEY'
+          value: bscScanApiKey
         }
         {
           name: 'BTC_OUT_WALLET_ADDRESS'

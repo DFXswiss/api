@@ -74,7 +74,7 @@ export class PayoutService {
     const prepareFee = await prepareStrategy.estimateFee(request.asset);
     const payoutFee = await payoutStrategy.estimateFee(request.quantityOfTransactions, request.asset);
 
-    const totalFeeAmount = Util.round(prepareFee.amount + payoutFee.amount, 8);
+    const totalFeeAmount = Util.round(prepareFee.amount + payoutFee.amount, 16);
 
     return { asset: payoutFee.asset, amount: totalFeeAmount };
   }
