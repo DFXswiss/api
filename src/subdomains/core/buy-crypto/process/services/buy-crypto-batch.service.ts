@@ -228,7 +228,7 @@ export class BuyCryptoBatchService {
 
         optimizedBatches.push(batch);
       } catch (e) {
-        console.info(`Error in optimizing new batch. Batch target asset: ${batch.outputAsset.dexName}.`, e.message);
+        console.info(`Error in optimizing new batch. Batch target asset: ${batch.outputAsset.uniqueName}.`, e.message);
       }
     }
 
@@ -242,7 +242,7 @@ export class BuyCryptoBatchService {
       return await this.dexService.checkLiquidity(request);
     } catch (e) {
       throw new Error(
-        `Error in checking liquidity for a batch. Batch target asset: ${batch.outputAsset.dexName}. ${e.message}`,
+        `Error in checking liquidity for a batch. Batch target asset: ${batch.outputAsset.uniqueName}. ${e.message}`,
       );
     }
   }
@@ -390,30 +390,26 @@ export class BuyCryptoBatchService {
 
       const maxPurchasableTargetAmountMessage =
         maxPurchasableTargetAmount != null
-          ? `Could be additionally swapped from other available assets: ${maxPurchasableTargetAmount}`
+          ? `Could be automatically swapped from other available swap assets: ${maxPurchasableTargetAmount}`
           : '';
 
       const maxPurchasableReferenceAmountMessage =
         maxPurchasableReferenceAmount != null
-          ? `Could be additionally swapped from other available assets: ${maxPurchasableReferenceAmount}`
+          ? `Could be automatically swapped from other available swap assets: ${maxPurchasableReferenceAmount}`
           : '';
 
-      const message = `
-        ${error.message}
-        Details:
-        In target asset (${oa.uniqueName}): 
-         - Required amount: ${targetAmount}, available amount: ${availableTargetAmount}, deficit: ${targetDeficit}. ${maxPurchasableTargetAmountMessage}
-
-        In reference asset (${ora.uniqueName} ):
-         - Required amount: ${outputReferenceAmount}, available amount: ${availableReferenceAmount}, deficit: ${referenceDeficit}. ${maxPurchasableReferenceAmountMessage}
-      `;
+      const messages = [
+        `${error.message} Details:`,
+        `In target asset (${oa.uniqueName}): Required amount: ${targetAmount}, available amount: ${availableTargetAmount}, deficit: ${targetDeficit}. ${maxPurchasableTargetAmountMessage}`,
+        `In reference asset (${ora.uniqueName}): Required amount: ${outputReferenceAmount}, available amount: ${availableReferenceAmount}, deficit: ${referenceDeficit}. ${maxPurchasableReferenceAmountMessage}`,
+      ];
 
       await this.buyCryptoNotificationService.sendMissingLiquidityError(
         oa.dexName,
         oa.blockchain,
         oa.type,
         transactions.map((t) => t.id),
-        message,
+        messages,
       );
     } catch (e) {
       console.error('Error in handling AbortBatchCreationException', e);
