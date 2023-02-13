@@ -112,6 +112,8 @@ export class LiquidityManagementRuleService {
       if (rule.shouldReactivate()) {
         rule.reactivate();
         await this.ruleRepo.save(rule);
+
+        console.log(`Reactivated liquidity management rule ${rule.id}`);
       }
     }
   }
