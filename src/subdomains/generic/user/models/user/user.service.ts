@@ -56,8 +56,14 @@ export class UserService {
     return this.userRepo.findOne(userId, { relations: loadUserData ? ['userData'] : [] });
   }
 
-  async getUserByAddress(address: string): Promise<User> {
-    return this.userRepo.findOne({ where: { address }, relations: ['userData', 'userData.users'] });
+  async getUserByKey(key: string, value: any): Promise<User> {
+    return this.userRepo
+      .createQueryBuilder('user')
+      .select('user')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('userData.users', 'users')
+      .where(`user.${key} = :param`, { param: value })
+      .getOne();
   }
 
   async getUserDto(userId: number, detailed = false): Promise<UserDetailDto> {

@@ -97,6 +97,24 @@ export class BankTxService {
     return this.bankTxRepo.save({ ...bankTx, ...dto });
   }
 
+  async getBankTxByKey(key: string, value: any): Promise<BankTx> {
+    return this.bankTxRepo
+      .createQueryBuilder('bankTx')
+      .select('bankTx')
+      .leftJoinAndSelect('bankTx.buyCrypto', 'buyCrypto')
+      .leftJoinAndSelect('bankTx.buyFiat', 'buyFiat')
+      .leftJoinAndSelect('buyCrypto.buy', 'buy')
+      .leftJoinAndSelect('buyFiat.sell', 'sell')
+      .leftJoinAndSelect('buy.user', 'user')
+      .leftJoinAndSelect('sell.user', 'sellUser')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('sellUser.userData', 'sellUserData')
+      .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('sellUserData.users', 'sellUsers')
+      .where(`bankTx.${key} = :param`, { param: value })
+      .getOne();
+  }
+
   // --- HELPER METHODS --- //
 
   private async storeSepaFile(xmlFile: string): Promise<BankTxBatch> {

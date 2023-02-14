@@ -37,4 +37,17 @@ export class FiatOutputService {
 
     return this.fiatOutputRepo.save({ ...entity, ...dto });
   }
+
+  async getFiatOutputByKey(key: string, value: any): Promise<FiatOutput> {
+    return this.fiatOutputRepo
+      .createQueryBuilder('fiatOutput')
+      .select('fiatOutput')
+      .leftJoinAndSelect('fiatOutput.buyFiat', 'buyFiat')
+      .leftJoinAndSelect('buyFiat.sell', 'sell')
+      .leftJoinAndSelect('sell.user', 'user')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('userData.users', 'users')
+      .where(`fiatOutput.${key} = :param`, { param: value })
+      .getOne();
+  }
 }

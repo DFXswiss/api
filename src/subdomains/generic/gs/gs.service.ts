@@ -9,6 +9,8 @@ import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service'
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { BankTxRepeatService } from 'src/subdomains/supporting/bank/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxType } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
+import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
+import { FiatOutputService } from 'src/subdomains/supporting/bank/fiat-output/fiat-output.service';
 import { getConnection } from 'typeorm';
 import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
@@ -17,6 +19,18 @@ import { DbQueryBaseDto, DbQueryDto } from './dto/db-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
+
+export enum SupportTable {
+  USER_DATA = 'userData',
+  USER = 'user',
+  BUY = 'buy',
+  SELL = 'sell',
+  BUY_CRYPTO = 'buyCrypto',
+  BUY_FIAT = 'buyFiat',
+  BANK_TX = 'bankTx',
+  BANK_ACCOUNT = 'bankAccount',
+  FIAT_OUTPUT = 'fiatOutput',
+}
 
 @Injectable()
 export class GsService {
@@ -34,6 +48,8 @@ export class GsService {
     private readonly buyFiatService: BuyFiatService,
     private readonly refRewardService: RefRewardService,
     private readonly bankTxRepeatService: BankTxRepeatService,
+    private readonly bankTxService: BankTxService,
+    private readonly fiatOutputService: FiatOutputService,
   ) {}
 
   async getRawData(query: DbQueryDto): Promise<any> {
@@ -97,18 +113,35 @@ export class GsService {
   //*** HELPER METHODS ***//
 
   private async getUserData(query: SupportDataQuery): Promise<UserData> {
-    if (query.userDataId) {
-      return this.userDataService.getUserData(+query.userDataId);
-    } else if (query.userAddress) {
-      return this.userService.getUserByAddress(query.userAddress).then((user) => user?.userData);
-    } else if (query.depositAddress) {
-      return this.sellService.getSellByAddress(query.depositAddress).then((sell) => sell?.user.userData);
-    } else if (query.iban) {
-      return this.bankAccountService.getBankAccountByIban(query.iban).then((bankAcc) => bankAcc?.userData);
-    } else if (query.ref) {
-      return this.userService.getRefUser(query.ref).then((user) => user?.userData);
-    } else if (query.bankUsage) {
-      return this.buyService.getBuyByBankUsage(query.bankUsage).then((buy) => buy?.user.userData);
+    switch (query.table) {
+      case SupportTable.USER_DATA:
+        return this.userDataService.getUserDataByKey(query.key, query.value);
+      case SupportTable.USER:
+        return this.userService.getUserByKey(query.key, query.value).then((user) => user?.userData);
+      case SupportTable.BUY:
+        return this.buyService.getBuyByKey(query.key, query.value).then((buy) => buy?.user.userData);
+      case SupportTable.SELL:
+        return this.sellService.getSellByKey(query.key, query.value).then((sell) => sell?.user.userData);
+      case SupportTable.BUY_CRYPTO:
+        return this.buyCryptoService
+          .getBuyCryptoByKey(query.key, query.value)
+          .then((buyCrypto) => buyCrypto?.user.userData);
+      case SupportTable.BUY_FIAT:
+        return this.buyFiatService
+          .getBuyFiatByKey(query.key, query.value)
+          .then((buyFiat) => buyFiat?.sell.user.userData);
+      case SupportTable.BANK_ACCOUNT:
+        return this.bankAccountService.getBankAccountByKey(query.key, query.value).then((bankAcc) => bankAcc?.userData);
+      case SupportTable.BANK_TX:
+        return this.bankTxService
+          .getBankTxByKey(query.key, query.value)
+          .then((bankTx) =>
+            bankTx?.buyCrypto ? bankTx?.buyCrypto.buy.user.userData : bankTx?.buyFiat?.sell.user.userData,
+          );
+      case SupportTable.FIAT_OUTPUT:
+        return this.fiatOutputService
+          .getFiatOutputByKey(query.key, query.value)
+          .then((fiatOutput) => fiatOutput?.buyFiat.sell.user.userData);
     }
   }
 

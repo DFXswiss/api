@@ -48,6 +48,18 @@ export class SellService {
       .getOne();
   }
 
+  async getSellByKey(key: string, value: any): Promise<Sell> {
+    return this.sellRepo
+      .createQueryBuilder('sell')
+      .select('sell')
+      .leftJoinAndSelect('sell.deposit', 'deposit')
+      .leftJoinAndSelect('sell.user', 'user')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('userData.users', 'users')
+      .where(`sell.${key} = :param`, { param: value })
+      .getOne();
+  }
+
   async getUserSells(userId: number): Promise<Sell[]> {
     return this.sellRepo.find({ user: { id: userId } });
   }

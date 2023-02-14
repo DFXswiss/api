@@ -1,4 +1,3 @@
-import { IsOptional } from 'class-validator';
 import { CryptoStaking } from 'src/subdomains/core/staking/entities/crypto-staking.entity';
 import { StakingRefReward } from 'src/subdomains/core/staking/entities/staking-ref-reward.entity';
 import { StakingReward } from 'src/subdomains/core/staking/entities/staking-reward.entity';
@@ -7,7 +6,9 @@ import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BankTxRepeat } from 'src/subdomains/supporting/bank/bank-tx-repeat/bank-tx-repeat.entity';
 import { UserData } from '../../user/models/user-data/user-data.entity';
+import { SupportTable } from '../gs.service';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { IsEnum, IsNotEmpty } from 'class-validator';
 
 export class SupportReturnData {
   userData: UserData;
@@ -23,21 +24,13 @@ export class SupportReturnData {
 }
 
 export class SupportDataQuery {
-  @IsOptional()
-  userDataId: string;
+  @IsNotEmpty()
+  @IsEnum(SupportTable)
+  table: SupportTable;
 
-  @IsOptional()
-  userAddress: string;
+  @IsNotEmpty()
+  key: string;
 
-  @IsOptional()
-  depositAddress: string;
-
-  @IsOptional()
-  iban: string;
-
-  @IsOptional()
-  ref: string;
-
-  @IsOptional()
-  bankUsage: string;
+  @IsNotEmpty()
+  value: any;
 }
