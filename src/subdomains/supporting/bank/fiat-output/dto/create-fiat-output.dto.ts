@@ -1,4 +1,5 @@
-import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsDate, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateFiatOutputDto {
   @IsOptional()
@@ -44,4 +45,9 @@ export class CreateFiatOutputDto {
   @IsOptional()
   @IsString()
   accountIban?: string;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  valutaDate?: Date;
 }
