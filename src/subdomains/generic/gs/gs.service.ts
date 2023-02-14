@@ -29,7 +29,6 @@ export enum SupportTable {
   BUY_FIAT = 'buyFiat',
   BANK_TX = 'bankTx',
   BANK_ACCOUNT = 'bankAccount',
-  // CRYPTO_INPUT = 'cryptoInput',
   FIAT_OUTPUT = 'fiatOutput',
 }
 
@@ -139,10 +138,6 @@ export class GsService {
           .then((bankTx) =>
             bankTx?.buyCrypto ? bankTx?.buyCrypto.buy.user.userData : bankTx?.buyFiat?.sell.user.userData,
           );
-      // case SupportTable.CRYPTO_INPUT:
-      //   return this.payInService
-      //     .getCryptoInputByKey(query.key, query.value)
-      //     .then((cryptoInput) => cryptoInput?.route.user.userData);
       case SupportTable.FIAT_OUTPUT:
         return this.fiatOutputService
           .getFiatOutputByKey(query.key, query.value)
