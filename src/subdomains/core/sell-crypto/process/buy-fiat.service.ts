@@ -170,7 +170,7 @@ export class BuyFiatService {
   async getAllUserTransactions(userIds: number[]): Promise<BuyFiat[]> {
     return this.buyFiatRepo.find({
       where: { sell: { user: { id: In(userIds) } } },
-      relations: ['cryptoInput', 'bankTx', 'sell', 'sell.user'],
+      relations: ['cryptoInput', 'bankTx', 'sell', 'sell.user', 'fiatOutput'],
     });
   }
 
