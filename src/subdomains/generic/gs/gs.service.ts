@@ -116,37 +116,35 @@ export class GsService {
   private async getUserData(query: SupportDataQuery): Promise<UserData> {
     switch (query.table) {
       case SupportTable.USER_DATA:
-        return await this.userDataService.getUserDataByKey(query.key, query.value);
+        return this.userDataService.getUserDataByKey(query.key, query.value);
       case SupportTable.USER:
-        return await this.userService.getUserByKey(query.key, query.value).then((user) => user?.userData);
+        return this.userService.getUserByKey(query.key, query.value).then((user) => user?.userData);
       case SupportTable.BUY:
-        return await this.buyService.getBuyByKey(query.key, query.value).then((buy) => buy?.user.userData);
+        return this.buyService.getBuyByKey(query.key, query.value).then((buy) => buy?.user.userData);
       case SupportTable.SELL:
-        return await this.sellService.getSellByKey(query.key, query.value).then((sell) => sell?.user.userData);
+        return this.sellService.getSellByKey(query.key, query.value).then((sell) => sell?.user.userData);
       case SupportTable.BUY_CRYPTO:
-        return await this.buyCryptoService
+        return this.buyCryptoService
           .getBuyCryptoByKey(query.key, query.value)
           .then((buyCrypto) => buyCrypto?.user.userData);
       case SupportTable.BUY_FIAT:
-        return await this.buyFiatService
+        return this.buyFiatService
           .getBuyFiatByKey(query.key, query.value)
           .then((buyFiat) => buyFiat?.sell.user.userData);
       case SupportTable.BANK_ACCOUNT:
-        return await this.bankAccountService
-          .getBankAccountByKey(query.key, query.value)
-          .then((bankAcc) => bankAcc?.userData);
+        return this.bankAccountService.getBankAccountByKey(query.key, query.value).then((bankAcc) => bankAcc?.userData);
       case SupportTable.BANK_TX:
-        return await this.bankTxService
+        return this.bankTxService
           .getBankTxByKey(query.key, query.value)
           .then((bankTx) =>
             bankTx?.buyCrypto ? bankTx?.buyCrypto.buy.user.userData : bankTx?.buyFiat?.sell.user.userData,
           );
       // case SupportTable.CRYPTO_INPUT:
-      //   return await this.payInService
+      //   return this.payInService
       //     .getCryptoInputByKey(query.key, query.value)
       //     .then((cryptoInput) => cryptoInput?.route.user.userData);
       case SupportTable.FIAT_OUTPUT:
-        return await this.fiatOutputService
+        return this.fiatOutputService
           .getFiatOutputByKey(query.key, query.value)
           .then((fiatOutput) => fiatOutput?.buyFiat.sell.user.userData);
     }

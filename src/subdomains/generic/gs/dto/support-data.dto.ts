@@ -8,7 +8,7 @@ import { BankTxRepeat } from 'src/subdomains/supporting/bank/bank-tx-repeat/bank
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { SupportTable } from '../gs.service';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { IsNotEmpty } from 'class-validator';
+import { IsEnum, IsNotEmpty } from 'class-validator';
 
 export class SupportReturnData {
   userData: UserData;
@@ -25,6 +25,7 @@ export class SupportReturnData {
 
 export class SupportDataQuery {
   @IsNotEmpty()
+  @IsEnum(SupportTable)
   table: SupportTable;
 
   @IsNotEmpty()
