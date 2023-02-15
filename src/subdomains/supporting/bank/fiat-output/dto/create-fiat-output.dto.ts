@@ -50,4 +50,8 @@ export class CreateFiatOutputDto {
   @IsDate()
   @Type(() => Date)
   valutaDate?: Date;
+
+  @IsOptional()
+  @IsString()
+  bic?: string;
 }
