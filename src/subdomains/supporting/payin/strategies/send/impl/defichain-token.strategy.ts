@@ -39,14 +39,10 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
 
         if ([PayInStatus.ACKNOWLEDGED, PayInStatus.TO_RETURN].includes(payIn.status)) {
           await this.prepareSend(payIn);
-
-          continue;
         }
 
         if (payIn.status === PayInStatus.PREPARED) {
           await this.dispatch(payIn, type);
-
-          continue;
         }
       } catch (e) {
         console.error(`Failed to send DeFiChain token input ${payIn.id} of type ${type}`, e);
