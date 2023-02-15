@@ -20,6 +20,9 @@ export class LiquidityManagementOrder extends IEntity {
   @JoinTable()
   action: LiquidityManagementAction;
 
+  @Column({ length: 256, nullable: true })
+  correlationId: string;
+
   //*** FACTORY ***//
 
   static create(
@@ -39,7 +42,8 @@ export class LiquidityManagementOrder extends IEntity {
 
   //*** PUBLIC API ***//
 
-  inProgress(): this {
+  inProgress(correlationId: string): this {
+    this.correlationId = correlationId;
     this.status = LiquidityManagementOrderStatus.IN_PROGRESS;
 
     return this;

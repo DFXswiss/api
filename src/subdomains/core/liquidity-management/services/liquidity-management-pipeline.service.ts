@@ -175,8 +175,8 @@ export class LiquidityManagementPipelineService {
   private async executeOrder(order: LiquidityManagementOrder): Promise<void> {
     const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
 
-    await actionIntegration.executeOrder(order);
-    order.inProgress();
+    const correlationId = await actionIntegration.executeOrder(order);
+    order.inProgress(correlationId);
 
     await this.orderRepo.save(order);
   }
@@ -201,7 +201,7 @@ export class LiquidityManagementPipelineService {
 
   private async checkOrder(order: LiquidityManagementOrder): Promise<void> {
     const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
-    const isComplete = await actionIntegration.checkCompletion(order.id.toString());
+    const isComplete = await actionIntegration.checkCompletion(order);
 
     if (isComplete) {
       order.complete();

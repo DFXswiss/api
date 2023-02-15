@@ -58,6 +58,14 @@ export class OptimismClient extends EvmClient {
     return this.convertToEthLikeDenomination(actualL2Fee.add(actualL1Fee));
   }
 
+  async depositCoin(amount: number, fromAddress: string, toAddress: string): Promise<string> {}
+
+  async withdrawCoin(amount: number, fromAddress: string, toAddress: string): Promise<string> {}
+
+  async depositToken(token: Asset, amount: number, fromAddress: string, toAddress: string): Promise<string> {}
+
+  async withdrawToken(token: Asset, amount: number, fromAddress: string, toAddress: string): Promise<string> {}
+
   /**
    * @note
    * requires UniswapV3 implementation or alternative

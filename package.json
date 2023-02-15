@@ -24,6 +24,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@arbitrum/sdk": "^3.0.0",
     "@cardano-foundation/cardano-verify-datasignature": "^1.0.11",
     "@defichain/jellyfish-api-core": "^2.70.0",
     "@defichain/jellyfish-api-jsonrpc": "^2.70.0",

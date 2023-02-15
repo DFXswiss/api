@@ -32,7 +32,7 @@ export class DfxDexAdapter implements LiquidityActionIntegration {
     } = order;
 
     if (!(asset instanceof Asset)) {
-      throw new Error('DfxDexAdapter supports only Assets.');
+      throw new Error('DfxDexAdapter supports only Asset instances as an input');
     }
 
     try {
@@ -42,11 +42,16 @@ export class DfxDexAdapter implements LiquidityActionIntegration {
     }
   }
 
-  async checkCompletion(correlationId: CorrelationId): Promise<boolean> {
+  async checkCompletion(order: LiquidityManagementOrder): Promise<boolean> {
     try {
-      const result = await this.dexService.checkOrderReady(LiquidityOrderContext.LIQUIDITY_MANAGEMENT, correlationId);
-      if (result.isReady)
-        await this.dexService.completeOrders(LiquidityOrderContext.LIQUIDITY_MANAGEMENT, correlationId);
+      const result = await this.dexService.checkOrderReady(
+        LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
+        order.correlationId,
+      );
+
+      if (result.isReady) {
+        await this.dexService.completeOrders(LiquidityOrderContext.LIQUIDITY_MANAGEMENT, order.correlationId);
+      }
 
       return result.isReady;
     } catch (e) {
@@ -56,6 +61,10 @@ export class DfxDexAdapter implements LiquidityActionIntegration {
 
   //*** COMMANDS IMPLEMENTATIONS ***//
 
+  /**
+   * @note
+   * correlationId is the orderId and set by liquidity management
+   */
   private async purchase(asset: Asset, amount: number, correlationId: number): Promise<CorrelationId> {
     const request = {
       context: LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
@@ -67,9 +76,13 @@ export class DfxDexAdapter implements LiquidityActionIntegration {
 
     await this.dexService.purchaseLiquidity(request);
 
-    return null;
+    return correlationId.toString();
   }
 
+  /**
+   * @note
+   * correlationId is the orderId and set by liquidity management
+   */
   private async sell(asset: Asset, amount: number, correlationId: number): Promise<CorrelationId> {
     const request = {
       context: LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
@@ -80,7 +93,7 @@ export class DfxDexAdapter implements LiquidityActionIntegration {
 
     await this.dexService.sellLiquidity(request);
 
-    return null;
+    return correlationId.toString();
   }
 
   get supportedCommands(): string[] {

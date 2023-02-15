@@ -12,7 +12,7 @@ export interface LiquidityBalanceIntegration {
 export interface LiquidityActionIntegration {
   supportedCommands: string[];
   executeOrder(order: LiquidityManagementOrder): Promise<CorrelationId>;
-  checkCompletion(correlationId: string): Promise<boolean>;
+  checkCompletion(order: LiquidityManagementOrder): Promise<boolean>;
 }
 
 export interface LiquidityVerificationResult {
