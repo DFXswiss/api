@@ -77,7 +77,10 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
   private async dispatch(payIn: CryptoInput, type: SendType): Promise<void> {
     this.designateSend(payIn, type);
 
-    const utxo = await this.deFiChainService.getFeeUtxoByTransaction(payIn.address.address, payIn.prepareTxId);
+    const utxo = payIn.prepareTxId
+      ? await this.deFiChainService.getFeeUtxoByTransaction(payIn.address.address, payIn.prepareTxId)
+      : await this.deFiChainService.getFeeUtxo(payIn.address.address);
+
     const outTxId = await this.deFiChainService.sendTokenSync(payIn, utxo);
 
     this.updatePayInWithSendData(payIn, type, outTxId);
