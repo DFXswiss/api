@@ -5,8 +5,9 @@ import { HttpService } from 'src/shared/services/http.service';
 import { EvmClient } from '../shared/evm/evm-client';
 import { GetConfig } from 'src/config/config';
 import { EthDepositParams } from '@arbitrum/sdk/dist/lib/assetBridger/ethBridger';
+import { L2BridgeEvmClient } from '../shared/evm/interfaces';
 
-export class ArbitrumClient extends EvmClient {
+export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
   #l1Provider: ethers.providers.JsonRpcProvider;
   #l1Wallet: ethers.Wallet;
   #l2Network: L2Network;

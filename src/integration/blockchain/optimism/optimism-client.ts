@@ -3,6 +3,7 @@ import { BigNumber, ethers } from 'ethers';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { EvmClient } from '../shared/evm/evm-client';
+import { L2BridgeEvmClient } from '../shared/evm/interfaces';
 
 interface OptimismTransactionReceipt extends ethers.providers.TransactionReceipt {
   l1GasPrice: BigNumber;
@@ -10,7 +11,7 @@ interface OptimismTransactionReceipt extends ethers.providers.TransactionReceipt
   l1FeeScalar: number;
 }
 
-export class OptimismClient extends EvmClient {
+export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
   constructor(
     http: HttpService,
     scanApiUrl: string,
@@ -22,6 +23,29 @@ export class OptimismClient extends EvmClient {
     swapTokenAddress: string,
   ) {
     super(http, scanApiUrl, scanApiKey, gatewayUrl, privateKey, dfxAddress, swapContractAddress, swapTokenAddress);
+  }
+  depositCoinOnDex(amount: number): Promise<string> {
+    throw new Error('Method not implemented.');
+  }
+
+  withdrawCoinOnDex(amount: number): Promise<string> {
+    throw new Error('Method not implemented.');
+  }
+
+  depositTokenOnDex(l1token: Asset, amount: number): Promise<string> {
+    throw new Error('Method not implemented.');
+  }
+
+  withdrawTokenOnDex(l1token: Asset, amount: number): Promise<string> {
+    throw new Error('Method not implemented.');
+  }
+
+  checkL2TransactionCompletion(l1TxId: string): Promise<boolean> {
+    throw new Error('Method not implemented.');
+  }
+
+  checkL1TransactionCompletion(l2TxId: string): Promise<boolean> {
+    throw new Error('Method not implemented.');
   }
 
   async getCurrentGasForCoinTransaction(): Promise<number> {
@@ -57,14 +81,6 @@ export class OptimismClient extends EvmClient {
 
     return this.convertToEthLikeDenomination(actualL2Fee.add(actualL1Fee));
   }
-
-  async depositCoin(amount: number, fromAddress: string, toAddress: string): Promise<string> {}
-
-  async withdrawCoin(amount: number, fromAddress: string, toAddress: string): Promise<string> {}
-
-  async depositToken(token: Asset, amount: number, fromAddress: string, toAddress: string): Promise<string> {}
-
-  async withdrawToken(token: Asset, amount: number, fromAddress: string, toAddress: string): Promise<string> {}
 
   /**
    * @note

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BankModule } from 'src/integration/bank/bank.module';
 import { AinModule } from 'src/integration/blockchain/ain/ain.module';
+import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { DexModule } from 'src/subdomains/supporting/dex/dex.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
@@ -36,7 +37,7 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     ]),
     SharedModule,
     DexModule,
-    AinModule,
+    BlockchainModule,
     BankModule,
     NotificationModule,
   ],
