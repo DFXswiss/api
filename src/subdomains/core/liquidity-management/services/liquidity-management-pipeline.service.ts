@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { LiquidityManagementOrder } from '../entities/liquidity-management-order.entity';
 import { LiquidityManagementOrderStatus, LiquidityManagementPipelineStatus } from '../enums';
@@ -80,6 +80,14 @@ export class LiquidityManagementPipelineService {
         { status: LiquidityManagementOrderStatus.IN_PROGRESS },
       ],
     });
+  }
+
+  async getPipelineStatus(pipelineId: number): Promise<LiquidityManagementPipelineStatus> {
+    const pipeline = await this.pipelineRepo.findOne({ id: pipelineId });
+
+    if (!pipeline) throw new NotFoundException(`No liquidity management pipeline found for id ${pipelineId}`);
+
+    return pipeline.status;
   }
 
   //*** HELPER METHODS ***//

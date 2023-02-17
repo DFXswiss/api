@@ -4,6 +4,7 @@ import { LiquidityBalance } from '../entities/liquidity-balance.entity';
 import { LiquidityManagementOrder } from '../entities/liquidity-management-order.entity';
 
 export type CorrelationId = string;
+export type PipelineId = number;
 
 export interface LiquidityBalanceIntegration {
   getBalance(asset: Asset | Fiat): Promise<LiquidityBalance>;
@@ -15,8 +16,7 @@ export interface LiquidityActionIntegration {
   checkCompletion(order: LiquidityManagementOrder): Promise<boolean>;
 }
 
-export interface LiquidityVerificationResult {
-  isOptimal: boolean;
-  liquidityDeficit: number;
-  liquidityRedundancy: number;
+export interface LiquidityState {
+  deficit: number;
+  redundancy: number;
 }

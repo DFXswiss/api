@@ -1,11 +1,15 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity, JoinTable, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, JoinTable, ManyToOne } from 'typeorm';
 import { LiquidityManagementRule } from './liquidity-management-rule.entity';
 import { LiquidityManagementOrderStatus, LiquidityManagementPipelineStatus, LiquidityOptimizationType } from '../enums';
-import { LiquidityVerificationResult } from '../interfaces';
+import { LiquidityState } from '../interfaces';
 import { LiquidityManagementAction } from './liquidity-management-action.entity';
 
 @Entity()
+@Index((p: LiquidityManagementPipeline) => [p.rule, p.status], {
+  unique: true,
+  where: `status IN ('${LiquidityManagementPipelineStatus.CREATED}', '${LiquidityManagementPipelineStatus.IN_PROGRESS}')`,
+})
 export class LiquidityManagementPipeline extends IEntity {
   @Column({ length: 256, nullable: false })
   status: LiquidityManagementPipelineStatus;
@@ -28,17 +32,14 @@ export class LiquidityManagementPipeline extends IEntity {
 
   //*** FACTORY METHODS ***//
 
-  static create(
-    rule: LiquidityManagementRule,
-    verificationResult: LiquidityVerificationResult,
-  ): LiquidityManagementPipeline {
+  static create(rule: LiquidityManagementRule, verificationResult: LiquidityState): LiquidityManagementPipeline {
     const pipeline = new LiquidityManagementPipeline();
 
     pipeline.status = LiquidityManagementPipelineStatus.CREATED;
     pipeline.rule = rule;
     pipeline.ordersProcessed = 0;
     pipeline.type = this.getPipelineType(verificationResult);
-    pipeline.targetAmount = verificationResult.liquidityDeficit || verificationResult.liquidityRedundancy;
+    pipeline.targetAmount = verificationResult.deficit || verificationResult.redundancy;
 
     return pipeline;
   }
@@ -85,13 +86,13 @@ export class LiquidityManagementPipeline extends IEntity {
 
   //*** HELPER METHODS ***//
 
-  private static getPipelineType(verificationResult: LiquidityVerificationResult): LiquidityOptimizationType {
-    const { liquidityDeficit, liquidityRedundancy: liquiditySurplus, isOptimal } = verificationResult;
+  private static getPipelineType(verificationResult: LiquidityState): LiquidityOptimizationType {
+    const { deficit, redundancy } = verificationResult;
 
-    if (isOptimal || (!liquidityDeficit && !liquiditySurplus)) {
+    if (!deficit && !redundancy) {
       throw new Error('Cannot create pipeline for optimal rule. No liquidity deficit or redundancy found');
     }
 
-    return liquidityDeficit ? LiquidityOptimizationType.DEFICIT : LiquidityOptimizationType.REDUNDANCY;
+    return deficit ? LiquidityOptimizationType.DEFICIT : LiquidityOptimizationType.REDUNDANCY;
   }
 }

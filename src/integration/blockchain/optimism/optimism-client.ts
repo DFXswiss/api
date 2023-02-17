@@ -24,6 +24,7 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
   ) {
     super(http, scanApiUrl, scanApiKey, gatewayUrl, privateKey, dfxAddress, swapContractAddress, swapTokenAddress);
   }
+
   depositCoinOnDex(amount: number): Promise<string> {
     throw new Error('Method not implemented.');
   }
