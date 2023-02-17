@@ -68,7 +68,7 @@ export class BankTxService {
       throw new ConflictException(`There is already a bank tx with the accountServiceRef: ${bankTx.accountServiceRef}`);
 
     entity = await this.bankTxRepo.create(bankTx);
-    return await this.bankTxRepo.save(entity);
+    return this.bankTxRepo.save(entity);
   }
 
   async storeSepaFiles(files: string[]): Promise<(BankTxBatch | Error)[]> {
@@ -94,7 +94,25 @@ export class BankTxService {
       }
     }
 
-    return await this.bankTxRepo.save({ ...bankTx, ...dto });
+    return this.bankTxRepo.save({ ...bankTx, ...dto });
+  }
+
+  async getBankTxByKey(key: string, value: any): Promise<BankTx> {
+    return this.bankTxRepo
+      .createQueryBuilder('bankTx')
+      .select('bankTx')
+      .leftJoinAndSelect('bankTx.buyCrypto', 'buyCrypto')
+      .leftJoinAndSelect('bankTx.buyFiat', 'buyFiat')
+      .leftJoinAndSelect('buyCrypto.buy', 'buy')
+      .leftJoinAndSelect('buyFiat.sell', 'sell')
+      .leftJoinAndSelect('buy.user', 'user')
+      .leftJoinAndSelect('sell.user', 'sellUser')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('sellUser.userData', 'sellUserData')
+      .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('sellUserData.users', 'sellUsers')
+      .where(`bankTx.${key} = :param`, { param: value })
+      .getOne();
   }
 
   // --- HELPER METHODS --- //

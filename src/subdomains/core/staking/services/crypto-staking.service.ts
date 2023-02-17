@@ -115,14 +115,14 @@ export class CryptoStakingService {
   }
 
   async getUserTransactions(userIds: number[]): Promise<CryptoStaking[]> {
-    return await this.cryptoStakingRepo.find({
+    return this.cryptoStakingRepo.find({
       where: { stakingRoute: { user: { id: In(userIds) } } },
       relations: ['cryptoInput', 'stakingRoute', 'stakingRoute.user'],
     });
   }
 
   async getActiveBatches(userId: number, stakingId: number): Promise<StakingBatchDto[]> {
-    return await this.cryptoStakingRepo
+    return this.cryptoStakingRepo
       .getActiveEntries()
       .select('SUM(cryptoStaking.inputAmount)', 'amount')
       .addSelect('dateadd(DAY, datediff(DAY, 0, cryptoStaking.outputDate), 0)', 'outputDate')

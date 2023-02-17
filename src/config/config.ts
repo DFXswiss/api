@@ -2,7 +2,7 @@ import { Injectable, Optional } from '@nestjs/common';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { Exchange } from 'ccxt';
 import { I18nJsonParser, I18nOptions } from 'nestjs-i18n';
-import * as path from 'path';
+import { join } from 'path';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
 import { Asset, FeeTier } from 'src/shared/models/asset/asset.entity';
@@ -73,7 +73,7 @@ export class Configuration {
     fallbackLanguage: this.defaultLanguage,
     parser: I18nJsonParser,
     parserOptions: {
-      path: path.join(__dirname, '../shared/i18n/'),
+      path: join(__dirname, '../shared/i18n/'),
       watch: true,
     },
   };
@@ -178,7 +178,7 @@ export class Configuration {
         },
       },
       template: {
-        dir: path.join(__dirname, '../subdomains/supporting/notification/templates'),
+        dir: join(__dirname, '../subdomains/supporting/notification/templates'),
         adapter: new HandlebarsAdapter(),
         options: {
           strict: true,

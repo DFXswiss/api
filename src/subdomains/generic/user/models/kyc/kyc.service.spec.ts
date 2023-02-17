@@ -226,7 +226,7 @@ describe('KycService', () => {
 
     const kycHash = kycHashFor(MockUserData.EMPTY);
 
-    const testCall = async () => await service.getKycStatus(kycHash);
+    const testCall = async () => service.getKycStatus(kycHash);
 
     await expect(testCall).rejects.toThrow(NotFoundException);
     await expect(testCall).rejects.toThrowError('User not found');
@@ -275,7 +275,7 @@ describe('KycService', () => {
 
     const kycHash = kycHashFor(MockUserData.EMPTY);
 
-    const testCall = async () => await service.requestKyc(kycHash);
+    const testCall = async () => service.requestKyc(kycHash);
 
     await expect(testCall).rejects.toThrow(NotFoundException);
     await expect(testCall).rejects.toThrowError('User not found');
@@ -286,7 +286,7 @@ describe('KycService', () => {
 
     const userDataId = userDataIdFor(MockUserData.EMPTY);
 
-    const testCall = async () => await service.requestKyc('', userDataId);
+    const testCall = async () => service.requestKyc('', userDataId);
 
     await expect(testCall).rejects.toThrow(NotFoundException);
     await expect(testCall).rejects.toThrowError('User not found');
@@ -334,7 +334,7 @@ describe('KycService', () => {
 
     const kycHash = kycHashFor(MockUserData.EMPTY);
 
-    const testCall = async () => await service.updateKycData(kycHash, updatePersonalData);
+    const testCall = async () => service.updateKycData(kycHash, updatePersonalData);
 
     await expect(testCall).rejects.toThrow(NotFoundException);
     await expect(testCall).rejects.toThrowError('User not found');
@@ -345,7 +345,7 @@ describe('KycService', () => {
 
     const userDataId = userDataIdFor(MockUserData.EMPTY);
 
-    const testCall = async () => await service.updateKycData('', updatePersonalData, userDataId);
+    const testCall = async () => service.updateKycData('', updatePersonalData, userDataId);
 
     await expect(testCall).rejects.toThrow(NotFoundException);
     await expect(testCall).rejects.toThrowError('User not found');

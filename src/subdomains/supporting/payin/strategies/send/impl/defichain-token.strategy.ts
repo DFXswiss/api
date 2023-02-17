@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PayInDeFiChainService } from '../../../services/payin-defichain.service';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { SendType } from './base/send.strategy';
-import { CryptoInput } from '../../../entities/crypto-input.entity';
+import { CryptoInput, PayInStatus } from '../../../entities/crypto-input.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -27,22 +27,65 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
 
     for (const payIn of payIns) {
       try {
-        this.designateSend(payIn, type);
+        if (payIn.status === PayInStatus.PREPARING) {
+          const isReady = await this.checkPreparation(payIn);
 
-        const savedPayIn = await this.payInRepo.save(payIn);
-        await this.deFiChainService.sendToken(savedPayIn, async (outTxId: string) => {
-          this.updatePayInWithSendData(savedPayIn, type, outTxId);
-          console.log(`Token pay-in ${savedPayIn.id} sent:`, savedPayIn);
+          if (isReady) {
+            payIn.status = PayInStatus.PREPARED;
+          } else {
+            continue;
+          }
+        }
 
-          await this.payInRepo.save(savedPayIn);
-        });
+        if ([PayInStatus.ACKNOWLEDGED, PayInStatus.TO_RETURN].includes(payIn.status)) {
+          await this.prepareSend(payIn);
+        }
+
+        if (payIn.status === PayInStatus.PREPARED) {
+          await this.dispatch(payIn, type);
+        }
       } catch (e) {
         console.error(`Failed to send DeFiChain token input ${payIn.id} of type ${type}`, e);
       }
     }
   }
 
+  protected async prepareSend(payIn: CryptoInput): Promise<void> {
+    const feeUtxo = await this.deFiChainService.getFeeUtxo(payIn.address.address);
+
+    if (!feeUtxo) {
+      const fee = Config.blockchain.default.minDeposit.DeFiChain.DFI / 2;
+      const prepareTxId = await this.deFiChainService.sendFeeUtxo(payIn.address.address, fee);
+
+      payIn.preparing(prepareTxId, fee);
+      await this.payInRepo.save(payIn);
+    } else {
+      payIn.status = PayInStatus.PREPARED;
+    }
+  }
+
+  protected async checkPreparation(payIn: CryptoInput): Promise<boolean> {
+    const { blockhash, confirmations } = await this.deFiChainService.getTx(payIn.prepareTxId);
+
+    return blockhash && confirmations > 0;
+  }
+
   protected getForwardAddress(): BlockchainAddress {
     return BlockchainAddress.create(Config.blockchain.default.dexWalletAddress, Blockchain.DEFICHAIN);
+  }
+
+  private async dispatch(payIn: CryptoInput, type: SendType): Promise<void> {
+    this.designateSend(payIn, type);
+
+    const utxo = payIn.prepareTxId
+      ? await this.deFiChainService.getFeeUtxoByTransaction(payIn.address.address, payIn.prepareTxId)
+      : await this.deFiChainService.getFeeUtxo(payIn.address.address);
+
+    const outTxId = await this.deFiChainService.sendTokenSync(payIn, utxo);
+
+    this.updatePayInWithSendData(payIn, type, outTxId);
+
+    await this.payInRepo.save(payIn);
+    console.log(`Token pay-in ${payIn.id} sent:`, payIn);
   }
 }

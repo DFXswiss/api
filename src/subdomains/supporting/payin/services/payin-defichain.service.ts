@@ -62,12 +62,14 @@ export class PayInDeFiChainService extends PayInJellyfishService {
   async getNewTransactionsHistorySince(lastHeight: number): Promise<AccountHistory[]> {
     const { blocks: currentHeight } = await this.client.checkSync();
 
-    return await this.client
-      .getHistory(lastHeight + 1, currentHeight)
-      .then((i) => i.filter((h) => [...this.utxoTxTypes, ...this.tokenTxTypes].includes(h.type)))
-      // get receive history
-      .then((i) => i.filter((h) => h.blockHeight > lastHeight))
-      .then((i) => i.filter((h) => h.owner != Config.blockchain.default.utxoSpenderAddress));
+    return (
+      this.client
+        .getHistory(lastHeight + 1, currentHeight)
+        .then((i) => i.filter((h) => [...this.utxoTxTypes, ...this.tokenTxTypes].includes(h.type)))
+        // get receive history
+        .then((i) => i.filter((h) => h.blockHeight > lastHeight))
+        .then((i) => i.filter((h) => h.owner != Config.blockchain.default.utxoSpenderAddress))
+    );
   }
 
   async getTx(outTxId: string): Promise<InWalletTransaction> {
@@ -92,6 +94,16 @@ export class PayInDeFiChainService extends PayInJellyfishService {
 
       return outTxId;
     });
+  }
+
+  async sendTokenSync(input: CryptoInput, utxo: UTXO): Promise<string> {
+    return this.client.sendToken(
+      input.address.address,
+      input.destinationAddress.address,
+      input.asset.dexName,
+      input.amount,
+      [utxo],
+    );
   }
 
   @Interval(900000)
@@ -136,12 +148,8 @@ export class PayInDeFiChainService extends PayInJellyfishService {
             if (usdtAmount < Config.blockchain.default.minDeposit.DeFiChain.USDT) {
               console.log('Retrieving small token:', token);
 
-              await this.doTokenTx(
-                token.owner,
-                async (utxo) =>
-                  await this.client.sendToken(token.owner, Config.blockchain.default.dexWalletAddress, asset, amount, [
-                    utxo,
-                  ]),
+              await this.doTokenTx(token.owner, async (utxo) =>
+                this.client.sendToken(token.owner, Config.blockchain.default.dexWalletAddress, asset, amount, [utxo]),
               );
             }
           }
@@ -154,6 +162,27 @@ export class PayInDeFiChainService extends PayInJellyfishService {
     } finally {
       this.convertTokensLock.release();
     }
+  }
+
+  async getFeeUtxo(address: string): Promise<UTXO | undefined> {
+    return this.client
+      .getUtxo()
+      .then((utxos) =>
+        utxos.find(
+          (u) =>
+            u.address === address &&
+            u.amount.toNumber() < Config.blockchain.default.minDeposit.DeFiChain.DFI &&
+            u.amount.toNumber() > Config.blockchain.default.minDeposit.DeFiChain.DFI / 4,
+        ),
+      );
+  }
+
+  async getFeeUtxoByTransaction(addressFrom: string, utxoTx: string): Promise<UTXO | undefined> {
+    return this.client.getUtxo().then((utxos) => utxos.find((u) => u.txid === utxoTx && u.address === addressFrom));
+  }
+
+  async sendFeeUtxo(address: string, fee = Config.blockchain.default.minDeposit.DeFiChain.DFI / 2): Promise<string> {
+    return this.client.sendUtxo(Config.blockchain.default.utxoSpenderAddress, address, fee);
   }
 
   //*** HELPER METHODS ***//
@@ -169,9 +198,7 @@ export class PayInDeFiChainService extends PayInJellyfishService {
       if (!feeUtxo) {
         const utxoTx = await this.sendFeeUtxo(addressFrom);
         await this.client.waitForTx(utxoTx);
-        feeUtxo = await this.client
-          .getUtxo()
-          .then((utxos) => utxos.find((u) => u.txid === utxoTx && u.address === addressFrom));
+        feeUtxo = await this.getFeeUtxoByTransaction(addressFrom, utxoTx);
       }
 
       // do TX
@@ -179,27 +206,6 @@ export class PayInDeFiChainService extends PayInJellyfishService {
     } catch (e) {
       console.error('Failed to do token TX:', e);
     }
-  }
-
-  private async getFeeUtxo(address: string): Promise<UTXO | undefined> {
-    return await this.client
-      .getUtxo()
-      .then((utxos) =>
-        utxos.find(
-          (u) =>
-            u.address === address &&
-            u.amount.toNumber() < Config.blockchain.default.minDeposit.DeFiChain.DFI &&
-            u.amount.toNumber() > Config.blockchain.default.minDeposit.DeFiChain.DFI / 4,
-        ),
-      );
-  }
-
-  private async sendFeeUtxo(address: string): Promise<string> {
-    return await this.client.sendUtxo(
-      Config.blockchain.default.utxoSpenderAddress,
-      address,
-      Config.blockchain.default.minDeposit.DeFiChain.DFI / 2,
-    );
   }
 
   getAmounts(history: AccountHistory): HistoryAmount[] {

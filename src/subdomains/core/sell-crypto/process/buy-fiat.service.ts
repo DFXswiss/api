@@ -130,6 +130,18 @@ export class BuyFiatService {
     return entity;
   }
 
+  async getBuyFiatByKey(key: string, value: any): Promise<BuyFiat> {
+    return this.buyFiatRepo
+      .createQueryBuilder('buyFiat')
+      .select('buyFiat')
+      .leftJoinAndSelect('buyFiat.sell', 'sell')
+      .leftJoinAndSelect('sell.user', 'user')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('userData.users', 'users')
+      .where(`buyFiat.${key} = :param`, { param: value })
+      .getOne();
+  }
+
   async updateVolumes(): Promise<void> {
     const sellIds = await this.sellRepo.find().then((l) => l.map((b) => b.id));
     await this.updateSellVolume(sellIds);
@@ -149,16 +161,16 @@ export class BuyFiatService {
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<BuyFiat[]> {
-    return await this.buyFiatRepo.find({
+    return this.buyFiatRepo.find({
       where: { sell: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
       relations: ['cryptoInput', 'bankTx', 'sell', 'sell.user', 'fiatOutput'],
     });
   }
 
   async getAllUserTransactions(userIds: number[]): Promise<BuyFiat[]> {
-    return await this.buyFiatRepo.find({
+    return this.buyFiatRepo.find({
       where: { sell: { user: { id: In(userIds) } } },
-      relations: ['cryptoInput', 'bankTx', 'sell', 'sell.user'],
+      relations: ['cryptoInput', 'bankTx', 'sell', 'sell.user', 'fiatOutput'],
     });
   }
 

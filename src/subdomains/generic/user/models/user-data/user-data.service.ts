@@ -71,6 +71,15 @@ export class UserDataService {
     });
   }
 
+  async getUserDataByKey(key: string, value: any): Promise<UserData> {
+    return this.userDataRepo
+      .createQueryBuilder('userData')
+      .select('userData')
+      .leftJoinAndSelect('userData.users', 'users')
+      .where(`userData.${key} = :param`, { param: value })
+      .getOne();
+  }
+
   async createUserData(kycType: KycType): Promise<UserData> {
     const userData = await this.userDataRepo.save({
       language: await this.languageService.getLanguageBySymbol(Config.defaultLanguage),
@@ -130,7 +139,7 @@ export class UserDataService {
       userData = await this.kycProcessService.goToStatus(userData, dto.kycStatus);
     }
 
-    return await this.userDataRepo.save({ ...userData, ...dto });
+    return this.userDataRepo.save({ ...userData, ...dto });
   }
 
   async updateKycData(user: UserData, data: KycUserDataDto): Promise<UserData> {
@@ -156,7 +165,7 @@ export class UserDataService {
 
     user = await this.updateSpiderIfNeeded(user, data);
 
-    return await this.userDataRepo.save(Object.assign(user, data));
+    return this.userDataRepo.save(Object.assign(user, data));
   }
 
   async updateUserSettings(user: UserData, dto: UpdateUserDto): Promise<{ user: UserData; isKnownUser: boolean }> {

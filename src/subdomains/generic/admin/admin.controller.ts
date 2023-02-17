@@ -79,7 +79,7 @@ export class AdminController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async renameReference(@Body() renameRefDto: RenameRefDto): Promise<boolean> {
-    return await this.spiderService.renameReference(
+    return this.spiderService.renameReference(
       renameRefDto.oldReference,
       renameRefDto.newReference,
       renameRefDto.referenceType,
@@ -106,7 +106,7 @@ export class AdminController {
     @Query('id') userDataId: string,
     @Query('isOrganization') isOrganization = 'false',
   ): Promise<DocumentInfo[]> {
-    return await this.spiderApiService.getDocumentInfos(+userDataId, isOrganization === 'true');
+    return this.spiderApiService.getDocumentInfos(+userDataId, isOrganization === 'true');
   }
 
   @Post('upload')
@@ -114,7 +114,7 @@ export class AdminController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async uploadFile(@Body() uploadFileDto: UploadFileDto): Promise<boolean> {
-    return await this.spiderService.uploadDocument(
+    return this.spiderService.uploadDocument(
       uploadFileDto.userDataId,
       false,
       uploadFileDto.documentType,
@@ -129,7 +129,7 @@ export class AdminController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async sendLetter(@Body() sendLetterDto: SendLetterDto): Promise<boolean> {
-    return await this.letterService.sendLetter(sendLetterDto);
+    return this.letterService.sendLetter(sendLetterDto);
   }
 
   @Get('db')

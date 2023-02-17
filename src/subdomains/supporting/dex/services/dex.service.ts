@@ -45,12 +45,10 @@ export class DexService {
       const strategy = this.checkStrategies.getCheckLiquidityStrategy(targetAsset);
 
       if (!strategy) {
-        throw new Error(
-          `No check liquidity strategy for asset ${targetAsset.dexName} ${targetAsset.type} ${targetAsset.blockchain}`,
-        );
+        throw new Error(`No check liquidity strategy for asset ${targetAsset.uniqueName}`);
       }
 
-      return strategy.checkLiquidity(request);
+      return await strategy.checkLiquidity(request);
     } catch (e) {
       console.error(e.message);
 
@@ -67,9 +65,7 @@ export class DexService {
       const strategy = this.checkStrategies.getCheckLiquidityStrategy(targetAsset);
 
       if (!strategy) {
-        throw new Error(
-          `No check liquidity strategy for asset ${targetAsset.dexName} ${targetAsset.type} ${targetAsset.blockchain}`,
-        );
+        throw new Error(`No check liquidity strategy for asset ${targetAsset.uniqueName}`);
       }
 
       const liquidity = await strategy.checkLiquidity(request);
@@ -99,9 +95,7 @@ export class DexService {
     const strategy = this.purchaseStrategies.getPurchaseLiquidityStrategy(targetAsset);
 
     if (!strategy) {
-      throw new Error(
-        `No purchase liquidity strategy for asset ${targetAsset.dexName} ${targetAsset.type} ${targetAsset.blockchain}`,
-      );
+      throw new Error(`No purchase liquidity strategy for asset ${targetAsset.uniqueName}`);
     }
 
     try {
@@ -126,9 +120,7 @@ export class DexService {
     const strategy = this.sellStrategies.getSellLiquidityStrategy(sellAsset);
 
     if (!strategy) {
-      throw new Error(
-        `No sell liquidity strategy for asset ${sellAsset.dexName} ${sellAsset.type} ${sellAsset.blockchain}`,
-      );
+      throw new Error(`No sell liquidity strategy for asset ${sellAsset.uniqueName}`);
     }
 
     try {
@@ -199,7 +191,7 @@ export class DexService {
   }
 
   async getPendingOrdersCount(asset: Asset): Promise<number> {
-    return await this.liquidityOrderRepo.count({
+    return this.liquidityOrderRepo.count({
       where: [
         { targetAsset: asset, isComplete: false },
         { targetAsset: asset, isReady: false },
@@ -264,8 +256,7 @@ export class DexService {
         const strategy = this.purchaseStrategies.getPurchaseLiquidityStrategy(order.targetAsset);
 
         if (!strategy) {
-          const { dexName, blockchain, type } = order.targetAsset;
-          throw new Error(`No purchase liquidity strategy for asset ${dexName} ${blockchain} ${type}`);
+          throw new Error(`No purchase liquidity strategy for asset ${order.targetAsset.uniqueName}`);
         }
 
         await strategy.addPurchaseData(order);

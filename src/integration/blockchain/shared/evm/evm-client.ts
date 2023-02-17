@@ -2,8 +2,8 @@ import { BigNumber, Contract, ethers } from 'ethers';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
-import * as ERC20_ABI from './abi/erc20.abi.json';
-import * as UNISWAP_ROUTER_02_ABI from './abi/uniswap-router02.abi.json';
+import ERC20_ABI from './abi/erc20.abi.json';
+import UNISWAP_ROUTER_02_ABI from './abi/uniswap-router02.abi.json';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
 
 export abstract class EvmClient {

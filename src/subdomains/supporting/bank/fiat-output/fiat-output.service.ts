@@ -23,7 +23,7 @@ export class FiatOutputService {
       if (!entity.buyFiat) throw new NotFoundException('Buy fiat not found');
     }
 
-    return await this.fiatOutputRepo.save(entity);
+    return this.fiatOutputRepo.save(entity);
   }
 
   async update(id: number, dto: UpdateFiatOutputDto): Promise<FiatOutput> {
@@ -35,6 +35,19 @@ export class FiatOutputService {
       if (!entity.bankTx) throw new NotFoundException('BankTx not found');
     }
 
-    return await this.fiatOutputRepo.save({ ...entity, ...dto });
+    return this.fiatOutputRepo.save({ ...entity, ...dto });
+  }
+
+  async getFiatOutputByKey(key: string, value: any): Promise<FiatOutput> {
+    return this.fiatOutputRepo
+      .createQueryBuilder('fiatOutput')
+      .select('fiatOutput')
+      .leftJoinAndSelect('fiatOutput.buyFiat', 'buyFiat')
+      .leftJoinAndSelect('buyFiat.sell', 'sell')
+      .leftJoinAndSelect('sell.user', 'user')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('userData.users', 'users')
+      .where(`fiatOutput.${key} = :param`, { param: value })
+      .getOne();
   }
 }

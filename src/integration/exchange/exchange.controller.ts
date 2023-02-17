@@ -99,7 +99,7 @@ export class ExchangeController {
     @Query('from') from: string,
     @Query('to') to: string,
   ): Promise<Order[]> {
-    return await this.getExchange(exchange).getOpenTrades(from?.toUpperCase(), to?.toUpperCase());
+    return this.getExchange(exchange).getOpenTrades(from?.toUpperCase(), to?.toUpperCase());
   }
 
   @Get(':exchange/trade/history')
@@ -111,7 +111,7 @@ export class ExchangeController {
     @Query('from') from: string,
     @Query('to') to: string,
   ): Promise<Trade[]> {
-    return await this.getExchange(exchange).getTrades(from?.toUpperCase(), to?.toUpperCase());
+    return this.getExchange(exchange).getTrades(from?.toUpperCase(), to?.toUpperCase());
   }
 
   @Get('trade/:id')

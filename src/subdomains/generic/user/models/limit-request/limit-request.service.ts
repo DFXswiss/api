@@ -81,7 +81,7 @@ export class LimitRequestService {
 
     Util.removeNullFields(entity);
 
-    return await this.limitRequestRepo.save({ ...update, ...entity });
+    return this.limitRequestRepo.save({ ...update, ...entity });
   }
 
   private fromBase64(file: string): { contentType: string; buffer: Buffer } {

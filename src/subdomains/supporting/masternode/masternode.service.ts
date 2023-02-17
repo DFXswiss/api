@@ -51,7 +51,7 @@ export class MasternodeService {
     if (!masternode) throw new NotFoundException('Masternode not found');
     if (masternode.creationHash) throw new ConflictException('Masternode already created');
 
-    return await this.masternodeRepo.save({ ...masternode, ...dto });
+    return this.masternodeRepo.save({ ...masternode, ...dto });
   }
 
   async resign(id: number, dto: ResignMasternodeDto): Promise<Masternode> {
@@ -60,7 +60,7 @@ export class MasternodeService {
     if (!masternode.creationHash) throw new ConflictException('Masternode not yet created');
     if (masternode.resignHash) throw new ConflictException('Masternode already resigned');
 
-    return await this.masternodeRepo.save({ ...masternode, ...dto });
+    return this.masternodeRepo.save({ ...masternode, ...dto });
   }
 
   async getActiveCount(date: Date = new Date()): Promise<number> {
@@ -85,7 +85,7 @@ export class MasternodeService {
   }
 
   private async request<T>(url: string, method: Method, data?: any): Promise<T> {
-    return await this.http.request<T>({
+    return this.http.request<T>({
       url,
       method: method,
       data: method !== 'GET' ? data : undefined,

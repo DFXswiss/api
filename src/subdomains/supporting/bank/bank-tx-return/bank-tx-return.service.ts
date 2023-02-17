@@ -19,7 +19,7 @@ export class BankTxReturnService {
 
     entity = this.bankTxReturnRepo.create({ bankTx });
 
-    return await this.bankTxReturnRepo.save(entity);
+    return this.bankTxReturnRepo.save(entity);
   }
 
   async update(id: number, dto: UpdateBankTxReturnDto): Promise<BankTxReturn> {
@@ -43,6 +43,6 @@ export class BankTxReturnService {
 
     Util.removeNullFields(entity);
 
-    return await this.bankTxReturnRepo.save({ ...update, ...entity });
+    return this.bankTxReturnRepo.save({ ...update, ...entity });
   }
 }

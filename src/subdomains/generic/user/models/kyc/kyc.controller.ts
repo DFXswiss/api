@@ -75,7 +75,7 @@ export class KycController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: KycInfo })
   async getKycProgress(@GetJwt() jwt: JwtPayload): Promise<KycInfo> {
-    return await this.kycService.getKycStatus('', jwt.id);
+    return this.kycService.getKycStatus('', jwt.id);
   }
 
   @Post()
@@ -83,7 +83,7 @@ export class KycController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiCreatedResponse({ type: KycInfo })
   async requestKyc(@GetJwt() jwt: JwtPayload): Promise<KycInfo> {
-    return await this.kycService.requestKyc('', jwt.id);
+    return this.kycService.requestKyc('', jwt.id);
   }
 
   @Get('countries')
@@ -91,7 +91,7 @@ export class KycController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: Country, isArray: true })
   async getKycCountries(@GetJwt() jwt: JwtPayload): Promise<Country[]> {
-    return await this.kycService.getKycCountries('', jwt.id);
+    return this.kycService.getKycCountries('', jwt.id);
   }
 
   @Post('data')
@@ -99,7 +99,7 @@ export class KycController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiCreatedResponse({ type: KycInfo })
   async updateKycData(@GetJwt() jwt: JwtPayload, @Body() data: KycUserDataDto): Promise<KycInfo> {
-    return await this.kycService.updateKycData('', data, jwt.id);
+    return this.kycService.updateKycData('', data, jwt.id);
   }
 
   @Post('limit')
@@ -107,7 +107,7 @@ export class KycController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse()
   async increaseLimit(@GetJwt() jwt: JwtPayload, @Body() request: LimitRequestDto): Promise<void> {
-    return await this.limitRequestService.increaseLimit(request, '', jwt.id);
+    return this.limitRequestService.increaseLimit(request, '', jwt.id);
   }
 
   @Post('incorporationCertificate')
@@ -126,31 +126,31 @@ export class KycController {
   @Get(':code')
   @ApiOkResponse({ type: KycInfo })
   async getKycProgressByCode(@Param('code') code: string): Promise<KycInfo> {
-    return await this.kycService.getKycStatus(code);
+    return this.kycService.getKycStatus(code);
   }
 
   @Post(':code')
   @ApiCreatedResponse({ type: KycInfo })
   async requestKycByCode(@Param('code') code: string): Promise<KycInfo> {
-    return await this.kycService.requestKyc(code);
+    return this.kycService.requestKyc(code);
   }
 
   @Get(':code/countries')
   @ApiOkResponse({ type: Country, isArray: true })
   async getKycCountriesByCode(@Param('code') code: string): Promise<Country[]> {
-    return await this.kycService.getKycCountries(code);
+    return this.kycService.getKycCountries(code);
   }
 
   @Put(':code/data')
   @ApiOkResponse({ type: KycInfo })
   async updateKycDataByCode(@Param('code') code: string, @Body() data: KycUserDataDto): Promise<KycInfo> {
-    return await this.kycService.updateKycData(code, data);
+    return this.kycService.updateKycData(code, data);
   }
 
   @Post(':code/limit')
   @ApiOkResponse()
   async increaseLimitByCode(@Param('code') code: string, @Body() request: LimitRequestDto): Promise<void> {
-    return await this.limitRequestService.increaseLimit(request, code);
+    return this.limitRequestService.increaseLimit(request, code);
   }
 
   @Post(':code/incorporationCertificate')
