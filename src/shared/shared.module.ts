@@ -26,7 +26,6 @@ import { I18nModule } from 'nestjs-i18n';
 import { SettingController } from './models/setting/setting.controller';
 import { ApiKeyService } from './services/api-key.service';
 import { PaymentInfoService } from './services/payment-info.service';
-import { IpRepository } from 'src/subdomains/generic/user/models/ip/ip.repository';
 
 @Module({
   imports: [
@@ -38,7 +37,6 @@ import { IpRepository } from 'src/subdomains/generic/user/models/ip/ip.repositor
       CountryRepository,
       LanguageRepository,
       SettingRepository,
-      IpRepository,
     ]),
     PassportModule.register({ defaultStrategy: 'jwt', session: true }),
     JwtModule.register(GetConfig().auth.jwt),
