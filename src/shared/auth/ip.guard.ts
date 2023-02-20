@@ -13,14 +13,16 @@ export class IpGuard implements CanActivate {
     private ipRepo: IpRepository,
   ) {}
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const ip = await requestIp.getClientIp(context.switchToHttp().getRequest());
+    const req = context.switchToHttp().getRequest();
+    const ip = await requestIp.getClientIp(req);
     const { country, result } = await this.checkIpCountry(ip);
-    const address = context.switchToHttp().getRequest().body.address;
+    const address = req.body.address;
 
     const ipObject = this.ipRepo.create({
       ip,
       country,
       result,
+      url: req.url,
       address,
     });
     await this.ipRepo.save(ipObject);

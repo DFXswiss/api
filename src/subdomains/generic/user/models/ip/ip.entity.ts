@@ -12,6 +12,9 @@ export class Ip extends IEntity {
   @Column({ length: 256 })
   country: string;
 
+  @Column({ length: 256 })
+  url: string;
+
   @Column()
   result: boolean;
 }
