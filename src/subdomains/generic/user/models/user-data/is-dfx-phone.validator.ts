@@ -1,6 +1,5 @@
 import {
   registerDecorator,
-  ValidationArguments,
   ValidationOptions,
   ValidatorConstraint,
   ValidatorConstraintInterface,
@@ -9,25 +8,21 @@ import * as libphonenumber from 'google-libphonenumber';
 
 @ValidatorConstraint({ name: 'IsDfxPhone' })
 export class IsDfxPhoneValidator implements ValidatorConstraintInterface {
-  validate(_: string, args: ValidationArguments) {
-    return this.defaultMessage(args) == null;
-  }
-
-  defaultMessage(args: ValidationArguments): string | undefined {
+  validate(phoneNumber: string) {
     try {
       const phoneUtil = libphonenumber.PhoneNumberUtil.getInstance();
-      const phoneNumber = args.value;
-      if (phoneNumber && !phoneNumber.match(/^\+\d+ .+$/)) {
-        return 'Phone number format not valid';
-      } else if (
-        (phoneNumber && !phoneNumber.match(/^\+[\d ]*$/)) ||
-        (phoneNumber && !phoneUtil.isValidNumber(phoneUtil.parseAndKeepRawInput(phoneNumber)))
-      ) {
-        return 'Phone number not valid';
-      }
+      return (
+        phoneNumber &&
+        phoneNumber.match(/^\+[\d ]*$/) &&
+        phoneUtil.isValidNumber(phoneUtil.parseAndKeepRawInput(phoneNumber))
+      );
     } catch (_) {
-      return 'Phone number not valid';
+      return false;
     }
+  }
+
+  defaultMessage() {
+    return `Phone number not valid`;
   }
 }
 
