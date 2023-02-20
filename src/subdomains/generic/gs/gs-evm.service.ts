@@ -27,9 +27,9 @@ export class GsEvmService {
     );
 
     if (depositPrivateKey) {
-      return await client.sendRawTransactionFromAddress(depositPrivateKey, request);
-    } else if (request.from === client.dfxAddress) {
-      return await client.sendRawTransactionFromDex(request);
+      return client.sendRawTransactionFromAddress(depositPrivateKey, request);
+    } else if (request.from === client._dfxAddress) {
+      return client.sendRawTransactionFromDex(request);
     }
 
     throw new Error('Provided source address is not known');
@@ -48,9 +48,9 @@ export class GsEvmService {
     );
 
     if (depositPrivateKey) {
-      return await client.sendTokenFromAddress(fromAddress, depositPrivateKey, toAddress, token, amount, feeLimit);
-    } else if (fromAddress === client.dfxAddress) {
-      return await client.sendTokenFromDex(toAddress, token, amount, feeLimit);
+      return client.sendTokenFromAddress(fromAddress, depositPrivateKey, toAddress, token, amount, feeLimit);
+    } else if (fromAddress === client._dfxAddress) {
+      return client.sendTokenFromDex(toAddress, token, amount, feeLimit);
     }
 
     throw new Error('Provided source address is not known');
@@ -65,9 +65,9 @@ export class GsEvmService {
     );
 
     if (depositPrivateKey) {
-      return await client.sendNativeCoinFromAddress(fromAddress, depositPrivateKey, toAddress, amount, feeLimit);
-    } else if (fromAddress === client.dfxAddress) {
-      return await client.sendNativeCoinFromDex(toAddress, amount, feeLimit);
+      return client.sendNativeCoinFromAddress(fromAddress, depositPrivateKey, toAddress, amount, feeLimit);
+    } else if (fromAddress === client._dfxAddress) {
+      return client.sendNativeCoinFromDex(toAddress, amount, feeLimit);
     }
 
     throw new Error('Provided source address is not known');
