@@ -5,14 +5,8 @@ import { KycType } from '../user-data/user-data.entity';
 
 @Entity()
 export class Wallet extends IEntity {
-  @Column({ unique: true, length: 256 })
+  @Column({ unique: true, length: 256, nullable: true })
   address: string;
-
-  @Column({ unique: true, length: 256 })
-  signature: string;
-
-  @Column({ length: 256, nullable: true })
-  mail: string;
 
   @Column({ length: 256, nullable: true })
   name: string;
