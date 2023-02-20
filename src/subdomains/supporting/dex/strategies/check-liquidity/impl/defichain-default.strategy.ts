@@ -67,19 +67,25 @@ export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
     const { targetAmount, availableAmount, maxPurchasableAmount, isSlippageDetected, slippageMessage, feeAmount } =
       liquidity;
 
+    const targetAvailableAmount = Math.max(availableAmount, 0);
+    const targetMaxPurchasableAmount = Math.max(maxPurchasableAmount, 0);
+
+    // indicative calculation, doesn't have to be 100% precise (no test swap required)
+    const referenceAvailableAmount = Util.round((targetAvailableAmount / targetAmount) * referenceAmount, 8);
+    const referenceMaxPurchasableAmount = Util.round((targetMaxPurchasableAmount / targetAmount) * referenceAmount, 8);
+
     return {
       target: {
         asset: targetAsset,
         amount: targetAmount,
-        availableAmount,
-        maxPurchasableAmount,
+        availableAmount: targetAvailableAmount,
+        maxPurchasableAmount: targetMaxPurchasableAmount,
       },
       reference: {
         asset: referenceAsset,
         amount: referenceAmount,
-        // indicative calculation, doesn't have to be 100% precise (no test swap required)
-        availableAmount: Util.round((availableAmount / targetAmount) * referenceAmount, 8),
-        maxPurchasableAmount: Util.round((maxPurchasableAmount / targetAmount) * referenceAmount, 8),
+        availableAmount: referenceAvailableAmount,
+        maxPurchasableAmount: referenceMaxPurchasableAmount,
       },
       purchaseFee: {
         asset: await this.feeAsset(),
