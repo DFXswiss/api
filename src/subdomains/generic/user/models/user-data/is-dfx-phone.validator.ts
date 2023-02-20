@@ -13,7 +13,7 @@ export class IsDfxPhoneValidator implements ValidatorConstraintInterface {
       const phoneUtil = libphonenumber.PhoneNumberUtil.getInstance();
       return (
         phoneNumber &&
-        phoneNumber.match(/^\+[\d ]*$/) &&
+        phoneNumber.match(/^\+/) &&
         phoneUtil.isValidNumber(phoneUtil.parseAndKeepRawInput(phoneNumber))
       );
     } catch (_) {
