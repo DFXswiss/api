@@ -15,6 +15,7 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('signUp')
+  @UseGuards(IpGuard)
   @ApiCreatedResponse({ type: AuthResponseDto })
   signUp(@Body() dto: CreateUserDto, @RealIP() ip: string): Promise<AuthResponseDto> {
     return this.authService.signUp(dto, ip);
