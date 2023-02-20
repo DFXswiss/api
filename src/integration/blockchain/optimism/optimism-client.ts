@@ -1,5 +1,6 @@
-import { asL2Provider, estimateTotalGasCost } from '@eth-optimism/sdk';
+import { asL2Provider, estimateTotalGasCost, CrossChainMessenger, MessageStatus } from '@eth-optimism/sdk';
 import { BigNumber, ethers } from 'ethers';
+import { GetConfig } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { EvmClient } from '../shared/evm/evm-client';
@@ -12,6 +13,11 @@ interface OptimismTransactionReceipt extends ethers.providers.TransactionReceipt
 }
 
 export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
+  #l1Provider: ethers.providers.JsonRpcProvider;
+  #l1Wallet: ethers.Wallet;
+
+  #crossChainMessenger: CrossChainMessenger;
+
   constructor(
     http: HttpService,
     scanApiUrl: string,
@@ -23,30 +29,101 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
     swapTokenAddress: string,
   ) {
     super(http, scanApiUrl, scanApiKey, gatewayUrl, privateKey, dfxAddress, swapContractAddress, swapTokenAddress);
+
+    const { ethGatewayUrl, ethApiKey, ethWalletPrivateKey, ethChainId } = GetConfig().blockchain.ethereum;
+    const { optimismChainId } = GetConfig().blockchain.optimism;
+    const ethereumGateway = `${ethGatewayUrl}/${ethApiKey ?? ''}`;
+
+    this.#l1Provider = new ethers.providers.JsonRpcProvider(ethereumGateway);
+    this.#l1Wallet = new ethers.Wallet(ethWalletPrivateKey, this.provider);
+
+    this.#crossChainMessenger = new CrossChainMessenger({
+      l1ChainId: ethChainId,
+      l2ChainId: optimismChainId,
+      l1SignerOrProvider: this.#l1Wallet,
+      l2SignerOrProvider: this.wallet,
+    });
   }
 
-  depositCoinOnDex(amount: number): Promise<string> {
-    throw new Error('Method not implemented.');
+  async depositCoinOnDex(amount: number): Promise<string> {
+    const response = await this.#crossChainMessenger.depositETH(this.convertToWeiLikeDenomination(amount, 'ether'));
+
+    return response.hash;
   }
 
-  withdrawCoinOnDex(amount: number): Promise<string> {
-    throw new Error('Method not implemented.');
+  async withdrawCoinOnDex(amount: number): Promise<string> {
+    const response = await this.#crossChainMessenger.withdrawETH(this.convertToWeiLikeDenomination(amount, 'ether'));
+
+    return response.hash;
   }
 
-  depositTokenOnDex(l1token: Asset, amount: number): Promise<string> {
-    throw new Error('Method not implemented.');
+  async depositTokenOnDex(l1Token: Asset, amount: number): Promise<string> {
+    const contract = this.getERC20ContractForDex(l1Token.chainId);
+    const decimals = await contract.decimals();
+
+    const allowanceResponse = await this.#crossChainMessenger.approveERC20(
+      l1Token.chainId,
+      l1Token.chainId,
+      this.convertToWeiLikeDenomination(amount, decimals),
+    );
+
+    await allowanceResponse.wait();
+
+    const response = await this.#crossChainMessenger.depositERC20(
+      l1Token.chainId,
+      l1Token.chainId,
+      this.convertToWeiLikeDenomination(amount, decimals),
+    );
+
+    return response.hash;
   }
 
-  withdrawTokenOnDex(l1token: Asset, amount: number): Promise<string> {
-    throw new Error('Method not implemented.');
+  async withdrawTokenOnDex(l1Token: Asset, amount: number): Promise<string> {
+    const contract = this.getERC20ContractForDex(l1Token.chainId);
+    const decimals = await contract.decimals();
+
+    const response = await this.#crossChainMessenger.withdrawERC20(
+      l1Token.chainId,
+      l1Token.chainId,
+      this.convertToWeiLikeDenomination(amount, decimals),
+    );
+
+    return response.hash;
   }
 
-  checkL2TransactionCompletion(l1TxId: string): Promise<boolean> {
-    throw new Error('Method not implemented.');
+  async checkL2BridgeCompletion(l1TxId: string): Promise<boolean> {
+    try {
+      const status = await this.#crossChainMessenger.getMessageStatus(l1TxId);
+
+      return status === MessageStatus.RELAYED;
+    } catch {
+      return false;
+    }
   }
 
-  checkL1TransactionCompletion(l2TxId: string): Promise<boolean> {
-    throw new Error('Method not implemented.');
+  async checkL1BridgeCompletion(l2TxId: string): Promise<boolean> {
+    const status = await this.#crossChainMessenger.getMessageStatus(l2TxId);
+
+    switch (status) {
+      case MessageStatus.READY_TO_PROVE: {
+        await this.#crossChainMessenger.proveMessage(l2TxId);
+
+        return false;
+      }
+
+      case MessageStatus.READY_FOR_RELAY: {
+        await this.#crossChainMessenger.finalizeMessage(l2TxId);
+
+        return false;
+      }
+
+      case MessageStatus.RELAYED: {
+        return true;
+      }
+
+      default:
+        return false;
+    }
   }
 
   async getCurrentGasForCoinTransaction(): Promise<number> {

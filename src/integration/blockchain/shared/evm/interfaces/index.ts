@@ -48,9 +48,9 @@ export interface EvmTokenHistoryEntry {
 export interface L2BridgeEvmClient {
   depositCoinOnDex(amount: number): Promise<string>;
   withdrawCoinOnDex(amount: number): Promise<string>;
-  depositTokenOnDex(l1token: Asset, amount: number): Promise<string>;
-  withdrawTokenOnDex(l1token: Asset, amount: number): Promise<string>;
+  depositTokenOnDex(l1Token: Asset, amount: number): Promise<string>;
+  withdrawTokenOnDex(l1Token: Asset, amount: number): Promise<string>;
 
-  checkL2TransactionCompletion(l1TxId: string): Promise<boolean>;
-  checkL1TransactionCompletion(l2TxId: string): Promise<boolean>;
+  checkL2BridgeCompletion(l1TxId: string): Promise<boolean>;
+  checkL1BridgeCompletion(l2TxId: string): Promise<boolean>;
 }

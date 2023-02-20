@@ -68,11 +68,11 @@ export class EvmL2BridgeAdapter implements LiquidityActionIntegration {
     try {
       switch (command) {
         case EvmL2BridgeAdapterCommands.DEPOSIT: {
-          return await l2BridgeEvmClient.checkL2TransactionCompletion(order.correlationId);
+          return await l2BridgeEvmClient.checkL2BridgeCompletion(order.correlationId);
         }
 
         case EvmL2BridgeAdapterCommands.WITHDRAWAL: {
-          return await l2BridgeEvmClient.checkL1TransactionCompletion(order.correlationId);
+          return await l2BridgeEvmClient.checkL1BridgeCompletion(order.correlationId);
         }
 
         default:

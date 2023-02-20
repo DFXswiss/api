@@ -1,5 +1,14 @@
-import { BigNumber, Contract, ethers } from 'ethers';
-import { getL2Network, EthBridger, L2Network, Erc20Bridger } from '@arbitrum/sdk';
+import { ethers } from 'ethers';
+import {
+  getL2Network,
+  EthBridger,
+  L2Network,
+  Erc20Bridger,
+  L1TransactionReceipt,
+  L1ToL2MessageStatus,
+  L2TransactionReceipt,
+  L2ToL1MessageStatus,
+} from '@arbitrum/sdk';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { EvmClient } from '../shared/evm/evm-client';
@@ -61,24 +70,24 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     return withdrawTx.hash;
   }
 
-  async depositTokenOnDex(l1token: Asset, amount: number): Promise<string> {
+  async depositTokenOnDex(l1Token: Asset, amount: number): Promise<string> {
     const erc20Bridge = new Erc20Bridger(this.#l2Network);
 
     // I think this needs to be done only once -> maybe check somehow if approval is needed
     const approveTx = await erc20Bridge.approveToken({
       l1Signer: this.#l1Wallet,
-      erc20L1Address: l1token.chainId,
+      erc20L1Address: l1Token.chainId,
     });
 
     await approveTx.wait();
 
-    const contract = this.getERC20ContractForDex(l1token.chainId);
+    const contract = this.getERC20ContractForDex(l1Token.chainId);
     const decimals = await contract.decimals();
 
     // returns L1 transaction hash?
     const depositTx = await erc20Bridge.deposit({
       amount: this.convertToWeiLikeDenomination(amount, decimals),
-      erc20L1Address: l1token.chainId,
+      erc20L1Address: l1Token.chainId,
       l1Signer: this.#l1Wallet,
       l2Provider: this.provider,
     });
@@ -86,34 +95,59 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     return depositTx.hash;
   }
 
-  async withdrawTokenOnDex(l1token: Asset, amount: number): Promise<string> {
+  async withdrawTokenOnDex(l1Token: Asset, amount: number): Promise<string> {
     const erc20Bridge = new Erc20Bridger(this.#l2Network);
 
     // I think this needs to be done only once -> maybe check somehow if approval is needed
     const approveTx = await erc20Bridge.approveToken({
       l1Signer: this.#l1Wallet,
-      erc20L1Address: l1token.chainId,
+      erc20L1Address: l1Token.chainId,
     });
 
     await approveTx.wait();
 
-    const contract = this.getERC20ContractForDex(l1token.chainId);
+    const contract = this.getERC20ContractForDex(l1Token.chainId);
     const decimals = await contract.decimals();
 
     // returns L2 transaction hash?
     const withdrawTx = await erc20Bridge.withdraw({
       amount: this.convertToWeiLikeDenomination(amount, decimals),
       destinationAddress: this.wallet.address,
-      erc20l1Address: l1token.chainId,
+      erc20l1Address: l1Token.chainId,
       l2Signer: this.wallet,
     });
 
     return withdrawTx.hash;
   }
 
-  async checkL2TransactionCompletion(l1TxId: string): Promise<boolean> {}
+  async checkL2BridgeCompletion(l1TxId: string): Promise<boolean> {
+    try {
+      const l1TxReceipt = new L1TransactionReceipt(await this.#l1Provider.getTransactionReceipt(l1TxId));
+      const isCoinTransaction = l1TxReceipt.to === this.wallet.address;
+      const l1ToL2Message = (await l1TxReceipt.getL1ToL2Messages(this.wallet))[0];
 
-  async checkL1TransactionCompletion(l2TxId: string): Promise<boolean> {}
+      const { status } = await l1ToL2Message.waitForStatus(null, 5000);
+
+      return isCoinTransaction
+        ? status === L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2
+        : status === L1ToL2MessageStatus.REDEEMED;
+    } catch {
+      return false;
+    }
+  }
+
+  async checkL1BridgeCompletion(l2TxId: string): Promise<boolean> {
+    try {
+      const l2TxReceipt = new L2TransactionReceipt(await this.provider.getTransactionReceipt(l2TxId));
+      const l2ToL1Message = (await l2TxReceipt.getL2ToL1Messages(this.#l1Wallet))[0];
+
+      const status = await l2ToL1Message.status(this.provider);
+
+      return status === L2ToL1MessageStatus.CONFIRMED;
+    } catch {
+      return false;
+    }
+  }
 
   /**
    * @note
