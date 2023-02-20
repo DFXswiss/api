@@ -10,7 +10,7 @@ export class Ip extends IEntity {
   ip: string;
 
   @Column({ length: 256 })
-  ipCountry: string;
+  country: string;
 
   @Column()
   result: boolean;

@@ -3,6 +3,7 @@ import { Config } from 'src/config/config';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { IpRepository } from 'src/subdomains/generic/user/models/ip/ip.repository';
 import { CountryService } from '../models/country/country.service';
+import * as requestIp from '@supercharge/request-ip';
 
 @Injectable()
 export class IpGuard implements CanActivate {
@@ -12,32 +13,28 @@ export class IpGuard implements CanActivate {
     private ipRepo: IpRepository,
   ) {}
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    let userIp = context.switchToHttp().getRequest().ip;
-    // ignore Azure private addresses
-    if (userIp?.includes(Config.azureIpSubstring)) {
-      return;
-    }
-    userIp = '77.185.19.137';
-    const address = context.switchToHttp().getRequest().dto;
-    const country = await this.checkIpCountry(userIp);
+    const ip = await requestIp.getClientIp(context.switchToHttp().getRequest());
+    const { country, result } = await this.checkIpCountry(ip);
+    const address = context.switchToHttp().getRequest().body.address;
 
     const ipObject = this.ipRepo.create({
-      ip: userIp,
-      ipCountry: country.country,
-      result: country.result,
+      ip,
+      country,
+      result,
       address,
     });
     await this.ipRepo.save(ipObject);
-    return true;
+    if (!result) throw new ForbiddenException('The country of IP address is not allowed');
+    return result;
   }
 
-  private async checkIpCountry(userIp: string): Promise<{ result: boolean; country: string }> {
-    const ipCountry = await this.geoLocationService.getCountry(userIp);
+  private async checkIpCountry(userIp: string): Promise<{ country: string; result: boolean }> {
+    if (Config.environment === 'loc' || userIp?.includes(Config.azureIpSubstring))
+      return { country: 'INTERN', result: true };
+    const country = await this.geoLocationService.getCountry(userIp);
+    if (!country) throw new ForbiddenException('The country of IP address is unknown');
+    const countryObject = await this.countryService.getCountryWithSymbol(country);
 
-    const country = await this.countryService.getCountryWithSymbol(ipCountry);
-    if (!country?.ipEnable && Config.environment !== 'loc')
-      throw new ForbiddenException('The country of IP address is not allowed');
-
-    return { country: ipCountry, result: country.ipEnable };
+    return { country, result: countryObject?.ipEnable };
   }
 }
