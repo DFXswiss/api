@@ -36,7 +36,7 @@ import { ReferralModule } from 'src/subdomains/core/referral/referral.module';
 import { GeoLocationModule } from 'src/integration/geolocation/geo-location.module';
 import { LimitRequestNotificationService } from './models/limit-request/limit-request-notification.service';
 import { WebhookService } from './services/webhook/webhook.service';
-import { IpRepository } from './models/ip/ip.repository';
+import { IpRepository } from './models/ip-log/ip-log.repository';
 
 @Module({
   imports: [

@@ -2,14 +2,14 @@ import { IEntity } from 'src/shared/models/entity';
 import { Entity, Column } from 'typeorm';
 
 @Entity()
-export class Ip extends IEntity {
+export class IpLog extends IEntity {
   @Column({ length: 256 })
   address: string;
 
   @Column({ length: 256 })
   ip: string;
 
-  @Column({ length: 256 })
+  @Column({ length: 256, nullable: true })
   country: string;
 
   @Column({ length: 256 })
