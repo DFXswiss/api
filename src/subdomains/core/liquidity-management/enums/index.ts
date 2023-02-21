@@ -11,7 +11,9 @@ export enum LiquidityManagementSystem {
   KRAKEN = 'Kraken',
   BINANCE = 'Binance',
   DFX_DEX = 'DfxDex',
-  EVM_L2_BRIDGE = 'EvmL2Bridge',
+  ARBITRUM_L2_BRIDGE = 'ArbitrumL2Bridge',
+  OPTIMISM_L2_BRIDGE = 'OptimismL2Bridge',
+  BITCOIN = 'Bitcoin',
 }
 
 export enum LiquidityManagementRuleStatus {

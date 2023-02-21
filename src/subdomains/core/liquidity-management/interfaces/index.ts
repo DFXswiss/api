@@ -5,6 +5,7 @@ import { LiquidityManagementOrder } from '../entities/liquidity-management-order
 
 export type CorrelationId = string;
 export type PipelineId = number;
+export type Command = (target: Asset | Fiat, amount: number, correlationId: number) => Promise<CorrelationId>;
 
 export interface LiquidityBalanceIntegration {
   getBalance(asset: Asset | Fiat): Promise<LiquidityBalance>;
