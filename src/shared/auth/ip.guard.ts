@@ -1,7 +1,7 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
-import { IpRepository } from 'src/subdomains/generic/user/models/ip-log/ip-log.repository';
+import { IpLogRepository } from 'src/subdomains/generic/user/models/ip-log/ip-log.repository';
 import { CountryService } from '../models/country/country.service';
 import { getClientIp } from '@supercharge/request-ip';
 
@@ -10,7 +10,7 @@ export class IpGuard implements CanActivate {
   constructor(
     private geoLocationService: GeoLocationService,
     private countryService: CountryService,
-    private ipRepo: IpRepository,
+    private ipLogRepo: IpLogRepository,
   ) {}
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest();
@@ -18,14 +18,14 @@ export class IpGuard implements CanActivate {
     const { country, result } = await this.checkIpCountry(ip);
     const address = req.body.address;
 
-    const ipLog = this.ipRepo.create({
+    const ipLog = this.ipLogRepo.create({
       ip,
       country,
       result,
       url: req.url,
       address,
     });
-    await this.ipRepo.save(ipLog);
+    await this.ipLogRepo.save(ipLog);
     if (!result) throw new ForbiddenException('The country of IP address is not allowed');
     return result;
   }
