@@ -48,9 +48,9 @@
   "payment": {
     "pending": {
       "dailyLimit": {
-        "salutation": "Hai superato il tuo limite di volume giornaliero",
+        "salutation": "Hai superato il tuo limite di volume nelle 24 ore",
         "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td colspan=\"3\" align=\"center\">Per favore, completa la verifica KYC (conosci il tuo cliente) per incrementare il tuo limite.</td></tr><tr><td colspan=\"3\" align=\"center\">Dopo una verifica KYC eseguita con successo procederemo con le tue transazioni.</td></tr><tr><td colspan=\"3\" align=\"center\">Incrementare il limite con la KYC?</td></tr><tr><td colspan=\"3\" align=\"center\">Clicca <a style=\"color:white\" href=\"{hashLink}\">qui</a> per avviare il processo di KYC.</td></tr><tr><td colspan=\"3\" align=\"center\">Alternativamente, puoi anche usare l'app DFX nella tua pagina di pagamento,<br> cliccare sulla freccia rossa vicino a \"Il tuo limite\"<br> e avviare la verifica.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\">Se hai domande, siamo felici di aiutarti su <a href=\"mailto:support@dfx.swiss\">support@dfx.swiss</a>.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Grazie mille per la tua fiducia</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Tuo DFX team</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
-        "title": "Limite giornaliero superato"
+        "title": "Limite delle 24 ore superato"
       },
       "annualLimit": {
         "salutation": "Hai superato il tuo limite di volume annuo",

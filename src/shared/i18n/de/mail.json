@@ -48,9 +48,9 @@
   "payment": {
     "pending": {
       "dailyLimit": {
-        "salutation": "Du hast dein tägliches Volumenlimit überschritten",
+        "salutation": "Du hast dein 24h Volumenlimit überschritten",
         "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td colspan=\"3\" align=\"center\">Bitte verifiziere dich, um dein Limit zu erhöhen.</td></tr><tr><td colspan=\"3\" align=\"center\">Nach der vollständigen Verifizierung wird deine Transaktion weiter bearbeitet.</td></tr><tr><td colspan=\"3\" align=\"center\">Limit erhöhen mit Verizfierung?</td></tr><tr><td colspan=\"3\" align=\"center\">Klicke bitte <a style=\"color:white\" href=\"{hashLink}\">hier</a> um dich zu verifizieren.</td></tr><tr><td colspan=\"3\" align=\"center\">Alternativ kannst du auch über die DFX App auf deiner Paymentseite <br> bei \"Dein Limit\" auf den roten Pfeil klicken <br> und die Verifizierung starten.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\">Bei Fragen stehen wir dir gerne unter <a href=\"mailto:support@dfx.swiss\">support@dfx.swiss</a> zur Seite.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Herzlichen Dank für dein entgegengebrachtes Vertrauen</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Dein freundliches DFX Team</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
-        "title": "Tägliches Limit überschritten"
+        "title": "24h Limit überschritten"
       },
       "annualLimit": {
         "salutation": "Du hast dein jährliches Volumenlimit überschritten",

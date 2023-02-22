@@ -16,7 +16,6 @@ import { UserService } from '../user/user.service';
 import { UserRepository } from '../user/user.repository';
 import { User } from '../user/user.entity';
 import { LinkedUserInDto } from '../user/dto/linked-user.dto';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { WalletRepository } from '../wallet/wallet.repository';
 import { Wallet } from '../wallet/wallet.entity';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -25,6 +24,7 @@ import { Interval } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
 import { ChallengeDto } from './dto/challenge.dto';
+import { SignMessageDto } from './dto/sign-message.dto';
 
 export interface ChallengeData {
   created: Date;
@@ -120,7 +120,7 @@ export class AuthService {
 
   // --- SIGN MESSAGES --- //
 
-  getSignInfo(address: string): { message: string; blockchains: Blockchain[] } {
+  getSignInfo(address: string): SignMessageDto {
     return {
       message: this.getSignMessages(address).defaultMessage,
       blockchains: this.cryptoService.getBlockchainsBasedOn(address),

@@ -50,18 +50,6 @@ export class StakingService {
     }
   }
 
-  async getStakingByAddress(depositAddress: string): Promise<Staking> {
-    // does not work with find options
-    return this.stakingRepo
-      .createQueryBuilder('staking')
-      .leftJoinAndSelect('staking.deposit', 'deposit')
-      .leftJoinAndSelect('staking.paybackDeposit', 'paybackDeposit')
-      .leftJoinAndSelect('staking.user', 'user')
-      .leftJoinAndSelect('user.userData', 'userData')
-      .where('deposit.address = :addr', { addr: depositAddress })
-      .getOne();
-  }
-
   async getStaking(id: number, userId: number): Promise<Staking> {
     const staking = await this.stakingRepo.findOne({ where: { id, user: { id: userId } } });
     if (!staking) throw new NotFoundException('Staking route not found');

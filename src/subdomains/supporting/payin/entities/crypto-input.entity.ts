@@ -32,9 +32,7 @@ export enum PayInStatus {
 }
 
 @Entity()
-@Index((input: CryptoInput) => [input.inTxId, input.asset, input.route, input.txSequence], {
-  unique: true,
-})
+@Index((i: CryptoInput) => [i.inTxId, i.asset, i.address.address, i.address.blockchain], { unique: true })
 export class CryptoInput extends IEntity {
   @Column({ nullable: true })
   status: PayInStatus;

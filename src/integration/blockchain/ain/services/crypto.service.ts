@@ -24,7 +24,7 @@ export class CryptoService {
     return [Blockchain.DEFICHAIN];
   }
 
-  public getDefaultBlockchainBasedOn(address: string): Blockchain {
+  private getDefaultBlockchainBasedOn(address: string): Blockchain {
     return this.getBlockchainsBasedOn(address)[0];
   }
 
