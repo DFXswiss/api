@@ -5,7 +5,6 @@ import { LiquidityManagementSystem } from '../enums';
 import { LiquidityActionIntegration } from '../interfaces';
 import { ArbitrumL2BridgeAdapter } from '../adapters/actions/arbitrum-l2-bridge.adapter';
 import { OptimismL2BridgeAdapter } from '../adapters/actions/optimism-l2-bridge.adapter';
-import { BitcoinAdapter } from '../adapters/actions/bitcoin.adapter';
 import { CakeAdapter } from '../adapters/actions/cake.adapter';
 import { KrakenAdapter } from '../adapters/actions/kraken.adapter';
 import { BinanceAdapter } from '../adapters/actions/binance.adapter';
@@ -21,7 +20,6 @@ export class LiquidityActionIntegrationFactory {
     readonly cakeAdapter: CakeAdapter,
     readonly krakenAdapter: KrakenAdapter,
     readonly binanceAdapter: BinanceAdapter,
-    readonly bitcoinAdapter: BitcoinAdapter,
   ) {
     this.adapters.set(LiquidityManagementSystem.DFX_DEX, dfxDexAdapter);
     this.adapters.set(LiquidityManagementSystem.ARBITRUM_L2_BRIDGE, arbitrumL2BridgeAdapter);
@@ -29,7 +27,6 @@ export class LiquidityActionIntegrationFactory {
     this.adapters.set(LiquidityManagementSystem.CAKE, cakeAdapter);
     this.adapters.set(LiquidityManagementSystem.KRAKEN, krakenAdapter);
     this.adapters.set(LiquidityManagementSystem.BINANCE, binanceAdapter);
-    this.adapters.set(LiquidityManagementSystem.BITCOIN, bitcoinAdapter);
   }
 
   getIntegration(action: LiquidityManagementAction): LiquidityActionIntegration {

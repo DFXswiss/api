@@ -8,6 +8,8 @@ import { MailOptions } from 'src/subdomains/supporting/notification/services/mai
 import { Asset, FeeTier } from 'src/shared/models/asset/asset.entity';
 import { MinDeposit } from 'src/subdomains/supporting/address-pool/deposit/dto/min-deposit.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { ExchangeExtended } from 'src/integration/exchange/services/exchange.service';
 
 export enum Process {
   PAY_IN = 'PayIn',
@@ -479,19 +481,33 @@ export class Configuration {
   };
 
   // --- GETTERS --- //
-  get kraken(): Partial<Exchange> {
+  get kraken(): Partial<ExchangeExtended> {
     return {
       apiKey: process.env.KRAKEN_KEY,
       secret: process.env.KRAKEN_SECRET,
+      depositAddresses: {
+        [Blockchain.BITCOIN]: process.env.KRAKEN_BITCOIN_DEPOSIT_ADDRESS,
+      },
+      depositAddressesKeys: {
+        [Blockchain.BITCOIN]: process.env.KRAKEN_BITCOIN_DEPOSIT_ADDRESS_KEY,
+      },
       nonce: () => Date.now(),
       ...this.exchange,
     };
   }
 
-  get binance(): Partial<Exchange> {
+  get binance(): Partial<ExchangeExtended> {
     return {
       apiKey: process.env.BINANCE_KEY,
       secret: process.env.BINANCE_SECRET,
+      depositAddresses: {
+        [Blockchain.ETHEREUM]: process.env.BINANCE_ETHEREUM_DEPOSIT_ADDRESS,
+        [Blockchain.BINANCE_SMART_CHAIN]: process.env.BINANCE_BSC_DEPOSIT_ADDRESS,
+      },
+      depositAddressesKeys: {
+        [Blockchain.ETHEREUM]: process.env.BINANCE_ETHEREUM_DEPOSIT_ADDRESS_KEY,
+        [Blockchain.BINANCE_SMART_CHAIN]: process.env.BINANCE_BSC_DEPOSIT_ADDRESS_KEY,
+      },
       ...this.exchange,
     };
   }

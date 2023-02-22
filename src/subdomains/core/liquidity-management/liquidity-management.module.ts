@@ -7,7 +7,6 @@ import { DexModule } from 'src/subdomains/supporting/dex/dex.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { ArbitrumL2BridgeAdapter } from './adapters/actions/arbitrum-l2-bridge.adapter';
 import { BinanceAdapter } from './adapters/actions/binance.adapter';
-import { BitcoinAdapter } from './adapters/actions/bitcoin.adapter';
 import { CakeAdapter } from './adapters/actions/cake.adapter';
 import { DfxDexAdapter } from './adapters/actions/dfx-dex.adapter';
 import { KrakenAdapter } from './adapters/actions/kraken.adapter';
@@ -66,7 +65,6 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     BinanceAdapter,
     CakeAdapter,
     KrakenAdapter,
-    BitcoinAdapter,
   ],
   exports: [],
 })

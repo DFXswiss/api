@@ -6,6 +6,7 @@ import { Util } from 'src/shared/utils/util';
 import { PriceProvider } from 'src/subdomains/supporting/pricing/interfaces';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { SchedulerRegistry } from '@nestjs/schedule';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 export enum OrderSide {
   BUY = 'buy',
@@ -17,6 +18,10 @@ enum OrderStatus {
   CLOSED = 'closed',
   CANCELED = 'canceled',
 }
+
+export type ExchangeExtended = Exchange & { depositAddresses: { [key in Blockchain]?: string } } & {
+  depositAddressesKeys: { [key in Blockchain]?: string };
+};
 
 export class ExchangeService implements PriceProvider {
   private markets: Market[];
