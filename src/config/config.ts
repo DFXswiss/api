@@ -505,7 +505,8 @@ export class Configuration {
       .filter(([key, _]) => filter?.includes(key) ?? true)
       .map(([key, value]) => ({ amount: value, asset: key }));
 
-  processDisabled = (processName: Process) => (process.env.DISABLED_PROCESSES?.split(',') ?? []).includes(processName);
+  processDisabled = (processName: Process) =>
+    process.env.DISABLED_PROCESSES === '*' || (process.env.DISABLED_PROCESSES?.split(',') ?? []).includes(processName);
 }
 
 @Injectable()
