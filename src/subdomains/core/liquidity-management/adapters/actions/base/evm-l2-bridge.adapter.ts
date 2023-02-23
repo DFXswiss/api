@@ -5,7 +5,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityManagementOrder } from '../../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../../enums';
 import { OrderNotProcessableException } from '../../../exceptions/order-not-processable.exception';
-import { CorrelationId } from '../../../interfaces';
+import { Command, CorrelationId } from '../../../interfaces';
 import { LiquidityManagementAdapter } from './liquidity-management.adapter';
 
 enum EvmL2BridgeAdapterCommands {
@@ -18,10 +18,7 @@ enum EvmL2BridgeAdapterCommands {
 }
 
 export abstract class EvmL2BridgeAdapter extends LiquidityManagementAdapter {
-  protected commands = new Map<
-    string,
-    (asset: Asset, amount: number, correlationId: number) => Promise<CorrelationId>
-  >();
+  protected commands = new Map<string, Command>();
 
   constructor(
     system: LiquidityManagementSystem,
@@ -30,15 +27,14 @@ export abstract class EvmL2BridgeAdapter extends LiquidityManagementAdapter {
   ) {
     super(system);
 
-    this.commands.set(EvmL2BridgeAdapterCommands.DEPOSIT, this.deposit.bind(this));
-    this.commands.set(EvmL2BridgeAdapterCommands.WITHDRAW, this.withdraw.bind(this));
+    this.commands.set(EvmL2BridgeAdapterCommands.DEPOSIT, this.deposit);
+    this.commands.set(EvmL2BridgeAdapterCommands.WITHDRAW, this.withdraw);
   }
 
   /**
    * @note
    * correlationId returned from #executeOrder(...) is ignored in case of DFX DEX. correlation is provided by client call (liquidity management)
    */
-
   async checkCompletion(order: LiquidityManagementOrder): Promise<boolean> {
     const {
       action: { command },
@@ -69,13 +65,28 @@ export abstract class EvmL2BridgeAdapter extends LiquidityManagementAdapter {
     }
   }
 
+  validateParams(_command: string, _params: any): boolean {
+    /**
+     * @note
+     * no params supported by evm L2 bridge
+     */
+    return true;
+  }
+
   //*** COMMANDS IMPLEMENTATIONS ***//
 
   /**
    * @note
    * correlationId is the L1 transaction hash and provided by EVM client
    */
-  private async deposit(l1Asset: Asset, amount: number): Promise<CorrelationId> {
+  private async deposit(order: LiquidityManagementOrder): Promise<CorrelationId> {
+    const {
+      pipeline: {
+        rule: { targetAsset: l1Asset },
+      },
+      amount,
+    } = order;
+
     const { type } = l1Asset;
 
     switch (type) {
@@ -98,7 +109,14 @@ export abstract class EvmL2BridgeAdapter extends LiquidityManagementAdapter {
    * @note
    * correlationId is the L2 transaction hash and provided by EVM client
    */
-  private async withdraw(l2Asset: Asset, amount: number): Promise<CorrelationId> {
+  private async withdraw(order: LiquidityManagementOrder): Promise<CorrelationId> {
+    const {
+      pipeline: {
+        rule: { targetAsset: l2Asset },
+      },
+      amount,
+    } = order;
+
     const { dexName, type, chainId } = l2Asset;
 
     switch (type) {

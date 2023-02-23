@@ -185,6 +185,7 @@ export class LiquidityManagementRuleService {
     const newAction = LiquidityManagementAction.create(
       actionDto.system,
       actionDto.command,
+      actionDto.params,
       actionOnSuccess,
       actionOnFail,
     );
@@ -195,6 +196,12 @@ export class LiquidityManagementRuleService {
       throw new BadRequestException(
         `No integration found for action. System: ${actionDto.system}, command: ${actionDto.command}`,
       );
+    }
+
+    const isParamsValid = integration.validateParams(actionDto.command, actionDto.params);
+
+    if (!isParamsValid) {
+      throw new BadRequestException(`Params provided with action are not valid. Command name: ${actionDto.command}`);
     }
 
     return this.actionRepo.save(newAction);

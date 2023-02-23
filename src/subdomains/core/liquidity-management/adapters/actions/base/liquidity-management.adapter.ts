@@ -6,10 +6,11 @@ import { OrderNotProcessableException } from '../../../exceptions/order-not-proc
 import { Command, CorrelationId, LiquidityActionIntegration } from '../../../interfaces';
 
 export abstract class LiquidityManagementAdapter implements LiquidityActionIntegration {
-  constructor(private readonly system: LiquidityManagementSystem) {}
+  constructor(protected readonly system: LiquidityManagementSystem) {}
 
   protected abstract commands: Map<string, Command>;
   abstract checkCompletion(order: LiquidityManagementOrder): Promise<boolean>;
+  abstract validateParams(command: string, params: any): boolean;
 
   async executeOrder(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const {
@@ -17,17 +18,28 @@ export abstract class LiquidityManagementAdapter implements LiquidityActionInteg
       pipeline: {
         rule: { target },
       },
-      amount,
     } = order;
 
     if (!(target instanceof Asset) || !(target instanceof Fiat)) {
-      throw new Error(`LiquidityManagementAdapter for ${this.system} supports only Asset instances as an input`);
+      throw new Error(
+        `LiquidityManagementAdapter for ${this.system} supports only Asset or Fiat instances as an input`,
+      );
     }
 
     try {
-      return await this.commands.get(command)(target, amount, order.id);
+      return await this.commands.get(command)(order);
     } catch (e) {
       throw new OrderNotProcessableException(e.message);
+    }
+  }
+
+  //*** HELPER METHODS ***//
+
+  protected parseActionParams<T>(paramsJsonString: string): T | null {
+    try {
+      return JSON.parse(paramsJsonString);
+    } catch {
+      return null;
     }
   }
 

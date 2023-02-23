@@ -18,6 +18,8 @@ import {
   ReserveLiquidityRequest,
   CheckLiquidityRequest,
   SellLiquidityRequest,
+  TransactionQuery,
+  TransactionResult,
 } from '../interfaces';
 import { PurchaseLiquidityStrategies } from '../strategies/purchase-liquidity/purchase-liquidity.facade';
 import { SellLiquidityStrategies } from '../strategies/sell-liquidity/sell-liquidity.facade';
@@ -202,6 +204,10 @@ export class DexService {
   }
 
   // *** SUPPLEMENTARY PUBLIC API *** //
+
+  async findTransaction(query: TransactionQuery): Promise<TransactionResult> {
+    throw new Error('Method not implemented');
+  }
 
   async transferLiquidity(request: TransferRequest): Promise<string> {
     const { destinationAddress, asset, amount } = request;

@@ -1,14 +1,4 @@
-import {
-  Body,
-  Controller,
-  UseGuards,
-  Post,
-  Get,
-  Query,
-  BadRequestException,
-  Param,
-  NotFoundException,
-} from '@nestjs/common';
+import { Body, Controller, UseGuards, Post, Get, Query, Param, NotFoundException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { Balances, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
@@ -20,32 +10,21 @@ import { TradeResult, TradeStatus } from './dto/trade-result.dto';
 import { WithdrawalOrder } from './dto/withdrawal-order.dto';
 
 import { Util } from 'src/shared/utils/util';
-import { BinanceService } from './services/binance.service';
-import { BitpandaService } from './services/bitpanda.service';
-import { BitstampService } from './services/bitstamp.service';
-import { ExchangeService } from './services/exchange.service';
-import { KrakenService } from './services/kraken.service';
-import { KucoinService } from './services/kucoin.service';
+import { ExchangeRegistryService } from './services/exchange-registry.service';
 
 @ApiTags('exchange')
 @Controller('exchange')
 export class ExchangeController {
   private trades: { [key: number]: TradeResult } = {};
 
-  constructor(
-    private readonly krakenService: KrakenService,
-    private readonly binanceService: BinanceService,
-    private readonly bitstampService: BitstampService,
-    private readonly bitpandaService: BitpandaService,
-    private readonly kucoinService: KucoinService,
-  ) {}
+  constructor(private readonly registryService: ExchangeRegistryService) {}
 
   @Get(':exchange/balances')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   getBalance(@Param('exchange') exchange: string): Promise<Balances> {
-    return this.getExchange(exchange).getBalances();
+    return this.registryService.getExchange(exchange).getBalances();
   }
 
   @Get(':exchange/price')
@@ -53,7 +32,7 @@ export class ExchangeController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   getPrice(@Param('exchange') exchange: string, @Query('from') from: string, @Query('to') to: string): Promise<Price> {
-    return this.getExchange(exchange).getPrice(from.toUpperCase(), to.toUpperCase());
+    return this.registryService.getExchange(exchange).getPrice(from.toUpperCase(), to.toUpperCase());
   }
 
   @Post(':exchange/trade')
@@ -66,7 +45,8 @@ export class ExchangeController {
     this.trades[tradeId] = { status: TradeStatus.OPEN };
 
     // run trade (without waiting)
-    this.getExchange(exchange)
+    this.registryService
+      .getExchange(exchange)
       // trade
       .trade(orderDto.from.toUpperCase(), orderDto.to.toUpperCase(), orderDto.amount)
       .then((r) => this.updateTrade(tradeId, { status: TradeStatus.WITHDRAWING, trade: r }))
@@ -99,7 +79,7 @@ export class ExchangeController {
     @Query('from') from: string,
     @Query('to') to: string,
   ): Promise<Order[]> {
-    return this.getExchange(exchange).getOpenTrades(from?.toUpperCase(), to?.toUpperCase());
+    return this.registryService.getExchange(exchange).getOpenTrades(from?.toUpperCase(), to?.toUpperCase());
   }
 
   @Get(':exchange/trade/history')
@@ -111,7 +91,7 @@ export class ExchangeController {
     @Query('from') from: string,
     @Query('to') to: string,
   ): Promise<Trade[]> {
-    return this.getExchange(exchange).getTrades(from?.toUpperCase(), to?.toUpperCase());
+    return this.registryService.getExchange(exchange).getTrades(from?.toUpperCase(), to?.toUpperCase());
   }
 
   @Get('trade/:id')
@@ -135,15 +115,13 @@ export class ExchangeController {
     @Body() withdrawalDto: WithdrawalOrder,
   ): Promise<WithdrawalResponse> {
     const token = withdrawalDto.token.toUpperCase();
-    const amount = withdrawalDto.amount ? withdrawalDto.amount : await this.getExchange(exchange).getBalance(token);
+    const amount = withdrawalDto.amount
+      ? withdrawalDto.amount
+      : await this.registryService.getExchange(exchange).getBalance(token);
 
-    return this.getExchange(exchange).withdrawFunds(
-      token,
-      amount,
-      withdrawalDto.address,
-      withdrawalDto.key,
-      withdrawalDto.network,
-    );
+    return this.registryService
+      .getExchange(exchange)
+      .withdrawFunds(token, amount, withdrawalDto.address, withdrawalDto.key, withdrawalDto.network);
   }
 
   @Get(':exchange/withdraw/:id')
@@ -155,24 +133,7 @@ export class ExchangeController {
     @Param('id') id: string,
     @Query('token') token: string,
   ): Promise<Transaction> {
-    return this.getExchange(exchange).getWithdraw(id, token);
-  }
-
-  private getExchange(exchange: string): ExchangeService {
-    switch (exchange) {
-      case 'kraken':
-        return this.krakenService;
-      case 'binance':
-        return this.binanceService;
-      case 'bitstamp':
-        return this.bitstampService;
-      case 'bitpanda':
-        return this.bitpandaService;
-      case 'kucoin':
-        return this.kucoinService;
-      default:
-        throw new BadRequestException(`No service for exchange '${exchange}'`);
-    }
+    return this.registryService.getExchange(exchange).getWithdraw(id, token);
   }
 
   private updateTrade(tradeId: number, result: Partial<TradeResult>): TradeResult {

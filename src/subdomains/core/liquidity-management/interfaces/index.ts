@@ -5,7 +5,7 @@ import { LiquidityManagementOrder } from '../entities/liquidity-management-order
 
 export type CorrelationId = string;
 export type PipelineId = number;
-export type Command = (target: Asset | Fiat, amount: number, correlationId: number) => Promise<CorrelationId>;
+export type Command = (order: LiquidityManagementOrder) => Promise<CorrelationId>;
 
 export interface LiquidityBalanceIntegration {
   getBalance(asset: Asset | Fiat): Promise<LiquidityBalance>;
@@ -15,6 +15,7 @@ export interface LiquidityActionIntegration {
   supportedCommands: string[];
   executeOrder(order: LiquidityManagementOrder): Promise<CorrelationId>;
   checkCompletion(order: LiquidityManagementOrder): Promise<boolean>;
+  validateParams(command: string, params: any): boolean;
 }
 
 export interface LiquidityState {

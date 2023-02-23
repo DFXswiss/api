@@ -20,7 +20,7 @@ enum OrderStatus {
 }
 
 export type ExchangeExtended = Exchange & { depositAddresses: { [key in Blockchain]?: string } } & {
-  depositAddressesKeys: { [key in Blockchain]?: string };
+  withdrawalAddressesKeys: { [key in Blockchain]?: string };
 };
 
 export class ExchangeService implements PriceProvider {
@@ -105,6 +105,10 @@ export class ExchangeService implements PriceProvider {
     if (!withdrawal) throw new NotFoundException('Withdrawal not found');
 
     return withdrawal;
+  }
+
+  async getDeposits(token: string, since: Date): Promise<Transaction[]> {
+    return this.callApi((e) => e.fetchDeposits(token, since.getTime(), 50));
   }
 
   // --- Helper Methods --- //

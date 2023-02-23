@@ -2,12 +2,12 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BankModule } from 'src/integration/bank/bank.module';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
+import { ExchangeModule } from 'src/integration/exchange/exchange.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { DexModule } from 'src/subdomains/supporting/dex/dex.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { ArbitrumL2BridgeAdapter } from './adapters/actions/arbitrum-l2-bridge.adapter';
 import { BinanceAdapter } from './adapters/actions/binance.adapter';
-import { CakeAdapter } from './adapters/actions/cake.adapter';
 import { DfxDexAdapter } from './adapters/actions/dfx-dex.adapter';
 import { KrakenAdapter } from './adapters/actions/kraken.adapter';
 import { OptimismL2BridgeAdapter } from './adapters/actions/optimism-l2-bridge.adapter';
@@ -41,6 +41,7 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     SharedModule,
     DexModule,
     BlockchainModule,
+    ExchangeModule,
     BankModule,
     NotificationModule,
   ],
@@ -63,7 +64,6 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     ArbitrumL2BridgeAdapter,
     OptimismL2BridgeAdapter,
     BinanceAdapter,
-    CakeAdapter,
     KrakenAdapter,
   ],
   exports: [],
