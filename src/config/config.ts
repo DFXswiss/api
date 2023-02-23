@@ -224,16 +224,16 @@ export class Configuration {
       },
       Arbitrum: {
         default: {
-          USD: 10,
-          CHF: 10,
-          EUR: 10,
+          USD: 25,
+          CHF: 25,
+          EUR: 25,
         },
       },
       Optimism: {
         default: {
-          USD: 10,
-          CHF: 10,
-          EUR: 10,
+          USD: 25,
+          CHF: 25,
+          EUR: 25,
         },
       },
       Ethereum: {
