@@ -27,15 +27,17 @@ enum Manufacturer {
 export class AppController {
   private readonly lightWalletUrl = 'https://wallet.defichain.com/api/v0';
   private readonly homepageUrl = 'https://dfx.swiss';
+  private readonly appleStoreUrl = 'https://apps.apple.com/app';
+  private readonly googleStoreUrl = 'https://play.app.goo.gl/?link=https://play.google.com/store/apps/details';
+
   private readonly appUrls = {
     [App.DFI]: {
-      [Manufacturer.APPLE]: 'https://apps.apple.com/app/id1582633093',
-      [Manufacturer.GOOGLE]:
-        'https://play.app.goo.gl/?link=https://play.google.com/store/apps/details?id=com.defichain.app.dfx',
+      [Manufacturer.APPLE]: `${this.appleStoreUrl}/id1582633093`,
+      [Manufacturer.GOOGLE]: `${this.googleStoreUrl}?id=com.defichain.app.dfx`,
     },
     [App.BTC]: {
-      [Manufacturer.APPLE]: 'https://apps.apple.com/us/app/dfx-bitcoin-wallet/id6443845399',
-      [Manufacturer.GOOGLE]: undefined, // TODO
+      [Manufacturer.APPLE]: `${this.appleStoreUrl}/id6443845399`,
+      [Manufacturer.GOOGLE]: `${this.googleStoreUrl}?id=com.defichain.app.dfx.bitcoin`,
     },
     [App.EXCHANGE]: 'https://exchange.dfx.swiss',
   };
