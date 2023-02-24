@@ -415,7 +415,7 @@ export class Configuration {
   };
 
   crypto = {
-    fee: 0.012,
+    fee: 0,
     refBonus: 0.001,
   };
 
