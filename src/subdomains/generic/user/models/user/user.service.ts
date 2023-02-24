@@ -273,7 +273,7 @@ export class UserService {
     const hasUsedRef = usedRef && usedRef !== '000-000';
     let refBonus = hasUsedRef ? Config.crypto.refBonus : 0;
 
-    const fee = Util.round((baseFee - refBonus) * 100, Config.defaultPercentageDecimal);
+    const fee = Math.max(Util.round((baseFee - refBonus) * 100, Config.defaultPercentageDecimal), 0);
     refBonus = Util.round(refBonus * 100, Config.defaultPercentageDecimal);
 
     return { fee, refBonus };
