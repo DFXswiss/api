@@ -4,6 +4,7 @@ import { IsNotEmpty, IsEnum, IsString, ValidateIf, IsNotEmptyObject, ValidateNes
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Country } from 'src/shared/models/country/country.entity';
 import { AccountType } from '../../user-data/account-type.enum';
+import { IsDfxPhone } from '../../user-data/is-dfx-phone.validator';
 
 export class KycUserDataDto {
   @ApiPropertyOptional({ enum: AccountType })
@@ -65,6 +66,7 @@ export class KycUserDataDto {
   @ValidateIf((d: KycUserDataDto) => d.phone !== undefined)
   @IsNotEmpty()
   @IsString()
+  @IsDfxPhone()
   phone: string;
 
   @ApiPropertyOptional()

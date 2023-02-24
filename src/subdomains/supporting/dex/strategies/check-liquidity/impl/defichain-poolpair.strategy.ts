@@ -36,7 +36,7 @@ export class DeFiChainPoolPairStrategy extends CheckLiquidityStrategy {
       0,
       0,
       await this.feeAsset(),
-      referenceMaxPurchasableAmount,
+      referenceMaxPurchasableAmount > 0 ? referenceMaxPurchasableAmount : 0,
     );
   }
 

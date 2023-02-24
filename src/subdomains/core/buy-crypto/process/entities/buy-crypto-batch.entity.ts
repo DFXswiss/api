@@ -82,7 +82,7 @@ export class BuyCryptoBatch extends IEntity {
 
     if (!this.isEnoughToSecureAtLeastOneTransaction(maxPurchasableAmount)) {
       throw new AbortBatchCreationException(
-        `Not enough liquidity to create batch for asset ${this.outputAsset.uniqueName}.`,
+        `Not enough liquidity to create a ${this.outputAsset.uniqueName} buy-crypto batch.`,
       );
     }
 

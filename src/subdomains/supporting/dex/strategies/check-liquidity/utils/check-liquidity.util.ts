@@ -11,15 +11,16 @@ export class CheckLiquidityUtil {
     referenceMaxPurchasableAmount = 0,
   ): CheckLiquidityResult {
     const { referenceAsset, referenceAmount, targetAsset } = request;
-    const referenceAvailableAmount = targetAmount
-      ? Util.round((availableAmount / targetAmount) * referenceAmount, 8)
-      : 0;
+    const targetAvailableAmount = availableAmount > 0 ? availableAmount : 0;
+
+    const referenceAvailableAmount =
+      targetAmount > 0 ? Util.round((targetAvailableAmount / targetAmount) * referenceAmount, 8) : 0;
 
     return {
       target: {
         asset: targetAsset,
         amount: targetAmount,
-        availableAmount,
+        availableAmount: targetAvailableAmount,
         maxPurchasableAmount: 0,
       },
       reference: {

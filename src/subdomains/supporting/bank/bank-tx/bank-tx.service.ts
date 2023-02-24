@@ -124,9 +124,6 @@ export class BankTxService {
     const batch = this.bankTxBatchRepo.create(SepaParser.parseBatch(sepaFile));
     const txList = this.bankTxRepo.create(SepaParser.parseEntries(sepaFile, batch.iban));
 
-    // store the batch
-    await this.bankTxBatchRepo.save(batch);
-
     // find duplicate entries
     const duplicates = await this.bankTxRepo
       .find({ accountServiceRef: In(txList.map((i) => i.accountServiceRef)) })
@@ -141,17 +138,21 @@ export class BankTxService {
       });
     }
 
-    // store the entries
     const newTxs = txList
       .filter((i) => !duplicates.includes(i.accountServiceRef))
       .map((tx) => ({
-        batch: batch,
         type: tx.name?.includes('DFX AG') || tx.name?.includes('Payward Ltd.') ? BankTxType.INTERNAL : null,
         ...tx,
       }));
-    await this.bankTxRepo.saveMany(newTxs);
 
-    batch.transactions = txList;
+    // store batch and entries in one transaction
+    await this.bankTxBatchRepo.manager.transaction(async (manager) => {
+      await manager.save(batch);
+      await manager.getCustomRepository(BankTxRepository).saveMany(newTxs);
+    });
+
+    batch.transactions = newTxs;
+
     return batch;
   }
 

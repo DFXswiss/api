@@ -14,6 +14,7 @@ import { AccountType } from '../account-type.enum';
 import { KycState, KycStatus } from '../user-data.entity';
 import { Type } from 'class-transformer';
 import { EntityDto } from 'src/shared/dto/entity.dto';
+import { IsDfxPhone } from '../is-dfx-phone.validator';
 
 export class UpdateUserDataDto {
   @IsOptional()
@@ -26,6 +27,7 @@ export class UpdateUserDataDto {
 
   @IsOptional()
   @IsString()
+  @IsDfxPhone()
   phone: string;
 
   @IsOptional()

@@ -112,7 +112,7 @@ export class BuyCryptoNotificationService {
     blockchain: string,
     type: string,
     transactionIds: number[],
-    message: string,
+    messages: string[],
   ): Promise<void> {
     const correlationId = `BuyCryptoBatch&LiquidityCheck&${outputAssetName}&${blockchain}&${type}&TX_IDs_${transactionIds.map(
       (id) => `${id}`,
@@ -120,7 +120,7 @@ export class BuyCryptoNotificationService {
 
     await this.notificationService.sendMail({
       type: MailType.ERROR_MONITORING,
-      input: { subject: 'Buy Crypto Error - missing liquidity.', errors: [message] },
+      input: { subject: 'Buy Crypto Error - missing liquidity.', errors: messages },
       options: { debounce: 1800000 },
       metadata: { context: MailContext.BUY_CRYPTO, correlationId },
     });

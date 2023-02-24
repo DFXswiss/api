@@ -163,14 +163,14 @@ export class BuyFiatService {
   ): Promise<BuyFiat[]> {
     return this.buyFiatRepo.find({
       where: { sell: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
-      relations: ['cryptoInput', 'bankTx', 'sell', 'sell.user', 'fiatOutput'],
+      relations: ['cryptoInput', 'bankTx', 'sell', 'sell.user', 'fiatOutput', 'fiatOutput.bankTx'],
     });
   }
 
   async getAllUserTransactions(userIds: number[]): Promise<BuyFiat[]> {
     return this.buyFiatRepo.find({
       where: { sell: { user: { id: In(userIds) } } },
-      relations: ['cryptoInput', 'bankTx', 'sell', 'sell.user', 'fiatOutput'],
+      relations: ['cryptoInput', 'bankTx', 'sell', 'sell.user', 'fiatOutput', 'fiatOutput.bankTx'],
     });
   }
 

@@ -48,9 +48,9 @@
   "payment": {
     "pending": {
       "dailyLimit": {
-        "salutation": "Has excedido el límite de volumen diario",
+        "salutation": "Has excedido tu volumen máximo durante 24 horas",
         "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td colspan=\"3\" align=\"center\">Por favor, verificate a través de KYC (conoce a tu cliente) para incrementar tu límite.</td></tr><tr><td colspan=\"3\" align=\"center\">Después de que pases el KYC empezaremos con tu transacción.</td></tr><tr><td colspan=\"3\" align=\"center\">¿Quieres incrementar el límite a través del KYC?</td></tr><tr><td colspan=\"3\" align=\"center\">Aprieta <a style=\"color:white\" href=\"{hashLink}\">aquí</a> para empezar el proceso KYC.</td></tr><tr><td colspan=\"3\" align=\"center\">Alternativamente, puedes usar la app DFX en la página de pago,<br> apretar la flecha roja al lado de \"Tu límite\"<br> y empieza la verificación.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\">Si tienes alguna pregunta, nos encantaría ayudarte en <a href=\"mailto:support@dfx.swiss\">support@dfx.swiss</a>.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Muchas gracias por tu confianza</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Tu Equipo DFX</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
-        "title": "Límite diario excedido"
+        "title": "Límite cada 24 excedido"
       },
       "annualLimit": {
         "salutation": "Has excedido tu límite de volumen anual",
