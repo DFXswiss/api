@@ -3,6 +3,7 @@ import { Column, Entity, JoinTable, ManyToOne } from 'typeorm';
 import { LiquidityManagementAction } from './liquidity-management-action.entity';
 import { LiquidityManagementOrderStatus } from '../enums';
 import { LiquidityManagementPipeline } from './liquidity-management-pipeline.entity';
+import { OrderNotProcessableException } from '../exceptions/order-not-processable.exception';
 
 @Entity()
 export class LiquidityManagementOrder extends IEntity {
@@ -22,6 +23,9 @@ export class LiquidityManagementOrder extends IEntity {
 
   @Column({ length: 256, nullable: true })
   correlationId: string;
+
+  @Column({ length: 'MAX', nullable: true })
+  errorMessage: string;
 
   //*** FACTORY ***//
 
@@ -55,8 +59,9 @@ export class LiquidityManagementOrder extends IEntity {
     return this;
   }
 
-  fail(): this {
+  fail(error: OrderNotProcessableException): this {
     this.status = LiquidityManagementOrderStatus.FAILED;
+    this.errorMessage = error.message;
 
     return this;
   }

@@ -171,7 +171,7 @@ export class LiquidityManagementPipelineService {
         await this.executeOrder(order);
       } catch (e) {
         if (e instanceof OrderNotProcessableException) {
-          order.fail();
+          order.fail(e);
           await this.orderRepo.save(order);
         }
 
@@ -197,7 +197,7 @@ export class LiquidityManagementPipelineService {
         await this.checkOrder(order);
       } catch (e) {
         if (e instanceof OrderNotProcessableException) {
-          order.fail();
+          order.fail(e);
           await this.orderRepo.save(order);
           continue;
         }
