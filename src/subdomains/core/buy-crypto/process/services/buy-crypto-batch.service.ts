@@ -198,8 +198,9 @@ export class BuyCryptoBatchService {
         outputAsset,
         status: Not(BuyCryptoBatchStatus.COMPLETE),
       });
+      const newBatch = filteredBatches.find((b) => b.outputAsset.id === outputAsset.id);
 
-      if (existingBatch) {
+      if (existingBatch || newBatch) {
         const txIds = batch.transactions.map((t) => t.id);
 
         console.info(

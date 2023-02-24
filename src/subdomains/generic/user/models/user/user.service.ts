@@ -101,12 +101,16 @@ export class UserService {
     user.ip = userIp;
     user.ipCountry = await this.checkIpCountry(userIp);
     user.wallet = await this.walletService.getWalletOrDefault(dto.walletId);
-    user.ref = await this.getNextRef();
     user.usedRef = await this.checkRef(user, dto.usedRef);
     user.origin = userOrigin;
     user.userData = userData ?? (await this.userDataService.createUserData(user.wallet.customKyc ?? KycType.DFX));
 
-    user = await this.userRepo.save(user);
+    // retry (in case of ref conflict)
+    user = await Util.retry(async () => {
+      user.ref = await this.getNextRef();
+
+      return this.userRepo.save(user);
+    }, 3);
 
     const blockchains = this.cryptoService.getBlockchainsBasedOn(user.address);
     if (blockchains.includes(Blockchain.DEFICHAIN)) this.dfiTaxService.activateAddress(user.address);

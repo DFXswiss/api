@@ -224,16 +224,16 @@ export class Configuration {
       },
       Arbitrum: {
         default: {
-          USD: 10,
-          CHF: 10,
-          EUR: 10,
+          USD: 25,
+          CHF: 25,
+          EUR: 25,
         },
       },
       Optimism: {
         default: {
-          USD: 10,
-          CHF: 10,
-          EUR: 10,
+          USD: 25,
+          CHF: 25,
+          EUR: 25,
         },
       },
       Ethereum: {
@@ -505,7 +505,8 @@ export class Configuration {
       .filter(([key, _]) => filter?.includes(key) ?? true)
       .map(([key, value]) => ({ amount: value, asset: key }));
 
-  processDisabled = (processName: Process) => (process.env.DISABLED_PROCESSES?.split(',') ?? []).includes(processName);
+  processDisabled = (processName: Process) =>
+    process.env.DISABLED_PROCESSES === '*' || (process.env.DISABLED_PROCESSES?.split(',') ?? []).includes(processName);
 }
 
 @Injectable()
