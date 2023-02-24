@@ -266,7 +266,11 @@ export class UserService {
       where: { id: userId },
     });
 
-    if (cryptoFee != null) return { fee: Util.round(cryptoFee * 100, Config.defaultPercentageDecimal), refBonus: 0 };
+    if (cryptoFee != null)
+      return {
+        fee: Math.min(Util.round(cryptoFee * 100, Config.defaultPercentageDecimal), Config.crypto.fee),
+        refBonus: 0,
+      };
 
     const baseFee = Config.crypto.fee;
 
