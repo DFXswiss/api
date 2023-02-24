@@ -18,6 +18,18 @@ export abstract class DexEvmService {
     this.#client = service.getDefaultClient();
   }
 
+  async sendNativeCoin(address: string, amount: number): Promise<string> {
+    return this.#client.sendNativeCoinFromDex(address, amount);
+  }
+
+  async sendToken(address: string, tokenName: Asset, amount: number): Promise<string> {
+    return this.#client.sendTokenFromDex(address, tokenName, amount);
+  }
+
+  async checkTransactionCompletion(txHash: string): Promise<boolean> {
+    return this.#client.isTxComplete(txHash);
+  }
+
   async checkNativeCoinAvailability(inputAmount: number): Promise<[number, number]> {
     const pendingAmount = await this.getPendingAmount(this.nativeCoin);
     const availableAmount = await this.#client.getNativeCoinBalance();

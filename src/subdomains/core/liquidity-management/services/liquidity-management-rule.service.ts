@@ -212,11 +212,11 @@ export class LiquidityManagementRuleService {
     onSuccess: LiquidityManagementAction | null,
     onFail: LiquidityManagementAction | null,
   ): Promise<LiquidityManagementAction | null> {
-    const { system, command } = actionDto;
+    const { system, command, params } = actionDto;
 
     return (
       this.actionRepo.findOne({
-        where: { system, command, onSuccess, onFail },
+        where: { system, command, onSuccess, onFail, params: JSON.stringify(params) },
         relations: ['onSuccess', 'onFail'],
       }) ?? null
     );

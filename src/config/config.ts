@@ -8,7 +8,6 @@ import { MailOptions } from 'src/subdomains/supporting/notification/services/mai
 import { Asset, FeeTier } from 'src/shared/models/asset/asset.entity';
 import { MinDeposit } from 'src/subdomains/supporting/address-pool/deposit/dto/min-deposit.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ExchangeExtended } from 'src/integration/exchange/services/exchange.service';
 
 export enum Process {

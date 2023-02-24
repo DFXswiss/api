@@ -7,6 +7,7 @@ import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
 import { PrepareStrategy } from './base/prepare.strategy';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 @Injectable()
 export class DeFiChainStrategy extends PrepareStrategy {
@@ -48,7 +49,10 @@ export class DeFiChainStrategy extends PrepareStrategy {
     try {
       if (!(await this.defichainService.isHealthy(order.context))) return;
 
-      const isTransferComplete = await this.dexService.checkTransferCompletion(order.transferTxId);
+      const isTransferComplete = await this.dexService.checkTransferCompletion(
+        order.transferTxId,
+        Blockchain.DEFICHAIN,
+      );
 
       if (isTransferComplete) {
         order.preparationConfirmed();
