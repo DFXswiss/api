@@ -14,10 +14,10 @@ export class PayoutArbitrumService extends PayoutEvmService {
   }
 
   async getCurrentGasForCoinTransaction(): Promise<number> {
-    throw new Error('Not implemented');
+    return this.client.getCurrentGasForCoinTransaction();
   }
 
-  async getCurrentGasForTokenTransaction(_token: Asset): Promise<number> {
-    throw new Error('Not implemented');
+  async getCurrentGasForTokenTransaction(token: Asset): Promise<number> {
+    return this.client.getCurrentGasForTokenTransaction(token);
   }
 }

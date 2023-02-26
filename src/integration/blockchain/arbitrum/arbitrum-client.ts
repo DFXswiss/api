@@ -149,6 +149,26 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     }
   }
 
+  async getCurrentGasForCoinTransaction(): Promise<number> {
+    const totalGasCost = await this.provider.estimateGas({
+      from: this.dfxAddress,
+      to: this.randomReceiverAddress,
+      value: 1,
+    });
+
+    return this.convertToEthLikeDenomination(totalGasCost);
+  }
+
+  async getCurrentGasForTokenTransaction(token: Asset): Promise<number> {
+    const totalGasCost = await this.provider.estimateGas({
+      from: this.dfxAddress,
+      to: token.chainId,
+      data: this.dummyTokenPayload,
+    });
+
+    return this.convertToEthLikeDenomination(totalGasCost);
+  }
+
   /**
    * @note
    * requires UniswapV3 implementation or alternative
