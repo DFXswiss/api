@@ -11,6 +11,7 @@ import { ChainSwapId, LiquidityOrder } from '../entities/liquidity-order.entity'
 import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
 import { PriceSlippageException } from '../exceptions/price-slippage.exception';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
+import { DexJellyfishService } from './base/dex-jellyfish.service';
 
 export interface DexDeFiChainLiquidityResult {
   targetAmount: number;
@@ -22,7 +23,7 @@ export interface DexDeFiChainLiquidityResult {
 }
 
 @Injectable()
-export class DexDeFiChainService {
+export class DexDeFiChainService extends DexJellyfishService {
   #dexClient: DeFiClient;
 
   constructor(
@@ -31,6 +32,7 @@ export class DexDeFiChainService {
     private readonly settingService: SettingService,
     readonly nodeService: NodeService,
   ) {
+    super();
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.#dexClient = client));
   }
 
@@ -186,6 +188,10 @@ export class DexDeFiChainService {
   }
 
   // *** HELPER METHODS *** //
+
+  protected getClient(): DeFiClient {
+    return this.#dexClient;
+  }
 
   private async getTargetAmount(sourceAsset: Asset, sourceAmount: number, targetAsset: Asset): Promise<number> {
     return targetAsset.dexName === sourceAsset.dexName

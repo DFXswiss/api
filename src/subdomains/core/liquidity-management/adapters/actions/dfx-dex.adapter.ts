@@ -158,8 +158,7 @@ export class DfxDexAdapter extends LiquidityManagementAdapter {
     const exchange = this.registryService.getExchange(system.toLowerCase());
 
     const deposits = await exchange.getDeposits(order.pipeline.rule.targetAsset.dexName, order.created);
-    // TODO - what could be other search criteria to avoid false positive.
-    const deposit = deposits.find((d) => d.amount === order.amount);
+    const deposit = deposits.find((d) => d.amount === order.amount && d.timestamp > order.created.getTime());
 
     return deposit && deposit.status === 'ok';
   }

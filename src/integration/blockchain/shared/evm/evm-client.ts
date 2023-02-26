@@ -82,6 +82,10 @@ export abstract class EvmClient {
     return this.provider.getGasPrice();
   }
 
+  async getCurrentBlock(): Promise<number> {
+    return this.provider.getBlockNumber();
+  }
+
   async getTokenGasLimitForAsset(token: Asset): Promise<BigNumber> {
     const contract = this.getERC20ContractForDex(token.chainId);
 
@@ -219,6 +223,10 @@ export abstract class EvmClient {
     return '0x' + method + destination + value;
   }
 
+  get _dfxAddress(): string {
+    return this.dfxAddress;
+  }
+
   //*** PUBLIC HELPER METHODS ***//
 
   convertToEthLikeDenomination(amountWeiLike: BigNumber, decimals?: number): number {
@@ -227,10 +235,21 @@ export abstract class EvmClient {
       : parseFloat(ethers.utils.formatEther(amountWeiLike));
   }
 
-  protected convertToWeiLikeDenomination(amountEthLike: number, decimals: number | 'ether'): BigNumber {
+  convertToWeiLikeDenomination(amountEthLike: number, decimals: number | 'ether'): BigNumber {
     const amount = decimals === 'ether' ? amountEthLike.toFixed(16) : amountEthLike.toFixed(decimals);
 
     return ethers.utils.parseUnits(amount, decimals);
+  }
+
+  getERC20ContractForDex(tokenAddress: string): Contract {
+    let tokenContract = this.#erc20Tokens.get(tokenAddress);
+
+    if (!tokenContract) {
+      tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, this.wallet);
+      this.#erc20Tokens.set(tokenAddress, tokenContract);
+    }
+
+    return tokenContract;
   }
 
   //*** PRIVATE HELPER METHODS ***//
@@ -293,16 +312,5 @@ export abstract class EvmClient {
     const wallet = new ethers.Wallet(privateKey, this.provider);
 
     return new ethers.Contract(tokenAddress, ERC20_ABI, wallet);
-  }
-
-  protected getERC20ContractForDex(tokenAddress: string): Contract {
-    let tokenContract = this.#erc20Tokens.get(tokenAddress);
-
-    if (!tokenContract) {
-      tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, this.wallet);
-      this.#erc20Tokens.set(tokenAddress, tokenContract);
-    }
-
-    return tokenContract;
   }
 }

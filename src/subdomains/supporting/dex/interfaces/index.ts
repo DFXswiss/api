@@ -33,7 +33,7 @@ export interface TransactionQuery {
 }
 
 export interface TransactionResult {
-  txId: string;
+  txId?: string;
   isComplete: boolean;
 }
 

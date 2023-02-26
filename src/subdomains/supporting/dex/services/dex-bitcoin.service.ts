@@ -7,9 +7,10 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Util } from 'src/shared/utils/util';
 import { LiquidityOrder } from '../entities/liquidity-order.entity';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
+import { DexJellyfishService } from './base/dex-jellyfish.service';
 
 @Injectable()
-export class DexBitcoinService {
+export class DexBitcoinService extends DexJellyfishService {
   #client: BtcClient;
 
   constructor(
@@ -17,6 +18,7 @@ export class DexBitcoinService {
     private readonly feeService: BtcFeeService,
     readonly nodeService: NodeService,
   ) {
+    super();
     nodeService.getConnectedNode(NodeType.BTC_OUTPUT).subscribe((client) => (this.#client = client));
   }
 
@@ -40,6 +42,10 @@ export class DexBitcoinService {
     const transaction = await this.#client.getTx(transferTxId);
 
     return transaction && transaction.blockhash && transaction.confirmations > 0;
+  }
+
+  protected getClient(): BtcClient {
+    return this.#client;
   }
 
   //*** HELPER METHODS ***//

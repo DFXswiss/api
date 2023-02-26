@@ -9,6 +9,7 @@ import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { MasternodeInfo, MasternodeResult } from '@defichain/jellyfish-api-core/dist/category/masternode';
+import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
 
 export enum NodeCommand {
   UNLOCK = 'walletpassphrase',
@@ -76,6 +77,27 @@ export class NodeClient {
 
   async getTx(txId: string): Promise<InWalletTransaction> {
     return this.callNode((c) => c.wallet.getTransaction(txId));
+  }
+
+  async getHistory(fromBlock: number, toBlock: number, address?: string): Promise<AccountHistory[]> {
+    return this.callNode((c) =>
+      c.account.listAccountHistory(address, {
+        depth: toBlock - fromBlock,
+        maxBlockHeight: toBlock,
+        no_rewards: true,
+        limit: 1000000,
+      }),
+    );
+  }
+
+  async getRecentHistory(depth: number, address?: string): Promise<AccountHistory[]> {
+    return this.callNode((c) =>
+      c.account.listAccountHistory(address, {
+        depth,
+        no_rewards: true,
+        limit: 1000000,
+      }),
+    );
   }
 
   // UTXO

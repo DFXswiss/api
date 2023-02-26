@@ -1,7 +1,11 @@
+import { BadRequestException } from '@nestjs/common';
+import { BigNumber } from 'ethers';
 import { Config } from 'src/config/config';
-import { AssetType } from 'src/shared/models/asset/asset.entity';
+import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { Util } from 'src/shared/utils/util';
 import { TransactionQuery, TransactionResult, TransferRequest } from 'src/subdomains/supporting/dex/interfaces';
-import { DexEvmService } from 'src/subdomains/supporting/dex/services/dex-evm.service';
+import { DexEvmService } from 'src/subdomains/supporting/dex/services/base/dex-evm.service';
 import { SupplementaryStrategy } from './supplementary.strategy';
 
 export abstract class EvmStrategy extends SupplementaryStrategy {
@@ -25,7 +29,55 @@ export abstract class EvmStrategy extends SupplementaryStrategy {
     return this.dexEvmService.checkTransactionCompletion(transferTxId);
   }
 
-  async findTransaction(_query: TransactionQuery): Promise<TransactionResult> {
-    throw new Error('Method not implemented');
+  async findTransaction(query: TransactionQuery): Promise<TransactionResult> {
+    const { asset, amount, since } = query;
+    const [coinHistory, tokenHistory] = await this.dexEvmService.getDexHistory();
+    const [relevantCoinHistory, relevantTokenHistory] = this.filterRelevantHistory(coinHistory, tokenHistory, since);
+
+    const targetEntry =
+      asset.type === AssetType.COIN
+        ? this.findTargetCoinEntry(relevantCoinHistory, amount)
+        : await this.findTargetTokenEntry(relevantTokenHistory, asset, amount);
+
+    if (!targetEntry) return { isComplete: false };
+
+    return { isComplete: true, txId: targetEntry.hash };
+  }
+
+  //*** HELPER METHODS ***//
+
+  private filterRelevantHistory(
+    coinHistory: EvmCoinHistoryEntry[],
+    tokenHistory: EvmTokenHistoryEntry[],
+    since: Date,
+  ): [EvmCoinHistoryEntry[], EvmTokenHistoryEntry[]] {
+    return [
+      coinHistory.filter((h) => Util.round(parseInt(h.timeStamp) * 1000, 0) > since.getTime()),
+      tokenHistory.filter((h) => Util.round(parseInt(h.timeStamp) * 1000, 0) > since.getTime()),
+    ];
+  }
+
+  private findTargetCoinEntry(history: EvmCoinHistoryEntry[], amount: number): EvmCoinHistoryEntry | undefined {
+    return history.find((h) => this.dexEvmService.convertToEthLikeDenomination(BigNumber.from(h.value)) === amount);
+  }
+
+  private async findTargetTokenEntry(
+    history: EvmTokenHistoryEntry[],
+    asset: Asset,
+    amount: number,
+  ): Promise<EvmTokenHistoryEntry | undefined> {
+    const contract = this.dexEvmService.getERC20ContractForDex(asset.chainId);
+
+    if (!contract) {
+      throw new BadRequestException(
+        `No ERC-20 contract found for token ID ${asset.chainId} when trying to execute #findTransaction() API `,
+      );
+    }
+
+    const decimals = await contract.decimals();
+
+    return history.find(
+      (h) => this.dexEvmService.convertToEthLikeDenomination(BigNumber.from(h.value), decimals) === amount,
+    );
   }
 }

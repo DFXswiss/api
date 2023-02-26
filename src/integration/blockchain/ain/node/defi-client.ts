@@ -48,18 +48,6 @@ export class DeFiClient extends NodeClient {
     super(http, url, scheduler, mode);
   }
 
-  // common
-  async getHistory(fromBlock: number, toBlock: number, address?: string): Promise<AccountHistory[]> {
-    return this.callNode((c) =>
-      c.account.listAccountHistory(address, {
-        depth: toBlock - fromBlock,
-        maxBlockHeight: toBlock,
-        no_rewards: true,
-        limit: 1000000,
-      }),
-    );
-  }
-
   async getNodeBalance(): Promise<{ utxo: BigNumber; token: number }> {
     return { utxo: await this.getBalance(), token: await this.getToken().then((t) => t.length) };
   }

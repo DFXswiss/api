@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { TransferRequest, TransactionQuery, TransactionResult } from '../../../interfaces';
 import { DexBitcoinService } from '../../../services/dex-bitcoin.service';
-import { SupplementaryStrategy } from './base/supplementary.strategy';
+import { JellyfishStrategy } from './base/jellyfish.strategy';
 
 @Injectable()
-export class BitcoinStrategy extends SupplementaryStrategy {
-  constructor(private readonly dexBitcoinService: DexBitcoinService) {
-    super();
+export class BitcoinStrategy extends JellyfishStrategy {
+  constructor(protected readonly dexBitcoinService: DexBitcoinService) {
+    super(dexBitcoinService);
   }
 
   async transferLiquidity(request: TransferRequest): Promise<string> {

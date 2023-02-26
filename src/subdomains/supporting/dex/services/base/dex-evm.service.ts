@@ -1,10 +1,12 @@
+import { BigNumber, Contract } from 'ethers';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmService } from 'src/integration/blockchain/shared/evm/evm.service';
+import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/utils/util';
-import { LiquidityOrder } from '../entities/liquidity-order.entity';
-import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
+import { LiquidityOrder } from '../../entities/liquidity-order.entity';
+import { LiquidityOrderRepository } from '../../repositories/liquidity-order.repository';
 
 export abstract class DexEvmService {
   #client: EvmClient;
@@ -46,6 +48,24 @@ export abstract class DexEvmService {
     const availableAmount = await this.getTokenAvailableAmount(targetAsset);
 
     return [targetAmount, availableAmount];
+  }
+
+  async getDexHistory(): Promise<[EvmCoinHistoryEntry[], EvmTokenHistoryEntry[]]> {
+    const address = this.#client._dfxAddress;
+    const currentBlock = await this.#client.getCurrentBlock();
+    const startBlock = Util.round(currentBlock - 100, 0);
+    const allCoinTransactions = await this.#client.getNativeCoinTransactions(address, startBlock);
+    const allTokenTransactions = await this.#client.getERC20Transactions(address, startBlock);
+
+    return [allCoinTransactions, allTokenTransactions];
+  }
+
+  convertToEthLikeDenomination(amountWeiLike: BigNumber, decimals?: number): number {
+    return this.#client.convertToEthLikeDenomination(amountWeiLike, decimals);
+  }
+
+  getERC20ContractForDex(tokenAddress: string): Contract {
+    return this.#client.getERC20ContractForDex(tokenAddress);
   }
 
   get _nativeCoin(): string {

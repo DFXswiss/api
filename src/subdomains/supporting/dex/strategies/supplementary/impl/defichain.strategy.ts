@@ -1,29 +1,25 @@
 import { Injectable } from '@nestjs/common';
-import { TransactionQuery, TransactionResult, TransferRequest } from '../../../interfaces';
-import { SupplementaryStrategy } from './base/supplementary.strategy';
+import { TransferRequest } from '../../../interfaces';
 import { DexDeFiChainService } from '../../../services/dex-defichain.service';
+import { JellyfishStrategy } from './base/jellyfish.strategy';
 
 @Injectable()
-export class DeFiChainStrategy extends SupplementaryStrategy {
-  constructor(private readonly dexDeFiChainService: DexDeFiChainService) {
-    super();
+export class DeFiChainStrategy extends JellyfishStrategy {
+  constructor(protected readonly dexJellyfishService: DexDeFiChainService) {
+    super(dexJellyfishService);
   }
 
   async transferLiquidity(request: TransferRequest): Promise<string> {
     const { destinationAddress, asset, amount } = request;
 
-    return this.dexDeFiChainService.transferLiquidity(destinationAddress, asset.dexName, amount);
+    return this.dexJellyfishService.transferLiquidity(destinationAddress, asset.dexName, amount);
   }
 
   async transferMinimalCoin(address: string): Promise<string> {
-    return this.dexDeFiChainService.transferMinimalUtxo(address);
+    return this.dexJellyfishService.transferMinimalUtxo(address);
   }
 
   async checkTransferCompletion(transferTxId: string): Promise<boolean> {
-    return this.dexDeFiChainService.checkTransferCompletion(transferTxId);
-  }
-
-  async findTransaction(_query: TransactionQuery): Promise<TransactionResult> {
-    throw new Error('Method not implemented');
+    return this.dexJellyfishService.checkTransferCompletion(transferTxId);
   }
 }
