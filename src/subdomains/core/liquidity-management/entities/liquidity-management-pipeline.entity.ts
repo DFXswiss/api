@@ -27,6 +27,10 @@ export class LiquidityManagementPipeline extends IEntity {
   @JoinTable()
   currentAction: LiquidityManagementAction;
 
+  @ManyToOne(() => LiquidityManagementAction, { eager: true, nullable: true })
+  @JoinTable()
+  previousAction: LiquidityManagementAction;
+
   @Column({ type: 'int', nullable: true })
   ordersProcessed: number;
 
@@ -54,6 +58,7 @@ export class LiquidityManagementPipeline extends IEntity {
   }
 
   continue(currentActionOrderStatus: LiquidityManagementOrderStatus): this {
+    this.previousAction = Object.assign({}, this.currentAction);
     this.ordersProcessed++;
 
     if (this.ordersProcessed >= 50) {

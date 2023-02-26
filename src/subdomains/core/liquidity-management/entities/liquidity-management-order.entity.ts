@@ -1,5 +1,5 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity, JoinTable, ManyToOne } from 'typeorm';
+import { Column, Entity, JoinTable, ManyToOne, OneToOne } from 'typeorm';
 import { LiquidityManagementAction } from './liquidity-management-action.entity';
 import { LiquidityManagementOrderStatus } from '../enums';
 import { LiquidityManagementPipeline } from './liquidity-management-pipeline.entity';
@@ -21,6 +21,9 @@ export class LiquidityManagementOrder extends IEntity {
   @JoinTable()
   action: LiquidityManagementAction;
 
+  @OneToOne(() => LiquidityManagementOrder, { eager: true, nullable: true })
+  previousOrder: LiquidityManagementOrder;
+
   @Column({ length: 256, nullable: true })
   correlationId: string;
 
@@ -33,6 +36,7 @@ export class LiquidityManagementOrder extends IEntity {
     amount: number,
     pipeline: LiquidityManagementPipeline,
     action: LiquidityManagementAction,
+    previousOrder: LiquidityManagementOrder,
   ): LiquidityManagementOrder {
     const order = new LiquidityManagementOrder();
 
@@ -40,6 +44,7 @@ export class LiquidityManagementOrder extends IEntity {
     order.amount = amount;
     order.pipeline = pipeline;
     order.action = action;
+    order.previousOrder = previousOrder;
 
     return order;
   }

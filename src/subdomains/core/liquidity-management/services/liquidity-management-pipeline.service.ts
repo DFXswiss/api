@@ -124,7 +124,14 @@ export class LiquidityManagementPipelineService {
         });
 
         if (!order) {
-          await this.placeLiquidityOrder(pipeline);
+          const previousOrder =
+            pipeline.previousAction &&
+            (await this.orderRepo.findOne({
+              pipeline,
+              action: pipeline.previousAction,
+            }));
+
+          await this.placeLiquidityOrder(pipeline, previousOrder);
           continue;
         }
 
@@ -156,9 +163,12 @@ export class LiquidityManagementPipelineService {
     }
   }
 
-  private async placeLiquidityOrder(pipeline: LiquidityManagementPipeline): Promise<void> {
+  private async placeLiquidityOrder(
+    pipeline: LiquidityManagementPipeline,
+    previousOrder: LiquidityManagementOrder,
+  ): Promise<void> {
     const { targetAmount, currentAction } = pipeline;
-    const order = LiquidityManagementOrder.create(targetAmount, pipeline, currentAction);
+    const order = LiquidityManagementOrder.create(targetAmount, pipeline, currentAction, previousOrder);
 
     await this.orderRepo.save(order);
   }
