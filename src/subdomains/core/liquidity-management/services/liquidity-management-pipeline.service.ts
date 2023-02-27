@@ -168,7 +168,7 @@ export class LiquidityManagementPipelineService {
     previousOrder: LiquidityManagementOrder,
   ): Promise<void> {
     const { targetAmount, currentAction } = pipeline;
-    const order = LiquidityManagementOrder.create(targetAmount, pipeline, currentAction, previousOrder);
+    const order = LiquidityManagementOrder.create(targetAmount, pipeline, currentAction, previousOrder.id);
 
     await this.orderRepo.save(order);
   }

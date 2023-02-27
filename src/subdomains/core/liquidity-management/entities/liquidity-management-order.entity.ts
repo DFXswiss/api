@@ -21,8 +21,8 @@ export class LiquidityManagementOrder extends IEntity {
   @JoinTable()
   action: LiquidityManagementAction;
 
-  @OneToOne(() => LiquidityManagementOrder, { eager: true, nullable: true })
-  previousOrder: LiquidityManagementOrder;
+  @Column({ type: 'int', nullable: true })
+  previousOrderId: number;
 
   @Column({ length: 256, nullable: true })
   correlationId: string;
@@ -36,7 +36,7 @@ export class LiquidityManagementOrder extends IEntity {
     amount: number,
     pipeline: LiquidityManagementPipeline,
     action: LiquidityManagementAction,
-    previousOrder: LiquidityManagementOrder,
+    previousOrderId: number,
   ): LiquidityManagementOrder {
     const order = new LiquidityManagementOrder();
 
@@ -44,7 +44,7 @@ export class LiquidityManagementOrder extends IEntity {
     order.amount = amount;
     order.pipeline = pipeline;
     order.action = action;
-    order.previousOrder = previousOrder;
+    order.previousOrderId = previousOrderId;
 
     return order;
   }
