@@ -11,7 +11,7 @@ import { ChainSwapId, LiquidityOrder } from '../entities/liquidity-order.entity'
 import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
 import { PriceSlippageException } from '../exceptions/price-slippage.exception';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
-import { DexJellyfishService } from './base/dex-jellyfish.service';
+import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
 
 export interface DexDeFiChainLiquidityResult {
   targetAmount: number;
@@ -23,7 +23,7 @@ export interface DexDeFiChainLiquidityResult {
 }
 
 @Injectable()
-export class DexDeFiChainService extends DexJellyfishService {
+export class DexDeFiChainService {
   #dexClient: DeFiClient;
 
   constructor(
@@ -32,7 +32,6 @@ export class DexDeFiChainService extends DexJellyfishService {
     private readonly settingService: SettingService,
     readonly nodeService: NodeService,
   ) {
-    super();
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.#dexClient = client));
   }
 
@@ -185,6 +184,14 @@ export class DexDeFiChainService extends DexJellyfishService {
     const availableAmount = await this.deFiChainUtil.getAvailableTokenAmount(asset.dexName, this.#dexClient);
 
     return Util.round(availableAmount - pendingAmount, 8);
+  }
+
+  async getRecentHistory(depth: number): Promise<AccountHistory[]> {
+    return this.#dexClient.getRecentHistory(depth, Config.blockchain.default.dexWalletAddress);
+  }
+
+  parseAmounts(amounts: string[]): { asset: string; amount: number }[] {
+    return amounts.map((a) => this.getClient().parseAmount(a));
   }
 
   // *** HELPER METHODS *** //

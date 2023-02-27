@@ -79,27 +79,6 @@ export class NodeClient {
     return this.callNode((c) => c.wallet.getTransaction(txId));
   }
 
-  async getHistory(fromBlock: number, toBlock: number, address?: string): Promise<AccountHistory[]> {
-    return this.callNode((c) =>
-      c.account.listAccountHistory(address, {
-        depth: toBlock - fromBlock,
-        maxBlockHeight: toBlock,
-        no_rewards: true,
-        limit: 1000000,
-      }),
-    );
-  }
-
-  async getRecentHistory(depth: number, address?: string): Promise<AccountHistory[]> {
-    return this.callNode((c) =>
-      c.account.listAccountHistory(address, {
-        depth,
-        no_rewards: true,
-        limit: 1000000,
-      }),
-    );
-  }
-
   // UTXO
   async getUtxo(): Promise<UTXO[]> {
     return this.callNode((c) => c.wallet.listUnspent());

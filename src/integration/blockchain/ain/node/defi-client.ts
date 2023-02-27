@@ -52,6 +52,28 @@ export class DeFiClient extends NodeClient {
     return { utxo: await this.getBalance(), token: await this.getToken().then((t) => t.length) };
   }
 
+  //common
+  async getHistory(fromBlock: number, toBlock: number, address?: string): Promise<AccountHistory[]> {
+    return this.callNode((c) =>
+      c.account.listAccountHistory(address, {
+        depth: toBlock - fromBlock,
+        maxBlockHeight: toBlock,
+        no_rewards: true,
+        limit: 1000000,
+      }),
+    );
+  }
+
+  async getRecentHistory(depth: number, address?: string): Promise<AccountHistory[]> {
+    return this.callNode((c) =>
+      c.account.listAccountHistory(address, {
+        depth,
+        no_rewards: true,
+        limit: 1000000,
+      }),
+    );
+  }
+
   // UTXO
   get utxoFee(): number {
     return this.chain === 'mainnet' ? 0.00000132 : 0.0000222;
