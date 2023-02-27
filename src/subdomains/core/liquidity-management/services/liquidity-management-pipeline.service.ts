@@ -165,10 +165,10 @@ export class LiquidityManagementPipelineService {
 
   private async placeLiquidityOrder(
     pipeline: LiquidityManagementPipeline,
-    previousOrder: LiquidityManagementOrder,
+    previousOrder: LiquidityManagementOrder | null,
   ): Promise<void> {
     const { targetAmount, currentAction } = pipeline;
-    const order = LiquidityManagementOrder.create(targetAmount, pipeline, currentAction, previousOrder.id);
+    const order = LiquidityManagementOrder.create(targetAmount, pipeline, currentAction, previousOrder?.id);
 
     await this.orderRepo.save(order);
   }

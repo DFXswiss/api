@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { LiquidityOrder, LiquidityOrderContext } from '../entities/liquidity-order.entity';
+import { LiquidityOrder, LiquidityOrderContext, LiquidityOrderType } from '../entities/liquidity-order.entity';
 import { DexDeFiChainService } from './dex-defichain.service';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
 import { PriceSlippageException } from '../exceptions/price-slippage.exception';
@@ -322,22 +322,54 @@ export class DexService {
 
   private async addPurchaseDataToOrders(orders: LiquidityOrder[]): Promise<void> {
     for (const order of orders) {
-      try {
-        const strategy = this.purchaseStrategies.getPurchaseLiquidityStrategy(order.targetAsset);
+      switch (order.type) {
+        case LiquidityOrderType.PURCHASE:
+          await this.addPurchaseDataToOrder(order);
+          break;
 
-        if (!strategy) {
-          throw new Error(`No purchase liquidity strategy for asset ${order.targetAsset.uniqueName}`);
-        }
+        case LiquidityOrderType.SELL:
+          await this.addSellDataToOrder(order);
+          break;
 
-        await strategy.addPurchaseData(order);
-
-        console.info(
-          `Liquidity purchase is ready. Order ID: ${order.id}. Context: ${order.context}. Correlation ID: ${order.correlationId}`,
-        );
-      } catch (e) {
-        console.error(`Error while trying to add purchase data to liquidity order. Order ID: ${order.id}`, e);
-        continue;
+        default:
+          continue;
       }
+    }
+  }
+
+  private async addPurchaseDataToOrder(order: LiquidityOrder): Promise<void> {
+    try {
+      const strategy = this.purchaseStrategies.getPurchaseLiquidityStrategy(order.targetAsset);
+
+      if (!strategy) {
+        throw new Error(`No purchase liquidity strategy for asset ${order.targetAsset.uniqueName}`);
+      }
+
+      await strategy.addPurchaseData(order);
+
+      console.info(
+        `Liquidity purchase is ready. Order ID: ${order.id}. Context: ${order.context}. Correlation ID: ${order.correlationId}`,
+      );
+    } catch (e) {
+      console.error(`Error while trying to add purchase data to liquidity order. Order ID: ${order.id}`, e);
+    }
+  }
+
+  private async addSellDataToOrder(order: LiquidityOrder): Promise<void> {
+    try {
+      const strategy = this.sellStrategies.getSellLiquidityStrategy(order.targetAsset);
+
+      if (!strategy) {
+        throw new Error(`No sell liquidity strategy for asset ${order.targetAsset.uniqueName}`);
+      }
+
+      await strategy.addSellData(order);
+
+      console.info(
+        `Liquidity sell is ready. Order ID: ${order.id}. Context: ${order.context}. Correlation ID: ${order.correlationId}`,
+      );
+    } catch (e) {
+      console.error(`Error while trying to add sell data to liquidity order. Order ID: ${order.id}`, e);
     }
   }
 }
