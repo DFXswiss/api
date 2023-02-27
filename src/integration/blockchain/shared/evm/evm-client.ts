@@ -11,13 +11,13 @@ export abstract class EvmClient {
   protected randomReceiverAddress = '0x4975f78e8903548bD33aF404B596690D47588Ff5';
   protected dfxAddress: string;
   protected wallet: ethers.Wallet;
+  protected nonce = new Map<string, number>();
 
   #router: Contract;
   #erc20Tokens: Map<string, Contract> = new Map();
   #swapTokenAddress: string;
 
   #sendCoinGasLimit = 21000;
-  #nonce = new Map<string, number>();
 
   constructor(
     protected http: HttpService,
@@ -135,33 +135,6 @@ export abstract class EvmClient {
     return this.sendToken(contract, this.dfxAddress, toAddress, amount, feeLimit);
   }
 
-  private async sendToken(
-    contract: Contract,
-    fromAddress: string,
-    toAddress: string,
-    amount: number,
-    feeLimit?: number,
-  ): Promise<string> {
-    /**
-     * @note
-     * adding a cap to make sure gas limit is sufficient
-     */
-    const gasLimit = +(await this.getTokenGasLimitForContact(contract));
-    const gasPrice = await this.getGasPrice(gasLimit, feeLimit);
-    const nonce = await this.getNonce(fromAddress);
-
-    const effectiveGasLimit = Util.round(gasLimit * 1.5, 0);
-
-    const decimals = await contract.decimals();
-    const targetAmount = this.convertToWeiLikeDenomination(amount, decimals);
-
-    const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit: effectiveGasLimit, nonce });
-
-    this.#nonce.set(fromAddress, nonce + 1);
-
-    return tx.hash;
-  }
-
   async isTxComplete(txHash: string): Promise<boolean> {
     const transaction = await this.getTxReceipt(txHash);
 
@@ -254,7 +227,7 @@ export abstract class EvmClient {
 
   //*** PRIVATE HELPER METHODS ***//
 
-  private async sendNativeCoin(
+  protected async sendNativeCoin(
     wallet: ethers.Wallet,
     fromAddress: string,
     toAddress: string,
@@ -274,12 +247,39 @@ export abstract class EvmClient {
       gasLimit: this.#sendCoinGasLimit,
     });
 
-    this.#nonce.set(fromAddress, nonce + 1);
+    this.nonce.set(fromAddress, nonce + 1);
 
     return tx.hash;
   }
 
-  private async getGasPrice(gasLimit: number, feeLimit?: number): Promise<number> {
+  private async sendToken(
+    contract: Contract,
+    fromAddress: string,
+    toAddress: string,
+    amount: number,
+    feeLimit?: number,
+  ): Promise<string> {
+    /**
+     * @note
+     * adding a cap to make sure gas limit is sufficient
+     */
+    const gasLimit = +(await this.getTokenGasLimitForContact(contract));
+    const gasPrice = await this.getGasPrice(gasLimit, feeLimit);
+    const nonce = await this.getNonce(fromAddress);
+
+    const effectiveGasLimit = Util.round(gasLimit * 1.5, 0);
+
+    const decimals = await contract.decimals();
+    const targetAmount = this.convertToWeiLikeDenomination(amount, decimals);
+
+    const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit: effectiveGasLimit, nonce });
+
+    this.nonce.set(fromAddress, nonce + 1);
+
+    return tx.hash;
+  }
+
+  protected async getGasPrice(gasLimit: number, feeLimit?: number): Promise<number> {
     const currentGasPrice = +(await this.getCurrentGasPrice());
     const proposedGasPrice =
       feeLimit != null ? Util.round(+this.convertToWeiLikeDenomination(feeLimit, 'ether') / gasLimit, 0) : null;
@@ -289,9 +289,9 @@ export abstract class EvmClient {
     return currentGasPrice < proposedGasPrice ? currentGasPrice : proposedGasPrice;
   }
 
-  private async getNonce(address: string): Promise<number> {
+  protected async getNonce(address: string): Promise<number> {
     const blockchainNonce = await this.provider.getTransactionCount(address);
-    const cachedNonce = this.#nonce.get(address) ?? 0;
+    const cachedNonce = this.nonce.get(address) ?? 0;
 
     const currentNonce = blockchainNonce > cachedNonce ? blockchainNonce : cachedNonce;
 

@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 import {
   getL2Network,
   EthBridger,
@@ -149,24 +149,28 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     }
   }
 
-  async getCurrentGasForCoinTransaction(): Promise<number> {
-    const totalGasCost = await this.provider.estimateGas({
+  async getCurrentGasCostForCoinTransaction(): Promise<number> {
+    const totalGas = await this.provider.estimateGas({
       from: this.dfxAddress,
       to: this.randomReceiverAddress,
       value: 1,
     });
 
-    return this.convertToEthLikeDenomination(totalGasCost);
+    const gasPrice = await this.getCurrentGasPrice();
+
+    return this.convertToEthLikeDenomination(totalGas.mul(gasPrice));
   }
 
-  async getCurrentGasForTokenTransaction(token: Asset): Promise<number> {
-    const totalGasCost = await this.provider.estimateGas({
+  async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
+    const totalGas = await this.provider.estimateGas({
       from: this.dfxAddress,
       to: token.chainId,
       data: this.dummyTokenPayload,
     });
 
-    return this.convertToEthLikeDenomination(totalGasCost);
+    const gasPrice = await this.getCurrentGasPrice();
+
+    return this.convertToEthLikeDenomination(totalGas.mul(gasPrice));
   }
 
   /**
@@ -178,6 +182,43 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
   }
 
   //*** HELPER METHODS ***//
+
+  protected async sendNativeCoin(
+    wallet: ethers.Wallet,
+    fromAddress: string,
+    toAddress: string,
+    amount: number,
+    feeLimit?: number,
+  ): Promise<string> {
+    const gasLimit = await this.getCurrentGasForCoinTransaction(amount);
+    const gasPrice = await this.getGasPrice(+gasLimit, feeLimit);
+    const nonce = await this.getNonce(fromAddress);
+
+    const tx = await wallet.sendTransaction({
+      from: fromAddress,
+      to: toAddress,
+      value: this.convertToWeiLikeDenomination(amount, 'ether'),
+      nonce,
+      gasPrice,
+      gasLimit,
+    });
+
+    this.nonce.set(fromAddress, nonce + 1);
+
+    return tx.hash;
+  }
+
+  /**
+   * @TODO
+   * consider using this as a primary source of estimating gas in super class
+   */
+  private async getCurrentGasForCoinTransaction(amount: number): Promise<BigNumber> {
+    return this.provider.estimateGas({
+      from: this.dfxAddress,
+      to: this.randomReceiverAddress,
+      value: this.convertToWeiLikeDenomination(amount, 'ether'),
+    });
+  }
 
   private async initL2Network() {
     try {
