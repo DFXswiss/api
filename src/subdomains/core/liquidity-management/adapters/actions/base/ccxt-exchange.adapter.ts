@@ -30,7 +30,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityManagementAdapter {
   ) {
     super(system);
 
-    this.commands.set(CcxtExchangeAdapterCommands.WITHDRAW, this.withdraw);
+    this.commands.set(CcxtExchangeAdapterCommands.WITHDRAW, this.withdraw.bind(this));
   }
 
   protected abstract mapBlockchainToCcxtNetwork(blockchain: Blockchain): string;

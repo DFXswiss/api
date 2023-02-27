@@ -20,7 +20,7 @@ export abstract class LiquidityManagementAdapter implements LiquidityActionInteg
       },
     } = order;
 
-    if (!(target instanceof Asset) || !(target instanceof Fiat)) {
+    if (!(target instanceof Asset) && !(target instanceof Fiat)) {
       throw new Error(
         `LiquidityManagementAdapter for ${this.system} supports only Asset or Fiat instances as an input`,
       );

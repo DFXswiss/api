@@ -27,8 +27,8 @@ export abstract class EvmL2BridgeAdapter extends LiquidityManagementAdapter {
   ) {
     super(system);
 
-    this.commands.set(EvmL2BridgeAdapterCommands.DEPOSIT, this.deposit);
-    this.commands.set(EvmL2BridgeAdapterCommands.WITHDRAW, this.withdraw);
+    this.commands.set(EvmL2BridgeAdapterCommands.DEPOSIT, this.deposit.bind(this));
+    this.commands.set(EvmL2BridgeAdapterCommands.WITHDRAW, this.withdraw.bind(this));
   }
 
   /**

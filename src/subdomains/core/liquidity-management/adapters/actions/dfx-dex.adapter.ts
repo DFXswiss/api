@@ -30,9 +30,9 @@ export class DfxDexAdapter extends LiquidityManagementAdapter {
   constructor(private readonly dexService: DexService, private readonly registryService: ExchangeRegistryService) {
     super(LiquidityManagementSystem.DFX_DEX);
 
-    this.commands.set(DfxDexAdapterCommands.PURCHASE, this.purchase);
-    this.commands.set(DfxDexAdapterCommands.SELL, this.sell);
-    this.commands.set(DfxDexAdapterCommands.WITHDRAW, this.withdraw);
+    this.commands.set(DfxDexAdapterCommands.PURCHASE, this.purchase.bind(this));
+    this.commands.set(DfxDexAdapterCommands.SELL, this.sell.bind(this));
+    this.commands.set(DfxDexAdapterCommands.WITHDRAW, this.withdraw.bind(this));
   }
 
   async checkCompletion(order: LiquidityManagementOrder): Promise<boolean> {
