@@ -17,6 +17,9 @@ import { LiquidityManagementRuleStatus } from '../enums';
 import { IsNull, Not } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { LiquidityManagementRuleSettingsDto } from '../dto/input/liquidity-management-settings.dto';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
+import { MailType } from 'src/subdomains/supporting/notification/enums';
 
 @Injectable()
 export class LiquidityManagementRuleService {
@@ -26,6 +29,7 @@ export class LiquidityManagementRuleService {
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
     private readonly actionIntegrationFactory: LiquidityActionIntegrationFactory,
+    private readonly notificationService: NotificationService,
   ) {}
 
   //*** PUBLIC API ***//
@@ -112,6 +116,10 @@ export class LiquidityManagementRuleService {
       if (rule.shouldReactivate()) {
         rule.reactivate();
         await this.ruleRepo.save(rule);
+
+        const mailRequest = this.generateRuleRetriedMessage(rule);
+
+        await this.notificationService.sendMail(mailRequest);
 
         console.log(`Reactivated liquidity management rule ${rule.id}`);
       }
@@ -250,5 +258,19 @@ export class LiquidityManagementRuleService {
         relations: ['onSuccess', 'onFail'],
       }) ?? null
     );
+  }
+
+  private generateRuleRetriedMessage(rule: LiquidityManagementRule): MailRequest {
+    const message = `Liquidity management rule ${rule.id} reactivated after ${rule.reactivationTime} seconds`;
+
+    const mailRequest: MailRequest = {
+      type: MailType.ERROR_MONITORING,
+      input: {
+        subject: 'Liquidity management rule reactivated',
+        errors: [message],
+      },
+    };
+
+    return mailRequest;
   }
 }
