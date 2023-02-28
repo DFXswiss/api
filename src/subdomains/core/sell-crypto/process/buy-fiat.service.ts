@@ -263,7 +263,8 @@ export class BuyFiatService {
   async getTransactions(dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<TransactionDetailsDto[]> {
     const buyFiats = await this.buyFiatRepo.find({
       where: { outputDate: Between(dateFrom, dateTo), amlCheck: AmlCheck.PASS },
-      relations: ['cryptoInput'],
+      relations: ['cryptoInput', 'cryptoInput.asset'],
+      loadEagerRelations: false,
     });
 
     return buyFiats.map((v) => ({
