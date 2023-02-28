@@ -82,12 +82,12 @@ export abstract class EvmL2BridgeAdapter extends LiquidityManagementAdapter {
   private async deposit(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const {
       pipeline: {
-        rule: { targetAsset: l1Asset },
+        rule: { targetAsset: l2Asset },
       },
       amount,
     } = order;
 
-    const { type } = l1Asset;
+    const { type, dexName } = l2Asset;
 
     switch (type) {
       case AssetType.COIN: {
@@ -95,7 +95,15 @@ export abstract class EvmL2BridgeAdapter extends LiquidityManagementAdapter {
       }
 
       case AssetType.TOKEN: {
-        return this.client.depositTokenOnDex(l1Asset, amount);
+        const l1Asset = await this.assetService.getAssetByQuery({ dexName, type, blockchain: Blockchain.ETHEREUM });
+
+        if (!l1Asset) {
+          throw new Error(
+            `EvmL2BridgeAdapter.deposit() ${this.system} could not find pair L1 token for L2 ${l2Asset.uniqueName}`,
+          );
+        }
+
+        return this.client.depositTokenOnDex(l1Asset, l2Asset, amount);
       }
 
       default:
@@ -117,7 +125,7 @@ export abstract class EvmL2BridgeAdapter extends LiquidityManagementAdapter {
       amount,
     } = order;
 
-    const { dexName, type, chainId } = l2Asset;
+    const { type, dexName } = l2Asset;
 
     switch (type) {
       case AssetType.COIN: {
@@ -125,14 +133,15 @@ export abstract class EvmL2BridgeAdapter extends LiquidityManagementAdapter {
       }
 
       case AssetType.TOKEN: {
-        const l1Token = await this.assetService.getAssetByQuery({
-          dexName,
-          blockchain: Blockchain.ETHEREUM,
-          type,
-          chainId,
-        });
+        const l1Asset = await this.assetService.getAssetByQuery({ dexName, type, blockchain: Blockchain.ETHEREUM });
 
-        return this.client.withdrawTokenOnDex(l1Token, amount);
+        if (!l1Asset) {
+          throw new Error(
+            `EvmL2BridgeAdapter.withdraw() ${this.system} could not find pair L1 token for L2 ${l2Asset.uniqueName}`,
+          );
+        }
+
+        return this.client.withdrawTokenOnDex(l1Asset, l2Asset, amount);
       }
 
       default:

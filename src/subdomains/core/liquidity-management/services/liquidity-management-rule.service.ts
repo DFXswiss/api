@@ -216,7 +216,7 @@ export class LiquidityManagementRuleService {
 
     return (
       this.actionRepo.findOne({
-        where: { system, command, onSuccess, onFail, params: JSON.stringify(params) },
+        where: { system, command, onSuccess, onFail, params: params ? JSON.stringify(params) : null },
         relations: ['onSuccess', 'onFail'],
       }) ?? null
     );

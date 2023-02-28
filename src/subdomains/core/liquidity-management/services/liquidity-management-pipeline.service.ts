@@ -255,7 +255,7 @@ export class LiquidityManagementPipelineService {
 
   private generateSuccessMessage(pipeline: LiquidityManagementPipeline): [string, MailRequest] {
     const { type, targetAmount, rule } = pipeline;
-    const successMessage = `Successfully completed a ${type} pipeline for ${targetAmount} ${rule.target.name}. Pipeline ID: ${pipeline.id}. Rule ${pipeline.rule.id} optimized.`;
+    const successMessage = `Successfully completed a ${type} pipeline for ${targetAmount} ${rule.target.name}. Pipeline ID: ${pipeline.id}`;
 
     const mailRequest: MailRequest = {
       type: MailType.ERROR_MONITORING,

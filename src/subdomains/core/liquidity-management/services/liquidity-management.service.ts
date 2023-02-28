@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Lock } from 'src/shared/utils/lock';
 import { LiquidityBalance } from '../entities/liquidity-balance.entity';
@@ -45,6 +45,10 @@ export class LiquidityManagementService {
   async buyLiquidity(assetId: number, amount: number): Promise<PipelineId> {
     const rule = await this.findRuleByAssetOrThrow(assetId);
 
+    if (!rule.deficitStartAction) {
+      throw new BadRequestException(`Rule ${rule.id} does not support liquidity deficit path`);
+    }
+
     const liquidityState = { deficit: amount, redundancy: 0 };
 
     return this.executeRule(rule, liquidityState);
@@ -52,6 +56,10 @@ export class LiquidityManagementService {
 
   async sellLiquidity(assetId: number, amount: number): Promise<PipelineId> {
     const rule = await this.findRuleByAssetOrThrow(assetId);
+
+    if (!rule.redundancyStartAction) {
+      throw new BadRequestException(`Rule ${rule.id} does not support liquidity redundancy path`);
+    }
 
     const liquidityState = { deficit: 0, redundancy: amount };
 
@@ -122,7 +130,7 @@ export class LiquidityManagementService {
     const redundancyMessage = `${result.redundancy} redundancy`;
 
     console.log(
-      `Executing liquidity management rule ${rule.id}. Verification result -> ${
+      `Executing liquidity management rule ${rule.id}. Summary -> ${
         result.deficit ? deficitMessage : redundancyMessage
       } of ${rule.target.name}`,
     );

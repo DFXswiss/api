@@ -70,7 +70,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     return withdrawTx.hash;
   }
 
-  async depositTokenOnDex(l1Token: Asset, amount: number): Promise<string> {
+  async depositTokenOnDex(l1Token: Asset, l2Token: Asset, amount: number): Promise<string> {
     const erc20Bridge = new Erc20Bridger(this.#l2Network);
 
     // I think this needs to be done only once -> maybe check somehow if approval is needed
@@ -95,7 +95,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     return depositTx.hash;
   }
 
-  async withdrawTokenOnDex(l1Token: Asset, amount: number): Promise<string> {
+  async withdrawTokenOnDex(l1Token: Asset, l2Token: Asset, amount: number): Promise<string> {
     const erc20Bridge = new Erc20Bridger(this.#l2Network);
 
     // I think this needs to be done only once -> maybe check somehow if approval is needed

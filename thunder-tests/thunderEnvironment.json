@@ -47,6 +47,10 @@
       {
         "name": "url",
         "value": "http://localhost:3000"
+      },
+      {
+        "name": "token",
+        "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTc1LCJhZGRyZXNzIjoidGYxcXlqbDZwbjJ4ODJoanNqcWM2MjYwN2d5ejV0cWw3ajA5NnBnZWE4Iiwicm9sZSI6IkFkbWluIiwiYmxvY2tjaGFpbnMiOlsiRGVGaUNoYWluIl0sImlhdCI6MTY3NzU5Mjc2MSwiZXhwIjoxNjc3NzY1NTYxfQ.v4NhE6H3Ppa0ART5yhMOVjjCXS_u8jgO-NmXPORb73Y"
       }
     ],
     "envFile": "env/loc.admin.env"
@@ -77,6 +81,10 @@
       {
         "name": "url",
         "value": "https://app-dfx-api-dev.azurewebsites.net"
+      },
+      {
+        "name": "token",
+        "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MjE1LCJhZGRyZXNzIjoidGYxcXd1ZnVoZnJreWhwcm5zeWx4Y2o1NjZsYXg3bnRuemEzMDVzbmE3Iiwicm9sZSI6IkFkbWluIiwiYmxvY2tjaGFpbnMiOlsiRGVGaUNoYWluIl0sImlhdCI6MTY3NzU4ODE4NywiZXhwIjoxNjc4Nzk3Nzg3fQ.245OHQ0xsrCEaxmqGcagUlFAzxgclObqxDvVIP7CI3c"
       }
     ],
     "envFile": "env/dev.admin.env"
