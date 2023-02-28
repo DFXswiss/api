@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
 import { MasternodeService } from 'src/subdomains/supporting/masternode/masternode.service';
@@ -9,6 +9,7 @@ import { StatisticService } from './statistic.service';
 import { BuyCryptoService } from '../buy-crypto/process/services/buy-crypto.service';
 import { CfpResult } from './dto/cfp.dto';
 import { SettingStatus, StatisticDto, TransactionStatisticDto } from './dto/statistic.dto';
+import { IpGuard } from 'src/shared/auth/ip.guard';
 
 @ApiTags('Statistic')
 @Controller('statistic')
@@ -36,6 +37,7 @@ export class StatisticController {
   }
 
   @Get('transactions')
+  @UseGuards(IpGuard)
   @ApiOkResponse({ type: TransactionStatisticDto })
   async getTransactions(
     @Query('dateFrom') dateFrom: Date,

@@ -33,6 +33,7 @@ export class Configuration {
   defaultDailyTradingLimit = 990; // EUR
   apiKeyVersionCT = '0'; // single digit hex number
   azureIpSubstring = '169.254';
+  knownRequestIps = process.env.KNOWN_REQUEST_IPS?.split(',');
 
   colors = {
     white: '#FFFFFF',

@@ -81,6 +81,7 @@ export class BuyCryptoService {
         'buy',
         'buy.user',
         'buy.user.wallet',
+        'buy.user.userData',
         'cryptoRoute',
         'cryptoRoute.user',
         'cryptoRoute.user.wallet',

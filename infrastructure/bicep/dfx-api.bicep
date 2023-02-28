@@ -2,6 +2,7 @@
 param location string
 param env string
 param network string
+param knownRequestIps string
 
 param dbAllowAllIps bool
 param dbAdminLogin string
@@ -843,6 +844,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'TALIUM_API_KEY'
           value: taliumApiKey
+        }
+        {
+          name: 'KNOWN_REQUEST_IPS'
+          value: knownRequestIps
         }
       ]
     }

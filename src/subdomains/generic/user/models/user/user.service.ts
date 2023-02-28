@@ -33,11 +33,13 @@ import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { UserDataRepository } from '../user-data/user-data.repository';
 
 @Injectable()
 export class UserService {
   constructor(
     private readonly userRepo: UserRepository,
+    private readonly userDataRepo: UserDataRepository,
     private readonly userDataService: UserDataService,
     private readonly kycService: KycService,
     private readonly walletService: WalletService,
@@ -96,7 +98,7 @@ export class UserService {
   }
 
   async createUser(dto: CreateUserDto, userIp: string, userOrigin?: string, userData?: UserData): Promise<User> {
-    let user = this.userRepo.create(dto);
+    const user = this.userRepo.create(dto);
 
     user.ip = userIp;
     user.ipCountry = await this.checkIpCountry(userIp);
@@ -104,13 +106,7 @@ export class UserService {
     user.usedRef = await this.checkRef(user, dto.usedRef);
     user.origin = userOrigin;
     user.userData = userData ?? (await this.userDataService.createUserData(user.wallet.customKyc ?? KycType.DFX));
-
-    // retry (in case of ref conflict)
-    user = await Util.retry(async () => {
-      user.ref = await this.getNextRef();
-
-      return this.userRepo.save(user);
-    }, 3);
+    await this.userRepo.save(user);
 
     const blockchains = this.cryptoService.getBlockchainsBasedOn(user.address);
     if (blockchains.includes(Blockchain.DEFICHAIN)) this.dfiTaxService.activateAddress(user.address);
@@ -372,7 +368,9 @@ export class UserService {
   }
 
   async activateUser(user?: User): Promise<void> {
+    user.ref = await this.getNextRef();
     await this.userRepo.activateUser(user);
+    await this.userDataRepo.activateUserData(user.userData);
   }
 
   private async checkRef(user: User, usedRef: string): Promise<string> {

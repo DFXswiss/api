@@ -37,6 +37,7 @@ import { GeoLocationModule } from 'src/integration/geolocation/geo-location.modu
 import { LimitRequestNotificationService } from './models/limit-request/limit-request-notification.service';
 import { WebhookService } from './services/webhook/webhook.service';
 import { IpLogRepository } from './models/ip-log/ip-log.repository';
+import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 
 @Module({
   imports: [
@@ -83,7 +84,17 @@ import { IpLogRepository } from './models/ip-log/ip-log.repository';
     LinkService,
     WebhookService,
     LimitRequestNotificationService,
+    GeoLocationService,
   ],
-  exports: [UserService, UserDataService, KycService, SpiderService, SpiderApiService, LinkService, WebhookService],
+  exports: [
+    UserService,
+    UserDataService,
+    KycService,
+    SpiderService,
+    SpiderApiService,
+    LinkService,
+    WebhookService,
+    GeoLocationService,
+  ],
 })
 export class UserModule {}

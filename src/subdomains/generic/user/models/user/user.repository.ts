@@ -7,6 +7,6 @@ export class UserRepository extends Repository<User> {
     return this.findOne({ where: { address }, relations: needsRelation ? ['userData', 'wallet'] : [] });
   }
   async activateUser(user: User): Promise<void> {
-    if (user?.status === UserStatus.NA) await this.update(user.id, { status: UserStatus.ACTIVE });
+    if (user?.status === UserStatus.NA) await this.update(user.id, { status: UserStatus.ACTIVE, ref: user.ref });
   }
 }

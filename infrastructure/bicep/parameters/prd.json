@@ -292,6 +292,9 @@
     },
     "taliumApiKey": {
       "value": "xxx"
+    },
+    "knownRequestIps": {
+      "value": "xxx"
     }
   }
 }
