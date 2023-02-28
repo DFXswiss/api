@@ -39,9 +39,12 @@ export class StatisticController {
   @Get('transactions')
   @ApiOkResponse({ type: TransactionStatisticDto })
   async getTransactions(
-    @Query('dateFrom') dateFrom: Date = Util.daysBefore(7, new Date()),
+    @Query('dateFrom') dateFrom: Date,
     @Query('dateTo') dateTo: Date,
   ): Promise<TransactionStatisticDto> {
+    dateTo ??= new Date();
+    dateFrom ??= Util.daysBefore(7, dateTo);
+
     return {
       buy: await this.buyCryptoService.getTransactions(dateFrom, dateTo),
       sell: await this.buyFiatService.getTransactions(dateFrom, dateTo),
