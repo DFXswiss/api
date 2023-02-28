@@ -206,13 +206,13 @@ export class LiquidityManagementPipelineService {
       try {
         await this.checkOrder(order);
       } catch (e) {
+        console.error(`Error in checking running liquidity order. Order ID: ${order.id}`, e);
+
         if (e instanceof OrderNotProcessableException) {
           order.fail(e);
           await this.orderRepo.save(order);
           continue;
         }
-
-        console.error(`Error in checking running liquidity order. Order ID: ${order.id}`, e);
       }
     }
   }
