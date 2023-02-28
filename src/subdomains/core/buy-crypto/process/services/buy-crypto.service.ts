@@ -378,7 +378,8 @@ export class BuyCryptoService {
     // TODO Add cryptoInput buyCryptos, consultation with Daniel regarding statistic data
     const buyCryptos = await this.buyCryptoRepo.find({
       where: { buy: { id: Not(IsNull()) }, outputDate: Between(dateFrom, dateTo), amlCheck: AmlCheck.PASS },
-      relations: ['buy'],
+      relations: ['buy', 'buy.asset'],
+      loadEagerRelations: false,
     });
 
     return buyCryptos.map((v) => ({
