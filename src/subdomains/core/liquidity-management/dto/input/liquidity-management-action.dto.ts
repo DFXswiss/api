@@ -1,4 +1,4 @@
-import { IsEnum, IsInt, IsJSON, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsInt, IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
 import { LiquidityManagementSystem } from '../../enums';
 
 export class LiquidityManagementActionDto {
@@ -23,6 +23,6 @@ export class LiquidityManagementActionDto {
   stepNumberOnFail: number;
 
   @IsOptional()
-  @IsJSON()
+  @IsObject()
   params: Record<string, unknown>;
 }
