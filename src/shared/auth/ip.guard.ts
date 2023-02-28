@@ -60,7 +60,7 @@ export class IpGuard implements CanActivate {
       case '/v1/auth/signUp':
         return 20;
       case '/v1/statistic/transactions':
-        return 2;
+        return 24;
       default:
         return 0;
     }
