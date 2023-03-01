@@ -8,6 +8,7 @@ import { SignMessageDto } from './dto/sign-message.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { ChallengeDto } from './dto/challenge.dto';
 import { IpGuard } from 'src/shared/auth/ip.guard';
+import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -15,14 +16,14 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('signUp')
-  @UseGuards(IpGuard)
+  @UseGuards(RateLimitGuard, IpGuard)
   @ApiCreatedResponse({ type: AuthResponseDto })
   signUp(@Body() dto: CreateUserDto, @RealIP() ip: string): Promise<AuthResponseDto> {
     return this.authService.signUp(dto, ip);
   }
 
   @Post('signIn')
-  @UseGuards(IpGuard)
+  @UseGuards(RateLimitGuard, IpGuard)
   @ApiCreatedResponse({ type: AuthResponseDto })
   signIn(@Body() credentials: AuthCredentialsDto): Promise<AuthResponseDto> {
     return this.authService.signIn(credentials);
