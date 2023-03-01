@@ -3,7 +3,7 @@ import { Entity, Column } from 'typeorm';
 
 @Entity()
 export class IpLog extends IEntity {
-  @Column({ length: 256 })
+  @Column({ length: 256, nullable: true })
   address: string;
 
   @Column({ length: 256 })
