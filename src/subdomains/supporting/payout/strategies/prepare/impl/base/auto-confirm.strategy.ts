@@ -8,11 +8,13 @@ export abstract class AutoConfirmStrategy extends PrepareStrategy {
     super();
   }
 
-  async preparePayout(order: PayoutOrder): Promise<void> {
-    order.preparationConfirmed();
-    order.recordPreparationFee(await this.feeAsset(), 0);
+  async preparePayout(orders: PayoutOrder[]): Promise<void> {
+    for (const order of orders) {
+      order.preparationConfirmed();
+      order.recordPreparationFee(await this.feeAsset(), 0);
 
-    await this.payoutOrderRepo.save(order);
+      await this.payoutOrderRepo.save(order);
+    }
   }
 
   /**
