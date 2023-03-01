@@ -2216,6 +2216,25 @@
     "tests": []
   },
   {
+    "_id": "98209270-54e0-4583-b933-be50ba4ba668",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "ed149df1-5a55-4eb1-836a-6b84742c8f38",
+    "name": "Update Settings",
+    "url": "{{url}}/v1/liquidityManagement/rule/17/settings",
+    "method": "PATCH",
+    "sortNum": 760000,
+    "created": "2023-02-13T09:25:26.853Z",
+    "modified": "2023-02-13T09:37:35.263Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"reactivationTime\": 1\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
     "_id": "429e59a7-c665-4f03-b0fa-4f62fb9d56e6",
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "4b2a9dd6-361d-4bee-9c80-1b59c149e59f",
