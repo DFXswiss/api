@@ -1,20 +1,24 @@
-import { BigNumber, ethers } from 'ethers';
+import { BigNumber, Contract, ethers } from 'ethers';
 import {
   getL2Network,
   EthBridger,
   L2Network,
   Erc20Bridger,
-  L1TransactionReceipt,
-  L1ToL2MessageStatus,
   L2TransactionReceipt,
   L2ToL1MessageStatus,
 } from '@arbitrum/sdk';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { EvmClient } from '../shared/evm/evm-client';
 import { GetConfig } from 'src/config/config';
 import { EthDepositParams } from '@arbitrum/sdk/dist/lib/assetBridger/ethBridger';
 import { L2BridgeEvmClient } from '../shared/evm/interfaces';
+import { Util } from 'src/shared/utils/util';
+import {
+  L1ContractCallTransactionReceipt,
+  L1EthDepositTransactionReceipt,
+} from '@arbitrum/sdk/dist/lib/message/L1Transaction';
+import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
 
 export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
   #l1Provider: ethers.providers.JsonRpcProvider;
@@ -37,7 +41,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     const ethereumGateway = `${ethGatewayUrl}/${ethApiKey ?? ''}`;
 
     this.#l1Provider = new ethers.providers.JsonRpcProvider(ethereumGateway);
-    this.#l1Wallet = new ethers.Wallet(ethWalletPrivateKey, this.provider);
+    this.#l1Wallet = new ethers.Wallet(ethWalletPrivateKey, this.#l1Provider);
 
     // eslint-disable-next-line @typescript-eslint/no-floating-promises
     this.initL2Network();
@@ -46,7 +50,6 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
   async depositCoinOnDex(amount: number): Promise<string> {
     const ethBridger = new EthBridger(this.#l2Network);
 
-    // returns L1 transaction hash?
     const depositTx = await ethBridger.deposit({
       amount: this.convertToWeiLikeDenomination(amount, 'ether'),
       l1Signer: this.#l1Wallet,
@@ -59,7 +62,6 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
   async withdrawCoinOnDex(amount: number): Promise<string> {
     const ethBridger = new EthBridger(this.#l2Network);
 
-    // returns L2 transaction hash?
     const withdrawTx = await ethBridger.withdraw({
       amount: this.convertToWeiLikeDenomination(amount, 'ether'),
       l2Signer: this.wallet,
@@ -70,21 +72,19 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     return withdrawTx.hash;
   }
 
-  async depositTokenOnDex(l1Token: Asset, l2Token: Asset, amount: number): Promise<string> {
+  async depositTokenOnDex(l1Token: Asset, _l2Token: Asset, amount: number): Promise<string> {
     const erc20Bridge = new Erc20Bridger(this.#l2Network);
+    const contract = this.getERC20ContractForDexL1(l1Token.chainId);
+    const decimals = await contract.decimals();
 
-    // I think this needs to be done only once -> maybe check somehow if approval is needed
     const approveTx = await erc20Bridge.approveToken({
+      amount: this.convertToWeiLikeDenomination(amount, decimals),
       l1Signer: this.#l1Wallet,
       erc20L1Address: l1Token.chainId,
     });
 
     await approveTx.wait();
 
-    const contract = this.getERC20ContractForDex(l1Token.chainId);
-    const decimals = await contract.decimals();
-
-    // returns L1 transaction hash?
     const depositTx = await erc20Bridge.deposit({
       amount: this.convertToWeiLikeDenomination(amount, decimals),
       erc20L1Address: l1Token.chainId,
@@ -95,24 +95,22 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     return depositTx.hash;
   }
 
-  async withdrawTokenOnDex(l1Token: Asset, l2Token: Asset, amount: number): Promise<string> {
+  async withdrawTokenOnDex(l1Token: Asset, _l2Token: Asset, amount: number): Promise<string> {
     const erc20Bridge = new Erc20Bridger(this.#l2Network);
+    const contract = this.getERC20ContractForDexL1(l1Token.chainId);
+    const decimals = await contract.decimals();
 
-    // I think this needs to be done only once -> maybe check somehow if approval is needed
     const approveTx = await erc20Bridge.approveToken({
+      amount: this.convertToWeiLikeDenomination(amount, decimals),
       l1Signer: this.#l1Wallet,
       erc20L1Address: l1Token.chainId,
     });
 
     await approveTx.wait();
 
-    const contract = this.getERC20ContractForDex(l1Token.chainId);
-    const decimals = await contract.decimals();
-
-    // returns L2 transaction hash?
     const withdrawTx = await erc20Bridge.withdraw({
       amount: this.convertToWeiLikeDenomination(amount, decimals),
-      destinationAddress: this.wallet.address,
+      destinationAddress: this.#l1Wallet.address,
       erc20l1Address: l1Token.chainId,
       l2Signer: this.wallet,
     });
@@ -120,30 +118,35 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     return withdrawTx.hash;
   }
 
-  async checkL2BridgeCompletion(l1TxId: string): Promise<boolean> {
+  async checkL2BridgeCompletion(l1TxId: string, asset: Asset): Promise<boolean> {
     try {
-      const l1TxReceipt = new L1TransactionReceipt(await this.#l1Provider.getTransactionReceipt(l1TxId));
-      const isCoinTransaction = l1TxReceipt.to === this.wallet.address;
-      const l1ToL2Message = (await l1TxReceipt.getL1ToL2Messages(this.wallet))[0];
+      const txReceipt = await Util.timeoutAsync(this.#l1Provider.getTransactionReceipt(l1TxId), 10000);
+      const l1TxReceipt =
+        asset.type === AssetType.COIN
+          ? new L1EthDepositTransactionReceipt(txReceipt)
+          : new L1ContractCallTransactionReceipt(txReceipt);
 
-      const { status } = await l1ToL2Message.waitForStatus(null, 5000);
+      const result = await Util.timeoutAsync<{ complete: boolean }>(l1TxReceipt.waitForL2(this.provider), 10000);
 
-      return isCoinTransaction
-        ? status === L1ToL2MessageStatus.FUNDS_DEPOSITED_ON_L2
-        : status === L1ToL2MessageStatus.REDEEMED;
+      return result.complete;
     } catch {
       return false;
     }
   }
 
-  async checkL1BridgeCompletion(l2TxId: string): Promise<boolean> {
+  async checkL1BridgeCompletion(l2TxId: string, _asset: Asset): Promise<boolean> {
     try {
-      const l2TxReceipt = new L2TransactionReceipt(await this.provider.getTransactionReceipt(l2TxId));
-      const l2ToL1Message = (await l2TxReceipt.getL2ToL1Messages(this.#l1Wallet))[0];
+      const txReceipt = await Util.timeoutAsync(this.provider.getTransactionReceipt(l2TxId), 10000);
+      const l2TxReceipt = new L2TransactionReceipt(txReceipt);
+      const l2ToL1Messages = await Util.timeoutAsync(l2TxReceipt.getL2ToL1Messages(this.#l1Wallet), 10000);
 
-      const status = await l2ToL1Message.status(this.provider);
+      const status = await l2ToL1Messages[0].status(this.provider);
 
-      return status === L2ToL1MessageStatus.CONFIRMED;
+      if (status === L2ToL1MessageStatus.CONFIRMED) {
+        await l2ToL1Messages[0].execute(this.provider);
+      }
+
+      return status === L2ToL1MessageStatus.EXECUTED;
     } catch {
       return false;
     }
@@ -226,5 +229,9 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     } catch (e) {
       console.error('Error while trying to get L2 network for Arbitrum client', e);
     }
+  }
+
+  private getERC20ContractForDexL1(chainId: string): Contract {
+    return new ethers.Contract(chainId, ERC20_ABI, this.#l1Wallet);
   }
 }

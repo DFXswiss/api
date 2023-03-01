@@ -50,11 +50,11 @@ export abstract class EvmL2BridgeAdapter extends LiquidityManagementAdapter {
     try {
       switch (command) {
         case EvmL2BridgeAdapterCommands.DEPOSIT: {
-          return await this.client.checkL2BridgeCompletion(order.correlationId);
+          return await this.client.checkL2BridgeCompletion(order.correlationId, asset);
         }
 
         case EvmL2BridgeAdapterCommands.WITHDRAW: {
-          return await this.client.checkL1BridgeCompletion(order.correlationId);
+          return await this.client.checkL1BridgeCompletion(order.correlationId, asset);
         }
 
         default:

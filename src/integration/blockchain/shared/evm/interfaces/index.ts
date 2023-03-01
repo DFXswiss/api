@@ -51,6 +51,6 @@ export interface L2BridgeEvmClient {
   depositTokenOnDex(l1Token: Asset, l2Token: Asset, amount: number): Promise<string>;
   withdrawTokenOnDex(l1Token: Asset, l2Token: Asset, amount: number): Promise<string>;
 
-  checkL2BridgeCompletion(l1TxId: string): Promise<boolean>;
-  checkL1BridgeCompletion(l2TxId: string): Promise<boolean>;
+  checkL2BridgeCompletion(l1TxId: string, asset: Asset): Promise<boolean>;
+  checkL1BridgeCompletion(l2TxId: string, asset: Asset): Promise<boolean>;
 }
