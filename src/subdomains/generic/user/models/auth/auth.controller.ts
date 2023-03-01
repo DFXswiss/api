@@ -23,7 +23,7 @@ export class AuthController {
   }
 
   @Post('signIn')
-  @UseGuards(RateLimitGuard, IpGuard)
+  @UseGuards(IpGuard)
   @ApiCreatedResponse({ type: AuthResponseDto })
   signIn(@Body() credentials: AuthCredentialsDto): Promise<AuthResponseDto> {
     return this.authService.signIn(credentials);
