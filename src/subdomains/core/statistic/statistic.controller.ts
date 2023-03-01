@@ -11,7 +11,10 @@ import { CfpResult } from './dto/cfp.dto';
 import { SettingStatus, StatisticDto, TransactionStatisticDto } from './dto/statistic.dto';
 import { Util } from 'src/shared/utils/util';
 import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
+<<<<<<< HEAD
 import { Throttle } from '@nestjs/throttler/dist/throttler.decorator';
+=======
+>>>>>>> origin/develop
 
 @ApiTags('Statistic')
 @Controller('statistic')
