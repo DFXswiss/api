@@ -1883,17 +1883,17 @@
     "_id": "a0a206f0-13eb-493a-9b07-3a140b0eeedf",
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "0bbfaa5e-1c48-4a6b-9dd3-bb28b78af825",
-    "name": "Company Challenge",
-    "url": "{{url}}/v1/auth/company/challenge?address=8an2Mi4dCV8GfiqbF2i2pJwDetq87AhFa4",
-    "method": "POST",
+    "name": "Challenge",
+    "url": "{{url}}/v1/auth/challenge?address=7FoH1dCkBxbMRgb8GLpYhcvWEbMM4BiWwo",
+    "method": "GET",
     "sortNum": 85000,
     "created": "2022-10-14T13:12:37.193Z",
-    "modified": "2022-12-20T10:46:13.401Z",
+    "modified": "2023-02-06T15:34:28.743Z",
     "headers": [],
     "params": [
       {
         "name": "address",
-        "value": "8an2Mi4dCV8GfiqbF2i2pJwDetq87AhFa4",
+        "value": "7FoH1dCkBxbMRgb8GLpYhcvWEbMM4BiWwo",
         "isPath": false
       }
     ],
@@ -1901,35 +1901,6 @@
       "type": "none"
     },
     "tests": []
-  },
-  {
-    "_id": "8384887d-f0e7-43a4-9a28-1859576d0c1c",
-    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "0bbfaa5e-1c48-4a6b-9dd3-bb28b78af825",
-    "name": "Company SignIn",
-    "url": "{{url}}/v1/auth/company/signin",
-    "method": "POST",
-    "sortNum": 82500,
-    "created": "2022-10-14T13:12:39.907Z",
-    "modified": "2022-12-20T10:46:31.743Z",
-    "headers": [],
-    "params": [],
-    "body": {
-      "type": "json",
-      "raw": "{\n    \"address\": \"8an2Mi4dCV8GfiqbF2i2pJwDetq87AhFa4\",\n    \"signature\": \"HzRZfDlmtAp4ywy7MuGpwCEEGoemH6rB82VNJUaKM7P1PCmiBRo2MyuuYfIBKE/nakafSymO8ep+84AGIzeEm/I=\"\n}",
-      "form": []
-    },
-    "auth": {
-      "type": "none"
-    },
-    "tests": [
-      {
-        "type": "set-env-var",
-        "custom": "json.accessToken",
-        "action": "setto",
-        "value": "{{token}}"
-      }
-    ]
   },
   {
     "_id": "14441e24-4e57-4e7c-88cc-dff408c5837e",
@@ -2228,6 +2199,20 @@
       "raw": "{\n  \"blockchain\": \"Ethereum\",\n  \"count\": 2 \n}",
       "form": []
     },
+    "tests": []
+  },
+  {
+    "_id": "35c06c4b-f041-4d32-9ef3-0642b1e017ae",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "1ac2a4e1-088e-4ef9-be7f-e1fb2364f464",
+    "name": "Ref Volumes",
+    "url": "{{url}}/v1/buyCrypto/refVolumes",
+    "method": "PUT",
+    "sortNum": 20000,
+    "created": "2023-02-20T18:47:59.897Z",
+    "modified": "2023-02-20T18:48:24.826Z",
+    "headers": [],
+    "params": [],
     "tests": []
   },
   {

@@ -3,7 +3,6 @@ import { Fiat } from '../fiat.entity';
 const defaultFiat: Partial<Fiat> = {
   id: 1,
   name: 'EUR',
-  enable: true,
 };
 
 export function createDefaultFiat(): Fiat {

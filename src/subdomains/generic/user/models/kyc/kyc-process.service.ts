@@ -45,7 +45,11 @@ export class KycProcessService {
 
     // retrigger, if failed
     if (userData.kycState === KycState.FAILED) {
-      return this.goToStatus(userData, userData.kycStatus);
+      try {
+        return await this.goToStatus(userData, userData.kycStatus);
+      } catch (e) {
+        console.error(`KYC retry for user ${userData.id} (${userData.kycStatus}) failed:`, e);
+      }
     }
 
     return userData;

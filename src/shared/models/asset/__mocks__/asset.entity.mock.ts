@@ -1,21 +1,18 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetCategory, AssetType } from '../asset.entity';
 
+const defaultAsset: Partial<Asset> = {
+  name: 'dTSLA',
+  dexName: 'dTSLA',
+  blockchain: Blockchain.DEFICHAIN,
+  category: AssetCategory.CRYPTO,
+  type: AssetType.COIN,
+};
+
 export function createDefaultAsset(): Asset {
   return createCustomAsset({});
 }
 
 export function createCustomAsset(customValues: Partial<Asset>): Asset {
-  const { name, dexName, blockchain, category, type } = customValues;
-  const keys = Object.keys(customValues);
-
-  const entity = new Asset();
-
-  entity.name = keys.includes('name') ? name : 'dTSLA';
-  entity.dexName = keys.includes('dexName') ? dexName : 'dTSLA';
-  entity.blockchain = keys.includes('blockchain') ? blockchain : Blockchain.DEFICHAIN;
-  entity.category = keys.includes('category') ? category : AssetCategory.CRYPTO;
-  entity.type = keys.includes('type') ? type : AssetType.COIN;
-
-  return entity;
+  return Object.assign(new Asset(), { ...defaultAsset, ...customValues });
 }

@@ -1,5 +1,5 @@
 import { AccountHistory, AccountResult, UTXO as SpendUTXO } from '@defichain/jellyfish-api-core/dist/category/account';
-import { ProposalStatus, ProposalType } from '@defichain/jellyfish-api-core/dist/category/governance';
+import { ProposalStatus } from '@defichain/jellyfish-api-core/dist/category/governance';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import BigNumber from 'bignumber.js';
 import { HttpService } from 'src/shared/services/http.service';
@@ -41,6 +41,12 @@ export interface ProposalVote {
   masternodeId: string;
   cycle: number;
   vote: VoteResult;
+}
+
+export enum ProposalType {
+  COMMUNITY_FUND_PROPOSAL = 'CommunityFundProposal',
+  BLOCK_REWARD_RELLOCATION = 'BlockRewardRellocation',
+  VOTE_OF_CONFIDENCE = 'VoteOfConfidence',
 }
 
 export class DeFiClient extends NodeClient {

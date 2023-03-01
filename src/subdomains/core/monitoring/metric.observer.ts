@@ -31,6 +31,10 @@ export abstract class MetricObserver<T> {
     throw new NotImplementedException(errorMessage);
   }
 
+  protected load(): Promise<T> {
+    return this.monitoringService.loadStateFor<T>(this.subsystem, this.metric);
+  }
+
   protected emit(data: T): void {
     this.$data.next(data);
   }
