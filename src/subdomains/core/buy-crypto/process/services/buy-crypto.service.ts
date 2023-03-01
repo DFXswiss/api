@@ -125,8 +125,8 @@ export class BuyCryptoService {
     entity = await this.buyCryptoRepo.save(Object.assign(new BuyCrypto(), { ...update, ...entity, ...amlUpdate }));
 
     // activate user
-    if (entity.amlCheck === AmlCheck.PASS) {
-      await this.userService.activateUser(entity.buy?.user);
+    if (entity.amlCheck === AmlCheck.PASS && entity.buy?.user) {
+      await this.userService.activateUser(entity.buy.user);
     }
 
     // payment webhook

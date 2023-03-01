@@ -368,13 +368,8 @@ export class UserService {
   }
 
   async activateUser(user: User): Promise<void> {
-    // retry (in case of ref conflict)
-    await Util.retry(async () => {
-      const ref = user.ref ?? (await this.getNextRef());
-      await this.userRepo.activateUser(user, ref);
-    }, 3);
-
-    if (user.userData.status === UserDataStatus.NA) await this.userDataRepo.activateUserData(user.userData);
+    await this.userRepo.activateUser(user);
+    await this.userDataRepo.activateUserData(user.userData);
   }
 
   private async checkRef(user: User, usedRef: string): Promise<string> {
@@ -393,20 +388,6 @@ export class UserService {
       .select('SUM(paidRefCredit)', 'paidRefCredit')
       .getRawOne<{ paidRefCredit: number }>()
       .then((r) => r.paidRefCredit);
-  }
-
-  private async getNextRef(): Promise<string> {
-    // get highest numerical ref
-    const nextRef = await this.userRepo
-      .findOne({
-        select: ['id', 'ref'],
-        where: { ref: Like('%[0-9]-[0-9]%') },
-        order: { ref: 'DESC' },
-      })
-      .then((u) => +u.ref.replace('-', '') + 1);
-
-    const ref = nextRef.toString().padStart(6, '0');
-    return `${ref.slice(0, 3)}-${ref.slice(3, 6)}`;
   }
 
   // --- API KEY --- //

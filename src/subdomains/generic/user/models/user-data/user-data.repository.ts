@@ -8,6 +8,6 @@ export class UserDataRepository extends Repository<UserData> {
   }
 
   async activateUserData(userData: UserData): Promise<void> {
-    if (userData?.status === UserDataStatus.NA) await this.update(userData.id, { status: UserDataStatus.ACTIVE });
+    if (userData.status === UserDataStatus.NA) await this.update(userData.id, { status: UserDataStatus.ACTIVE });
   }
 }

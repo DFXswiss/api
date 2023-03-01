@@ -110,8 +110,8 @@ export class BuyFiatService {
     entity = await this.buyFiatRepo.save({ ...update, ...entity, ...amlUpdate });
 
     // activate user
-    if (entity.amlCheck === AmlCheck.PASS) {
-      await this.userService.activateUser(entity.sell?.user);
+    if (entity.amlCheck === AmlCheck.PASS && entity.sell?.user) {
+      await this.userService.activateUser(entity.sell.user);
     }
 
     // payment webhook
