@@ -846,8 +846,12 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: taliumApiKey
         }
         {
-          name: 'KNOWN_REQUEST_IPS'
-          value: knownRequestIps
+          name: 'REQUEST_KNOWN_IPS'
+          value: knownIps
+        }
+        {
+          name: 'REQUEST_LIMIT_CHECK'
+          value: limitCheck
         }
       ]
     }

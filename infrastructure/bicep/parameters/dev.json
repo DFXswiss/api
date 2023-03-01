@@ -293,7 +293,10 @@
     "taliumApiKey": {
       "value": "xxx"
     },
-    "knownRequestIps": {
+    "knownIps": {
+      "value": "xxx"
+    },
+    "limitCheck": {
       "value": "xxx"
     }
   }

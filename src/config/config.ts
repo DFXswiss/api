@@ -33,7 +33,6 @@ export class Configuration {
   defaultDailyTradingLimit = 990; // EUR
   apiKeyVersionCT = '0'; // single digit hex number
   azureIpSubstring = '169.254';
-  knownRequestIps = process.env.KNOWN_REQUEST_IPS?.split(',');
 
   colors = {
     white: '#FFFFFF',
@@ -475,6 +474,11 @@ export class Configuration {
     tenantId: process.env.AZURE_TENANT_ID,
     clientId: process.env.AZURE_CLIENT_ID,
     clientSecret: process.env.AZURE_CLIENT_SECRET,
+  };
+
+  request = {
+    knownIps: process.env.REQUEST_KNOWN_IPS?.split(',') ?? [],
+    limitCheck: process.env.REQUEST_LIMIT_CHECK === 'true',
   };
 
   // --- GETTERS --- //

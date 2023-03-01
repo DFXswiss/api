@@ -1,4 +1,4 @@
-import { HttpException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { Util } from 'src/shared/utils/util';
@@ -28,8 +28,9 @@ export class IpLogService {
   }
 
   async checkRateLimit(url: string, ip: string): Promise<boolean> {
+    if (!Config.request.limitCheck || Config.request.knownIps.includes(ip)) return true;
     const callLimit = this.getUrlLimit(url);
-    if (!callLimit || Config.knownRequestIps.includes(ip)) return true;
+    if (!callLimit) return true;
     const ipWithoutLastElement = ip.split('.').slice(0, -1).join('.');
     const callCount = await this.getCallCount(url, ipWithoutLastElement);
     return callLimit >= callCount;
