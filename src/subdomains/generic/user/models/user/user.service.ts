@@ -10,7 +10,6 @@ import { UserRepository } from './user.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { Util } from 'src/shared/utils/util';
-import { CfpVotes } from './dto/cfp-votes.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { WalletService } from '../wallet/wallet.service';
@@ -438,12 +437,5 @@ export class UserService {
       sellVolume: { total: user.sellVolume, annual: user.annualSellVolume },
       cryptoVolume: { total: user.cryptoVolume, annual: user.annualCryptoVolume },
     };
-  }
-
-  // --- CFP VOTES --- //
-  async getCfpVotes(id: number): Promise<CfpVotes> {
-    return this.userRepo
-      .findOne({ id }, { select: ['id', 'cfpVotes'] })
-      .then((u) => (u.cfpVotes ? JSON.parse(u.cfpVotes) : {}));
   }
 }
