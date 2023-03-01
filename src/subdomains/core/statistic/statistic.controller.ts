@@ -9,8 +9,8 @@ import { StatisticService } from './statistic.service';
 import { BuyCryptoService } from '../buy-crypto/process/services/buy-crypto.service';
 import { CfpResult } from './dto/cfp.dto';
 import { SettingStatus, StatisticDto, TransactionStatisticDto } from './dto/statistic.dto';
-import { IpGuard } from 'src/shared/auth/ip.guard';
 import { Util } from 'src/shared/utils/util';
+import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
 
 @ApiTags('Statistic')
 @Controller('statistic')
@@ -38,7 +38,7 @@ export class StatisticController {
   }
 
   @Get('transactions')
-  @UseGuards(IpGuard)
+  @UseGuards(RateLimitGuard)
   @ApiOkResponse({ type: TransactionStatisticDto })
   async getTransactions(
     @Query('dateFrom') dateFrom: Date,
