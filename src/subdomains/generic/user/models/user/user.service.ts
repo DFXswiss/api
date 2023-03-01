@@ -14,7 +14,7 @@ import { CfpVotes } from './dto/cfp-votes.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { WalletService } from '../wallet/wallet.service';
-import { Between, Like, Not } from 'typeorm';
+import { Between, Not } from 'typeorm';
 import { AccountType } from '../user-data/account-type.enum';
 import { DfiTaxService } from 'src/integration/blockchain/ain/services/dfi-tax.service';
 import { Config } from 'src/config/config';
@@ -25,7 +25,7 @@ import { GeoLocationService } from 'src/integration/geolocation/geo-location.ser
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { VolumeQuery } from './dto/volume-query.dto';
-import { KycType, UserData, UserDataStatus } from '../user-data/user-data.entity';
+import { KycType, UserData } from '../user-data/user-data.entity';
 import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
