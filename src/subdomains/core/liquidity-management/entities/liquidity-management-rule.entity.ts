@@ -40,6 +40,9 @@ export class LiquidityManagementRule extends IEntity {
   @ManyToOne(() => LiquidityManagementAction, { eager: true, nullable: true })
   redundancyStartAction: LiquidityManagementAction;
 
+  @Column({ type: 'int', nullable: true })
+  reactivationTime: number;
+
   //*** FACTORY METHODS ***//
 
   static create(
@@ -51,6 +54,7 @@ export class LiquidityManagementRule extends IEntity {
     maximal: number,
     deficitStartAction: LiquidityManagementAction,
     redundancyStartAction: LiquidityManagementAction,
+    reactivationTime: number,
   ): LiquidityManagementRule {
     const rule = new LiquidityManagementRule();
 
@@ -63,6 +67,7 @@ export class LiquidityManagementRule extends IEntity {
     rule.maximal = maximal;
     rule.deficitStartAction = deficitStartAction;
     rule.redundancyStartAction = redundancyStartAction;
+    rule.reactivationTime = reactivationTime;
 
     LiquidityManagementRuleInitSpecification.isSatisfiedBy(rule);
 
@@ -105,6 +110,19 @@ export class LiquidityManagementRule extends IEntity {
     this.status = LiquidityManagementRuleStatus.ACTIVE;
 
     return this;
+  }
+
+  updateRuleSettings(reactivationTime: number | undefined): this {
+    if (reactivationTime !== undefined) this.reactivationTime = reactivationTime;
+
+    return this;
+  }
+
+  shouldReactivate(): boolean {
+    return (
+      this.status === LiquidityManagementRuleStatus.PAUSED &&
+      Util.minutesDiff(this.updated, new Date()) > this.reactivationTime
+    );
   }
 
   //*** GETTERS ***//
