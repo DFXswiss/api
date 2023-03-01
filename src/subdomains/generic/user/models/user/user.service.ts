@@ -56,8 +56,14 @@ export class UserService {
     return this.userRepo.findOne(userId, { relations: loadUserData ? ['userData'] : [] });
   }
 
-  async getUserByAddress(address: string): Promise<User> {
-    return this.userRepo.findOne({ where: { address }, relations: ['userData', 'userData.users'] });
+  async getUserByKey(key: string, value: any): Promise<User> {
+    return this.userRepo
+      .createQueryBuilder('user')
+      .select('user')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('userData.users', 'users')
+      .where(`user.${key} = :param`, { param: value })
+      .getOne();
   }
 
   async getUserDto(userId: number, detailed = false): Promise<UserDetailDto> {
@@ -95,12 +101,16 @@ export class UserService {
     user.ip = userIp;
     user.ipCountry = await this.checkIpCountry(userIp);
     user.wallet = await this.walletService.getWalletOrDefault(dto.walletId);
-    user.ref = await this.getNextRef();
     user.usedRef = await this.checkRef(user, dto.usedRef);
     user.origin = userOrigin;
     user.userData = userData ?? (await this.userDataService.createUserData(user.wallet.customKyc ?? KycType.DFX));
 
-    user = await this.userRepo.save(user);
+    // retry (in case of ref conflict)
+    user = await Util.retry(async () => {
+      user.ref = await this.getNextRef();
+
+      return this.userRepo.save(user);
+    }, 3);
 
     const blockchains = this.cryptoService.getBlockchainsBasedOn(user.address);
     if (blockchains.includes(Blockchain.DEFICHAIN)) this.dfiTaxService.activateAddress(user.address);
@@ -251,22 +261,23 @@ export class UserService {
   }
 
   async getUserCryptoFee(userId: number): Promise<{ fee: number; refBonus: number }> {
+    // fee
     const { cryptoFee, usedRef } = await this.userRepo.findOne({
       select: ['id', 'cryptoFee', 'usedRef'],
       where: { id: userId },
     });
 
-    if (cryptoFee != null) return { fee: Util.round(cryptoFee * 100, Config.defaultPercentageDecimal), refBonus: 0 };
+    const baseFee = cryptoFee ? Math.min(cryptoFee, Config.crypto.fee) : Config.crypto.fee;
 
-    const baseFee = Config.crypto.fee;
-
+    // ref bonus
     const hasUsedRef = usedRef && usedRef !== '000-000';
-    let refBonus = hasUsedRef ? Config.crypto.refBonus : 0;
+    const hasCustomFee = baseFee < Config.crypto.fee;
+    const refBonus = hasUsedRef && !hasCustomFee && baseFee >= Config.crypto.refBonus ? Config.crypto.refBonus : 0;
 
-    const fee = Util.round((baseFee - refBonus) * 100, Config.defaultPercentageDecimal);
-    refBonus = Util.round(refBonus * 100, Config.defaultPercentageDecimal);
-
-    return { fee, refBonus };
+    return {
+      fee: Util.round((baseFee - refBonus) * 100, Config.defaultPercentageDecimal),
+      refBonus: Util.round(refBonus * 100, Config.defaultPercentageDecimal),
+    };
   }
 
   async getUserStakingFee(userId: number): Promise<number> {

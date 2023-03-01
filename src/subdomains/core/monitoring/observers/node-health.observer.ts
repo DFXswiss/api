@@ -24,9 +24,11 @@ interface NodeState {
   errors: string[];
 }
 
+type NodesState = NodePoolState[];
+
 // --------- //
 @Injectable()
-export class NodeHealthObserver extends MetricObserver<NodePoolState[]> {
+export class NodeHealthObserver extends MetricObserver<NodesState> {
   private readonly lock = new Lock(360);
 
   constructor(
@@ -39,16 +41,18 @@ export class NodeHealthObserver extends MetricObserver<NodePoolState[]> {
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
-  async fetch(): Promise<NodePoolState[]> {
+  async fetch(): Promise<NodesState> {
     if (!this.lock.acquire()) return;
 
     try {
-      let poolStates = await this.getState();
-      poolStates = await this.handleErrors(poolStates);
+      const previousState = this.$data.value ?? (await this.loadState());
+      let state = await this.getState(previousState);
 
-      this.emit(poolStates);
+      state = await this.handleErrors(state, previousState);
 
-      return poolStates;
+      this.emit(state);
+
+      return state;
     } catch (e) {
       console.error('Exception in node health observer:', e);
     } finally {
@@ -56,7 +60,7 @@ export class NodeHealthObserver extends MetricObserver<NodePoolState[]> {
     }
   }
 
-  private async getState(): Promise<NodePoolState[]> {
+  private async getState(previousState: NodesState): Promise<NodesState> {
     const errors = await this.nodeService.checkNodes();
 
     // batch errors by pool and node and get state (up/down)
@@ -69,27 +73,32 @@ export class NodeHealthObserver extends MetricObserver<NodePoolState[]> {
           errors: errors.filter((e) => e.nodeType === type && e.mode === mode).map((e) => e.message),
         }))
         .filter((n) => this.nodeService.allNodes.get(n.type)?.[n.mode])
-        .map((n) => ({ ...this.getPreviousNodeState(n.type, n.mode), ...n, isDown: n.errors.length > 0 })),
+        .map((n) => ({
+          ...this.getNodeState(previousState, n.type, n.mode),
+          ...n,
+          isDown: n.errors.length > 0,
+        })),
     }));
   }
 
-  private async handleErrors(poolStates: NodePoolState[]): Promise<NodePoolState[]> {
+  private async handleErrors(state: NodesState, previousState: NodesState): Promise<NodesState> {
     // handle errors by pool
-    for (const poolState of poolStates) {
-      this.checkPool(poolState);
+    for (const poolState of state) {
+      const previousPoolState = this.getPoolState(previousState, poolState.type);
+
+      this.checkPool(poolState, previousPoolState);
 
       // check for single node state changes
       for (const node of poolState.nodes) {
-        await this.checkNode(node);
+        const previousNode = this.getNodeState(previousState, poolState.type, node.mode);
+        await this.checkNode(node, previousNode);
       }
     }
 
-    return poolStates;
+    return state;
   }
 
-  private checkPool(poolState: NodePoolState) {
-    const previousPoolState = this.getPreviousPoolState(poolState.type);
-
+  private checkPool(poolState: NodePoolState, previousPoolState: NodePoolState) {
     // check, if swap required
     const { value: connectedNode } = this.nodeService.connectedNodes.get(poolState.type);
     const preferredNode = poolState.nodes.find((n) => !n.isDown);
@@ -106,9 +115,7 @@ export class NodeHealthObserver extends MetricObserver<NodePoolState[]> {
     }
   }
 
-  private async checkNode(node: NodeState) {
-    const previous = this.getPreviousNodeState(node.type, node.mode);
-
+  private async checkNode(node: NodeState, previous: NodeState) {
     // node state changed
     if (node.isDown !== (previous?.isDown ?? false)) {
       if (node.isDown) {
@@ -145,11 +152,19 @@ export class NodeHealthObserver extends MetricObserver<NodePoolState[]> {
     }
   }
 
-  private getPreviousPoolState(type: NodeType): NodePoolState | undefined {
-    return this.$data.value?.find((p) => p.type === type);
+  private getPoolState(state: NodesState | undefined, type: NodeType): NodePoolState | undefined {
+    return state?.find((p) => p.type === type);
   }
 
-  private getPreviousNodeState(type: NodeType, mode: NodeMode): NodeState | undefined {
-    return this.getPreviousPoolState(type)?.nodes.find((n) => n.mode === mode);
+  private getNodeState(state: NodesState | undefined, type: NodeType, mode: NodeMode): NodeState | undefined {
+    return this.getPoolState(state, type)?.nodes.find((n) => n.mode === mode);
+  }
+
+  private async loadState(): Promise<NodesState | undefined> {
+    const state = await this.load();
+
+    state?.forEach((p) => p.nodes.forEach((n) => (n.downSince = n.downSince ? new Date(n.downSince) : undefined)));
+
+    return state;
   }
 }

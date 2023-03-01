@@ -36,6 +36,7 @@ import { ReferralModule } from 'src/subdomains/core/referral/referral.module';
 import { GeoLocationModule } from 'src/integration/geolocation/geo-location.module';
 import { LimitRequestNotificationService } from './models/limit-request/limit-request-notification.service';
 import { WebhookService } from './services/webhook/webhook.service';
+import { IpLogRepository } from './models/ip-log/ip-log.repository';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { WebhookService } from './services/webhook/webhook.service';
       BankDataRepository,
       LimitRequestRepository,
       LinkAddressRepository,
+      IpLogRepository,
     ]),
     SharedModule,
     NotificationModule,

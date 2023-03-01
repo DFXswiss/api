@@ -97,6 +97,24 @@ export class BankTxService {
     return this.bankTxRepo.save({ ...bankTx, ...dto });
   }
 
+  async getBankTxByKey(key: string, value: any): Promise<BankTx> {
+    return this.bankTxRepo
+      .createQueryBuilder('bankTx')
+      .select('bankTx')
+      .leftJoinAndSelect('bankTx.buyCrypto', 'buyCrypto')
+      .leftJoinAndSelect('bankTx.buyFiat', 'buyFiat')
+      .leftJoinAndSelect('buyCrypto.buy', 'buy')
+      .leftJoinAndSelect('buyFiat.sell', 'sell')
+      .leftJoinAndSelect('buy.user', 'user')
+      .leftJoinAndSelect('sell.user', 'sellUser')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('sellUser.userData', 'sellUserData')
+      .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('sellUserData.users', 'sellUsers')
+      .where(`bankTx.${key} = :param`, { param: value })
+      .getOne();
+  }
+
   // --- HELPER METHODS --- //
 
   private async storeSepaFile(xmlFile: string): Promise<BankTxBatch> {
@@ -105,9 +123,6 @@ export class BankTxService {
     // parse the file
     const batch = this.bankTxBatchRepo.create(SepaParser.parseBatch(sepaFile));
     const txList = this.bankTxRepo.create(SepaParser.parseEntries(sepaFile, batch.iban));
-
-    // store the batch
-    await this.bankTxBatchRepo.save(batch);
 
     // find duplicate entries
     const duplicates = await this.bankTxRepo
@@ -123,17 +138,21 @@ export class BankTxService {
       });
     }
 
-    // store the entries
     const newTxs = txList
       .filter((i) => !duplicates.includes(i.accountServiceRef))
       .map((tx) => ({
-        batch: batch,
         type: tx.name?.includes('DFX AG') || tx.name?.includes('Payward Ltd.') ? BankTxType.INTERNAL : null,
         ...tx,
       }));
-    await this.bankTxRepo.saveMany(newTxs);
 
-    batch.transactions = txList;
+    // store batch and entries in one transaction
+    await this.bankTxBatchRepo.manager.transaction(async (manager) => {
+      await manager.save(batch);
+      await manager.getCustomRepository(BankTxRepository).saveMany(newTxs);
+    });
+
+    batch.transactions = newTxs;
+
     return batch;
   }
 

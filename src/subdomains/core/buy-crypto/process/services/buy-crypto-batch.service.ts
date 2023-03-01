@@ -19,6 +19,7 @@ import { PriceRequestContext } from 'src/subdomains/supporting/pricing/enums';
 import { PriceResult, PriceRequest } from 'src/subdomains/supporting/pricing/interfaces';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FeeLimitExceededException } from '../exceptions/fee-limit-exceeded.exception';
+import { Util } from 'src/shared/utils/util';
 
 @Injectable()
 export class BuyCryptoBatchService {
@@ -197,8 +198,9 @@ export class BuyCryptoBatchService {
         outputAsset,
         status: Not(BuyCryptoBatchStatus.COMPLETE),
       });
+      const newBatch = filteredBatches.find((b) => b.outputAsset.id === outputAsset.id);
 
-      if (existingBatch) {
+      if (existingBatch || newBatch) {
         const txIds = batch.transactions.map((t) => t.id);
 
         console.info(
@@ -227,7 +229,7 @@ export class BuyCryptoBatchService {
 
         optimizedBatches.push(batch);
       } catch (e) {
-        console.info(`Error in optimizing new batch. Batch target asset: ${batch.outputAsset.dexName}.`, e.message);
+        console.info(`Error in optimizing new batch. Batch target asset: ${batch.outputAsset.uniqueName}.`, e.message);
       }
     }
 
@@ -241,7 +243,7 @@ export class BuyCryptoBatchService {
       return await this.dexService.checkLiquidity(request);
     } catch (e) {
       throw new Error(
-        `Error in checking liquidity for a batch. Batch target asset: ${batch.outputAsset.dexName}. ${e.message}`,
+        `Error in checking liquidity for a batch. Batch target asset: ${batch.outputAsset.uniqueName}. ${e.message}`,
       );
     }
   }
@@ -374,34 +376,41 @@ export class BuyCryptoBatchService {
   ): Promise<void> {
     try {
       const {
-        target: { availableAmount, maxPurchasableAmount: maxPurchasableTargetAmount },
-        reference: { maxPurchasableAmount: maxPurchasableReferenceAmount },
+        target: {
+          amount: targetAmount,
+          availableAmount: availableTargetAmount,
+          maxPurchasableAmount: maxPurchasableTargetAmount,
+        },
+        reference: { availableAmount: availableReferenceAmount, maxPurchasableAmount: maxPurchasableReferenceAmount },
       } = liquidity;
 
       const { outputReferenceAmount, outputAsset: oa, outputReferenceAsset: ora, transactions } = batch;
 
-      const maxPurchasableTargetAmountMessage = maxPurchasableTargetAmount
-        ? `${maxPurchasableTargetAmount} ${oa.uniqueName}.`
-        : 'zero or unknown';
+      const targetDeficit = Util.round(targetAmount - availableTargetAmount, 8);
+      const referenceDeficit = Util.round(outputReferenceAmount - availableReferenceAmount, 8);
 
-      const maxPurchasableReferenceAmountMessage = maxPurchasableReferenceAmount
-        ? `${maxPurchasableReferenceAmount} ${ora.uniqueName}.`
-        : 'zero or unknown';
+      const maxPurchasableTargetAmountMessage =
+        maxPurchasableTargetAmount != null
+          ? `Could be automatically swapped from other available swap assets: ${maxPurchasableTargetAmount}`
+          : '';
 
-      const message = `
-        ${error.message}
-        Required reference amount: ${outputReferenceAmount} ${ora.uniqueName}.
-        Available amount: ${availableAmount} ${oa.uniqueName}.
-        Maximum purchasable amount (target asset, approximately): ${maxPurchasableTargetAmountMessage}.
-        Maximum purchasable amount (reference asset, approximately): ${maxPurchasableReferenceAmountMessage}.
-      `;
+      const maxPurchasableReferenceAmountMessage =
+        maxPurchasableReferenceAmount != null
+          ? `Could be automatically swapped from other available swap assets: ${maxPurchasableReferenceAmount}`
+          : '';
+
+      const messages = [
+        `${error.message} Details:`,
+        `In target asset (${oa.uniqueName}): Required amount: ${targetAmount}, available amount: ${availableTargetAmount}, deficit: ${targetDeficit}. ${maxPurchasableTargetAmountMessage}`,
+        `In reference asset (${ora.uniqueName}): Required amount: ${outputReferenceAmount}, available amount: ${availableReferenceAmount}, deficit: ${referenceDeficit}. ${maxPurchasableReferenceAmountMessage}`,
+      ];
 
       await this.buyCryptoNotificationService.sendMissingLiquidityError(
         oa.dexName,
         oa.blockchain,
         oa.type,
         transactions.map((t) => t.id),
-        message,
+        messages,
       );
     } catch (e) {
       console.error('Error in handling AbortBatchCreationException', e);

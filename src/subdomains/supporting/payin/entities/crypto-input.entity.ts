@@ -6,6 +6,7 @@ import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check
 import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { CryptoInputInitSpecification } from '../specifications/crypto-input-init.specification';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Util } from 'src/shared/utils/util';
 
 export enum PayInPurpose {
   STAKING = 'Staking',
@@ -32,9 +33,7 @@ export enum PayInStatus {
 }
 
 @Entity()
-@Index((input: CryptoInput) => [input.inTxId, input.asset, input.route, input.txSequence], {
-  unique: true,
-})
+@Index((i: CryptoInput) => [i.inTxId, i.asset, i.address.address, i.address.blockchain], { unique: true })
 export class CryptoInput extends IEntity {
   @Column({ nullable: true })
   status: PayInStatus;
@@ -133,7 +132,11 @@ export class CryptoInput extends IEntity {
   static verifyEstimatedFee(estimatedFeeInPayInAsset: number, totalAmount: number): void {
     if (estimatedFeeInPayInAsset == null) throw new Error('No fee estimation provided');
     if (totalAmount === 0) throw new Error('Total forward amount cannot be zero');
-    if (estimatedFeeInPayInAsset / totalAmount > 0.005) throw new Error('Forward fee is too hight');
+
+    if (estimatedFeeInPayInAsset / totalAmount > 0.005) {
+      const feePercent = Util.round((estimatedFeeInPayInAsset / totalAmount) * 100, 1);
+      throw new Error(`Forward fee is too high (${estimatedFeeInPayInAsset}, ${feePercent}%)`);
+    }
   }
 
   //*** PUBLIC API ***//
@@ -144,7 +147,7 @@ export class CryptoInput extends IEntity {
     this.amlCheck = amlCheck;
     this.status = PayInStatus.ACKNOWLEDGED;
     this.sendType = PayInSendType.FORWARD;
-
+ 
     return this;
   }
 

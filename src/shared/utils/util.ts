@@ -4,7 +4,7 @@ import { BinaryLike, createHash, createSign, KeyLike } from 'crypto';
 import { XMLValidator, XMLParser } from 'fast-xml-parser';
 import { readFile } from 'fs';
 
-type KeyType<T, U> = {
+export type KeyType<T, U> = {
   [K in keyof T]: T[K] extends U ? K : never;
 }[keyof T];
 

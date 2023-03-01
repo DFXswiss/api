@@ -9,6 +9,7 @@ import { StatisticService } from './statistic.service';
 import { BuyCryptoService } from '../buy-crypto/process/services/buy-crypto.service';
 import { CfpResult } from './dto/cfp.dto';
 import { SettingStatus, StatisticDto, TransactionStatisticDto } from './dto/statistic.dto';
+import { Util } from 'src/shared/utils/util';
 
 @ApiTags('Statistic')
 @Controller('statistic')
@@ -41,6 +42,9 @@ export class StatisticController {
     @Query('dateFrom') dateFrom: Date,
     @Query('dateTo') dateTo: Date,
   ): Promise<TransactionStatisticDto> {
+    dateTo ??= new Date();
+    dateFrom ??= Util.daysBefore(7, dateTo);
+
     return {
       buy: await this.buyCryptoService.getTransactions(dateFrom, dateTo),
       sell: await this.buyFiatService.getTransactions(dateFrom, dateTo),

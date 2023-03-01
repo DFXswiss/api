@@ -61,6 +61,11 @@ export class MonitoringService implements OnModuleInit {
     }
   }
 
+  async loadStateFor<T>(subsystem: string, metric: string): Promise<T | undefined> {
+    const state = await this.loadState();
+    return state?.[subsystem]?.[metric]?.data as T;
+  }
+
   // *** WEBHOOK *** //
 
   async onWebhook(subsystem: string, metric: string, data: unknown) {

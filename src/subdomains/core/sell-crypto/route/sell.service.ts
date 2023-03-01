@@ -36,15 +36,15 @@ export class SellService {
   ) {}
 
   // --- SELLS --- //
-  async getSellByAddress(depositAddress: string): Promise<Sell> {
-    // does not work with find options
+  async getSellByKey(key: string, value: any): Promise<Sell> {
     return this.sellRepo
       .createQueryBuilder('sell')
+      .select('sell')
       .leftJoinAndSelect('sell.deposit', 'deposit')
       .leftJoinAndSelect('sell.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
-      .where('deposit.address = :addr', { addr: depositAddress })
+      .where(`sell.${key} = :param`, { param: value })
       .getOne();
   }
 

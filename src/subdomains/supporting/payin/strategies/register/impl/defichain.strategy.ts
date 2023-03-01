@@ -109,7 +109,12 @@ export class DeFiChainStrategy extends RegisterStrategy {
   private async processNewPayInEntries(): Promise<void> {
     const log = this.createNewLogObject();
     const lastCheckedBlockHeight = await this.payInRepository
-      .findOne({ where: { address: { blockchain: Blockchain.DEFICHAIN } }, order: { blockHeight: 'DESC' } })
+      .findOne({
+        select: ['id', 'blockHeight'],
+        where: { address: { blockchain: Blockchain.DEFICHAIN } },
+        order: { blockHeight: 'DESC' },
+        loadEagerRelations: false,
+      })
       .then((input) => input?.blockHeight ?? 0);
 
     const newEntries = await this.getNewEntriesSince(lastCheckedBlockHeight);

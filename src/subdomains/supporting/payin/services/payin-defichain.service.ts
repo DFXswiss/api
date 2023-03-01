@@ -1,19 +1,15 @@
 import { Lock } from 'src/shared/utils/lock';
 import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
 import { InWalletTransaction, UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
-import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { CryptoInput } from '../entities/crypto-input.entity';
 import { PayInRepository } from '../repositories/payin.repository';
-import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
-import { StakingService } from 'src/subdomains/core/staking/services/staking.service';
 import { Interval } from '@nestjs/schedule';
 import { PayInJellyfishService } from './base/payin-jellyfish.service';
 
@@ -35,13 +31,11 @@ export class PayInDeFiChainService extends PayInJellyfishService {
     'WithdrawFromVault',
     'PoolSwap',
     'RemovePoolLiquidity',
+    'ProposalFeeRedistribution',
   ];
 
   constructor(
     private readonly assetService: AssetService,
-    private readonly sellService: SellService,
-    @Inject(forwardRef(() => StakingService))
-    private readonly stakingService: StakingService,
     protected readonly payInRepo: PayInRepository,
     nodeService: NodeService,
   ) {
@@ -65,7 +59,6 @@ export class PayInDeFiChainService extends PayInJellyfishService {
     return this.client
       .getHistory(lastHeight + 1, currentHeight)
       .then((i) => i.filter((h) => [...this.utxoTxTypes, ...this.tokenTxTypes].includes(h.type)))
-      // get receive history
       .then((i) => i.filter((h) => h.blockHeight > lastHeight))
       .then((i) => i.filter((h) => h.owner != Config.blockchain.default.utxoSpenderAddress));
   }
@@ -92,6 +85,16 @@ export class PayInDeFiChainService extends PayInJellyfishService {
 
       return outTxId;
     });
+  }
+
+  async sendTokenSync(input: CryptoInput, utxo: UTXO): Promise<string> {
+    return this.client.sendToken(
+      input.address.address,
+      input.destinationAddress.address,
+      input.asset.dexName,
+      input.amount,
+      [utxo],
+    );
   }
 
   @Interval(900000)
@@ -136,12 +139,8 @@ export class PayInDeFiChainService extends PayInJellyfishService {
             if (usdtAmount < Config.blockchain.default.minDeposit.DeFiChain.USDT) {
               console.log('Retrieving small token:', token);
 
-              await this.doTokenTx(
-                token.owner,
-                async (utxo) =>
-                  this.client.sendToken(token.owner, Config.blockchain.default.dexWalletAddress, asset, amount, [
-                    utxo,
-                  ]),
+              await this.doTokenTx(token.owner, async (utxo) =>
+                this.client.sendToken(token.owner, Config.blockchain.default.dexWalletAddress, asset, amount, [utxo]),
               );
             }
           }
@@ -154,6 +153,27 @@ export class PayInDeFiChainService extends PayInJellyfishService {
     } finally {
       this.convertTokensLock.release();
     }
+  }
+
+  async getFeeUtxo(address: string): Promise<UTXO | undefined> {
+    return this.client
+      .getUtxo()
+      .then((utxos) =>
+        utxos.find(
+          (u) =>
+            u.address === address &&
+            u.amount.toNumber() < Config.blockchain.default.minDeposit.DeFiChain.DFI &&
+            u.amount.toNumber() > Config.blockchain.default.minDeposit.DeFiChain.DFI / 4,
+        ),
+      );
+  }
+
+  async getFeeUtxoByTransaction(addressFrom: string, utxoTx: string): Promise<UTXO | undefined> {
+    return this.client.getUtxo().then((utxos) => utxos.find((u) => u.txid === utxoTx && u.address === addressFrom));
+  }
+
+  async sendFeeUtxo(address: string, fee = Config.blockchain.default.minDeposit.DeFiChain.DFI / 2): Promise<string> {
+    return this.client.sendUtxo(Config.blockchain.default.utxoSpenderAddress, address, fee);
   }
 
   //*** HELPER METHODS ***//
@@ -169,9 +189,7 @@ export class PayInDeFiChainService extends PayInJellyfishService {
       if (!feeUtxo) {
         const utxoTx = await this.sendFeeUtxo(addressFrom);
         await this.client.waitForTx(utxoTx);
-        feeUtxo = await this.client
-          .getUtxo()
-          .then((utxos) => utxos.find((u) => u.txid === utxoTx && u.address === addressFrom));
+        feeUtxo = await this.getFeeUtxoByTransaction(addressFrom, utxoTx);
       }
 
       // do TX
@@ -179,27 +197,6 @@ export class PayInDeFiChainService extends PayInJellyfishService {
     } catch (e) {
       console.error('Failed to do token TX:', e);
     }
-  }
-
-  private async getFeeUtxo(address: string): Promise<UTXO | undefined> {
-    return this.client
-      .getUtxo()
-      .then((utxos) =>
-        utxos.find(
-          (u) =>
-            u.address === address &&
-            u.amount.toNumber() < Config.blockchain.default.minDeposit.DeFiChain.DFI &&
-            u.amount.toNumber() > Config.blockchain.default.minDeposit.DeFiChain.DFI / 4,
-        ),
-      );
-  }
-
-  private async sendFeeUtxo(address: string): Promise<string> {
-    return this.client.sendUtxo(
-      Config.blockchain.default.utxoSpenderAddress,
-      address,
-      Config.blockchain.default.minDeposit.DeFiChain.DFI / 2,
-    );
   }
 
   getAmounts(history: AccountHistory): HistoryAmount[] {
@@ -212,11 +209,5 @@ export class PayInDeFiChainService extends PayInJellyfishService {
 
   private parseAmount(amount: string, type: AssetType): HistoryAmount {
     return { ...this.client.parseAmount(amount), type };
-  }
-
-  private async getDepositRoute(address: string): Promise<Sell | Staking> {
-    return (
-      (await this.sellService.getSellByAddress(address)) ?? (await this.stakingService.getStakingByAddress(address))
-    );
   }
 }

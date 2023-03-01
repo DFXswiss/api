@@ -71,6 +71,15 @@ export class UserDataService {
     });
   }
 
+  async getUserDataByKey(key: string, value: any): Promise<UserData> {
+    return this.userDataRepo
+      .createQueryBuilder('userData')
+      .select('userData')
+      .leftJoinAndSelect('userData.users', 'users')
+      .where(`userData.${key} = :param`, { param: value })
+      .getOne();
+  }
+
   async createUserData(kycType: KycType): Promise<UserData> {
     const userData = await this.userDataRepo.save({
       language: await this.languageService.getLanguageBySymbol(Config.defaultLanguage),

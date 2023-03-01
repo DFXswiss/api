@@ -142,6 +142,22 @@ export class BuyCryptoService {
     return entity;
   }
 
+  async getBuyCryptoByKey(key: string, value: any): Promise<BuyCrypto> {
+    return this.buyCryptoRepo
+      .createQueryBuilder('buyCrypto')
+      .select('buyCrypto')
+      .leftJoinAndSelect('buyCrypto.buy', 'buy')
+      .leftJoinAndSelect('buyCrypto.cryptoRoute', 'cryptoRoute')
+      .leftJoinAndSelect('buy.user', 'user')
+      .leftJoinAndSelect('cryptoRoute.user', 'cryptoRouteUser')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('cryptoRouteUser.userData', 'cryptoRouteUserData')
+      .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('cryptoRouteUserData.users', 'cryptoRouteUsers')
+      .where(`buyCrypto.${key} = :param`, { param: value })
+      .getOne();
+  }
+
   @Cron(CronExpression.EVERY_MINUTE)
   async checkCryptoPayIn() {
     if ((await this.settingService.get('crypto-crypto')) !== 'on') return;
@@ -362,7 +378,8 @@ export class BuyCryptoService {
     // TODO Add cryptoInput buyCryptos, consultation with Daniel regarding statistic data
     const buyCryptos = await this.buyCryptoRepo.find({
       where: { buy: { id: Not(IsNull()) }, outputDate: Between(dateFrom, dateTo), amlCheck: AmlCheck.PASS },
-      relations: ['buy'],
+      relations: ['buy', 'buy.asset'],
+      loadEagerRelations: false,
     });
 
     return buyCryptos.map((v) => ({

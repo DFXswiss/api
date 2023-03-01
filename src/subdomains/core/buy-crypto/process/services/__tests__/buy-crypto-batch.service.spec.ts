@@ -148,19 +148,19 @@ describe('BuyCryptoBatchService', () => {
         .mockImplementationOnce(() =>
           createCustomBuyCryptoBatch({
             outputReferenceAsset: createCustomAsset({ dexName: 'BTC' }),
-            outputAsset: createCustomAsset({ dexName: 'dGOOGL' }),
+            outputAsset: createCustomAsset({ id: 1, dexName: 'dGOOGL' }),
           }),
         )
         .mockImplementationOnce(() =>
           createCustomBuyCryptoBatch({
             outputReferenceAsset: createCustomAsset({ dexName: 'BTC' }),
-            outputAsset: createCustomAsset({ dexName: 'dTSLA' }),
+            outputAsset: createCustomAsset({ id: 2, dexName: 'dTSLA' }),
           }),
         )
         .mockImplementationOnce(() =>
           createCustomBuyCryptoBatch({
             outputReferenceAsset: createCustomAsset({ dexName: 'USDT' }),
-            outputAsset: createCustomAsset({ dexName: 'USDT' }),
+            outputAsset: createCustomAsset({ id: 3, dexName: 'USDT' }),
           }),
         );
 
@@ -189,13 +189,13 @@ describe('BuyCryptoBatchService', () => {
         .mockImplementationOnce(() =>
           createCustomBuyCryptoBatch({
             outputReferenceAsset: createCustomAsset({ dexName: 'BTC' }),
-            outputAsset: createCustomAsset({ dexName: 'dDOGE' }),
+            outputAsset: createCustomAsset({ id: 1, dexName: 'dDOGE' }),
           }),
         )
         .mockImplementationOnce(() =>
           createCustomBuyCryptoBatch({
             outputReferenceAsset: createCustomAsset({ dexName: 'USDT' }),
-            outputAsset: createCustomAsset({ dexName: 'USDT' }),
+            outputAsset: createCustomAsset({ id: 2, dexName: 'USDT' }),
           }),
         );
 
