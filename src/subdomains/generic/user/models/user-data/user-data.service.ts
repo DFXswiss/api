@@ -27,12 +27,14 @@ import { WebhookService } from '../../services/webhook/webhook.service';
 import { AccountType } from './account-type.enum';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { LinkService } from '../link/link.service';
+import { UserService } from '../user/user.service';
 
 @Injectable()
 export class UserDataService {
   constructor(
     private readonly userDataRepo: UserDataRepository,
     private readonly userRepo: UserRepository,
+    private readonly userService: UserService,
     private readonly bankDataRepo: BankDataRepository,
     private readonly countryService: CountryService,
     private readonly languageService: LanguageService,
@@ -306,7 +308,7 @@ export class UserDataService {
     // activate users
     if (master.hasActiveUser) {
       for (const user of master.users) {
-        await this.userRepo.activateUser(user, user.ref);
+        await this.userService.activateUser(user);
       }
     }
   }

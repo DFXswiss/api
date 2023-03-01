@@ -25,7 +25,7 @@ import { GeoLocationService } from 'src/integration/geolocation/geo-location.ser
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { VolumeQuery } from './dto/volume-query.dto';
-import { KycType, UserData } from '../user-data/user-data.entity';
+import { KycType, UserData, UserDataStatus } from '../user-data/user-data.entity';
 import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
@@ -367,14 +367,14 @@ export class UserService {
     return startDate.getTime() === currentDate.getTime();
   }
 
-  async activateUser(user?: User): Promise<void> {
+  async activateUser(user: User): Promise<void> {
     // retry (in case of ref conflict)
-    user = await Util.retry(async () => {
-      user.ref = await this.getNextRef();
-      return this.userRepo.save(user);
+    await Util.retry(async () => {
+      const ref = user.ref ?? (await this.getNextRef());
+      await this.userRepo.activateUser(user, ref);
     }, 3);
-    await this.userRepo.activateUser(user, user.ref);
-    await this.userDataRepo.activateUserData(user.userData);
+
+    if (user.userData.status === UserDataStatus.NA) await this.userDataRepo.activateUserData(user.userData);
   }
 
   private async checkRef(user: User, usedRef: string): Promise<string> {

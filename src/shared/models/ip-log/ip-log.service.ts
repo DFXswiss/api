@@ -33,7 +33,7 @@ export class IpLogService {
     if (!callLimit) return true;
     const ipWithoutLastElement = ip.split('.').slice(0, -1).join('.');
     const callCount = await this.getCallCount(url, ipWithoutLastElement);
-    return callLimit >= callCount;
+    return callLimit > callCount;
   }
 
   private async checkIpCountry(userIp: string): Promise<{ country: string; result: boolean }> {

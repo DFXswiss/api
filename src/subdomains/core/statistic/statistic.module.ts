@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { AinModule } from 'src/integration/blockchain/ain/ain.module';
-import { GeoLocationModule } from 'src/integration/geolocation/geo-location.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { MasternodeModule } from 'src/subdomains/supporting/masternode/masternode.module';
@@ -22,7 +21,6 @@ import { StatisticService } from './statistic.service';
     AinModule,
     MasternodeModule,
     StakingModule,
-    GeoLocationModule,
   ],
   controllers: [StatisticController],
   providers: [StatisticService, CfpService],

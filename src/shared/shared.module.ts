@@ -27,8 +27,8 @@ import { SettingController } from './models/setting/setting.controller';
 import { ApiKeyService } from './services/api-key.service';
 import { PaymentInfoService } from './services/payment-info.service';
 import { IpLogRepository } from './models/ip-log/ip-log.repository';
-import { GeoLocationModule } from 'src/integration/geolocation/geo-location.module';
 import { IpLogService } from './models/ip-log/ip-log.service';
+import { GeoLocationModule } from 'src/integration/geolocation/geo-location.module';
 
 @Module({
   imports: [
@@ -65,6 +65,7 @@ import { IpLogService } from './models/ip-log/ip-log.service';
     PassportModule,
     JwtModule,
     ScheduleModule,
+    GeoLocationModule,
     HttpService,
     AssetService,
     FiatService,

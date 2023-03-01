@@ -2,7 +2,8 @@
 param location string
 param env string
 param network string
-param knownRequestIps string
+param knownIps string
+param limitCheck string
 
 param dbAllowAllIps bool
 param dbAdminLogin string
