@@ -36,8 +36,6 @@ import { ReferralModule } from 'src/subdomains/core/referral/referral.module';
 import { GeoLocationModule } from 'src/integration/geolocation/geo-location.module';
 import { LimitRequestNotificationService } from './models/limit-request/limit-request-notification.service';
 import { WebhookService } from './services/webhook/webhook.service';
-import { IpLogRepository } from './models/ip-log/ip-log.repository';
-import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 
 @Module({
   imports: [
@@ -49,7 +47,6 @@ import { GeoLocationService } from 'src/integration/geolocation/geo-location.ser
       BankDataRepository,
       LimitRequestRepository,
       LinkAddressRepository,
-      IpLogRepository,
     ]),
     SharedModule,
     NotificationModule,
@@ -84,17 +81,7 @@ import { GeoLocationService } from 'src/integration/geolocation/geo-location.ser
     LinkService,
     WebhookService,
     LimitRequestNotificationService,
-    GeoLocationService,
   ],
-  exports: [
-    UserService,
-    UserDataService,
-    KycService,
-    SpiderService,
-    SpiderApiService,
-    LinkService,
-    WebhookService,
-    GeoLocationService,
-  ],
+  exports: [UserService, UserDataService, KycService, SpiderService, SpiderApiService, LinkService, WebhookService],
 })
 export class UserModule {}

@@ -306,7 +306,7 @@ export class UserDataService {
     // activate users
     if (master.hasActiveUser) {
       for (const user of master.users) {
-        await this.userRepo.activateUser(user);
+        await this.userRepo.activateUser(user, user.ref);
       }
     }
   }

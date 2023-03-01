@@ -98,7 +98,7 @@ export class UserService {
   }
 
   async createUser(dto: CreateUserDto, userIp: string, userOrigin?: string, userData?: UserData): Promise<User> {
-    const user = this.userRepo.create(dto);
+    let user = this.userRepo.create(dto);
 
     user.ip = userIp;
     user.ipCountry = await this.checkIpCountry(userIp);
@@ -106,7 +106,7 @@ export class UserService {
     user.usedRef = await this.checkRef(user, dto.usedRef);
     user.origin = userOrigin;
     user.userData = userData ?? (await this.userDataService.createUserData(user.wallet.customKyc ?? KycType.DFX));
-    await this.userRepo.save(user);
+    user = await this.userRepo.save(user);
 
     const blockchains = this.cryptoService.getBlockchainsBasedOn(user.address);
     if (blockchains.includes(Blockchain.DEFICHAIN)) this.dfiTaxService.activateAddress(user.address);
@@ -368,8 +368,12 @@ export class UserService {
   }
 
   async activateUser(user?: User): Promise<void> {
-    user.ref = await this.getNextRef();
-    await this.userRepo.activateUser(user);
+    // retry (in case of ref conflict)
+    user = await Util.retry(async () => {
+      user.ref = await this.getNextRef();
+      return this.userRepo.save(user);
+    }, 3);
+    await this.userRepo.activateUser(user, user.ref);
     await this.userDataRepo.activateUserData(user.userData);
   }
 

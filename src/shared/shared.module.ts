@@ -26,17 +26,22 @@ import { I18nModule } from 'nestjs-i18n';
 import { SettingController } from './models/setting/setting.controller';
 import { ApiKeyService } from './services/api-key.service';
 import { PaymentInfoService } from './services/payment-info.service';
+import { IpLogRepository } from './models/ip-log/ip-log.repository';
+import { GeoLocationModule } from 'src/integration/geolocation/geo-location.module';
+import { IpLogService } from './models/ip-log/ip-log.service';
 
 @Module({
   imports: [
     HttpModule,
     ConfigModule,
+    GeoLocationModule,
     TypeOrmModule.forFeature([
       AssetRepository,
       FiatRepository,
       CountryRepository,
       LanguageRepository,
       SettingRepository,
+      IpLogRepository,
     ]),
     PassportModule.register({ defaultStrategy: 'jwt', session: true }),
     JwtModule.register(GetConfig().auth.jwt),
@@ -54,6 +59,7 @@ import { PaymentInfoService } from './services/payment-info.service';
     JwtStrategy,
     ApiKeyService,
     PaymentInfoService,
+    IpLogService,
   ],
   exports: [
     PassportModule,
@@ -67,6 +73,7 @@ import { PaymentInfoService } from './services/payment-info.service';
     SettingService,
     ApiKeyService,
     PaymentInfoService,
+    IpLogService,
   ],
 })
 export class SharedModule {}
