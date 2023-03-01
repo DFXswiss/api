@@ -49,7 +49,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     I18nModule.forRoot(GetConfig().i18n),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot({
-      ttl: 1440,
+      ttl: 86400,
       limit: 20,
     }),
   ],
