@@ -47,6 +47,7 @@ param ethWalletPrivateKey string
 param ethGatewayUrl string
 @secure()
 param ethApiKey string
+param ethChainId string
 param ethSwapContractAddress string
 param ethSwapTokenAddress string
 param ethScanApiUrl string
@@ -59,6 +60,7 @@ param optimismWalletPrivateKey string
 param optimismGatewayUrl string
 @secure()
 param optimismApiKey string
+param optimismChainId string
 param optimismSwapContractAddress string
 param optimismSwapTokenAddress string
 param optimismScanApiUrl string
@@ -585,6 +587,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: ethApiKey
         }
         {
+          name: 'ETH_CHAIN_ID'
+          value: ethChainId
+        }
+        {
           name: 'ETH_SWAP_CONTRACT_ADDRESS'
           value: ethSwapContractAddress
         }
@@ -615,6 +621,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'OPTIMISM_API_KEY'
           value: optimismApiKey
+        }
+        {
+          name: 'OPTIMISM_CHAIN_ID'
+          value: optimismChainId
         }
         {
           name: 'OPTIMISM_SWAP_CONTRACT_ADDRESS'
