@@ -29,6 +29,7 @@ import { PaymentInfoService } from './services/payment-info.service';
 import { IpLogRepository } from './models/ip-log/ip-log.repository';
 import { IpLogService } from './models/ip-log/ip-log.service';
 import { GeoLocationModule } from 'src/integration/geolocation/geo-location.module';
+import { ThrottlerModule } from '@nestjs/throttler';
 
 @Module({
   imports: [
@@ -47,6 +48,10 @@ import { GeoLocationModule } from 'src/integration/geolocation/geo-location.modu
     JwtModule.register(GetConfig().auth.jwt),
     I18nModule.forRoot(GetConfig().i18n),
     ScheduleModule.forRoot(),
+    ThrottlerModule.forRoot({
+      ttl: 86400,
+      limit: 20,
+    }),
   ],
   controllers: [AssetController, FiatController, CountryController, LanguageController, SettingController],
   providers: [

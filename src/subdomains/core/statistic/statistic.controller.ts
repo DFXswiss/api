@@ -11,6 +11,7 @@ import { CfpResult } from './dto/cfp.dto';
 import { SettingStatus, StatisticDto, TransactionStatisticDto } from './dto/statistic.dto';
 import { Util } from 'src/shared/utils/util';
 import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
+import { Throttle } from '@nestjs/throttler/dist/throttler.decorator';
 
 @ApiTags('Statistic')
 @Controller('statistic')
@@ -39,6 +40,7 @@ export class StatisticController {
 
   @Get('transactions')
   @UseGuards(RateLimitGuard)
+  @Throttle(24)
   @ApiOkResponse({ type: TransactionStatisticDto })
   async getTransactions(
     @Query('dateFrom') dateFrom: Date,
