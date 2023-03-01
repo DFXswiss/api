@@ -33,10 +33,8 @@ import { NotificationModule } from 'src/subdomains/supporting/notification/notif
 import { LimitRequestController } from './models/limit-request/limit-request.controller';
 import { WalletController } from './models/wallet/wallet.controller';
 import { ReferralModule } from 'src/subdomains/core/referral/referral.module';
-import { GeoLocationModule } from 'src/integration/geolocation/geo-location.module';
 import { LimitRequestNotificationService } from './models/limit-request/limit-request-notification.service';
 import { WebhookService } from './services/webhook/webhook.service';
-import { IpLogRepository } from './models/ip-log/ip-log.repository';
 
 @Module({
   imports: [
@@ -48,12 +46,10 @@ import { IpLogRepository } from './models/ip-log/ip-log.repository';
       BankDataRepository,
       LimitRequestRepository,
       LinkAddressRepository,
-      IpLogRepository,
     ]),
     SharedModule,
     NotificationModule,
     AinModule,
-    GeoLocationModule,
     ReferralModule,
   ],
   controllers: [

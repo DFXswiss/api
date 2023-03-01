@@ -14,7 +14,7 @@ import { CfpVotes } from './dto/cfp-votes.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { WalletService } from '../wallet/wallet.service';
-import { Between, Like, Not } from 'typeorm';
+import { Between, Not } from 'typeorm';
 import { AccountType } from '../user-data/account-type.enum';
 import { DfiTaxService } from 'src/integration/blockchain/ain/services/dfi-tax.service';
 import { Config } from 'src/config/config';
@@ -33,11 +33,13 @@ import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { UserDataRepository } from '../user-data/user-data.repository';
 
 @Injectable()
 export class UserService {
   constructor(
     private readonly userRepo: UserRepository,
+    private readonly userDataRepo: UserDataRepository,
     private readonly userDataService: UserDataService,
     private readonly kycService: KycService,
     private readonly walletService: WalletService,
@@ -104,13 +106,7 @@ export class UserService {
     user.usedRef = await this.checkRef(user, dto.usedRef);
     user.origin = userOrigin;
     user.userData = userData ?? (await this.userDataService.createUserData(user.wallet.customKyc ?? KycType.DFX));
-
-    // retry (in case of ref conflict)
-    user = await Util.retry(async () => {
-      user.ref = await this.getNextRef();
-
-      return this.userRepo.save(user);
-    }, 3);
+    user = await this.userRepo.save(user);
 
     const blockchains = this.cryptoService.getBlockchainsBasedOn(user.address);
     if (blockchains.includes(Blockchain.DEFICHAIN)) this.dfiTaxService.activateAddress(user.address);
@@ -371,8 +367,9 @@ export class UserService {
     return startDate.getTime() === currentDate.getTime();
   }
 
-  async activateUser(user?: User): Promise<void> {
+  async activateUser(user: User): Promise<void> {
     await this.userRepo.activateUser(user);
+    await this.userDataRepo.activateUserData(user.userData);
   }
 
   private async checkRef(user: User, usedRef: string): Promise<string> {
@@ -391,20 +388,6 @@ export class UserService {
       .select('SUM(paidRefCredit)', 'paidRefCredit')
       .getRawOne<{ paidRefCredit: number }>()
       .then((r) => r.paidRefCredit);
-  }
-
-  private async getNextRef(): Promise<string> {
-    // get highest numerical ref
-    const nextRef = await this.userRepo
-      .findOne({
-        select: ['id', 'ref'],
-        where: { ref: Like('%[0-9]-[0-9]%') },
-        order: { ref: 'DESC' },
-      })
-      .then((u) => +u.ref.replace('-', '') + 1);
-
-    const ref = nextRef.toString().padStart(6, '0');
-    return `${ref.slice(0, 3)}-${ref.slice(3, 6)}`;
   }
 
   // --- API KEY --- //

@@ -14,7 +14,7 @@ import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.se
 import { Config } from 'src/config/config';
 import { UserService } from '../user/user.service';
 import { UserRepository } from '../user/user.repository';
-import { User } from '../user/user.entity';
+import { User, UserStatus } from '../user/user.entity';
 import { LinkedUserInDto } from '../user/dto/linked-user.dto';
 import { WalletRepository } from '../wallet/wallet.repository';
 import { Wallet } from '../wallet/wallet.entity';
@@ -77,8 +77,7 @@ export class AuthService {
     if (isCompany) return this.companySignIn(dto);
 
     const user = await this.userRepo.getByAddress(dto.address);
-    if (!user) throw new NotFoundException('User not found');
-
+    if (!user || user.status == UserStatus.BLOCKED) throw new NotFoundException('User not found');
     if (!this.verifySignature(dto.address, dto.signature, dto.key))
       throw new UnauthorizedException('Invalid credentials');
 

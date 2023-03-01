@@ -81,7 +81,9 @@ export class BuyFiatService {
   }
 
   async update(id: number, dto: UpdateBuyFiatDto): Promise<BuyFiat> {
-    let entity = await this.buyFiatRepo.findOne(id, { relations: ['sell', 'sell.user', 'sell.user.wallet'] });
+    let entity = await this.buyFiatRepo.findOne(id, {
+      relations: ['sell', 'sell.user', 'sell.user.wallet', 'sell.user.userData'],
+    });
     if (!entity) throw new NotFoundException('Buy fiat not found');
 
     const sellIdBefore = entity.sell?.id;
@@ -108,8 +110,8 @@ export class BuyFiatService {
     entity = await this.buyFiatRepo.save({ ...update, ...entity, ...amlUpdate });
 
     // activate user
-    if (entity.amlCheck === AmlCheck.PASS) {
-      await this.userService.activateUser(entity.sell?.user);
+    if (entity.amlCheck === AmlCheck.PASS && entity.sell?.user) {
+      await this.userService.activateUser(entity.sell.user);
     }
 
     // payment webhook
