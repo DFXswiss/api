@@ -1,4 +1,3 @@
-import { blockchain } from '@defichain/jellyfish-api-core';
 import { Controller, UseGuards, Body, Post, Get, Put, Query } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';

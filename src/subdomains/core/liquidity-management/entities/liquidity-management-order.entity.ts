@@ -1,5 +1,5 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity, JoinTable, ManyToOne, OneToOne } from 'typeorm';
+import { Column, Entity, JoinTable, ManyToOne } from 'typeorm';
 import { LiquidityManagementAction } from './liquidity-management-action.entity';
 import { LiquidityManagementOrderStatus } from '../enums';
 import { LiquidityManagementPipeline } from './liquidity-management-pipeline.entity';

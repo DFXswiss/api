@@ -9,7 +9,6 @@ import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { MasternodeInfo, MasternodeResult } from '@defichain/jellyfish-api-core/dist/category/masternode';
-import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
 
 export enum NodeCommand {
   UNLOCK = 'walletpassphrase',
