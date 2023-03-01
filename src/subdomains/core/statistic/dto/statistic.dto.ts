@@ -10,26 +10,7 @@ class TotalVolumeStatistic {
 
 class TotalRewardsStatistic {
   @ApiProperty()
-  staking: number;
-
-  @ApiProperty()
   ref: number;
-}
-
-class YieldStakingStatistic {
-  @ApiProperty()
-  apr: number;
-
-  @ApiProperty()
-  apy: number;
-}
-
-class StakingStatistic {
-  @ApiProperty()
-  masternodes: number;
-
-  @ApiProperty({ type: YieldStakingStatistic })
-  yield: YieldStakingStatistic;
 }
 
 export class SettingStatus {
@@ -42,9 +23,6 @@ export class StatisticDto {
 
   @ApiProperty({ type: TotalRewardsStatistic })
   totalRewards: TotalRewardsStatistic;
-
-  @ApiProperty({ type: StakingStatistic })
-  staking: StakingStatistic;
 
   @ApiProperty({ type: SettingStatus })
   status: SettingStatus;
@@ -72,9 +50,6 @@ export class TransactionStatisticDto {
 
   @ApiProperty({ type: TransactionDetailsDto, isArray: true })
   sell: TransactionDetailsDto[];
-
-  @ApiProperty({ type: TransactionDetailsDto, isArray: true })
-  stakingRewards: TransactionDetailsDto[];
 
   @ApiProperty({ type: TransactionDetailsDto, isArray: true })
   refRewards: TransactionDetailsDto[];

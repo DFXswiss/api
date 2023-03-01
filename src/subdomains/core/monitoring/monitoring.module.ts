@@ -11,7 +11,6 @@ import { NodeBalanceObserver } from './observers/node-balance.observer';
 import { NodeHealthObserver } from './observers/node-health.observer';
 import { BankObserver } from './observers/bank.observer';
 import { PaymentObserver } from './observers/payment.observer';
-import { StakingBalanceObserver } from './observers/staking-balance.observer';
 import { UserObserver } from './observers/user.observer';
 import { SystemStateSnapshotRepository } from './system-state-snapshot.repository';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
@@ -37,7 +36,6 @@ import { IntegrationModule } from 'src/integration/integration.module';
     NodeBalanceObserver,
     NodeHealthObserver,
     PaymentObserver,
-    StakingBalanceObserver,
     UserObserver,
     BankingBotObserver,
     BankObserver,

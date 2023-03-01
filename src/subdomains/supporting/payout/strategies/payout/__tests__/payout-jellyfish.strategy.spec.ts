@@ -48,16 +48,13 @@ describe('PayoutJellyfishStrategy', () => {
       const orders = [
         createCustomPayoutOrder({ context: PayoutOrderContext.BUY_CRYPTO }),
         createCustomPayoutOrder({ context: PayoutOrderContext.BUY_CRYPTO }),
-        createCustomPayoutOrder({ context: PayoutOrderContext.STAKING_REWARD }),
       ];
 
       const groups = strategy.groupOrdersByContextWrapper(orders);
 
-      expect([...groups.entries()].length).toBe(2);
+      expect([...groups.entries()].length).toBe(1);
       expect([...groups.keys()][0]).toBe(PayoutOrderContext.BUY_CRYPTO);
-      expect([...groups.keys()][1]).toBe(PayoutOrderContext.STAKING_REWARD);
       expect([...groups.values()][0].length).toBe(2);
-      expect([...groups.values()][1].length).toBe(1);
     });
 
     it('puts orders with same context in one group', () => {

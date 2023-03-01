@@ -9,12 +9,10 @@ import { PayoutGroup, PayoutJellyfishService } from './base/payout-jellyfish.ser
 @Injectable()
 export class PayoutDeFiChainService extends PayoutJellyfishService {
   #outClient: DeFiClient;
-  #intClient: DeFiClient;
 
   constructor(readonly nodeService: NodeService, private readonly whaleService: WhaleService) {
     super();
     nodeService.getConnectedNode(NodeType.OUTPUT).subscribe((client) => (this.#outClient = client));
-    nodeService.getConnectedNode(NodeType.INT).subscribe((client) => (this.#intClient = client));
   }
 
   async isHealthy(context: PayoutOrderContext): Promise<boolean> {
@@ -48,7 +46,6 @@ export class PayoutDeFiChainService extends PayoutJellyfishService {
 
   getWalletAddress(context: PayoutOrderContext): string {
     if (context === PayoutOrderContext.BUY_CRYPTO) return Config.blockchain.default.outWalletAddress;
-    if (context === PayoutOrderContext.STAKING_REWARD) return Config.blockchain.default.intWalletAddress;
   }
 
   isLightWalletAddress(address: string): boolean {
@@ -57,6 +54,5 @@ export class PayoutDeFiChainService extends PayoutJellyfishService {
 
   private getClient(context: PayoutOrderContext): DeFiClient {
     if (context === PayoutOrderContext.BUY_CRYPTO) return this.#outClient;
-    if (context === PayoutOrderContext.STAKING_REWARD) return this.#intClient;
   }
 }

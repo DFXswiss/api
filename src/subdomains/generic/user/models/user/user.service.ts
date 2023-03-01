@@ -182,14 +182,6 @@ export class UserService {
     await this.updateUserDataVolume(userId);
   }
 
-  async updateStakingBalance(userId: number, balance: number): Promise<void> {
-    await this.userRepo.update(userId, {
-      stakingBalance: Util.round(balance, Config.defaultVolumeDecimal),
-    });
-
-    await this.updateUserDataVolume(userId);
-  }
-
   private async updateUserDataVolume(userId: number): Promise<void> {
     const { userData } = await this.userRepo.findOne({
       where: { id: userId },
@@ -275,20 +267,6 @@ export class UserService {
     return { fee, refBonus };
   }
 
-  async getUserStakingFee(userId: number): Promise<number> {
-    const user = await this.userRepo.findOne({
-      select: ['id', 'stakingFee', 'stakingStart'],
-      where: { id: userId },
-    });
-
-    const hasFreeStaking = Util.daysDiff(user.stakingStart ?? new Date(), new Date()) < Config.staking.freeDays;
-
-    return Util.round(
-      (user?.stakingFee ?? (hasFreeStaking ? 0 : Config.staking.fee)) * 100,
-      Config.defaultPercentageDecimal,
-    );
-  }
-
   // --- REF --- //
 
   async getRefInfo(query: RefInfoQuery): Promise<{ activeUser: number; fiatVolume?: number; cryptoVolume?: number }> {
@@ -345,25 +323,6 @@ export class UserService {
 
   async updatePaidRefCredit(id: number, volume: number): Promise<void> {
     await this.userRepo.update(id, { paidRefCredit: Util.round(volume, Config.defaultVolumeDecimal) });
-  }
-
-  async updatePaidStakingRefCredit(id: number, volume: number): Promise<void> {
-    await this.userRepo.update(id, { paidStakingRefCredit: Util.round(volume, Config.defaultVolumeDecimal) });
-  }
-
-  // returns true, if is new staking user
-  async activateStaking(id: number): Promise<boolean> {
-    const { userData } = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
-
-    const currentDate = new Date();
-    const startDate = new Date(Math.min(...userData.users.map((u) => (u.stakingStart ?? currentDate).getTime())));
-
-    await this.userRepo.update(
-      userData.users.map((u) => u.id),
-      { stakingStart: startDate },
-    );
-
-    return startDate.getTime() === currentDate.getTime();
   }
 
   async activateUser(user?: User): Promise<void> {
@@ -478,7 +437,6 @@ export class UserService {
       buyVolume: { total: user.buyVolume, annual: user.annualBuyVolume },
       sellVolume: { total: user.sellVolume, annual: user.annualSellVolume },
       cryptoVolume: { total: user.cryptoVolume, annual: user.annualCryptoVolume },
-      stakingBalance: user.stakingBalance,
     };
   }
 

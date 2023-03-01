@@ -223,7 +223,6 @@ export class UserDataService {
       .addSelect('SUM(annualSellVolume)', 'annualSellVolume')
       .addSelect('SUM(cryptoVolume)', 'cryptoVolume')
       .addSelect('SUM(annualCryptoVolume)', 'annualCryptoVolume')
-      .addSelect('SUM(stakingBalance)', 'stakingBalance')
       .where('userDataId = :id', { id: userDataId })
       .getRawOne<{
         buyVolume: number;
@@ -232,7 +231,6 @@ export class UserDataService {
         annualSellVolume: number;
         cryptoVolume: number;
         annualCryptoVolume: number;
-        stakingBalance: number;
       }>();
 
     await this.userDataRepo.update(userDataId, {
@@ -242,7 +240,6 @@ export class UserDataService {
       annualSellVolume: Util.round(volumes.annualSellVolume, Config.defaultVolumeDecimal),
       cryptoVolume: Util.round(volumes.cryptoVolume, Config.defaultVolumeDecimal),
       annualCryptoVolume: Util.round(volumes.annualCryptoVolume, Config.defaultVolumeDecimal),
-      stakingBalance: Util.round(volumes.stakingBalance, Config.defaultVolumeDecimal),
     });
   }
 

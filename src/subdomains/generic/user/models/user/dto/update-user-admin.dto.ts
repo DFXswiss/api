@@ -21,9 +21,5 @@ export class UpdateUserAdminDto {
 
   @IsOptional()
   @IsNumber()
-  stakingFee: number;
-
-  @IsOptional()
-  @IsNumber()
   cryptoFee: number;
 }

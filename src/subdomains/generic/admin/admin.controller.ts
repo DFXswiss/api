@@ -15,14 +15,8 @@ import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
-import { CryptoStaking } from 'src/subdomains/core/staking/entities/crypto-staking.entity';
-import { CryptoStakingService } from 'src/subdomains/core/staking/services/crypto-staking.service';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { RefRewardService } from 'src/subdomains/core/referral/reward/ref-reward.service';
-import { StakingRefReward } from 'src/subdomains/core/staking/entities/staking-ref-reward.entity';
-import { StakingRefRewardService } from 'src/subdomains/core/staking/services/staking-ref-reward.service';
-import { StakingReward } from 'src/subdomains/core/staking/entities/staking-reward.entity';
-import { StakingRewardService } from 'src/subdomains/core/staking/services/staking-reward.service';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { LetterService } from 'src/integration/letter/letter.service';
@@ -55,10 +49,7 @@ export class AdminController {
     private readonly userDataService: UserDataService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyFiatService: BuyFiatService,
-    private readonly cryptoStakingService: CryptoStakingService,
     private readonly refRewardService: RefRewardService,
-    private readonly stakingRewardService: StakingRewardService,
-    private readonly stakingRefRewardService: StakingRefRewardService,
     private readonly payInService: PayInService,
     private readonly bankTxRepeatService: BankTxRepeatService,
   ) {}
@@ -348,9 +339,6 @@ export class AdminController {
     buyFiat: BuyFiat[];
     ref: BuyCrypto[];
     refReward: RefReward[];
-    staking: CryptoStaking[];
-    stakingReward: StakingReward[];
-    stakingRefReward: StakingRefReward[];
     cryptoInput: CryptoInput[];
     bankTxRepeat: BankTxRepeat[];
   }> {
@@ -366,9 +354,6 @@ export class AdminController {
       buyFiat: await this.buyFiatService.getAllUserTransactions(userIds),
       ref: await this.buyCryptoService.getAllRefTransactions(refCodes),
       refReward: await this.refRewardService.getAllUserRewards(userIds),
-      staking: await this.cryptoStakingService.getUserTransactions(userIds),
-      stakingReward: await this.stakingRewardService.getAllUserRewards(userIds),
-      stakingRefReward: await this.stakingRefRewardService.getAllUserRewards(userIds),
       cryptoInput: await this.payInService.getAllUserTransactions(userIds),
       bankTxRepeat: await this.bankTxRepeatService.getAllUserRepeats(userIds),
     };

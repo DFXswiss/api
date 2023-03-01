@@ -4,7 +4,6 @@ import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { ChainalysisModule } from 'src/integration/chainalysis/chainalysis.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
-import { StakingModule } from 'src/subdomains/core/staking/staking.module';
 import { DexModule } from '../dex/dex.module';
 import { PayoutModule } from '../payout/payout.module';
 import { PricingModule } from '../pricing/pricing.module';
@@ -47,7 +46,6 @@ import { SendStrategiesFacade } from './strategies/send/send.facade';
     DexModule,
     ChainalysisModule,
     SellCryptoModule,
-    StakingModule,
   ],
   controllers: [],
   providers: [

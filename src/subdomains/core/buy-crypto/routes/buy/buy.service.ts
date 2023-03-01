@@ -1,32 +1,21 @@
-import {
-  BadRequestException,
-  ConflictException,
-  forwardRef,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 import { Buy } from './buy.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { IsNull, Not, Repository } from 'typeorm';
 import { Util } from 'src/shared/utils/util';
-import { BuyType } from './dto/buy-type.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { Config } from 'src/config/config';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { BuyRepository } from './buy.repository';
 import { CreateBuyDto } from './dto/create-buy.dto';
-import { StakingService } from 'src/subdomains/core/staking/services/staking.service';
 
 @Injectable()
 export class BuyService {
   constructor(
     private readonly buyRepo: BuyRepository,
     private readonly assetService: AssetService,
-    @Inject(forwardRef(() => StakingService))
-    private readonly stakingService: StakingService,
     private readonly userService: UserService,
     private readonly bankAccountService: BankAccountService,
   ) {}
@@ -73,23 +62,16 @@ export class BuyService {
   // --- BUYS --- //
   async createBuy(userId: number, userAddress: string, dto: CreateBuyDto, ignoreExisting = false): Promise<Buy> {
     // check asset
-    const asset =
-      dto.type === BuyType.WALLET
-        ? await this.assetService.getAssetById(dto.asset.id)
-        : await this.assetService.getDfiCoin();
+    const asset = await this.assetService.getAssetById(dto.asset.id);
 
     if (!asset) throw new BadRequestException('Asset not found');
     if (!asset.buyable) throw new BadRequestException('Asset not buyable');
-
-    // check staking
-    const staking = dto.type === BuyType.STAKING ? await this.stakingService.getStaking(dto.staking.id, userId) : null;
-    if (dto.type === BuyType.STAKING && !staking) throw new BadRequestException('Staking route not found');
 
     // check if exists
     const existing = await this.buyRepo.findOne({
       where: {
         iban: dto.iban,
-        ...(dto.type === BuyType.WALLET ? { asset: asset, deposit: IsNull() } : { deposit: staking?.deposit }),
+        ...{ asset: asset, deposit: IsNull() },
         user: { id: userId },
       },
       relations: ['deposit', 'bankAccount', 'user', 'user.userData'],
@@ -111,13 +93,10 @@ export class BuyService {
     const buy = this.buyRepo.create(dto);
     buy.user = await this.userService.getUser(userId, true);
     buy.asset = asset;
-    buy.deposit = staking?.deposit ?? null;
     buy.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);
 
     // create hash
-    const hash = Util.createHash(
-      userAddress + (dto.type === BuyType.WALLET ? asset.uniqueName : staking.deposit.address) + buy.iban,
-    ).toUpperCase();
+    const hash = Util.createHash(userAddress + asset.uniqueName + buy.iban).toUpperCase();
     buy.bankUsage = `${hash.slice(0, 4)}-${hash.slice(4, 8)}-${hash.slice(8, 12)}`;
 
     // save

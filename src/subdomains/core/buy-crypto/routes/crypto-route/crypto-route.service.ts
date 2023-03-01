@@ -13,15 +13,12 @@ import { CryptoRoute } from './crypto-route.entity';
 import { DepositService } from '../../../../supporting/address-pool/deposit/deposit.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { KycCompleted } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { BuyType } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-type.enum';
-import { StakingService } from 'src/subdomains/core/staking/services/staking.service';
 
 @Injectable()
 export class CryptoRouteService {
   constructor(
     private readonly cryptoRepo: CryptoRouteRepository,
     private readonly assetService: AssetService,
-    private readonly stakingService: StakingService,
     private readonly userService: UserService,
     private readonly depositService: DepositService,
     private readonly userDataService: UserDataService,
@@ -87,24 +84,15 @@ export class CryptoRouteService {
     if (status !== UserStatus.ACTIVE) throw new BadRequestException('Missing bank transaction');
 
     // check asset
-    const targetAsset =
-      dto.type === BuyType.WALLET
-        ? await this.assetService.getAssetById(dto.asset.id)
-        : await this.assetService.getDfiCoin();
+    const targetAsset = await this.assetService.getAssetById(dto.asset.id);
 
     if (!targetAsset) throw new BadRequestException('Asset not found');
     if (!targetAsset.buyable) throw new BadRequestException('Asset not buyable');
 
-    // check staking
-    const staking = dto.type === BuyType.STAKING ? await this.stakingService.getStaking(dto.staking.id, userId) : null;
-    if (dto.type === BuyType.STAKING && !staking) throw new BadRequestException('Staking route not found');
-
     // check if exists
     const existing = await this.cryptoRepo.findOne({
       where: {
-        ...(dto.type === BuyType.WALLET
-          ? { asset: targetAsset, targetDeposit: IsNull() }
-          : { targetDeposit: staking.deposit }),
+        ...{ asset: targetAsset, targetDeposit: IsNull() },
         user: { id: userId },
         deposit: { blockchain: dto.blockchain },
       },
@@ -127,7 +115,6 @@ export class CryptoRouteService {
     const crypto = this.cryptoRepo.create();
     crypto.user = { id: userId } as User;
     crypto.asset = targetAsset;
-    crypto.targetDeposit = staking?.deposit ?? null;
     crypto.deposit = await this.depositService.getNextDeposit(dto.blockchain);
 
     // save

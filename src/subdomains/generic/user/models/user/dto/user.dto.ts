@@ -100,9 +100,6 @@ export class UserDetailDto extends UserDto implements UserDetails {
   @ApiProperty({ type: VolumeInformation })
   cryptoVolume: VolumeInformation;
 
-  @ApiProperty()
-  stakingBalance: number;
-
   @ApiPropertyOptional({ type: LinkedUserOutDto, isArray: true })
   linkedAddresses?: LinkedUserOutDto[];
 }

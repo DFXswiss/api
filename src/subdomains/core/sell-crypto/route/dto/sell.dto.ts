@@ -26,9 +26,6 @@ export class SellDto {
   @ApiProperty()
   fee: number;
 
-  @ApiProperty()
-  isInUse: boolean;
-
   @ApiProperty({ enum: Blockchain })
   blockchain: Blockchain;
 
