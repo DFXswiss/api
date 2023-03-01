@@ -9,7 +9,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { EvmRawTransactionDto } from '../../../integration/blockchain/shared/evm/dto/evm-raw-transaction.dto';
 import { GsEvmService } from './gs-evm.service';
 
-@Controller('gsEvm')
+@Controller('gs/evm')
 export class GsEvmController {
   constructor(private readonly gsEvmService: GsEvmService) {}
 
