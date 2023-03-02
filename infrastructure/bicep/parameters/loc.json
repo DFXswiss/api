@@ -297,7 +297,7 @@
       "value": "xxx"
     },
     "limitCheck": {
-      "value": false
+      "value": "false"
     }
   }
 }
