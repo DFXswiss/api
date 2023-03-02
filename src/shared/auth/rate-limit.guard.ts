@@ -11,7 +11,7 @@ export class RateLimitGuard extends ThrottlerGuard {
   }
 
   async handleRequest(context: ExecutionContext, limit: number, ttl: number): Promise<boolean> {
-    // Skip rate limiting if deativated
+    // Skip rate limiting if deactivated
     if (!Config.request.limitCheck) return true;
 
     const req = context.switchToHttp().getRequest();
