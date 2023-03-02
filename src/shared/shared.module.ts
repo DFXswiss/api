@@ -48,10 +48,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     JwtModule.register(GetConfig().auth.jwt),
     I18nModule.forRoot(GetConfig().i18n),
     ScheduleModule.forRoot(),
-    ThrottlerModule.forRoot({
-      ttl: 86400,
-      limit: 20,
-    }),
+    ThrottlerModule.forRoot(),
   ],
   controllers: [AssetController, FiatController, CountryController, LanguageController, SettingController],
   providers: [

@@ -18,7 +18,7 @@ export class AuthController {
 
   @Post('signUp')
   @UseGuards(RateLimitGuard, IpGuard)
-  @Throttle(20)
+  @Throttle(20, 864000)
   @ApiCreatedResponse({ type: AuthResponseDto })
   signUp(@Body() dto: CreateUserDto, @RealIP() ip: string): Promise<AuthResponseDto> {
     return this.authService.signUp(dto, ip);
