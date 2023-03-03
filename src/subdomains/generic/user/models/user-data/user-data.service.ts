@@ -76,6 +76,7 @@ export class UserDataService {
       .createQueryBuilder('userData')
       .select('userData')
       .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`userData.${key} = :param`, { param: value })
       .getOne();
   }
