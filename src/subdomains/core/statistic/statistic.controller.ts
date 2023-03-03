@@ -6,12 +6,15 @@ import { RefRewardService } from 'src/subdomains/core/referral/reward/ref-reward
 import { StatisticService } from './statistic.service';
 import { BuyCryptoService } from '../buy-crypto/process/services/buy-crypto.service';
 import { SettingStatus, StatisticDto, TransactionStatisticDto } from './dto/statistic.dto';
+import { CfpService } from './cfp.service';
+import { CfpResult } from './dto/cfp.dto';
 
 @ApiTags('Statistic')
 @Controller('statistic')
 export class StatisticController {
   constructor(
     private readonly statisticService: StatisticService,
+    private readonly cfpService: CfpService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyFiatService: BuyFiatService,
     private readonly refRewardService: RefRewardService,
@@ -48,5 +51,11 @@ export class StatisticController {
   async getMasternodes(): Promise<string[]> {
     const masternodes = await this.masternodeService.getActive();
     return masternodes.map((a) => a.owner);
+  }
+
+  @Get('cfp/latest')
+  @ApiOkResponse({ type: CfpResult, isArray: true })
+  async getCfpResults(): Promise<CfpResult[]> {
+    return this.cfpService.getCfpResults();
   }
 }
