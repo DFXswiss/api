@@ -14,7 +14,7 @@ export class GsController {
   @Post('db')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getRawData(@Body() query: DbQueryDto): Promise<{
     keys: string[];
     values: any;
@@ -25,7 +25,7 @@ export class GsController {
   @Post('db/custom')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getExtendedData(@Body() query: DbQueryBaseDto): Promise<{
     keys: string[];
     values: any;
