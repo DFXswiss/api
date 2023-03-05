@@ -16,8 +16,10 @@ import { BuyCryptoInitSpecification } from '../specifications/buy-crypto-init.sp
 import { Buy } from '../../routes/buy/buy.entity';
 
 export enum BuyCryptoStatus {
+  CREATED = 'Created',
+  PREPARED = 'Prepared',
   WAITING_FOR_LOWER_FEE = 'WaitingForLowerFee',
-  IN_PROGRESS = 'InProgress',
+  BATCHED = 'Batched',
   PAYING_OUT = 'PayingOut',
   COMPLETE = 'Complete',
 }
@@ -136,6 +138,7 @@ export class BuyCrypto extends IEntity {
 
     entity.cryptoInput = payIn;
     entity.cryptoRoute = cryptoRoute;
+    entity.status = BuyCryptoStatus.CREATED;
 
     BuyCryptoInitSpecification.isSatisfiedBy(entity);
 
@@ -194,6 +197,7 @@ export class BuyCrypto extends IEntity {
 
   setOutputReferenceAsset(outputReferenceAsset: Asset): this {
     this.outputReferenceAsset = outputReferenceAsset;
+    this.status = BuyCryptoStatus.PREPARED;
 
     return this;
   }
@@ -232,6 +236,12 @@ export class BuyCrypto extends IEntity {
     return this;
   }
 
+  assignBatch(batch: BuyCryptoBatch): this {
+    this.batch = batch;
+
+    return this;
+  }
+
   waitingForLowerFee(): this {
     this.resetTransaction();
     this.status = BuyCryptoStatus.WAITING_FOR_LOWER_FEE;
@@ -241,7 +251,7 @@ export class BuyCrypto extends IEntity {
 
   recordFee(fee: BuyCryptoFee): this {
     this.fee = fee;
-    this.status = BuyCryptoStatus.IN_PROGRESS;
+    this.status = BuyCryptoStatus.BATCHED;
 
     return this;
   }

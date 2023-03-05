@@ -56,7 +56,7 @@ export class BuyCryptoOutService {
 
         const successfulRequests = [];
 
-        for (const transaction of batch.transactions.filter((t) => t.status === BuyCryptoStatus.IN_PROGRESS)) {
+        for (const transaction of batch.transactions.filter((t) => t.status === BuyCryptoStatus.BATCHED)) {
           try {
             await this.doPayout(transaction);
             successfulRequests.push(transaction);

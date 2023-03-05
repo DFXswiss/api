@@ -44,7 +44,7 @@ export class BuyCryptoBatch extends IEntity {
   blockchain: Blockchain;
 
   addTransaction(tx: BuyCrypto): this {
-    tx.batch = this;
+    tx.assignBatch(this);
 
     this.transactions = [...(this.transactions ?? []), tx];
 

@@ -3,7 +3,7 @@ import { Not, IsNull } from 'typeorm';
 import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repository';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
-import { BuyCrypto } from '../entities/buy-crypto.entity';
+import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AbortBatchCreationException } from '../exceptions/abort-batch-creation.exception';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
@@ -34,13 +34,12 @@ export class BuyCryptoBatchService {
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
   ) {}
 
-  async batchTransactionsByAssets(): Promise<void> {
+  async prepareTransactions(): Promise<void> {
     try {
       const txInput = await this.buyCryptoRepo.find({
         where: {
           inputReferenceAmountMinusFee: Not(IsNull()),
           outputReferenceAsset: IsNull(),
-          outputReferenceAmount: IsNull(),
           outputAsset: IsNull(),
           batch: IsNull(),
         },
@@ -56,9 +55,7 @@ export class BuyCryptoBatchService {
         ],
       });
 
-      if (txInput.length === 0) {
-        return;
-      }
+      if (txInput.length === 0) return;
 
       console.info(
         `Buy crypto transaction input. Processing ${txInput.length} transaction(s). Transaction ID(s):`,
@@ -66,6 +63,44 @@ export class BuyCryptoBatchService {
       );
 
       const txWithAssets = await this.defineAssetPair(txInput);
+
+      for (const tx of txWithAssets) {
+        await this.buyCryptoRepo.save(tx);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async batchAndOptimizeTransactions(): Promise<void> {
+    try {
+      const txWithAssets = await this.buyCryptoRepo.find({
+        where: {
+          outputReferenceAsset: Not(IsNull()),
+          outputAsset: Not(IsNull()),
+          outputReferenceAmount: IsNull(),
+          batch: IsNull(),
+          status: BuyCryptoStatus.PREPARED,
+        },
+        relations: [
+          'bankTx',
+          'buy',
+          'buy.user',
+          'buy.asset',
+          'batch',
+          'cryptoRoute',
+          'cryptoRoute.user',
+          'cryptoRoute.asset',
+        ],
+      });
+
+      if (txWithAssets.length === 0) return;
+
+      console.info(
+        `Batching ${txWithAssets.length} buy crypto transaction(s). Transaction ID(s):`,
+        txWithAssets.map((t) => t.id),
+      );
+
       const referencePrices = await this.getReferencePrices(txWithAssets);
       const txWithReferenceAmount = await this.defineReferenceAmount(txWithAssets, referencePrices);
       const batches = await this.createBatches(txWithReferenceAmount);
