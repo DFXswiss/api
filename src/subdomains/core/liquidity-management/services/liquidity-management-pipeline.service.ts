@@ -15,9 +15,6 @@ import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 
 @Injectable()
 export class LiquidityManagementPipelineService {
-  private readonly processPipelinesLock = new Lock(1800);
-  private readonly processOrdersLock = new Lock(1800);
-
   constructor(
     private readonly ruleRepo: LiquidityManagementRuleRepository,
     private readonly orderRepo: LiquidityManagementOrderRepository,
@@ -29,31 +26,17 @@ export class LiquidityManagementPipelineService {
   //*** JOBS ***//
 
   @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(1800)
   async processPipelines() {
-    if (!this.processPipelinesLock.acquire()) return;
-
-    try {
-      await this.startNewPipelines();
-      await this.checkRunningPipelines();
-    } catch (e) {
-      console.error('Error while processing liquidity management pipelines', e);
-    } finally {
-      this.processPipelinesLock.release();
-    }
+    await this.startNewPipelines();
+    await this.checkRunningPipelines();
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(1800)
   async processOrders() {
-    if (!this.processOrdersLock.acquire()) return;
-
-    try {
-      await this.startNewOrders();
-      await this.checkRunningOrders();
-    } catch (e) {
-      console.error('Error while processing liquidity management orders', e);
-    } finally {
-      this.processOrdersLock.release();
-    }
+    await this.startNewOrders();
+    await this.checkRunningOrders();
   }
 
   //*** PUBLIC API ***//

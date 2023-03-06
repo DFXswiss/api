@@ -12,8 +12,6 @@ import { LiquidityManagementPipeline } from '../entities/liquidity-management-pi
 
 @Injectable()
 export class LiquidityManagementService {
-  private readonly verifyRulesLock = new Lock(1800);
-
   constructor(
     private readonly ruleRepo: LiquidityManagementRuleRepository,
     private readonly pipelineRepo: LiquidityManagementPipelineRepository,
@@ -21,20 +19,13 @@ export class LiquidityManagementService {
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(1800)
   async verifyRules() {
-    if (!this.verifyRulesLock.acquire()) return;
+    const rules = await this.ruleRepo.find({ status: LiquidityManagementRuleStatus.ACTIVE });
+    const balances = await this.balanceService.refreshBalances(rules);
 
-    try {
-      const rules = await this.ruleRepo.find({ status: LiquidityManagementRuleStatus.ACTIVE });
-      const balances = await this.balanceService.refreshBalances(rules);
-
-      for (const rule of rules) {
-        await this.verifyRule(rule, balances);
-      }
-    } catch (e) {
-      console.error('Error in verifying the liquidity management rules', e);
-    } finally {
-      this.verifyRulesLock.release();
+    for (const rule of rules) {
+      await this.verifyRule(rule, balances);
     }
   }
 

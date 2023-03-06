@@ -30,7 +30,6 @@ class QueueItem<T> {
 }
 
 export class QueueHandler {
-  private readonly lock = new Lock(1200);
   private readonly queue: QueueItem<any>[] = [];
 
   constructor(scheduler: SchedulerRegistry, private readonly timeout?: number) {
@@ -44,15 +43,10 @@ export class QueueHandler {
     return item.wait();
   }
 
+  @Lock(1200)
   async doWork() {
-    if (!this.lock.acquire()) return;
-
-    try {
-      while (this.queue.length > 0) {
-        await this.queue.shift().doWork();
-      }
-    } catch {}
-
-    this.lock.release();
+    while (this.queue.length > 0) {
+      await this.queue.shift().doWork();
+    }
   }
 }

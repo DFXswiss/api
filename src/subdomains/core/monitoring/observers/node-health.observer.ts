@@ -29,8 +29,6 @@ type NodesState = NodePoolState[];
 // --------- //
 @Injectable()
 export class NodeHealthObserver extends MetricObserver<NodesState> {
-  private readonly lock = new Lock(360);
-
   constructor(
     readonly monitoringService: MonitoringService,
     private readonly nodeService: NodeService,
@@ -41,23 +39,16 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(360)
   async fetch(): Promise<NodesState> {
-    if (!this.lock.acquire()) return;
+    const previousState = this.$data.value ?? (await this.loadState());
+    let state = await this.getState(previousState);
 
-    try {
-      const previousState = this.$data.value ?? (await this.loadState());
-      let state = await this.getState(previousState);
+    state = await this.handleErrors(state, previousState);
 
-      state = await this.handleErrors(state, previousState);
+    this.emit(state);
 
-      this.emit(state);
-
-      return state;
-    } catch (e) {
-      console.error('Exception in node health observer:', e);
-    } finally {
-      this.lock.release();
-    }
+    return state;
   }
 
   private async getState(previousState: NodesState): Promise<NodesState> {

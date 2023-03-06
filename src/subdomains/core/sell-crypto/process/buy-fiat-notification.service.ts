@@ -14,8 +14,6 @@ import { BuyFiatAmlReasonPendingStates } from './buy-fiat.entity';
 
 @Injectable()
 export class BuyFiatNotificationService {
-  private readonly lock = new Lock(1800);
-
   constructor(
     private readonly buyFiatRepo: BuyFiatRepository,
     private readonly notificationService: NotificationService,
@@ -23,16 +21,13 @@ export class BuyFiatNotificationService {
   ) {}
 
   @Interval(60000)
+  @Lock(1800)
   async sendNotificationMails(): Promise<void> {
-    if (!this.lock.acquire()) return;
-
     await this.offRampInitiated();
     await this.cryptoExchangedToFiat();
     await this.fiatToBankTransferInitiated();
     await this.paybackToAddressInitiated();
     await this.pendingBuyFiat();
-
-    this.lock.release();
   }
 
   private async offRampInitiated(): Promise<void> {

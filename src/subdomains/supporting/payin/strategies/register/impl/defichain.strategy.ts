@@ -23,9 +23,6 @@ import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/acco
 
 @Injectable()
 export class DeFiChainStrategy extends RegisterStrategy {
-  private readonly checkEntriesLock = new Lock(7200);
-  private readonly convertTokensLock = new Lock(7200);
-
   constructor(
     private readonly assetService: AssetService,
     private readonly deFiChainService: PayInDeFiChainService,
@@ -77,31 +74,19 @@ export class DeFiChainStrategy extends RegisterStrategy {
   //*** JOBS ***//
 
   @Cron(CronExpression.EVERY_30_SECONDS)
+  @Lock(7200)
   async checkPayInEntries(): Promise<void> {
     if (Config.processDisabled(Process.PAY_IN)) return;
-    if (!this.checkEntriesLock.acquire()) return;
 
-    try {
-      await this.processNewPayInEntries();
-    } catch (e) {
-      console.error('Exception during DeFiChain pay in checks:', e);
-    } finally {
-      this.checkEntriesLock.release();
-    }
+    await this.processNewPayInEntries();
   }
 
   @Cron(CronExpression.EVERY_10_MINUTES)
+  @Lock(7200)
   async convertTokens(): Promise<void> {
     if (Config.processDisabled(Process.PAY_IN)) return;
-    if (!this.convertTokensLock.acquire()) return;
 
-    try {
-      await this.deFiChainService.convertTokens();
-    } catch (e) {
-      console.error('Exception during token conversion:', e);
-    } finally {
-      this.convertTokensLock.release();
-    }
+    await this.deFiChainService.convertTokens();
   }
 
   //*** HELPER METHODS ***//

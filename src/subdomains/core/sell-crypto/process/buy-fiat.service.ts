@@ -39,45 +39,29 @@ export class BuyFiatService {
     private readonly webhookService: WebhookService,
   ) {}
 
-  private readonly outputsLock = new Lock(7200);
-  private readonly registerLock = new Lock(1800);
-
   // --- CHECK BUY FIAT --- //
   @Cron(CronExpression.EVERY_10_MINUTES)
+  @Lock(7200)
   async addFiatOutputs(): Promise<void> {
-    if (!this.outputsLock.acquire()) return;
+    const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
+      relations: ['fiatOutput'],
+      where: { amlCheck: AmlCheck.PASS, fiatOutput: IsNull() },
+    });
 
-    try {
-      const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
-        relations: ['fiatOutput'],
-        where: { amlCheck: AmlCheck.PASS, fiatOutput: IsNull() },
+    for (const buyFiat of buyFiatsWithoutOutput) {
+      await this.fiatOutputService.create({
+        buyFiatId: buyFiat.id,
+        type: 'BuyFiat',
       });
-
-      for (const buyFiat of buyFiatsWithoutOutput) {
-        await this.fiatOutputService.create({
-          buyFiatId: buyFiat.id,
-          type: 'BuyFiat',
-        });
-      }
-    } catch (e) {
-      console.error('Exception during adding fiat outputs:', e);
-    } finally {
-      this.outputsLock.release();
     }
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(1800)
   async checkCryptoPayIn() {
     if ((await this.settingService.get('sell-crypto')) !== 'on') return;
-    if (!this.registerLock.acquire()) return;
 
-    try {
-      await this.buyFiatRegistrationService.registerSellPayIn();
-    } catch (e) {
-      console.error('Error during sell-crypto pay-in registration', e);
-    } finally {
-      this.registerLock.release();
-    }
+    await this.buyFiatRegistrationService.registerSellPayIn();
   }
 
   async update(id: number, dto: UpdateBuyFiatDto): Promise<BuyFiat> {

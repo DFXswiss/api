@@ -37,9 +37,6 @@ import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/
 
 @Injectable()
 export class BuyCryptoService {
-  private readonly registerLock = new Lock(1800);
-  private readonly processLock = new Lock(7200);
-
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyRepo: BuyRepository,
@@ -162,30 +159,22 @@ export class BuyCryptoService {
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(1800)
   async checkCryptoPayIn() {
     if ((await this.settingService.get('crypto-crypto')) !== 'on') return;
-    if (!this.registerLock.acquire()) return;
 
-    try {
-      await this.buyCryptoRegistrationService.registerCryptoPayIn();
-    } catch (e) {
-      console.error('Error during buy-crypto pay-in registration', e);
-    } finally {
-      this.registerLock.release();
-    }
+    await this.buyCryptoRegistrationService.registerCryptoPayIn();
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(7200)
   async process() {
     if ((await this.settingService.get('buy-process')) !== 'on') return;
-    if (!this.processLock.acquire()) return;
 
     await this.buyCryptoBatchService.batchTransactionsByAssets();
     await this.buyCryptoDexService.secureLiquidity();
     await this.buyCryptoOutService.payoutTransactions();
     await this.buyCryptoNotificationService.sendNotificationMails();
-
-    this.processLock.release();
   }
 
   async updateVolumes(): Promise<void> {
