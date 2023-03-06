@@ -154,7 +154,9 @@ export class BuyCryptoService {
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('cryptoRouteUser.userData', 'cryptoRouteUserData')
       .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('users.wallet', 'wallet')
       .leftJoinAndSelect('cryptoRouteUserData.users', 'cryptoRouteUsers')
+      .leftJoinAndSelect('cryptoRouteUsers.wallet', 'cryptoRouteWallet')
       .where(`buyCrypto.${key} = :param`, { param: value })
       .getOne();
   }

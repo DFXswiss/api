@@ -140,6 +140,7 @@ export class BuyFiatService {
       .leftJoinAndSelect('sell.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`buyFiat.${key} = :param`, { param: value })
       .getOne();
   }

@@ -64,6 +64,7 @@ export class UserService {
       .select('user')
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`user.${key} = :param`, { param: value })
       .getOne();
   }
