@@ -37,6 +37,9 @@ export class BuyCryptoFee extends IEntity {
   @Column({ type: 'float', nullable: true })
   actualPayoutFeePercent: number;
 
+  @Column({ type: 'float', nullable: true })
+  allowedTotalFeePercent: number;
+
   //*** FACTORY METHODS ***//
 
   static create(
