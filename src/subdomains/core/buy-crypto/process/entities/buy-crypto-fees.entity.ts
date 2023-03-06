@@ -1,3 +1,4 @@
+import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
@@ -42,32 +43,36 @@ export class BuyCryptoFee extends IEntity {
 
   //*** FACTORY METHODS ***//
 
-  static create(
-    estimatePurchaseFeeAmount: number | null,
-    estimatePayoutFeeAmount: number | null,
-    transaction: BuyCrypto,
-  ): BuyCryptoFee {
+  static create(transaction: BuyCrypto): BuyCryptoFee {
     const entity = new BuyCryptoFee();
 
     entity.buyCrypto = transaction;
     entity.feeReferenceAsset = transaction.outputReferenceAsset;
 
-    entity.estimatePurchaseFeeAmount = estimatePurchaseFeeAmount;
-    entity.estimatePurchaseFeePercent =
-      estimatePurchaseFeeAmount != null
-        ? Util.round(estimatePurchaseFeeAmount / transaction.outputReferenceAmount, 8)
-        : null;
+    const { configuredFeeLimit, defaultFeeLimit } = Config.buy.fee.limits;
 
-    entity.estimatePayoutFeeAmount = estimatePayoutFeeAmount;
-    entity.estimatePayoutFeePercent =
-      estimatePayoutFeeAmount != null
-        ? Util.round(estimatePayoutFeeAmount / transaction.outputReferenceAmount, 8)
-        : null;
+    entity.allowedTotalFeePercent = configuredFeeLimit ?? defaultFeeLimit;
 
     return entity;
   }
 
   //*** PUBLIC API ***//
+
+  addFeeEstimations(estimatePurchaseFeeAmount: number | null, estimatePayoutFeeAmount: number | null): this {
+    this.estimatePurchaseFeeAmount = estimatePurchaseFeeAmount;
+    this.estimatePurchaseFeePercent =
+      estimatePurchaseFeeAmount != null
+        ? Util.round(estimatePurchaseFeeAmount / this.buyCrypto.outputReferenceAmount, 8)
+        : null;
+
+    this.estimatePayoutFeeAmount = estimatePayoutFeeAmount;
+    this.estimatePayoutFeePercent =
+      estimatePayoutFeeAmount != null
+        ? Util.round(estimatePayoutFeeAmount / this.buyCrypto.outputReferenceAmount, 8)
+        : null;
+
+    return this;
+  }
 
   addActualPurchaseFee(purchaseFeeAmount: number | null, transaction: BuyCrypto): this {
     if (purchaseFeeAmount == null) {

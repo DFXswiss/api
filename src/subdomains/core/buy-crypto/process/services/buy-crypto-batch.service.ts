@@ -20,6 +20,7 @@ import { PriceResult, PriceRequest } from 'src/subdomains/supporting/pricing/int
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FeeLimitExceededException } from '../exceptions/fee-limit-exceeded.exception';
 import { Util } from 'src/shared/utils/util';
+import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
 
 @Injectable()
 export class BuyCryptoBatchService {
@@ -63,8 +64,9 @@ export class BuyCryptoBatchService {
       );
 
       const txWithAssets = await this.defineAssetPair(txInput);
+      const txWithFeeConstraints = this.setFeeConstraints(txWithAssets);
 
-      for (const tx of txWithAssets) {
+      for (const tx of txWithFeeConstraints) {
         await this.buyCryptoRepo.save(tx);
       }
     } catch (e) {
@@ -144,6 +146,15 @@ export class BuyCryptoBatchService {
     }
 
     return transactions.filter((tx) => tx.outputReferenceAsset && tx.outputAsset);
+  }
+
+  private setFeeConstraints(transactions: BuyCrypto[]): BuyCrypto[] {
+    for (const tx of transactions) {
+      const fee = BuyCryptoFee.create(tx);
+      tx.setFeeConstraints(fee);
+    }
+
+    return transactions;
   }
 
   private async getReferencePrices(txWithAssets: BuyCrypto[]): Promise<Price[]> {
@@ -257,7 +268,7 @@ export class BuyCryptoBatchService {
     for (const batch of batches) {
       try {
         const liquidity = await this.checkLiquidity(batch);
-        const nativePayoutFee = await this.checkPayoutFees(batch);
+        const nativePayoutFee = await this.checkPayoutFee(batch);
         const [purchaseFee, payoutFee] = await this.getFeeAmountsInBatchAsset(batch, liquidity, nativePayoutFee);
 
         await this.optimizeBatch(batch, liquidity, purchaseFee, payoutFee);
@@ -295,7 +306,7 @@ export class BuyCryptoBatchService {
     };
   }
 
-  private async checkPayoutFees(batch: BuyCryptoBatch): Promise<FeeResult> {
+  private async checkPayoutFee(batch: BuyCryptoBatch): Promise<FeeResult> {
     try {
       const request = await this.createPayoutFeeRequest(batch);
 
@@ -308,7 +319,6 @@ export class BuyCryptoBatchService {
   private async createPayoutFeeRequest(batch: BuyCryptoBatch): Promise<FeeRequest> {
     return {
       asset: batch.outputAsset,
-      quantityOfTransactions: batch.transactions.length,
     };
   }
 
@@ -364,12 +374,14 @@ export class BuyCryptoBatchService {
         reference: { availableAmount, maxPurchasableAmount },
       } = liquidity;
 
+      batch.optimizeByPayoutFeeEstimation(payoutFee);
+
       const [isPurchaseRequired, liquidityWarning] = batch.optimizeByLiquidity(availableAmount, maxPurchasableAmount);
 
       liquidityWarning && (await this.handleLiquidityWarning(batch));
       const effectivePurchaseFee = isPurchaseRequired ? purchaseFee : 0;
 
-      batch.checkAndRecordFeesEstimations(effectivePurchaseFee, payoutFee);
+      batch.checkByPurchaseFeeEstimation(effectivePurchaseFee);
 
       if (inputBatchLength !== batch.transactions.length) {
         console.log(

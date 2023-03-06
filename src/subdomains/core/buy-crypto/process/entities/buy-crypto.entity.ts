@@ -236,8 +236,14 @@ export class BuyCrypto extends IEntity {
     return this;
   }
 
-  assignBatch(batch: BuyCryptoBatch): this {
+  assignCandidateBatch(batch: BuyCryptoBatch): this {
     this.batch = batch;
+
+    return this;
+  }
+
+  setFeeConstraints(fee: BuyCryptoFee): this {
+    this.fee = fee;
 
     return this;
   }
@@ -249,8 +255,7 @@ export class BuyCrypto extends IEntity {
     return this;
   }
 
-  recordFee(fee: BuyCryptoFee): this {
-    this.fee = fee;
+  batched(): this {
     this.status = BuyCryptoStatus.BATCHED;
 
     return this;

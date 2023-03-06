@@ -44,7 +44,7 @@ export class BuyCryptoBatch extends IEntity {
   blockchain: Blockchain;
 
   addTransaction(tx: BuyCrypto): this {
-    tx.assignBatch(this);
+    tx.assignCandidateBatch(this);
 
     this.transactions = [...(this.transactions ?? []), tx];
 
@@ -87,6 +87,14 @@ export class BuyCryptoBatch extends IEntity {
     }
 
     return [true, false];
+  }
+
+  optimizeByPayoutFeeEstimation(estimatePayoutFeeAmount: number | null): this {
+    return this;
+  }
+
+  checkByPurchaseFeeEstimation(estimatePurchaseFeeAmount: number | null): this {
+    return this;
   }
 
   checkAndRecordFeesEstimations(
@@ -224,13 +232,12 @@ export class BuyCryptoBatch extends IEntity {
 
   private recordFees(estimatePurchaseFeeAmount: number | null, estimatePayoutFeeAmount: number | null): void {
     this.transactions.forEach((tx) => {
-      const fee = BuyCryptoFee.create(
+      tx.fee.addFeeEstimations(
         estimatePurchaseFeeAmount != null ? this.calculateFeeShare(tx, estimatePurchaseFeeAmount) : null,
         estimatePayoutFeeAmount != null ? this.calculateFeeShare(tx, estimatePayoutFeeAmount) : null,
-        tx,
       );
 
-      tx.recordFee(fee);
+      tx.batched();
     });
   }
 
