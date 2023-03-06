@@ -176,7 +176,7 @@ export class DexDeFiChainService {
   }
 
   async getAssetAvailability(asset: Asset): Promise<number> {
-    const pendingOrders = (await this.liquidityOrderRepo.find({ isReady: true, isComplete: false })).filter(
+    const pendingOrders = (await this.liquidityOrderRepo.find({ isComplete: false })).filter(
       (o) => o.targetAsset.dexName === asset.dexName && o.targetAsset.blockchain === Blockchain.DEFICHAIN,
     );
     const pendingAmount = Util.sumObj<LiquidityOrder>(pendingOrders, 'targetAmount');
@@ -194,9 +194,7 @@ export class DexDeFiChainService {
   // *** HELPER METHODS *** //
 
   private async getTargetAmount(sourceAsset: Asset, sourceAmount: number, targetAsset: Asset): Promise<number> {
-    return targetAsset.id === sourceAsset.id
-      ? sourceAmount
-      : this.testSwap(sourceAsset, targetAsset, sourceAmount);
+    return targetAsset.id === sourceAsset.id ? sourceAmount : this.testSwap(sourceAsset, targetAsset, sourceAmount);
   }
 
   private async checkAssetAvailability(asset: Asset, requiredAmount: number): Promise<void> {

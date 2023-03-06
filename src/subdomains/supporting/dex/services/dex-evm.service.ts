@@ -58,7 +58,7 @@ export abstract class DexEvmService {
   }
 
   private async getPendingAmount(assetName: string): Promise<number> {
-    const pendingOrders = (await this.liquidityOrderRepo.find({ isReady: true, isComplete: false })).filter(
+    const pendingOrders = (await this.liquidityOrderRepo.find({ isComplete: false })).filter(
       (o) => o.targetAsset.dexName === assetName && o.targetAsset.blockchain === this.blockchain,
     );
 
