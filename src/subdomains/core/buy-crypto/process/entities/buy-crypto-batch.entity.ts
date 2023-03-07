@@ -5,7 +5,6 @@ import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { AbortBatchCreationException } from '../exceptions/abort-batch-creation.exception';
-import { BuyCryptoFee } from './buy-crypto-fees.entity';
 import { BuyCrypto } from './buy-crypto.entity';
 import { FeeLimitExceededException } from '../exceptions/fee-limit-exceeded.exception';
 
@@ -90,19 +89,31 @@ export class BuyCryptoBatch extends IEntity {
   }
 
   optimizeByPayoutFeeEstimation(estimatePayoutFeeAmount: number | null): this {
+    const reBatchTransactions = [];
+
+    for (const tx of this.transactions) {
+      const feeRatio = Util.round(estimatePayoutFeeAmount / tx.outputReferenceAmount, 8);
+
+      if (feeRatio > tx.fee.allowedTotalFeePercent) continue;
+
+      tx.fee.addPayoutFeeEstimation(estimatePayoutFeeAmount);
+      reBatchTransactions.push(tx);
+    }
+
+    if (reBatchTransactions.length === 0) {
+      throw new Error(
+        `Cannot re-batch transactions by payout fee, no transaction exceeds the fee limit. Out asset: ${this.outputAsset.uniqueName}`,
+      );
+    }
+
+    this.overwriteTransactions(reBatchTransactions);
+
     return this;
   }
 
   checkByPurchaseFeeEstimation(estimatePurchaseFeeAmount: number | null): this {
-    return this;
-  }
-
-  checkAndRecordFeesEstimations(
-    estimatePurchaseFeeAmount: number | null,
-    estimatePayoutFeeAmount: number | null,
-  ): this {
-    this.checkFees(estimatePurchaseFeeAmount, estimatePayoutFeeAmount);
-    this.recordFees(estimatePurchaseFeeAmount, estimatePayoutFeeAmount);
+    this.checkTotalFees(estimatePurchaseFeeAmount);
+    this.recordPurchaseFees(estimatePurchaseFeeAmount);
 
     return this;
   }
@@ -216,10 +227,15 @@ export class BuyCryptoBatch extends IEntity {
     this.outputReferenceAmount = 0;
   }
 
-  private checkFees(purchaseFeeAmount: number | null, payoutFeeAmount: number | null): void {
+  private checkTotalFees(purchaseFeeAmount: number | null): void {
+    const payoutFeeAmount = Util.sumObj(
+      this.transactions.map((tx) => tx.fee),
+      'estimatePayoutFeeAmount',
+    );
     const feeRatio = Util.round((purchaseFeeAmount + payoutFeeAmount) / this.outputReferenceAmount, 8);
     const { configuredFeeLimit, defaultFeeLimit } = Config.buy.fee.limits;
 
+    console.log('RATION', feeRatio);
     if (feeRatio > (configuredFeeLimit ?? defaultFeeLimit)) {
       throw new FeeLimitExceededException(
         `BuyCryptoBatch fee limit exceeded. Output Asset: ${this.outputAsset.dexName}. Fee ratio: ${Util.round(
@@ -230,11 +246,10 @@ export class BuyCryptoBatch extends IEntity {
     }
   }
 
-  private recordFees(estimatePurchaseFeeAmount: number | null, estimatePayoutFeeAmount: number | null): void {
+  private recordPurchaseFees(estimatePurchaseFeeAmount: number | null): void {
     this.transactions.forEach((tx) => {
-      tx.fee.addFeeEstimations(
+      tx.fee.addPurchaseFeeEstimation(
         estimatePurchaseFeeAmount != null ? this.calculateFeeShare(tx, estimatePurchaseFeeAmount) : null,
-        estimatePayoutFeeAmount != null ? this.calculateFeeShare(tx, estimatePayoutFeeAmount) : null,
       );
 
       tx.batched();

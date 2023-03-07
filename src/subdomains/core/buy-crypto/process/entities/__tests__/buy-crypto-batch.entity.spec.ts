@@ -193,37 +193,36 @@ describe('BuyCryptoBatch', () => {
     });
   });
 
-  describe('#checkAndRecordFeesEstimations(...)', () => {
+  describe('#optimizeByPayoutFeeEstimation(...)', () => {
+    it('kicks out transactions if fee is too high', () => {
+      const batch = createDiverseBuyCryptoBatch();
+
+      expect(batch.transactions.length).toBe(3);
+
+      batch.optimizeByPayoutFeeEstimation(0.01);
+
+      expect(batch.transactions.length).toBe(2);
+    });
+  });
+
+  describe('#checkByPurchaseFeeEstimation(...)', () => {
     it('aborts batch creation if fee is too high', () => {
       const batch = createDiverseBuyCryptoBatch();
 
-      const testCall = () => batch.checkAndRecordFeesEstimations(5, 3);
+      const testCall = () => batch.checkByPurchaseFeeEstimation(8);
 
       expect(testCall).toThrow();
       expect(testCall).toThrowError('BuyCryptoBatch fee limit exceeded');
     });
 
-    it('adds BuyCryptoFee instances to transactions if fee is acceptable', () => {
-      const batch = createDiverseBuyCryptoBatch();
-
-      batch.checkAndRecordFeesEstimations(0.03, 0.03);
-
-      expect(batch.transactions[0].fee).toBeInstanceOf(BuyCryptoFee);
-      expect(batch.transactions[1].fee).toBeInstanceOf(BuyCryptoFee);
-      expect(batch.transactions[2].fee).toBeInstanceOf(BuyCryptoFee);
-    });
-
     it('assigns fee proportions by transaction volume', () => {
       const batch = createDiverseBuyCryptoBatch();
 
-      batch.checkAndRecordFeesEstimations(0.03, 0.03);
+      batch.checkByPurchaseFeeEstimation(0.00003);
 
-      expect(batch.transactions[0].fee.estimatePurchaseFeeAmount).toBe(0.02702703);
-      expect(batch.transactions[0].fee.estimatePayoutFeeAmount).toBe(0.02702703);
-      expect(batch.transactions[1].fee.estimatePurchaseFeeAmount).toBe(0.0027027);
-      expect(batch.transactions[1].fee.estimatePayoutFeeAmount).toBe(0.0027027);
-      expect(batch.transactions[2].fee.estimatePurchaseFeeAmount).toBe(0.00027027);
-      expect(batch.transactions[2].fee.estimatePayoutFeeAmount).toBe(0.00027027);
+      expect(batch.transactions[0].fee.estimatePurchaseFeeAmount).toBe(0.00002703);
+      expect(batch.transactions[1].fee.estimatePurchaseFeeAmount).toBe(0.0000027);
+      expect(batch.transactions[2].fee.estimatePurchaseFeeAmount).toBe(0.00000027);
     });
   });
 

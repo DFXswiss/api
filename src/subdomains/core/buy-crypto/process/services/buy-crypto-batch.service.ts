@@ -93,6 +93,7 @@ export class BuyCryptoBatchService {
           'cryptoRoute',
           'cryptoRoute.user',
           'cryptoRoute.asset',
+          'fee',
         ],
       });
 

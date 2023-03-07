@@ -152,7 +152,6 @@ export abstract class EvmStrategy extends SendStrategy {
   private async createFeeRequest(asset: Asset): Promise<FeeRequest> {
     return {
       asset,
-      quantityOfTransactions: 1,
     };
   }
 

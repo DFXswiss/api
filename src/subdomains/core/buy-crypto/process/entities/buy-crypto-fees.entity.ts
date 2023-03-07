@@ -58,6 +58,26 @@ export class BuyCryptoFee extends IEntity {
 
   //*** PUBLIC API ***//
 
+  addPayoutFeeEstimation(estimatedPayoutFeeAmount: number | null): this {
+    this.estimatePayoutFeeAmount = estimatedPayoutFeeAmount;
+    this.estimatePayoutFeePercent =
+      estimatedPayoutFeeAmount != null
+        ? Util.round(estimatedPayoutFeeAmount / this.buyCrypto.outputReferenceAmount, 8)
+        : null;
+
+    return this;
+  }
+
+  addPurchaseFeeEstimation(estimatedPurchaseFeeAmount: number | null): this {
+    this.estimatePurchaseFeeAmount = estimatedPurchaseFeeAmount;
+    this.estimatePurchaseFeePercent =
+      estimatedPurchaseFeeAmount != null
+        ? Util.round(estimatedPurchaseFeeAmount / this.buyCrypto.outputReferenceAmount, 8)
+        : null;
+
+    return this;
+  }
+
   addFeeEstimations(estimatePurchaseFeeAmount: number | null, estimatePayoutFeeAmount: number | null): this {
     this.estimatePurchaseFeeAmount = estimatePurchaseFeeAmount;
     this.estimatePurchaseFeePercent =
