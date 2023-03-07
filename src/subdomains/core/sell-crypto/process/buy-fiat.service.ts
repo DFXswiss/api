@@ -81,7 +81,9 @@ export class BuyFiatService {
   }
 
   async update(id: number, dto: UpdateBuyFiatDto): Promise<BuyFiat> {
-    let entity = await this.buyFiatRepo.findOne(id, { relations: ['sell', 'sell.user', 'sell.user.wallet'] });
+    let entity = await this.buyFiatRepo.findOne(id, {
+      relations: ['sell', 'sell.user', 'sell.user.wallet', 'sell.user.userData'],
+    });
     if (!entity) throw new NotFoundException('Buy fiat not found');
 
     const sellIdBefore = entity.sell?.id;
@@ -108,8 +110,8 @@ export class BuyFiatService {
     entity = await this.buyFiatRepo.save({ ...update, ...entity, ...amlUpdate });
 
     // activate user
-    if (entity.amlCheck === AmlCheck.PASS) {
-      await this.userService.activateUser(entity.sell?.user);
+    if (entity.amlCheck === AmlCheck.PASS && entity.sell?.user) {
+      await this.userService.activateUser(entity.sell.user);
     }
 
     // payment webhook
@@ -138,6 +140,7 @@ export class BuyFiatService {
       .leftJoinAndSelect('sell.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`buyFiat.${key} = :param`, { param: value })
       .getOne();
   }
@@ -171,6 +174,7 @@ export class BuyFiatService {
     return this.buyFiatRepo.find({
       where: { sell: { user: { id: In(userIds) } } },
       relations: ['cryptoInput', 'bankTx', 'sell', 'sell.user', 'fiatOutput', 'fiatOutput.bankTx'],
+      order: { id: 'DESC' },
     });
   }
 
@@ -261,7 +265,8 @@ export class BuyFiatService {
   async getTransactions(dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<TransactionDetailsDto[]> {
     const buyFiats = await this.buyFiatRepo.find({
       where: { outputDate: Between(dateFrom, dateTo), amlCheck: AmlCheck.PASS },
-      relations: ['cryptoInput'],
+      relations: ['cryptoInput', 'cryptoInput.asset'],
+      loadEagerRelations: false,
     });
 
     return buyFiats.map((v) => ({

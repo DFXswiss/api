@@ -478,6 +478,11 @@ export class Configuration {
     clientSecret: process.env.AZURE_CLIENT_SECRET,
   };
 
+  request = {
+    knownIps: process.env.REQUEST_KNOWN_IPS?.split(',') ?? [],
+    limitCheck: process.env.REQUEST_LIMIT_CHECK === 'true',
+  };
+
   // --- GETTERS --- //
   get kraken(): Partial<Exchange> {
     return {

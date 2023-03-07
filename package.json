@@ -41,6 +41,7 @@
     "@nestjs/platform-express": "^8.3.1",
     "@nestjs/schedule": "^1.0.2",
     "@nestjs/swagger": "^5.2.0",
+    "@nestjs/throttler": "^4.0.0",
     "@nestjs/typeorm": "^8.0.3",
     "@supercharge/request-ip": "^1.2.0",
     "applicationinsights": "^2.2.1",

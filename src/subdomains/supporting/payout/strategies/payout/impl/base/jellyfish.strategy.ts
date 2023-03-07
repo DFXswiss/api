@@ -20,10 +20,10 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
 
   async doPayout(orders: PayoutOrder[]): Promise<void> {
     try {
-      const groups = this.groupOrdersByContext(orders);
+      const groups = Util.groupBy<PayoutOrder, PayoutOrderContext>(orders, 'context');
 
-      for (const [context, group] of [...groups.entries()]) {
-        if (!(await this.jellyfishService.isHealthy(context))) return;
+      for (const [context, group] of groups.entries()) {
+        if (!(await this.jellyfishService.isHealthy(context))) continue;
 
         await this.doPayoutForContext(context, group);
       }
@@ -32,43 +32,58 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
     }
   }
 
-  async checkPayoutCompletionData(order: PayoutOrder): Promise<void> {
+  async checkPayoutCompletionData(orders: PayoutOrder[]): Promise<void> {
     try {
-      const [isComplete, totalPayoutFee] = await this.jellyfishService.getPayoutCompletionData(
-        order.context,
-        order.payoutTxId,
-      );
+      const groups = Util.groupBy<PayoutOrder, PayoutOrderContext>(orders, 'context');
 
-      if (isComplete) {
-        const orderPayoutFee = await this.calculateOrderPayoutFee(order, totalPayoutFee);
+      for (const [context, group] of groups.entries()) {
+        if (!(await this.jellyfishService.isHealthy(context))) continue;
+
+        await this.checkPayoutCompletionDataForContext(context, group);
+      }
+    } catch (e) {
+      console.error('Error while checking payout completion of DeFiChain payout orders', e);
+    }
+  }
+
+  protected abstract doPayoutForContext(context: PayoutOrderContext, group: PayoutOrder[]): Promise<void>;
+
+  async checkPayoutCompletionDataForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
+    const groups = Util.groupBy<PayoutOrder, string>(orders, 'payoutTxId');
+
+    for (const [payoutTxId, group] of groups.entries()) {
+      try {
+        await this.checkPayoutCompletionDataForTx(context, group, payoutTxId);
+      } catch (e) {
+        console.error(
+          `Error while checking payout completion data of payout orders for context ${context} and payoutTxId ${payoutTxId}`,
+          group.map((o) => o.id),
+          e,
+        );
+        continue;
+      }
+    }
+  }
+
+  private async checkPayoutCompletionDataForTx(
+    context: PayoutOrderContext,
+    orders: PayoutOrder[],
+    payoutTxId: string,
+  ): Promise<void> {
+    const [isComplete, totalPayoutFee] = await this.jellyfishService.getPayoutCompletionData(context, payoutTxId);
+    const totalPayoutAmount = Util.sumObj<PayoutOrder>(orders, 'amount');
+
+    if (isComplete) {
+      for (const order of orders) {
+        const orderPayoutFee = this.calculateOrderPayoutFee(order, totalPayoutFee, totalPayoutAmount);
 
         order.complete();
         order.recordPayoutFee(await this.feeAsset(), orderPayoutFee);
 
         await this.payoutOrderRepo.save(order);
       }
-    } catch (e) {
-      console.error(`Error in checking DeFiChain payout order completion. Order ID: ${order.id}`, e);
     }
   }
-
-  protected groupOrdersByContext(orders: PayoutOrder[]): Map<PayoutOrderContext, PayoutOrder[]> {
-    const groups = new Map<PayoutOrderContext, PayoutOrder[]>();
-
-    orders.forEach((order) => {
-      const existingGroup = groups.get(order.context);
-
-      if (existingGroup) {
-        existingGroup.push(order);
-      } else {
-        groups.set(order.context, [order]);
-      }
-    });
-
-    return groups;
-  }
-
-  protected abstract doPayoutForContext(context: PayoutOrderContext, group: PayoutOrder[]): Promise<void>;
 
   protected createPayoutGroups(orders: PayoutOrder[], maxGroupSize: number): PayoutOrder[][] {
     const isSameAsset = this.validateIfOrdersOfSameAsset(orders);
@@ -168,11 +183,7 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
     return orders.every((order, i) => (orders[i + 1] ? order.asset.dexName === orders[i + 1].asset.dexName : true));
   }
 
-  private async calculateOrderPayoutFee(order: PayoutOrder, totalPayoutFee: number): Promise<number> {
-    const ordersWithSamePayoutTxId = await this.payoutOrderRepo.find({ payoutTxId: order.payoutTxId });
-
-    const totalOrdersAmount = Util.sumObj<PayoutOrder>(ordersWithSamePayoutTxId, 'amount');
-
-    return Util.round((totalPayoutFee / totalOrdersAmount) * order.amount, 8);
+  private calculateOrderPayoutFee(order: PayoutOrder, totalPayoutFee: number, totalPayoutAmount: number): number {
+    return Util.round((totalPayoutFee / totalPayoutAmount) * order.amount, 8);
   }
 }

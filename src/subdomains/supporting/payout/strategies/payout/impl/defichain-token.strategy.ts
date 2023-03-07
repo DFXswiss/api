@@ -33,7 +33,7 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
   protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
     const tokenGroups = this.groupOrdersByTokens(orders);
 
-    for (const [tokenName, tokenGroup] of [...tokenGroups.entries()]) {
+    for (const [tokenName, tokenGroup] of tokenGroups.entries()) {
       const payoutGroups = this.createPayoutGroups(tokenGroup, 10);
 
       for (const group of payoutGroups) {

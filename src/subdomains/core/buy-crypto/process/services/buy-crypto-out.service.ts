@@ -3,12 +3,11 @@ import { In } from 'typeorm';
 import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repository';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoBatchStatus, BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
-import { BuyCrypto } from '../entities/buy-crypto.entity';
+import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { BuyCryptoPricingService } from './buy-crypto-pricing.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
-import { DuplicatedEntryException } from 'src/subdomains/supporting/payout/exceptions/duplicated-entry.exception';
 import { PayoutRequest, FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
@@ -34,16 +33,22 @@ export class BuyCryptoOutService {
       }
 
       for (const batch of batches) {
-        try {
-          await this.checkCompletion(batch);
-        } catch (e) {
-          console.error(`Error on checking pervious payout for a batch ID: ${batch.id}`, e);
-          continue;
-        }
+        if (batch.status === BuyCryptoBatchStatus.PAYING_OUT) {
+          try {
+            await this.checkCompletion(batch);
+          } catch (e) {
+            console.error(`Error on checking pervious payout for a batch ID: ${batch.id}`, e);
+            continue;
+          }
 
-        // TODO - refactor process so not rely on DuplicatedEntryException when retrying half-successful batch
-        if (!(batch.status === BuyCryptoBatchStatus.SECURED || batch.status === BuyCryptoBatchStatus.PAYING_OUT)) {
-          continue;
+          /**
+           * @warning
+           * if a status is still PAYING_OUT after #checkCompletion(...), the batch should go through the further process
+           * for retrying possible failed transactions
+           */
+          if (batch.status !== BuyCryptoBatchStatus.PAYING_OUT) {
+            continue;
+          }
         }
 
         batch.payingOut();
@@ -51,15 +56,11 @@ export class BuyCryptoOutService {
 
         const successfulRequests = [];
 
-        for (const transaction of batch.transactions) {
+        for (const transaction of batch.transactions.filter((t) => t.status === BuyCryptoStatus.IN_PROGRESS)) {
           try {
             await this.doPayout(transaction);
             successfulRequests.push(transaction);
           } catch (e) {
-            if (e instanceof DuplicatedEntryException) {
-              continue;
-            }
-
             console.error(`Failed to initiate buy-crypto payout. Transaction ID: ${transaction.id}`);
             // continue with next transaction in case payout initiation failed
             continue;
@@ -105,6 +106,9 @@ export class BuyCryptoOutService {
     };
 
     await this.payoutService.doPayout(request);
+
+    transaction.payingOut();
+    await this.buyCryptoRepo.save(transaction);
   }
 
   private async checkCompletion(batch: BuyCryptoBatch) {

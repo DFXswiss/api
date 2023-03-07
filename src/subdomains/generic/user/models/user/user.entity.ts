@@ -13,6 +13,7 @@ import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 export enum UserStatus {
   NA = 'NA',
   ACTIVE = 'Active',
+  BLOCKED = 'Blocked',
 }
 
 @Entity()
@@ -106,7 +107,8 @@ export class User extends IEntity {
   userData: UserData;
 
   // --- REF --- //
-  @Column({ length: 256, unique: true })
+  @Column({ length: 256, nullable: true })
+  @Index({ unique: true, where: 'ref IS NOT NULL' })
   ref: string;
 
   @Column({ type: 'float', default: 0.25 })
@@ -129,4 +131,7 @@ export class User extends IEntity {
 
   @OneToMany(() => StakingRefReward, (reward) => reward.user)
   stakingRefRewards: StakingRefReward[];
+
+  @Column({ length: 'MAX', nullable: true })
+  comment: string;
 }

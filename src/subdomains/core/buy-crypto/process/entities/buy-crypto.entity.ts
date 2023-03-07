@@ -18,6 +18,7 @@ import { Buy } from '../../routes/buy/buy.entity';
 export enum BuyCryptoStatus {
   WAITING_FOR_LOWER_FEE = 'WaitingForLowerFee',
   IN_PROGRESS = 'InProgress',
+  PAYING_OUT = 'PayingOut',
   COMPLETE = 'Complete',
 }
 
@@ -241,6 +242,12 @@ export class BuyCrypto extends IEntity {
   recordFee(fee: BuyCryptoFee): this {
     this.fee = fee;
     this.status = BuyCryptoStatus.IN_PROGRESS;
+
+    return this;
+  }
+
+  payingOut(): this {
+    this.status = BuyCryptoStatus.PAYING_OUT;
 
     return this;
   }

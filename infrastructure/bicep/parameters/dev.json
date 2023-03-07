@@ -298,6 +298,12 @@
     },
     "taliumApiKey": {
       "value": "xxx"
+    },
+    "knownIps": {
+      "value": "xxx"
+    },
+    "limitCheck": {
+      "value": "true"
     }
   }
 }

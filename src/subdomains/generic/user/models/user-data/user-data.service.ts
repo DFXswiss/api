@@ -76,6 +76,7 @@ export class UserDataService {
       .createQueryBuilder('userData')
       .select('userData')
       .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`userData.${key} = :param`, { param: value })
       .getOne();
   }
@@ -305,6 +306,8 @@ export class UserDataService {
 
     // activate users
     if (master.hasActiveUser) {
+      await this.userDataRepo.activateUserData(master);
+
       for (const user of master.users) {
         await this.userRepo.activateUser(user);
       }

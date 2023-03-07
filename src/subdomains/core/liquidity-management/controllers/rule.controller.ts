@@ -4,6 +4,7 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { LiquidityManagementRuleCreationDto } from '../dto/input/liquidity-management-rule-creation.dto';
+import { LiquidityManagementRuleSettingsDto } from '../dto/input/liquidity-management-settings.dto';
 import { LiquidityManagementRuleOutputDto } from '../dto/output/liquidity-management-rule-output.dto';
 import { LiquidityManagementRuleService } from '../services/liquidity-management-rule.service';
 
@@ -53,5 +54,16 @@ export class LiquidityManagementRuleController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async reactivateRule(@Param('id') id: number): Promise<LiquidityManagementRuleOutputDto> {
     return this.service.reactivateRule(id);
+  }
+
+  @Patch(':id/settings')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async setReactivationTime(
+    @Param('id') id: number,
+    @Body() dto: LiquidityManagementRuleSettingsDto,
+  ): Promise<LiquidityManagementRuleOutputDto> {
+    return this.service.updateRuleSettings(id, dto);
   }
 }
