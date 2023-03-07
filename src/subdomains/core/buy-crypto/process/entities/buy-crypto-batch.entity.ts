@@ -267,7 +267,7 @@ export class BuyCryptoBatch extends IEntity {
   }
 
   private fixRoundingMismatch(): void {
-    this.transactions = Util.fixRoundingMismatch(this.transactions, 'outputAmount', this.outputAmount, 16);
+    this.transactions = Util.fixRoundingMismatch(this.transactions, 'outputAmount', this.outputAmount, 8);
   }
 
   private sortTransactionsAsc(): BuyCrypto[] {

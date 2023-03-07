@@ -4,7 +4,6 @@ import { Util } from 'src/shared/utils/util';
 import { createCustomUser } from 'src/subdomains/generic/user/models/user/__mocks__/user.entity.mock';
 import { AbortBatchCreationException } from '../../exceptions/abort-batch-creation.exception';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../buy-crypto-batch.entity';
-import { BuyCryptoFee } from '../buy-crypto-fees.entity';
 import { createCustomBuyCryptoBatch, createDefaultBuyCryptoBatch } from '../__mocks__/buy-crypto-batch.entity.mock';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-crypto.entity.mock';
 
@@ -321,7 +320,7 @@ describe('BuyCryptoBatch', () => {
       ).toBe(0.00001105);
     });
 
-    it('throws error if sum of tx outputAmount and batch total outputAmount differs more than 0.00001', () => {
+    it('throws error if sum of tx outputAmount and batch total outputAmount differs more than threshold', () => {
       const transactionA = createCustomBuyCrypto({ outputAmount: undefined, outputReferenceAmount: 10 });
       const transactionB = createCustomBuyCrypto({ outputAmount: undefined, outputReferenceAmount: 10 });
       const entity = createCustomBuyCryptoBatch({
@@ -333,7 +332,7 @@ describe('BuyCryptoBatch', () => {
       const testCall = () => entity.secure(30, 0);
 
       expect(testCall).toThrow();
-      expect(testCall).toThrowError('Output amount mismatch is too high. Mismatch: 10 BTC');
+      expect(testCall).toThrowError('Mismatch is too high. Mismatch: 10');
     });
 
     it('returns instance of BuyCryptoBatch', () => {
