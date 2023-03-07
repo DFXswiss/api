@@ -10,6 +10,9 @@ class TotalVolumeStatistic {
 
 class TotalRewardsStatistic {
   @ApiProperty()
+  staking: number;
+
+  @ApiProperty()
   ref: number;
 }
 

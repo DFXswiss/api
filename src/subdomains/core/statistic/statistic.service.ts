@@ -10,7 +10,7 @@ import { SettingStatus, StatisticDto } from './dto/statistic.dto';
 
 @Injectable()
 export class StatisticService implements OnModuleInit {
-  private statistic: any;
+  private statistic: StatisticDto;
 
   constructor(
     private buyService: BuyService,
@@ -32,6 +32,7 @@ export class StatisticService implements OnModuleInit {
           sell: Util.round(await this.sellService.getTotalVolume(), Config.defaultVolumeDecimal),
         },
         totalRewards: {
+          staking: 1211040.03,
           ref: Util.round(await this.userService.getTotalRefRewards(), Config.defaultVolumeDecimal),
         },
         status: await this.getStatus(),
