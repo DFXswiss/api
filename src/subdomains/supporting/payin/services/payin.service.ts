@@ -44,6 +44,7 @@ export class PayInService {
     return this.payInRepository.find({
       where: { route: { user: { id: In(userIds) } } },
       relations: ['route', 'route.user'],
+      order: { id: 'DESC' },
     });
   }
 

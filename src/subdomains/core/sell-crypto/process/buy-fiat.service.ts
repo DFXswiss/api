@@ -174,6 +174,7 @@ export class BuyFiatService {
     return this.buyFiatRepo.find({
       where: { sell: { user: { id: In(userIds) } } },
       relations: ['cryptoInput', 'bankTx', 'sell', 'sell.user', 'fiatOutput', 'fiatOutput.bankTx'],
+      order: { id: 'DESC' },
     });
   }
 
