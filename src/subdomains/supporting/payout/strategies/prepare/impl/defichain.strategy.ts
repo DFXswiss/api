@@ -113,7 +113,7 @@ export class DeFiChainStrategy extends PrepareStrategy {
     orders: PayoutOrder[],
     transferTxId: string,
   ): Promise<void> {
-    const isTransferComplete = await this.dexService.checkTransferCompletion(transferTxId);
+    const isTransferComplete = await this.dexService.checkTransferCompletion(transferTxId, Blockchain.DEFICHAIN);
 
     if (isTransferComplete) {
       for (const order of orders) {

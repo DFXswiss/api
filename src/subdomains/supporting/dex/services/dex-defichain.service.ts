@@ -103,8 +103,8 @@ export class DexDeFiChainService {
     return this.#dexClient.addPoolLiquidity(Config.blockchain.default.dexWalletAddress, poolPair);
   }
 
-  async transferLiquidity(addressFrom: string, addressTo: string, asset: string, amount: number): Promise<string> {
-    return this.#dexClient.sendToken(addressFrom, addressTo, asset, amount);
+  async transferLiquidity(addressTo: string, asset: string, amount: number): Promise<string> {
+    return this.#dexClient.sendToken(this.dexWalletAddress, addressTo, asset, amount);
   }
 
   async transferMinimalUtxo(address: string): Promise<string> {

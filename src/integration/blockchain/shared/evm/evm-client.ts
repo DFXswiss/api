@@ -110,7 +110,7 @@ export abstract class EvmClient {
   async sendRawTransactionFromDex(
     request: ethers.providers.TransactionRequest,
   ): Promise<ethers.providers.TransactionResponse> {
-    return this.sendRawTransaction(this.#wallet, request);
+    return this.sendRawTransaction(this.wallet, request);
   }
 
   async sendRawTransaction(

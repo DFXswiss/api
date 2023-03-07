@@ -23,11 +23,10 @@ import {
 } from '../interfaces';
 import { PurchaseLiquidityStrategies } from '../strategies/purchase-liquidity/purchase-liquidity.facade';
 import { SellLiquidityStrategies } from '../strategies/sell-liquidity/sell-liquidity.facade';
-import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { SupplementaryStrategies } from '../strategies/supplementary/supplementary.facade';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { TransferNotRequiredException } from '../exceptions/transfer-not-required.exception';
 
 @Injectable()
 export class DexService {
