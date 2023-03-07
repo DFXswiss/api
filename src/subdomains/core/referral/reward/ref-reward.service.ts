@@ -72,6 +72,7 @@ export class RefRewardService {
     return this.rewardRepo.find({
       where: { user: { id: In(userIds) } },
       relations: ['user'],
+      order: { id: 'DESC' },
     });
   }
 

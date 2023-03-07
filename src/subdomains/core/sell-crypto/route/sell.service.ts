@@ -44,6 +44,7 @@ export class SellService {
       .leftJoinAndSelect('sell.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`sell.${key} = :param`, { param: value })
       .getOne();
   }

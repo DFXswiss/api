@@ -4,15 +4,16 @@ import { Lock } from 'src/shared/utils/lock';
 import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../entities/payout-order.entity';
 import { PayoutOrderFactory } from '../factories/payout-order.factory';
 import { PayoutOrderRepository } from '../repositories/payout-order.repository';
-import { DuplicatedEntryException } from '../exceptions/duplicated-entry.exception';
 import { PayoutLogService } from './payout-log.service';
 import { FeeRequest, FeeResult, PayoutRequest } from '../interfaces';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
-import { PayoutStrategiesFacade, PayoutStrategyAlias } from '../strategies/payout/payout.facade';
+import { PayoutStrategiesFacade } from '../strategies/payout/payout.facade';
 import { PrepareStrategiesFacade } from '../strategies/prepare/prepare.facade';
 import { Util } from 'src/shared/utils/util';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { IsNull, Not } from 'typeorm';
 
 @Injectable()
 export class PayoutService {
@@ -31,23 +32,12 @@ export class PayoutService {
 
   async doPayout(request: PayoutRequest): Promise<void> {
     try {
-      const { context, correlationId } = request;
-
-      const existingOrder = await this.payoutOrderRepo.findOne({ context, correlationId });
-
-      if (existingOrder) {
-        throw new DuplicatedEntryException(
-          `Payout order for context ${context} and correlationId ${correlationId} already exists. Order ID: ${existingOrder.id}`,
-        );
-      }
-
       const order = this.payoutOrderFactory.createOrder(request);
 
       await this.payoutOrderRepo.save(order);
     } catch (e) {
-      if (e instanceof DuplicatedEntryException) throw e;
-
       console.error(e);
+
       throw new Error(
         `Error while trying to create PayoutOrder for context ${request.context} and correlationId: ${request.correlationId}`,
       );
@@ -99,69 +89,88 @@ export class PayoutService {
   }
 
   private async checkPreparationCompletion(): Promise<void> {
-    const orders = await this.payoutOrderRepo.find({ status: PayoutOrderStatus.PREPARATION_PENDING });
-    const confirmedOrders = [];
+    const orders = await this.payoutOrderRepo.find({
+      status: PayoutOrderStatus.PREPARATION_PENDING,
+      transferTxId: Not(IsNull()),
+    });
+    const groups = this.groupByStrategies(orders, this.prepareStrategies.getPrepareStrategyAlias);
 
-    for (const order of orders) {
-      const strategy = this.prepareStrategies.getPrepareStrategy(order.asset);
-
+    for (const group of groups.entries()) {
       try {
-        await strategy.checkPreparationCompletion(order);
-        order.status === PayoutOrderStatus.PREPARATION_CONFIRMED && confirmedOrders.push(order);
+        const strategy = this.prepareStrategies.getPrepareStrategy(group[0]);
+        await strategy.checkPreparationCompletion(group[1]);
       } catch (e) {
-        console.error('Error while checking payout preparation status', e);
+        console.error(
+          'Error while checking payout preparation status',
+          group[1].map((o) => o.id),
+          e,
+        );
         continue;
       }
     }
 
-    this.logs.logTransferCompletion(confirmedOrders);
+    this.logs.logTransferCompletion(orders.filter((o) => o.status === PayoutOrderStatus.PREPARATION_CONFIRMED));
   }
 
   private async checkPayoutCompletion(): Promise<void> {
-    const orders = await this.payoutOrderRepo.find({ status: PayoutOrderStatus.PAYOUT_PENDING });
-    const confirmedOrders = [];
+    const orders = await this.payoutOrderRepo.find({
+      status: PayoutOrderStatus.PAYOUT_PENDING,
+      payoutTxId: Not(IsNull()),
+    });
+    const groups = this.groupByStrategies(orders, this.payoutStrategies.getPayoutStrategyAlias);
 
-    for (const order of orders) {
-      const strategy = this.payoutStrategies.getPayoutStrategy(order.asset);
-
+    for (const group of groups.entries()) {
       try {
-        await strategy.checkPayoutCompletionData(order);
-        order.status === PayoutOrderStatus.COMPLETE && confirmedOrders.push(order);
-      } catch {
+        const strategy = this.payoutStrategies.getPayoutStrategy(group[0]);
+        await strategy.checkPayoutCompletionData(group[1]);
+      } catch (e) {
+        console.error(
+          'Error while checking payout completion status',
+          group[1].map((o) => o.id),
+          e,
+        );
         continue;
       }
     }
 
-    this.logs.logPayoutCompletion(confirmedOrders);
+    this.logs.logPayoutCompletion(orders.filter((o) => o.status === PayoutOrderStatus.COMPLETE));
   }
 
   private async prepareNewOrders(): Promise<void> {
     const orders = await this.payoutOrderRepo.find({ status: PayoutOrderStatus.CREATED });
-    const confirmedOrders = [];
+    const groups = this.groupByStrategies(orders, this.prepareStrategies.getPrepareStrategyAlias);
 
-    for (const order of orders) {
-      const strategy = this.prepareStrategies.getPrepareStrategy(order.asset);
-
+    for (const group of groups.entries()) {
       try {
-        await strategy.preparePayout(order);
-        order.status !== PayoutOrderStatus.CREATED && confirmedOrders.push(order);
-      } catch {
+        const strategy = this.prepareStrategies.getPrepareStrategy(group[0]);
+        await strategy.preparePayout(group[1]);
+      } catch (e) {
+        console.error(
+          'Error while preparing new payout orders',
+          group[1].map((o) => o.id),
+          e,
+        );
         continue;
       }
     }
 
-    this.logs.logNewPayoutOrders(confirmedOrders);
+    this.logs.logNewPayoutOrders(orders.filter((o) => o.status != PayoutOrderStatus.CREATED));
   }
 
   private async payoutOrders(): Promise<void> {
     const orders = await this.payoutOrderRepo.find({ status: PayoutOrderStatus.PREPARATION_CONFIRMED });
-    const groups = this.groupOrdersByPayoutStrategies(orders);
+    const groups = this.groupByStrategies(orders, this.payoutStrategies.getPayoutStrategyAlias);
 
     for (const group of groups.entries()) {
       try {
         const strategy = this.payoutStrategies.getPayoutStrategy(group[0]);
         await strategy.doPayout(group[1]);
-      } catch {
+      } catch (e) {
+        console.error(
+          'Error while paying out new payout orders',
+          group[1].map((o) => o.id),
+          e,
+        );
         continue;
       }
     }
@@ -183,14 +192,14 @@ export class PayoutService {
     }
   }
 
-  private groupOrdersByPayoutStrategies(orders: PayoutOrder[]): Map<PayoutStrategyAlias, PayoutOrder[]> {
-    const groups = new Map<PayoutStrategyAlias, PayoutOrder[]>();
+  private groupByStrategies<T>(orders: PayoutOrder[], getter: (asset: Asset) => T): Map<T, PayoutOrder[]> {
+    const groups = new Map<T, PayoutOrder[]>();
 
     for (const order of orders) {
-      const alias = this.payoutStrategies.getPayoutStrategyAlias(order.asset);
+      const alias = getter(order.asset);
 
       if (!alias) {
-        console.warn(`No payout alias found for payout order ID ${order.id}. Ignoring the order`);
+        console.warn(`No alias found by getter ${getter.name} for payout order ID ${order.id}. Ignoring the payout`);
         continue;
       }
 

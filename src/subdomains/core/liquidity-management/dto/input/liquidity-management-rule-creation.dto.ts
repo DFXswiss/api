@@ -6,6 +6,7 @@ import {
   IsInt,
   IsNotEmpty,
   IsNumber,
+  IsOptional,
   Min,
   Validate,
   ValidateIf,
@@ -67,4 +68,8 @@ export class LiquidityManagementRuleCreationDto {
   @ValidateNested({ each: true })
   @Type(() => LiquidityManagementActionDto)
   redundancyActions: LiquidityManagementActionDto[];
+
+  @IsOptional()
+  @IsInt()
+  reactivationTime?: number;
 }

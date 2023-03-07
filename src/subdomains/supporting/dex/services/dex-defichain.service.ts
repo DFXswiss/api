@@ -102,8 +102,8 @@ export class DexDeFiChainService {
     return this.#dexClient.addPoolLiquidity(Config.blockchain.default.dexWalletAddress, poolPair);
   }
 
-  async transferLiquidity(addressTo: string, asset: string, amount: number): Promise<string> {
-    return this.#dexClient.sendToken(Config.blockchain.default.dexWalletAddress, addressTo, asset, amount);
+  async transferLiquidity(addressFrom: string, addressTo: string, asset: string, amount: number): Promise<string> {
+    return this.#dexClient.sendToken(addressFrom, addressTo, asset, amount);
   }
 
   async transferMinimalUtxo(address: string): Promise<string> {
@@ -148,8 +148,8 @@ export class DexDeFiChainService {
     const swapAmount = await this.calculateSwapAmountForPurchase(
       referenceAsset,
       referenceAmount,
-      targetAsset,
       swapAsset,
+      targetAsset,
     );
 
     await this.checkAssetAvailability(swapAsset, swapAmount);
@@ -160,10 +160,10 @@ export class DexDeFiChainService {
   async calculateSwapAmountForPurchase(
     referenceAsset: Asset,
     referenceAmount: number,
-    targetAsset: Asset,
     swapAsset: Asset,
+    targetAsset?: Asset,
   ): Promise<number> {
-    if (referenceAsset === targetAsset) {
+    if (referenceAsset.id === targetAsset?.id) {
       const swapAssetPrice = await this.calculatePrice(swapAsset, referenceAsset);
 
       const swapAmount = referenceAmount * swapAssetPrice;
@@ -185,10 +185,16 @@ export class DexDeFiChainService {
     return Util.round(availableAmount - pendingAmount, 8);
   }
 
+  //*** GETTERS ***//
+
+  get dexWalletAddress(): string {
+    return Config.blockchain.default.dexWalletAddress;
+  }
+
   // *** HELPER METHODS *** //
 
   private async getTargetAmount(sourceAsset: Asset, sourceAmount: number, targetAsset: Asset): Promise<number> {
-    return targetAsset.dexName === sourceAsset.dexName
+    return targetAsset.id === sourceAsset.id
       ? sourceAmount
       : this.testSwap(sourceAsset, targetAsset, sourceAmount);
   }

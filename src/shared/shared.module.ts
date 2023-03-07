@@ -26,22 +26,29 @@ import { I18nModule } from 'nestjs-i18n';
 import { SettingController } from './models/setting/setting.controller';
 import { ApiKeyService } from './services/api-key.service';
 import { PaymentInfoService } from './services/payment-info.service';
+import { IpLogRepository } from './models/ip-log/ip-log.repository';
+import { IpLogService } from './models/ip-log/ip-log.service';
+import { GeoLocationModule } from 'src/integration/geolocation/geo-location.module';
+import { ThrottlerModule } from '@nestjs/throttler';
 
 @Module({
   imports: [
     HttpModule,
     ConfigModule,
+    GeoLocationModule,
     TypeOrmModule.forFeature([
       AssetRepository,
       FiatRepository,
       CountryRepository,
       LanguageRepository,
       SettingRepository,
+      IpLogRepository,
     ]),
     PassportModule.register({ defaultStrategy: 'jwt', session: true }),
     JwtModule.register(GetConfig().auth.jwt),
     I18nModule.forRoot(GetConfig().i18n),
     ScheduleModule.forRoot(),
+    ThrottlerModule.forRoot(),
   ],
   controllers: [AssetController, FiatController, CountryController, LanguageController, SettingController],
   providers: [
@@ -54,11 +61,13 @@ import { PaymentInfoService } from './services/payment-info.service';
     JwtStrategy,
     ApiKeyService,
     PaymentInfoService,
+    IpLogService,
   ],
   exports: [
     PassportModule,
     JwtModule,
     ScheduleModule,
+    GeoLocationModule,
     HttpService,
     AssetService,
     FiatService,
@@ -67,6 +76,7 @@ import { PaymentInfoService } from './services/payment-info.service';
     SettingService,
     ApiKeyService,
     PaymentInfoService,
+    IpLogService,
   ],
 })
 export class SharedModule {}

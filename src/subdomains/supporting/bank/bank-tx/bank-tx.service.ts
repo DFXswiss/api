@@ -111,6 +111,8 @@ export class BankTxService {
       .leftJoinAndSelect('sellUser.userData', 'sellUserData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('sellUserData.users', 'sellUsers')
+      .leftJoinAndSelect('users.wallet', 'wallet')
+      .leftJoinAndSelect('sellUsers.wallet', 'sellUsersWallet')
       .where(`bankTx.${key} = :param`, { param: value })
       .getOne();
   }

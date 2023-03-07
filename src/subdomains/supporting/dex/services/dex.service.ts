@@ -21,7 +21,8 @@ import {
 } from '../interfaces';
 import { PurchaseLiquidityStrategies } from '../strategies/purchase-liquidity/purchase-liquidity.facade';
 import { SellLiquidityStrategies } from '../strategies/sell-liquidity/sell-liquidity.facade';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { TransferNotRequiredException } from '../exceptions/transfer-not-required.exception';
 
 @Injectable()
 export class DexService {
@@ -205,8 +206,13 @@ export class DexService {
 
   async transferLiquidity(request: TransferRequest): Promise<string> {
     const { destinationAddress, asset, amount } = request;
+    const sourceAddress = this.dexDeFiChainService.dexWalletAddress;
 
-    return this.dexDeFiChainService.transferLiquidity(destinationAddress, asset.dexName, amount);
+    if (asset.type === AssetType.TOKEN && destinationAddress === sourceAddress) {
+      throw new TransferNotRequiredException('Transfer of token to same address is not required/useless');
+    }
+
+    return this.dexDeFiChainService.transferLiquidity(sourceAddress, destinationAddress, asset.dexName, amount);
   }
 
   async transferMinimalUtxo(address: string): Promise<string> {

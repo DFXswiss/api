@@ -8,6 +8,8 @@ import { SignMessageDto } from './dto/sign-message.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { ChallengeDto } from './dto/challenge.dto';
 import { IpGuard } from 'src/shared/auth/ip.guard';
+import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -15,7 +17,8 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('signUp')
-  @UseGuards(IpGuard)
+  @UseGuards(RateLimitGuard, IpGuard)
+  @Throttle(20, 864000)
   @ApiCreatedResponse({ type: AuthResponseDto })
   signUp(@Body() dto: CreateUserDto, @RealIP() ip: string): Promise<AuthResponseDto> {
     return this.authService.signUp(dto, ip);

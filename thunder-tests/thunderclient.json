@@ -2214,5 +2214,81 @@
     "headers": [],
     "params": [],
     "tests": []
+  },
+  {
+    "_id": "98209270-54e0-4583-b933-be50ba4ba668",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "ed149df1-5a55-4eb1-836a-6b84742c8f38",
+    "name": "Update Settings",
+    "url": "{{url}}/v1/liquidityManagement/rule/17/settings",
+    "method": "PATCH",
+    "sortNum": 760000,
+    "created": "2023-02-13T09:25:26.853Z",
+    "modified": "2023-02-13T09:37:35.263Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"reactivationTime\": 1\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "429e59a7-c665-4f03-b0fa-4f62fb9d56e6",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "4b2a9dd6-361d-4bee-9c80-1b59c149e59f",
+    "name": "Send EVM Raw Transaction",
+    "url": "{{url}}/v1/gs/evm/rawTransaction",
+    "method": "POST",
+    "sortNum": 780000,
+    "created": "2023-02-03T09:19:14.618Z",
+    "modified": "2023-03-01T13:51:04.130Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"request\": {\n    \"to\": \"0x02A38F29bea81FDD3887891bE013c5f348f76C5D\",\n    \"from\": \"0xfe4227e4A457d539Cd69C94e79B73Db3d44A6F3b\",\n    \"gasPrice\": 2357270000,\n    \"value\": 0.00095\n  },\n  \"blockchain\": \"Ethereum\"\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "8a33dc7b-df97-4987-80ca-ce9ba973310e",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "4b2a9dd6-361d-4bee-9c80-1b59c149e59f",
+    "name": "Send EVM Token Transaction",
+    "url": "{{url}}/v1/gs/evm/tokenTransaction",
+    "method": "POST",
+    "sortNum": 790000,
+    "created": "2023-02-03T09:19:46.335Z",
+    "modified": "2023-03-01T13:52:07.219Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"fromAddress\": \"0xFDb8e0AB8E188374B21119660BFE46da5DA38B03\",\n  \"toAddress\": \"0xC34F4C7984B3a7d349e7966aC134f90Ab65Cabf6\",\n  \"assetId\": 75,\n  \"amount\": 0.0014,\n  \"blockchain\": \"Ethereum\"\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "09b7c6fc-d882-4ce9-92d2-03f825d2c922",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "4b2a9dd6-361d-4bee-9c80-1b59c149e59f",
+    "name": "Send EVM Coin Transaction",
+    "url": "{{url}}/v1/gs/evm/coinTransaction",
+    "method": "POST",
+    "sortNum": 800000,
+    "created": "2023-02-03T09:19:48.315Z",
+    "modified": "2023-03-01T13:52:21.197Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"fromAddress\": \"0xC34F4C7984B3a7d349e7966aC134f90Ab65Cabf6\",\n  \"toAddress\": \"0xFDb8e0AB8E188374B21119660BFE46da5DA38B03\",\n  \"amount\": 0.0011,\n  \"blockchain\": \"Ethereum\"\n}",
+      "form": []
+    },
+    "tests": []
   }
 ]
