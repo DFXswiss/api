@@ -75,6 +75,7 @@ export class DexService {
 
       const order = this.liquidityOrderFactory.createReservationOrder(request, targetAsset.blockchain);
       order.reserved(liquidity.target.amount);
+      order.addEstimatedTargetAmount(liquidity.target.amount);
 
       await this.liquidityOrderRepo.save(order);
 

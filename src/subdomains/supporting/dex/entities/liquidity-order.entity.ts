@@ -48,6 +48,9 @@ export class LiquidityOrder extends IEntity {
   @Column({ type: 'float', nullable: true })
   targetAmount: number;
 
+  @Column({ type: 'float', nullable: true })
+  estimatedTargetAmount: number;
+
   @Column({ nullable: false, default: false })
   isReady: boolean;
 
@@ -86,6 +89,12 @@ export class LiquidityOrder extends IEntity {
     this.txId = txId;
     this.swapAsset = swapAsset;
     this.swapAmount = swapAmount;
+
+    return this;
+  }
+
+  addEstimatedTargetAmount(amount: number): this {
+    this.estimatedTargetAmount = amount;
 
     return this;
   }

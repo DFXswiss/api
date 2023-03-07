@@ -267,35 +267,7 @@ export class BuyCryptoBatch extends IEntity {
   }
 
   private fixRoundingMismatch(): void {
-    const transactionsTotal = Util.sumObj<BuyCrypto>(this.transactions, 'outputAmount');
-
-    const mismatch = Util.round(this.outputAmount - transactionsTotal, 8);
-
-    if (mismatch === 0) {
-      return;
-    }
-
-    if (Math.abs(mismatch) < 0.00001) {
-      let remainsToDistribute = mismatch;
-      const correction = remainsToDistribute > 0 ? 0.00000001 : -0.00000001;
-      const adjustedTransactions = [];
-
-      this.transactions.forEach((tx) => {
-        if (remainsToDistribute !== 0) {
-          tx.outputAmount = Util.round(tx.outputAmount + correction, 8);
-          adjustedTransactions.push(tx);
-          remainsToDistribute = Util.round(remainsToDistribute - correction, 8);
-        }
-      });
-
-      console.info(
-        `Fixed total output amount mismatch of ${mismatch} ${
-          this.outputAsset.dexName
-        }. Added to transaction ID(s): ${adjustedTransactions.map((tx) => tx.id)}`,
-      );
-    } else {
-      throw new Error(`Output amount mismatch is too high. Mismatch: ${mismatch} ${this.outputAsset.dexName}`);
-    }
+    this.transactions = Util.fixRoundingMismatch(this.transactions, 'outputAmount', this.outputAmount, 16);
   }
 
   private sortTransactionsAsc(): BuyCrypto[] {
