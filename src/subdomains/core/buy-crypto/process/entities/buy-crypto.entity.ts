@@ -20,6 +20,8 @@ export enum BuyCryptoStatus {
   PREPARED = 'Prepared',
   WAITING_FOR_LOWER_FEE = 'WaitingForLowerFee',
   BATCHED = 'Batched',
+  PENDING_LIQUIDITY = 'PendingLiquidity',
+  READY_FOR_PAYOUT = 'ReadyForPayout',
   PAYING_OUT = 'PayingOut',
   COMPLETE = 'Complete',
 }
@@ -226,16 +228,6 @@ export class BuyCrypto extends IEntity {
     return this;
   }
 
-  calculateOutputAmount(batchReferenceAmount: number, batchOutputAmount: number): this {
-    if (batchReferenceAmount === 0) {
-      throw new Error('Cannot calculate outputAmount, provided batchReferenceAmount is 0');
-    }
-
-    this.outputAmount = Util.round((this.outputReferenceAmount / batchReferenceAmount) * batchOutputAmount, 8);
-
-    return this;
-  }
-
   assignCandidateBatch(batch: BuyCryptoBatch): this {
     this.batch = batch;
 
@@ -257,6 +249,29 @@ export class BuyCrypto extends IEntity {
 
   batched(): this {
     this.status = BuyCryptoStatus.BATCHED;
+
+    return this;
+  }
+
+  pendingLiquidity(): this {
+    this.status = BuyCryptoStatus.PENDING_LIQUIDITY;
+
+    return this;
+  }
+
+  addActualPurchaseFee(txPurchaseFee: number): this {
+    this.fee.addActualPurchaseFee(txPurchaseFee, this);
+
+    return this;
+  }
+
+  calculateOutputAmount(batchReferenceAmount: number, batchOutputAmount: number): this {
+    if (batchReferenceAmount === 0) {
+      throw new Error('Cannot calculate outputAmount, provided batchReferenceAmount is 0');
+    }
+
+    this.outputAmount = Util.round((this.outputReferenceAmount / batchReferenceAmount) * batchOutputAmount, 8);
+    this.status = BuyCryptoStatus.READY_FOR_PAYOUT;
 
     return this;
   }

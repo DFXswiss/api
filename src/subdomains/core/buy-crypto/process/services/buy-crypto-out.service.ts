@@ -50,7 +50,7 @@ export class BuyCryptoOutService {
       const payingOutBatches = batches.filter((b) => b.status === BuyCryptoBatchStatus.PAYING_OUT);
       const transactionsToPayout = payingOutBatches
         .reduce((prev: BuyCrypto[], curr) => prev.concat(curr.transactions), [])
-        .filter((r) => r.status === BuyCryptoStatus.BATCHED)
+        .filter((r) => r.status === BuyCryptoStatus.READY_FOR_PAYOUT)
         .sort((a, b) => (a.target.address > b.target.address ? 1 : -1));
 
       const successfulRequests = [];

@@ -143,6 +143,7 @@ export class BuyCryptoBatch extends IEntity {
 
   pending(): this {
     this.status = BuyCryptoBatchStatus.PENDING_LIQUIDITY;
+    this.transactions.forEach((tx) => tx.pendingLiquidity());
 
     return this;
   }
@@ -258,7 +259,7 @@ export class BuyCryptoBatch extends IEntity {
 
   private addActualPurchaseFee(purchaseFeeAmount: number | null, tx: BuyCrypto): void {
     const txPurchaseFee = purchaseFeeAmount != null ? this.calculateFeeShare(tx, purchaseFeeAmount) : null;
-    tx.fee.addActualPurchaseFee(txPurchaseFee, tx);
+    tx.addActualPurchaseFee(txPurchaseFee);
   }
 
   private calculateFeeShare(tx: BuyCrypto, totalFee: number): number {
