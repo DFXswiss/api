@@ -100,7 +100,7 @@ export class CfpService implements OnModuleInit {
       type:
         proposal.type === ProposalType.COMMUNITY_FUND_PROPOSAL
           ? VotingType.CFP
-          : proposal.options.includes('emergency')
+          : proposal.options?.includes('emergency')
           ? VotingType.SPECIAL
           : VotingType.DFIP,
       dfiAmount: proposal.amount,
