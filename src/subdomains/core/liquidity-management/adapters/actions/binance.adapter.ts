@@ -7,38 +7,22 @@ import { CcxtExchangeAdapter } from './base/ccxt-exchange.adapter';
 
 @Injectable()
 export class BinanceAdapter extends CcxtExchangeAdapter {
+  private ccxtNetworks: { [b in Blockchain]: string } = {
+    Arbitrum: 'arbitrum',
+    BinanceSmartChain: 'bsc',
+    Bitcoin: 'bitcoin',
+    Cardano: 'cardano',
+    DeFiChain: 'defichain',
+    Ethereum: 'ethereum',
+    Optimism: 'optimism',
+    Polygon: 'polygon',
+  };
+
   constructor(binanceService: BinanceService, dexService: DexService) {
     super(LiquidityManagementSystem.BINANCE, binanceService, dexService);
   }
 
   protected mapBlockchainToCcxtNetwork(blockchain: Blockchain): string {
-    switch (blockchain) {
-      case Blockchain.ARBITRUM:
-        return 'arbitrum';
-
-      case Blockchain.BINANCE_SMART_CHAIN:
-        return 'bsc';
-
-      case Blockchain.BITCOIN:
-        return 'bitcoin';
-
-      case Blockchain.CARDANO:
-        return 'cardano';
-
-      case Blockchain.DEFICHAIN:
-        return 'defichain';
-
-      case Blockchain.ETHEREUM:
-        return 'ethereum';
-
-      case Blockchain.OPTIMISM:
-        return 'optimism';
-
-      case Blockchain.POLYGON:
-        return 'polygon';
-
-      default:
-        return null;
-    }
+    return this.ccxtNetworks[blockchain];
   }
 }

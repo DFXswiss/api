@@ -43,8 +43,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     this.#l1Provider = new ethers.providers.JsonRpcProvider(ethereumGateway);
     this.#l1Wallet = new ethers.Wallet(ethWalletPrivateKey, this.#l1Provider);
 
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
-    this.initL2Network();
+    void this.initL2Network();
   }
 
   async depositCoinOnDex(amount: number): Promise<string> {
@@ -153,12 +152,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
   }
 
   async getCurrentGasCostForCoinTransaction(): Promise<number> {
-    const totalGas = await this.provider.estimateGas({
-      from: this.dfxAddress,
-      to: this.randomReceiverAddress,
-      value: 1,
-    });
-
+    const totalGas = await this.getCurrentGasForCoinTransaction(1);
     const gasPrice = await this.getCurrentGasPrice();
 
     return this.convertToEthLikeDenomination(totalGas.mul(gasPrice));

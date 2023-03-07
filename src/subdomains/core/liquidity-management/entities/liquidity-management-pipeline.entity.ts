@@ -6,15 +6,15 @@ import { LiquidityState } from '../interfaces';
 import { LiquidityManagementAction } from './liquidity-management-action.entity';
 
 @Entity()
-@Index((p: LiquidityManagementPipeline) => [p.rule, p.status], {
-  unique: true,
-  where: `status IN ('${LiquidityManagementPipelineStatus.CREATED}', '${LiquidityManagementPipelineStatus.IN_PROGRESS}')`,
-})
 export class LiquidityManagementPipeline extends IEntity {
   @Column({ length: 256, nullable: false })
   status: LiquidityManagementPipelineStatus;
 
   @ManyToOne(() => LiquidityManagementRule, { eager: true, nullable: false })
+  @Index({
+    unique: true,
+    where: `status IN ('${LiquidityManagementPipelineStatus.CREATED}', '${LiquidityManagementPipelineStatus.IN_PROGRESS}')`,
+  })
   rule: LiquidityManagementRule;
 
   @Column({ length: 256, nullable: false })
@@ -58,7 +58,7 @@ export class LiquidityManagementPipeline extends IEntity {
   }
 
   continue(currentActionOrderStatus: LiquidityManagementOrderStatus): this {
-    this.previousAction = Object.assign({}, this.currentAction);
+    this.previousAction = Object.assign(new LiquidityManagementAction(), this.currentAction);
     this.ordersProcessed++;
 
     if (this.ordersProcessed >= 50) {

@@ -8,7 +8,6 @@ import { MailOptions } from 'src/subdomains/supporting/notification/services/mai
 import { Asset, FeeTier } from 'src/shared/models/asset/asset.entity';
 import { MinDeposit } from 'src/subdomains/supporting/address-pool/deposit/dto/min-deposit.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { ExchangeExtended } from 'src/integration/exchange/services/exchange.service';
 
 export enum Process {
   PAY_IN = 'PayIn',
@@ -480,7 +479,7 @@ export class Configuration {
   };
 
   // --- GETTERS --- //
-  get kraken(): Partial<ExchangeExtended> {
+  get kraken(): Partial<Exchange> {
     return {
       apiKey: process.env.KRAKEN_KEY,
       secret: process.env.KRAKEN_SECRET,
@@ -488,7 +487,7 @@ export class Configuration {
     };
   }
 
-  get binance(): Partial<ExchangeExtended> {
+  get binance(): Partial<Exchange> {
     return {
       apiKey: process.env.BINANCE_KEY,
       secret: process.env.BINANCE_SECRET,
