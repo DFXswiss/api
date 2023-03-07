@@ -268,7 +268,7 @@ export class LiquidityManagementRuleService {
   }
 
   private generateRuleRetriedMessage(rule: LiquidityManagementRule): MailRequest {
-    const message = `Liquidity management rule ${rule.id} reactivated after ${rule.reactivationTime} seconds`;
+    const message = `Liquidity management rule ${rule.id} reactivated after ${rule.reactivationTime} minutes`;
 
     const mailRequest: MailRequest = {
       type: MailType.ERROR_MONITORING,
