@@ -9,6 +9,7 @@ export enum ResultStatus {
 export enum VotingType {
   CFP = 'cfp',
   DFIP = 'dfip',
+  SPECIAL = 'special',
 }
 
 export class Vote {

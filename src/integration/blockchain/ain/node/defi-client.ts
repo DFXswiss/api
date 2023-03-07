@@ -28,6 +28,7 @@ export interface Proposal {
   votesYesPct: string;
   approvalThreshold: string;
   fee: number;
+  options: string[];
 }
 
 enum VoteResult {

@@ -97,7 +97,12 @@ export class CfpService implements OnModuleInit {
     return {
       title: proposal.title,
       number: proposal.proposalId,
-      type: proposal.type === ProposalType.COMMUNITY_FUND_PROPOSAL ? VotingType.CFP : VotingType.DFIP,
+      type:
+        proposal.type === ProposalType.COMMUNITY_FUND_PROPOSAL
+          ? VotingType.CFP
+          : proposal.options.includes('emergency')
+          ? VotingType.SPECIAL
+          : VotingType.DFIP,
       dfiAmount: proposal.amount,
       htmlUrl: proposal.context,
       currentResult: currentResult,
