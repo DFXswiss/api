@@ -89,10 +89,11 @@ export class CfpService implements OnModuleInit {
     const requiredVotes = parseFloat(proposal.approvalThreshold) / 100;
     const quorum = parseFloat(proposal.quorum) / 100;
 
-    const currentResult =
-      proposalVotes.length / this.masternodeCount > quorum && yesVotes.length / proposalVotes.length > requiredVotes
+    const currentResult = this.masternodeCount
+      ? proposalVotes.length / this.masternodeCount > quorum && yesVotes.length / proposalVotes.length > requiredVotes
         ? ResultStatus.APPROVED
-        : ResultStatus.NOT_APPROVED;
+        : ResultStatus.NOT_APPROVED
+      : undefined;
 
     return {
       title: proposal.title,
