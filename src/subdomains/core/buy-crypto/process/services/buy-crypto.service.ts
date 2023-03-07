@@ -365,6 +365,7 @@ export class BuyCryptoService {
     return this.buyCryptoRepo.find({
       where: { usedRef: In(refCodes) },
       relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
+      order: { id: 'DESC' },
     });
   }
 
@@ -372,6 +373,7 @@ export class BuyCryptoService {
     return this.buyCryptoRepo.find({
       where: [{ buy: { user: { id: In(userIds) } } }, { cryptoRoute: { user: { id: In(userIds) } } }],
       relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
+      order: { id: 'DESC' },
     });
   }
 
