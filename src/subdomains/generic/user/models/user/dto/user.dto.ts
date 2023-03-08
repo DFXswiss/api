@@ -105,4 +105,7 @@ export class UserDetailDto extends UserDto implements UserDetails {
 
   @ApiPropertyOptional({ type: LinkedUserOutDto, isArray: true })
   linkedAddresses?: LinkedUserOutDto[];
+
+  @ApiPropertyOptional()
+  bsLink?: string;
 }

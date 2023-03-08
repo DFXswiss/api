@@ -443,7 +443,6 @@ export class UserService {
       phone: user.userData?.phone,
       language: user.userData?.language,
       currency: user.userData?.currency,
-
       kycStatus: user.userData?.kycStatus,
       kycState: user.userData?.kycState,
       kycHash: user.userData?.kycHash,
@@ -466,6 +465,7 @@ export class UserService {
       paidRefCredit: user.paidRefCredit,
       refCount: await this.userRepo.count({ usedRef: user.ref }),
       refCountActive: await this.userRepo.count({ usedRef: user.ref, status: Not(UserStatus.NA) }),
+      bsLink: user.buyVolume > 50000 ? Config.bsLink : undefined,
       buyVolume: { total: user.buyVolume, annual: user.annualBuyVolume },
       sellVolume: { total: user.sellVolume, annual: user.annualSellVolume },
       cryptoVolume: { total: user.cryptoVolume, annual: user.annualCryptoVolume },
