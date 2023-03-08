@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Not, IsNull } from 'typeorm';
+import { Not, IsNull, In } from 'typeorm';
 import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repository';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
@@ -82,7 +82,7 @@ export class BuyCryptoBatchService {
           outputAsset: Not(IsNull()),
           outputReferenceAmount: IsNull(),
           batch: IsNull(),
-          status: BuyCryptoStatus.PREPARED,
+          status: In([BuyCryptoStatus.PREPARED, BuyCryptoStatus.WAITING_FOR_LOWER_FEE]),
         },
         relations: [
           'bankTx',
@@ -375,7 +375,9 @@ export class BuyCryptoBatchService {
         reference: { availableAmount, maxPurchasableAmount },
       } = liquidity;
 
-      batch.optimizeByPayoutFeeEstimation(payoutFee);
+      const filteredOutTransactions = batch.optimizeByPayoutFeeEstimation(payoutFee);
+
+      await this.handleFilteredOutTransactions(filteredOutTransactions);
 
       const [isPurchaseRequired, liquidityWarning] = batch.optimizeByLiquidity(availableAmount, maxPurchasableAmount);
 
@@ -465,8 +467,16 @@ export class BuyCryptoBatchService {
     }
   }
 
+  private async handleFilteredOutTransactions(transactions: BuyCrypto[]): Promise<void> {
+    await this.setWaitingForLowerFee(transactions);
+  }
+
   private async handleFeeLimitExceededException(batch: BuyCryptoBatch): Promise<void> {
-    for (const tx of batch.transactions) {
+    await this.setWaitingForLowerFee(batch.transactions);
+  }
+
+  private async setWaitingForLowerFee(transactions: BuyCrypto[]): Promise<void> {
+    for (const tx of transactions) {
       tx.waitingForLowerFee();
 
       await this.buyCryptoRepo.save(tx);

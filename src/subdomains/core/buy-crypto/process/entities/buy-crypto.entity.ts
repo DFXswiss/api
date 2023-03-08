@@ -352,9 +352,6 @@ export class BuyCrypto extends IEntity {
 
   private resetTransaction(): this {
     this.outputReferenceAmount = null;
-    this.outputReferenceAsset = null;
-    this.outputAsset = null;
-    this.status = null;
     this.batch = null;
     this.isComplete = false;
     this.outputAmount = null;

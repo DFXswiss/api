@@ -88,15 +88,20 @@ export class BuyCryptoBatch extends IEntity {
     return [true, false];
   }
 
-  optimizeByPayoutFeeEstimation(estimatePayoutFeeAmount: number | null): this {
+  optimizeByPayoutFeeEstimation(estimatePayoutFeeAmount: number | null): BuyCrypto[] {
     const reBatchTransactions = [];
+    const filteredOutTransactions = [];
 
     for (const tx of this.transactions) {
       const feeRatio = Util.round(estimatePayoutFeeAmount / tx.outputReferenceAmount, 8);
 
-      if (feeRatio > tx.fee.allowedTotalFeePercent) continue;
+      if (feeRatio > tx.fee.allowedTotalFeePercent) {
+        filteredOutTransactions.push(tx);
 
-      tx.fee.addPayoutFeeEstimation(estimatePayoutFeeAmount);
+        continue;
+      }
+
+      tx.fee.addPayoutFeeEstimation(estimatePayoutFeeAmount, tx);
       reBatchTransactions.push(tx);
     }
 
@@ -108,7 +113,7 @@ export class BuyCryptoBatch extends IEntity {
 
     this.overwriteTransactions(reBatchTransactions);
 
-    return this;
+    return filteredOutTransactions;
   }
 
   checkByPurchaseFeeEstimation(estimatePurchaseFeeAmount: number | null): this {
@@ -236,7 +241,6 @@ export class BuyCryptoBatch extends IEntity {
     const feeRatio = Util.round((purchaseFeeAmount + payoutFeeAmount) / this.outputReferenceAmount, 8);
     const { configuredFeeLimit, defaultFeeLimit } = Config.buy.fee.limits;
 
-    console.log('RATION', feeRatio);
     if (feeRatio > (configuredFeeLimit ?? defaultFeeLimit)) {
       throw new FeeLimitExceededException(
         `BuyCryptoBatch fee limit exceeded. Output Asset: ${this.outputAsset.dexName}. Fee ratio: ${Util.round(
@@ -251,6 +255,7 @@ export class BuyCryptoBatch extends IEntity {
     this.transactions.forEach((tx) => {
       tx.fee.addPurchaseFeeEstimation(
         estimatePurchaseFeeAmount != null ? this.calculateFeeShare(tx, estimatePurchaseFeeAmount) : null,
+        tx,
       );
 
       tx.batched();
