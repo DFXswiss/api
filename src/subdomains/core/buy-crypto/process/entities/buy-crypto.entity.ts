@@ -18,8 +18,11 @@ import { Buy } from '../../routes/buy/buy.entity';
 export enum BuyCryptoStatus {
   CREATED = 'Created',
   PREPARED = 'Prepared',
+  PRICE_MISMATCH = 'PriceMismatch',
+  MISSING_LIQUIDITY = 'MissingLiquidity',
   WAITING_FOR_LOWER_FEE = 'WaitingForLowerFee',
   BATCHED = 'Batched',
+  PRICE_SLIPPAGE = 'PriceSlippage',
   PENDING_LIQUIDITY = 'PendingLiquidity',
   READY_FOR_PAYOUT = 'ReadyForPayout',
   PAYING_OUT = 'PayingOut',
@@ -237,6 +240,24 @@ export class BuyCrypto extends IEntity {
 
   setFeeConstraints(fee: BuyCryptoFee): this {
     this.fee = fee;
+
+    return this;
+  }
+
+  setPriceMismatchStatus(): this {
+    this.status = BuyCryptoStatus.PRICE_MISMATCH;
+
+    return this;
+  }
+
+  setPriceSlippageStatus(): this {
+    this.status = BuyCryptoStatus.PRICE_SLIPPAGE;
+
+    return this;
+  }
+
+  setMissingLiquidityStatus(): this {
+    this.status = BuyCryptoStatus.MISSING_LIQUIDITY;
 
     return this;
   }

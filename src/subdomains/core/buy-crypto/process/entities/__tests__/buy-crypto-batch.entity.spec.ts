@@ -2,7 +2,7 @@ import { createCustomBuy } from 'src/subdomains/core/buy-crypto/routes/buy/__moc
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { Util } from 'src/shared/utils/util';
 import { createCustomUser } from 'src/subdomains/generic/user/models/user/__mocks__/user.entity.mock';
-import { AbortBatchCreationException } from '../../exceptions/abort-batch-creation.exception';
+import { MissingBuyCryptoLiquidityException } from '../../exceptions/abort-batch-creation.exception';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../buy-crypto-batch.entity';
 import { createCustomBuyCryptoBatch, createDefaultBuyCryptoBatch } from '../__mocks__/buy-crypto-batch.entity.mock';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-crypto.entity.mock';
@@ -167,7 +167,7 @@ describe('BuyCryptoBatch', () => {
       const testCall = () => batch.optimizeByLiquidity(0.5, 0.5);
 
       expect(testCall).toThrow();
-      expect(testCall).toThrowError(AbortBatchCreationException);
+      expect(testCall).toThrowError(MissingBuyCryptoLiquidityException);
     });
 
     it('does not change batch if no upper conditions met', () => {

@@ -4,7 +4,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
-import { AbortBatchCreationException } from '../exceptions/abort-batch-creation.exception';
+import { MissingBuyCryptoLiquidityException } from '../exceptions/abort-batch-creation.exception';
 import { BuyCrypto } from './buy-crypto.entity';
 import { FeeLimitExceededException } from '../exceptions/fee-limit-exceeded.exception';
 
@@ -80,7 +80,7 @@ export class BuyCryptoBatch extends IEntity {
     }
 
     if (!this.isEnoughToSecureAtLeastOneTransaction(maxPurchasableAmount)) {
-      throw new AbortBatchCreationException(
+      throw new MissingBuyCryptoLiquidityException(
         `Not enough liquidity to create a ${this.outputAsset.uniqueName} buy-crypto batch.`,
       );
     }

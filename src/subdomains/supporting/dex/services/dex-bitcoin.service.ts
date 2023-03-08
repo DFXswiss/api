@@ -59,6 +59,6 @@ export class DexBitcoinService {
       (o) => o.targetAsset.dexName === 'BTC' && o.targetAsset.blockchain === Blockchain.BITCOIN,
     );
 
-    return Util.sumObj<LiquidityOrder>(pendingOrders, 'targetAmount');
+    return Util.sumObj<LiquidityOrder>(pendingOrders, 'estimatedTargetAmount');
   }
 }

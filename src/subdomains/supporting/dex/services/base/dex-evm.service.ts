@@ -86,7 +86,8 @@ export abstract class DexEvmService {
     const pendingAmount = await this.getPendingAmount(asset.dexName);
     const availableAmount = await this.#client.getTokenBalance(asset);
 
-    return availableAmount - pendingAmount;
+    // adding a small cap to pendingAmount in case testSwap results got slightly outdated by the moment current check is done
+    return availableAmount - pendingAmount * 1.05;
   }
 
   private async getPendingAmount(assetName: string): Promise<number> {
@@ -94,6 +95,6 @@ export abstract class DexEvmService {
       (o) => o.targetAsset.dexName === assetName && o.targetAsset.blockchain === this.blockchain,
     );
 
-    return Util.sumObj<LiquidityOrder>(pendingOrders, 'targetAmount');
+    return Util.sumObj<LiquidityOrder>(pendingOrders, 'estimatedTargetAmount');
   }
 }
