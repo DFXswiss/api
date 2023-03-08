@@ -4,6 +4,8 @@ param env string
 param network string
 param knownIps string
 param limitCheck string
+param bsLink string
+
 
 param dbAllowAllIps bool
 param dbAdminLogin string
@@ -487,7 +489,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           name: 'GH_TOKEN'
           value: githubToken
         }
-
+        {
+          name: 'BS_LINK'
+          value: bsLink
+        }
         {
           name: 'NODE_USER'
           value: 'dfx-api'

@@ -304,6 +304,9 @@
     },
     "limitCheck": {
       "value": "true"
+    },
+    "bsLink": {
+      "value": "xxx"
     }
   }
 }
