@@ -102,6 +102,10 @@ export class ExchangeService implements PriceProvider {
     return withdrawal;
   }
 
+  async getDeposits(token: string, since: Date): Promise<Transaction[]> {
+    return this.callApi((e) => e.fetchDeposits(token, since.getTime(), 50));
+  }
+
   // --- Helper Methods --- //
   // currency pairs
   private async getMarkets(): Promise<Market[]> {

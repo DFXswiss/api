@@ -9,11 +9,13 @@ import { CurrencyService } from './services/currency.service';
 import { FixerService } from './services/fixer.service';
 import { KucoinService } from './services/kucoin.service';
 import { ConversionService } from './services/conversion.service';
+import { ExchangeRegistryService } from './services/exchange-registry.service';
 
 @Module({
   imports: [SharedModule],
   controllers: [ExchangeController],
   providers: [
+    ExchangeRegistryService,
     KrakenService,
     BinanceService,
     BitstampService,
@@ -24,6 +26,7 @@ import { ConversionService } from './services/conversion.service';
     ConversionService,
   ],
   exports: [
+    ExchangeRegistryService,
     KrakenService,
     BinanceService,
     BitstampService,

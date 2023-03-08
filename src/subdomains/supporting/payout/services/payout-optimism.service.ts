@@ -14,10 +14,10 @@ export class PayoutOptimismService extends PayoutEvmService {
   }
 
   async getCurrentGasForCoinTransaction(): Promise<number> {
-    return this.client.getCurrentGasForCoinTransaction();
+    return this.client.getCurrentGasCostForCoinTransaction();
   }
 
   async getCurrentGasForTokenTransaction(token: Asset): Promise<number> {
-    return this.client.getCurrentGasForTokenTransaction(token);
+    return this.client.getCurrentGasCostForTokenTransaction(token);
   }
 }

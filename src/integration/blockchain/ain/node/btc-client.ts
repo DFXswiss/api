@@ -3,6 +3,15 @@ import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
 import { NodeClient, NodeCommand, NodeMode } from './node-client';
 
+export interface TransactionHistory {
+  address: string;
+  category: string;
+  blocktime: number;
+  txid: string;
+  confirmations: number;
+  amount: number;
+}
+
 export class BtcClient extends NodeClient {
   constructor(http: HttpService, url: string, scheduler: SchedulerRegistry, mode: NodeMode) {
     super(http, url, scheduler, mode);
@@ -55,5 +64,9 @@ export class BtcClient extends NodeClient {
         ),
       true,
     ).then((r) => r.txid);
+  }
+
+  async getRecentHistory(txCount = 100): Promise<TransactionHistory[]> {
+    return this.callNode<TransactionHistory[]>((c) => c.call('listtransactions', ['*', txCount], 'number'), true);
   }
 }

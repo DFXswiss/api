@@ -230,6 +230,7 @@ export class LiquidityManagementRuleService {
     const newAction = LiquidityManagementAction.create(
       actionDto.system,
       actionDto.command,
+      actionDto.params,
       actionOnSuccess,
       actionOnFail,
     );
@@ -242,6 +243,12 @@ export class LiquidityManagementRuleService {
       );
     }
 
+    const isParamsValid = integration.validateParams(actionDto.command, actionDto.params);
+
+    if (!isParamsValid) {
+      throw new BadRequestException(`Params provided with action are not valid. Command name: ${actionDto.command}`);
+    }
+
     return this.actionRepo.save(newAction);
   }
 
@@ -250,18 +257,18 @@ export class LiquidityManagementRuleService {
     onSuccess: LiquidityManagementAction | null,
     onFail: LiquidityManagementAction | null,
   ): Promise<LiquidityManagementAction | null> {
-    const { system, command } = actionDto;
+    const { system, command, params } = actionDto;
 
     return (
       this.actionRepo.findOne({
-        where: { system, command, onSuccess, onFail },
+        where: { system, command, onSuccess, onFail, params: params ? JSON.stringify(params) : null },
         relations: ['onSuccess', 'onFail'],
       }) ?? null
     );
   }
 
   private generateRuleRetriedMessage(rule: LiquidityManagementRule): MailRequest {
-    const message = `Liquidity management rule ${rule.id} reactivated after ${rule.reactivationTime} seconds`;
+    const message = `Liquidity management rule ${rule.id} reactivated after ${rule.reactivationTime} minutes`;
 
     const mailRequest: MailRequest = {
       type: MailType.ERROR_MONITORING,

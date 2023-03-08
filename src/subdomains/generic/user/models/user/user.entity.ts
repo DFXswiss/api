@@ -107,7 +107,8 @@ export class User extends IEntity {
   userData: UserData;
 
   // --- REF --- //
-  @Column({ length: 256, unique: true, nullable: true })
+  @Column({ length: 256, nullable: true })
+  @Index({ unique: true, where: 'ref IS NOT NULL' })
   ref: string;
 
   @Column({ type: 'float', default: 0.25 })

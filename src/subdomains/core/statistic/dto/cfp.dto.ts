@@ -9,6 +9,7 @@ export enum ResultStatus {
 export enum VotingType {
   CFP = 'cfp',
   DFIP = 'dfip',
+  SPECIAL = 'special',
 }
 
 export class Vote {
@@ -38,10 +39,10 @@ class TotalVotesDto {
   @ApiProperty()
   total: number;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   possible: number;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   turnout: number;
 
   @ApiProperty()
@@ -98,7 +99,7 @@ export class CfpResult {
   @ApiProperty()
   htmlUrl: string;
 
-  @ApiProperty({ enum: ResultStatus })
+  @ApiPropertyOptional({ enum: ResultStatus })
   currentResult: ResultStatus;
 
   @ApiProperty({ enum: ProposalStatus })
