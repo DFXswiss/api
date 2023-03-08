@@ -1,8 +1,10 @@
 import { Controller, UseGuards, Body, Post, Get, Put, Query } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { LiquidityOrderContext } from './entities/liquidity-order.entity';
 import {
   CheckLiquidityRequest,
@@ -63,9 +65,12 @@ export class DexController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async transferMinimalUtxo(@Query('address') address: string): Promise<string> {
+  async transferMinimalUtxo(
+    @Query('address') address: string,
+    @Query('blockchain') blockchain: Blockchain,
+  ): Promise<string> {
     if (process.env.ENVIRONMENT === 'test') {
-      return this.dexService.transferMinimalUtxo(address);
+      return this.dexService.transferMinimalCoin(BlockchainAddress.create(address, blockchain));
     }
   }
 
@@ -86,9 +91,12 @@ export class DexController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async checkTransferCompletion(@Query('transferTxId') transferTxId: string): Promise<boolean> {
+  async checkTransferCompletion(
+    @Query('transferTxId') transferTxId: string,
+    @Query('blockchain') blockchain: Blockchain,
+  ): Promise<boolean> {
     if (process.env.ENVIRONMENT === 'test') {
-      return this.dexService.checkTransferCompletion(transferTxId);
+      return this.dexService.checkTransferCompletion(transferTxId, blockchain);
     }
   }
 

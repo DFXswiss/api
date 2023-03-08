@@ -5,7 +5,7 @@ import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { LiquidityBalance } from './liquidity-balance.entity';
 import { LiquidityManagementAction } from './liquidity-management-action.entity';
 import { LiquidityManagementContext, LiquidityManagementRuleStatus, LiquidityOptimizationType } from '../enums';
-import { LiquidityVerificationResult } from '../interfaces';
+import { LiquidityState } from '../interfaces';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityManagementRuleInitSpecification } from '../specifications/liquidity-management-rule-init.specification';
 
@@ -76,16 +76,15 @@ export class LiquidityManagementRule extends IEntity {
 
   //*** PUBLIC API ***//
 
-  verify(balance: LiquidityBalance): LiquidityVerificationResult {
+  verify(balance: LiquidityBalance): LiquidityState {
     const deviation = Util.round(Math.abs(this.optimal - balance.amount), 8);
 
     const deficit = this.minimal != null && balance.amount < this.minimal ? deviation : 0;
     const redundancy = !deficit && this.maximal != null && balance.amount > this.maximal ? deviation : 0;
 
     return {
-      isOptimal: !(deficit || redundancy),
-      liquidityDeficit: deficit,
-      liquidityRedundancy: redundancy,
+      deficit,
+      redundancy,
     };
   }
 

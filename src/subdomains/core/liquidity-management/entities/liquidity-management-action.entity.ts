@@ -10,6 +10,9 @@ export class LiquidityManagementAction extends IEntity {
   @Column({ length: 256, nullable: false })
   command: string;
 
+  @Column({ length: 'MAX', nullable: true })
+  params: string;
+
   @ManyToOne(() => LiquidityManagementAction, { nullable: true })
   @JoinColumn()
   onSuccess: LiquidityManagementAction | null;
@@ -23,6 +26,7 @@ export class LiquidityManagementAction extends IEntity {
   static create(
     system: LiquidityManagementSystem,
     command: string,
+    params: Record<string, unknown>,
     onSuccess: LiquidityManagementAction,
     onFail: LiquidityManagementAction,
   ): LiquidityManagementAction {
@@ -30,6 +34,7 @@ export class LiquidityManagementAction extends IEntity {
 
     action.system = system;
     action.command = command;
+    action.params = params ? JSON.stringify(params) : null;
     action.onSuccess = onSuccess;
     action.onFail = onFail;
 

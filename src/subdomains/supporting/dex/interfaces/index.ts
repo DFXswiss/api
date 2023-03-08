@@ -26,6 +26,17 @@ export interface LiquidityRequestOptions {
   estimatePurchaseFee?: boolean;
 }
 
+export interface TransactionQuery {
+  asset: Asset;
+  amount: number;
+  since: Date;
+}
+
+export interface TransactionResult {
+  txId?: string;
+  isComplete: boolean;
+}
+
 export interface TransferRequest {
   asset: Asset;
   amount: number;

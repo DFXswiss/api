@@ -7,6 +7,7 @@ import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
 import { PrepareStrategy } from './base/prepare.strategy';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
 import { TransferNotRequiredException } from 'src/subdomains/supporting/dex/exceptions/transfer-not-required.exception';
 
@@ -112,7 +113,7 @@ export class DeFiChainStrategy extends PrepareStrategy {
     orders: PayoutOrder[],
     transferTxId: string,
   ): Promise<void> {
-    const isTransferComplete = await this.dexService.checkTransferCompletion(transferTxId);
+    const isTransferComplete = await this.dexService.checkTransferCompletion(transferTxId, Blockchain.DEFICHAIN);
 
     if (isTransferComplete) {
       for (const order of orders) {
