@@ -93,6 +93,7 @@ export class BuyCryptoBatch extends IEntity {
     const filteredOutTransactions = [];
 
     for (const tx of this.transactions) {
+      tx.fee.addPayoutFeeEstimation(estimatePayoutFeeAmount, tx);
       const feeRatio = Util.round(estimatePayoutFeeAmount / tx.outputReferenceAmount, 8);
 
       if (feeRatio > tx.fee.allowedTotalFeePercent) {
@@ -101,7 +102,6 @@ export class BuyCryptoBatch extends IEntity {
         continue;
       }
 
-      tx.fee.addPayoutFeeEstimation(estimatePayoutFeeAmount, tx);
       reBatchTransactions.push(tx);
     }
 

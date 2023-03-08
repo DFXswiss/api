@@ -151,13 +151,14 @@ export class BuyCrypto extends IEntity {
     this.outputAsset = this.target?.asset;
 
     if (this.outputAsset.dexName === this.inputReferenceAsset) {
-      this.outputReferenceAsset = this.outputAsset;
+      this.setOutputReferenceAsset(this.outputAsset);
+
       return null;
     }
 
     if (['USDC', 'USDT'].includes(this.outputAsset.dexName)) {
       if (['EUR', 'CHF', 'USD', 'USDC', 'USDT'].includes(this.inputReferenceAsset)) {
-        this.outputReferenceAsset = this.outputAsset;
+        this.setOutputReferenceAsset(this.outputAsset);
 
         return null;
       } else {
@@ -173,7 +174,7 @@ export class BuyCrypto extends IEntity {
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
         if (this.outputAsset.dexName === 'DFI') {
-          this.outputReferenceAsset = this.outputAsset;
+          this.setOutputReferenceAsset(this.outputAsset);
 
           return null;
         }
@@ -182,7 +183,7 @@ export class BuyCrypto extends IEntity {
 
       case Blockchain.BINANCE_SMART_CHAIN:
         if (['DFI', 'BUSD', 'BTCB', 'ETH'].includes(this.outputAsset.dexName)) {
-          this.outputReferenceAsset = this.outputAsset;
+          this.setOutputReferenceAsset(this.outputAsset);
 
           return null;
         }
@@ -197,8 +198,8 @@ export class BuyCrypto extends IEntity {
     }
   }
 
-  setOutputReferenceAsset(outputReferenceAsset: Asset): this {
-    this.outputReferenceAsset = outputReferenceAsset;
+  setOutputReferenceAsset(asset: Asset): this {
+    this.outputReferenceAsset = asset;
     this.status = BuyCryptoStatus.PREPARED;
 
     return this;
