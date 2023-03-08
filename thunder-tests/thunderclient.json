@@ -2216,6 +2216,44 @@
     "tests": []
   },
   {
+    "_id": "e3f6ea9d-bfb6-47e2-b2fb-d45c8780dd51",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "ed149df1-5a55-4eb1-836a-6b84742c8f38",
+    "name": "Buy Liquidity",
+    "url": "{{url}}/v1/liquidityManagement/pipeline/buy",
+    "method": "POST",
+    "sortNum": 780000,
+    "created": "2023-02-27T10:55:51.265Z",
+    "modified": "2023-02-27T10:59:34.633Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"assetId\": 61,\n  \"amount\": 0.0001\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "cb0bb4ff-bf67-49a5-97bc-dbcae21123ff",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "ed149df1-5a55-4eb1-836a-6b84742c8f38",
+    "name": "Sell Liquidity",
+    "url": "{{url}}/v1/liquidityManagement/pipeline/sell",
+    "method": "POST",
+    "sortNum": 790000,
+    "created": "2023-02-27T10:59:54.219Z",
+    "modified": "2023-02-27T12:40:19.275Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"assetId\": 61,\n  \"amount\": 0.0001\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
     "_id": "98209270-54e0-4583-b933-be50ba4ba668",
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "ed149df1-5a55-4eb1-836a-6b84742c8f38",

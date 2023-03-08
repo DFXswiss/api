@@ -1,62 +1,87 @@
 import { Injectable } from '@nestjs/common';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { ExchangeRegistryService } from 'src/integration/exchange/services/exchange-registry.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { LiquidityManagementOrder } from '../../entities/liquidity-management-order.entity';
+import { LiquidityManagementSystem } from '../../enums';
 import { OrderNotProcessableException } from '../../exceptions/order-not-processable.exception';
-import { CorrelationId, LiquidityActionIntegration } from '../../interfaces';
+import { Command, CorrelationId } from '../../interfaces';
+import { LiquidityManagementAdapter } from './base/liquidity-management.adapter';
+
+export interface DfxDexWithdrawParams {
+  destinationAddress: string;
+  destinationSystem: LiquidityManagementSystem;
+}
+
+/**
+ * @note
+ * commands should be lower-case
+ */
+export enum DfxDexAdapterCommands {
+  PURCHASE = 'purchase',
+  SELL = 'sell',
+  WITHDRAW = 'withdraw',
+}
 
 @Injectable()
-export class DfxDexAdapter implements LiquidityActionIntegration {
-  private _supportedCommands: string[];
-  private commands = new Map<string, (asset: Asset, amount: number, correlationId: number) => Promise<CorrelationId>>();
+export class DfxDexAdapter extends LiquidityManagementAdapter {
+  protected commands = new Map<string, Command>();
 
-  constructor(private readonly dexService: DexService) {
-    this.commands.set('purchase', this.purchase.bind(this));
-    this.commands.set('sell', this.sell.bind(this));
+  constructor(private readonly dexService: DexService, private readonly registryService: ExchangeRegistryService) {
+    super(LiquidityManagementSystem.DFX_DEX);
 
-    this._supportedCommands = [...this.commands.keys()];
+    this.commands.set(DfxDexAdapterCommands.PURCHASE, this.purchase.bind(this));
+    this.commands.set(DfxDexAdapterCommands.SELL, this.sell.bind(this));
+    this.commands.set(DfxDexAdapterCommands.WITHDRAW, this.withdraw.bind(this));
   }
 
-  /**
-   * @note
-   * Returned correlationId is ignored in case of DFX DEX. correlation is provided by client call (liquidity management)
-   */
-  async executeOrder(order: LiquidityManagementOrder): Promise<CorrelationId> {
-    const {
-      action: { command },
-      pipeline: {
-        rule: { target: asset },
-      },
-      amount,
-    } = order;
+  async checkCompletion(order: LiquidityManagementOrder): Promise<boolean> {
+    switch (order.action.command) {
+      case DfxDexAdapterCommands.PURCHASE:
+        return this.checkSellPurchaseCompletion(order);
 
-    if (!(asset instanceof Asset)) {
-      throw new Error('DfxDexAdapter supports only Assets.');
-    }
+      case DfxDexAdapterCommands.SELL:
+        return this.checkSellPurchaseCompletion(order);
 
-    try {
-      return await this.commands.get(command)(asset, amount, order.id);
-    } catch (e) {
-      throw new OrderNotProcessableException(e.message);
+      case DfxDexAdapterCommands.WITHDRAW:
+        return this.checkWithdrawCompletion(order);
+
+      default:
+        return false;
     }
   }
 
-  async checkCompletion(correlationId: CorrelationId): Promise<boolean> {
-    try {
-      const result = await this.dexService.checkOrderReady(LiquidityOrderContext.LIQUIDITY_MANAGEMENT, correlationId);
-      if (result.isReady)
-        await this.dexService.completeOrders(LiquidityOrderContext.LIQUIDITY_MANAGEMENT, correlationId);
+  validateParams(command: string, params: any): boolean {
+    switch (command) {
+      case DfxDexAdapterCommands.WITHDRAW:
+        return this.validateWithdrawParams(params);
 
-      return result.isReady;
-    } catch (e) {
-      throw new OrderNotProcessableException(e.message);
+      case DfxDexAdapterCommands.PURCHASE:
+        return true;
+
+      case DfxDexAdapterCommands.SELL:
+        return true;
+
+      default:
+        throw new Error(`Command ${command} not supported by DfxDexAdapter`);
     }
   }
 
   //*** COMMANDS IMPLEMENTATIONS ***//
 
-  private async purchase(asset: Asset, amount: number, correlationId: number): Promise<CorrelationId> {
+  /**
+   * @note
+   * correlationId is the orderId and set by liquidity management
+   */
+  private async purchase(order: LiquidityManagementOrder): Promise<CorrelationId> {
+    const {
+      pipeline: {
+        rule: { targetAsset: asset },
+      },
+      amount,
+      id: correlationId,
+    } = order;
+
     const request = {
       context: LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
       correlationId: correlationId.toString(),
@@ -67,10 +92,22 @@ export class DfxDexAdapter implements LiquidityActionIntegration {
 
     await this.dexService.purchaseLiquidity(request);
 
-    return null;
+    return correlationId.toString();
   }
 
-  private async sell(asset: Asset, amount: number, correlationId: number): Promise<CorrelationId> {
+  /**
+   * @note
+   * correlationId is the orderId and set by liquidity management
+   */
+  private async sell(order: LiquidityManagementOrder): Promise<CorrelationId> {
+    const {
+      pipeline: {
+        rule: { targetAsset: asset },
+      },
+      amount,
+      id: correlationId,
+    } = order;
+
     const request = {
       context: LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
       correlationId: correlationId.toString(),
@@ -80,10 +117,80 @@ export class DfxDexAdapter implements LiquidityActionIntegration {
 
     await this.dexService.sellLiquidity(request);
 
-    return null;
+    return correlationId.toString();
   }
 
-  get supportedCommands(): string[] {
-    return [...this._supportedCommands];
+  private async withdraw(order: LiquidityManagementOrder): Promise<CorrelationId> {
+    const { address } = this.parseAndValidateParams(order.action.params);
+    const { amount } = order;
+
+    const request = {
+      destinationAddress: address,
+      asset: order.pipeline.rule.targetAsset,
+      amount,
+    };
+
+    return this.dexService.transferLiquidity(request);
+  }
+
+  //*** HELPER METHODS ***//
+
+  private async checkSellPurchaseCompletion(order: LiquidityManagementOrder): Promise<boolean> {
+    try {
+      const result = await this.dexService.checkOrderReady(
+        LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
+        order.correlationId,
+      );
+
+      if (result.isReady) {
+        await this.dexService.completeOrders(LiquidityOrderContext.LIQUIDITY_MANAGEMENT, order.correlationId);
+      }
+
+      return result.isReady;
+    } catch (e) {
+      throw new OrderNotProcessableException(e.message);
+    }
+  }
+
+  private async checkWithdrawCompletion(order: LiquidityManagementOrder): Promise<boolean> {
+    const { system } = this.parseAndValidateParams(order.action.params);
+
+    const exchange = this.registryService.getExchange(system.toLowerCase());
+
+    const deposits = await exchange.getDeposits(order.pipeline.rule.targetAsset.dexName, order.created);
+    const deposit = deposits.find((d) => d.amount === order.amount && d.timestamp > order.created.getTime());
+
+    return deposit && deposit.status === 'ok';
+  }
+
+  private parseAndValidateParams(_params: any): { address: string; system: LiquidityManagementSystem } {
+    const params = this.parseActionParams<DfxDexWithdrawParams>(_params);
+    const isValid = this.validateWithdrawParams(params);
+
+    if (!isValid) throw new Error(`Params provided to DfxDexAdapter.withdraw(...) command are invalid.`);
+
+    return this.mapWithdrawParams(params);
+  }
+
+  private validateWithdrawParams(params: any): boolean {
+    try {
+      const { address, system } = this.mapWithdrawParams(params);
+
+      return !!(
+        address &&
+        system &&
+        Object.values(LiquidityManagementSystem).includes(system) &&
+        this.registryService.getExchange(system.toLowerCase())
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  private mapWithdrawParams(params: DfxDexWithdrawParams): { address: string; system: LiquidityManagementSystem } {
+    const address = process.env[params.destinationAddress];
+    const system = process.env[params.destinationSystem] as LiquidityManagementSystem;
+
+    return { address, system };
   }
 }

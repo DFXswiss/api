@@ -11,6 +11,7 @@ import { ChainSwapId, LiquidityOrder } from '../entities/liquidity-order.entity'
 import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
 import { PriceSlippageException } from '../exceptions/price-slippage.exception';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
+import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
 
 export interface DexDeFiChainLiquidityResult {
   targetAmount: number;
@@ -102,8 +103,8 @@ export class DexDeFiChainService {
     return this.#dexClient.addPoolLiquidity(Config.blockchain.default.dexWalletAddress, poolPair);
   }
 
-  async transferLiquidity(addressFrom: string, addressTo: string, asset: string, amount: number): Promise<string> {
-    return this.#dexClient.sendToken(addressFrom, addressTo, asset, amount);
+  async transferLiquidity(addressTo: string, asset: string, amount: number): Promise<string> {
+    return this.#dexClient.sendToken(this.dexWalletAddress, addressTo, asset, amount);
   }
 
   async transferMinimalUtxo(address: string): Promise<string> {
@@ -185,6 +186,14 @@ export class DexDeFiChainService {
     return Util.round(availableAmount - pendingAmount, 8);
   }
 
+  async getRecentHistory(depth: number): Promise<AccountHistory[]> {
+    return this.#dexClient.getRecentHistory(depth, Config.blockchain.default.dexWalletAddress);
+  }
+
+  parseAmounts(amounts: string[]): { asset: string; amount: number }[] {
+    return amounts.map((a) => this.getClient().parseAmount(a));
+  }
+
   //*** GETTERS ***//
 
   get dexWalletAddress(): string {
@@ -193,10 +202,12 @@ export class DexDeFiChainService {
 
   // *** HELPER METHODS *** //
 
+  protected getClient(): DeFiClient {
+    return this.#dexClient;
+  }
+
   private async getTargetAmount(sourceAsset: Asset, sourceAmount: number, targetAsset: Asset): Promise<number> {
-    return targetAsset.id === sourceAsset.id
-      ? sourceAmount
-      : this.testSwap(sourceAsset, targetAsset, sourceAmount);
+    return targetAsset.id === sourceAsset.id ? sourceAmount : this.testSwap(sourceAsset, targetAsset, sourceAmount);
   }
 
   private async checkAssetAvailability(asset: Asset, requiredAmount: number): Promise<void> {

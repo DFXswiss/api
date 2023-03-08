@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { LiquidityOrder, LiquidityOrderContext } from '../entities/liquidity-order.entity';
+import { LiquidityOrder, LiquidityOrderContext, LiquidityOrderType } from '../entities/liquidity-order.entity';
 import { DexDeFiChainService } from './dex-defichain.service';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
 import { PriceSlippageException } from '../exceptions/price-slippage.exception';
@@ -18,11 +18,15 @@ import {
   ReserveLiquidityRequest,
   CheckLiquidityRequest,
   SellLiquidityRequest,
+  TransactionQuery,
+  TransactionResult,
 } from '../interfaces';
 import { PurchaseLiquidityStrategies } from '../strategies/purchase-liquidity/purchase-liquidity.facade';
 import { SellLiquidityStrategies } from '../strategies/sell-liquidity/sell-liquidity.facade';
-import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
-import { TransferNotRequiredException } from '../exceptions/transfer-not-required.exception';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { SupplementaryStrategies } from '../strategies/supplementary/supplementary.facade';
+import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 @Injectable()
 export class DexService {
@@ -32,6 +36,7 @@ export class DexService {
     private readonly checkStrategies: CheckLiquidityStrategies,
     private readonly purchaseStrategies: PurchaseLiquidityStrategies,
     private readonly sellStrategies: SellLiquidityStrategies,
+    private readonly supplementaryStrategies: SupplementaryStrategies,
     private readonly dexDeFiChainService: DexDeFiChainService,
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
     private readonly liquidityOrderFactory: LiquidityOrderFactory,
@@ -205,22 +210,81 @@ export class DexService {
   // *** SUPPLEMENTARY PUBLIC API *** //
 
   async transferLiquidity(request: TransferRequest): Promise<string> {
-    const { destinationAddress, asset, amount } = request;
-    const sourceAddress = this.dexDeFiChainService.dexWalletAddress;
+    const { asset, amount } = request;
+    const strategy = this.supplementaryStrategies.getSupplementaryStrategy(asset);
 
-    if (asset.type === AssetType.TOKEN && destinationAddress === sourceAddress) {
-      throw new TransferNotRequiredException('Transfer of token to same address is not required/useless');
+    if (!strategy) {
+      throw new Error(`No supplementary strategy found for asset ${asset.uniqueName} during #transferLiquidity(...)`);
     }
 
-    return this.dexDeFiChainService.transferLiquidity(sourceAddress, destinationAddress, asset.dexName, amount);
+    try {
+      console.info(`Transferring ${amount} ${asset.uniqueName} liquidity.`);
+      return await strategy.transferLiquidity(request);
+    } catch (e) {
+      console.error(e.message);
+
+      // default public exception
+      throw new Error(`Error while transferring  ${amount} ${asset.uniqueName} liquidity.`);
+    }
   }
 
-  async transferMinimalUtxo(address: string): Promise<string> {
-    return this.dexDeFiChainService.transferMinimalUtxo(address);
+  async transferMinimalCoin(address: BlockchainAddress): Promise<string> {
+    const strategy = this.supplementaryStrategies.getSupplementaryStrategy(address.blockchain);
+
+    if (!strategy) {
+      throw new Error(
+        `No supplementary strategy found for blockchain ${address.blockchain} during #transferMinimalCoin(...)`,
+      );
+    }
+
+    try {
+      console.info(`Transferring minimal coin amount to address: ${address.address} ${address.blockchain}.`);
+      return await strategy.transferMinimalCoin(address.address);
+    } catch (e) {
+      console.error(e.message);
+
+      // default public exception
+      throw new Error(
+        `Error while transferring minimal coin amount to address: ${address.address} ${address.blockchain}.`,
+      );
+    }
   }
 
-  async checkTransferCompletion(transferTxId: string): Promise<boolean> {
-    return this.dexDeFiChainService.checkTransferCompletion(transferTxId);
+  async checkTransferCompletion(transferTxId: string, blockchain: Blockchain): Promise<boolean> {
+    const strategy = this.supplementaryStrategies.getSupplementaryStrategy(blockchain);
+
+    if (!strategy) {
+      throw new Error(
+        `No supplementary strategy found for blockchain ${blockchain} during #checkTransferCompletion(...)`,
+      );
+    }
+
+    try {
+      return await strategy.checkTransferCompletion(transferTxId);
+    } catch (e) {
+      console.error(e.message);
+
+      // default public exception
+      throw new Error(`Error while checking transfer completion for transferTxId: ${transferTxId}.`);
+    }
+  }
+
+  async findTransaction(query: TransactionQuery): Promise<TransactionResult> {
+    const { asset, amount, since } = query;
+    const strategy = this.supplementaryStrategies.getSupplementaryStrategy(asset);
+
+    if (!strategy) {
+      throw new Error(`No supplementary strategy found for asset ${asset.uniqueName} during #findTransaction(...)`);
+    }
+
+    try {
+      return await strategy.findTransaction(query);
+    } catch (e) {
+      console.error(e.message);
+
+      // default public exception
+      throw new Error(`Error while searching ${amount} ${asset.uniqueName} transaction since ${since.toDateString()}.`);
+    }
   }
 
   //*** JOBS ***//
@@ -258,22 +322,54 @@ export class DexService {
 
   private async addPurchaseDataToOrders(orders: LiquidityOrder[]): Promise<void> {
     for (const order of orders) {
-      try {
-        const strategy = this.purchaseStrategies.getPurchaseLiquidityStrategy(order.targetAsset);
+      switch (order.type) {
+        case LiquidityOrderType.PURCHASE:
+          await this.addPurchaseDataToOrder(order);
+          break;
 
-        if (!strategy) {
-          throw new Error(`No purchase liquidity strategy for asset ${order.targetAsset.uniqueName}`);
-        }
+        case LiquidityOrderType.SELL:
+          await this.addSellDataToOrder(order);
+          break;
 
-        await strategy.addPurchaseData(order);
-
-        console.info(
-          `Liquidity purchase is ready. Order ID: ${order.id}. Context: ${order.context}. Correlation ID: ${order.correlationId}`,
-        );
-      } catch (e) {
-        console.error(`Error while trying to add purchase data to liquidity order. Order ID: ${order.id}`, e);
-        continue;
+        default:
+          continue;
       }
+    }
+  }
+
+  private async addPurchaseDataToOrder(order: LiquidityOrder): Promise<void> {
+    try {
+      const strategy = this.purchaseStrategies.getPurchaseLiquidityStrategy(order.targetAsset);
+
+      if (!strategy) {
+        throw new Error(`No purchase liquidity strategy for asset ${order.targetAsset.uniqueName}`);
+      }
+
+      await strategy.addPurchaseData(order);
+
+      console.info(
+        `Liquidity purchase is ready. Order ID: ${order.id}. Context: ${order.context}. Correlation ID: ${order.correlationId}`,
+      );
+    } catch (e) {
+      console.error(`Error while trying to add purchase data to liquidity order. Order ID: ${order.id}`, e);
+    }
+  }
+
+  private async addSellDataToOrder(order: LiquidityOrder): Promise<void> {
+    try {
+      const strategy = this.sellStrategies.getSellLiquidityStrategy(order.targetAsset);
+
+      if (!strategy) {
+        throw new Error(`No sell liquidity strategy for asset ${order.targetAsset.uniqueName}`);
+      }
+
+      await strategy.addSellData(order);
+
+      console.info(
+        `Liquidity sell is ready. Order ID: ${order.id}. Context: ${order.context}. Correlation ID: ${order.correlationId}`,
+      );
+    } catch (e) {
+      console.error(`Error while trying to add sell data to liquidity order. Order ID: ${order.id}`, e);
     }
   }
 }

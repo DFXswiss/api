@@ -51,6 +51,13 @@ import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { SellLiquidityStrategies } from './strategies/sell-liquidity/sell-liquidity.facade';
 import { DexArbitrumService } from './services/dex-arbitrum.service';
 import { DexOptimismService } from './services/dex-optimism.service';
+import { SupplementaryStrategies } from './strategies/supplementary/supplementary.facade';
+import { ArbitrumStrategy as ArbitrumStrategyS } from './strategies/supplementary/impl/arbitrum.strategy';
+import { BitcoinStrategy as BitcoinStrategyS } from './strategies/supplementary/impl/bitcoin.strategy';
+import { BscStrategy as BscStrategyS } from './strategies/supplementary/impl/bsc.strategy';
+import { DeFiChainStrategy as DeFiChainStrategyS } from './strategies/supplementary/impl/defichain.strategy';
+import { EthereumStrategy as EthereumStrategyS } from './strategies/supplementary/impl/ethereum.strategy';
+import { OptimismStrategy as OptimismStrategyS } from './strategies/supplementary/impl/optimism.strategy';
 
 @Module({
   imports: [TypeOrmModule.forFeature([LiquidityOrderRepository]), BlockchainModule, NotificationModule, SharedModule],
@@ -67,6 +74,7 @@ import { DexOptimismService } from './services/dex-optimism.service';
     CheckLiquidityStrategies,
     PurchaseLiquidityStrategies,
     SellLiquidityStrategies,
+    SupplementaryStrategies,
     DeFiChainDefaultStrategyCL,
     DeFiChainPoolPairStrategyCL,
     ArbitrumCoinStrategyCL,
@@ -102,6 +110,12 @@ import { DexOptimismService } from './services/dex-optimism.service';
     EthereumTokenStrategySL,
     OptimismCoinStrategySL,
     OptimismTokenStrategySL,
+    ArbitrumStrategyS,
+    BitcoinStrategyS,
+    BscStrategyS,
+    DeFiChainStrategyS,
+    EthereumStrategyS,
+    OptimismStrategyS,
   ],
   exports: [DexService],
 })

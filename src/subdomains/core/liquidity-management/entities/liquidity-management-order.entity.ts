@@ -3,6 +3,7 @@ import { Column, Entity, JoinTable, ManyToOne } from 'typeorm';
 import { LiquidityManagementAction } from './liquidity-management-action.entity';
 import { LiquidityManagementOrderStatus } from '../enums';
 import { LiquidityManagementPipeline } from './liquidity-management-pipeline.entity';
+import { OrderNotProcessableException } from '../exceptions/order-not-processable.exception';
 
 @Entity()
 export class LiquidityManagementOrder extends IEntity {
@@ -20,12 +21,22 @@ export class LiquidityManagementOrder extends IEntity {
   @JoinTable()
   action: LiquidityManagementAction;
 
+  @Column({ type: 'int', nullable: true })
+  previousOrderId: number;
+
+  @Column({ length: 256, nullable: true })
+  correlationId: string;
+
+  @Column({ length: 'MAX', nullable: true })
+  errorMessage: string;
+
   //*** FACTORY ***//
 
   static create(
     amount: number,
     pipeline: LiquidityManagementPipeline,
     action: LiquidityManagementAction,
+    previousOrderId: number,
   ): LiquidityManagementOrder {
     const order = new LiquidityManagementOrder();
 
@@ -33,13 +44,15 @@ export class LiquidityManagementOrder extends IEntity {
     order.amount = amount;
     order.pipeline = pipeline;
     order.action = action;
+    order.previousOrderId = previousOrderId;
 
     return order;
   }
 
   //*** PUBLIC API ***//
 
-  inProgress(): this {
+  inProgress(correlationId: string): this {
+    this.correlationId = correlationId;
     this.status = LiquidityManagementOrderStatus.IN_PROGRESS;
 
     return this;
@@ -51,8 +64,9 @@ export class LiquidityManagementOrder extends IEntity {
     return this;
   }
 
-  fail(): this {
+  fail(error: OrderNotProcessableException): this {
     this.status = LiquidityManagementOrderStatus.FAILED;
+    this.errorMessage = error.message;
 
     return this;
   }

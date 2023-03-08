@@ -10,14 +10,14 @@ export abstract class EvmClient {
   protected provider: ethers.providers.JsonRpcProvider;
   protected randomReceiverAddress = '0x4975f78e8903548bD33aF404B596690D47588Ff5';
   protected dfxAddress: string;
+  protected wallet: ethers.Wallet;
+  protected nonce = new Map<string, number>();
 
-  #wallet: ethers.Wallet;
   #router: Contract;
   #erc20Tokens: Map<string, Contract> = new Map();
   #swapTokenAddress: string;
 
   #sendCoinGasLimit = 21000;
-  #nonce = new Map<string, number>();
 
   constructor(
     protected http: HttpService,
@@ -30,10 +30,10 @@ export abstract class EvmClient {
     swapTokenAddress: string,
   ) {
     this.provider = new ethers.providers.JsonRpcProvider(gatewayUrl);
-    this.#wallet = new ethers.Wallet(privateKey, this.provider);
+    this.wallet = new ethers.Wallet(privateKey, this.provider);
     this.dfxAddress = dfxAddress;
     this.#swapTokenAddress = swapTokenAddress;
-    this.#router = new ethers.Contract(swapContractAddress, UNISWAP_ROUTER_02_ABI, this.#wallet);
+    this.#router = new ethers.Contract(swapContractAddress, UNISWAP_ROUTER_02_ABI, this.wallet);
   }
 
   //*** PUBLIC API - GETTERS ***//
@@ -82,6 +82,10 @@ export abstract class EvmClient {
     return this.provider.getGasPrice();
   }
 
+  async getCurrentBlock(): Promise<number> {
+    return this.provider.getBlockNumber();
+  }
+
   async getTokenGasLimitForAsset(token: Asset): Promise<BigNumber> {
     const contract = this.getERC20ContractForDex(token.chainId);
 
@@ -106,7 +110,7 @@ export abstract class EvmClient {
   async sendRawTransactionFromDex(
     request: ethers.providers.TransactionRequest,
   ): Promise<ethers.providers.TransactionResponse> {
-    return this.sendRawTransaction(this.#wallet, request);
+    return this.sendRawTransaction(this.wallet, request);
   }
 
   async sendRawTransaction(
@@ -140,7 +144,7 @@ export abstract class EvmClient {
   }
 
   async sendNativeCoinFromDex(toAddress: string, amount: number, feeLimit?: number): Promise<string> {
-    return this.sendNativeCoin(this.#wallet, this.dfxAddress, toAddress, amount, feeLimit);
+    return this.sendNativeCoin(this.wallet, this.dfxAddress, toAddress, amount, feeLimit);
   }
 
   async sendTokenFromAddress(
@@ -164,33 +168,6 @@ export abstract class EvmClient {
     const contract = this.getERC20ContractForDex(token.chainId);
 
     return this.sendToken(contract, this.dfxAddress, toAddress, amount, feeLimit);
-  }
-
-  private async sendToken(
-    contract: Contract,
-    fromAddress: string,
-    toAddress: string,
-    amount: number,
-    feeLimit?: number,
-  ): Promise<string> {
-    /**
-     * @note
-     * adding a cap to make sure gas limit is sufficient
-     */
-    const gasLimit = +(await this.getTokenGasLimitForContact(contract));
-    const gasPrice = await this.getGasPrice(gasLimit, feeLimit);
-    const nonce = await this.getNonce(fromAddress);
-
-    const effectiveGasLimit = Util.round(gasLimit * 1.5, 0);
-
-    const decimals = await contract.decimals();
-    const targetAmount = this.convertToWeiLikeDenomination(amount, decimals);
-
-    const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit: effectiveGasLimit, nonce });
-
-    this.#nonce.set(fromAddress, nonce + 1);
-
-    return tx.hash;
   }
 
   //*** PUBLIC API - UTILITY ***//
@@ -217,7 +194,7 @@ export abstract class EvmClient {
   }
 
   async nativeCryptoTestSwap(nativeCryptoAmount: number, targetToken: Asset): Promise<number> {
-    const contract = new ethers.Contract(targetToken.chainId, ERC20_ABI, this.#wallet);
+    const contract = new ethers.Contract(targetToken.chainId, ERC20_ABI, this.wallet);
     const inputAmount = this.convertToWeiLikeDenomination(nativeCryptoAmount, 'ether');
     const outputAmounts = await this.#router.getAmountsOut(inputAmount, [this.#swapTokenAddress, targetToken.chainId]);
     const decimals = await contract.decimals();
@@ -226,10 +203,10 @@ export abstract class EvmClient {
   }
 
   async tokenTestSwap(sourceToken: Asset, sourceAmount: number, targetToken: Asset): Promise<number> {
-    const sourceContract = new ethers.Contract(sourceToken.chainId, ERC20_ABI, this.#wallet);
+    const sourceContract = new ethers.Contract(sourceToken.chainId, ERC20_ABI, this.wallet);
     const sourceTokenDecimals = await sourceContract.decimals();
 
-    const targetContract = new ethers.Contract(targetToken.chainId, ERC20_ABI, this.#wallet);
+    const targetContract = new ethers.Contract(targetToken.chainId, ERC20_ABI, this.wallet);
     const targetTokenDecimals = await targetContract.decimals();
 
     const inputAmount = this.convertToWeiLikeDenomination(sourceAmount, sourceTokenDecimals);
@@ -268,9 +245,26 @@ export abstract class EvmClient {
       : parseFloat(ethers.utils.formatEther(amountWeiLike));
   }
 
+  convertToWeiLikeDenomination(amountEthLike: number, decimals: number | 'ether'): BigNumber {
+    const amount = decimals === 'ether' ? amountEthLike.toFixed(16) : amountEthLike.toFixed(decimals);
+
+    return ethers.utils.parseUnits(amount, decimals);
+  }
+
+  getERC20ContractForDex(tokenAddress: string): Contract {
+    let tokenContract = this.#erc20Tokens.get(tokenAddress);
+
+    if (!tokenContract) {
+      tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, this.wallet);
+      this.#erc20Tokens.set(tokenAddress, tokenContract);
+    }
+
+    return tokenContract;
+  }
+
   //*** PRIVATE HELPER METHODS ***//
 
-  private async sendNativeCoin(
+  protected async sendNativeCoin(
     wallet: ethers.Wallet,
     fromAddress: string,
     toAddress: string,
@@ -290,12 +284,39 @@ export abstract class EvmClient {
       gasLimit: this.#sendCoinGasLimit,
     });
 
-    this.#nonce.set(fromAddress, nonce + 1);
+    this.nonce.set(fromAddress, nonce + 1);
 
     return tx.hash;
   }
 
-  private async getGasPrice(gasLimit: number, feeLimit?: number): Promise<number> {
+  private async sendToken(
+    contract: Contract,
+    fromAddress: string,
+    toAddress: string,
+    amount: number,
+    feeLimit?: number,
+  ): Promise<string> {
+    /**
+     * @note
+     * adding a cap to make sure gas limit is sufficient
+     */
+    const gasLimit = +(await this.getTokenGasLimitForContact(contract));
+    const gasPrice = await this.getGasPrice(gasLimit, feeLimit);
+    const nonce = await this.getNonce(fromAddress);
+
+    const effectiveGasLimit = Util.round(gasLimit * 1.5, 0);
+
+    const decimals = await contract.decimals();
+    const targetAmount = this.convertToWeiLikeDenomination(amount, decimals);
+
+    const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit: effectiveGasLimit, nonce });
+
+    this.nonce.set(fromAddress, nonce + 1);
+
+    return tx.hash;
+  }
+
+  protected async getGasPrice(gasLimit: number, feeLimit?: number): Promise<number> {
     const currentGasPrice = +(await this.getCurrentGasPrice());
     const proposedGasPrice =
       feeLimit != null ? Util.round(+this.convertToWeiLikeDenomination(feeLimit, 'ether') / gasLimit, 0) : null;
@@ -305,9 +326,9 @@ export abstract class EvmClient {
     return currentGasPrice < proposedGasPrice ? currentGasPrice : proposedGasPrice;
   }
 
-  private async getNonce(address: string): Promise<number> {
+  protected async getNonce(address: string): Promise<number> {
     const blockchainNonce = await this.provider.getTransactionCount(address);
-    const cachedNonce = this.#nonce.get(address) ?? 0;
+    const cachedNonce = this.nonce.get(address) ?? 0;
 
     const currentNonce = blockchainNonce > cachedNonce ? blockchainNonce : cachedNonce;
 
@@ -328,22 +349,5 @@ export abstract class EvmClient {
     const wallet = new ethers.Wallet(privateKey, this.provider);
 
     return new ethers.Contract(tokenAddress, ERC20_ABI, wallet);
-  }
-
-  private getERC20ContractForDex(tokenAddress: string): Contract {
-    let tokenContract = this.#erc20Tokens.get(tokenAddress);
-
-    if (!tokenContract) {
-      tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, this.#wallet);
-      this.#erc20Tokens.set(tokenAddress, tokenContract);
-    }
-
-    return tokenContract;
-  }
-
-  private convertToWeiLikeDenomination(amountEthLike: number, decimals: number | 'ether'): BigNumber {
-    const amount = decimals === 'ether' ? amountEthLike.toFixed(16) : amountEthLike.toFixed(decimals);
-
-    return ethers.utils.parseUnits(amount, decimals);
   }
 }
