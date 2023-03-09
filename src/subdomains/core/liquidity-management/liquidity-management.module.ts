@@ -1,11 +1,16 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BankModule } from 'src/integration/bank/bank.module';
-import { AinModule } from 'src/integration/blockchain/ain/ain.module';
+import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
+import { ExchangeModule } from 'src/integration/exchange/exchange.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { DexModule } from 'src/subdomains/supporting/dex/dex.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
+import { ArbitrumL2BridgeAdapter } from './adapters/actions/arbitrum-l2-bridge.adapter';
+import { BinanceAdapter } from './adapters/actions/binance.adapter';
 import { DfxDexAdapter } from './adapters/actions/dfx-dex.adapter';
+import { KrakenAdapter } from './adapters/actions/kraken.adapter';
+import { OptimismL2BridgeAdapter } from './adapters/actions/optimism-l2-bridge.adapter';
 import { BankAdapter } from './adapters/balances/bank.adapter';
 import { BlockchainAdapter } from './adapters/balances/blockchain.adapter';
 import { LiquidityBalanceController } from './controllers/balance.controller';
@@ -35,7 +40,8 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     ]),
     SharedModule,
     DexModule,
-    AinModule,
+    BlockchainModule,
+    ExchangeModule,
     BankModule,
     NotificationModule,
   ],
@@ -55,6 +61,10 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     BlockchainAdapter,
     BankAdapter,
     DfxDexAdapter,
+    ArbitrumL2BridgeAdapter,
+    OptimismL2BridgeAdapter,
+    BinanceAdapter,
+    KrakenAdapter,
   ],
   exports: [],
 })

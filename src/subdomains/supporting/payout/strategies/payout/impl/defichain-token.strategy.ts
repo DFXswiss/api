@@ -9,6 +9,8 @@ import { PayoutOrderRepository } from '../../../repositories/payout-order.reposi
 import { PayoutGroup } from '../../../services/base/payout-jellyfish.service';
 import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
 import { JellyfishStrategy } from './base/jellyfish.strategy';
+import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 type TokenName = string;
 
@@ -87,7 +89,7 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
     const utxo = await this.jellyfishService.getUtxoForAddress(address);
 
     if (!utxo) {
-      await this.dexService.transferMinimalUtxo(address);
+      await this.dexService.transferMinimalCoin(BlockchainAddress.create(address, Blockchain.DEFICHAIN));
     }
   }
 

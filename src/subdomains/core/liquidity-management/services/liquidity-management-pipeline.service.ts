@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { LiquidityManagementOrder } from '../entities/liquidity-management-order.entity';
 import { LiquidityManagementOrderStatus, LiquidityManagementPipelineStatus } from '../enums';
@@ -82,6 +82,14 @@ export class LiquidityManagementPipelineService {
     });
   }
 
+  async getPipelineStatus(pipelineId: number): Promise<LiquidityManagementPipelineStatus> {
+    const pipeline = await this.pipelineRepo.findOne({ id: pipelineId });
+
+    if (!pipeline) throw new NotFoundException(`No liquidity management pipeline found for id ${pipelineId}`);
+
+    return pipeline.status;
+  }
+
   //*** HELPER METHODS ***//
 
   async startNewPipelines(): Promise<void> {
@@ -116,7 +124,14 @@ export class LiquidityManagementPipelineService {
         });
 
         if (!order) {
-          await this.placeLiquidityOrder(pipeline);
+          const previousOrder =
+            pipeline.previousAction &&
+            (await this.orderRepo.findOne({
+              pipeline,
+              action: pipeline.previousAction,
+            }));
+
+          await this.placeLiquidityOrder(pipeline, previousOrder);
           continue;
         }
 
@@ -148,9 +163,12 @@ export class LiquidityManagementPipelineService {
     }
   }
 
-  private async placeLiquidityOrder(pipeline: LiquidityManagementPipeline): Promise<void> {
+  private async placeLiquidityOrder(
+    pipeline: LiquidityManagementPipeline,
+    previousOrder: LiquidityManagementOrder | null,
+  ): Promise<void> {
     const { targetAmount, currentAction } = pipeline;
-    const order = LiquidityManagementOrder.create(targetAmount, pipeline, currentAction);
+    const order = LiquidityManagementOrder.create(targetAmount, pipeline, currentAction, previousOrder?.id);
 
     await this.orderRepo.save(order);
   }
@@ -163,7 +181,7 @@ export class LiquidityManagementPipelineService {
         await this.executeOrder(order);
       } catch (e) {
         if (e instanceof OrderNotProcessableException) {
-          order.fail();
+          order.fail(e);
           await this.orderRepo.save(order);
         }
 
@@ -175,8 +193,8 @@ export class LiquidityManagementPipelineService {
   private async executeOrder(order: LiquidityManagementOrder): Promise<void> {
     const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
 
-    await actionIntegration.executeOrder(order);
-    order.inProgress();
+    const correlationId = await actionIntegration.executeOrder(order);
+    order.inProgress(correlationId);
 
     await this.orderRepo.save(order);
   }
@@ -188,20 +206,20 @@ export class LiquidityManagementPipelineService {
       try {
         await this.checkOrder(order);
       } catch (e) {
+        console.error(`Error in checking running liquidity order. Order ID: ${order.id}`, e);
+
         if (e instanceof OrderNotProcessableException) {
-          order.fail();
+          order.fail(e);
           await this.orderRepo.save(order);
           continue;
         }
-
-        console.error(`Error in checking running liquidity order. Order ID: ${order.id}`, e);
       }
     }
   }
 
   private async checkOrder(order: LiquidityManagementOrder): Promise<void> {
     const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
-    const isComplete = await actionIntegration.checkCompletion(order.id.toString());
+    const isComplete = await actionIntegration.checkCompletion(order);
 
     if (isComplete) {
       order.complete();
@@ -237,7 +255,7 @@ export class LiquidityManagementPipelineService {
 
   private generateSuccessMessage(pipeline: LiquidityManagementPipeline): [string, MailRequest] {
     const { type, targetAmount, rule } = pipeline;
-    const successMessage = `Successfully completed a ${type} pipeline for ${targetAmount} ${rule.target.name}. Pipeline ID: ${pipeline.id}. Rule ${pipeline.rule.id} optimized.`;
+    const successMessage = `Successfully completed a ${type} pipeline for ${targetAmount} ${rule.target.name}. Pipeline ID: ${pipeline.id}`;
 
     const mailRequest: MailRequest = {
       type: MailType.ERROR_MONITORING,

@@ -55,7 +55,11 @@ export class DeFiClient extends NodeClient {
     super(http, url, scheduler, mode);
   }
 
-  // common
+  async getNodeBalance(): Promise<{ utxo: BigNumber; token: number }> {
+    return { utxo: await this.getBalance(), token: await this.getToken().then((t) => t.length) };
+  }
+
+  //common
   async getHistory(fromBlock: number, toBlock: number, address?: string): Promise<AccountHistory[]> {
     return this.callNode((c) =>
       c.account.listAccountHistory(address, {
@@ -67,8 +71,14 @@ export class DeFiClient extends NodeClient {
     );
   }
 
-  async getNodeBalance(): Promise<{ utxo: BigNumber; token: number }> {
-    return { utxo: await this.getBalance(), token: await this.getToken().then((t) => t.length) };
+  async getRecentHistory(depth: number, address?: string): Promise<AccountHistory[]> {
+    return this.callNode((c) =>
+      c.account.listAccountHistory(address, {
+        depth,
+        no_rewards: true,
+        limit: 1000000,
+      }),
+    );
   }
 
   // UTXO
