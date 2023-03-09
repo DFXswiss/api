@@ -60,6 +60,12 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
     return response.hash;
   }
 
+  async approveToken(l1Token: Asset, l2Token: Asset): Promise<string> {
+    const allowanceResponse = await this.#crossChainMessenger.approveERC20(l1Token.chainId, l2Token.chainId, Infinity);
+
+    return allowanceResponse.hash;
+  }
+
   async depositTokenOnDex(l1Token: Asset, l2Token: Asset, amount: number): Promise<string> {
     const l1Contract = this.getERC20ContractForDexL1(l1Token.chainId);
     const l2Contract = this.getERC20ContractForDex(l2Token.chainId);
@@ -72,14 +78,6 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
         `Cannot bridge/deposit Optimism tokens with different decimals. L1 Token: ${l1Token.uniqueName} has ${l1Decimals}, L2 Token: ${l2Token.uniqueName} has ${l2Decimals}`,
       );
     }
-
-    const allowanceResponse = await this.#crossChainMessenger.approveERC20(
-      l1Token.chainId,
-      l2Token.chainId,
-      this.convertToWeiLikeDenomination(amount, l1Decimals),
-    );
-
-    await allowanceResponse.wait();
 
     const response = await this.#crossChainMessenger.depositERC20(
       l1Token.chainId,
