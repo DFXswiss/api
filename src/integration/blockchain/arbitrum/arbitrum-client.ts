@@ -155,7 +155,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
   }
 
   async getCurrentGasCostForCoinTransaction(): Promise<number> {
-    const totalGas = await this.getCurrentGasForCoinTransaction(1);
+    const totalGas = await this.getCurrentGasForCoinTransaction(1e-18);
     const gasPrice = await this.getCurrentGasPrice();
 
     return this.convertToEthLikeDenomination(totalGas.mul(gasPrice));
