@@ -196,6 +196,11 @@ export class DexService {
     }
   }
 
+  async getPendingOrders(context: LiquidityOrderContext): Promise<string[]> {
+    const pending = await this.liquidityOrderRepo.find({ where: { context }, select: ['context', 'correlationId'] });
+    return pending.map((o) => o.correlationId);
+  }
+
   async getPendingOrdersCount(asset: Asset): Promise<number> {
     return this.liquidityOrderRepo.count({
       where: [

@@ -11,6 +11,8 @@ export enum LiquidityOrderContext {
   PRICING = 'Pricing',
   LIQUIDITY_MANAGEMENT = 'LiquidityManagement',
   PAY_IN = 'PayIn',
+  BUY_FIAT_RETURN = 'BuyFiatReturn',
+  MANUAL = 'Manual',
 }
 
 export enum LiquidityOrderType {

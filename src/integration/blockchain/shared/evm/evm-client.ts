@@ -228,7 +228,7 @@ export abstract class EvmClient {
   get dummyTokenPayload(): string {
     const method = 'a9059cbb000000000000000000000000';
     const destination = this.randomReceiverAddress.slice(2);
-    const value = '00000000000000000000000000000000000000000000000000000fcc44ae0400';
+    const value = '0000000000000000000000000000000000000000000000000000000000000001';
 
     return '0x' + method + destination + value;
   }

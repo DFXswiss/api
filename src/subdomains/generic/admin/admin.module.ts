@@ -6,10 +6,13 @@ import { ReferralModule } from 'src/subdomains/core/referral/referral.module';
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
 import { StakingModule } from 'src/subdomains/core/staking/staking.module';
 import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
+import { DexModule } from 'src/subdomains/supporting/dex/dex.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PayInModule } from 'src/subdomains/supporting/payin/payin.module';
+import { PayoutModule } from 'src/subdomains/supporting/payout/payout.module';
 import { UserModule } from '../user/user.module';
 import { AdminController } from './admin.controller';
+import { AdminService } from './admin.service';
 
 @Module({
   imports: [
@@ -23,9 +26,11 @@ import { AdminController } from './admin.controller';
     BankModule,
     StakingModule,
     PayInModule,
+    DexModule,
+    PayoutModule,
   ],
   controllers: [AdminController],
-  providers: [],
+  providers: [AdminService],
   exports: [],
 })
 export class AdminModule {}
