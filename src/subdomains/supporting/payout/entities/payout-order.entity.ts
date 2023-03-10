@@ -7,6 +7,8 @@ import { Column, Entity, Index, ManyToOne } from 'typeorm';
 export enum PayoutOrderContext {
   BUY_CRYPTO = 'BuyCrypto',
   STAKING_REWARD = 'StakingReward',
+  BUY_FIAT_RETURN = 'BuyFiatReturn',
+  MANUAL = 'Manual',
 }
 
 export enum PayoutOrderStatus {
