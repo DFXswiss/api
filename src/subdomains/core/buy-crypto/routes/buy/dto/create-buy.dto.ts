@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import { IsNotEmpty, IsNotEmptyObject, ValidateNested } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
@@ -13,9 +13,9 @@ export class CreateBuyDto {
   @IsDfxIban()
   iban: string;
 
-  @ApiPropertyOptional({ type: EntityDto })
+  @ApiProperty({ type: EntityDto })
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)
-  asset?: Asset;
+  asset: Asset;
 }

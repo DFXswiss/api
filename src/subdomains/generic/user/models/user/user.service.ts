@@ -436,6 +436,7 @@ export class UserService {
       buyVolume: { total: user.buyVolume, annual: user.annualBuyVolume },
       sellVolume: { total: user.sellVolume, annual: user.annualSellVolume },
       cryptoVolume: { total: user.cryptoVolume, annual: user.annualCryptoVolume },
+      stakingBalance: 0,
     };
   }
 }

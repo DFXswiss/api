@@ -305,7 +305,6 @@ export class Configuration {
       dexWalletAddress: process.env.DEX_WALLET_ADDRESS,
       outWalletAddress: process.env.OUT_WALLET_ADDRESS,
       intWalletAddress: process.env.INT_WALLET_ADDRESS,
-      stakingWalletAddress: process.env.STAKING_WALLET_ADDRESS,
       btcOutWalletAddress: process.env.BTC_OUT_WALLET_ADDRESS,
       minTxAmount: 0.00000297,
       minDeposit: {
@@ -403,15 +402,6 @@ export class Configuration {
         [FeeTier.TIER4]: 0.0349,
       },
     },
-  };
-
-  staking = {
-    fee: 0.125,
-    period: 28, // days
-    minInvestment: 100, // DFI
-    freeDays: 28,
-    refSystemStart: new Date('2022-05-22T16:00:00.000Z'),
-    refReward: 20, // EUR
   };
 
   crypto = {

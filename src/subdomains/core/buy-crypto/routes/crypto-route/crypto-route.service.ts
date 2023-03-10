@@ -92,7 +92,8 @@ export class CryptoRouteService {
     // check if exists
     const existing = await this.cryptoRepo.findOne({
       where: {
-        ...{ asset: targetAsset, targetDeposit: IsNull() },
+        asset: targetAsset,
+        targetDeposit: IsNull(),
         user: { id: userId },
         deposit: { blockchain: dto.blockchain },
       },
