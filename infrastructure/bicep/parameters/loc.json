@@ -68,9 +68,6 @@
     "intWalletAddress": {
       "value": "xxx"
     },
-    "stakingWalletAddress": {
-      "value": "xxx"
-    },
     "utxoSpenderAddress": {
       "value": "xxx"
     },
