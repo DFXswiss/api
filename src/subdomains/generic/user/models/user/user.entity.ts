@@ -52,13 +52,7 @@ export class User extends IEntity {
   sellFee: number;
 
   @Column({ type: 'float', nullable: true })
-  stakingFee: number;
-
-  @Column({ type: 'float', nullable: true })
   cryptoFee: number;
-
-  @Column({ type: 'datetime2', nullable: true })
-  stakingStart: Date;
 
   @Column({ length: 256, nullable: true })
   origin: string;
@@ -87,9 +81,6 @@ export class User extends IEntity {
 
   @Column({ type: 'float', default: 0 })
   cryptoVolume: number;
-
-  @Column({ type: 'float', default: 0 })
-  stakingBalance: number;
 
   @OneToMany(() => Buy, (buy) => buy.user)
   buys: Buy[];
@@ -122,9 +113,6 @@ export class User extends IEntity {
 
   @Column({ type: 'float', nullable: false, default: 0 })
   paidRefCredit: number;
-
-  @Column({ type: 'float', nullable: false, default: 0 })
-  paidStakingRefCredit: number;
 
   @OneToMany(() => RefReward, (reward) => reward.user)
   refRewards: RefReward[];

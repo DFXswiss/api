@@ -178,9 +178,6 @@ export class UserData extends IEntity {
   sellVolume: number;
 
   @Column({ type: 'float', default: 0 })
-  stakingBalance: number;
-
-  @Column({ type: 'float', default: 0 })
   annualCryptoVolume: number;
 
   @Column({ type: 'float', default: 0 })

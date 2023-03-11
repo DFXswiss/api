@@ -48,13 +48,6 @@
         "sortNum": 70000
       },
       {
-        "_id": "0ce2fd7c-db24-4b1d-a413-ad04a98c72e9",
-        "name": "Staking",
-        "containerId": "",
-        "created": "2022-01-19T10:52:52.448Z",
-        "sortNum": 80000
-      },
-      {
         "_id": "bfbadd95-efc2-467d-9c06-404b766ef1cf",
         "name": "Route",
         "containerId": "",
@@ -95,13 +88,6 @@
         "containerId": "",
         "created": "2022-03-10T11:33:16.123Z",
         "sortNum": 150000
-      },
-      {
-        "_id": "70021591-4ac2-4ec2-a400-0f7923d201b5",
-        "name": "Crypto Staking",
-        "containerId": "",
-        "created": "2022-03-29T22:42:25.640Z",
-        "sortNum": 160000
       },
       {
         "_id": "fd2e8b01-0e57-4f22-bbb5-226617dc19db",

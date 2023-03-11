@@ -78,9 +78,7 @@ export class UserService {
   async getAllLinkedUsers(id: number): Promise<LinkedUserOutDto[]> {
     return this.userRepo
       .createQueryBuilder('user')
-      .select(
-        'linkedUser.address, isSwitchable = CASE WHEN linkedUser.stakingBalance = 0 then CAST(1 AS BIT) else CAST(0 AS BIT) end',
-      )
+      .select('linkedUser.address')
       .leftJoin('user.userData', 'userData')
       .leftJoin('userData.users', 'linkedUser')
       .leftJoin('linkedUser.wallet', 'wallet')
