@@ -86,8 +86,7 @@ export class BankingBotObserver extends MetricObserver<BankingBotData> {
   }
 
   private async initBankingBotData(): Promise<BankingBotData> {
-    const state = await this.monitoringService.loadState();
-    const data = state?.[this.subsystem]?.[this.metric]?.data as BankingBotData;
+    const data = await this.load();
 
     const isValid = this.isParsedDataValid(data);
 

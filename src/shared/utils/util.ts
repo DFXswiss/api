@@ -50,11 +50,17 @@ export class Util {
     }, {} as { [key: string]: number });
   }
 
-  static groupBy<T>(list: T[], key: KeyType<T, string>): Map<string, T[]> {
+  static groupBy<T, U>(list: T[], key: KeyType<T, U>): Map<U, T[]> {
     return list.reduce(
-      (map, item) =>
-        map.set(item[key] as unknown as string, (map.get(item[key] as unknown as string) ?? []).concat(item)),
-      new Map<string, T[]>(),
+      (map, item) => map.set(item[key] as unknown as U, (map.get(item[key] as unknown as U) ?? []).concat(item)),
+      new Map<U, T[]>(),
+    );
+  }
+
+  static groupByAccessor<T, U>(list: T[], accessor: (item: T) => U): Map<U, T[]> {
+    return list.reduce(
+      (map, item) => map.set(accessor(item), (map.get(accessor(item)) ?? []).concat(item)),
+      new Map<U, T[]>(),
     );
   }
 
@@ -155,6 +161,12 @@ export class Util {
       clearTimeout(timer);
       return resolve(result);
     });
+  }
+
+  static async timeoutAsync<T>(promise: Promise<T>, timeout: number): Promise<T> {
+    const timeoutPromise = new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout));
+
+    return Promise.race([promise, timeoutPromise]);
   }
 
   static async delay(ms: number): Promise<void> {

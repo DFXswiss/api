@@ -37,6 +37,7 @@ export class BankAccountService {
       .select('bankAccount')
       .leftJoinAndSelect('bankAccount.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`bankAccount.${key} = :param`, { param: value })
       .getOne();
   }

@@ -13,7 +13,7 @@ import { Util } from 'src/shared/utils/util';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { WalletService } from '../wallet/wallet.service';
-import { Between, Like, Not } from 'typeorm';
+import { Between, Not } from 'typeorm';
 import { AccountType } from '../user-data/account-type.enum';
 import { DfiTaxService } from 'src/integration/blockchain/ain/services/dfi-tax.service';
 import { Config } from 'src/config/config';
@@ -32,11 +32,13 @@ import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { UserDataRepository } from '../user-data/user-data.repository';
 
 @Injectable()
 export class UserService {
   constructor(
     private readonly userRepo: UserRepository,
+    private readonly userDataRepo: UserDataRepository,
     private readonly userDataService: UserDataService,
     private readonly kycService: KycService,
     private readonly walletService: WalletService,
@@ -61,6 +63,7 @@ export class UserService {
       .select('user')
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`user.${key} = :param`, { param: value })
       .getOne();
   }
@@ -100,11 +103,9 @@ export class UserService {
     user.ip = userIp;
     user.ipCountry = await this.checkIpCountry(userIp);
     user.wallet = await this.walletService.getWalletOrDefault(dto.walletId);
-    user.ref = await this.getNextRef();
     user.usedRef = await this.checkRef(user, dto.usedRef);
     user.origin = userOrigin;
     user.userData = userData ?? (await this.userDataService.createUserData(user.wallet.customKyc ?? KycType.DFX));
-
     user = await this.userRepo.save(user);
 
     const blockchains = this.cryptoService.getBlockchainsBasedOn(user.address);
@@ -129,6 +130,8 @@ export class UserService {
     const user = await this.userRepo.findOne(id);
     if (!user) throw new NotFoundException('User not found');
 
+    if (update.status && update.status == UserStatus.ACTIVE && user.status == UserStatus.NA)
+      await this.activateUser(user);
     return this.userRepo.save({ ...user, ...update });
   }
 
@@ -248,22 +251,23 @@ export class UserService {
   }
 
   async getUserCryptoFee(userId: number): Promise<{ fee: number; refBonus: number }> {
+    // fee
     const { cryptoFee, usedRef } = await this.userRepo.findOne({
       select: ['id', 'cryptoFee', 'usedRef'],
       where: { id: userId },
     });
 
-    if (cryptoFee != null) return { fee: Util.round(cryptoFee * 100, Config.defaultPercentageDecimal), refBonus: 0 };
+    const baseFee = cryptoFee ? Math.min(cryptoFee, Config.crypto.fee) : Config.crypto.fee;
 
-    const baseFee = Config.crypto.fee;
-
+    // ref bonus
     const hasUsedRef = usedRef && usedRef !== '000-000';
-    let refBonus = hasUsedRef ? Config.crypto.refBonus : 0;
+    const hasCustomFee = baseFee < Config.crypto.fee;
+    const refBonus = hasUsedRef && !hasCustomFee && baseFee >= Config.crypto.refBonus ? Config.crypto.refBonus : 0;
 
-    const fee = Util.round((baseFee - refBonus) * 100, Config.defaultPercentageDecimal);
-    refBonus = Util.round(refBonus * 100, Config.defaultPercentageDecimal);
-
-    return { fee, refBonus };
+    return {
+      fee: Util.round((baseFee - refBonus) * 100, Config.defaultPercentageDecimal),
+      refBonus: Util.round(refBonus * 100, Config.defaultPercentageDecimal),
+    };
   }
 
   // --- REF --- //
@@ -326,6 +330,7 @@ export class UserService {
 
   async activateUser(user?: User): Promise<void> {
     await this.userRepo.activateUser(user);
+    await this.userDataRepo.activateUserData(user.userData);
   }
 
   private async checkRef(user: User, usedRef: string): Promise<string> {
@@ -344,20 +349,6 @@ export class UserService {
       .select('SUM(paidRefCredit)', 'paidRefCredit')
       .getRawOne<{ paidRefCredit: number }>()
       .then((r) => r.paidRefCredit);
-  }
-
-  private async getNextRef(): Promise<string> {
-    // get highest numerical ref
-    const nextRef = await this.userRepo
-      .findOne({
-        select: ['id', 'ref'],
-        where: { ref: Like('%[0-9]-[0-9]%') },
-        order: { ref: 'DESC' },
-      })
-      .then((u) => +u.ref.replace('-', '') + 1);
-
-    const ref = nextRef.toString().padStart(6, '0');
-    return `${ref.slice(0, 3)}-${ref.slice(3, 6)}`;
   }
 
   // --- API KEY --- //

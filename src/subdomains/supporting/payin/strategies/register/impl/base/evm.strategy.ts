@@ -59,7 +59,12 @@ export abstract class EvmStrategy extends RegisterStrategy {
 
   private async getLastCheckedBlockHeight(): Promise<number> {
     return this.payInRepository
-      .findOne({ where: { address: { blockchain: this.blockchain } }, order: { blockHeight: 'DESC' } })
+      .findOne({
+        select: ['id', 'blockHeight'],
+        where: { address: { blockchain: this.blockchain } },
+        order: { blockHeight: 'DESC' },
+        loadEagerRelations: false,
+      })
       .then((input) => input?.blockHeight ?? 0);
   }
 

@@ -81,6 +81,7 @@ export class BuyCryptoService {
         'buy',
         'buy.user',
         'buy.user.wallet',
+        'buy.user.userData',
         'cryptoRoute',
         'cryptoRoute.user',
         'cryptoRoute.user.wallet',
@@ -124,8 +125,8 @@ export class BuyCryptoService {
     entity = await this.buyCryptoRepo.save(Object.assign(new BuyCrypto(), { ...update, ...entity, ...amlUpdate }));
 
     // activate user
-    if (entity.amlCheck === AmlCheck.PASS) {
-      await this.userService.activateUser(entity.buy?.user);
+    if (entity.amlCheck === AmlCheck.PASS && entity.buy?.user) {
+      await this.userService.activateUser(entity.buy.user);
     }
 
     // payment webhook
@@ -153,7 +154,9 @@ export class BuyCryptoService {
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('cryptoRouteUser.userData', 'cryptoRouteUserData')
       .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('users.wallet', 'wallet')
       .leftJoinAndSelect('cryptoRouteUserData.users', 'cryptoRouteUsers')
+      .leftJoinAndSelect('cryptoRouteUsers.wallet', 'cryptoRouteWallet')
       .where(`buyCrypto.${key} = :param`, { param: value })
       .getOne();
   }
@@ -362,6 +365,7 @@ export class BuyCryptoService {
     return this.buyCryptoRepo.find({
       where: { usedRef: In(refCodes) },
       relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
+      order: { id: 'DESC' },
     });
   }
 
@@ -369,6 +373,7 @@ export class BuyCryptoService {
     return this.buyCryptoRepo.find({
       where: [{ buy: { user: { id: In(userIds) } } }, { cryptoRoute: { user: { id: In(userIds) } } }],
       relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
+      order: { id: 'DESC' },
     });
   }
 
@@ -378,7 +383,8 @@ export class BuyCryptoService {
     // TODO Add cryptoInput buyCryptos, consultation with Daniel regarding statistic data
     const buyCryptos = await this.buyCryptoRepo.find({
       where: { buy: { id: Not(IsNull()) }, outputDate: Between(dateFrom, dateTo), amlCheck: AmlCheck.PASS },
-      relations: ['buy'],
+      relations: ['buy', 'buy.asset'],
+      loadEagerRelations: false,
     });
 
     return buyCryptos.map((v) => ({

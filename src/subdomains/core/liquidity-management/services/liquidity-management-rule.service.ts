@@ -14,6 +14,12 @@ import { LiquidityManagementRuleOutputDtoMapper } from '../dto/output/mappers/li
 import { LiquidityManagementRuleCreationDto } from '../dto/input/liquidity-management-rule-creation.dto';
 import { LiquidityActionIntegrationFactory } from '../factories/liquidity-action-integration.factory';
 import { LiquidityManagementRuleStatus } from '../enums';
+import { IsNull, Not } from 'typeorm';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { LiquidityManagementRuleSettingsDto } from '../dto/input/liquidity-management-settings.dto';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
+import { MailType } from 'src/subdomains/supporting/notification/enums';
 
 @Injectable()
 export class LiquidityManagementRuleService {
@@ -23,6 +29,7 @@ export class LiquidityManagementRuleService {
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
     private readonly actionIntegrationFactory: LiquidityActionIntegrationFactory,
+    private readonly notificationService: NotificationService,
   ) {}
 
   //*** PUBLIC API ***//
@@ -79,6 +86,44 @@ export class LiquidityManagementRuleService {
     rule.reactivate();
 
     return LiquidityManagementRuleOutputDtoMapper.entityToDto(await this.ruleRepo.save(rule));
+  }
+
+  async updateRuleSettings(
+    id: number,
+    dto: LiquidityManagementRuleSettingsDto,
+  ): Promise<LiquidityManagementRuleOutputDto> {
+    const rule = await this.ruleRepo.findOne({ id });
+
+    if (!rule) throw new NotFoundException(`Rule with id: ${id} not found.`);
+
+    const { reactivationTime } = dto;
+
+    rule.updateRuleSettings(reactivationTime);
+
+    return LiquidityManagementRuleOutputDtoMapper.entityToDto(await this.ruleRepo.save(rule));
+  }
+
+  //*** JOBS ***//
+
+  @Cron(CronExpression.EVERY_5_MINUTES)
+  async reactivateRules(): Promise<void> {
+    const rules = await this.ruleRepo.find({
+      status: LiquidityManagementRuleStatus.PAUSED,
+      reactivationTime: Not(IsNull()),
+    });
+
+    for (const rule of rules) {
+      if (rule.shouldReactivate()) {
+        rule.reactivate();
+        await this.ruleRepo.save(rule);
+
+        const mailRequest = this.generateRuleRetriedMessage(rule);
+
+        await this.notificationService.sendMail(mailRequest);
+
+        console.log(`Reactivated liquidity management rule ${rule.id}`);
+      }
+    }
   }
 
   //*** HELPER METHODS ***//
@@ -185,6 +230,7 @@ export class LiquidityManagementRuleService {
     const newAction = LiquidityManagementAction.create(
       actionDto.system,
       actionDto.command,
+      actionDto.params,
       actionOnSuccess,
       actionOnFail,
     );
@@ -197,6 +243,12 @@ export class LiquidityManagementRuleService {
       );
     }
 
+    const isParamsValid = integration.validateParams(actionDto.command, actionDto.params);
+
+    if (!isParamsValid) {
+      throw new BadRequestException(`Params provided with action are not valid. Command name: ${actionDto.command}`);
+    }
+
     return this.actionRepo.save(newAction);
   }
 
@@ -205,13 +257,27 @@ export class LiquidityManagementRuleService {
     onSuccess: LiquidityManagementAction | null,
     onFail: LiquidityManagementAction | null,
   ): Promise<LiquidityManagementAction | null> {
-    const { system, command } = actionDto;
+    const { system, command, params } = actionDto;
 
     return (
       this.actionRepo.findOne({
-        where: { system, command, onSuccess, onFail },
+        where: { system, command, onSuccess, onFail, params: params ? JSON.stringify(params) : null },
         relations: ['onSuccess', 'onFail'],
       }) ?? null
     );
+  }
+
+  private generateRuleRetriedMessage(rule: LiquidityManagementRule): MailRequest {
+    const message = `Liquidity management rule ${rule.id} reactivated after ${rule.reactivationTime} minutes`;
+
+    const mailRequest: MailRequest = {
+      type: MailType.ERROR_MONITORING,
+      input: {
+        subject: 'Liquidity management rule reactivated',
+        errors: [message],
+      },
+    };
+
+    return mailRequest;
   }
 }

@@ -2,7 +2,7 @@ import { mock } from 'jest-mock-extended';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
-import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../../../entities/payout-order.entity';
+import { PayoutOrder, PayoutOrderStatus } from '../../../entities/payout-order.entity';
 import {
   createCustomPayoutOrder,
   createDefaultPayoutOrder,
@@ -36,40 +36,6 @@ describe('PayoutJellyfishStrategy', () => {
   afterEach(() => {
     repoSaveSpy.mockClear();
     sendErrorMailSpy.mockClear();
-  });
-
-  describe('#groupOrdersByContext(...)', () => {
-    it('returns an instance of Map', () => {
-      expect(strategy.groupOrdersByContextWrapper([])).toBeInstanceOf(Map);
-      expect(strategy.groupOrdersByContextWrapper([createDefaultPayoutOrder()])).toBeInstanceOf(Map);
-    });
-
-    it('separates orders in different groups by context', () => {
-      const orders = [
-        createCustomPayoutOrder({ context: PayoutOrderContext.BUY_CRYPTO }),
-        createCustomPayoutOrder({ context: PayoutOrderContext.BUY_CRYPTO }),
-      ];
-
-      const groups = strategy.groupOrdersByContextWrapper(orders);
-
-      expect([...groups.entries()].length).toBe(1);
-      expect([...groups.keys()][0]).toBe(PayoutOrderContext.BUY_CRYPTO);
-      expect([...groups.values()][0].length).toBe(2);
-    });
-
-    it('puts orders with same context in one group', () => {
-      const orders = [
-        createCustomPayoutOrder({ context: PayoutOrderContext.BUY_CRYPTO }),
-        createCustomPayoutOrder({ context: PayoutOrderContext.BUY_CRYPTO }),
-        createCustomPayoutOrder({ context: PayoutOrderContext.BUY_CRYPTO }),
-      ];
-
-      const groups = strategy.groupOrdersByContextWrapper(orders);
-
-      expect([...groups.entries()].length).toBe(1);
-      expect([...groups.keys()][0]).toBe(PayoutOrderContext.BUY_CRYPTO);
-      expect([...groups.values()][0].length).toBe(3);
-    });
   });
 
   describe('#createPayoutGroups(...)', () => {
@@ -288,10 +254,6 @@ class PayoutJellyfishStrategyWrapper extends JellyfishStrategy {
 
   protected async dispatchPayout(): Promise<string> {
     return 'TX_ID_01';
-  }
-
-  groupOrdersByContextWrapper(orders: PayoutOrder[]) {
-    return this.groupOrdersByContext(orders);
   }
 
   createPayoutGroupsWrapper(orders: PayoutOrder[], maxGroupSize: number) {

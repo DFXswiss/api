@@ -224,16 +224,16 @@ export class Configuration {
       },
       Arbitrum: {
         default: {
-          USD: 10,
-          CHF: 10,
-          EUR: 10,
+          USD: 25,
+          CHF: 25,
+          EUR: 25,
         },
       },
       Optimism: {
         default: {
-          USD: 10,
-          CHF: 10,
-          EUR: 10,
+          USD: 25,
+          CHF: 25,
+          EUR: 25,
         },
       },
       Ethereum: {
@@ -328,6 +328,7 @@ export class Configuration {
       ethWalletPrivateKey: process.env.ETH_WALLET_PRIVATE_KEY,
       ethGatewayUrl: process.env.ETH_GATEWAY_URL,
       ethApiKey: process.env.ETH_API_KEY,
+      ethChainId: process.env.ETH_CHAIN_ID,
       uniswapV2Router02Address: process.env.ETH_SWAP_CONTRACT_ADDRESS,
       swapTokenAddress: process.env.ETH_SWAP_TOKEN_ADDRESS,
     },
@@ -347,6 +348,7 @@ export class Configuration {
       optimismWalletPrivateKey: process.env.OPTIMISM_WALLET_PRIVATE_KEY,
       optimismGatewayUrl: process.env.OPTIMISM_GATEWAY_URL,
       optimismApiKey: process.env.OPTIMISM_API_KEY,
+      optimismChainId: process.env.OPTIMISM_CHAIN_ID,
       pancakeRouterAddress: process.env.OPTIMISM_SWAP_CONTRACT_ADDRESS,
       swapTokenAddress: process.env.OPTIMISM_SWAP_TOKEN_ADDRESS,
     },
@@ -405,7 +407,7 @@ export class Configuration {
   };
 
   crypto = {
-    fee: 0.012,
+    fee: 0,
     refBonus: 0.001,
   };
 
@@ -466,12 +468,16 @@ export class Configuration {
     clientSecret: process.env.AZURE_CLIENT_SECRET,
   };
 
+  request = {
+    knownIps: process.env.REQUEST_KNOWN_IPS?.split(',') ?? [],
+    limitCheck: process.env.REQUEST_LIMIT_CHECK === 'true',
+  };
+
   // --- GETTERS --- //
   get kraken(): Partial<Exchange> {
     return {
       apiKey: process.env.KRAKEN_KEY,
       secret: process.env.KRAKEN_SECRET,
-      nonce: () => Date.now(),
       ...this.exchange,
     };
   }
@@ -496,7 +502,8 @@ export class Configuration {
       .filter(([key, _]) => filter?.includes(key) ?? true)
       .map(([key, value]) => ({ amount: value, asset: key }));
 
-  processDisabled = (processName: Process) => (process.env.DISABLED_PROCESSES?.split(',') ?? []).includes(processName);
+  processDisabled = (processName: Process) =>
+    process.env.DISABLED_PROCESSES === '*' || (process.env.DISABLED_PROCESSES?.split(',') ?? []).includes(processName);
 }
 
 @Injectable()

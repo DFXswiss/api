@@ -65,6 +65,7 @@ export class BankTxRepeatService {
     return this.bankTxRepeatRepo.find({
       where: { userId: In(userIds) },
       relations: ['bankTx', 'sourceBankTx', 'chargebackBankTx'],
+      order: { id: 'DESC' },
     });
   }
 }

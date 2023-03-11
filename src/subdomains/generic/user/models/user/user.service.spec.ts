@@ -16,11 +16,13 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { Asset, FeeTier } from 'src/shared/models/asset/asset.entity';
+import { UserDataRepository } from '../user-data/user-data.repository';
 
 describe('UserService', () => {
   let service: UserService;
 
   let userRepo: UserRepository;
+  let userDataRepo: UserDataRepository;
   let userDataService: UserDataService;
   let fiatService: FiatService;
   let kycService: KycService;
@@ -40,6 +42,7 @@ describe('UserService', () => {
 
   beforeEach(async () => {
     userRepo = createMock<UserRepository>();
+    userDataRepo = createMock<UserDataRepository>();
     userDataService = createMock<UserDataService>();
     fiatService = createMock<FiatService>();
     kycService = createMock<KycService>();
@@ -55,6 +58,7 @@ describe('UserService', () => {
       providers: [
         UserService,
         { provide: UserRepository, useValue: userRepo },
+        { provide: UserDataRepository, useValue: userDataRepo },
         { provide: UserDataService, useValue: userDataService },
         { provide: FiatService, useValue: fiatService },
         { provide: KycService, useValue: kycService },
@@ -260,24 +264,24 @@ describe('UserService', () => {
   it('should return a fee of 1.2 and refBonus of 0 for crypto routes, if no ref was used', async () => {
     setup(AccountType.PERSONAL, undefined, '000-000');
 
-    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual({ fee: 1.2, refBonus: 0 });
+    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual({ fee: 0, refBonus: 0 });
   });
 
   it('should return a fee of 1.2 and refBonus of 0 for crypto routes, if ref is undefined', async () => {
     setup(AccountType.PERSONAL);
 
-    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual({ fee: 1.2, refBonus: 0 });
+    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual({ fee: 0, refBonus: 0 });
   });
 
   it('should return a fee of 1.1 and refBonus of 0.1 for crypto routes, if ref was used', async () => {
     setup(AccountType.PERSONAL, undefined, '000-001');
 
-    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual({ fee: 1.1, refBonus: 0.1 });
+    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual({ fee: 0, refBonus: 0 });
   });
 
   it('should return a fee of 0.5 and refBonus of 0 for crypto routes, if cryptoFee is defined', async () => {
     setup(AccountType.PERSONAL, undefined, '000-001', 0.005);
 
-    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual({ fee: 0.5, refBonus: 0 });
+    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual({ fee: 0, refBonus: 0 });
   });
 });

@@ -44,15 +44,15 @@ export class PayoutDeFiChainService extends PayoutJellyfishService {
     return parseFloat(await this.whaleService.getClient().getBalance(address));
   }
 
-  getWalletAddress(context: PayoutOrderContext): string {
-    if (context === PayoutOrderContext.BUY_CRYPTO) return Config.blockchain.default.outWalletAddress;
+  getWalletAddress(_context: PayoutOrderContext): string {
+    return Config.blockchain.default.outWalletAddress;
   }
 
   isLightWalletAddress(address: string): boolean {
     return ['df1', 'tf1'].includes(address.slice(0, 3));
   }
 
-  private getClient(context: PayoutOrderContext): DeFiClient {
-    if (context === PayoutOrderContext.BUY_CRYPTO) return this.#outClient;
+  private getClient(_context: PayoutOrderContext): DeFiClient {
+    return this.#outClient;
   }
 }

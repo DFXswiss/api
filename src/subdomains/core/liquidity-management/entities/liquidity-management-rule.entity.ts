@@ -5,7 +5,7 @@ import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { LiquidityBalance } from './liquidity-balance.entity';
 import { LiquidityManagementAction } from './liquidity-management-action.entity';
 import { LiquidityManagementContext, LiquidityManagementRuleStatus, LiquidityOptimizationType } from '../enums';
-import { LiquidityVerificationResult } from '../interfaces';
+import { LiquidityState } from '../interfaces';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityManagementRuleInitSpecification } from '../specifications/liquidity-management-rule-init.specification';
 
@@ -40,6 +40,9 @@ export class LiquidityManagementRule extends IEntity {
   @ManyToOne(() => LiquidityManagementAction, { eager: true, nullable: true })
   redundancyStartAction: LiquidityManagementAction;
 
+  @Column({ type: 'int', nullable: true })
+  reactivationTime: number;
+
   //*** FACTORY METHODS ***//
 
   static create(
@@ -51,6 +54,7 @@ export class LiquidityManagementRule extends IEntity {
     maximal: number,
     deficitStartAction: LiquidityManagementAction,
     redundancyStartAction: LiquidityManagementAction,
+    reactivationTime: number,
   ): LiquidityManagementRule {
     const rule = new LiquidityManagementRule();
 
@@ -63,6 +67,7 @@ export class LiquidityManagementRule extends IEntity {
     rule.maximal = maximal;
     rule.deficitStartAction = deficitStartAction;
     rule.redundancyStartAction = redundancyStartAction;
+    rule.reactivationTime = reactivationTime;
 
     LiquidityManagementRuleInitSpecification.isSatisfiedBy(rule);
 
@@ -71,16 +76,15 @@ export class LiquidityManagementRule extends IEntity {
 
   //*** PUBLIC API ***//
 
-  verify(balance: LiquidityBalance): LiquidityVerificationResult {
+  verify(balance: LiquidityBalance): LiquidityState {
     const deviation = Util.round(Math.abs(this.optimal - balance.amount), 8);
 
     const deficit = this.minimal != null && balance.amount < this.minimal ? deviation : 0;
     const redundancy = !deficit && this.maximal != null && balance.amount > this.maximal ? deviation : 0;
 
     return {
-      isOptimal: !(deficit || redundancy),
-      liquidityDeficit: deficit,
-      liquidityRedundancy: redundancy,
+      deficit,
+      redundancy,
     };
   }
 
@@ -105,6 +109,19 @@ export class LiquidityManagementRule extends IEntity {
     this.status = LiquidityManagementRuleStatus.ACTIVE;
 
     return this;
+  }
+
+  updateRuleSettings(reactivationTime: number | undefined): this {
+    if (reactivationTime !== undefined) this.reactivationTime = reactivationTime;
+
+    return this;
+  }
+
+  shouldReactivate(): boolean {
+    return (
+      this.status === LiquidityManagementRuleStatus.PAUSED &&
+      Util.minutesDiff(this.updated, new Date()) > this.reactivationTime
+    );
   }
 
   //*** GETTERS ***//

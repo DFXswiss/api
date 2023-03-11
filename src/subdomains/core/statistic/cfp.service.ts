@@ -4,8 +4,7 @@ import { Util } from 'src/shared/utils/util';
 import { Config } from 'src/config/config';
 import { CfpResult, ResultStatus, Vote, VotingType } from './dto/cfp.dto';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
-import { DeFiClient, Proposal, ProposalVote } from 'src/integration/blockchain/ain/node/defi-client';
-import { ProposalType } from '@defichain/jellyfish-api-core/dist/category/governance';
+import { DeFiClient, Proposal, ProposalType, ProposalVote } from 'src/integration/blockchain/ain/node/defi-client';
 import { HttpService } from 'src/shared/services/http.service';
 import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
 
@@ -90,15 +89,21 @@ export class CfpService implements OnModuleInit {
     const requiredVotes = parseFloat(proposal.approvalThreshold) / 100;
     const quorum = parseFloat(proposal.quorum) / 100;
 
-    const currentResult =
-      proposalVotes.length / this.masternodeCount > quorum && yesVotes.length / proposalVotes.length > requiredVotes
+    const currentResult = this.masternodeCount
+      ? proposalVotes.length / this.masternodeCount > quorum && yesVotes.length / proposalVotes.length > requiredVotes
         ? ResultStatus.APPROVED
-        : ResultStatus.NOT_APPROVED;
+        : ResultStatus.NOT_APPROVED
+      : undefined;
 
     return {
       title: proposal.title,
       number: proposal.proposalId,
-      type: proposal.type === ProposalType.COMMUNITY_FUND_REQUEST ? VotingType.CFP : VotingType.DFIP,
+      type:
+        proposal.type === ProposalType.COMMUNITY_FUND_PROPOSAL
+          ? VotingType.CFP
+          : proposal.options?.includes('emergency')
+          ? VotingType.SPECIAL
+          : VotingType.DFIP,
       dfiAmount: proposal.amount,
       htmlUrl: proposal.context,
       currentResult: currentResult,

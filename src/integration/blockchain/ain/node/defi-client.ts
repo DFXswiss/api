@@ -1,5 +1,5 @@
 import { AccountHistory, AccountResult, UTXO as SpendUTXO } from '@defichain/jellyfish-api-core/dist/category/account';
-import { ProposalStatus, ProposalType } from '@defichain/jellyfish-api-core/dist/category/governance';
+import { ProposalStatus } from '@defichain/jellyfish-api-core/dist/category/governance';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import BigNumber from 'bignumber.js';
 import { HttpService } from 'src/shared/services/http.service';
@@ -28,6 +28,7 @@ export interface Proposal {
   votesYesPct: string;
   approvalThreshold: string;
   fee: number;
+  options: string[];
 }
 
 enum VoteResult {
@@ -43,12 +44,22 @@ export interface ProposalVote {
   vote: VoteResult;
 }
 
+export enum ProposalType {
+  COMMUNITY_FUND_PROPOSAL = 'CommunityFundProposal',
+  BLOCK_REWARD_RELLOCATION = 'BlockRewardRellocation',
+  VOTE_OF_CONFIDENCE = 'VoteOfConfidence',
+}
+
 export class DeFiClient extends NodeClient {
   constructor(http: HttpService, url: string, scheduler: SchedulerRegistry, mode: NodeMode) {
     super(http, url, scheduler, mode);
   }
 
-  // common
+  async getNodeBalance(): Promise<{ utxo: BigNumber; token: number }> {
+    return { utxo: await this.getBalance(), token: await this.getToken().then((t) => t.length) };
+  }
+
+  //common
   async getHistory(fromBlock: number, toBlock: number, address?: string): Promise<AccountHistory[]> {
     return this.callNode((c) =>
       c.account.listAccountHistory(address, {
@@ -60,8 +71,14 @@ export class DeFiClient extends NodeClient {
     );
   }
 
-  async getNodeBalance(): Promise<{ utxo: BigNumber; token: number }> {
-    return { utxo: await this.getBalance(), token: await this.getToken().then((t) => t.length) };
+  async getRecentHistory(depth: number, address?: string): Promise<AccountHistory[]> {
+    return this.callNode((c) =>
+      c.account.listAccountHistory(address, {
+        depth,
+        no_rewards: true,
+        limit: 1000000,
+      }),
+    );
   }
 
   // UTXO

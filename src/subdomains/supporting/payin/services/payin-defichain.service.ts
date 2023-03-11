@@ -31,6 +31,7 @@ export class PayInDeFiChainService extends PayInJellyfishService {
     'WithdrawFromVault',
     'PoolSwap',
     'RemovePoolLiquidity',
+    'ProposalFeeRedistribution',
   ];
 
   constructor(

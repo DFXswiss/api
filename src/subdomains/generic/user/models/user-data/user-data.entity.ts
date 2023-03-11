@@ -50,6 +50,12 @@ export enum LimitPeriod {
   YEAR = 'Year',
 }
 
+export enum UserDataStatus {
+  NA = 'NA',
+  ACTIVE = 'Active',
+  BLOCKED = 'Blocked',
+}
+
 @Entity()
 export class UserData extends IEntity {
   @Column({ default: AccountType.PERSONAL, length: 256 })
@@ -111,6 +117,9 @@ export class UserData extends IEntity {
 
   @ManyToOne(() => Fiat, { eager: true })
   currency: Fiat;
+
+  @Column({ length: 256, default: UserDataStatus.NA })
+  status: UserDataStatus;
 
   @Column({ length: 256, nullable: true })
   riskState: RiskState;

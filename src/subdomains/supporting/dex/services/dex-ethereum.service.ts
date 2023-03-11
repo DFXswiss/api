@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { EthereumService } from 'src/integration/blockchain/ethereum/ethereum.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
-import { DexEvmService } from './dex-evm.service';
+import { DexEvmService } from './base/dex-evm.service';
 
 @Injectable()
 export class DexEthereumService extends DexEvmService {

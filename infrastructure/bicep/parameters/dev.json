@@ -86,6 +86,9 @@
     "ethApiKey": {
       "value": "xxx"
     },
+    "ethChainId": {
+      "value": "5"
+    },
     "ethSwapContractAddress": {
       "value": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
     },
@@ -109,6 +112,9 @@
     },
     "optimismApiKey": {
       "value": "xxx"
+    },
+    "optimismChainId": {
+      "value": "420"
     },
     "optimismSwapContractAddress": {
       "value": ""
@@ -289,6 +295,12 @@
     },
     "taliumApiKey": {
       "value": "xxx"
+    },
+    "knownIps": {
+      "value": "xxx"
+    },
+    "limitCheck": {
+      "value": "true"
     }
   }
 }
