@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { LiquidityOrder, LiquidityOrderContext, LiquidityOrderType } from '../entities/liquidity-order.entity';
-import { DexDeFiChainService } from './dex-defichain.service';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
 import { PriceSlippageException } from '../exceptions/price-slippage.exception';
 import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
@@ -37,7 +36,6 @@ export class DexService {
     private readonly purchaseStrategies: PurchaseLiquidityStrategies,
     private readonly sellStrategies: SellLiquidityStrategies,
     private readonly supplementaryStrategies: SupplementaryStrategies,
-    private readonly dexDeFiChainService: DexDeFiChainService,
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
     private readonly liquidityOrderFactory: LiquidityOrderFactory,
   ) {}
@@ -194,6 +192,12 @@ export class DexService {
       order.complete();
       await this.liquidityOrderRepo.save(order);
     }
+  }
+
+  async hasOrder(context: LiquidityOrderContext, correlationId: string): Promise<boolean> {
+    return this.liquidityOrderRepo
+      .findOne({ where: { context, correlationId }, loadEagerRelations: false })
+      .then((o) => o != null);
   }
 
   async getPendingOrders(context: LiquidityOrderContext): Promise<string[]> {
