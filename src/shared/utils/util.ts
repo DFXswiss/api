@@ -81,6 +81,16 @@ export class Util {
     return this.secondsDiff(from, to) / (3600 * 24);
   }
 
+  static minutesAfter(minutes: number, from?: Date): Date {
+    const date = from ? new Date(from) : new Date();
+    date.setMinutes(date.getMinutes() + minutes);
+    return date;
+  }
+
+  static minutesBefore(minutes: number, from?: Date): Date {
+    return this.minutesAfter(-minutes, from);
+  }
+
   static daysAfter(days: number, from?: Date): Date {
     const date = from ? new Date(from) : new Date();
     date.setDate(date.getDate() + days);
