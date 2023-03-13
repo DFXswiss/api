@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
@@ -24,6 +24,9 @@ export class AdminService {
 
     const asset = await this.assetService.getAssetById(assetId);
     if (!asset) throw new NotFoundException('Asset not found');
+
+    const orderExists = await this.dexService.hasOrder(context, id);
+    if (orderExists) throw new ConflictException(`${context} order ${id} already exists`);
 
     try {
       // reserve liquidity
@@ -52,15 +55,19 @@ export class AdminService {
 
   @Cron(CronExpression.EVERY_5_MINUTES)
   async completeLiquidityOrders() {
-    for (const context of Object.values(PayoutRequestContext)) {
-      const lContext = context as unknown as LiquidityOrderContext;
-      const pContext = context as unknown as PayoutOrderContext;
+    try {
+      for (const context of Object.values(PayoutRequestContext)) {
+        const lContext = context as unknown as LiquidityOrderContext;
+        const pContext = context as unknown as PayoutOrderContext;
 
-      const pendingOrders = await this.dexService.getPendingOrders(lContext);
-      for (const order of pendingOrders) {
-        const { isComplete } = await this.payoutService.checkOrderCompletion(pContext, order);
-        if (isComplete) await this.dexService.completeOrders(lContext, order);
+        const pendingOrders = await this.dexService.getPendingOrders(lContext);
+        for (const order of pendingOrders) {
+          const { isComplete } = await this.payoutService.checkOrderCompletion(pContext, order);
+          if (isComplete) await this.dexService.completeOrders(lContext, order);
+        }
       }
+    } catch (e) {
+      console.error('Exception during admin liquidity order completion check:', e);
     }
   }
 }
