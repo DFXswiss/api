@@ -326,7 +326,7 @@ export class UserService {
     await this.userRepo.update(id, { paidRefCredit: Util.round(volume, Config.defaultVolumeDecimal) });
   }
 
-  async activateUser(user?: User): Promise<void> {
+  async activateUser(user: User): Promise<void> {
     await this.userRepo.activateUser(user);
     await this.userDataRepo.activateUserData(user.userData);
   }
