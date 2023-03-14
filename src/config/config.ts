@@ -33,7 +33,6 @@ export class Configuration {
   defaultDailyTradingLimit = 990; // EUR
   apiKeyVersionCT = '0'; // single digit hex number
   azureIpSubstring = '169.254';
-  bsLink = process.env.BS_LINK;
 
   colors = {
     white: '#FFFFFF',
@@ -77,6 +76,11 @@ export class Configuration {
       path: join(__dirname, '../shared/i18n/'),
       watch: true,
     },
+  };
+
+  bs = {
+    link: process.env.BS_LINK,
+    volume: 50000,
   };
 
   mydefichain = {
