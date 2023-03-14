@@ -44,3 +44,6 @@ export function Lock(timeout?: number, logError = true) {
     };
   };
 }
+
+// for testing only
+export const createLock = LockClass.create;
