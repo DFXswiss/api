@@ -56,6 +56,7 @@ export class BuyFiatNotificationService {
               translationParams: {
                 inputAmount: entity.cryptoInput.amount,
                 inputAsset: entity.cryptoInput.asset.dexName,
+                blockchain: entity.cryptoInput.asset.blockchain,
                 inputTransactionLink: `${BlockchainExplorerUrls[entity.cryptoInput.asset.blockchain]}/${
                   entity.cryptoInput.inTxId
                 }`,
@@ -81,7 +82,7 @@ export class BuyFiatNotificationService {
         outputAmount: Not(IsNull()),
         amlCheck: AmlCheck.PASS,
       },
-      relations: ['sell', 'sell.user', 'sell.user.userData'],
+      relations: ['cryptoInput', 'sell', 'sell.user', 'sell.user.userData'],
     });
 
     entities.length > 0 && console.log(`Sending ${entities.length} 'crypto exchanged to fiat' email(s)`);
@@ -97,6 +98,7 @@ export class BuyFiatNotificationService {
               translationParams: {
                 inputAmount: entity.inputAmount,
                 inputAsset: entity.inputAsset,
+                blockchain: entity.cryptoInput.asset.blockchain,
                 percentFee: entity.percentFeeString,
                 exchangeRate: entity.exchangeRateString,
                 outputAmount: entity.outputAmount,
@@ -179,6 +181,7 @@ export class BuyFiatNotificationService {
               translationParams: {
                 inputAmount: entity.inputAmount,
                 inputAsset: entity.inputAsset,
+                blockchain: entity.cryptoInput.asset.blockchain,
                 returnTransactionLink: `${BlockchainExplorerUrls[entity.cryptoInput.asset.blockchain]}/${
                   entity.cryptoReturnTxId
                 }`,
