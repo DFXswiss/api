@@ -38,10 +38,18 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
     super(monitoringService, 'node', 'health');
   }
 
+  init(data: NodesState) {
+    // map to date objects
+    data?.forEach((p) => p.nodes.forEach((n) => (n.downSince = n.downSince ? new Date(n.downSince) : undefined)));
+
+    this.emit(data);
+  }
+
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(360)
   async fetch(): Promise<NodesState> {
-    const previousState = this.$data.value ?? (await this.loadState());
+    const previousState = this.data;
+
     let state = await this.getState(previousState);
 
     state = await this.handleErrors(state, previousState);
@@ -159,13 +167,5 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
 
   private getNodeStateInPool(state: NodePoolState | undefined, mode: NodeMode): NodeState | undefined {
     return state?.nodes.find((n) => n.mode === mode);
-  }
-
-  private async loadState(): Promise<NodesState | undefined> {
-    const state = await this.load();
-
-    state?.forEach((p) => p.nodes.forEach((n) => (n.downSince = n.downSince ? new Date(n.downSince) : undefined)));
-
-    return state;
   }
 }
