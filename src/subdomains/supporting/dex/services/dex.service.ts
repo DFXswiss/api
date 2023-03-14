@@ -29,8 +29,6 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 
 @Injectable()
 export class DexService {
-  private readonly verifyPurchaseOrdersLock = new Lock(1800);
-
   constructor(
     private readonly checkStrategies: CheckLiquidityStrategies,
     private readonly purchaseStrategies: PurchaseLiquidityStrategies,
@@ -299,19 +297,14 @@ export class DexService {
   //*** JOBS ***//
 
   @Interval(30000)
+  @Lock(1800)
   async finalizePurchaseOrders(): Promise<void> {
-    if (!this.verifyPurchaseOrdersLock.acquire()) return;
+    const standingOrders = await this.liquidityOrderRepo.find({
+      isReady: false,
+      txId: Not(IsNull()),
+    });
 
-    try {
-      const standingOrders = await this.liquidityOrderRepo.find({
-        isReady: false,
-        txId: Not(IsNull()),
-      });
-
-      await this.addPurchaseDataToOrders(standingOrders);
-    } finally {
-      this.verifyPurchaseOrdersLock.release();
-    }
+    await this.addPurchaseDataToOrders(standingOrders);
   }
 
   // *** HELPER METHODS *** //

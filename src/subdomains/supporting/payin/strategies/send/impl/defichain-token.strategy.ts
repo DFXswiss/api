@@ -80,6 +80,7 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
     const utxo = payIn.prepareTxId
       ? await this.deFiChainService.getFeeUtxoByTransaction(payIn.address.address, payIn.prepareTxId)
       : await this.deFiChainService.getFeeUtxo(payIn.address.address);
+    if (!utxo) throw new Error(`Tried to send token from ${payIn.address.address} without UTXO`);
 
     const outTxId = await this.deFiChainService.sendTokenSync(payIn, utxo);
 

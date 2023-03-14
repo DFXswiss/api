@@ -83,8 +83,8 @@ export class NodeService {
 
   swapNode(type: NodeType, mode: NodeMode): void {
     if (this.isNodeClientAvailable(type, mode)) {
-      console.log(`Swapped node ${type} to ${mode}`);
       this.#connectedNodes.get(type)?.next(this.#allNodes.get(type)[mode]);
+      console.log(`Swapped node ${type} to ${mode}`);
     } else {
       throw new Error(`Tried to swap to node ${type} to ${mode}, but NodeClient is not available in the pool`);
     }
@@ -183,7 +183,7 @@ export class NodeService {
   private handleNodeCheckSuccess(info: BlockchainInfo, type: NodeType, mode: NodeMode): NodeCheckResult {
     const result = { errors: [], info };
 
-    if (info.blocks < info.headers - 15) {
+    if (info.blocks < info.headers - 10) {
       result.errors.push({
         message: `${type} ${mode} node out of sync (blocks: ${info.blocks}, headers: ${info.headers})`,
         nodeType: type,
