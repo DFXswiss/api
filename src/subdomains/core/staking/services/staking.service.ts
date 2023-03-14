@@ -20,8 +20,6 @@ import { CryptoRoute } from '../../buy-crypto/routes/crypto-route/crypto-route.e
 
 @Injectable()
 export class StakingService {
-  private readonly returnLock = new Lock(1800);
-
   constructor(
     private readonly stakingRepo: StakingRepository,
     @Inject(forwardRef(() => SellService))
@@ -37,17 +35,11 @@ export class StakingService {
   //*** JOBS ***//
 
   @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(1800)
   async checkCryptoPayIn() {
     if ((await this.settingService.get('staking-return')) !== 'on') return;
-    if (!this.returnLock.acquire()) return;
 
-    try {
-      await this.stakingReturnService.returnStakingPayIn();
-    } catch (e) {
-      console.error('Error during staking-return pay-in registration', e);
-    } finally {
-      this.returnLock.release();
-    }
+    await this.stakingReturnService.returnStakingPayIn();
   }
 
   async getStaking(id: number, userId: number): Promise<Staking> {

@@ -21,7 +21,6 @@ export interface HistoryAmount {
 
 @Injectable()
 export class PayInDeFiChainService extends PayInJellyfishService {
-  private readonly convertTokensLock = new Lock(7200);
   private client: DeFiClient;
 
   private readonly utxoTxTypes = ['receive', 'blockReward'];
@@ -98,60 +97,53 @@ export class PayInDeFiChainService extends PayInJellyfishService {
   }
 
   @Interval(900000)
+  @Lock(7200)
   async convertTokens(): Promise<void> {
-    if (!this.convertTokensLock.acquire()) return;
+    await this.client.checkSync();
 
-    try {
-      await this.client.checkSync();
+    const tokens = await this.client.getToken();
 
-      const tokens = await this.client.getToken();
+    for (const token of tokens) {
+      try {
+        const { amount, asset } = this.client.parseAmount(token.amount);
+        const assetEntity = await this.assetService.getAssetByQuery({
+          dexName: asset,
+          blockchain: Blockchain.DEFICHAIN,
+          type: AssetType.TOKEN,
+        });
 
-      for (const token of tokens) {
-        try {
-          const { amount, asset } = this.client.parseAmount(token.amount);
-          const assetEntity = await this.assetService.getAssetByQuery({
-            dexName: asset,
-            blockchain: Blockchain.DEFICHAIN,
-            type: AssetType.TOKEN,
-          });
+        if (assetEntity?.category === AssetCategory.POOL_PAIR) {
+          console.log('Removing pool liquidity:', token);
 
-          if (assetEntity?.category === AssetCategory.POOL_PAIR) {
-            console.log('Removing pool liquidity:', token);
+          // remove pool liquidity
+          await this.doTokenTx(token.owner, (utxo) =>
+            this.client.removePoolLiquidity(token.owner, token.amount, [utxo]),
+          );
 
-            // remove pool liquidity
-            await this.doTokenTx(token.owner, (utxo) =>
-              this.client.removePoolLiquidity(token.owner, token.amount, [utxo]),
-            );
-
-            // send UTXO (for second token)
-            const additionalFeeUtxo = await this.getFeeUtxo(token.owner);
-            if (!additionalFeeUtxo) {
-              await this.sendFeeUtxo(token.owner);
-            }
-          } else {
-            // ignoring dust DFI transactions
-            if (asset === 'DFI' && amount < Config.blockchain.default.minTxAmount) {
-              continue;
-            }
-
-            // check for min. deposit
-            const usdtAmount = await this.client.testCompositeSwap(asset, 'USDT', amount);
-            if (usdtAmount < Config.blockchain.default.minDeposit.DeFiChain.USDT) {
-              console.log('Retrieving small token:', token);
-
-              await this.doTokenTx(token.owner, async (utxo) =>
-                this.client.sendToken(token.owner, Config.blockchain.default.dexWalletAddress, asset, amount, [utxo]),
-              );
-            }
+          // send UTXO (for second token)
+          const additionalFeeUtxo = await this.getFeeUtxo(token.owner);
+          if (!additionalFeeUtxo) {
+            await this.sendFeeUtxo(token.owner);
           }
-        } catch (e) {
-          console.error(`Failed to convert token (${token.amount} on ${token.owner}):`, e);
+        } else {
+          // ignoring dust DFI transactions
+          if (asset === 'DFI' && amount < Config.blockchain.default.minTxAmount) {
+            continue;
+          }
+
+          // check for min. deposit
+          const usdtAmount = await this.client.testCompositeSwap(asset, 'USDT', amount);
+          if (usdtAmount < Config.blockchain.default.minDeposit.DeFiChain.USDT) {
+            console.log('Retrieving small token:', token);
+
+            await this.doTokenTx(token.owner, async (utxo) =>
+              this.client.sendToken(token.owner, Config.blockchain.default.dexWalletAddress, asset, amount, [utxo]),
+            );
+          }
         }
+      } catch (e) {
+        console.error(`Failed to convert token (${token.amount} on ${token.owner}):`, e);
       }
-    } catch (e) {
-      console.error('Exception during token conversion:', e);
-    } finally {
-      this.convertTokensLock.release();
     }
   }
 

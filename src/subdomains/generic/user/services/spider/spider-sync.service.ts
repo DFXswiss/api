@@ -31,7 +31,6 @@ export class SpiderSyncService {
     [KycStatus.ONLINE_ID]: 'Online ID',
     [KycStatus.VIDEO_ID]: 'Video ID',
   };
-  private readonly lock = new Lock(1800);
 
   constructor(
     private readonly notificationService: NotificationService,
@@ -76,10 +75,8 @@ export class SpiderSyncService {
   }
 
   @Interval(300000)
+  @Lock(1800)
   async continuousSync() {
-    // avoid overlaps
-    if (!this.lock.acquire()) return;
-
     const settingKey = 'spiderModificationDate';
     const lastModificationTime = await this.settingService.get(settingKey);
     const newModificationTime = Date.now().toString();
@@ -87,8 +84,6 @@ export class SpiderSyncService {
     await this.syncKycData(+(lastModificationTime ?? 0));
 
     await this.settingService.set(settingKey, newModificationTime);
-
-    this.lock.release();
   }
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)

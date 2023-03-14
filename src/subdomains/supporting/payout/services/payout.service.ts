@@ -17,8 +17,6 @@ import { IsNull, Not } from 'typeorm';
 
 @Injectable()
 export class PayoutService {
-  private readonly processOrdersLock = new Lock(1800);
-
   constructor(
     private readonly payoutStrategies: PayoutStrategiesFacade,
     private readonly prepareStrategies: PrepareStrategiesFacade,
@@ -70,15 +68,12 @@ export class PayoutService {
   //*** JOBS ***//
 
   @Interval(30000)
+  @Lock(1800)
   async processOrders(): Promise<void> {
-    if (!this.processOrdersLock.acquire()) return;
-
     await this.checkExistingOrders();
     await this.prepareNewOrders();
     await this.payoutOrders();
     await this.processFailedOrders();
-
-    this.processOrdersLock.release();
   }
 
   //*** HELPER METHODS ***//
