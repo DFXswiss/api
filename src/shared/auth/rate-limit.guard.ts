@@ -18,7 +18,7 @@ export class RateLimitGuard extends ThrottlerGuard {
     const ip = getClientIp(req);
 
     // Skip rate limiting
-    if (Config.request.knownIps.includes(ip)) {
+    if (Config.request.knownIps.includes(ip) || ip.includes(Config.azureIpSubstring)) {
       return true;
     }
 
