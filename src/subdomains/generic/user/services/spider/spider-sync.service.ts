@@ -151,6 +151,7 @@ export class SpiderSyncService {
 
       if (!userData.spiderData.identPdf) console.error(`Failed to fetch ident PDF for user ${userDataId}`);
 
+      userData.spiderData.userData ??= userData;
       await this.spiderDataRepo.save(userData.spiderData);
     }
 
