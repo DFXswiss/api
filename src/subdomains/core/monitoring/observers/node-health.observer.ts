@@ -103,6 +103,12 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
       // swap required
       this.nodeService.swapNode(poolState.type, preferredNode.mode);
       console.warn(`WARN. Node '${poolState.type}' switched from ${connectedNode.mode} to ${preferredNode.mode}`);
+
+      // clear the queue if node is down
+      const connectedState = this.getNodeStateInPool(poolState, connectedNode.mode);
+      if (connectedState.isDown) {
+        connectedNode.clearRequestQueue();
+      }
     }
   }
 
@@ -148,7 +154,11 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
   }
 
   private getNodeState(state: NodesState | undefined, type: NodeType, mode: NodeMode): NodeState | undefined {
-    return this.getPoolState(state, type)?.nodes.find((n) => n.mode === mode);
+    return this.getNodeStateInPool(this.getPoolState(state, type), mode);
+  }
+
+  private getNodeStateInPool(state: NodePoolState | undefined, mode: NodeMode): NodeState | undefined {
+    return state?.nodes.find((n) => n.mode === mode);
   }
 
   private async loadState(): Promise<NodesState | undefined> {
