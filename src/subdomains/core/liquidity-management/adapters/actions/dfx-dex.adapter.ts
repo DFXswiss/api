@@ -4,7 +4,7 @@ import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/li
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { LiquidityManagementOrder } from '../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../enums';
-import { OrderNotProcessableException } from '../../exceptions/order-not-processable.exception';
+import { OrderFailedException } from '../../exceptions/order-failed.exception';
 import { Command, CorrelationId } from '../../interfaces';
 import { LiquidityManagementAdapter } from './base/liquidity-management.adapter';
 
@@ -148,7 +148,7 @@ export class DfxDexAdapter extends LiquidityManagementAdapter {
 
       return result.isReady;
     } catch (e) {
-      throw new OrderNotProcessableException(e.message);
+      throw new OrderFailedException(e.message);
     }
   }
 

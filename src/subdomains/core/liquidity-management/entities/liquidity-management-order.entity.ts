@@ -4,6 +4,7 @@ import { LiquidityManagementAction } from './liquidity-management-action.entity'
 import { LiquidityManagementOrderStatus } from '../enums';
 import { LiquidityManagementPipeline } from './liquidity-management-pipeline.entity';
 import { OrderNotProcessableException } from '../exceptions/order-not-processable.exception';
+import { OrderFailedException } from '../exceptions/order-failed.exception';
 
 @Entity()
 export class LiquidityManagementOrder extends IEntity {
@@ -64,7 +65,14 @@ export class LiquidityManagementOrder extends IEntity {
     return this;
   }
 
-  fail(error: OrderNotProcessableException): this {
+  notProcessable(error: OrderNotProcessableException): this {
+    this.status = LiquidityManagementOrderStatus.NOT_PROCESSABLE;
+    this.errorMessage = error.message;
+
+    return this;
+  }
+
+  fail(error: OrderFailedException): this {
     this.status = LiquidityManagementOrderStatus.FAILED;
     this.errorMessage = error.message;
 
