@@ -112,6 +112,9 @@ param krakenSecret string
 param binanceKey string
 @secure()
 param binanceSecret string
+@secure()
+param binanceEthereumWalletWithdrawKey string
+
 
 param olkyClient string
 @secure()
@@ -748,6 +751,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'BINANCE_SECRET'
           value: binanceSecret
+        }
+        {
+          name: 'BINANCE_ETHEREUM_WALLET_WITHDRAW_KEY'
+          value: binanceEthereumWalletWithdrawKey
         }
         {
           name: 'LETTER_URL'
