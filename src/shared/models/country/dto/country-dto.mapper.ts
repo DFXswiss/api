@@ -7,7 +7,6 @@ export class CountryDtoMapper {
       id: country.id,
       symbol: country.symbol,
       name: country.name,
-      enable: country.dfxEnable,
     };
 
     return Object.assign(new CountryDto(), dto);
