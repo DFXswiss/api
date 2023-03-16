@@ -4,13 +4,13 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { Balances, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { TradeOrder } from './dto/trade-order.dto';
-import { Price } from './dto/price.dto';
-import { TradeResult, TradeStatus } from './dto/trade-result.dto';
-import { WithdrawalOrder } from './dto/withdrawal-order.dto';
+import { TradeOrder } from '../dto/trade-order.dto';
+import { Price } from '../dto/price.dto';
+import { TradeResult, TradeStatus } from '../dto/trade-result.dto';
+import { WithdrawalOrder } from '../dto/withdrawal-order.dto';
 
 import { Util } from 'src/shared/utils/util';
-import { ExchangeRegistryService } from './services/exchange-registry.service';
+import { ExchangeRegistryService } from '../services/exchange-registry.service';
 
 @ApiTags('exchange')
 @Controller('exchange')
