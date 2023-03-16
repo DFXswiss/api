@@ -133,7 +133,10 @@ export class ExchangeController {
     @Param('id') id: string,
     @Query('token') token: string,
   ): Promise<Transaction> {
-    return this.registryService.getExchange(exchange).getWithdraw(id, token);
+    const withdrawal = await this.registryService.getExchange(exchange).getWithdraw(id, token);
+    if (!withdrawal) throw new NotFoundException('Withdrawal not found');
+
+    return withdrawal;
   }
 
   private updateTrade(tradeId: number, result: Partial<TradeResult>): TradeResult {

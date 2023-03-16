@@ -40,6 +40,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityManagementAdapter {
       pipeline: {
         rule: { targetAsset: asset },
       },
+      action: { params },
       correlationId,
     } = order;
 
@@ -51,7 +52,9 @@ export abstract class CcxtExchangeAdapter extends LiquidityManagementAdapter {
       return false;
     }
 
-    return this.dexService.checkTransferCompletion(withdrawal.txid, asset.blockchain);
+    const { destinationBlockchain } = this.parseActionParams<CcxtExchangeWithdrawParams>(params);
+
+    return this.dexService.checkTransferCompletion(withdrawal.txid, destinationBlockchain);
   }
 
   validateParams(command: string, params: any): boolean {

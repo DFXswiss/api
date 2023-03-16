@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { Exchange, ExchangeError, Market, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
 import { TradeResponse, PartialTradeResponse } from '../dto/trade-response.dto';
 import { Price } from '../dto/price.dto';
@@ -94,12 +94,9 @@ export class ExchangeService implements PriceProvider {
     return this.callApi((e) => e.withdraw(token, amount, address, undefined, { key, network }));
   }
 
-  async getWithdraw(id: string, token: string): Promise<Transaction> {
+  async getWithdraw(id: string, token: string): Promise<Transaction | undefined> {
     const withdrawals = await this.callApi((e) => e.fetchWithdrawals(token, undefined, 50));
-    const withdrawal = withdrawals.find((w) => w.id === id);
-    if (!withdrawal) throw new NotFoundException('Withdrawal not found');
-
-    return withdrawal;
+    return withdrawals.find((w) => w.id === id);
   }
 
   async getDeposits(token: string, since: Date): Promise<Transaction[]> {
