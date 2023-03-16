@@ -69,8 +69,10 @@ export class BuyCryptoNotificationService {
                 translationParams: {
                   buyInputAmount: tx.inputAmount,
                   buyInputAsset: tx.inputAsset,
+                  inputBlockchain: tx.cryptoInput ? tx.cryptoInput.asset.blockchain : null,
                   buyOutputAmount: tx.outputAmount,
                   buyOutputAsset: tx.outputAsset.name,
+                  blockchain: tx.outputAsset.blockchain,
                   buyFeePercentage: Util.round(tx.percentFee * 100, 2),
                   exchangeRate: Util.round(tx.inputAmount / tx.outputAmount, 2),
                   buyWalletAddress: Util.blankBlockchainAddress(tx.target.address),
