@@ -120,6 +120,13 @@
       "title": "Transaction volume approved"
     }
   },
+  "blackSquad": {
+    "invitation": {
+      "salutation": "",
+      "body": "<p>Hi {firstname},</p><p>first of all I would like to introduce myself. My name is Oli and I am CMO at DFX.swiss.</p><p>For some time now, we have been maintaining a Telegram group for people with larger investments via DFX.swiss and would like to offer you with this group</p><p>- provide a direct mouthpiece to the C-Level of DFX<br>- provide a platform for discussions<br>- listen closely to your requests for new services<br>- and introduce you to new topics and services in advance</p><p>We would be pleased if you would like to join this group.</p><p>We have provided you with direct access to this group on your personal DFX Payment page. Just click on MyDFX in the DFX app and follow the link.</p><p>Thank you for your trust in us.<br>Oli</p>",
+      "title": "Invitation Black Squad"
+    }
+  },
   "link": {
     "address": {
       "salutation": "Deseja ligar o seu endereço à sua conta existente?",

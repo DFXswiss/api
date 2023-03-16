@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { I18nService } from 'nestjs-i18n';
 import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Config } from 'src/config/config';
+import { Config, Process } from 'src/config/config';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { Lock } from 'src/shared/utils/lock';
@@ -23,6 +23,7 @@ export class BuyFiatNotificationService {
   @Interval(60000)
   @Lock(1800)
   async sendNotificationMails(): Promise<void> {
+    if (Config.processDisabled(Process.BUY_FIAT_MAIL)) return;
     await this.offRampInitiated();
     await this.cryptoExchangedToFiat();
     await this.fiatToBankTransferInitiated();

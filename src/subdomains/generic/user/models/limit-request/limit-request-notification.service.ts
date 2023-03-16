@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { Config } from 'src/config/config';
+import { Config, Process } from 'src/config/config';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { Lock } from 'src/shared/utils/lock';
@@ -18,6 +18,7 @@ export class LimitRequestNotificationService {
   @Interval(300000)
   @Lock(1800)
   async sendNotificationMails(): Promise<void> {
+    if (Config.processDisabled(Process.LIMIT_REQUEST_MAIL)) return;
     await this.limitRequestAcceptedManual();
   }
 

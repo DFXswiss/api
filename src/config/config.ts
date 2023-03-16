@@ -11,6 +11,10 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 
 export enum Process {
   PAY_IN = 'PayIn',
+  LIMIT_REQUEST_MAIL = 'LimitRequestMail',
+  BLACK_SQUAD_MAIL = 'BlackSquadMail',
+  BUY_CRYPTO_MAIL = 'BuyCryptoMail',
+  BUY_FIAT_MAIL = 'BuyFiatMail',
 }
 
 export function GetConfig(): Configuration {
@@ -139,6 +143,12 @@ export class Configuration {
       mailName: process.env.LIMIT_REQUEST_SUPPORT_NAME,
       mailAddress: process.env.LIMIT_REQUEST_SUPPORT_MAIL,
       mailBanner: process.env.LIMIT_REQUEST_SUPPORT_BANNER,
+    },
+    blackSquad: {
+      limit: 50000,
+      mailName: process.env.BLACK_SQUAD_NAME,
+      mailAddress: process.env.BLACK_SQUAD_MAIL,
+      mailBanner: process.env.BLACK_SQUAD_BANNER,
     },
   };
 
