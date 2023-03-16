@@ -77,13 +77,18 @@ export class LiquidityManagementPipeline extends IEntity {
       }
     }
 
-    if (currentActionOrderStatus === LiquidityManagementOrderStatus.FAILED) {
+    if (currentActionOrderStatus === LiquidityManagementOrderStatus.NOT_PROCESSABLE) {
       if (this.currentAction.onFail) {
         this.currentAction = this.currentAction.onFail;
       } else {
         this.currentAction = null;
         this.status = LiquidityManagementPipelineStatus.FAILED;
       }
+    }
+
+    if (currentActionOrderStatus === LiquidityManagementOrderStatus.FAILED) {
+      this.currentAction = null;
+      this.status = LiquidityManagementPipelineStatus.FAILED;
     }
 
     return this;

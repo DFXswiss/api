@@ -78,6 +78,11 @@ export class Configuration {
     },
   };
 
+  bs = {
+    link: process.env.BS_LINK,
+    volume: 50000,
+  };
+
   mydefichain = {
     username: process.env.MYDEFICHAIN_USER,
     password: process.env.MYDEFICHAIN_PASSWORD,

@@ -52,6 +52,8 @@ describe('UserService', () => {
     );
     await lock('locker', () => Util.delay(2));
 
+    await Util.delay(1);
+
     expect(hasUpdated).toBeTruthy();
   });
 

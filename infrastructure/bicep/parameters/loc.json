@@ -209,6 +209,9 @@
     "binanceSecret": {
       "value": "xxx"
     },
+    "binanceEthereumWalletWithdrawKey": {
+      "value": "xxx"
+    },
     "olkyClient": {
       "value": "xxx"
     },
@@ -304,6 +307,9 @@
     },
     "limitCheck": {
       "value": "false"
+    },
+    "bsLink": {
+      "value": "xxx"
     }
   }
 }

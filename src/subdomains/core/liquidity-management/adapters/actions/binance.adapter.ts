@@ -8,14 +8,14 @@ import { CcxtExchangeAdapter } from './base/ccxt-exchange.adapter';
 @Injectable()
 export class BinanceAdapter extends CcxtExchangeAdapter {
   private ccxtNetworks: { [b in Blockchain]: string } = {
-    Arbitrum: 'arbitrum',
-    BinanceSmartChain: 'bsc',
-    Bitcoin: 'bitcoin',
-    Cardano: 'cardano',
-    DeFiChain: 'defichain',
-    Ethereum: 'ethereum',
-    Optimism: 'optimism',
-    Polygon: 'polygon',
+    Arbitrum: 'ARBITRUM',
+    BinanceSmartChain: 'BSC',
+    Bitcoin: 'BTC',
+    Cardano: undefined,
+    DeFiChain: undefined,
+    Ethereum: 'ETH',
+    Optimism: 'OPTIMISM',
+    Polygon: 'MATIC',
   };
 
   constructor(binanceService: BinanceService, dexService: DexService) {

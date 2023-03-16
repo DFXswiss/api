@@ -4,6 +4,8 @@ param env string
 param network string
 param knownIps string
 param limitCheck string
+param bsLink string
+
 
 param dbAllowAllIps bool
 param dbAdminLogin string
@@ -110,6 +112,9 @@ param krakenSecret string
 param binanceKey string
 @secure()
 param binanceSecret string
+@secure()
+param binanceEthereumWalletWithdrawKey string
+
 
 param olkyClient string
 @secure()
@@ -487,7 +492,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           name: 'GH_TOKEN'
           value: githubToken
         }
-
+        {
+          name: 'BS_LINK'
+          value: bsLink
+        }
         {
           name: 'NODE_USER'
           value: 'dfx-api'
@@ -743,6 +751,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'BINANCE_SECRET'
           value: binanceSecret
+        }
+        {
+          name: 'BINANCE_ETHEREUM_WALLET_WITHDRAW_KEY'
+          value: binanceEthereumWalletWithdrawKey
         }
         {
           name: 'LETTER_URL'
