@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { Exchange, ExchangeError, Market, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
 import { TradeResponse, PartialTradeResponse } from '../dto/trade-response.dto';
 import { Price } from '../dto/price.dto';
