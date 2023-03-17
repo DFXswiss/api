@@ -1,6 +1,3 @@
-import { CryptoStaking } from 'src/subdomains/core/staking/entities/crypto-staking.entity';
-import { StakingRefReward } from 'src/subdomains/core/staking/entities/staking-ref-reward.entity';
-import { StakingReward } from 'src/subdomains/core/staking/entities/staking-reward.entity';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
@@ -16,9 +13,6 @@ export class SupportReturnData {
   buyFiat: BuyFiat[];
   ref: BuyCrypto[];
   refReward: RefReward[];
-  staking: CryptoStaking[];
-  stakingReward: StakingReward[];
-  stakingRefReward: StakingRefReward[];
   cryptoInput: CryptoInput[];
   bankTxRepeat: BankTxRepeat[];
 }

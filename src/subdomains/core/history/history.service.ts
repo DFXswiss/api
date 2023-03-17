@@ -2,13 +2,10 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Readable } from 'stream';
 import { Util } from 'src/shared/utils/util';
 import { DfiTaxService } from 'src/integration/blockchain/ain/services/dfi-tax.service';
-import { StakingRewardService } from '../staking/services/staking-reward.service';
 import { PayoutType } from '../staking/entities/staking-reward.entity';
 import { RefRewardService } from '../referral/reward/ref-reward.service';
 import { HistoryQuery } from './dto/history-query.dto';
-import { CryptoStakingService } from '../staking/services/crypto-staking.service';
 import { CryptoStaking } from '../staking/entities/crypto-staking.entity';
-import { StakingRefRewardService } from '../staking/services/staking-ref-reward.service';
 import { RefReward } from '../referral/reward/ref-reward.entity';
 import { StakingRefReward, StakingRefType } from '../staking/entities/staking-ref-reward.entity';
 import { BuyFiatService } from '../sell-crypto/process/buy-fiat.service';
@@ -16,17 +13,16 @@ import { CoinTrackingHistory } from './dto/coin-tracking-history.dto';
 import { BuyCrypto } from '../buy-crypto/process/entities/buy-crypto.entity';
 import { AmlCheck } from '../buy-crypto/process/enums/aml-check.enum';
 import { BuyCryptoService } from '../buy-crypto/process/services/buy-crypto.service';
+import { StakingService } from '../staking/services/staking.service';
 
 @Injectable()
 export class HistoryService {
   constructor(
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyFiatService: BuyFiatService,
-    private readonly stakingRewardService: StakingRewardService,
-    private readonly cryptoStakingService: CryptoStakingService,
+    private readonly stakingService: StakingService,
     private readonly refRewardService: RefRewardService,
     private readonly dfiTaxService: DfiTaxService,
-    private readonly stakingRefReward: StakingRefRewardService,
   ) {}
 
   async getHistory(
@@ -235,7 +231,7 @@ export class HistoryService {
   }
 
   private async getStakingRewards(userId: number, dateFrom?: Date, dateTo?: Date): Promise<CoinTrackingHistory[]> {
-    const stakingRewards = await this.stakingRewardService.getUserRewards([userId], dateFrom, dateTo);
+    const stakingRewards = await this.stakingService.getUserStakingRewards([userId], dateFrom, dateTo);
     return stakingRewards
       .map((c) => [
         {
@@ -259,7 +255,7 @@ export class HistoryService {
   }
 
   private async getStakingInvests(userId: number, dateFrom?: Date, dateTo?: Date): Promise<CoinTrackingHistory[]> {
-    const { deposits, withdrawals } = await this.cryptoStakingService.getUserInvests(userId, dateFrom, dateTo);
+    const { deposits, withdrawals } = await this.stakingService.getUserInvests(userId, dateFrom, dateTo);
     return [...this.getStakingDeposits(deposits), ...this.getStakingWithdrawals(withdrawals)];
   }
 
@@ -362,7 +358,7 @@ export class HistoryService {
 
   private async getAllRefRewards(userId: number, dateFrom?: Date, dateTo?: Date): Promise<CoinTrackingHistory[]> {
     const refRewards = await this.refRewardService.getUserRewards([userId], dateFrom, dateTo);
-    const refStakingReward = await this.stakingRefReward.getUserRewards([userId], dateFrom, dateTo);
+    const refStakingReward = await this.stakingService.getUserStakingRefRewards([userId], dateFrom, dateTo);
 
     return [...this.getRefRewards(refRewards), ...this.getStakingRefRewards(refStakingReward)];
   }

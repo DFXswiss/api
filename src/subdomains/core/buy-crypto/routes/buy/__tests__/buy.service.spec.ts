@@ -6,21 +6,18 @@ import { BuyRepository } from '../buy.repository';
 import { BuyService } from '../buy.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
-import { StakingService } from 'src/subdomains/core/staking/services/staking.service';
 
 describe('BuyService', () => {
   let service: BuyService;
 
   let buyRepo: BuyRepository;
   let assetService: AssetService;
-  let stakingService: StakingService;
   let userService: UserService;
   let bankAccountService: BankAccountService;
 
   beforeEach(async () => {
     buyRepo = createMock<BuyRepository>();
     assetService = createMock<AssetService>();
-    stakingService = createMock<StakingService>();
     userService = createMock<UserService>();
     bankAccountService = createMock<BankAccountService>();
 
@@ -30,7 +27,6 @@ describe('BuyService', () => {
         BuyService,
         { provide: BuyRepository, useValue: buyRepo },
         { provide: AssetService, useValue: assetService },
-        { provide: StakingService, useValue: stakingService },
         { provide: UserService, useValue: userService },
         { provide: BankAccountService, useValue: bankAccountService },
       ],

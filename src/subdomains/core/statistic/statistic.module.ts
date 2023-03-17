@@ -6,22 +6,12 @@ import { MasternodeModule } from 'src/subdomains/supporting/masternode/masternod
 import { BuyCryptoModule } from '../buy-crypto/buy-crypto.module';
 import { ReferralModule } from '../referral/referral.module';
 import { SellCryptoModule } from '../sell-crypto/sell-crypto.module';
-import { StakingModule } from '../staking/staking.module';
 import { CfpService } from './cfp.service';
 import { StatisticController } from './statistic.controller';
 import { StatisticService } from './statistic.service';
 
 @Module({
-  imports: [
-    SharedModule,
-    BuyCryptoModule,
-    SellCryptoModule,
-    ReferralModule,
-    UserModule,
-    AinModule,
-    MasternodeModule,
-    StakingModule,
-  ],
+  imports: [SharedModule, BuyCryptoModule, SellCryptoModule, ReferralModule, UserModule, AinModule, MasternodeModule],
   controllers: [StatisticController],
   providers: [StatisticService, CfpService],
   exports: [],
