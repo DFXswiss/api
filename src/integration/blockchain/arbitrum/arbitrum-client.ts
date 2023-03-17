@@ -122,13 +122,13 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
 
   async checkL2BridgeCompletion(l1TxId: string, asset: Asset): Promise<boolean> {
     try {
-      const txReceipt = await Util.timeoutAsync(this.#l1Provider.getTransactionReceipt(l1TxId), 10000);
+      const txReceipt = await Util.timeout(this.#l1Provider.getTransactionReceipt(l1TxId), 10000);
       const l1TxReceipt =
         asset.type === AssetType.COIN
           ? new L1EthDepositTransactionReceipt(txReceipt)
           : new L1ContractCallTransactionReceipt(txReceipt);
 
-      const result = await Util.timeoutAsync<{ complete: boolean }>(l1TxReceipt.waitForL2(this.provider), 10000);
+      const result = await Util.timeout<{ complete: boolean }>(l1TxReceipt.waitForL2(this.provider), 10000);
 
       return result.complete;
     } catch {
@@ -138,9 +138,9 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
 
   async checkL1BridgeCompletion(l2TxId: string, _asset: Asset): Promise<boolean> {
     try {
-      const txReceipt = await Util.timeoutAsync(this.provider.getTransactionReceipt(l2TxId), 10000);
+      const txReceipt = await Util.timeout(this.provider.getTransactionReceipt(l2TxId), 10000);
       const l2TxReceipt = new L2TransactionReceipt(txReceipt);
-      const l2ToL1Messages = await Util.timeoutAsync(l2TxReceipt.getL2ToL1Messages(this.#l1Wallet), 10000);
+      const l2ToL1Messages = await Util.timeout(l2TxReceipt.getL2ToL1Messages(this.#l1Wallet), 10000);
 
       const status = await l2ToL1Messages[0].status(this.provider);
 

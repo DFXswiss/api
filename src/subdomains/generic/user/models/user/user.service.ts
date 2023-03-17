@@ -57,6 +57,10 @@ export class UserService {
     return this.userRepo.findOne(userId, { relations: loadUserData ? ['userData'] : [] });
   }
 
+  async getUserByAddress(address: string): Promise<User> {
+    return this.userRepo.findOne({ where: { address } });
+  }
+
   async getUserByKey(key: string, value: any): Promise<User> {
     return this.userRepo
       .createQueryBuilder('user')
@@ -142,7 +146,10 @@ export class UserService {
     const ipCountry = await this.geoLocationService.getCountry(userIp);
 
     const country = await this.countryService.getCountryWithSymbol(ipCountry);
-    if (!country?.ipEnable && Config.environment !== 'loc')
+
+    if (!country) return;
+
+    if (!country.ipEnable && Config.environment !== 'loc')
       throw new ForbiddenException('The country of IP address is not allowed');
 
     return ipCountry;
