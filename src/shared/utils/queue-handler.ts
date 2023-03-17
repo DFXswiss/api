@@ -12,10 +12,13 @@ class QueueItem<T> {
   constructor(private readonly action: () => Promise<T>, timeout?: number) {
     this.promise = new Promise((resolve, reject) => {
       this.resolve = (v) => {
-        resolve(v);
         if (this.timeout) clearTimeout(this.timeout);
+        resolve(v);
       };
-      this.reject = reject;
+      this.reject = (e) => {
+        if (this.timeout) clearTimeout(this.timeout);
+        reject(e);
+      };
     });
     if (timeout) this.timeout = setTimeout(() => this.reject(new Error('Queue timeout')), timeout);
   }
@@ -24,8 +27,8 @@ class QueueItem<T> {
     return this.promise;
   }
 
-  public async doWork() {
-    await this.action().then(this.resolve).catch(this.reject);
+  public async doWork(timeout: number) {
+    await Util.timeout(this.action(), timeout).then(this.resolve).catch(this.reject);
   }
 
   public abort() {
@@ -36,13 +39,21 @@ class QueueItem<T> {
 export class QueueHandler {
   private readonly queue: QueueItem<any>[] = [];
 
-  constructor(scheduler: SchedulerRegistry, private readonly timeout?: number) {
+  /**
+   * @param queueTimeout Max. item in queue time (incl. execution time)
+   * @param itemTimeout Max. item execution time
+   */
+  constructor(
+    scheduler: SchedulerRegistry,
+    private readonly queueTimeout: number,
+    private readonly itemTimeout: number,
+  ) {
     const interval = setInterval(() => this.doWork(), 50);
     scheduler.addInterval(Util.randomId().toString(), interval);
   }
 
   async handle<T>(action: () => Promise<T>): Promise<T> {
-    const item = new QueueItem(action, this.timeout);
+    const item = new QueueItem(action, this.queueTimeout);
     this.queue.push(item);
     return item.wait();
   }
@@ -54,9 +65,9 @@ export class QueueHandler {
   }
 
   @Lock(1200)
-  async doWork() {
+  private async doWork() {
     while (this.queue.length > 0) {
-      await this.queue.shift().doWork();
+      await this.queue.shift().doWork(this.itemTimeout);
     }
   }
 }

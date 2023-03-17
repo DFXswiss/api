@@ -24,7 +24,7 @@ export class ExchangeService implements PriceProvider {
   private readonly queue: QueueHandler;
 
   constructor(private readonly exchange: Exchange, readonly scheduler: SchedulerRegistry) {
-    this.queue = new QueueHandler(scheduler, 60000);
+    this.queue = new QueueHandler(scheduler, 180000, 60000);
   }
 
   get name(): string {
