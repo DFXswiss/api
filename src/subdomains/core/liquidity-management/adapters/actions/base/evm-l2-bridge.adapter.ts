@@ -1,9 +1,11 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { L2BridgeEvmClient } from 'src/integration/blockchain/shared/evm/interfaces';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityManagementOrder } from '../../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../../enums';
+import { OrderFailedException } from '../../../exceptions/order-failed.exception';
 import { OrderNotProcessableException } from '../../../exceptions/order-not-processable.exception';
 import { Command, CorrelationId } from '../../../interfaces';
 import { LiquidityManagementAdapter } from './liquidity-management.adapter';
@@ -22,7 +24,8 @@ export abstract class EvmL2BridgeAdapter extends LiquidityManagementAdapter {
 
   constructor(
     system: LiquidityManagementSystem,
-    protected readonly client: L2BridgeEvmClient,
+    protected readonly l1Client: EvmClient,
+    protected readonly l2Client: L2BridgeEvmClient,
     protected readonly assetService: AssetService,
   ) {
     super(system);
@@ -50,18 +53,18 @@ export abstract class EvmL2BridgeAdapter extends LiquidityManagementAdapter {
     try {
       switch (command) {
         case EvmL2BridgeAdapterCommands.DEPOSIT: {
-          return await this.client.checkL2BridgeCompletion(order.correlationId, asset);
+          return await this.l2Client.checkL2BridgeCompletion(order.correlationId, asset);
         }
 
         case EvmL2BridgeAdapterCommands.WITHDRAW: {
-          return await this.client.checkL1BridgeCompletion(order.correlationId, asset);
+          return await this.l2Client.checkL1BridgeCompletion(order.correlationId, asset);
         }
 
         default:
           throw new Error(`EvmL2BridgeAdapter.checkCompletion(...) does not support provided command: ${command}`);
       }
     } catch (e) {
-      throw new OrderNotProcessableException(e.message);
+      throw new OrderFailedException(e.message);
     }
   }
 
@@ -89,21 +92,30 @@ export abstract class EvmL2BridgeAdapter extends LiquidityManagementAdapter {
 
     const { type, dexName } = l2Asset;
 
+    const l1Asset = await this.assetService.getAssetByQuery({ dexName, type, blockchain: Blockchain.ETHEREUM });
+    if (!l1Asset) {
+      throw new Error(
+        `EvmL2BridgeAdapter.deposit() ${this.system} could not find pair L1 asset for L2 ${l2Asset.uniqueName}`,
+      );
+    }
+
+    // verify L1 liquidity
+    const l1Liquidity =
+      type === AssetType.COIN
+        ? await this.l1Client.getNativeCoinBalance()
+        : await this.l1Client.getTokenBalance(l1Asset);
+    if (l1Liquidity < amount)
+      throw new OrderNotProcessableException(
+        `Not enough liquidity on L1 blockchain (requested ${amount} ${dexName}, available ${l1Liquidity} ${dexName})`,
+      );
+
     switch (type) {
       case AssetType.COIN: {
-        return this.client.depositCoinOnDex(amount);
+        return this.l2Client.depositCoinOnDex(amount);
       }
 
       case AssetType.TOKEN: {
-        const l1Asset = await this.assetService.getAssetByQuery({ dexName, type, blockchain: Blockchain.ETHEREUM });
-
-        if (!l1Asset) {
-          throw new Error(
-            `EvmL2BridgeAdapter.deposit() ${this.system} could not find pair L1 token for L2 ${l2Asset.uniqueName}`,
-          );
-        }
-
-        return this.client.depositTokenOnDex(l1Asset, l2Asset, amount);
+        return this.l2Client.depositTokenOnDex(l1Asset, l2Asset, amount);
       }
 
       default:
@@ -129,7 +141,7 @@ export abstract class EvmL2BridgeAdapter extends LiquidityManagementAdapter {
 
     switch (type) {
       case AssetType.COIN: {
-        return this.client.withdrawCoinOnDex(amount);
+        return this.l2Client.withdrawCoinOnDex(amount);
       }
 
       case AssetType.TOKEN: {
@@ -137,11 +149,11 @@ export abstract class EvmL2BridgeAdapter extends LiquidityManagementAdapter {
 
         if (!l1Asset) {
           throw new Error(
-            `EvmL2BridgeAdapter.withdraw() ${this.system} could not find pair L1 token for L2 ${l2Asset.uniqueName}`,
+            `EvmL2BridgeAdapter.withdraw() ${this.system} could not find pair L1 asset for L2 ${l2Asset.uniqueName}`,
           );
         }
 
-        return this.client.withdrawTokenOnDex(l1Asset, l2Asset, amount);
+        return this.l2Client.withdrawTokenOnDex(l1Asset, l2Asset, amount);
       }
 
       default:

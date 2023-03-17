@@ -27,10 +27,13 @@ class QueueItem<T> {
   public async doWork() {
     await this.action().then(this.resolve).catch(this.reject);
   }
+
+  public abort() {
+    this.reject?.(new Error('Queue aborted'));
+  }
 }
 
 export class QueueHandler {
-  private readonly lock = new Lock(1200);
   private readonly queue: QueueItem<any>[] = [];
 
   constructor(scheduler: SchedulerRegistry, private readonly timeout?: number) {
@@ -44,15 +47,16 @@ export class QueueHandler {
     return item.wait();
   }
 
+  clear() {
+    for (const item of this.queue) {
+      item.abort();
+    }
+  }
+
+  @Lock(1200)
   async doWork() {
-    if (!this.lock.acquire()) return;
-
-    try {
-      while (this.queue.length > 0) {
-        await this.queue.shift().doWork();
-      }
-    } catch {}
-
-    this.lock.release();
+    while (this.queue.length > 0) {
+      await this.queue.shift().doWork();
+    }
   }
 }

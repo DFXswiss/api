@@ -35,6 +35,7 @@ import { WalletController } from './models/wallet/wallet.controller';
 import { ReferralModule } from 'src/subdomains/core/referral/referral.module';
 import { LimitRequestNotificationService } from './models/limit-request/limit-request-notification.service';
 import { WebhookService } from './services/webhook/webhook.service';
+import { UserDataNotificationService } from './models/user-data/user-data-notification.service';
 
 @Module({
   imports: [
@@ -79,6 +80,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     LinkService,
     WebhookService,
     LimitRequestNotificationService,
+    UserDataNotificationService,
   ],
   exports: [UserService, UserDataService, KycService, SpiderService, SpiderApiService, LinkService, WebhookService],
 })

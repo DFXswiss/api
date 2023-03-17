@@ -5,7 +5,6 @@ import { LiquidityManagementModule } from './liquidity-management/liquidity-mana
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { ReferralModule } from './referral/referral.module';
 import { SellCryptoModule } from './sell-crypto/sell-crypto.module';
-import { StakingModule } from './staking/staking.module';
 import { StatisticModule } from './statistic/statistic.module';
 
 @Module({
@@ -15,7 +14,6 @@ import { StatisticModule } from './statistic/statistic.module';
     MonitoringModule,
     ReferralModule,
     SellCryptoModule,
-    StakingModule,
     StatisticModule,
     LiquidityManagementModule,
   ],

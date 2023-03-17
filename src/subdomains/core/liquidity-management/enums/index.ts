@@ -28,6 +28,7 @@ export enum LiquidityManagementOrderStatus {
   CREATED = 'Created',
   IN_PROGRESS = 'InProgress',
   COMPLETE = 'Complete',
+  NOT_PROCESSABLE = 'NotProcessable',
   FAILED = 'Failed',
 }
 

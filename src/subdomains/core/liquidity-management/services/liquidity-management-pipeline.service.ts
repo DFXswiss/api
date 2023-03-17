@@ -12,12 +12,10 @@ import { LiquidityManagementRuleRepository } from '../repositories/liquidity-man
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
+import { OrderFailedException } from '../exceptions/order-failed.exception';
 
 @Injectable()
 export class LiquidityManagementPipelineService {
-  private readonly processPipelinesLock = new Lock(1800);
-  private readonly processOrdersLock = new Lock(1800);
-
   constructor(
     private readonly ruleRepo: LiquidityManagementRuleRepository,
     private readonly orderRepo: LiquidityManagementOrderRepository,
@@ -29,31 +27,17 @@ export class LiquidityManagementPipelineService {
   //*** JOBS ***//
 
   @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(1800)
   async processPipelines() {
-    if (!this.processPipelinesLock.acquire()) return;
-
-    try {
-      await this.startNewPipelines();
-      await this.checkRunningPipelines();
-    } catch (e) {
-      console.error('Error while processing liquidity management pipelines', e);
-    } finally {
-      this.processPipelinesLock.release();
-    }
+    await this.startNewPipelines();
+    await this.checkRunningPipelines();
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(1800)
   async processOrders() {
-    if (!this.processOrdersLock.acquire()) return;
-
-    try {
-      await this.startNewOrders();
-      await this.checkRunningOrders();
-    } catch (e) {
-      console.error('Error while processing liquidity management orders', e);
-    } finally {
-      this.processOrdersLock.release();
-    }
+    await this.startNewOrders();
+    await this.checkRunningOrders();
   }
 
   //*** PUBLIC API ***//
@@ -137,7 +121,8 @@ export class LiquidityManagementPipelineService {
 
         if (
           order.status === LiquidityManagementOrderStatus.COMPLETE ||
-          order.status === LiquidityManagementOrderStatus.FAILED
+          order.status === LiquidityManagementOrderStatus.FAILED ||
+          order.status === LiquidityManagementOrderStatus.NOT_PROCESSABLE
         ) {
           pipeline.continue(order.status);
           await this.pipelineRepo.save(pipeline);
@@ -181,6 +166,10 @@ export class LiquidityManagementPipelineService {
         await this.executeOrder(order);
       } catch (e) {
         if (e instanceof OrderNotProcessableException) {
+          order.notProcessable(e);
+          await this.orderRepo.save(order);
+        }
+        if (e instanceof OrderFailedException) {
           order.fail(e);
           await this.orderRepo.save(order);
         }
@@ -206,13 +195,18 @@ export class LiquidityManagementPipelineService {
       try {
         await this.checkOrder(order);
       } catch (e) {
-        console.error(`Error in checking running liquidity order. Order ID: ${order.id}`, e);
-
         if (e instanceof OrderNotProcessableException) {
+          order.notProcessable(e);
+          await this.orderRepo.save(order);
+          continue;
+        }
+        if (e instanceof OrderFailedException) {
           order.fail(e);
           await this.orderRepo.save(order);
           continue;
         }
+
+        console.error(`Error in checking running liquidity order. Order ID: ${order.id}`, e);
       }
     }
   }

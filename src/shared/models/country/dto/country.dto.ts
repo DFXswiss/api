@@ -9,7 +9,4 @@ export class CountryDto {
 
   @ApiProperty()
   name: string;
-
-  @ApiProperty({ deprecated: true })
-  enable: boolean;
 }

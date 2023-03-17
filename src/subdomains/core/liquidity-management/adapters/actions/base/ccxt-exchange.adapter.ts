@@ -40,15 +40,21 @@ export abstract class CcxtExchangeAdapter extends LiquidityManagementAdapter {
       pipeline: {
         rule: { targetAsset: asset },
       },
-      amount,
+      action: { params },
+      correlationId,
     } = order;
 
-    const request = { asset, amount, since: order.created };
-    const transaction = await this.dexService.findTransaction(request);
+    const withdrawal = await this.exchangeService.getWithdraw(correlationId, asset.dexName);
+    if (!withdrawal) {
+      console.info(
+        `No withdrawal for id ${correlationId} and asset ${asset.uniqueName} at ${this.exchangeService.name} found`,
+      );
+      return false;
+    }
 
-    if (!transaction || !transaction.isComplete) return false;
+    const { destinationBlockchain } = this.parseActionParams<CcxtExchangeWithdrawParams>(params);
 
-    return true;
+    return this.dexService.checkTransferCompletion(withdrawal.txid, destinationBlockchain);
   }
 
   validateParams(command: string, params: any): boolean {

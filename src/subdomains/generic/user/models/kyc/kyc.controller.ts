@@ -13,10 +13,11 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { KycDataTransferDto } from './dto/kyc-data-transfer.dto';
 import { KycInfo } from './dto/kyc-info.dto';
-import { Country } from 'src/shared/models/country/country.entity';
 import { KycWebhookTriggerDto } from './dto/kyc-webhook-trigger.dto';
 import { KycDocumentType, KycFileDto } from './dto/kyc-file.dto';
 import { KycDataDto } from './dto/kyc-data.dto';
+import { CountryDto } from 'src/shared/models/country/dto/country.dto';
+import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 
 @ApiTags('KYC')
 @Controller('kyc')
@@ -89,9 +90,9 @@ export class KycController {
   @Get('countries')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiOkResponse({ type: Country, isArray: true })
-  async getKycCountries(@GetJwt() jwt: JwtPayload): Promise<Country[]> {
-    return this.kycService.getKycCountries('', jwt.id);
+  @ApiOkResponse({ type: CountryDto, isArray: true })
+  async getKycCountries(@GetJwt() jwt: JwtPayload): Promise<CountryDto[]> {
+    return this.kycService.getKycCountries('', jwt.id).then(CountryDtoMapper.entitiesToDto);
   }
 
   @Post('data')
@@ -136,9 +137,9 @@ export class KycController {
   }
 
   @Get(':code/countries')
-  @ApiOkResponse({ type: Country, isArray: true })
-  async getKycCountriesByCode(@Param('code') code: string): Promise<Country[]> {
-    return this.kycService.getKycCountries(code);
+  @ApiOkResponse({ type: CountryDto, isArray: true })
+  async getKycCountriesByCode(@Param('code') code: string): Promise<CountryDto[]> {
+    return this.kycService.getKycCountries(code).then(CountryDtoMapper.entitiesToDto);
   }
 
   @Put(':code/data')

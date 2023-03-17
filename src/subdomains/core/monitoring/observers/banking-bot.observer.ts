@@ -63,7 +63,7 @@ export class BankingBotObserver extends MetricObserver<BankingBotData> {
       throw new BadRequestException(validationErrors, 'Invalid banking-bot logs input');
     }
 
-    const data = this.$data.value || (await this.initBankingBotData());
+    const data = this.data || (await this.initBankingBotData());
 
     if (!data.bank) data.bank = [];
     if (!data.dfx) data.dfx = [];
