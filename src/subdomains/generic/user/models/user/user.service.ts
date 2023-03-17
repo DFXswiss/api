@@ -465,7 +465,10 @@ export class UserService {
       paidRefCredit: user.paidRefCredit,
       refCount: await this.userRepo.count({ usedRef: user.ref }),
       refCountActive: await this.userRepo.count({ usedRef: user.ref, status: Not(UserStatus.NA) }),
-      bsLink: user.buyVolume + user.sellVolume > Config.bs.volume ? Config.bs.link : undefined,
+      bsLink:
+        user.buyVolume + user.sellVolume + user.cryptoVolume >= Config.support.blackSquad.limit
+          ? Config.support.blackSquad.link
+          : undefined,
       buyVolume: { total: user.buyVolume, annual: user.annualBuyVolume },
       sellVolume: { total: user.sellVolume, annual: user.annualSellVolume },
       cryptoVolume: { total: user.cryptoVolume, annual: user.annualCryptoVolume },

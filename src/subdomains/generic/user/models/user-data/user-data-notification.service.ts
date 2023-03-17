@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Interval } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { UserDataRepository } from './user-data.repository';
 import { Lock } from 'src/shared/utils/lock';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
@@ -13,7 +13,7 @@ export class UserDataNotificationService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  @Interval(300000)
+  @Cron(CronExpression.EVERY_HOUR)
   @Lock(1800)
   async sendNotificationMails(): Promise<void> {
     if (Config.processDisabled(Process.BLACK_SQUAD_MAIL)) return;

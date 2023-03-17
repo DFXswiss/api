@@ -82,11 +82,6 @@ export class Configuration {
     },
   };
 
-  bs = {
-    link: process.env.BS_LINK,
-    volume: 50000,
-  };
-
   mydefichain = {
     username: process.env.MYDEFICHAIN_USER,
     password: process.env.MYDEFICHAIN_PASSWORD,
@@ -145,6 +140,7 @@ export class Configuration {
       mailBanner: process.env.LIMIT_REQUEST_SUPPORT_BANNER,
     },
     blackSquad: {
+      link: process.env.BS_LINK,
       limit: 50000,
       mailName: process.env.BLACK_SQUAD_NAME,
       mailAddress: process.env.BLACK_SQUAD_MAIL,
