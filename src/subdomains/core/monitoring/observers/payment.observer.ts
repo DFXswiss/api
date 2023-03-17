@@ -58,6 +58,7 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
         .getCount(),
       unhandledCryptoInputs: await getCustomRepository(PayInRepository).count({
         where: {
+          amlCheck: Not(AmlCheck.FAIL),
           status: Not(In([PayInStatus.FAILED, PayInStatus.IGNORED, PayInStatus.RETURNED, PayInStatus.FORWARDED])),
         },
       }),

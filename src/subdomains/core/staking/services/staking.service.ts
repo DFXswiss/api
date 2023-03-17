@@ -21,8 +21,6 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 
 @Injectable()
 export class StakingService {
-  private readonly returnLock = new Lock(1800);
-
   constructor(
     private readonly settingService: SettingService,
     private readonly stakingRewardRepo: StakingRewardRepository,
@@ -36,17 +34,11 @@ export class StakingService {
   //*** JOBS ***//
 
   @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(1800)
   async checkCryptoPayIn() {
     if ((await this.settingService.get('staking-return')) !== 'on') return;
-    if (!this.returnLock.acquire()) return;
 
-    try {
-      await this.returnStakingPayIn();
-    } catch (e) {
-      console.error('Error during staking-return pay-in registration', e);
-    } finally {
-      this.returnLock.release();
-    }
+    await this.returnStakingPayIn();
   }
 
   //*** HISTORY METHODS ***/

@@ -19,11 +19,6 @@ import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 
 @Injectable()
 export class PayInService {
-  private readonly forwardLock = new Lock(7200);
-  private readonly returnLock = new Lock(7200);
-  private readonly retryLock = new Lock(7200);
-  private readonly confirmationLock = new Lock(7200);
-
   constructor(
     private readonly payInRepository: PayInRepository,
     private readonly sendStrategies: SendStrategiesFacade,
@@ -98,59 +93,35 @@ export class PayInService {
   //*** JOBS ***//
 
   @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(7200)
   async forwardPayInEntries(): Promise<void> {
     if (Config.processDisabled(Process.PAY_IN)) return;
-    if (!this.forwardLock.acquire()) return;
 
-    try {
-      await this.forwardPayIns();
-    } catch (e) {
-      console.error('Exception during forwarding pay-ins:', e);
-    } finally {
-      this.forwardLock.release();
-    }
+    await this.forwardPayIns();
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(7200)
   async returnPayInEntries(): Promise<void> {
     if (Config.processDisabled(Process.PAY_IN)) return;
-    if (!this.returnLock.acquire()) return;
 
-    try {
-      await this.returnPayIns();
-    } catch (e) {
-      console.error('Exception during returning pay-ins:', e);
-    } finally {
-      this.returnLock.release();
-    }
+    await this.returnPayIns();
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(7200)
   async retryGettingReferencePrices(): Promise<void> {
     if (Config.processDisabled(Process.PAY_IN)) return;
-    if (!this.retryLock.acquire()) return;
 
-    try {
-      await this.retryPayIns();
-    } catch (e) {
-      console.error('Exception during retry of getting reference prices for pay-ins:', e);
-    } finally {
-      this.retryLock.release();
-    }
+    await this.retryPayIns();
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(7200)
   async checkSendConfirmations(): Promise<void> {
     if (Config.processDisabled(Process.PAY_IN)) return;
-    if (!this.confirmationLock.acquire()) return;
 
-    try {
-      await this.checkConfirmations();
-    } catch (e) {
-      console.error('Exception during checking confirmations for pay-ins:', e);
-    } finally {
-      this.confirmationLock.release();
-    }
+    await this.checkConfirmations();
   }
 
   //*** HELPER METHODS ***//

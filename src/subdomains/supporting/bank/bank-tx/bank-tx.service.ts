@@ -144,6 +144,7 @@ export class BankTxService {
       .filter((i) => !duplicates.includes(i.accountServiceRef))
       .map((tx) => ({
         type: tx.name?.includes('DFX AG') || tx.name?.includes('Payward Ltd.') ? BankTxType.INTERNAL : null,
+        batch: batch,
         ...tx,
       }));
 
@@ -153,7 +154,11 @@ export class BankTxService {
       await manager.getCustomRepository(BankTxRepository).saveMany(newTxs);
     });
 
-    batch.transactions = newTxs;
+    // avoid infinite loop in JSON
+    batch.transactions = newTxs.map((tx) => {
+      tx.batch = null;
+      return tx;
+    });
 
     return batch;
   }

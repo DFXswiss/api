@@ -40,8 +40,11 @@ export class NodeClient {
     this.#mode = mode;
   }
 
-  // common
+  clearRequestQueue() {
+    this.queue.clear();
+  }
 
+  // common
   async listMasternodes(): Promise<MasternodeResult<MasternodeInfo>> {
     return this.callNode((c) => c.masternode.listMasternodes({ limit: 1000000 }));
   }

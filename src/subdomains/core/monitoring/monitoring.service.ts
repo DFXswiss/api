@@ -94,7 +94,20 @@ export class MonitoringService implements OnModuleInit {
 
   private async initState() {
     const state = await this.loadState();
-    state && this.#$state.next(state);
+
+    if (state) {
+      this.#$state.next(state);
+
+      // init observers
+      for (const [subsystem, metrics] of Object.entries(state)) {
+        for (const [metric, { data }] of Object.entries(metrics)) {
+          try {
+            const observer = this.getMetricObserver(subsystem, metric);
+            observer.init(data);
+          } catch {}
+        }
+      }
+    }
 
     this.#$state
       .pipe(debounceTime(2000), pairwise())
