@@ -8,45 +8,56 @@ export enum ExchangeTxType {
 }
 
 @Entity()
+@Index((exchangeTx: ExchangeTx) => [exchangeTx.exchange, exchangeTx.type, exchangeTx.externalId], {
+  unique: true,
+})
 export class ExchangeTx extends IEntity {
   @Column({ length: 256 })
   exchange: string;
 
   @Column({ length: 256 })
-  info: string;
+  type: ExchangeTxType;
 
   @Column({ length: 256 })
-  type: ExchangeTxType;
+  externalId: string;
+
+  @Column({ type: 'datetime2', nullable: true })
+  externalCreated: Date;
+
+  @Column({ type: 'datetime2', nullable: true })
+  externalUpdated: Date;
+
+  @Column({ length: 256, nullable: true })
+  status: string;
+
+  @Column({ length: 256, nullable: true })
+  originalStatus: string;
+
+  @Column({ type: 'float', nullable: true })
+  amount: number;
+
+  @Column({ type: 'float', nullable: true })
+  cost: number;
+
+  @Column({ length: 256, nullable: true })
+  currency: string;
+
+  @Column({ type: 'float', nullable: true })
+  feeAmount: number;
+
+  @Column({ length: 256, nullable: true })
+  feeCurrency: string;
+
+  // Withdrawal/Deposit
 
   @Column({ length: 256, nullable: true })
   method: string;
 
   @Column({ length: 256, nullable: true })
-  aclass: string;
+  aClass: string;
 
   @Column({ length: 256, nullable: true })
   asset: string;
-
-  @Column({ length: 256, nullable: true })
-  refid: string;
-
-  @Column({ length: 256, nullable: true })
-  txid: string;
-
-  @Column({ type: 'float' })
-  amount: number;
-
-  @Column({ type: 'float' })
-  fee: number;
-
-  @Column({ length: 256, nullable: true })
-  status: string;
-
-  @Column({ length: 256 })
-  externalId: string;
-
-  @Column({ length: 256 })
-  currency: string;
 
   @Column({ length: 256, nullable: true })
   network: string;
@@ -61,6 +72,12 @@ export class ExchangeTx extends IEntity {
   addressFrom: string;
 
   @Column({ length: 256, nullable: true })
+  refId: string;
+
+  @Column({ length: 256, nullable: true })
+  txId: string;
+
+  @Column({ length: 256, nullable: true })
   tag: string;
 
   @Column({ length: 256, nullable: true })
@@ -69,32 +86,21 @@ export class ExchangeTx extends IEntity {
   @Column({ length: 256, nullable: true })
   tagFrom: string;
 
-  @Column({ type: 'datetime2', nullable: true })
-  externalUpdated: Date;
-
-  @Column({ type: 'datetime2' })
-  timestamp: Date;
-
-  @Column({ type: 'datetime2' })
-  dateTime: Date;
-
-  @Column({ type: 'float' })
-  cost: number;
-
+  // Trade
   @Column({ length: 256, nullable: true })
   order: string;
 
   @Column({ length: 256, nullable: true })
-  orderTxid: string;
+  orderTxId: string;
 
   @Column({ length: 256, nullable: true })
-  posTxid: string;
+  posTxId: string;
 
   @Column({ length: 256, nullable: true })
   pair: string;
 
   @Column({ length: 256, nullable: true })
-  ordertype: string;
+  orderType: string;
 
   @Column({ type: 'float', nullable: true })
   price: number;
@@ -122,7 +128,4 @@ export class ExchangeTx extends IEntity {
 
   @Column({ length: 256, nullable: true })
   takeOrMaker: string;
-
-  @Column({ type: 'float', nullable: true })
-  fees: number;
 }
