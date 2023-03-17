@@ -29,7 +29,7 @@ export class IpLogService {
     if (Config.environment === 'loc' || userIp?.includes(Config.azureIpSubstring))
       return { country: 'INTERN', result: true };
     const country = await this.geoLocationService.getCountry(userIp);
-    if (!country) return { country, result: false };
+    if (!country) return { country, result: true };
     const countryObject = await this.countryService.getCountryWithSymbol(country);
 
     return { country, result: countryObject?.ipEnable };
