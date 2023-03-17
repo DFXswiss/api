@@ -1,11 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  forwardRef,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/create-sell.dto';
 import { UpdateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/update-sell.dto';
 import { SellRepository } from 'src/subdomains/core/sell-crypto/route/sell.repository';
@@ -15,12 +8,11 @@ import { DepositService } from '../../../supporting/address-pool/deposit/deposit
 import { User } from '../../../generic/user/models/user/user.entity';
 import { Util } from 'src/shared/utils/util';
 import { KycService } from 'src/subdomains/generic/user/models/kyc/kyc.service';
-import { Not, Repository } from 'typeorm';
+import { Not } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankAccountService } from '../../../supporting/bank/bank-account/bank-account.service';
 import { Config } from 'src/config/config';
-import { StakingService } from '../../staking/services/staking.service';
 
 @Injectable()
 export class SellService {
@@ -28,8 +20,6 @@ export class SellService {
     private readonly sellRepo: SellRepository,
     private readonly fiatService: FiatService,
     private readonly depositService: DepositService,
-    @Inject(forwardRef(() => StakingService))
-    private readonly stakingService: StakingService,
     private readonly kycService: KycService,
     private readonly userService: UserService,
     private readonly bankAccountService: BankAccountService,
@@ -139,23 +129,5 @@ export class SellService {
       .select('SUM(volume)', 'volume')
       .getRawOne<{ volume: number }>()
       .then((r) => r.volume);
-  }
-
-  async getUserSellDepositsInUse(userId: number): Promise<number[]> {
-    const stakingRoutes = await this.stakingService.getUserStaking(userId);
-    return stakingRoutes
-      .filter((s) => s.active)
-      .map((s) => [
-        s.deposit?.id === s.paybackDeposit?.id ? undefined : s.paybackDeposit?.id,
-        s.deposit?.id === s.rewardDeposit?.id ? undefined : s.rewardDeposit?.id,
-      ])
-      .reduce((prev, curr) => prev.concat(curr), [])
-      .filter((id) => id);
-  }
-
-  //*** GETTERS ***//
-
-  getSellRepo(): Repository<Sell> {
-    return this.sellRepo;
   }
 }

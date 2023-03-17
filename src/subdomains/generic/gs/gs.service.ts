@@ -1,7 +1,4 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { CryptoStakingService } from 'src/subdomains/core/staking/services/crypto-staking.service';
-import { StakingRefRewardService } from 'src/subdomains/core/staking/services/staking-ref-reward.service';
-import { StakingRewardService } from 'src/subdomains/core/staking/services/staking-reward.service';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { RefRewardService } from 'src/subdomains/core/referral/reward/ref-reward.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
@@ -41,9 +38,6 @@ export class GsService {
     private readonly sellService: SellService,
     private readonly bankAccountService: BankAccountService,
     private readonly buyCryptoService: BuyCryptoService,
-    private readonly cryptoStakingService: CryptoStakingService,
-    private readonly stakingRewardService: StakingRewardService,
-    private readonly stakingRefRewardService: StakingRefRewardService,
     private readonly payInService: PayInService,
     private readonly buyFiatService: BuyFiatService,
     private readonly refRewardService: RefRewardService,
@@ -102,9 +96,6 @@ export class GsService {
       buyFiat: await this.buyFiatService.getAllUserTransactions(userIds),
       ref: await this.buyCryptoService.getAllRefTransactions(refCodes),
       refReward: await this.refRewardService.getAllUserRewards(userIds),
-      staking: await this.cryptoStakingService.getUserTransactions(userIds),
-      stakingReward: await this.stakingRewardService.getAllUserRewards(userIds),
-      stakingRefReward: await this.stakingRefRewardService.getAllUserRewards(userIds),
       cryptoInput: await this.payInService.getAllUserTransactions(userIds),
       bankTxRepeat: await this.bankTxRepeatService.getAllUserRepeats(userIds),
     };

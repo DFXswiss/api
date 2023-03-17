@@ -23,8 +23,6 @@ import {
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
-import { StakingRepository } from 'src/subdomains/core/staking/repositories/staking.repository';
-import { StakingService } from 'src/subdomains/core/staking/services/staking.service';
 
 function createBankSelectorInput(
   currency = 'EUR',
@@ -45,8 +43,6 @@ describe('BankService', () => {
 
   let bankRepo: BankRepository;
   let userService: UserService;
-  let stakingRepo: StakingRepository;
-  let stakingService: StakingService;
   let buyCryptoService: BuyCryptoService;
   let fiatService: FiatService;
   let countryService: CountryService;
@@ -55,8 +51,6 @@ describe('BankService', () => {
   beforeEach(async () => {
     bankRepo = createMock<BankRepository>();
     userService = createMock<UserService>();
-    stakingRepo = createMock<StakingRepository>();
-    stakingService = createMock<StakingService>();
     buyCryptoService = createMock<BuyCryptoService>();
     fiatService = createMock<FiatService>();
     countryService = createMock<CountryService>();
@@ -68,8 +62,6 @@ describe('BankService', () => {
         BankService,
         { provide: BankRepository, useValue: bankRepo },
         { provide: UserService, useValue: userService },
-        { provide: StakingRepository, useValue: stakingRepo },
-        { provide: StakingService, useValue: stakingService },
         { provide: BuyCryptoService, useValue: buyCryptoService },
         { provide: FiatService, useValue: fiatService },
         { provide: CountryService, useValue: countryService },

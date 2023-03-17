@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -113,7 +112,6 @@ export class AuthService {
   async changeUser(id: number, changeUser: LinkedUserInDto): Promise<{ accessToken: string }> {
     const user = await this.getLinkedUser(id, changeUser.address);
     if (!user) throw new NotFoundException('User not found');
-    if (user.stakingBalance > 0) throw new ForbiddenException('Change user not allowed');
     return { accessToken: this.generateUserToken(user) };
   }
 

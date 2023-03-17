@@ -39,7 +39,6 @@ param nodeWalletPassword string
 param dexWalletAddress string
 param outWalletAddress string
 param intWalletAddress string
-param stakingWalletAddress string
 param utxoSpenderAddress string
 param btcOutWalletAddress string
 
@@ -567,10 +566,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'INT_WALLET_ADDRESS'
           value: intWalletAddress
-        }
-        {
-          name: 'STAKING_WALLET_ADDRESS'
-          value: stakingWalletAddress
         }
         {
           name: 'UTXO_SPENDER_ADDRESS'

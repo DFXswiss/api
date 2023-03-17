@@ -7,7 +7,6 @@ import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PayInModule } from 'src/subdomains/supporting/payin/payin.module';
 import { BuyCryptoModule } from '../buy-crypto/buy-crypto.module';
-import { StakingModule } from '../staking/staking.module';
 import { BuyFiatNotificationService } from './process/buy-fiat-notification.service';
 import { BuyFiatRegistrationService } from './process/buy-fiat-registration.service';
 import { BuyFiatController } from './process/buy-fiat.controller';
@@ -26,7 +25,6 @@ import { SellService } from './route/sell.service';
     forwardRef(() => BankModule),
     forwardRef(() => PayInModule),
     forwardRef(() => BuyCryptoModule),
-    forwardRef(() => StakingModule),
     forwardRef(() => AddressPoolModule),
   ],
   controllers: [BuyFiatController, SellController],

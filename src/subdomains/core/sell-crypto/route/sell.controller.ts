@@ -38,7 +38,7 @@ export class SellController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
   async getAllSell(@GetJwt() jwt: JwtPayload): Promise<SellDto[]> {
-    return this.sellService.getUserSells(jwt.id).then((l) => this.toDtoList(jwt.id, l));
+    return this.sellService.getUserSells(jwt.id).then((l) => this.toDtoList(l));
   }
 
   @Post()
@@ -46,7 +46,7 @@ export class SellController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
   async createSell(@GetJwt() jwt: JwtPayload, @Body() dto: CreateSellDto): Promise<SellDto> {
-    return this.sellService.createSell(jwt.id, dto).then((s) => this.toDto(jwt.id, s));
+    return this.sellService.createSell(jwt.id, dto).then((s) => this.toDto(s));
   }
 
   @Put('/paymentInfos')
@@ -68,7 +68,7 @@ export class SellController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
   async updateSell(@GetJwt() jwt: JwtPayload, @Param('id') id: string, @Body() dto: UpdateSellDto): Promise<SellDto> {
-    return this.sellService.updateSell(jwt.id, +id, dto).then((s) => this.toDto(jwt.id, s));
+    return this.sellService.updateSell(jwt.id, +id, dto).then((s) => this.toDto(s));
   }
 
   @Get(':id/history')
@@ -80,22 +80,17 @@ export class SellController {
   }
 
   // --- DTO --- //
-  private async toDtoList(userId: number, sell: Sell[]): Promise<SellDto[]> {
-    const sellDepositsInUse = await this.sellService.getUserSellDepositsInUse(userId);
-
-    return Promise.all(sell.map((s) => this.toDto(userId, s, sellDepositsInUse)));
+  private async toDtoList(sell: Sell[]): Promise<SellDto[]> {
+    return Promise.all(sell.map((s) => this.toDto(s)));
   }
 
-  private async toDto(userId: number, sell: Sell, sellDepositsInUse?: number[]): Promise<SellDto> {
-    sellDepositsInUse ??= await this.sellService.getUserSellDepositsInUse(userId);
-
+  private async toDto(sell: Sell): Promise<SellDto> {
     return {
       ...sell,
       fiat: FiatDtoMapper.entityToDto(sell.fiat),
       deposit: DepositDtoMapper.entityToDto(sell.deposit),
       fee: undefined,
       blockchain: sell.deposit.blockchain,
-      isInUse: sellDepositsInUse.includes(sell.deposit.id),
       minDeposits: [this.getMinDeposit(sell)],
     };
   }

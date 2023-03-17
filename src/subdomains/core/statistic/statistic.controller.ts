@@ -3,12 +3,11 @@ import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
 import { MasternodeService } from 'src/subdomains/supporting/masternode/masternode.service';
 import { RefRewardService } from 'src/subdomains/core/referral/reward/ref-reward.service';
-import { StakingRewardService } from 'src/subdomains/core/staking/services/staking-reward.service';
-import { CfpService } from 'src/subdomains/core/statistic/cfp.service';
 import { StatisticService } from './statistic.service';
 import { BuyCryptoService } from '../buy-crypto/process/services/buy-crypto.service';
-import { CfpResult } from './dto/cfp.dto';
 import { SettingStatus, StatisticDto, TransactionStatisticDto } from './dto/statistic.dto';
+import { CfpService } from './cfp.service';
+import { CfpResult } from './dto/cfp.dto';
 import { Util } from 'src/shared/utils/util';
 import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
 import { Throttle } from '@nestjs/throttler/dist/throttler.decorator';
@@ -21,7 +20,6 @@ export class StatisticController {
     private readonly cfpService: CfpService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyFiatService: BuyFiatService,
-    private readonly stakingRewardService: StakingRewardService,
     private readonly refRewardService: RefRewardService,
     private readonly masternodeService: MasternodeService,
   ) {}
@@ -52,7 +50,6 @@ export class StatisticController {
     return {
       buy: await this.buyCryptoService.getTransactions(dateFrom, dateTo),
       sell: await this.buyFiatService.getTransactions(dateFrom, dateTo),
-      stakingRewards: await this.stakingRewardService.getTransactions(dateFrom, dateTo),
       refRewards: await this.refRewardService.getTransactions(dateFrom, dateTo),
     };
   }
