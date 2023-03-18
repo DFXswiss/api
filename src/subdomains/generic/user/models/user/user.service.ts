@@ -80,19 +80,19 @@ export class UserService {
   }
 
   async getAllLinkedUsers(id: number): Promise<LinkedUserOutDto[]> {
-    return this.userRepo
+    const linkedUsers = await this.userRepo
       .createQueryBuilder('user')
-      .select('linkedUser.address')
+      .select('linkedUser.address', 'address')
       .leftJoin('user.userData', 'userData')
       .leftJoin('userData.users', 'linkedUser')
       .leftJoin('linkedUser.wallet', 'wallet')
       .where('user.id = :id AND wallet.isKycClient = 0', { id })
-      .getRawMany<LinkedUserOutDto>()
-      .then((linkedUsers) => {
-        return linkedUsers.map((u) => {
-          return { ...u, blockchains: this.cryptoService.getBlockchainsBasedOn(u.address) };
-        });
-      });
+      .getRawMany<{ address: string }>();
+
+    return linkedUsers.map((u) => ({
+      address: u.address,
+      blockchains: this.cryptoService.getBlockchainsBasedOn(u.address),
+    }));
   }
 
   async getRefUser(ref: string): Promise<User> {
