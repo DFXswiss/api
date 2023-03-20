@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { UserDataRepository } from './user-data.repository';
-import { KycCompleted, KycInProgress, KycState, KycType, UserData } from './user-data.entity';
+import { KycCompleted, KycInProgress, KycState, KycType, UserData, UserDataStatus } from './user-data.entity';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { getRepository, MoreThan, Not } from 'typeorm';
@@ -78,6 +78,7 @@ export class UserDataService {
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`userData.${key} = :param`, { param: value })
+      .andWhere(`userData.status != :status`, { status: UserDataStatus.MERGED })
       .getOne();
   }
 
@@ -293,6 +294,9 @@ export class UserDataService {
     master.bankDatas = master.bankDatas.concat(slave.bankDatas);
     master.users = master.users.concat(slave.users);
     await this.userDataRepo.save(master);
+
+    // update slave status
+    await this.userDataRepo.update(slave.id, { status: UserDataStatus.MERGED });
 
     // KYC change Webhook
     await this.webhookService.kycChanged(master);
