@@ -26,18 +26,6 @@
       "title": "Verifikation erfolgreich"
     }
   },
-  "stakingRef": {
-    "referrer": {
-      "salutation": "Du bist ein DFX Ambassador - Erfolgreich geworben",
-      "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr style=\"font-family:Open Sans\"><td colspan=\"3\" align=\"center\">Herzlichen Glückwunsch</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans\"><td colspan=\"3\" align=\"center\">Ein von dir geworbener Kunde ist soeben dem $DFI Staking von DFX beigetreten.</td></tr><tr style=\"font-family:Open Sans\"><td colspan=\"3\" align=\"center\">Dein Werbebonus von {outputAmount} {outputAsset} wurde an deine Wallet ausgezahlt.</td></tr><tr style=\"font-family:Open Sans\"><td colspan=\"3\" align=\"center\">Hier findest du die Transaktion: <a href=\"https://defiscan.live/transactions/{txId}\">{txId}</a></td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;\"><td colspan=\"3\" align=\"center\">Your DFX Team</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
-      "title": "Erfolgreich geworben"
-    },
-    "referred": {
-      "salutation": "Herzlich willkommen in der DFX Familie - Referral Bonus ausgezahlt",
-      "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr style=\"font-family:Open Sans\"><td colspan=\"3\" align=\"center\">Du bist erfolgreich dem $DFI Staking von DFX beigetreten.</td></tr><tr style=\"font-family:Open Sans\"><td colspan=\"3\" align=\"center\">Dafür haben wir soeben deinen Bonus von {outputAmount} {outputAsset} an deine Staking Route ausgezahlt.</td></tr><tr style=\"font-family:Open Sans\"><td colspan=\"3\" align=\"center\">Hier findest du die Transaktion: <a href=\"https://defiscan.live/transactions/{txId}\">{txId}</a></td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;\"><td colspan=\"3\" align=\"center\">Happy Staking!</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;\"><td colspan=\"3\" align=\"center\">Your DFX Team</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
-      "title": "Referral Bonus ausgezahlt"
-    }
-  },
   "staking": {
     "return": {
       "salutation": "Das Enddatum des DFX-Staking-Service ist der 31. Dezember 2022 - neue Einzahlungen werden erstattet",
@@ -119,6 +107,13 @@
       "salutation": "Dein Transaktionsvolumen wurde genehmigt",
       "body": "<p>Hi {firstname},</p><p>Deine Anfrage von {limitAmount} EUR Transaktionsvolumen wurde genehmigt und steht dir nun frei zur Verfügung.</p><p>Herzlichen Dank für dein entgegengebrachtes Vertrauen.</p><p>Bei Fragen zögere bitte nicht, mich anzusprechen.</p><p>Freundliche Grüsse,<br>Theresia</p><p>Assistenz CEO",
       "title": "Transaktionsvolumen genehmigt"
+    }
+  },
+  "blackSquad": {
+    "invitation": {
+      "salutation": "",
+      "body": "<p>Hi {firstname},</p><p>zunächst möchte ich mich kurz vorstellen. Mein Name ist Oli und ich bin CMO bei DFX.swiss.</p><p>Wir pflegen seit einiger Zeit eine Telegram-Gruppe für Personen mit größeren Investments über DFX.swiss und möchten dir mit dieser Gruppe</p><p>- ein direktes Sprachrohr zum C-Level der DFX bieten<br>- eine Plattform für Diskussionen bereitstellen<br>- genau hinhören, wenn ihr euch neue Services wünscht<br>- und euch neue Themen und Services vorab vorstellen</p><p>Wir würden uns freuen, wenn du dieser Gruppe beitreten möchtest.</p><p>Wir haben dir hierfür einen Direktzugang zu dieser Gruppe auf deiner persönlichen DFX Payment Seite hinterlegt. Klicke hierfür einfach in der DFX App auf MyDFX und folge dem Link.</p><p>Vielen Dank für dein Vertrauen in uns.<br>Oli</p>",
+      "title": "Einladung Black Squad"
     }
   },
   "link": {

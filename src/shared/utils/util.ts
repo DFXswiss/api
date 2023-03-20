@@ -173,7 +173,7 @@ export class Util {
     });
   }
 
-  static async timeoutAsync<T>(promise: Promise<T>, timeout: number): Promise<T> {
+  static async timeout<T>(promise: Promise<T>, timeout: number): Promise<T> {
     const timeoutPromise = new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout));
 
     return Promise.race([promise, timeoutPromise]);

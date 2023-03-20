@@ -8,7 +8,7 @@ import { MailContext, MailType } from 'src/subdomains/supporting/notification/en
 import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AmlCheck } from '../enums/aml-check.enum';
 import { I18nService } from 'nestjs-i18n';
-import { Config } from 'src/config/config';
+import { Config, Process } from 'src/config/config';
 import { BuyCryptoAmlReasonPendingStates } from '../entities/buy-crypto.entity';
 
 @Injectable()
@@ -21,6 +21,7 @@ export class BuyCryptoNotificationService {
 
   async sendNotificationMails(): Promise<void> {
     try {
+      if (Config.processDisabled(Process.BUY_CRYPTO_MAIL)) return;
       await this.buyCryptoConfirmed();
       await this.paybackToAddressInitiated();
       await this.pendingBuyCrypto();

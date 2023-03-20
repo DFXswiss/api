@@ -10,9 +10,11 @@ import { FixerService } from './services/fixer.service';
 import { KucoinService } from './services/kucoin.service';
 import { ConversionService } from './services/conversion.service';
 import { ExchangeRegistryService } from './services/exchange-registry.service';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { ExchangeTxRepository } from './repositories/exchange-tx.repository';
 
 @Module({
-  imports: [SharedModule],
+  imports: [TypeOrmModule.forFeature([ExchangeTxRepository]), SharedModule],
   controllers: [ExchangeController],
   providers: [
     ExchangeRegistryService,

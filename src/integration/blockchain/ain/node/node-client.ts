@@ -36,7 +36,7 @@ export class NodeClient {
     mode: NodeMode,
   ) {
     this.client = this.createJellyfishClient();
-    this.queue = new QueueHandler(scheduler, 180000);
+    this.queue = new QueueHandler(scheduler, 180000, 60000);
     this.#mode = mode;
   }
 

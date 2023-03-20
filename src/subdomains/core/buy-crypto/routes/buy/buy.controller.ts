@@ -7,21 +7,15 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { In } from 'typeorm';
 import { BuyHistoryDto } from './dto/buy-history.dto';
 import { Buy } from './buy.entity';
 import { BuyService } from './buy.service';
-import { BuyType } from './dto/buy-type.enum';
 import { BuyDto } from './dto/buy.dto';
 import { CreateBuyDto } from './dto/create-buy.dto';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 import { BankInfoDto, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
 import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
-import { Deposit } from 'src/subdomains/supporting/address-pool/deposit/deposit.entity';
-import { StakingDto } from 'src/subdomains/core/staking/dto/staking.dto';
-import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
-import { StakingService } from 'src/subdomains/core/staking/services/staking.service';
 import { BuyCryptoService } from '../../process/services/buy-crypto.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
@@ -32,7 +26,6 @@ export class BuyController {
   constructor(
     private readonly buyService: BuyService,
     private readonly userService: UserService,
-    private readonly stakingService: StakingService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly bankService: BankService,
     private readonly paymentInfoService: PaymentInfoService,
@@ -64,7 +57,7 @@ export class BuyController {
   ): Promise<BuyPaymentInfoDto> {
     dto = await this.paymentInfoService.buyCheck(dto);
     return this.buyService
-      .createBuy(jwt.id, jwt.address, { ...dto, type: BuyType.WALLET }, true)
+      .createBuy(jwt.id, jwt.address, dto, true)
       .then((buy) => this.toPaymentInfoDto(jwt.id, buy, dto));
   }
 
@@ -86,19 +79,14 @@ export class BuyController {
 
   // --- DTO --- //
   private async toDtoList(userId: number, buys: Buy[]): Promise<BuyDto[]> {
-    const stakingRoutes = await this.stakingService
-      .getStakingRepo()
-      .find({ deposit: { id: In(buys.map((b) => b.deposit?.id)) } });
-    return Promise.all(buys.map((b) => this.toDto(userId, b, stakingRoutes)));
+    return Promise.all(buys.map((b) => this.toDto(userId, b)));
   }
 
-  private async toDto(userId: number, buy: Buy, stakingRoutes?: Staking[]): Promise<BuyDto> {
+  private async toDto(userId: number, buy: Buy): Promise<BuyDto> {
     const fee = await this.userService.getUserBuyFee(userId, buy.asset);
     return {
-      type: buy.deposit != null ? BuyType.STAKING : BuyType.WALLET,
       ...buy,
       asset: AssetDtoMapper.entityToDto(buy.asset),
-      staking: await this.getStaking(userId, buy.deposit, stakingRoutes),
       ...fee,
       minDeposits: Config.transaction.minVolume.getMany(buy.asset),
     };
@@ -117,21 +105,6 @@ export class BuyController {
   }
 
   // --- HELPER-METHODS --- //
-  private async getStaking(
-    userId: number,
-    deposit?: Deposit,
-    stakingRoutes?: Staking[],
-  ): Promise<StakingDto | undefined> {
-    if (deposit == null) return undefined;
-
-    return this.stakingService.toDto(
-      userId,
-      stakingRoutes
-        ? stakingRoutes.find((s) => s.deposit.id === deposit.id)
-        : await this.stakingService.getStakingRepo().findOne({ where: { deposit: deposit.id } }),
-    );
-  }
-
   private async getBankInfo(buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BankInfoDto> {
     const bank = await this.bankService.getBank({
       amount: dto.amount,

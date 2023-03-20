@@ -112,7 +112,7 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
 
   async checkL2BridgeCompletion(l1TxId: string): Promise<boolean> {
     try {
-      const status = await Util.timeoutAsync(this.#crossChainMessenger.getMessageStatus(l1TxId), 20000);
+      const status = await Util.timeout(this.#crossChainMessenger.getMessageStatus(l1TxId), 20000);
 
       return status === MessageStatus.RELAYED;
     } catch {
@@ -122,7 +122,7 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
 
   async checkL1BridgeCompletion(l2TxId: string): Promise<boolean> {
     try {
-      const status = await Util.timeoutAsync(this.#crossChainMessenger.getMessageStatus(l2TxId), 20000);
+      const status = await Util.timeout(this.#crossChainMessenger.getMessageStatus(l2TxId), 20000);
 
       switch (status) {
         case MessageStatus.READY_TO_PROVE: {
