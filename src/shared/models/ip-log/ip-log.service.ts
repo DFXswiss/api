@@ -42,7 +42,7 @@ export class IpLogService {
     const countryObject = await this.countryService.getCountryWithSymbol(country);
 
     const user = await this.userRepo.findOne({ address });
-    if (!countryObject || user?.role != UserRole.USER) return { country, result: true };
+    if (!countryObject || (user && user.role != UserRole.USER)) return { country, result: true };
 
     return { country, result: countryObject?.ipEnable };
   }
