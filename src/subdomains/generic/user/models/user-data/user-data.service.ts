@@ -295,9 +295,8 @@ export class UserDataService {
     master.users = master.users.concat(slave.users);
     await this.userDataRepo.save(master);
 
-    // set slave status
-    slave.status = UserDataStatus.MERGED;
-    await this.userDataRepo.save(slave);
+    // update slave status
+    await this.userDataRepo.update(slave.id, { status: UserDataStatus.MERGED });
 
     // KYC change Webhook
     await this.webhookService.kycChanged(master);
