@@ -37,12 +37,6 @@ export class ExchangeTx extends IEntity {
   amount: number;
 
   @Column({ type: 'float', nullable: true })
-  cost: number;
-
-  @Column({ length: 256, nullable: true })
-  currency: string;
-
-  @Column({ type: 'float', nullable: true })
   feeAmount: number;
 
   @Column({ length: 256, nullable: true })
@@ -58,6 +52,9 @@ export class ExchangeTx extends IEntity {
 
   @Column({ length: 256, nullable: true })
   asset: string;
+
+  @Column({ length: 256, nullable: true })
+  currency: string;
 
   @Column({ length: 256, nullable: true })
   network: string;
@@ -106,6 +103,9 @@ export class ExchangeTx extends IEntity {
   price: number;
 
   @Column({ type: 'float', nullable: true })
+  cost: number;
+
+  @Column({ type: 'float', nullable: true })
   vol: number;
 
   @Column({ type: 'float', nullable: true })
@@ -127,5 +127,8 @@ export class ExchangeTx extends IEntity {
   side: string;
 
   @Column({ length: 256, nullable: true })
-  takeOrMaker: string;
+  takerOrMaker: string;
 }
+
+export const ExchangeSyncs = ['Kraken'];
+export const ExchangeToken = ['BTC', 'EUR', 'CHF', 'USDT', 'USDC', 'LTC', 'ETH', 'USD'];
