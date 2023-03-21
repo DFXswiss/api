@@ -9,6 +9,7 @@ import {
 import { Config } from 'src/config/config';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { MoreThan } from 'typeorm';
 import { Blank, BlankType, UserData } from '../user-data/user-data.entity';
 import { UserDataService } from '../user-data/user-data.service';
 import { User } from '../user/user.entity';
@@ -37,9 +38,9 @@ export class LinkService {
     const newAddress = user.users[0].address;
 
     const existing = await this.linkAddressRepo.findOne({
-      where: { existingAddress, newAddress },
+      where: { existingAddress, newAddress, expiration: MoreThan(new Date()) },
     });
-    if (existing && !existing.isExpired) return;
+    if (existing) return;
 
     const linkAddress = await this.linkAddressRepo.save(LinkAddress.create(existingAddress, newAddress));
 
