@@ -5,6 +5,7 @@ import { ExchangeTxMapper } from '../mappers/exchange-tx.mapper';
 import { ExchangeTxRepository } from '../repositories/exchange-tx.repository';
 import { ExchangeRegistryService } from './exchange-registry.service';
 import { Lock } from 'src/shared/utils/lock';
+import { Util } from 'src/shared/utils/util';
 
 export class ExchangeTxService {
   constructor(
