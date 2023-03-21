@@ -7,6 +7,8 @@ export enum ExchangeTxType {
   TRADE = 'Trade',
 }
 
+export type ExchangeTxDto = Omit<ExchangeTx, keyof IEntity>;
+
 @Entity()
 @Index((exchangeTx: ExchangeTx) => [exchangeTx.exchange, exchangeTx.type, exchangeTx.externalId], {
   unique: true,
@@ -42,54 +44,54 @@ export class ExchangeTx extends IEntity {
   // Withdrawal/Deposit
 
   @Column({ length: 256, nullable: true })
-  method: string;
+  method?: string;
 
   @Column({ length: 256, nullable: true })
-  asset: string;
+  asset?: string;
 
   @Column({ length: 256, nullable: true })
-  currency: string;
+  currency?: string;
 
   @Column({ length: 256, nullable: true })
-  address: string;
+  address?: string;
 
   @Column({ length: 256, nullable: true })
-  txId: string;
+  txId?: string;
 
   // Trade
   @Column({ length: 256, nullable: true })
-  order: string;
+  order?: string;
 
   @Column({ length: 256, nullable: true })
-  pair: string;
+  pair?: string;
 
   @Column({ length: 256, nullable: true })
-  orderType: string;
+  orderType?: string;
 
   @Column({ type: 'float', nullable: true })
-  price: number;
+  price?: number;
 
   @Column({ type: 'float', nullable: true })
-  cost: number;
+  cost?: number;
 
   @Column({ type: 'float', nullable: true })
-  vol: number;
+  vol?: number;
 
   @Column({ type: 'float', nullable: true })
-  margin: number;
+  margin?: number;
 
   @Column({ type: 'float', nullable: true })
-  leverage: number;
+  leverage?: number;
 
   @Column({ length: 256, nullable: true })
-  tradeId: string;
+  tradeId?: string;
 
   @Column({ length: 256, nullable: true })
-  symbol: string;
+  symbol?: string;
 
   @Column({ length: 256, nullable: true })
-  side: string;
+  side?: string;
 }
 
 export const ExchangeSyncs = ['Kraken'];
-export const ExchangeToken = ['BTC', 'EUR', 'CHF', 'USDT', 'USDC', 'LTC', 'ETH', 'USD'];
+export const ExchangeTokens = ['BTC', 'EUR', 'CHF', 'USDT', 'USDC', 'LTC', 'ETH', 'USD'];

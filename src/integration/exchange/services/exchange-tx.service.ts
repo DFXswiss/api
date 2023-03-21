@@ -1,6 +1,5 @@
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { ExchangeTxTransactionDto } from '../dto/exchange-tx-transaction.dto';
-import { ExchangeSyncs, ExchangeToken } from '../entities/exchange-tx.entity';
+import { ExchangeSyncs, ExchangeTokens, ExchangeTx, ExchangeTxDto } from '../entities/exchange-tx.entity';
 import { ExchangeTxMapper } from '../mappers/exchange-tx.mapper';
 import { ExchangeTxRepository } from '../repositories/exchange-tx.repository';
 import { ExchangeRegistryService } from './exchange-registry.service';
@@ -19,46 +18,35 @@ export class ExchangeTxService {
   @Cron(CronExpression.EVERY_MINUTE)
   async syncExchanges() {
     for (const exchange of ExchangeSyncs) {
+      const exchangeService = this.registryService.getExchange(exchange);
+
+      const transactions: ExchangeTxDto[] = [];
       // Trades
-      const trades = await this.registryService
-        .getExchange(exchange)
-        .getTrades()
-        .then((t) => ExchangeTxMapper.getTrades(t, exchange));
+      transactions.push(...(await exchangeService.getTrades().then((t) => ExchangeTxMapper.mapTrades(t, exchange))));
 
-      const transactionArray: ExchangeTxTransactionDto[][] = [];
-
-      for (const asset of ExchangeToken) {
+      for (const asset of ExchangeTokens) {
         // Deposit
-        transactionArray.push(
-          await this.registryService
-            .getExchange(exchange)
+        transactions.push(
+          ...(await exchangeService
             .getDeposits(asset, Util.minutesBefore(120))
-            .then((d) => ExchangeTxMapper.getDeposits(d, exchange)),
+            .then((d) => ExchangeTxMapper.mapDeposits(d, exchange))),
         );
 
         // Withdrawals
-        transactionArray.push(
-          await this.registryService
-            .getExchange(exchange)
+        transactions.push(
+          ...(await exchangeService
             .getWithdrawals(asset, Util.minutesBefore(120))
-            .then((w) => ExchangeTxMapper.getWithdrawals(w, exchange)),
+            .then((w) => ExchangeTxMapper.mapWithdrawals(w, exchange))),
         );
       }
 
-      const transactions: ExchangeTxTransactionDto[] = [
-        trades,
-        transactionArray.reduce((prev, curr) => prev.concat(curr), []),
-      ].reduce((prev, curr) => prev.concat(curr), []);
-
       for (const transaction of transactions) {
-        const existing = await this.exchangeTxRepo.find({
-          where: { exchange: exchange, externalId: transaction.externalId },
+        let entity = await this.exchangeTxRepo.findOne({
+          where: { exchange: exchange, externalId: transaction.externalId, type: transaction.type },
         });
-        if (existing) continue;
+        entity = entity ? Object.assign(entity, transaction) : this.exchangeTxRepo.create(transaction);
 
-        const entity = this.exchangeTxRepo.create(transaction);
-
-        this.exchangeTxRepo.save(entity);
+        await this.exchangeTxRepo.save(entity);
       }
     }
   }
