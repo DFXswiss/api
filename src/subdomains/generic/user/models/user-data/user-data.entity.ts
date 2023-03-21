@@ -166,6 +166,12 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   plannedContribution: string;
 
+  @Column({ type: 'datetime2', nullable: true })
+  letterSentDate: Date;
+
+  @Column({ type: 'datetime2', nullable: true })
+  amlListAddedDate: Date;
+
   //Mail
   @Column({ length: 256, nullable: true })
   blackSquadRecipientMail: string;

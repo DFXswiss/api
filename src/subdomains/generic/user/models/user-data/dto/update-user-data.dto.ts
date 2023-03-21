@@ -120,4 +120,14 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsInt()
   mainBankDataId: number;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  letterSentDate: Date;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  amlListAddedDate: Date;
 }

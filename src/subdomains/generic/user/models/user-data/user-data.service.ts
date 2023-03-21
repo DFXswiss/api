@@ -141,6 +141,9 @@ export class UserDataService {
       userData = await this.kycProcessService.goToStatus(userData, dto.kycStatus);
     }
 
+    if (userData.letterSentDate) dto.letterSentDate = userData.letterSentDate;
+    if (userData.amlListAddedDate) dto.amlListAddedDate = userData.amlListAddedDate;
+
     return this.userDataRepo.save({ ...userData, ...dto });
   }
 
