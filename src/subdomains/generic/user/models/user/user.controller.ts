@@ -96,7 +96,7 @@ export class UserController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getRefInfo(
     @Query() query: RefInfoQuery,
-  ): Promise<{ activeUser: number; fiatVolume?: number; cryptoVolume?: number }> {
+  ): Promise<{ activeUser: number; passiveUser: number; fiatVolume?: number; cryptoVolume?: number }> {
     return this.userService.getRefInfo(query);
   }
 
