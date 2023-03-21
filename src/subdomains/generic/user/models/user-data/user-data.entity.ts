@@ -54,6 +54,7 @@ export enum UserDataStatus {
   NA = 'NA',
   ACTIVE = 'Active',
   BLOCKED = 'Blocked',
+  MERGED = 'Merged',
 }
 
 @Entity()
