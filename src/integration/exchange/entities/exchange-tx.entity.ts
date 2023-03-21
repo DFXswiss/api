@@ -30,9 +30,6 @@ export class ExchangeTx extends IEntity {
   @Column({ length: 256, nullable: true })
   status: string;
 
-  @Column({ length: 256, nullable: true })
-  originalStatus: string;
-
   @Column({ type: 'float', nullable: true })
   amount: number;
 
@@ -48,50 +45,20 @@ export class ExchangeTx extends IEntity {
   method: string;
 
   @Column({ length: 256, nullable: true })
-  aClass: string;
-
-  @Column({ length: 256, nullable: true })
   asset: string;
 
   @Column({ length: 256, nullable: true })
   currency: string;
 
   @Column({ length: 256, nullable: true })
-  network: string;
-
-  @Column({ length: 256, nullable: true })
   address: string;
-
-  @Column({ length: 256, nullable: true })
-  addressTo: string;
-
-  @Column({ length: 256, nullable: true })
-  addressFrom: string;
-
-  @Column({ length: 256, nullable: true })
-  refId: string;
 
   @Column({ length: 256, nullable: true })
   txId: string;
 
-  @Column({ length: 256, nullable: true })
-  tag: string;
-
-  @Column({ length: 256, nullable: true })
-  tagTo: string;
-
-  @Column({ length: 256, nullable: true })
-  tagFrom: string;
-
   // Trade
   @Column({ length: 256, nullable: true })
   order: string;
-
-  @Column({ length: 256, nullable: true })
-  orderTxId: string;
-
-  @Column({ length: 256, nullable: true })
-  posTxId: string;
 
   @Column({ length: 256, nullable: true })
   pair: string;
@@ -115,9 +82,6 @@ export class ExchangeTx extends IEntity {
   leverage: number;
 
   @Column({ length: 256, nullable: true })
-  misc: string;
-
-  @Column({ length: 256, nullable: true })
   tradeId: string;
 
   @Column({ length: 256, nullable: true })
@@ -125,9 +89,6 @@ export class ExchangeTx extends IEntity {
 
   @Column({ length: 256, nullable: true })
   side: string;
-
-  @Column({ length: 256, nullable: true })
-  takerOrMaker: string;
 }
 
 export const ExchangeSyncs = ['Kraken'];

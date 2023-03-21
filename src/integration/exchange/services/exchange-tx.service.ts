@@ -18,8 +18,6 @@ export class ExchangeTxService {
   @Cron(CronExpression.EVERY_MINUTE)
   async syncExchanges() {
     for (const exchange of ExchangeSyncs) {
-      const fromDate = new Date(new Date().getTime() - 3600000);
-
       // Trades
       const trades = await this.registryService
         .getExchange(exchange)
@@ -33,7 +31,7 @@ export class ExchangeTxService {
         transactionArray.push(
           await this.registryService
             .getExchange(exchange)
-            .getDeposits(asset, fromDate)
+            .getDeposits(asset, Util.minutesBefore(120))
             .then((d) => ExchangeTxMapper.getDeposits(d, exchange)),
         );
 
@@ -41,7 +39,7 @@ export class ExchangeTxService {
         transactionArray.push(
           await this.registryService
             .getExchange(exchange)
-            .getWithdrawals(asset, fromDate)
+            .getWithdrawals(asset, Util.minutesBefore(120))
             .then((w) => ExchangeTxMapper.getWithdrawals(w, exchange)),
         );
       }
