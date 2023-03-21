@@ -277,13 +277,22 @@ export class UserService {
 
   // --- REF --- //
 
-  async getRefInfo(query: RefInfoQuery): Promise<{ activeUser: number; fiatVolume?: number; cryptoVolume?: number }> {
+  async getRefInfo(query: RefInfoQuery): Promise<{ activeUser: number; passiveUser: number; fiatVolume?: number; cryptoVolume?: number }> {
     // get ref users
-    const refUser = await this.userRepo.find({
-      select: ['id'],
+    const refUserCount = await this.userRepo.count({
       where: {
         created: Between(query.from, query.to),
         status: UserStatus.ACTIVE,
+        ...(query.refCode ? { usedRef: query.refCode } : {}),
+        ...(query.origin ? { origin: query.origin } : {}),
+      },
+    });
+
+    // get passive ref users
+    const passiveRefUserCount = await this.userRepo.count({
+      where: {
+        created: Between(query.from, query.to),
+        status: UserStatus.NA,
         ...(query.refCode ? { usedRef: query.refCode } : {}),
         ...(query.origin ? { origin: query.origin } : {}),
       },
@@ -316,7 +325,12 @@ export class UserService {
 
     const { cryptoVolume } = await dbQuery.getRawOne<{ cryptoVolume: number }>();
 
-    return { activeUser: refUser.length, fiatVolume: fiatVolume, cryptoVolume: cryptoVolume };
+    return {
+      activeUser: refUserCount,
+      passiveUser: passiveRefUserCount,
+      fiatVolume: fiatVolume,
+      cryptoVolume: cryptoVolume,
+    };
   }
 
   async updateRefVolume(ref: string, volume: number, credit: number): Promise<void> {
