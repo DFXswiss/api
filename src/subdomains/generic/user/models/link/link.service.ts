@@ -36,6 +36,11 @@ export class LinkService {
     const existingAddress = oldestToNewestUser[0].address;
     const newAddress = user.users[0].address;
 
+    const existing = await this.linkAddressRepo.findOne({
+      where: { existingAddress, newAddress },
+    });
+    if (existing && !existing.isExpired) return;
+
     const linkAddress = await this.linkAddressRepo.save(LinkAddress.create(existingAddress, newAddress));
 
     await this.notificationService.sendMail({
