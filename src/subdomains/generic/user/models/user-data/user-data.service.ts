@@ -141,6 +141,7 @@ export class UserDataService {
       userData = await this.kycProcessService.goToStatus(userData, dto.kycStatus);
     }
 
+    // Columns are not updatable
     if (userData.letterSentDate) dto.letterSentDate = userData.letterSentDate;
     if (userData.amlListAddedDate) dto.amlListAddedDate = userData.amlListAddedDate;
 
