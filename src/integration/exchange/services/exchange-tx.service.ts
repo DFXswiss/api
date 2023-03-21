@@ -1,11 +1,13 @@
+import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { ExchangeSyncs, ExchangeTokens, ExchangeTx, ExchangeTxDto } from '../entities/exchange-tx.entity';
+import { ExchangeSyncs, ExchangeTokens, ExchangeTxDto } from '../entities/exchange-tx.entity';
 import { ExchangeTxMapper } from '../mappers/exchange-tx.mapper';
 import { ExchangeTxRepository } from '../repositories/exchange-tx.repository';
 import { ExchangeRegistryService } from './exchange-registry.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 
+@Injectable()
 export class ExchangeTxService {
   constructor(
     private readonly exchangeTxRepo: ExchangeTxRepository,
