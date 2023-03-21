@@ -279,8 +279,7 @@ export class UserService {
 
   async getRefInfo(query: RefInfoQuery): Promise<{ activeUser: number; passiveUser: number; fiatVolume?: number; cryptoVolume?: number }> {
     // get ref users
-    const refUser = await this.userRepo.find({
-      select: ['id'],
+    const refUserCount = await this.userRepo.count({
       where: {
         created: Between(query.from, query.to),
         status: UserStatus.ACTIVE,
@@ -290,8 +289,7 @@ export class UserService {
     });
 
     // get passive ref users
-    const passiveRefUser = await this.userRepo.find({
-      select: ['id'],
+    const passiveRefUserCount = await this.userRepo.count({
       where: {
         created: Between(query.from, query.to),
         status: UserStatus.NA,
@@ -328,8 +326,8 @@ export class UserService {
     const { cryptoVolume } = await dbQuery.getRawOne<{ cryptoVolume: number }>();
 
     return {
-      activeUser: refUser.length,
-      passiveUser: passiveRefUser.length,
+      activeUser: refUserCount,
+      passiveUser: passiveRefUserCount,
       fiatVolume: fiatVolume,
       cryptoVolume: cryptoVolume,
     };
