@@ -1,7 +1,7 @@
 import { Trade, Transaction } from 'ccxt';
 import { ExchangeTxDto, ExchangeTxType } from '../entities/exchange-tx.entity';
 
-export class ExchangeTxMapper {
+export class ExchangeTxKrakenMapper {
   static mapDeposits(transactions: Transaction[], exchange: string): ExchangeTxDto[] {
     return transactions
       .filter((d) => d.type === 'deposit')

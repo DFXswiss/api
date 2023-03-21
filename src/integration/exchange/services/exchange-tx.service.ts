@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ExchangeSyncs, ExchangeTokens, ExchangeTxDto } from '../entities/exchange-tx.entity';
-import { ExchangeTxMapper } from '../mappers/exchange-tx.mapper';
+import { ExchangeTxKrakenMapper } from '../mappers/exchange-tx-kraken.mapper';
 import { ExchangeTxRepository } from '../repositories/exchange-tx.repository';
 import { ExchangeRegistryService } from './exchange-registry.service';
 import { Lock } from 'src/shared/utils/lock';
@@ -24,21 +24,23 @@ export class ExchangeTxService {
 
       const transactions: ExchangeTxDto[] = [];
       // Trades
-      transactions.push(...(await exchangeService.getTrades().then((t) => ExchangeTxMapper.mapTrades(t, exchange))));
+      transactions.push(
+        ...(await exchangeService.getTrades().then((t) => ExchangeTxKrakenMapper.mapTrades(t, exchange))),
+      );
 
       for (const asset of ExchangeTokens) {
         // Deposit
         transactions.push(
           ...(await exchangeService
             .getDeposits(asset, Util.minutesBefore(120))
-            .then((d) => ExchangeTxMapper.mapDeposits(d, exchange))),
+            .then((d) => ExchangeTxKrakenMapper.mapDeposits(d, exchange))),
         );
 
         // Withdrawals
         transactions.push(
           ...(await exchangeService
             .getWithdrawals(asset, Util.minutesBefore(120))
-            .then((w) => ExchangeTxMapper.mapWithdrawals(w, exchange))),
+            .then((w) => ExchangeTxKrakenMapper.mapWithdrawals(w, exchange))),
         );
       }
 
