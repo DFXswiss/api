@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { LiquidityOrder, LiquidityOrderContext, LiquidityOrderType } from '../entities/liquidity-order.entity';
-import { DexDeFiChainService } from './dex-defichain.service';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
 import { PriceSlippageException } from '../exceptions/price-slippage.exception';
 import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
@@ -30,14 +29,11 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 
 @Injectable()
 export class DexService {
-  private readonly verifyPurchaseOrdersLock = new Lock(1800);
-
   constructor(
     private readonly checkStrategies: CheckLiquidityStrategies,
     private readonly purchaseStrategies: PurchaseLiquidityStrategies,
     private readonly sellStrategies: SellLiquidityStrategies,
     private readonly supplementaryStrategies: SupplementaryStrategies,
-    private readonly dexDeFiChainService: DexDeFiChainService,
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
     private readonly liquidityOrderFactory: LiquidityOrderFactory,
   ) {}
@@ -197,6 +193,17 @@ export class DexService {
     }
   }
 
+  async hasOrder(context: LiquidityOrderContext, correlationId: string): Promise<boolean> {
+    return this.liquidityOrderRepo
+      .findOne({ where: { context, correlationId }, loadEagerRelations: false })
+      .then((o) => o != null);
+  }
+
+  async getPendingOrders(context: LiquidityOrderContext): Promise<string[]> {
+    const pending = await this.liquidityOrderRepo.find({ where: { context }, select: ['context', 'correlationId'] });
+    return pending.map((o) => o.correlationId);
+  }
+
   async getPendingOrdersCount(asset: Asset): Promise<number> {
     return this.liquidityOrderRepo.count({
       where: [
@@ -291,19 +298,14 @@ export class DexService {
   //*** JOBS ***//
 
   @Interval(30000)
+  @Lock(1800)
   async finalizePurchaseOrders(): Promise<void> {
-    if (!this.verifyPurchaseOrdersLock.acquire()) return;
+    const standingOrders = await this.liquidityOrderRepo.find({
+      isReady: false,
+      txId: Not(IsNull()),
+    });
 
-    try {
-      const standingOrders = await this.liquidityOrderRepo.find({
-        isReady: false,
-        txId: Not(IsNull()),
-      });
-
-      await this.addPurchaseDataToOrders(standingOrders);
-    } finally {
-      this.verifyPurchaseOrdersLock.release();
-    }
+    await this.addPurchaseDataToOrders(standingOrders);
   }
 
   // *** HELPER METHODS *** //

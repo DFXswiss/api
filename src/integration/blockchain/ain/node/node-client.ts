@@ -36,12 +36,15 @@ export class NodeClient {
     mode: NodeMode,
   ) {
     this.client = this.createJellyfishClient();
-    this.queue = new QueueHandler(scheduler, 180000);
+    this.queue = new QueueHandler(scheduler, 180000, 60000);
     this.#mode = mode;
   }
 
-  // common
+  clearRequestQueue() {
+    this.queue.clear();
+  }
 
+  // common
   async listMasternodes(): Promise<MasternodeResult<MasternodeInfo>> {
     return this.callNode((c) => c.masternode.listMasternodes({ limit: 1000000 }));
   }

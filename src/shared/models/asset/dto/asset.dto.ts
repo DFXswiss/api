@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetCategory, AssetType, FeeTier } from '../asset.entity';
 
@@ -41,4 +41,7 @@ export class AssetDto {
 
   @ApiProperty({ enum: Blockchain })
   blockchain: Blockchain;
+
+  @ApiPropertyOptional()
+  sortOrder: number;
 }

@@ -3,6 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { ethers } from 'ethers';
 import { EvmCoinTransactionDto } from 'src/integration/blockchain/shared/evm/dto/evm-coin-transaction.dto';
+import { EvmTokenBridgeApproval } from 'src/integration/blockchain/shared/evm/dto/evm-token-bridge-approval.dto';
 import { EvmTokenTransactionDto } from 'src/integration/blockchain/shared/evm/dto/evm-token-transaction.dto';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -35,5 +36,13 @@ export class GsEvmController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async sendCoinTransaction(@Body() dto: EvmCoinTransactionDto): Promise<string> {
     return this.gsEvmService.sendCoinTransaction(dto);
+  }
+
+  @Post('bridgeApproval')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async approveTokenBridge(@Body() dto: EvmTokenBridgeApproval): Promise<string> {
+    return this.gsEvmService.approveTokenBridge(dto);
   }
 }

@@ -15,6 +15,11 @@ export abstract class MetricObserver<T> {
     this.monitoringService.register(this);
   }
 
+  // default implementation - override in specific observers to implement custom data init for metric
+  init(_data: T) {
+    // ignore on default
+  }
+
   // default implementation - override in specific observers to implement custom fetch mechanism for metric
   fetch(): Promise<T> {
     const errorMessage = `Fetch method is not supported by subsystem: '${this.subsystem}'', metric: '${this.metric}'`;

@@ -11,20 +11,12 @@ import { CryptoRouteDto } from './dto/crypto-route.dto';
 import { CryptoRoute } from './crypto-route.entity';
 import { CreateCryptoRouteDto } from './dto/create-crypto-route.dto';
 import { UpdateCryptoRouteDto } from './dto/update-crypto-route.dto';
-import { Deposit } from '../../../../supporting/address-pool/deposit/deposit.entity';
-
-import { getCustomRepository } from 'typeorm';
 import { Config } from 'src/config/config';
 import { MinDeposit } from '../../../../supporting/address-pool/deposit/dto/min-deposit.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoPaymentInfoDto } from './dto/crypto-payment-info.dto';
 import { GetCryptoPaymentInfoDto } from './dto/get-crypto-payment-info.dto';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
-import { BuyType } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-type.enum';
-import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
-import { StakingRepository } from 'src/subdomains/core/staking/repositories/staking.repository';
-import { StakingService } from 'src/subdomains/core/staking/services/staking.service';
-import { StakingDto } from 'src/subdomains/core/staking/dto/staking.dto';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { HistoryDto } from 'src/subdomains/core/history/dto/history.dto';
@@ -35,7 +27,6 @@ export class CryptoRouteController {
   constructor(
     private readonly cryptoRouteService: CryptoRouteService,
     private readonly userService: UserService,
-    private readonly stakingService: StakingService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly paymentInfoService: PaymentInfoService,
   ) {}
@@ -69,7 +60,7 @@ export class CryptoRouteController {
   ): Promise<CryptoPaymentInfoDto> {
     dto = await this.paymentInfoService.cryptoCheck(dto);
     return this.cryptoRouteService
-      .createCrypto(jwt.id, { ...dto, type: BuyType.WALLET, blockchain: dto.sourceAsset.blockchain }, true)
+      .createCrypto(jwt.id, { ...dto, blockchain: dto.sourceAsset.blockchain }, true)
       .then((crypto) => this.toPaymentInfoDto(jwt.id, crypto));
   }
 
@@ -97,25 +88,20 @@ export class CryptoRouteController {
   private async toDtoList(userId: number, cryptos: CryptoRoute[]): Promise<CryptoRouteDto[]> {
     const fees = await this.getFees(userId);
 
-    const stakingRoutes = await this.stakingService.getStakingByCryptoRoute(cryptos);
-
-    return Promise.all(cryptos.map((b) => this.toDto(userId, b, fees, stakingRoutes)));
+    return Promise.all(cryptos.map((b) => this.toDto(userId, b, fees)));
   }
 
   private async toDto(
     userId: number,
     crypto: CryptoRoute,
     fees?: { fee: number; refBonus: number },
-    stakingRoutes?: Staking[],
   ): Promise<CryptoRouteDto> {
     fees ??= await this.getFees(userId);
 
     return {
       ...crypto,
       asset: AssetDtoMapper.entityToDto(crypto.asset),
-      type: crypto.targetDeposit != null ? BuyType.STAKING : BuyType.WALLET,
       blockchain: crypto.deposit.blockchain,
-      staking: await this.getStaking(userId, crypto.targetDeposit, stakingRoutes),
       ...fees,
       minDeposits: this.getMinDeposits(crypto.deposit.blockchain),
     };
@@ -130,21 +116,6 @@ export class CryptoRouteController {
   }
 
   // --- HELPER-METHODS --- //
-  private async getStaking(
-    userId: number,
-    deposit?: Deposit,
-    stakingRoutes?: Staking[],
-  ): Promise<StakingDto | undefined> {
-    if (deposit == null) return undefined;
-
-    return this.stakingService.toDto(
-      userId,
-      stakingRoutes
-        ? stakingRoutes.find((s) => s.deposit.id === deposit.id)
-        : await getCustomRepository(StakingRepository).findOne({ where: { deposit: deposit.id } }),
-    );
-  }
-
   private getMinDeposits(blockchain: Blockchain): MinDeposit[] {
     switch (blockchain) {
       case Blockchain.BITCOIN:

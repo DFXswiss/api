@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { Exchange, ExchangeError, Market, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
 import { TradeResponse, PartialTradeResponse } from '../dto/trade-response.dto';
 import { Price } from '../dto/price.dto';
@@ -24,7 +24,7 @@ export class ExchangeService implements PriceProvider {
   private readonly queue: QueueHandler;
 
   constructor(private readonly exchange: Exchange, readonly scheduler: SchedulerRegistry) {
-    this.queue = new QueueHandler(scheduler, 60000);
+    this.queue = new QueueHandler(scheduler, 180000, 60000);
   }
 
   get name(): string {
@@ -51,9 +51,9 @@ export class ExchangeService implements PriceProvider {
     };
   }
 
-  async getTrades(from?: string, to?: string): Promise<Trade[]> {
+  async getTrades(since?: Date, from?: string, to?: string): Promise<Trade[]> {
     const pair = from && to && (await this.getPair(from, to));
-    return this.callApi((e) => e.fetchMyTrades(pair));
+    return this.callApi((e) => e.fetchMyTrades(pair, since?.getTime()));
   }
 
   async getOpenTrades(from?: string, to?: string): Promise<Order[]> {
@@ -94,16 +94,17 @@ export class ExchangeService implements PriceProvider {
     return this.callApi((e) => e.withdraw(token, amount, address, undefined, { key, network }));
   }
 
-  async getWithdraw(id: string, token: string): Promise<Transaction> {
+  async getWithdraw(id: string, token: string): Promise<Transaction | undefined> {
     const withdrawals = await this.callApi((e) => e.fetchWithdrawals(token, undefined, 50));
-    const withdrawal = withdrawals.find((w) => w.id === id);
-    if (!withdrawal) throw new NotFoundException('Withdrawal not found');
-
-    return withdrawal;
+    return withdrawals.find((w) => w.id === id);
   }
 
-  async getDeposits(token: string, since: Date): Promise<Transaction[]> {
-    return this.callApi((e) => e.fetchDeposits(token, since.getTime(), 50));
+  async getDeposits(token: string, since?: Date): Promise<Transaction[]> {
+    return this.callApi((e) => e.fetchDeposits(token, since?.getTime(), 50));
+  }
+
+  async getWithdrawals(token: string, since?: Date): Promise<Transaction[]> {
+    return this.callApi((e) => e.fetchWithdrawals(token, since?.getTime(), 50));
   }
 
   // --- Helper Methods --- //

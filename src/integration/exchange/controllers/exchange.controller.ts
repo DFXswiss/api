@@ -4,13 +4,13 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { Balances, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { TradeOrder } from './dto/trade-order.dto';
-import { Price } from './dto/price.dto';
-import { TradeResult, TradeStatus } from './dto/trade-result.dto';
-import { WithdrawalOrder } from './dto/withdrawal-order.dto';
+import { TradeOrder } from '../dto/trade-order.dto';
+import { Price } from '../dto/price.dto';
+import { TradeResult, TradeStatus } from '../dto/trade-result.dto';
+import { WithdrawalOrder } from '../dto/withdrawal-order.dto';
 
 import { Util } from 'src/shared/utils/util';
-import { ExchangeRegistryService } from './services/exchange-registry.service';
+import { ExchangeRegistryService } from '../services/exchange-registry.service';
 
 @ApiTags('exchange')
 @Controller('exchange')
@@ -91,7 +91,7 @@ export class ExchangeController {
     @Query('from') from: string,
     @Query('to') to: string,
   ): Promise<Trade[]> {
-    return this.registryService.getExchange(exchange).getTrades(from?.toUpperCase(), to?.toUpperCase());
+    return this.registryService.getExchange(exchange).getTrades(undefined, from?.toUpperCase(), to?.toUpperCase());
   }
 
   @Get('trade/:id')
@@ -133,7 +133,10 @@ export class ExchangeController {
     @Param('id') id: string,
     @Query('token') token: string,
   ): Promise<Transaction> {
-    return this.registryService.getExchange(exchange).getWithdraw(id, token);
+    const withdrawal = await this.registryService.getExchange(exchange).getWithdraw(id, token);
+    if (!withdrawal) throw new NotFoundException('Withdrawal not found');
+
+    return withdrawal;
   }
 
   private updateTrade(tradeId: number, result: Partial<TradeResult>): TradeResult {

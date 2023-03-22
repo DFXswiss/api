@@ -8,7 +8,7 @@ import { MailContext, MailType } from 'src/subdomains/supporting/notification/en
 import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AmlCheck } from '../enums/aml-check.enum';
 import { I18nService } from 'nestjs-i18n';
-import { Config } from 'src/config/config';
+import { Config, Process } from 'src/config/config';
 import { BuyCryptoAmlReasonPendingStates } from '../entities/buy-crypto.entity';
 
 @Injectable()
@@ -21,6 +21,7 @@ export class BuyCryptoNotificationService {
 
   async sendNotificationMails(): Promise<void> {
     try {
+      if (Config.processDisabled(Process.BUY_CRYPTO_MAIL)) return;
       await this.buyCryptoConfirmed();
       await this.paybackToAddressInitiated();
       await this.pendingBuyCrypto();
@@ -48,6 +49,7 @@ export class BuyCryptoNotificationService {
           'cryptoRoute',
           'cryptoRoute.user',
           'cryptoRoute.user.userData',
+          'cryptoInput',
         ],
       });
 
@@ -69,8 +71,10 @@ export class BuyCryptoNotificationService {
                 translationParams: {
                   buyInputAmount: tx.inputAmount,
                   buyInputAsset: tx.inputAsset,
+                  inputBlockchain: tx.cryptoInput ? tx.cryptoInput.asset.blockchain : null,
                   buyOutputAmount: tx.outputAmount,
                   buyOutputAsset: tx.outputAsset.name,
+                  blockchain: tx.outputAsset.blockchain,
                   buyFeePercentage: Util.round(tx.percentFee * 100, 2),
                   exchangeRate: Util.round(tx.inputAmount / tx.outputAmount, 2),
                   buyWalletAddress: Util.blankBlockchainAddress(tx.target.address),

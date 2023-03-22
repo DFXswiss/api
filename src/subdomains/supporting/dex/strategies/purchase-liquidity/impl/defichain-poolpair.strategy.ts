@@ -22,8 +22,6 @@ import { PurchaseLiquidityStrategyAlias } from '../purchase-liquidity.facade';
 
 @Injectable()
 export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
-  private readonly verifyDerivedOrdersLock = new Lock(1800);
-
   constructor(
     readonly notificationService: NotificationService,
     private readonly settingService: SettingService,
@@ -65,9 +63,9 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
   }
 
   @Interval(30000)
+  @Lock(1800)
   async verifyDerivedOrders(): Promise<void> {
     if ((await this.settingService.get('purchase-poolpair-liquidity')) !== 'on') return;
-    if (!this.verifyDerivedOrdersLock.acquire()) return;
 
     const pendingParentOrders = await this.liquidityOrderRepo.find({
       context: Not(LiquidityOrderContext.CREATE_POOL_PAIR),
@@ -92,8 +90,6 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
         continue;
       }
     }
-
-    this.verifyDerivedOrdersLock.release();
   }
 
   protected getFeeAsset(): Promise<Asset> {

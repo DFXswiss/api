@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { Config } from 'src/config/config';
+import { Config, Process } from 'src/config/config';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { Lock } from 'src/shared/utils/lock';
@@ -10,20 +10,16 @@ import { LimitRequestRepository } from './limit-request.repository';
 
 @Injectable()
 export class LimitRequestNotificationService {
-  private readonly lock = new Lock(1800);
-
   constructor(
     private readonly limitRequestRepo: LimitRequestRepository,
     private readonly notificationService: NotificationService,
   ) {}
 
   @Interval(300000)
+  @Lock(1800)
   async sendNotificationMails(): Promise<void> {
-    if (!this.lock.acquire()) return;
-
+    if (Config.processDisabled(Process.LIMIT_REQUEST_MAIL)) return;
     await this.limitRequestAcceptedManual();
-
-    this.lock.release();
   }
 
   private async limitRequestAcceptedManual(): Promise<void> {

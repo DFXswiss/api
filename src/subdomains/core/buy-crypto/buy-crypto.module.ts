@@ -25,8 +25,8 @@ import { BuyRepository } from './routes/buy/buy.repository';
 import { BuyController } from './routes/buy/buy.controller';
 import { CryptoRouteService } from './routes/crypto-route/crypto-route.service';
 import { BuyService } from './routes/buy/buy.service';
-import { StakingModule } from '../staking/staking.module';
 import { AddressPoolModule } from 'src/subdomains/supporting/address-pool/address-pool.module';
+import { AinModule } from 'src/integration/blockchain/ain/ain.module';
 
 @Module({
   imports: [
@@ -39,8 +39,8 @@ import { AddressPoolModule } from 'src/subdomains/supporting/address-pool/addres
     NotificationModule,
     UserModule,
     BankModule,
+    AinModule,
     forwardRef(() => SellCryptoModule),
-    forwardRef(() => StakingModule),
     forwardRef(() => AddressPoolModule),
   ],
   controllers: [BuyCryptoController, BuyController, CryptoRouteController],

@@ -9,7 +9,6 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { User } from './user.entity';
 import { UserDetailDto, UserDto } from './dto/user.dto';
-import { CfpVotes } from './dto/cfp-votes.dto';
 import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
 import { ApiKeyDto } from './dto/api-key.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
@@ -90,15 +89,6 @@ export class UserController {
     return this.userService.updateApiFilter(jwt.id, filter);
   }
 
-  // --- CFP VOTING --- //
-  @Get('cfpVotes')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiExcludeEndpoint()
-  async getCfpVotes(@GetJwt() jwt: JwtPayload): Promise<CfpVotes> {
-    return this.userService.getCfpVotes(jwt.id);
-  }
-
   // --- ADMIN --- //
   @Get('ref')
   @ApiBearerAuth()
@@ -106,7 +96,7 @@ export class UserController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getRefInfo(
     @Query() query: RefInfoQuery,
-  ): Promise<{ activeUser: number; fiatVolume?: number; cryptoVolume?: number }> {
+  ): Promise<{ activeUser: number; passiveUser: number; fiatVolume?: number; cryptoVolume?: number }> {
     return this.userService.getRefInfo(query);
   }
 

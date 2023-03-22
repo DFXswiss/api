@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { I18nService } from 'nestjs-i18n';
 import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Config } from 'src/config/config';
+import { Config, Process } from 'src/config/config';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { Lock } from 'src/shared/utils/lock';
@@ -14,8 +14,6 @@ import { BuyFiatAmlReasonPendingStates } from './buy-fiat.entity';
 
 @Injectable()
 export class BuyFiatNotificationService {
-  private readonly lock = new Lock(1800);
-
   constructor(
     private readonly buyFiatRepo: BuyFiatRepository,
     private readonly notificationService: NotificationService,
@@ -23,16 +21,14 @@ export class BuyFiatNotificationService {
   ) {}
 
   @Interval(60000)
+  @Lock(1800)
   async sendNotificationMails(): Promise<void> {
-    if (!this.lock.acquire()) return;
-
+    if (Config.processDisabled(Process.BUY_FIAT_MAIL)) return;
     await this.offRampInitiated();
     await this.cryptoExchangedToFiat();
     await this.fiatToBankTransferInitiated();
     await this.paybackToAddressInitiated();
     await this.pendingBuyFiat();
-
-    this.lock.release();
   }
 
   private async offRampInitiated(): Promise<void> {
@@ -56,6 +52,7 @@ export class BuyFiatNotificationService {
               translationParams: {
                 inputAmount: entity.cryptoInput.amount,
                 inputAsset: entity.cryptoInput.asset.dexName,
+                blockchain: entity.cryptoInput.asset.blockchain,
                 inputTransactionLink: `${BlockchainExplorerUrls[entity.cryptoInput.asset.blockchain]}/${
                   entity.cryptoInput.inTxId
                 }`,
@@ -81,7 +78,7 @@ export class BuyFiatNotificationService {
         outputAmount: Not(IsNull()),
         amlCheck: AmlCheck.PASS,
       },
-      relations: ['sell', 'sell.user', 'sell.user.userData'],
+      relations: ['cryptoInput', 'sell', 'sell.user', 'sell.user.userData'],
     });
 
     entities.length > 0 && console.log(`Sending ${entities.length} 'crypto exchanged to fiat' email(s)`);
@@ -97,6 +94,7 @@ export class BuyFiatNotificationService {
               translationParams: {
                 inputAmount: entity.inputAmount,
                 inputAsset: entity.inputAsset,
+                blockchain: entity.cryptoInput.asset.blockchain,
                 percentFee: entity.percentFeeString,
                 exchangeRate: entity.exchangeRateString,
                 outputAmount: entity.outputAmount,
@@ -179,6 +177,7 @@ export class BuyFiatNotificationService {
               translationParams: {
                 inputAmount: entity.inputAmount,
                 inputAsset: entity.inputAsset,
+                blockchain: entity.cryptoInput.asset.blockchain,
                 returnTransactionLink: `${BlockchainExplorerUrls[entity.cryptoInput.asset.blockchain]}/${
                   entity.cryptoReturnTxId
                 }`,

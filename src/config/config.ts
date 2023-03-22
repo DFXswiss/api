@@ -11,6 +11,11 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 
 export enum Process {
   PAY_IN = 'PayIn',
+  LIMIT_REQUEST_MAIL = 'LimitRequestMail',
+  BLACK_SQUAD_MAIL = 'BlackSquadMail',
+  BUY_CRYPTO_MAIL = 'BuyCryptoMail',
+  BUY_FIAT_MAIL = 'BuyFiatMail',
+  EXCHANGE_TX_SYNC = 'ExchangeTxSync',
 }
 
 export function GetConfig(): Configuration {
@@ -134,6 +139,13 @@ export class Configuration {
       mailName: process.env.LIMIT_REQUEST_SUPPORT_NAME,
       mailAddress: process.env.LIMIT_REQUEST_SUPPORT_MAIL,
       mailBanner: process.env.LIMIT_REQUEST_SUPPORT_BANNER,
+    },
+    blackSquad: {
+      link: process.env.BS_LINK,
+      limit: 50000,
+      mailName: process.env.BLACK_SQUAD_NAME,
+      mailAddress: process.env.BLACK_SQUAD_MAIL,
+      mailBanner: process.env.BLACK_SQUAD_BANNER,
     },
   };
 
@@ -305,7 +317,6 @@ export class Configuration {
       dexWalletAddress: process.env.DEX_WALLET_ADDRESS,
       outWalletAddress: process.env.OUT_WALLET_ADDRESS,
       intWalletAddress: process.env.INT_WALLET_ADDRESS,
-      stakingWalletAddress: process.env.STAKING_WALLET_ADDRESS,
       btcOutWalletAddress: process.env.BTC_OUT_WALLET_ADDRESS,
       minTxAmount: 0.00000297,
       minDeposit: {
@@ -404,17 +415,8 @@ export class Configuration {
     },
   };
 
-  staking = {
-    fee: 0.125,
-    period: 28, // days
-    minInvestment: 100, // DFI
-    freeDays: 28,
-    refSystemStart: new Date('2022-05-22T16:00:00.000Z'),
-    refReward: 20, // EUR
-  };
-
   crypto = {
-    fee: 0,
+    fee: 0.012,
     refBonus: 0.001,
   };
 

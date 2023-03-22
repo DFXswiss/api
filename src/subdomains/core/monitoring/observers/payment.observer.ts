@@ -4,8 +4,6 @@ import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
 import { DepositRepository } from 'src/subdomains/supporting/address-pool/deposit/deposit.repository';
-import { StakingRefRewardRepository } from 'src/subdomains/core/staking/repositories/staking-ref-reward.repository';
-import { StakingRewardRepository } from 'src/subdomains/core/staking/repositories/staking-reward.repository';
 import { getCustomRepository, In, IsNull, Not } from 'typeorm';
 import { BankTxRepository } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.repository';
 import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
@@ -24,13 +22,11 @@ interface PaymentData {
 interface LastOutputDates {
   buyCrypto: Date;
   buyFiat: Date;
-  stakingReward: Date;
 }
 
 interface IncompleteTransactions {
   buyCrypto: number;
   buyFiat: number;
-  stakingRefRewards: number;
 }
 
 @Injectable()
@@ -62,6 +58,7 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
         .getCount(),
       unhandledCryptoInputs: await getCustomRepository(PayInRepository).count({
         where: {
+          amlCheck: Not(AmlCheck.FAIL),
           status: Not(In([PayInStatus.FAILED, PayInStatus.IGNORED, PayInStatus.RETURNED, PayInStatus.FORWARDED])),
         },
       }),
@@ -78,7 +75,6 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
         mail3SendDate: IsNull(),
         amlCheck: Not(AmlCheck.FAIL),
       }),
-      stakingRefRewards: await getCustomRepository(StakingRefRewardRepository).count({ mailSendDate: IsNull() }),
     };
   }
 
@@ -88,9 +84,6 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
         .findOne({ order: { outputDate: 'DESC' } })
         .then((b) => b.outputDate),
       buyFiat: await getCustomRepository(BuyFiatRepository)
-        .findOne({ order: { outputDate: 'DESC' } })
-        .then((b) => b.outputDate),
-      stakingReward: await getCustomRepository(StakingRewardRepository)
         .findOne({ order: { outputDate: 'DESC' } })
         .then((b) => b.outputDate),
     };

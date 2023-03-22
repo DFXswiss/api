@@ -17,7 +17,7 @@ export class ExchangeRegistryService {
   ) {}
 
   getExchange(exchange: string): ExchangeService {
-    switch (exchange) {
+    switch (exchange.toLowerCase()) {
       case 'kraken':
         return this.krakenService;
       case 'binance':

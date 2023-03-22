@@ -103,6 +103,16 @@ export class Util {
     return this.secondsDiff(from, to) / (3600 * 24);
   }
 
+  static minutesAfter(minutes: number, from?: Date): Date {
+    const date = from ? new Date(from) : new Date();
+    date.setMinutes(date.getMinutes() + minutes);
+    return date;
+  }
+
+  static minutesBefore(minutes: number, from?: Date): Date {
+    return this.minutesAfter(-minutes, from);
+  }
+
   static daysAfter(days: number, from?: Date): Date {
     const date = from ? new Date(from) : new Date();
     date.setDate(date.getDate() + days);
@@ -185,7 +195,7 @@ export class Util {
     });
   }
 
-  static async timeoutAsync<T>(promise: Promise<T>, timeout: number): Promise<T> {
+  static async timeout<T>(promise: Promise<T>, timeout: number): Promise<T> {
     const timeoutPromise = new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout));
 
     return Promise.race([promise, timeoutPromise]);

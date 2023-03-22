@@ -68,9 +68,6 @@
     "intWalletAddress": {
       "value": "xxx"
     },
-    "stakingWalletAddress": {
-      "value": "xxx"
-    },
     "utxoSpenderAddress": {
       "value": "xxx"
     },
@@ -209,6 +206,9 @@
     "binanceSecret": {
       "value": "xxx"
     },
+    "binanceEthereumWalletWithdrawKey": {
+      "value": "xxx"
+    },
     "olkyClient": {
       "value": "xxx"
     },
@@ -304,6 +304,9 @@
     },
     "limitCheck": {
       "value": "false"
+    },
+    "bsLink": {
+      "value": "xxx"
     }
   }
 }

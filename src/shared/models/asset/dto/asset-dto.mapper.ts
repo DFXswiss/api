@@ -17,6 +17,7 @@ export class AssetDtoMapper {
       buyable: asset.buyable,
       sellable: asset.sellable,
       blockchain: asset.blockchain,
+      sortOrder: asset.sortOrder,
     };
 
     return Object.assign(new AssetDto(), dto);

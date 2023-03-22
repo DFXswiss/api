@@ -8,10 +8,10 @@ import {
 } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { UserDataRepository } from './user-data.repository';
-import { KycCompleted, KycInProgress, KycState, KycType, UserData } from './user-data.entity';
+import { KycCompleted, KycInProgress, KycState, KycType, UserData, UserDataStatus } from './user-data.entity';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { getRepository, MoreThan, Not } from 'typeorm';
+import { getRepository, In, MoreThan, Not } from 'typeorm';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -66,7 +66,7 @@ export class UserDataService {
 
   async getUsersByMail(mail: string): Promise<UserData[]> {
     return this.userDataRepo.find({
-      where: { mail: mail },
+      where: { mail: mail, status: In([UserDataStatus.ACTIVE, UserDataStatus.NA]) },
       relations: ['users'],
     });
   }
@@ -78,6 +78,7 @@ export class UserDataService {
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`userData.${key} = :param`, { param: value })
+      .andWhere(`userData.status != :status`, { status: UserDataStatus.MERGED })
       .getOne();
   }
 
@@ -139,6 +140,10 @@ export class UserDataService {
     if (dto.kycStatus && userData.kycStatus != dto.kycStatus) {
       userData = await this.kycProcessService.goToStatus(userData, dto.kycStatus);
     }
+
+    // Columns are not updatable
+    if (userData.letterSentDate) dto.letterSentDate = userData.letterSentDate;
+    if (userData.amlListAddedDate) dto.amlListAddedDate = userData.amlListAddedDate;
 
     return this.userDataRepo.save({ ...userData, ...dto });
   }
@@ -224,7 +229,6 @@ export class UserDataService {
       .addSelect('SUM(annualSellVolume)', 'annualSellVolume')
       .addSelect('SUM(cryptoVolume)', 'cryptoVolume')
       .addSelect('SUM(annualCryptoVolume)', 'annualCryptoVolume')
-      .addSelect('SUM(stakingBalance)', 'stakingBalance')
       .where('userDataId = :id', { id: userDataId })
       .getRawOne<{
         buyVolume: number;
@@ -233,7 +237,6 @@ export class UserDataService {
         annualSellVolume: number;
         cryptoVolume: number;
         annualCryptoVolume: number;
-        stakingBalance: number;
       }>();
 
     await this.userDataRepo.update(userDataId, {
@@ -243,7 +246,6 @@ export class UserDataService {
       annualSellVolume: Util.round(volumes.annualSellVolume, Config.defaultVolumeDecimal),
       cryptoVolume: Util.round(volumes.cryptoVolume, Config.defaultVolumeDecimal),
       annualCryptoVolume: Util.round(volumes.annualCryptoVolume, Config.defaultVolumeDecimal),
-      stakingBalance: Util.round(volumes.stakingBalance, Config.defaultVolumeDecimal),
     });
   }
 
@@ -296,6 +298,9 @@ export class UserDataService {
     master.bankDatas = master.bankDatas.concat(slave.bankDatas);
     master.users = master.users.concat(slave.users);
     await this.userDataRepo.save(master);
+
+    // update slave status
+    await this.userDataRepo.update(slave.id, { status: UserDataStatus.MERGED });
 
     // KYC change Webhook
     await this.webhookService.kycChanged(master);

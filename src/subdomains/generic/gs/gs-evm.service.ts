@@ -1,6 +1,7 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ethers } from 'ethers';
 import { EvmCoinTransactionDto } from 'src/integration/blockchain/shared/evm/dto/evm-coin-transaction.dto';
+import { EvmTokenBridgeApproval } from 'src/integration/blockchain/shared/evm/dto/evm-token-bridge-approval.dto';
 import { EvmTokenTransactionDto } from 'src/integration/blockchain/shared/evm/dto/evm-token-transaction.dto';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -71,5 +72,15 @@ export class GsEvmService {
     }
 
     throw new Error('Provided source address is not known');
+  }
+
+  async approveTokenBridge({ l1AssetId, l2AssetId }: EvmTokenBridgeApproval): Promise<string> {
+    const l1Token = await this.assetService.getAssetById(l1AssetId);
+    const l2Token = await this.assetService.getAssetById(l2AssetId);
+    if (!l1Token || !l2Token) throw new NotFoundException('Token not found');
+
+    const client = this.evmRegistryService.getL2Client(l2Token.blockchain);
+
+    return client.approveToken(l1Token, l2Token);
   }
 }

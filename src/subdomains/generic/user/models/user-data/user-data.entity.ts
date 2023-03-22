@@ -1,6 +1,6 @@
 import { Config } from 'src/config/config';
 import { Country } from 'src/shared/models/country/country.entity';
-import { IEntity } from 'src/shared/models/entity';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
@@ -54,6 +54,7 @@ export enum UserDataStatus {
   NA = 'NA',
   ACTIVE = 'Active',
   BLOCKED = 'Blocked',
+  MERGED = 'Merged',
 }
 
 @Entity()
@@ -165,6 +166,20 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   plannedContribution: string;
 
+  @Column({ type: 'datetime2', nullable: true })
+  letterSentDate: Date;
+
+  @Column({ type: 'datetime2', nullable: true })
+  amlListAddedDate: Date;
+
+  //Mail
+  @Column({ length: 256, nullable: true })
+  blackSquadRecipientMail: string;
+
+  @Column({ type: 'datetime2', nullable: true })
+  blackSquadMailSendDate: Date;
+
+  // Volumes
   @Column({ type: 'float', default: 0 })
   annualBuyVolume: number;
 
@@ -178,14 +193,12 @@ export class UserData extends IEntity {
   sellVolume: number;
 
   @Column({ type: 'float', default: 0 })
-  stakingBalance: number;
-
-  @Column({ type: 'float', default: 0 })
   annualCryptoVolume: number;
 
   @Column({ type: 'float', default: 0 })
   cryptoVolume: number;
 
+  // References
   @OneToMany(() => BankAccount, (bankAccount) => bankAccount.userData)
   bankAccounts: BankAccount[];
 
@@ -201,6 +214,17 @@ export class UserData extends IEntity {
 
   @OneToOne(() => SpiderData, (c) => c.userData, { nullable: true })
   spiderData: SpiderData;
+
+  // Methods
+  sendMail(): UpdateResult<UserData> {
+    this.blackSquadRecipientMail = this.mail;
+    this.blackSquadMailSendDate = new Date();
+
+    return [
+      this.id,
+      { blackSquadRecipientMail: this.blackSquadRecipientMail, blackSquadMailSendDate: this.blackSquadMailSendDate },
+    ];
+  }
 
   get isDfxUser(): boolean {
     return this.kycType === KycType.DFX;
