@@ -26,26 +26,30 @@ export class ExchangeTxService {
       const exchangeService = this.registryService.getExchange(exchange);
 
       const transactions: ExchangeTxDto[] = [];
-      // Trades
+
+      // trades
       transactions.push(
         ...(await exchangeService.getTrades().then((t) => ExchangeTxKrakenMapper.mapTrades(t, exchange))),
       );
 
       for (const asset of ExchangeTokens) {
-        // Deposit
+        // deposits
         transactions.push(
           ...(await exchangeService
             .getDeposits(asset, Util.minutesBefore(120))
             .then((d) => ExchangeTxKrakenMapper.mapDeposits(d, exchange))),
         );
 
-        // Withdrawals
+        // withdrawals
         transactions.push(
           ...(await exchangeService
             .getWithdrawals(asset, Util.minutesBefore(120))
             .then((w) => ExchangeTxKrakenMapper.mapWithdrawals(w, exchange))),
         );
       }
+
+      // sort by date
+      transactions.sort((a, b) => a.externalCreated.getTime() - b.externalCreated.getTime());
 
       for (const transaction of transactions) {
         let entity = await this.exchangeTxRepo.findOne({
