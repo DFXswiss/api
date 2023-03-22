@@ -49,6 +49,7 @@ export class BuyCryptoNotificationService {
           'cryptoRoute',
           'cryptoRoute.user',
           'cryptoRoute.user.userData',
+          'cryptoInput',
         ],
       });
 

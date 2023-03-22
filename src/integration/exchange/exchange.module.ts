@@ -12,6 +12,7 @@ import { ConversionService } from './services/conversion.service';
 import { ExchangeRegistryService } from './services/exchange-registry.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ExchangeTxRepository } from './repositories/exchange-tx.repository';
+import { ExchangeTxService } from './services/exchange-tx.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([ExchangeTxRepository]), SharedModule],
@@ -26,6 +27,7 @@ import { ExchangeTxRepository } from './repositories/exchange-tx.repository';
     FixerService,
     CurrencyService,
     ConversionService,
+    ExchangeTxService,
   ],
   exports: [
     ExchangeRegistryService,

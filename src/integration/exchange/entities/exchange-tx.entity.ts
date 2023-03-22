@@ -7,6 +7,8 @@ export enum ExchangeTxType {
   TRADE = 'Trade',
 }
 
+export type ExchangeTxDto = Omit<ExchangeTx, keyof IEntity>;
+
 @Entity()
 @Index((exchangeTx: ExchangeTx) => [exchangeTx.exchange, exchangeTx.type, exchangeTx.externalId], {
   unique: true,
@@ -30,17 +32,8 @@ export class ExchangeTx extends IEntity {
   @Column({ length: 256, nullable: true })
   status: string;
 
-  @Column({ length: 256, nullable: true })
-  originalStatus: string;
-
   @Column({ type: 'float', nullable: true })
   amount: number;
-
-  @Column({ type: 'float', nullable: true })
-  cost: number;
-
-  @Column({ length: 256, nullable: true })
-  currency: string;
 
   @Column({ type: 'float', nullable: true })
   feeAmount: number;
@@ -51,81 +44,54 @@ export class ExchangeTx extends IEntity {
   // Withdrawal/Deposit
 
   @Column({ length: 256, nullable: true })
-  method: string;
+  method?: string;
 
   @Column({ length: 256, nullable: true })
-  aClass: string;
+  asset?: string;
 
   @Column({ length: 256, nullable: true })
-  asset: string;
+  currency?: string;
 
   @Column({ length: 256, nullable: true })
-  network: string;
+  address?: string;
 
   @Column({ length: 256, nullable: true })
-  address: string;
-
-  @Column({ length: 256, nullable: true })
-  addressTo: string;
-
-  @Column({ length: 256, nullable: true })
-  addressFrom: string;
-
-  @Column({ length: 256, nullable: true })
-  refId: string;
-
-  @Column({ length: 256, nullable: true })
-  txId: string;
-
-  @Column({ length: 256, nullable: true })
-  tag: string;
-
-  @Column({ length: 256, nullable: true })
-  tagTo: string;
-
-  @Column({ length: 256, nullable: true })
-  tagFrom: string;
+  txId?: string;
 
   // Trade
   @Column({ length: 256, nullable: true })
-  order: string;
+  order?: string;
 
   @Column({ length: 256, nullable: true })
-  orderTxId: string;
+  pair?: string;
 
   @Column({ length: 256, nullable: true })
-  posTxId: string;
-
-  @Column({ length: 256, nullable: true })
-  pair: string;
-
-  @Column({ length: 256, nullable: true })
-  orderType: string;
+  orderType?: string;
 
   @Column({ type: 'float', nullable: true })
-  price: number;
+  price?: number;
 
   @Column({ type: 'float', nullable: true })
-  vol: number;
+  cost?: number;
 
   @Column({ type: 'float', nullable: true })
-  margin: number;
+  vol?: number;
 
   @Column({ type: 'float', nullable: true })
-  leverage: number;
+  margin?: number;
+
+  @Column({ type: 'float', nullable: true })
+  leverage?: number;
 
   @Column({ length: 256, nullable: true })
-  misc: string;
+  tradeId?: string;
 
   @Column({ length: 256, nullable: true })
-  tradeId: string;
+  symbol?: string;
 
   @Column({ length: 256, nullable: true })
-  symbol: string;
-
-  @Column({ length: 256, nullable: true })
-  side: string;
-
-  @Column({ length: 256, nullable: true })
-  takeOrMaker: string;
+  side?: string;
 }
+
+export const ExchangeSyncs = ['Kraken'];
+export const ExchangeTokens = ['BTC', 'EUR', 'CHF', 'USDT', 'USDC', 'LTC', 'ETH', 'USD'];

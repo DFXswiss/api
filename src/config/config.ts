@@ -15,6 +15,7 @@ export enum Process {
   BLACK_SQUAD_MAIL = 'BlackSquadMail',
   BUY_CRYPTO_MAIL = 'BuyCryptoMail',
   BUY_FIAT_MAIL = 'BuyFiatMail',
+  EXCHANGE_TX_SYNC = 'ExchangeTxSync',
 }
 
 export function GetConfig(): Configuration {
@@ -418,7 +419,7 @@ export class Configuration {
   };
 
   crypto = {
-    fee: 0,
+    fee: 0.012,
     refBonus: 0.001,
   };
 
