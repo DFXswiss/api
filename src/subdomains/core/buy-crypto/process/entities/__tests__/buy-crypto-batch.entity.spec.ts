@@ -9,7 +9,7 @@ import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-
 
 jest.mock('src/config/config', () => ({
   Config: {
-    buy: { fee: { limits: { configuredFeeLimit: 0.001, constantFeeLimit: 0.001 } } },
+    buy: { fee: { limit: 0.001 } },
   },
 }));
 
@@ -211,7 +211,7 @@ describe('BuyCryptoBatch', () => {
       const testCall = () => batch.checkByPurchaseFeeEstimation(8);
 
       expect(testCall).toThrow();
-      expect(testCall).toThrowError('BuyCryptoBatch fee limit exceeded');
+      expect(testCall).toThrowError('BuyCryptoBatch purchase fee limit exceeded');
     });
 
     it('assigns fee proportions by transaction volume', () => {

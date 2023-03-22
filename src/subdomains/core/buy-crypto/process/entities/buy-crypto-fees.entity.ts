@@ -49,9 +49,7 @@ export class BuyCryptoFee extends IEntity {
     entity.buyCrypto = transaction;
     entity.feeReferenceAsset = transaction.outputReferenceAsset;
 
-    const { configuredFeeLimit, defaultFeeLimit } = Config.buy.fee.limits;
-
-    entity.allowedTotalFeePercent = configuredFeeLimit ?? defaultFeeLimit;
+    entity.allowedTotalFeePercent = Config.buy.fee.limit;
 
     return entity;
   }

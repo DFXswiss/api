@@ -381,10 +381,7 @@ export class Configuration {
         [FeeTier.TIER3]: 0.0225,
         [FeeTier.TIER4]: 0.0299,
       },
-      limits: {
-        configuredFeeLimit: this.configuredFeeLimit,
-        defaultFeeLimit: 0.005,
-      },
+      limit: +(process.env.BUY_CRYPTO_FEE_LIMIT ?? 0.005),
     },
   };
 
@@ -498,12 +495,6 @@ export class Configuration {
       secret: process.env.BINANCE_SECRET,
       ...this.exchange,
     };
-  }
-
-  get configuredFeeLimit(): number | null {
-    const limit = Number.parseFloat(process.env.BUY_CRYPTO_FEE_LIMIT);
-
-    return Number.isNaN(limit) ? null : limit;
   }
 
   // --- HELPERS --- //
