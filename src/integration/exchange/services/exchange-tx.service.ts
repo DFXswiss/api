@@ -22,6 +22,8 @@ export class ExchangeTxService {
   async syncExchanges() {
     if (Config.processDisabled(Process.EXCHANGE_TX_SYNC)) return;
 
+    const since = Util.minutesBefore(120);
+
     for (const exchange of ExchangeSyncs) {
       const exchangeService = this.registryService.getExchange(exchange);
 
@@ -29,21 +31,21 @@ export class ExchangeTxService {
 
       // trades
       transactions.push(
-        ...(await exchangeService.getTrades().then((t) => ExchangeTxKrakenMapper.mapTrades(t, exchange))),
+        ...(await exchangeService.getTrades(since).then((t) => ExchangeTxKrakenMapper.mapTrades(t, exchange))),
       );
 
       for (const asset of ExchangeTokens) {
         // deposits
         transactions.push(
           ...(await exchangeService
-            .getDeposits(asset, Util.minutesBefore(120))
+            .getDeposits(asset, since)
             .then((d) => ExchangeTxKrakenMapper.mapDeposits(d, exchange))),
         );
 
         // withdrawals
         transactions.push(
           ...(await exchangeService
-            .getWithdrawals(asset, Util.minutesBefore(120))
+            .getWithdrawals(asset, since)
             .then((w) => ExchangeTxKrakenMapper.mapWithdrawals(w, exchange))),
         );
       }

@@ -51,9 +51,9 @@ export class ExchangeService implements PriceProvider {
     };
   }
 
-  async getTrades(from?: string, to?: string): Promise<Trade[]> {
+  async getTrades(since?: Date, from?: string, to?: string): Promise<Trade[]> {
     const pair = from && to && (await this.getPair(from, to));
-    return this.callApi((e) => e.fetchMyTrades(pair));
+    return this.callApi((e) => e.fetchMyTrades(pair, since?.getTime()));
   }
 
   async getOpenTrades(from?: string, to?: string): Promise<Order[]> {

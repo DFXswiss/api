@@ -91,7 +91,7 @@ export class ExchangeController {
     @Query('from') from: string,
     @Query('to') to: string,
   ): Promise<Trade[]> {
-    return this.registryService.getExchange(exchange).getTrades(from?.toUpperCase(), to?.toUpperCase());
+    return this.registryService.getExchange(exchange).getTrades(undefined, from?.toUpperCase(), to?.toUpperCase());
   }
 
   @Get('trade/:id')
