@@ -26,6 +26,7 @@ import { BuyController } from './routes/buy/buy.controller';
 import { CryptoRouteService } from './routes/crypto-route/crypto-route.service';
 import { BuyService } from './routes/buy/buy.service';
 import { AddressPoolModule } from 'src/subdomains/supporting/address-pool/address-pool.module';
+import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
 
 @Module({
   imports: [
@@ -54,7 +55,8 @@ import { AddressPoolModule } from 'src/subdomains/supporting/address-pool/addres
     BuyCryptoOutService,
     BuyService,
     CryptoRouteService,
+    CryptoService,
   ],
-  exports: [BuyController, CryptoRouteController, BuyCryptoService, BuyService],
+  exports: [BuyController, CryptoRouteController, BuyCryptoService, BuyService, CryptoService],
 })
 export class BuyCryptoModule {}
