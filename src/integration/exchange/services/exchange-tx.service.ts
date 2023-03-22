@@ -6,6 +6,7 @@ import { ExchangeTxRepository } from '../repositories/exchange-tx.repository';
 import { ExchangeRegistryService } from './exchange-registry.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
+import { Config, Process } from 'src/config/config';
 
 @Injectable()
 export class ExchangeTxService {
@@ -16,9 +17,11 @@ export class ExchangeTxService {
 
   //*** JOBS ***//
 
-  @Lock(1800)
   @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(1800)
   async syncExchanges() {
+    if (Config.processDisabled(Process.EXCHANGE_TX_SYNC)) return;
+
     for (const exchange of ExchangeSyncs) {
       const exchangeService = this.registryService.getExchange(exchange);
 
