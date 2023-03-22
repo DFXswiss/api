@@ -20,7 +20,7 @@ export class DeFiChainCoinStrategy extends JellyfishStrategy {
     super(notificationService, payoutOrderRepo, deFiChainService);
   }
 
-  async estimateFee(_quantityOfTransactions: number): Promise<FeeResult> {
+  async estimateFee(): Promise<FeeResult> {
     return { asset: await this.feeAsset(), amount: 0 };
   }
 

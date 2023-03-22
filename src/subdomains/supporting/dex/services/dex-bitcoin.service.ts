@@ -55,10 +55,10 @@ export class DexBitcoinService {
   //*** HELPER METHODS ***//
 
   private async getPendingAmount(): Promise<number> {
-    const pendingOrders = (await this.liquidityOrderRepo.find({ isReady: true, isComplete: false })).filter(
+    const pendingOrders = (await this.liquidityOrderRepo.find({ isComplete: false })).filter(
       (o) => o.targetAsset.dexName === 'BTC' && o.targetAsset.blockchain === Blockchain.BITCOIN,
     );
 
-    return Util.sumObj<LiquidityOrder>(pendingOrders, 'targetAmount');
+    return Util.sumObj<LiquidityOrder>(pendingOrders, 'estimatedTargetAmount');
   }
 }

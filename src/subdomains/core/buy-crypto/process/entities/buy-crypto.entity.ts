@@ -16,8 +16,15 @@ import { BuyCryptoInitSpecification } from '../specifications/buy-crypto-init.sp
 import { Buy } from '../../routes/buy/buy.entity';
 
 export enum BuyCryptoStatus {
+  CREATED = 'Created',
+  PREPARED = 'Prepared',
+  PRICE_MISMATCH = 'PriceMismatch',
+  MISSING_LIQUIDITY = 'MissingLiquidity',
   WAITING_FOR_LOWER_FEE = 'WaitingForLowerFee',
-  IN_PROGRESS = 'InProgress',
+  BATCHED = 'Batched',
+  PRICE_SLIPPAGE = 'PriceSlippage',
+  PENDING_LIQUIDITY = 'PendingLiquidity',
+  READY_FOR_PAYOUT = 'ReadyForPayout',
   PAYING_OUT = 'PayingOut',
   COMPLETE = 'Complete',
 }
@@ -136,6 +143,7 @@ export class BuyCrypto extends IEntity {
 
     entity.cryptoInput = payIn;
     entity.cryptoRoute = cryptoRoute;
+    entity.status = BuyCryptoStatus.CREATED;
 
     BuyCryptoInitSpecification.isSatisfiedBy(entity);
 
@@ -146,13 +154,14 @@ export class BuyCrypto extends IEntity {
     this.outputAsset = this.target?.asset;
 
     if (this.outputAsset.dexName === this.inputReferenceAsset) {
-      this.outputReferenceAsset = this.outputAsset;
+      this.setOutputReferenceAsset(this.outputAsset);
+
       return null;
     }
 
     if (['USDC', 'USDT'].includes(this.outputAsset.dexName)) {
       if (['EUR', 'CHF', 'USD', 'USDC', 'USDT'].includes(this.inputReferenceAsset)) {
-        this.outputReferenceAsset = this.outputAsset;
+        this.setOutputReferenceAsset(this.outputAsset);
 
         return null;
       } else {
@@ -168,7 +177,7 @@ export class BuyCrypto extends IEntity {
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
         if (this.outputAsset.dexName === 'DFI') {
-          this.outputReferenceAsset = this.outputAsset;
+          this.setOutputReferenceAsset(this.outputAsset);
 
           return null;
         }
@@ -177,7 +186,7 @@ export class BuyCrypto extends IEntity {
 
       case Blockchain.BINANCE_SMART_CHAIN:
         if (['DFI', 'BUSD', 'BTCB', 'ETH'].includes(this.outputAsset.dexName)) {
-          this.outputReferenceAsset = this.outputAsset;
+          this.setOutputReferenceAsset(this.outputAsset);
 
           return null;
         }
@@ -192,8 +201,9 @@ export class BuyCrypto extends IEntity {
     }
   }
 
-  setOutputReferenceAsset(outputReferenceAsset: Asset): this {
-    this.outputReferenceAsset = outputReferenceAsset;
+  setOutputReferenceAsset(asset: Asset): this {
+    this.outputReferenceAsset = asset;
+    this.status = BuyCryptoStatus.PREPARED;
 
     return this;
   }
@@ -222,12 +232,32 @@ export class BuyCrypto extends IEntity {
     return this;
   }
 
-  calculateOutputAmount(batchReferenceAmount: number, batchOutputAmount: number): this {
-    if (batchReferenceAmount === 0) {
-      throw new Error('Cannot calculate outputAmount, provided batchReferenceAmount is 0');
-    }
+  assignCandidateBatch(batch: BuyCryptoBatch): this {
+    this.batch = batch;
 
-    this.outputAmount = Util.round((this.outputReferenceAmount / batchReferenceAmount) * batchOutputAmount, 8);
+    return this;
+  }
+
+  setFeeConstraints(fee: BuyCryptoFee): this {
+    this.fee = fee;
+
+    return this;
+  }
+
+  setPriceMismatchStatus(): this {
+    this.status = BuyCryptoStatus.PRICE_MISMATCH;
+
+    return this;
+  }
+
+  setPriceSlippageStatus(): this {
+    this.status = BuyCryptoStatus.PRICE_SLIPPAGE;
+
+    return this;
+  }
+
+  setMissingLiquidityStatus(): this {
+    this.status = BuyCryptoStatus.MISSING_LIQUIDITY;
 
     return this;
   }
@@ -239,9 +269,31 @@ export class BuyCrypto extends IEntity {
     return this;
   }
 
-  recordFee(fee: BuyCryptoFee): this {
-    this.fee = fee;
-    this.status = BuyCryptoStatus.IN_PROGRESS;
+  batched(): this {
+    this.status = BuyCryptoStatus.BATCHED;
+
+    return this;
+  }
+
+  pendingLiquidity(): this {
+    this.status = BuyCryptoStatus.PENDING_LIQUIDITY;
+
+    return this;
+  }
+
+  addActualPurchaseFee(txPurchaseFee: number): this {
+    this.fee.addActualPurchaseFee(txPurchaseFee, this);
+
+    return this;
+  }
+
+  calculateOutputAmount(batchReferenceAmount: number, batchOutputAmount: number): this {
+    if (batchReferenceAmount === 0) {
+      throw new Error('Cannot calculate outputAmount, provided batchReferenceAmount is 0');
+    }
+
+    this.outputAmount = Util.round((this.outputReferenceAmount / batchReferenceAmount) * batchOutputAmount, 8);
+    this.status = BuyCryptoStatus.READY_FOR_PAYOUT;
 
     return this;
   }
@@ -322,9 +374,6 @@ export class BuyCrypto extends IEntity {
 
   private resetTransaction(): this {
     this.outputReferenceAmount = null;
-    this.outputReferenceAsset = null;
-    this.outputAsset = null;
-    this.status = null;
     this.batch = null;
     this.isComplete = false;
     this.outputAmount = null;

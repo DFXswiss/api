@@ -16,11 +16,10 @@ export abstract class EvmStrategy extends PayoutStrategy {
   protected abstract dispatchPayout(order: PayoutOrder): Promise<string>;
   protected abstract getCurrentGasForTransaction(token?: Asset): Promise<number>;
 
-  async estimateFee(quantityOfTransactions: number, asset: Asset): Promise<FeeResult> {
+  async estimateFee(asset: Asset): Promise<FeeResult> {
     const gasPerTransaction = await this.getCurrentGasForTransaction(asset);
-    const feeAmount = quantityOfTransactions * gasPerTransaction;
 
-    return { asset: await this.feeAsset(), amount: feeAmount };
+    return { asset: await this.feeAsset(), amount: gasPerTransaction };
   }
 
   async doPayout(orders: PayoutOrder[]): Promise<void> {

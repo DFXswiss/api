@@ -4,8 +4,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
-import { AbortBatchCreationException } from '../exceptions/abort-batch-creation.exception';
-import { BuyCryptoFee } from './buy-crypto-fees.entity';
+import { MissingBuyCryptoLiquidityException } from '../exceptions/abort-batch-creation.exception';
 import { BuyCrypto } from './buy-crypto.entity';
 import { FeeLimitExceededException } from '../exceptions/fee-limit-exceeded.exception';
 
@@ -44,7 +43,7 @@ export class BuyCryptoBatch extends IEntity {
   blockchain: Blockchain;
 
   addTransaction(tx: BuyCrypto): this {
-    tx.batch = this;
+    tx.assignCandidateBatch(this);
 
     this.transactions = [...(this.transactions ?? []), tx];
 
@@ -81,7 +80,7 @@ export class BuyCryptoBatch extends IEntity {
     }
 
     if (!this.isEnoughToSecureAtLeastOneTransaction(maxPurchasableAmount)) {
-      throw new AbortBatchCreationException(
+      throw new MissingBuyCryptoLiquidityException(
         `Not enough liquidity to create a ${this.outputAsset.uniqueName} buy-crypto batch.`,
       );
     }
@@ -89,12 +88,37 @@ export class BuyCryptoBatch extends IEntity {
     return [true, false];
   }
 
-  checkAndRecordFeesEstimations(
-    estimatePurchaseFeeAmount: number | null,
-    estimatePayoutFeeAmount: number | null,
-  ): this {
-    this.checkFees(estimatePurchaseFeeAmount, estimatePayoutFeeAmount);
-    this.recordFees(estimatePurchaseFeeAmount, estimatePayoutFeeAmount);
+  optimizeByPayoutFeeEstimation(estimatePayoutFeeAmount: number | null): BuyCrypto[] {
+    const reBatchTransactions = [];
+    const filteredOutTransactions = [];
+
+    for (const tx of this.transactions) {
+      tx.fee.addPayoutFeeEstimation(estimatePayoutFeeAmount, tx);
+      const feeRatio = Util.round(estimatePayoutFeeAmount / tx.outputReferenceAmount, 8);
+
+      if (feeRatio > tx.fee.allowedTotalFeePercent) {
+        filteredOutTransactions.push(tx);
+
+        continue;
+      }
+
+      reBatchTransactions.push(tx);
+    }
+
+    if (reBatchTransactions.length === 0) {
+      throw new Error(
+        `Cannot re-batch transactions by payout fee, no transaction exceeds the fee limit. Out asset: ${this.outputAsset.uniqueName}`,
+      );
+    }
+
+    this.overwriteTransactions(reBatchTransactions);
+
+    return filteredOutTransactions;
+  }
+
+  checkByPurchaseFeeEstimation(estimatePurchaseFeeAmount: number | null): this {
+    this.checkPurchaseFees(estimatePurchaseFeeAmount);
+    this.recordPurchaseFees(estimatePurchaseFeeAmount);
 
     return this;
   }
@@ -124,6 +148,7 @@ export class BuyCryptoBatch extends IEntity {
 
   pending(): this {
     this.status = BuyCryptoBatchStatus.PENDING_LIQUIDITY;
+    this.transactions.forEach((tx) => tx.pendingLiquidity());
 
     return this;
   }
@@ -208,13 +233,12 @@ export class BuyCryptoBatch extends IEntity {
     this.outputReferenceAmount = 0;
   }
 
-  private checkFees(purchaseFeeAmount: number | null, payoutFeeAmount: number | null): void {
-    const feeRatio = Util.round((purchaseFeeAmount + payoutFeeAmount) / this.outputReferenceAmount, 8);
-    const { configuredFeeLimit, defaultFeeLimit } = Config.buy.fee.limits;
+  private checkPurchaseFees(purchaseFeeAmount: number | null): void {
+    const feeRatio = purchaseFeeAmount / this.outputReferenceAmount;
 
-    if (feeRatio > (configuredFeeLimit ?? defaultFeeLimit)) {
+    if (feeRatio > Config.buy.fee.limit) {
       throw new FeeLimitExceededException(
-        `BuyCryptoBatch fee limit exceeded. Output Asset: ${this.outputAsset.dexName}. Fee ratio: ${Util.round(
+        `BuyCryptoBatch purchase fee limit exceeded. Output Asset: ${this.outputAsset.dexName}. Fee ratio: ${Util.round(
           feeRatio * 100,
           5,
         )}%`,
@@ -222,21 +246,20 @@ export class BuyCryptoBatch extends IEntity {
     }
   }
 
-  private recordFees(estimatePurchaseFeeAmount: number | null, estimatePayoutFeeAmount: number | null): void {
+  private recordPurchaseFees(estimatePurchaseFeeAmount: number | null): void {
     this.transactions.forEach((tx) => {
-      const fee = BuyCryptoFee.create(
+      tx.fee.addPurchaseFeeEstimation(
         estimatePurchaseFeeAmount != null ? this.calculateFeeShare(tx, estimatePurchaseFeeAmount) : null,
-        estimatePayoutFeeAmount != null ? this.calculateFeeShare(tx, estimatePayoutFeeAmount) : null,
         tx,
       );
 
-      tx.recordFee(fee);
+      tx.batched();
     });
   }
 
   private addActualPurchaseFee(purchaseFeeAmount: number | null, tx: BuyCrypto): void {
     const txPurchaseFee = purchaseFeeAmount != null ? this.calculateFeeShare(tx, purchaseFeeAmount) : null;
-    tx.fee.addActualPurchaseFee(txPurchaseFee, tx);
+    tx.addActualPurchaseFee(txPurchaseFee);
   }
 
   private calculateFeeShare(tx: BuyCrypto, totalFee: number): number {
@@ -244,35 +267,7 @@ export class BuyCryptoBatch extends IEntity {
   }
 
   private fixRoundingMismatch(): void {
-    const transactionsTotal = Util.sumObj<BuyCrypto>(this.transactions, 'outputAmount');
-
-    const mismatch = Util.round(this.outputAmount - transactionsTotal, 8);
-
-    if (mismatch === 0) {
-      return;
-    }
-
-    if (Math.abs(mismatch) < 0.00001) {
-      let remainsToDistribute = mismatch;
-      const correction = remainsToDistribute > 0 ? 0.00000001 : -0.00000001;
-      const adjustedTransactions = [];
-
-      this.transactions.forEach((tx) => {
-        if (remainsToDistribute !== 0) {
-          tx.outputAmount = Util.round(tx.outputAmount + correction, 8);
-          adjustedTransactions.push(tx);
-          remainsToDistribute = Util.round(remainsToDistribute - correction, 8);
-        }
-      });
-
-      console.info(
-        `Fixed total output amount mismatch of ${mismatch} ${
-          this.outputAsset.dexName
-        }. Added to transaction ID(s): ${adjustedTransactions.map((tx) => tx.id)}`,
-      );
-    } else {
-      throw new Error(`Output amount mismatch is too high. Mismatch: ${mismatch} ${this.outputAsset.dexName}`);
-    }
+    this.transactions = Util.fixRoundingMismatch(this.transactions, 'outputAmount', this.outputAmount, 8);
   }
 
   private sortTransactionsAsc(): BuyCrypto[] {

@@ -171,7 +171,8 @@ export class BuyCryptoService {
   async process() {
     if ((await this.settingService.get('buy-process')) !== 'on') return;
 
-    await this.buyCryptoBatchService.batchTransactionsByAssets();
+    await this.buyCryptoBatchService.prepareTransactions();
+    await this.buyCryptoBatchService.batchAndOptimizeTransactions();
     await this.buyCryptoDexService.secureLiquidity();
     await this.buyCryptoOutService.payoutTransactions();
     await this.buyCryptoNotificationService.sendNotificationMails();

@@ -5,7 +5,7 @@ import { SendGroup, SendGroupKey, SendStrategy, SendType } from './send.strategy
 import { CryptoInput, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
-import { FeeRequest, FeeResult } from 'src/subdomains/supporting/payout/interfaces';
+import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/utils/util';
 import { Config } from 'src/config/config';
@@ -141,19 +141,12 @@ export abstract class EvmStrategy extends SendStrategy {
   }
 
   private async getEstimatedFee(payInGroup: SendGroup): Promise<{ nativeFee: number; targetFee: number }> {
-    const feeRequest = await this.createFeeRequest(payInGroup.asset);
+    const feeRequest = { asset: payInGroup.asset };
 
     const nativeFee = await this.payoutService.estimateFee(feeRequest);
     const targetFee = await this.getFeeAmountForInPayInGroup(payInGroup, nativeFee);
 
     return { nativeFee: nativeFee.amount, targetFee };
-  }
-
-  private async createFeeRequest(asset: Asset): Promise<FeeRequest> {
-    return {
-      asset,
-      quantityOfTransactions: 1,
-    };
   }
 
   private async getFeeAmountForInPayInGroup(payInGroup: SendGroup, nativeFee: FeeResult): Promise<number> {

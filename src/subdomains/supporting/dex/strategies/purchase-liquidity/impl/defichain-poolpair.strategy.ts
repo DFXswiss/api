@@ -1,6 +1,6 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { Not } from 'typeorm';
+import { IsNull, Not } from 'typeorm';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Util } from 'src/shared/utils/util';
@@ -57,6 +57,8 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
 
     order.purchased(amount);
     order.recordFee(await this.feeAsset(), 0);
+
+    await this.dexService.completeOrders(LiquidityOrderContext.CREATE_POOL_PAIR, order.id.toString());
     await this.liquidityOrderRepo.save(order);
   }
 
@@ -68,6 +70,7 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
     const pendingParentOrders = await this.liquidityOrderRepo.find({
       context: Not(LiquidityOrderContext.CREATE_POOL_PAIR),
       isReady: false,
+      txId: IsNull(),
     });
 
     for (const parentOrder of pendingParentOrders) {
@@ -81,7 +84,6 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
 
         if (derivedOrders.length === 2) {
           await this.addPoolPair(parentOrder, derivedOrders);
-          await this.dexService.completeOrders(LiquidityOrderContext.CREATE_POOL_PAIR, parentOrder.id.toString());
         }
       } catch (e) {
         console.error(`Error while verifying derived liquidity order. Parent Order ID: ${parentOrder.id}`, e);

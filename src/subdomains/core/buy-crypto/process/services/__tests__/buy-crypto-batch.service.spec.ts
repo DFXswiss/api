@@ -53,14 +53,14 @@ describe('BuyCryptoBatchService', () => {
     clearSpies();
   });
 
-  describe('#batchTransactionsByAssets(...)', () => {
+  describe('#prepareTransactions(...)', () => {
     it('returns early when there is no input transactions', async () => {
       buyCryptoRepoFind = jest.spyOn(buyCryptoRepo, 'find').mockImplementation(async () => []);
 
-      const result = await service.batchTransactionsByAssets();
+      const result = await service.prepareTransactions();
 
       expect(result).toBeUndefined();
-      expect(dexServiceCheckLiquidity).toBeCalledTimes(0);
+      expect(buyCryptoBatchRepoSave).toBeCalledTimes(0);
     });
 
     it('defines asset pair', async () => {
@@ -74,40 +74,48 @@ describe('BuyCryptoBatchService', () => {
 
       expect(transactions[0].outputReferenceAsset).toBe(null);
 
-      await service.batchTransactionsByAssets();
+      await service.prepareTransactions();
 
       expect(defineAssetExchangePairSpy).toBeCalledTimes(1);
       expect(transactions[0].outputReferenceAsset.dexName).toBe('BTC');
-      expect(dexServiceCheckLiquidity).toBeCalledTimes(1);
+    });
+  });
+
+  describe('#batchAndOptimizeTransactions(...)', () => {
+    it('returns early when there is no input transactions', async () => {
+      buyCryptoRepoFind = jest.spyOn(buyCryptoRepo, 'find').mockImplementation(async () => []);
+
+      const result = await service.batchAndOptimizeTransactions();
+
+      expect(result).toBeUndefined();
+      expect(dexServiceCheckLiquidity).toBeCalledTimes(0);
     });
 
     it('defines output reference amounts', async () => {
       const transactions = [
         createCustomBuyCrypto({
-          outputReferenceAsset: null,
+          outputAsset: createDefaultAsset(),
+          outputReferenceAsset: createCustomAsset({ dexName: 'BTC' }),
           outputReferenceAmount: null,
           inputReferenceAmountMinusFee: 100,
         }),
       ];
       const calculateOutputReferenceAmountSpy = jest.spyOn(transactions[0], 'calculateOutputReferenceAmount');
-      assetServiceQueryAsset = jest
-        .spyOn(assetService, 'getAssetByQuery')
-        .mockImplementation(async ({ dexName }) => createCustomAsset({ dexName }));
 
       buyCryptoRepoFind = jest.spyOn(buyCryptoRepo, 'find').mockImplementation(async () => transactions);
 
       expect(transactions[0].outputReferenceAmount).toBe(null);
 
-      await service.batchTransactionsByAssets();
+      await service.batchAndOptimizeTransactions();
 
-      expect(dexServiceCheckLiquidity).toBeCalledTimes(1);
       expect(exchangeUtilityServiceGetMatchingPrice).toBeCalledTimes(1);
       expect(calculateOutputReferenceAmountSpy).toBeCalledTimes(1);
       expect(transactions[0].outputReferenceAmount).toBe(10);
+      expect(dexServiceCheckLiquidity).toBeCalledTimes(1);
     });
 
     it('moves on normally if there is no blocked assets', async () => {
-      await service.batchTransactionsByAssets();
+      await service.batchAndOptimizeTransactions();
 
       expect(dexServiceCheckLiquidity).toBeCalledTimes(1);
     });
@@ -123,7 +131,7 @@ describe('BuyCryptoBatchService', () => {
 
       buyCryptoRepoFind = jest.spyOn(buyCryptoRepo, 'find').mockImplementation(async () => transactions);
 
-      await service.batchTransactionsByAssets();
+      await service.batchAndOptimizeTransactions();
 
       expect(dexServiceCheckLiquidity).toBeCalledTimes(0);
     });
@@ -132,12 +140,18 @@ describe('BuyCryptoBatchService', () => {
       const transactions = [
         createCustomBuyCrypto({
           buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'dGOOGL' }) }),
+          outputAsset: createCustomAsset({ dexName: 'dGOOGL' }),
+          outputReferenceAsset: createCustomAsset({ dexName: 'BTC' }),
         }),
         createCustomBuyCrypto({
           buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'dTSLA' }) }),
+          outputAsset: createCustomAsset({ dexName: 'dTSLA' }),
+          outputReferenceAsset: createCustomAsset({ dexName: 'BTC' }),
         }),
         createCustomBuyCrypto({
           buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'USDT' }) }),
+          outputAsset: createCustomAsset({ dexName: 'USDT' }),
+          outputReferenceAsset: createCustomAsset({ dexName: 'USDT' }),
         }),
       ];
 
@@ -164,7 +178,7 @@ describe('BuyCryptoBatchService', () => {
           }),
         );
 
-      await service.batchTransactionsByAssets();
+      await service.batchAndOptimizeTransactions();
 
       expect(dexServiceCheckLiquidity).toBeCalledTimes(3);
     });
@@ -173,12 +187,18 @@ describe('BuyCryptoBatchService', () => {
       const transactions = [
         createCustomBuyCrypto({
           buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'dTSLA' }) }),
+          outputAsset: createCustomAsset({ dexName: 'dTSLA' }),
+          outputReferenceAsset: createCustomAsset({ dexName: 'BTC' }),
         }),
         createCustomBuyCrypto({
           buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'dTSLA' }) }),
+          outputAsset: createCustomAsset({ dexName: 'dTSLA' }),
+          outputReferenceAsset: createCustomAsset({ dexName: 'BTC' }),
         }),
         createCustomBuyCrypto({
           buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'USDT' }) }),
+          outputAsset: createCustomAsset({ dexName: 'USDT' }),
+          outputReferenceAsset: createCustomAsset({ dexName: 'BTC' }),
         }),
       ];
 
@@ -189,7 +209,7 @@ describe('BuyCryptoBatchService', () => {
         .mockImplementationOnce(() =>
           createCustomBuyCryptoBatch({
             outputReferenceAsset: createCustomAsset({ dexName: 'BTC' }),
-            outputAsset: createCustomAsset({ id: 1, dexName: 'dDOGE' }),
+            outputAsset: createCustomAsset({ id: 1, dexName: 'dTSLA' }),
           }),
         )
         .mockImplementationOnce(() =>
@@ -199,7 +219,7 @@ describe('BuyCryptoBatchService', () => {
           }),
         );
 
-      await service.batchTransactionsByAssets();
+      await service.batchAndOptimizeTransactions();
 
       expect(dexServiceCheckLiquidity).toBeCalledTimes(2);
     });
