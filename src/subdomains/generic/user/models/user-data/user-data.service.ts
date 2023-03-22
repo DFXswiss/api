@@ -27,7 +27,6 @@ import { WebhookService } from '../../services/webhook/webhook.service';
 import { AccountType } from './account-type.enum';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { LinkService } from '../link/link.service';
-import { UserStatus } from '../user/user.entity';
 
 @Injectable()
 export class UserDataService {
@@ -67,7 +66,7 @@ export class UserDataService {
 
   async getUsersByMail(mail: string): Promise<UserData[]> {
     return this.userDataRepo.find({
-      where: { mail: mail, status: In([UserStatus.ACTIVE, UserStatus.NA]) },
+      where: { mail: mail, status: In([UserDataStatus.ACTIVE, UserDataStatus.NA]) },
       relations: ['users'],
     });
   }
