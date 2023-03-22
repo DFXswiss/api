@@ -99,8 +99,12 @@ export class ExchangeService implements PriceProvider {
     return withdrawals.find((w) => w.id === id);
   }
 
-  async getDeposits(token: string, since: Date): Promise<Transaction[]> {
-    return this.callApi((e) => e.fetchDeposits(token, since.getTime(), 50));
+  async getDeposits(token: string, since?: Date): Promise<Transaction[]> {
+    return this.callApi((e) => e.fetchDeposits(token, since?.getTime(), 50));
+  }
+
+  async getWithdrawals(token: string, since?: Date): Promise<Transaction[]> {
+    return this.callApi((e) => e.fetchWithdrawals(token, since?.getTime(), 50));
   }
 
   // --- Helper Methods --- //
