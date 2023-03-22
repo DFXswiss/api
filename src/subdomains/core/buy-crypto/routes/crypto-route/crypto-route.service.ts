@@ -13,6 +13,7 @@ import { CryptoRoute } from './crypto-route.entity';
 import { DepositService } from '../../../../supporting/address-pool/deposit/deposit.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { KycCompleted } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
 
 @Injectable()
 export class CryptoRouteService {
@@ -22,6 +23,7 @@ export class CryptoRouteService {
     private readonly userService: UserService,
     private readonly depositService: DepositService,
     private readonly userDataService: UserDataService,
+    private readonly cryptoService: CryptoService,
   ) {}
 
   async getCryptoRouteByAddress(depositAddress: string): Promise<CryptoRoute> {
@@ -80,14 +82,17 @@ export class CryptoRouteService {
     const { kycStatus } = await this.userDataService.getUserDataByUser(userId);
     if (!KycCompleted(kycStatus)) throw new BadRequestException('Missing KYC');
 
-    const { status } = await this.userService.getUser(userId);
-    if (status !== UserStatus.ACTIVE) throw new BadRequestException('Missing bank transaction');
+    const user = await this.userService.getUser(userId);
+    if (user.status !== UserStatus.ACTIVE) throw new BadRequestException('Missing bank transaction');
 
     // check asset
     const targetAsset = await this.assetService.getAssetById(dto.asset.id);
-
     if (!targetAsset) throw new BadRequestException('Asset not found');
     if (!targetAsset.buyable) throw new BadRequestException('Asset not buyable');
+
+    const userBlockchains = this.cryptoService.getBlockchainsBasedOn(user.address);
+    if (!userBlockchains.includes(targetAsset.blockchain))
+      throw new BadRequestException(`Target asset must be on ${userBlockchains.join(', ')}`);
 
     // check if exists
     const existing = await this.cryptoRepo.findOne({
