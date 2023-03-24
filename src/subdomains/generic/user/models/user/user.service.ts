@@ -255,29 +255,25 @@ export class UserService {
     };
   }
 
-  async getUserCryptoFee(userId: number): Promise<{ fee: number; refBonus: number }> {
+  async getUserCryptoFee(userId: number): Promise<{ fee: number }> {
     // fee
-    const { cryptoFee, usedRef } = await this.userRepo.findOne({
+    const { cryptoFee } = await this.userRepo.findOne({
       select: ['id', 'cryptoFee', 'usedRef'],
       where: { id: userId },
     });
 
     const baseFee = cryptoFee ? Math.min(cryptoFee, Config.crypto.fee) : Config.crypto.fee;
 
-    // ref bonus
-    const hasUsedRef = usedRef && usedRef !== '000-000';
-    const hasCustomFee = baseFee < Config.crypto.fee;
-    const refBonus = hasUsedRef && !hasCustomFee && baseFee >= Config.crypto.refBonus ? Config.crypto.refBonus : 0;
-
     return {
-      fee: Util.round((baseFee - refBonus) * 100, Config.defaultPercentageDecimal),
-      refBonus: Util.round(refBonus * 100, Config.defaultPercentageDecimal),
+      fee: Util.round(baseFee * 100, Config.defaultPercentageDecimal),
     };
   }
 
   // --- REF --- //
 
-  async getRefInfo(query: RefInfoQuery): Promise<{ activeUser: number; passiveUser: number; fiatVolume?: number; cryptoVolume?: number }> {
+  async getRefInfo(
+    query: RefInfoQuery,
+  ): Promise<{ activeUser: number; passiveUser: number; fiatVolume?: number; cryptoVolume?: number }> {
     // get ref users
     const refUserCount = await this.userRepo.count({
       where: {

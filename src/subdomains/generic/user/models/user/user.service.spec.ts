@@ -261,27 +261,27 @@ describe('UserService', () => {
 
   // crypto fee
 
-  it('should return a fee of 1.2 and refBonus of 0 for crypto routes, if no ref was used', async () => {
+  it('should return a fee of 0.99 and refBonus of 0 for crypto routes, if no ref was used', async () => {
     setup(AccountType.PERSONAL, undefined, '000-000');
 
-    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual({ fee: 1.2, refBonus: 0 });
+    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual({ fee: 0.99 });
   });
 
-  it('should return a fee of 1.2 and refBonus of 0 for crypto routes, if ref is undefined', async () => {
+  it('should return a fee of 0.99 and refBonus of 0 for crypto routes, if ref is undefined', async () => {
     setup(AccountType.PERSONAL);
 
-    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual({ fee: 1.2, refBonus: 0 });
+    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual({ fee: 0.99 });
   });
 
-  it('should return a fee of 1.1 and refBonus of 0.1 for crypto routes, if ref was used', async () => {
+  it('should return a fee of 0.99 and refBonus of 0.1 for crypto routes, if ref was used', async () => {
     setup(AccountType.PERSONAL, undefined, '000-001');
 
-    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual({ fee: 1.1, refBonus: 0.1 });
+    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual({ fee: 0.99 });
   });
 
-  it('should return a fee of 0.5 and refBonus of 0 for crypto routes, if cryptoFee is defined', async () => {
+  it('should return a fee of 0.99 and refBonus of 0 for crypto routes, if cryptoFee is defined', async () => {
     setup(AccountType.PERSONAL, undefined, '000-001', 0.005);
 
-    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual({ fee: 0.5, refBonus: 0 });
+    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual({ fee: 0.5 });
   });
 });

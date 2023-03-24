@@ -6,9 +6,6 @@ export class CryptoPaymentInfoDto {
   fee: number;
 
   @ApiProperty()
-  refBonus: number;
-
-  @ApiProperty()
   depositAddress: string;
 
   @ApiProperty({ type: MinDeposit, isArray: true })

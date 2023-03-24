@@ -90,6 +90,7 @@ export class CryptoRouteService {
     if (!targetAsset) throw new BadRequestException('Asset not found');
     if (!targetAsset.buyable) throw new BadRequestException('Asset not buyable');
 
+    // check blockchain target asset
     const userBlockchains = this.cryptoService.getBlockchainsBasedOn(user.address);
     if (!userBlockchains.includes(targetAsset.blockchain))
       throw new BadRequestException(`Target asset must be on ${userBlockchains.join(', ')}`);
