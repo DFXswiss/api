@@ -1,6 +1,5 @@
 import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { SchedulerRegistry } from '@nestjs/schedule';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
@@ -36,7 +35,7 @@ export class NodeService {
   readonly #allNodes: Map<NodeType, Record<NodeMode, NodeClient | null>> = new Map();
   readonly #connectedNodes: Map<NodeType, BehaviorSubject<NodeClient | null>> = new Map();
 
-  constructor(private readonly http: HttpService, private readonly scheduler: SchedulerRegistry) {
+  constructor(private readonly http: HttpService) {
     this.initAllNodes();
     this.initConnectedNodes();
   }
@@ -113,8 +112,8 @@ export class NodeService {
   private createNodeClient(url: string | undefined, type: NodeType, mode: NodeMode): NodeClient | null {
     return url
       ? [NodeType.BTC_INPUT, NodeType.BTC_OUTPUT].includes(type)
-        ? new BtcClient(this.http, url, this.scheduler, mode)
-        : new DeFiClient(this.http, url, this.scheduler, mode)
+        ? new BtcClient(this.http, url, mode)
+        : new DeFiClient(this.http, url, mode)
       : null;
   }
 

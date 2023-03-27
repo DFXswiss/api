@@ -1,5 +1,3 @@
-import { SchedulerRegistry } from '@nestjs/schedule';
-import { Lock } from './lock';
 import { Util } from './util';
 
 class QueueItem<T> {
@@ -28,7 +26,8 @@ class QueueItem<T> {
   }
 
   public async doWork(timeout: number) {
-    await Util.timeout(this.action(), timeout).then(this.resolve).catch(this.reject);
+    const promise = timeout ? Util.timeout(this.action(), timeout) : this.action();
+    await promise.then(this.resolve).catch(this.reject);
   }
 
   public abort() {
@@ -39,17 +38,14 @@ class QueueItem<T> {
 export class QueueHandler {
   private readonly queue: QueueItem<any>[] = [];
 
+  private isRunning = true;
+
   /**
    * @param queueTimeout Max. item in queue time (incl. execution time)
    * @param itemTimeout Max. item execution time
    */
-  constructor(
-    scheduler: SchedulerRegistry,
-    private readonly queueTimeout: number,
-    private readonly itemTimeout: number,
-  ) {
-    const interval = setInterval(() => this.doWork(), 50);
-    scheduler.addInterval(Util.randomId().toString(), interval);
+  constructor(private readonly queueTimeout?: number, private readonly itemTimeout?: number) {
+    void this.doWork();
   }
 
   async handle<T>(action: () => Promise<T>): Promise<T> {
@@ -64,10 +60,19 @@ export class QueueHandler {
     }
   }
 
-  @Lock(1200)
+  stop() {
+    this.isRunning = false;
+  }
+
   private async doWork() {
-    while (this.queue.length > 0) {
-      await this.queue.shift().doWork(this.itemTimeout);
+    while (this.isRunning) {
+      try {
+        if (this.queue.length > 0) {
+          await this.queue.shift().doWork(this.itemTimeout);
+        } else {
+          await Util.delay(10);
+        }
+      } catch {}
     }
   }
 }

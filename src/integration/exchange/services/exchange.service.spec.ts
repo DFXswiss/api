@@ -1,36 +1,45 @@
 import { createMock } from '@golevelup/ts-jest';
-import { SchedulerRegistry } from '@nestjs/schedule';
-import { kraken } from 'ccxt';
+import { Exchange, Market } from 'ccxt';
+import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { PartialTradeResponse } from '../dto/trade-response.dto';
 import { ExchangeService, OrderSide } from './exchange.service';
 
 describe('ExchangeService', () => {
   let service: ExchangeService;
 
-  let scheduler: SchedulerRegistry;
-  let interval: NodeJS.Timer;
+  let exchange: Exchange;
 
   beforeEach(() => {
-    scheduler = createMock<SchedulerRegistry>();
+    exchange = createMock<Exchange>();
 
-    jest.spyOn(scheduler, 'addInterval').mockImplementation((_, int: NodeJS.Timer) => (interval = int));
-
-    service = new ExchangeService(new kraken({}), scheduler);
+    service = new ExchangeService(exchange, new QueueHandler(undefined, undefined));
   });
 
   afterEach(() => {
-    clearInterval(interval);
+    service['queue'].stop();
   });
+
+  const Setup = {
+    Markets: () => {
+      jest
+        .spyOn(exchange, 'fetchMarkets')
+        .mockResolvedValue([{ symbol: 'BTC/EUR' }, { symbol: 'BTC/CHF' }, { symbol: 'ETH/EUR' }] as Market[]);
+    },
+  };
 
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
 
   it('should return BTC/EUR and buy', async () => {
+    Setup.Markets();
+
     await expect(service.getTradePair('EUR', 'BTC')).resolves.toEqual({ pair: 'BTC/EUR', direction: OrderSide.BUY });
   });
 
   it('should return BTC/EUR and sell', async () => {
+    Setup.Markets();
+
     await expect(service.getTradePair('BTC', 'EUR')).resolves.toEqual({
       pair: 'BTC/EUR',
       direction: OrderSide.SELL,

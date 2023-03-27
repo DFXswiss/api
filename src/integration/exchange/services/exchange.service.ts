@@ -5,7 +5,6 @@ import { Price } from '../dto/price.dto';
 import { Util } from 'src/shared/utils/util';
 import { PriceProvider } from 'src/subdomains/supporting/pricing/interfaces';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
-import { SchedulerRegistry } from '@nestjs/schedule';
 
 export enum OrderSide {
   BUY = 'buy',
@@ -21,10 +20,8 @@ enum OrderStatus {
 export class ExchangeService implements PriceProvider {
   private markets: Market[];
 
-  private readonly queue: QueueHandler;
-
-  constructor(private readonly exchange: Exchange, readonly scheduler: SchedulerRegistry) {
-    this.queue = new QueueHandler(scheduler, 180000, 60000);
+  constructor(private readonly exchange: Exchange, private readonly queue?: QueueHandler) {
+    this.queue ??= new QueueHandler(180000, 60000);
   }
 
   get name(): string {
