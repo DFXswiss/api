@@ -245,6 +245,7 @@ export class BuyCrypto extends IEntity {
   }
 
   setPriceMismatchStatus(): this {
+    this.resetTransaction();
     this.status = BuyCryptoStatus.PRICE_MISMATCH;
 
     return this;
@@ -257,6 +258,7 @@ export class BuyCrypto extends IEntity {
   }
 
   setMissingLiquidityStatus(): this {
+    this.resetTransaction();
     this.status = BuyCryptoStatus.MISSING_LIQUIDITY;
 
     return this;
