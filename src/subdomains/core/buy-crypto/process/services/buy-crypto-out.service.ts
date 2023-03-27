@@ -40,35 +40,33 @@ export class BuyCryptoOutService {
             console.error(`Error on checking pervious payout for a batch ID: ${batch.id}`, e);
             continue;
           }
-
-          /**
-           * @warning
-           * if a status is still PAYING_OUT after #checkCompletion(...), the batch should go through the further process
-           * for retrying possible failed transactions
-           */
-          if (batch.status !== BuyCryptoBatchStatus.PAYING_OUT) {
-            continue;
-          }
+        } else {
+          batch.payingOut();
+          await this.buyCryptoBatchRepo.save(batch);
         }
-
-        batch.payingOut();
-        await this.buyCryptoBatchRepo.save(batch);
-
-        const successfulRequests = [];
-
-        for (const transaction of batch.transactions.filter((t) => t.status === BuyCryptoStatus.IN_PROGRESS)) {
-          try {
-            await this.doPayout(transaction);
-            successfulRequests.push(transaction);
-          } catch (e) {
-            console.error(`Failed to initiate buy-crypto payout. Transaction ID: ${transaction.id}`);
-            // continue with next transaction in case payout initiation failed
-            continue;
-          }
-        }
-
-        this.logTransactionsPayouts(successfulRequests);
       }
+
+      // pay out buy crypto
+      const payingOutBatches = batches.filter((b) => b.status === BuyCryptoBatchStatus.PAYING_OUT);
+      const transactionsToPayout = payingOutBatches
+        .reduce((prev: BuyCrypto[], curr) => prev.concat(curr.transactions), [])
+        .filter((r) => r.status === BuyCryptoStatus.READY_FOR_PAYOUT)
+        .sort((a, b) => (a.target.address > b.target.address ? 1 : -1));
+
+      const successfulRequests = [];
+
+      for (const transaction of transactionsToPayout) {
+        try {
+          await this.doPayout(transaction);
+          successfulRequests.push(transaction);
+        } catch (e) {
+          console.error(`Failed to initiate buy-crypto payout. Transaction ID: ${transaction.id}`);
+          // continue with next transaction in case payout initiation failed
+          continue;
+        }
+      }
+
+      this.logTransactionsPayouts(successfulRequests);
     } catch (e) {
       console.error(e);
     }

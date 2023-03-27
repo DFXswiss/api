@@ -2,15 +2,14 @@ import { createCustomBuy } from 'src/subdomains/core/buy-crypto/routes/buy/__moc
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { Util } from 'src/shared/utils/util';
 import { createCustomUser } from 'src/subdomains/generic/user/models/user/__mocks__/user.entity.mock';
-import { AbortBatchCreationException } from '../../exceptions/abort-batch-creation.exception';
+import { MissingBuyCryptoLiquidityException } from '../../exceptions/abort-batch-creation.exception';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../buy-crypto-batch.entity';
-import { BuyCryptoFee } from '../buy-crypto-fees.entity';
 import { createCustomBuyCryptoBatch, createDefaultBuyCryptoBatch } from '../__mocks__/buy-crypto-batch.entity.mock';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-crypto.entity.mock';
 
 jest.mock('src/config/config', () => ({
   Config: {
-    buy: { fee: { limits: { configuredFeeLimit: 0.001, constantFeeLimit: 0.001 } } },
+    buy: { fee: { limit: 0.001 } },
   },
 }));
 
@@ -168,7 +167,7 @@ describe('BuyCryptoBatch', () => {
       const testCall = () => batch.optimizeByLiquidity(0.5, 0.5);
 
       expect(testCall).toThrow();
-      expect(testCall).toThrowError(AbortBatchCreationException);
+      expect(testCall).toThrowError(MissingBuyCryptoLiquidityException);
     });
 
     it('does not change batch if no upper conditions met', () => {
@@ -193,37 +192,36 @@ describe('BuyCryptoBatch', () => {
     });
   });
 
-  describe('#checkAndRecordFeesEstimations(...)', () => {
+  describe('#optimizeByPayoutFeeEstimation(...)', () => {
+    it('kicks out transactions if fee is too high', () => {
+      const batch = createDiverseBuyCryptoBatch();
+
+      expect(batch.transactions.length).toBe(3);
+
+      batch.optimizeByPayoutFeeEstimation(0.01);
+
+      expect(batch.transactions.length).toBe(2);
+    });
+  });
+
+  describe('#checkByPurchaseFeeEstimation(...)', () => {
     it('aborts batch creation if fee is too high', () => {
       const batch = createDiverseBuyCryptoBatch();
 
-      const testCall = () => batch.checkAndRecordFeesEstimations(5, 3);
+      const testCall = () => batch.checkByPurchaseFeeEstimation(8);
 
       expect(testCall).toThrow();
-      expect(testCall).toThrowError('BuyCryptoBatch fee limit exceeded');
-    });
-
-    it('adds BuyCryptoFee instances to transactions if fee is acceptable', () => {
-      const batch = createDiverseBuyCryptoBatch();
-
-      batch.checkAndRecordFeesEstimations(0.03, 0.03);
-
-      expect(batch.transactions[0].fee).toBeInstanceOf(BuyCryptoFee);
-      expect(batch.transactions[1].fee).toBeInstanceOf(BuyCryptoFee);
-      expect(batch.transactions[2].fee).toBeInstanceOf(BuyCryptoFee);
+      expect(testCall).toThrowError('BuyCryptoBatch purchase fee limit exceeded');
     });
 
     it('assigns fee proportions by transaction volume', () => {
       const batch = createDiverseBuyCryptoBatch();
 
-      batch.checkAndRecordFeesEstimations(0.03, 0.03);
+      batch.checkByPurchaseFeeEstimation(0.00003);
 
-      expect(batch.transactions[0].fee.estimatePurchaseFeeAmount).toBe(0.02702703);
-      expect(batch.transactions[0].fee.estimatePayoutFeeAmount).toBe(0.02702703);
-      expect(batch.transactions[1].fee.estimatePurchaseFeeAmount).toBe(0.0027027);
-      expect(batch.transactions[1].fee.estimatePayoutFeeAmount).toBe(0.0027027);
-      expect(batch.transactions[2].fee.estimatePurchaseFeeAmount).toBe(0.00027027);
-      expect(batch.transactions[2].fee.estimatePayoutFeeAmount).toBe(0.00027027);
+      expect(batch.transactions[0].fee.estimatePurchaseFeeAmount).toBe(0.00002703);
+      expect(batch.transactions[1].fee.estimatePurchaseFeeAmount).toBe(0.0000027);
+      expect(batch.transactions[2].fee.estimatePurchaseFeeAmount).toBe(0.00000027);
     });
   });
 
@@ -322,7 +320,7 @@ describe('BuyCryptoBatch', () => {
       ).toBe(0.00001105);
     });
 
-    it('throws error if sum of tx outputAmount and batch total outputAmount differs more than 0.00001', () => {
+    it('throws error if sum of tx outputAmount and batch total outputAmount differs more than threshold', () => {
       const transactionA = createCustomBuyCrypto({ outputAmount: undefined, outputReferenceAmount: 10 });
       const transactionB = createCustomBuyCrypto({ outputAmount: undefined, outputReferenceAmount: 10 });
       const entity = createCustomBuyCryptoBatch({
@@ -334,7 +332,7 @@ describe('BuyCryptoBatch', () => {
       const testCall = () => entity.secure(30, 0);
 
       expect(testCall).toThrow();
-      expect(testCall).toThrowError('Output amount mismatch is too high. Mismatch: 10 BTC');
+      expect(testCall).toThrowError('Mismatch is too high. Mismatch: 10');
     });
 
     it('returns instance of BuyCryptoBatch', () => {

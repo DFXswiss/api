@@ -11,7 +11,6 @@ export interface PayoutRequest {
 
 export interface FeeRequest {
   asset: Asset;
-  quantityOfTransactions: number;
 }
 
 export interface FeeResult {

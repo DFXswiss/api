@@ -1,4 +1,4 @@
-export class AbortBatchCreationException extends Error {
+export class MissingBuyCryptoLiquidityException extends Error {
   constructor(message: string) {
     super(message);
   }

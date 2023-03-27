@@ -10,10 +10,13 @@ import { PriceSlippageException } from 'src/subdomains/supporting/dex/exceptions
 import { PurchaseLiquidityRequest, ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
+import { BuyCrypto } from '../entities/buy-crypto.entity';
+import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 
 @Injectable()
 export class BuyCryptoDexService {
   constructor(
+    private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly dexService: DexService,
@@ -168,6 +171,15 @@ export class BuyCryptoDexService {
   }
 
   private async handleSlippageException(batch: BuyCryptoBatch, message: string, e: Error): Promise<void> {
+    await this.setPriceSlippageStatus(batch.transactions);
     await this.buyCryptoNotificationService.sendNonRecoverableErrorMail(batch, message, e);
+  }
+
+  private async setPriceSlippageStatus(transactions: BuyCrypto[]): Promise<void> {
+    for (const tx of transactions) {
+      tx.setPriceSlippageStatus();
+
+      await this.buyCryptoRepo.save(tx);
+    }
   }
 }

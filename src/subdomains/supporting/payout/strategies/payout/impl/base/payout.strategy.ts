@@ -11,6 +11,6 @@ export abstract class PayoutStrategy {
 
   abstract doPayout(orders: PayoutOrder[]): Promise<void>;
   abstract checkPayoutCompletionData(orders: PayoutOrder[]): Promise<void>;
-  abstract estimateFee(quantityOfTransactions: number, asset: Asset): Promise<FeeResult>;
+  abstract estimateFee(asset: Asset): Promise<FeeResult>;
   protected abstract getFeeAsset(): Promise<Asset>;
 }

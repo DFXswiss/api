@@ -64,6 +64,28 @@ export class Util {
     );
   }
 
+  static fixRoundingMismatch<T>(list: T[], key: KeyType<T, number>, targetAmount: number, precision = 8): T[] {
+    const listTotal = Util.round(Util.sumObj<T>(list, key), precision);
+    const mismatch = Util.round(targetAmount - listTotal, precision);
+    const maxMismatchThreshold = 10 ** -precision * list.length;
+
+    if (mismatch === 0) return list;
+
+    if (Math.abs(mismatch) >= maxMismatchThreshold) throw new Error(`Mismatch is too high. Mismatch: ${mismatch}`);
+
+    let remainsToDistribute = mismatch;
+    const correction = remainsToDistribute > 0 ? 10 ** -precision : -(10 ** -precision);
+
+    return list.map((item) => {
+      if (remainsToDistribute !== 0) {
+        (item[key] as unknown as number) = Util.round((item[key] as unknown as number) + correction, precision);
+        remainsToDistribute = Util.round(remainsToDistribute - correction, precision);
+      }
+
+      return item;
+    });
+  }
+
   static randomId(): number {
     return Math.round(Math.random() * 1000000000);
   }

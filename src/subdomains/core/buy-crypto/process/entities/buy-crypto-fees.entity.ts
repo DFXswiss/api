@@ -1,3 +1,4 @@
+import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
@@ -37,34 +38,43 @@ export class BuyCryptoFee extends IEntity {
   @Column({ type: 'float', nullable: true })
   actualPayoutFeePercent: number;
 
+  @Column({ type: 'float', nullable: true })
+  allowedTotalFeePercent: number;
+
   //*** FACTORY METHODS ***//
 
-  static create(
-    estimatePurchaseFeeAmount: number | null,
-    estimatePayoutFeeAmount: number | null,
-    transaction: BuyCrypto,
-  ): BuyCryptoFee {
+  static create(transaction: BuyCrypto): BuyCryptoFee {
     const entity = new BuyCryptoFee();
 
     entity.buyCrypto = transaction;
     entity.feeReferenceAsset = transaction.outputReferenceAsset;
 
-    entity.estimatePurchaseFeeAmount = estimatePurchaseFeeAmount;
-    entity.estimatePurchaseFeePercent =
-      estimatePurchaseFeeAmount != null
-        ? Util.round(estimatePurchaseFeeAmount / transaction.outputReferenceAmount, 8)
-        : null;
-
-    entity.estimatePayoutFeeAmount = estimatePayoutFeeAmount;
-    entity.estimatePayoutFeePercent =
-      estimatePayoutFeeAmount != null
-        ? Util.round(estimatePayoutFeeAmount / transaction.outputReferenceAmount, 8)
-        : null;
+    entity.allowedTotalFeePercent = Config.buy.fee.limit;
 
     return entity;
   }
 
   //*** PUBLIC API ***//
+
+  addPayoutFeeEstimation(estimatedPayoutFeeAmount: number | null, transaction: BuyCrypto): this {
+    this.estimatePayoutFeeAmount = estimatedPayoutFeeAmount;
+    this.estimatePayoutFeePercent =
+      estimatedPayoutFeeAmount != null
+        ? Util.round(estimatedPayoutFeeAmount / transaction.outputReferenceAmount, 8)
+        : null;
+
+    return this;
+  }
+
+  addPurchaseFeeEstimation(estimatedPurchaseFeeAmount: number | null, transaction: BuyCrypto): this {
+    this.estimatePurchaseFeeAmount = estimatedPurchaseFeeAmount;
+    this.estimatePurchaseFeePercent =
+      estimatedPurchaseFeeAmount != null
+        ? Util.round(estimatedPurchaseFeeAmount / transaction.outputReferenceAmount, 8)
+        : null;
+
+    return this;
+  }
 
   addActualPurchaseFee(purchaseFeeAmount: number | null, transaction: BuyCrypto): this {
     if (purchaseFeeAmount == null) {
