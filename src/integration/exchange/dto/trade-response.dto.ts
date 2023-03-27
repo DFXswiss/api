@@ -20,4 +20,5 @@ export interface TradeSummary {
 export interface TradeResponse {
   orderSummary: TradeSummary;
   orderList: PartialTradeResponse[];
+  error?: string;
 }
