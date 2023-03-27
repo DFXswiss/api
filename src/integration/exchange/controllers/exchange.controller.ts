@@ -1,7 +1,17 @@
-import { Body, Controller, UseGuards, Post, Get, Query, Param, NotFoundException } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  UseGuards,
+  Post,
+  Get,
+  Query,
+  Param,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
-import { Balances, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
+import { Balances, ExchangeError, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { TradeOrder } from '../dto/trade-order.dto';
@@ -11,6 +21,7 @@ import { WithdrawalOrder } from '../dto/withdrawal-order.dto';
 
 import { Util } from 'src/shared/utils/util';
 import { ExchangeRegistryService } from '../services/exchange-registry.service';
+import { ExchangeService } from '../services/exchange.service';
 
 @ApiTags('exchange')
 @Controller('exchange')
@@ -23,8 +34,8 @@ export class ExchangeController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  getBalance(@Param('exchange') exchange: string): Promise<Balances> {
-    return this.registryService.getExchange(exchange).getBalances();
+  async getBalance(@Param('exchange') exchange: string): Promise<Balances> {
+    return this.call(exchange, (e) => e.getBalances());
   }
 
   @Get(':exchange/price')
@@ -32,7 +43,7 @@ export class ExchangeController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   getPrice(@Param('exchange') exchange: string, @Query('from') from: string, @Query('to') to: string): Promise<Price> {
-    return this.registryService.getExchange(exchange).getPrice(from.toUpperCase(), to.toUpperCase());
+    return this.call(exchange, (e) => e.getPrice(from.toUpperCase(), to.toUpperCase()));
   }
 
   @Post(':exchange/trade')
@@ -45,10 +56,7 @@ export class ExchangeController {
     this.trades[tradeId] = { status: TradeStatus.OPEN };
 
     // run trade (without waiting)
-    this.registryService
-      .getExchange(exchange)
-      // trade
-      .trade(orderDto.from.toUpperCase(), orderDto.to.toUpperCase(), orderDto.amount)
+    this.call(exchange, (e) => e.trade(orderDto.from.toUpperCase(), orderDto.to.toUpperCase(), orderDto.amount))
       .then((r) => this.updateTrade(tradeId, { status: TradeStatus.WITHDRAWING, trade: r }))
       // withdraw
       .then((r) =>
@@ -79,7 +87,7 @@ export class ExchangeController {
     @Query('from') from: string,
     @Query('to') to: string,
   ): Promise<Order[]> {
-    return this.registryService.getExchange(exchange).getOpenTrades(from?.toUpperCase(), to?.toUpperCase());
+    return this.call(exchange, (e) => e.getOpenTrades(from?.toUpperCase(), to?.toUpperCase()));
   }
 
   @Get(':exchange/trade/history')
@@ -91,7 +99,7 @@ export class ExchangeController {
     @Query('from') from: string,
     @Query('to') to: string,
   ): Promise<Trade[]> {
-    return this.registryService.getExchange(exchange).getTrades(undefined, from?.toUpperCase(), to?.toUpperCase());
+    return this.call(exchange, (e) => e.getTrades(undefined, from?.toUpperCase(), to?.toUpperCase()));
   }
 
   @Get('trade/:id')
@@ -115,9 +123,7 @@ export class ExchangeController {
     @Body() withdrawalDto: WithdrawalOrder,
   ): Promise<WithdrawalResponse> {
     const token = withdrawalDto.token.toUpperCase();
-    const amount = withdrawalDto.amount
-      ? withdrawalDto.amount
-      : await this.registryService.getExchange(exchange).getBalance(token);
+    const amount = withdrawalDto.amount ? withdrawalDto.amount : await this.call(exchange, (e) => e.getBalance(token));
 
     return this.registryService
       .getExchange(exchange)
@@ -133,7 +139,7 @@ export class ExchangeController {
     @Param('id') id: string,
     @Query('token') token: string,
   ): Promise<Transaction> {
-    const withdrawal = await this.registryService.getExchange(exchange).getWithdraw(id, token);
+    const withdrawal = await this.call(exchange, (e) => e.getWithdraw(id, token));
     if (!withdrawal) throw new NotFoundException('Withdrawal not found');
 
     return withdrawal;
@@ -141,5 +147,12 @@ export class ExchangeController {
 
   private updateTrade(tradeId: number, result: Partial<TradeResult>): TradeResult {
     return (this.trades[tradeId] = { ...this.trades[tradeId], ...result });
+  }
+
+  private async call<T>(exchange: string, call: (e: ExchangeService) => Promise<T>): Promise<T> {
+    const exchangeService = this.registryService.getExchange(exchange);
+    return call(exchangeService).catch((e: ExchangeError) => {
+      throw new ServiceUnavailableException(e.message);
+    });
   }
 }

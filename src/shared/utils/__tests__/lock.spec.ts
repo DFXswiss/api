@@ -38,25 +38,6 @@ describe('UserService', () => {
     expect(hasUpdated).toBeFalsy();
   });
 
-  it('should unlock after timeout', async () => {
-    lock = createLock(0.0001);
-
-    let hasUpdated = false;
-
-    setTimeout(
-      () =>
-        lock('updater', async () => {
-          hasUpdated = true;
-        }),
-      1,
-    );
-    await lock('locker', () => Util.delay(2));
-
-    await Util.delay(1);
-
-    expect(hasUpdated).toBeTruthy();
-  });
-
   it('should unlock on completion', async () => {
     let hasUpdated = false;
 

@@ -206,7 +206,10 @@
     "binanceSecret": {
       "value": "xxx"
     },
-    "binanceEthereumWalletWithdrawKey": {
+    "binanceEthWalletWithdrawKey": {
+      "value": "xxx"
+    },
+    "binanceBscWalletWithdrawKey": {
       "value": "xxx"
     },
     "olkyClient": {

@@ -3,7 +3,6 @@ import { Block, BlockchainInfo } from '@defichain/jellyfish-api-core/dist/catego
 import { InWalletTransaction, UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { JsonRpcClient } from '@defichain/jellyfish-api-jsonrpc';
 import { ServiceUnavailableException } from '@nestjs/common';
-import { SchedulerRegistry } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { HttpService } from 'src/shared/services/http.service';
@@ -32,11 +31,10 @@ export class NodeClient {
   constructor(
     private readonly http: HttpService,
     private readonly url: string,
-    scheduler: SchedulerRegistry,
     mode: NodeMode,
   ) {
     this.client = this.createJellyfishClient();
-    this.queue = new QueueHandler(scheduler, 180000, 60000);
+    this.queue = new QueueHandler(180000, 60000);
     this.#mode = mode;
   }
 

@@ -1,11 +1,10 @@
-import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
-import { Exchange, ExchangeError, Market, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
+import { BadRequestException } from '@nestjs/common';
+import { Exchange, Market, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
 import { TradeResponse, PartialTradeResponse } from '../dto/trade-response.dto';
 import { Price } from '../dto/price.dto';
 import { Util } from 'src/shared/utils/util';
 import { PriceProvider } from 'src/subdomains/supporting/pricing/interfaces';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
-import { SchedulerRegistry } from '@nestjs/schedule';
 
 export enum OrderSide {
   BUY = 'buy',
@@ -21,10 +20,8 @@ enum OrderStatus {
 export class ExchangeService implements PriceProvider {
   private markets: Market[];
 
-  private readonly queue: QueueHandler;
-
-  constructor(private readonly exchange: Exchange, readonly scheduler: SchedulerRegistry) {
-    this.queue = new QueueHandler(scheduler, 180000, 60000);
+  constructor(private readonly exchange: Exchange, private readonly queue?: QueueHandler) {
+    this.queue ??= new QueueHandler(180000, 60000);
   }
 
   get name(): string {
@@ -165,59 +162,68 @@ export class ExchangeService implements PriceProvider {
     let order: Order;
     let numRetries = 0;
     let remainingAmount = amount;
+    let error: string;
 
-    do {
-      // create a new order with the remaining amount, if order undefined or price changed
-      const price = await this.fetchCurrentOrderPrice(from, to);
-      if (price !== order?.price) {
-        remainingAmount = amount - Util.sumObj(Object.values(orders), 'fromAmount');
+    try {
+      do {
+        // create a new order with the remaining amount, if order undefined or price changed
+        const price = await this.fetchCurrentOrderPrice(from, to);
+        if (price !== order?.price) {
+          remainingAmount = amount - Util.sumObj(Object.values(orders), 'fromAmount');
 
-        order = await this.createOrUpdateOrder(from, to, orderType, remainingAmount, price, order);
-        if (!order) break;
-      }
+          order = await this.createOrUpdateOrder(from, to, orderType, remainingAmount, price, order);
+          if (!order) break;
+        }
 
-      // wait for completion
-      order = await this.pollOrder(order);
+        // wait for completion
+        order = await this.pollOrder(order);
 
-      // get amounts
-      const fromAmount = order.side === OrderSide.BUY ? order.filled * order.price : order.filled;
-      const toAmount = order.side === OrderSide.BUY ? order.filled : order.filled * order.price;
+        // get amounts
+        const fromAmount = order.side === OrderSide.BUY ? order.filled * order.price : order.filled;
+        const toAmount = order.side === OrderSide.BUY ? order.filled : order.filled * order.price;
 
-      console.log(
-        `${this.name}: order ${order.id} is ${order.status} (filled: ${fromAmount}/${remainingAmount} at price ${order.price}, total: ${amount})`,
-      );
+        console.log(
+          `${this.name}: order ${order.id} is ${order.status} (filled: ${fromAmount}/${remainingAmount} at price ${order.price}, total: ${amount})`,
+        );
 
-      // check for partial orders
-      if (order.status != OrderStatus.CANCELED && order.filled) {
-        orders[order.id] = {
-          id: order.id,
-          price: order.price,
-          fromAmount: fromAmount,
-          toAmount: toAmount,
-          timestamp: new Date(order.timestamp),
-          fee: order.fee,
-        };
-      }
+        // check for partial orders
+        if (order.status != OrderStatus.CANCELED && order.filled) {
+          orders[order.id] = {
+            id: order.id,
+            price: order.price,
+            fromAmount: fromAmount,
+            toAmount: toAmount,
+            timestamp: new Date(order.timestamp),
+            fee: order.fee,
+          };
+        }
 
-      numRetries++;
-    } while (order?.status !== OrderStatus.CLOSED && numRetries < maxRetries);
+        numRetries++;
+      } while (order?.status !== OrderStatus.CLOSED && numRetries < maxRetries);
+    } catch (e) {
+      console.error(`${this.name}: error during trade (${amount} ${from} -> ${to}):`, e);
+      error = e.message;
+
+      if (!order) throw e;
+    }
 
     // cancel existing order
     if (order?.status === OrderStatus.OPEN) {
-      await this.cancelOrder(order);
+      await this.cancelOrder(order).catch(() => undefined);
     }
 
     const orderList = Object.values(orders);
     const avg = this.getWeightedAveragePrice(orderList);
     return {
       orderSummary: {
-        currencyPair: order.symbol,
+        currencyPair: order?.symbol,
+        orderSide: order?.side,
         price: avg.price,
         amount: avg.amountSum,
-        orderSide: order.side,
         fees: avg.feeSum,
       },
       orderList: orderList,
+      error: error,
     };
   }
 
@@ -270,11 +276,7 @@ export class ExchangeService implements PriceProvider {
 
   // other
   private async callApi<T>(action: (exchange: Exchange) => Promise<T>): Promise<T> {
-    return this.queue
-      .handle(() => action(this.exchange))
-      .catch((e: ExchangeError) => {
-        throw new ServiceUnavailableException(e.message);
-      });
+    return this.queue.handle(() => action(this.exchange));
   }
 
   getWeightedAveragePrice(list: PartialTradeResponse[]): { price: number; amountSum: number; feeSum: number } {

@@ -19,6 +19,7 @@ export enum USDStableCoin {
 export enum Bitcoin {
   BTC = 'BTC',
   BTCB = 'BTCB',
+  WBTC = 'WBTC',
 }
 
 export enum Altcoin {
