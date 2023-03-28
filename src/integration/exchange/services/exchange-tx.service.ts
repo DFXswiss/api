@@ -22,7 +22,7 @@ export class ExchangeTxService {
   async syncExchanges() {
     if (Config.processDisabled(Process.EXCHANGE_TX_SYNC)) return;
 
-    const since = Util.minutesBefore(120);
+    const since = Util.minutesBefore(720);
 
     for (const exchange of ExchangeSyncs) {
       const exchangeService = this.registryService.getExchange(exchange);
