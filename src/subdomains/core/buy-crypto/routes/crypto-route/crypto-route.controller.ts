@@ -110,13 +110,24 @@ export class CryptoRouteController {
 
   private async toPaymentInfoDto(userId: number, cryptoRoute: CryptoRoute): Promise<CryptoPaymentInfoDto> {
     return {
-      depositAddress: cryptoRoute.deposit.address,
       ...(await this.getFee(userId)),
-      minDeposits: this.getMinDeposits(cryptoRoute.deposit.blockchain),
+      depositAddress: cryptoRoute.deposit.address,
+      blockchain: cryptoRoute.deposit.blockchain,
+      minDeposit: this.getMinDeposit(cryptoRoute.deposit.blockchain),
     };
   }
 
   // --- HELPER-METHODS --- //
+
+  async getFee(userId: number): Promise<{ fee: number }> {
+    return this.userService.getUserCryptoFee(userId);
+  }
+
+  private getMinDeposit(blockchain: Blockchain): MinDeposit {
+    // TODO: refactor transaction volume calculation (DEV-1195)
+    return this.getMinDeposits(blockchain)[0];
+  }
+
   private getMinDeposits(blockchain: Blockchain): MinDeposit[] {
     // TODO: fix minDeposit calculation for all chains
     switch (blockchain) {
@@ -125,9 +136,5 @@ export class CryptoRouteController {
       case Blockchain.DEFICHAIN:
         return Config.transformToMinDeposit(Config.transaction.minVolume.Bitcoin.BTC);
     }
-  }
-
-  async getFee(userId: number): Promise<{ fee: number }> {
-    return this.userService.getUserCryptoFee(userId);
   }
 }

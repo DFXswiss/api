@@ -29,6 +29,7 @@ export class SellDto {
   @ApiProperty()
   fee: number;
 
+  // TODO: remove
   @ApiProperty({ enum: Blockchain, deprecated: true })
   blockchain: Blockchain;
 
