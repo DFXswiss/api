@@ -28,11 +28,11 @@ export class PayInService {
   //*** PUBLIC API ***//
 
   async getNewPayIns(): Promise<CryptoInput[]> {
-    return this.payInRepository.find({ status: PayInStatus.CREATED });
+    return this.payInRepository.findBy({ status: PayInStatus.CREATED });
   }
 
   async getNewPayInsForBlockchain(blockchain: Blockchain): Promise<CryptoInput[]> {
-    return this.payInRepository.find({ status: PayInStatus.CREATED, address: { blockchain } });
+    return this.payInRepository.findBy({ status: PayInStatus.CREATED, address: { blockchain } });
   }
 
   async getAllUserTransactions(userIds: number[]): Promise<CryptoInput[]> {
@@ -48,7 +48,7 @@ export class PayInService {
     purpose: PayInPurpose,
     route: Staking | Sell | CryptoRoute,
   ): Promise<AmlCheck> {
-    const payIn = await this.payInRepository.findOne(payInId);
+    const payIn = await this.payInRepository.findOneBy({ id: payInId });
 
     const amlCheck = await this.doAmlCheck(payIn, route);
 
@@ -65,7 +65,7 @@ export class PayInService {
     returnAddress: BlockchainAddress,
     route: Staking | Sell | CryptoRoute,
   ): Promise<void> {
-    const payIn = await this.payInRepository.findOne(payInId);
+    const payIn = await this.payInRepository.findOneBy({ id: payInId });
 
     const amlCheck = await this.doAmlCheck(payIn, route);
 
@@ -75,7 +75,7 @@ export class PayInService {
   }
 
   async failedPayIn(payIn: CryptoInput, purpose: PayInPurpose): Promise<void> {
-    const _payIn = await this.payInRepository.findOne(payIn.id);
+    const _payIn = await this.payInRepository.findOneBy({ id: payIn.id });
 
     _payIn.fail(purpose);
 
@@ -83,7 +83,7 @@ export class PayInService {
   }
 
   async ignorePayIn(payIn: CryptoInput, purpose: PayInPurpose, route: DepositRoute): Promise<void> {
-    const _payIn = await this.payInRepository.findOne(payIn.id);
+    const _payIn = await this.payInRepository.findOneBy({ id: payIn.id });
 
     _payIn.ignore(purpose, route);
 

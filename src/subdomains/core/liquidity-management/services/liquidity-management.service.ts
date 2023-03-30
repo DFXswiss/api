@@ -9,6 +9,7 @@ import { LiquidityManagementRuleRepository } from '../repositories/liquidity-man
 import { LiquidityManagementBalanceService } from './liquidity-management-balance.service';
 import { LiquidityManagementPipelineRepository } from '../repositories/liquidity-management-pipeline.repository';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
+import { In } from 'typeorm';
 
 @Injectable()
 export class LiquidityManagementService {
@@ -23,7 +24,7 @@ export class LiquidityManagementService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async verifyRules() {
-    const rules = await this.ruleRepo.find({ status: LiquidityManagementRuleStatus.ACTIVE });
+    const rules = await this.ruleRepo.findBy({ status: LiquidityManagementRuleStatus.ACTIVE });
     const balances = await this.balanceService.refreshBalances(rules);
 
     for (const rule of rules) {
@@ -60,7 +61,7 @@ export class LiquidityManagementService {
   //*** HELPER METHODS ***//
 
   private async findRuleByAssetOrThrow(assetId: number): Promise<LiquidityManagementRule> {
-    const rule = await this.ruleRepo.findOne({ where: { targetAsset: { id: assetId } } });
+    const rule = await this.ruleRepo.findOneBy({ targetAsset: { id: assetId } });
 
     if (!rule) throw new NotFoundException(`No liquidity management rule found for asset ${assetId}`);
 
@@ -102,17 +103,9 @@ export class LiquidityManagementService {
   }
 
   private findExistingPipeline(rule: LiquidityManagementRule): Promise<LiquidityManagementPipeline | undefined> {
-    return this.pipelineRepo.findOne({
-      where: [
-        {
-          rule,
-          status: LiquidityManagementPipelineStatus.CREATED,
-        },
-        {
-          rule,
-          status: LiquidityManagementPipelineStatus.IN_PROGRESS,
-        },
-      ],
+    return this.pipelineRepo.findOneBy({
+      rule: { id: rule.id },
+      status: In([LiquidityManagementPipelineStatus.CREATED, LiquidityManagementPipelineStatus.IN_PROGRESS]),
     });
   }
 

@@ -114,7 +114,7 @@ export class BitcoinStrategy extends JellyfishStrategy {
     const inputs = [];
 
     for (const utxo of allUtxos) {
-      const existingInput = await this.payInRepository.findOne({
+      const existingInput = await this.payInRepository.findOneBy({
         inTxId: utxo.txid,
         txSequence: utxo.vout,
         address: { address: utxo.address },

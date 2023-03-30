@@ -24,6 +24,7 @@ export class MasternodeService {
     if (!Config.mydefichain.username) return;
 
     const masternodeOperators = await this.masternodeRepo.find({
+      where: {},
       select: ['operator'],
     });
 
@@ -47,7 +48,7 @@ export class MasternodeService {
   }
 
   async create(id: number, dto: CreateMasternodeDto): Promise<Masternode> {
-    const masternode = await this.masternodeRepo.findOne(id);
+    const masternode = await this.masternodeRepo.findOneBy({ id });
     if (!masternode) throw new NotFoundException('Masternode not found');
     if (masternode.creationHash) throw new ConflictException('Masternode already created');
 
@@ -55,7 +56,7 @@ export class MasternodeService {
   }
 
   async resign(id: number, dto: ResignMasternodeDto): Promise<Masternode> {
-    const masternode = await this.masternodeRepo.findOne(id);
+    const masternode = await this.masternodeRepo.findOneBy({ id });
     if (!masternode) throw new NotFoundException('Masternode not found');
     if (!masternode.creationHash) throw new ConflictException('Masternode not yet created');
     if (masternode.resignHash) throw new ConflictException('Masternode already resigned');
@@ -64,16 +65,14 @@ export class MasternodeService {
   }
 
   async getActiveCount(date: Date = new Date()): Promise<number> {
-    return this.masternodeRepo.count({
-      where: [
-        { creationDate: LessThan(date), resignDate: IsNull() },
-        { creationDate: LessThan(date), resignDate: MoreThan(date) },
-      ],
-    });
+    return this.masternodeRepo.countBy([
+      { creationDate: LessThan(date), resignDate: IsNull() },
+      { creationDate: LessThan(date), resignDate: MoreThan(date) },
+    ]);
   }
 
   async getActive(): Promise<Masternode[]> {
-    return this.masternodeRepo.find({ where: { creationHash: Not(IsNull()), resignHash: IsNull() } });
+    return this.masternodeRepo.findBy({ creationHash: Not(IsNull()), resignHash: IsNull() });
   }
 
   // --- HELPER METHODS --- //

@@ -13,6 +13,7 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { OrderFailedException } from '../exceptions/order-failed.exception';
+import { In } from 'typeorm';
 
 @Injectable()
 export class LiquidityManagementPipelineService {
@@ -43,31 +44,25 @@ export class LiquidityManagementPipelineService {
   //*** PUBLIC API ***//
 
   async getProcessingPipelines(): Promise<LiquidityManagementPipeline[]> {
-    return this.pipelineRepo.find({
-      where: [
-        { status: LiquidityManagementPipelineStatus.CREATED },
-        { status: LiquidityManagementPipelineStatus.IN_PROGRESS },
-      ],
+    return this.pipelineRepo.findBy({
+      status: In([LiquidityManagementPipelineStatus.CREATED, LiquidityManagementPipelineStatus.IN_PROGRESS]),
     });
   }
 
   async getStoppedPipelines(): Promise<LiquidityManagementPipeline[]> {
-    return this.pipelineRepo.find({
+    return this.pipelineRepo.findBy({
       status: LiquidityManagementPipelineStatus.STOPPED,
     });
   }
 
   async getProcessingOrders(): Promise<LiquidityManagementOrder[]> {
-    return this.orderRepo.find({
-      where: [
-        { status: LiquidityManagementOrderStatus.CREATED },
-        { status: LiquidityManagementOrderStatus.IN_PROGRESS },
-      ],
+    return this.orderRepo.findBy({
+      status: In([LiquidityManagementOrderStatus.CREATED, LiquidityManagementOrderStatus.IN_PROGRESS]),
     });
   }
 
   async getPipelineStatus(pipelineId: number): Promise<LiquidityManagementPipelineStatus> {
-    const pipeline = await this.pipelineRepo.findOne({ id: pipelineId });
+    const pipeline = await this.pipelineRepo.findOneBy({ id: pipelineId });
 
     if (!pipeline) throw new NotFoundException(`No liquidity management pipeline found for id ${pipelineId}`);
 
@@ -77,9 +72,7 @@ export class LiquidityManagementPipelineService {
   //*** HELPER METHODS ***//
 
   async startNewPipelines(): Promise<void> {
-    const newPipelines = await this.pipelineRepo.find({
-      where: { status: LiquidityManagementPipelineStatus.CREATED },
-    });
+    const newPipelines = await this.pipelineRepo.findBy({ status: LiquidityManagementPipelineStatus.CREATED });
 
     this.logNewPipelines(newPipelines);
 
@@ -102,17 +95,17 @@ export class LiquidityManagementPipelineService {
 
     for (const pipeline of runningPipelines) {
       try {
-        const order = await this.orderRepo.findOne({
-          pipeline,
-          action: pipeline.currentAction,
+        const order = await this.orderRepo.findOneBy({
+          pipeline: { id: pipeline.id },
+          action: { id: pipeline.currentAction.id },
         });
 
         if (!order) {
           const previousOrder =
             pipeline.previousAction &&
-            (await this.orderRepo.findOne({
-              pipeline,
-              action: pipeline.previousAction,
+            (await this.orderRepo.findOneBy({
+              pipeline: { id: pipeline.id },
+              action: { id: pipeline.previousAction.id },
             }));
 
           await this.placeLiquidityOrder(pipeline, previousOrder);
@@ -159,7 +152,7 @@ export class LiquidityManagementPipelineService {
   }
 
   private async startNewOrders(): Promise<void> {
-    const newOrders = await this.orderRepo.find({ status: LiquidityManagementOrderStatus.CREATED });
+    const newOrders = await this.orderRepo.findBy({ status: LiquidityManagementOrderStatus.CREATED });
 
     for (const order of newOrders) {
       try {
@@ -189,7 +182,7 @@ export class LiquidityManagementPipelineService {
   }
 
   private async checkRunningOrders(): Promise<void> {
-    const runningOrders = await this.orderRepo.find({ status: LiquidityManagementOrderStatus.IN_PROGRESS });
+    const runningOrders = await this.orderRepo.findBy({ status: LiquidityManagementOrderStatus.IN_PROGRESS });
 
     for (const order of runningOrders) {
       try {

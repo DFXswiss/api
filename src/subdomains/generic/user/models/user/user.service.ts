@@ -54,11 +54,11 @@ export class UserService {
   }
 
   async getUser(userId: number, loadUserData = false): Promise<User> {
-    return this.userRepo.findOne(userId, { relations: loadUserData ? ['userData'] : [] });
+    return this.userRepo.findOne({ where: { id: userId }, relations: loadUserData ? ['userData'] : [] });
   }
 
   async getUserByAddress(address: string): Promise<User> {
-    return this.userRepo.findOne({ where: { address } });
+    return this.userRepo.findOneBy({ address });
   }
 
   async getUserByKey(key: string, value: any): Promise<User> {
@@ -73,7 +73,7 @@ export class UserService {
   }
 
   async getUserDto(userId: number, detailed = false): Promise<UserDetailDto> {
-    const user = await this.userRepo.findOne(userId, { relations: ['userData'] });
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
     if (!user) throw new NotFoundException('User not found');
 
     return this.toDto(user, detailed);
@@ -129,7 +129,7 @@ export class UserService {
   }
 
   async updateUserInternal(id: number, update: Partial<User>): Promise<User> {
-    const user = await this.userRepo.findOne(id);
+    const user = await this.userRepo.findOneBy({ id });
     if (!user) throw new NotFoundException('User not found');
 
     if (update.status && update.status == UserStatus.ACTIVE && user.status == UserStatus.NA)
@@ -277,25 +277,23 @@ export class UserService {
 
   // --- REF --- //
 
-  async getRefInfo(query: RefInfoQuery): Promise<{ activeUser: number; passiveUser: number; fiatVolume?: number; cryptoVolume?: number }> {
+  async getRefInfo(
+    query: RefInfoQuery,
+  ): Promise<{ activeUser: number; passiveUser: number; fiatVolume?: number; cryptoVolume?: number }> {
     // get ref users
-    const refUserCount = await this.userRepo.count({
-      where: {
-        created: Between(query.from, query.to),
-        status: UserStatus.ACTIVE,
-        ...(query.refCode ? { usedRef: query.refCode } : {}),
-        ...(query.origin ? { origin: query.origin } : {}),
-      },
+    const refUserCount = await this.userRepo.countBy({
+      created: Between(query.from, query.to),
+      status: UserStatus.ACTIVE,
+      ...(query.refCode ? { usedRef: query.refCode } : {}),
+      ...(query.origin ? { origin: query.origin } : {}),
     });
 
     // get passive ref users
-    const passiveRefUserCount = await this.userRepo.count({
-      where: {
-        created: Between(query.from, query.to),
-        status: UserStatus.NA,
-        ...(query.refCode ? { usedRef: query.refCode } : {}),
-        ...(query.origin ? { origin: query.origin } : {}),
-      },
+    const passiveRefUserCount = await this.userRepo.countBy({
+      created: Between(query.from, query.to),
+      status: UserStatus.NA,
+      ...(query.refCode ? { usedRef: query.refCode } : {}),
+      ...(query.origin ? { origin: query.origin } : {}),
     });
 
     // get ref volume
@@ -372,7 +370,7 @@ export class UserService {
 
   // --- API KEY --- //
   async createApiKey(userId: number, filter: HistoryFilter): Promise<ApiKeyDto> {
-    const user = await this.userRepo.findOne(userId);
+    const user = await this.userRepo.findOneBy({ id: userId });
     if (!user) throw new BadRequestException('User not found');
     if (user.apiKeyCT) throw new ConflictException('API key already exists');
 
@@ -392,7 +390,7 @@ export class UserService {
 
   // Only for internal use!
   async checkApiKey(key: string, sign: string, timestamp: string): Promise<User> {
-    const user = await this.userRepo.findOne({ apiKeyCT: key });
+    const user = await this.userRepo.findOneBy({ apiKeyCT: key });
     if (!user) throw new NotFoundException('API key not found');
 
     if (!this.apiKeyService.isValidSign(user, sign, timestamp)) throw new ForbiddenException('Invalid API key/sign');
@@ -440,8 +438,8 @@ export class UserService {
       refVolume: user.refVolume,
       refCredit: user.refCredit,
       paidRefCredit: user.paidRefCredit,
-      refCount: await this.userRepo.count({ usedRef: user.ref }),
-      refCountActive: await this.userRepo.count({ usedRef: user.ref, status: Not(UserStatus.NA) }),
+      refCount: await this.userRepo.countBy({ usedRef: user.ref }),
+      refCountActive: await this.userRepo.countBy({ usedRef: user.ref, status: Not(UserStatus.NA) }),
       bsLink:
         user.buyVolume + user.sellVolume + user.cryptoVolume >= Config.support.blackSquad.limit
           ? Config.support.blackSquad.link

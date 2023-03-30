@@ -8,11 +8,11 @@ export class WalletService {
   constructor(private readonly walletRepo: WalletRepository) {}
 
   async getWalletOrDefault(id: number): Promise<Wallet> {
-    return (await this.walletRepo.findOne(id)) ?? (await this.walletRepo.findOne(1));
+    return (await this.walletRepo.findOneBy({ id })) ?? (await this.walletRepo.findOneBy({ id: 1 }));
   }
 
   async getAllExternalServices(): Promise<Wallet[]> {
-    return this.walletRepo.find({ where: { isKycClient: true } });
+    return this.walletRepo.findBy({ isKycClient: true });
   }
 
   public getApiKeyInternal(name: string): string {

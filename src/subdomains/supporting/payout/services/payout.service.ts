@@ -46,7 +46,7 @@ export class PayoutService {
     context: PayoutOrderContext,
     correlationId: string,
   ): Promise<{ isComplete: boolean; payoutTxId: string; payoutFee: FeeResult }> {
-    const order = await this.payoutOrderRepo.findOne({ context, correlationId });
+    const order = await this.payoutOrderRepo.findOneBy({ context, correlationId });
     const payoutTxId = order && order.payoutTxId;
     const payoutFee = order && order.payoutFee;
 
@@ -84,7 +84,7 @@ export class PayoutService {
   }
 
   private async checkPreparationCompletion(): Promise<void> {
-    const orders = await this.payoutOrderRepo.find({
+    const orders = await this.payoutOrderRepo.findBy({
       status: PayoutOrderStatus.PREPARATION_PENDING,
       transferTxId: Not(IsNull()),
     });
@@ -108,7 +108,7 @@ export class PayoutService {
   }
 
   private async checkPayoutCompletion(): Promise<void> {
-    const orders = await this.payoutOrderRepo.find({
+    const orders = await this.payoutOrderRepo.findBy({
       status: PayoutOrderStatus.PAYOUT_PENDING,
       payoutTxId: Not(IsNull()),
     });
@@ -132,7 +132,7 @@ export class PayoutService {
   }
 
   private async prepareNewOrders(): Promise<void> {
-    const orders = await this.payoutOrderRepo.find({ status: PayoutOrderStatus.CREATED });
+    const orders = await this.payoutOrderRepo.findBy({ status: PayoutOrderStatus.CREATED });
     const groups = this.groupByStrategies(orders, this.prepareStrategies.getPrepareStrategyAlias);
 
     for (const group of groups.entries()) {
@@ -153,7 +153,7 @@ export class PayoutService {
   }
 
   private async payoutOrders(): Promise<void> {
-    const orders = await this.payoutOrderRepo.find({ status: PayoutOrderStatus.PREPARATION_CONFIRMED });
+    const orders = await this.payoutOrderRepo.findBy({ status: PayoutOrderStatus.PREPARATION_CONFIRMED });
     const groups = this.groupByStrategies(orders, this.payoutStrategies.getPayoutStrategyAlias);
 
     for (const group of groups.entries()) {
@@ -172,7 +172,7 @@ export class PayoutService {
   }
 
   private async processFailedOrders(): Promise<void> {
-    const orders = await this.payoutOrderRepo.find({ status: PayoutOrderStatus.PAYOUT_DESIGNATED });
+    const orders = await this.payoutOrderRepo.findBy({ status: PayoutOrderStatus.PAYOUT_DESIGNATED });
 
     if (orders.length === 0) return;
 

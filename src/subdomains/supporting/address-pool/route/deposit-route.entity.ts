@@ -1,5 +1,6 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Entity, TableInheritance, OneToOne, JoinColumn, Column } from 'typeorm';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { Entity, TableInheritance, OneToOne, JoinColumn, Column, ManyToOne } from 'typeorm';
 import { Deposit } from '../deposit/deposit.entity';
 
 export enum RouteType {
@@ -22,4 +23,7 @@ export class DepositRoute extends IEntity {
   @OneToOne(() => Deposit, (deposit) => deposit.route, { eager: true, nullable: false })
   @JoinColumn()
   deposit: Deposit;
+
+  @ManyToOne(() => User, (user) => user.sells, { nullable: false })
+  user: User;
 }

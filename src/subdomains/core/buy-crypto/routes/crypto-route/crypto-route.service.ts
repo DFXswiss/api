@@ -97,7 +97,7 @@ export class CryptoRouteService {
     // check if exists
     const existing = await this.cryptoRepo.findOne({
       where: {
-        asset: targetAsset,
+        asset: { id: targetAsset.id },
         targetDeposit: IsNull(),
         user: { id: userId },
         deposit: { blockchain: dto.blockchain },
@@ -128,11 +128,11 @@ export class CryptoRouteService {
   }
 
   async getUserCryptos(userId: number): Promise<CryptoRoute[]> {
-    return this.cryptoRepo.find({ user: { id: userId } });
+    return this.cryptoRepo.findBy({ user: { id: userId } });
   }
 
   async updateCrypto(userId: number, cryptoId: number, dto: UpdateCryptoRouteDto): Promise<CryptoRoute> {
-    const crypto = await this.cryptoRepo.findOne({ id: cryptoId, user: { id: userId } });
+    const crypto = await this.cryptoRepo.findOneBy({ id: cryptoId, user: { id: userId } });
     if (!crypto) throw new NotFoundException('Crypto route not found');
 
     return this.cryptoRepo.save({ ...crypto, ...dto });

@@ -62,7 +62,7 @@ export class BuyFiatRegistrationService {
   private async createBuyFiatsAndAckPayIns(payInsPairs: [CryptoInput, Sell][]): Promise<void> {
     for (const [payIn, sellRoute] of payInsPairs) {
       try {
-        let buyFiat = await this.buyFiatRepo.findOne({ cryptoInput: { id: payIn.id } });
+        let buyFiat = await this.buyFiatRepo.findOneBy({ cryptoInput: { id: payIn.id } });
 
         if (!buyFiat) {
           buyFiat = BuyFiat.createFromPayIn(payIn, sellRoute);

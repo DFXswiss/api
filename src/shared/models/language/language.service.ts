@@ -11,10 +11,10 @@ export class LanguageService {
   }
 
   async getLanguage(id: number): Promise<Language> {
-    return this.languageRepo.findOne(id);
+    return this.languageRepo.findOneBy({ id });
   }
 
   async getLanguageBySymbol(symbol: string): Promise<Language> {
-    return this.languageRepo.findOne({ symbol });
+    return this.languageRepo.findOneBy({ symbol });
   }
 }

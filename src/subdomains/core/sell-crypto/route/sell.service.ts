@@ -40,7 +40,7 @@ export class SellService {
   }
 
   async getUserSells(userId: number): Promise<Sell[]> {
-    return this.sellRepo.find({ user: { id: userId } });
+    return this.sellRepo.findBy({ user: { id: userId } });
   }
 
   async createSell(userId: number, dto: CreateSellDto, ignoreExisting = false): Promise<Sell> {
@@ -55,8 +55,8 @@ export class SellService {
 
     // check if exists
     const existing = await this.sellRepo.findOne({
+      where: { iban: dto.iban, fiat: { id: fiat.id }, deposit: { blockchain: dto.blockchain }, user: { id: userId } },
       relations: ['deposit'],
-      where: { iban: dto.iban, fiat: fiat, deposit: { blockchain: dto.blockchain }, user: { id: userId } },
     });
 
     if (existing) {
@@ -82,7 +82,7 @@ export class SellService {
   }
 
   async updateSell(userId: number, sellId: number, dto: UpdateSellDto): Promise<Sell> {
-    const sell = await this.sellRepo.findOne({ id: sellId, user: { id: userId } });
+    const sell = await this.sellRepo.findOneBy({ id: sellId, user: { id: userId } });
     if (!sell) throw new NotFoundException('Sell route not found');
 
     return this.sellRepo.save({ ...sell, ...dto });

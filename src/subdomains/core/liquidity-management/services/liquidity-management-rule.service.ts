@@ -47,7 +47,7 @@ export class LiquidityManagementRuleService {
   }
 
   async updateRule(id: number, dto: LiquidityManagementRuleCreationDto): Promise<LiquidityManagementRuleOutputDto> {
-    const existingRule = await this.ruleRepo.findOne({ id });
+    const existingRule = await this.ruleRepo.findOneBy({ id });
 
     if (!existingRule) throw new NotFoundException(`Rule with ID: ${id} was not found.`);
     if (existingRule.status === LiquidityManagementRuleStatus.PROCESSING) {
@@ -61,7 +61,7 @@ export class LiquidityManagementRuleService {
   }
 
   async getRule(id: number): Promise<LiquidityManagementRuleOutputDto> {
-    const rule = await this.ruleRepo.findOne({ id });
+    const rule = await this.ruleRepo.findOneBy({ id });
 
     if (!rule) throw new NotFoundException(`Rule with id: ${id} not found.`);
 
@@ -69,7 +69,7 @@ export class LiquidityManagementRuleService {
   }
 
   async deactivateRule(id: number): Promise<LiquidityManagementRuleOutputDto> {
-    const rule = await this.ruleRepo.findOne({ id });
+    const rule = await this.ruleRepo.findOneBy({ id });
 
     if (!rule) throw new NotFoundException(`Rule with id ${id} was not found.`);
 
@@ -79,7 +79,7 @@ export class LiquidityManagementRuleService {
   }
 
   async reactivateRule(id: number): Promise<LiquidityManagementRuleOutputDto> {
-    const rule = await this.ruleRepo.findOne({ id });
+    const rule = await this.ruleRepo.findOneBy({ id });
 
     if (!rule) throw new NotFoundException(`Rule with id: ${id} not found.`);
 
@@ -92,7 +92,7 @@ export class LiquidityManagementRuleService {
     id: number,
     dto: LiquidityManagementRuleSettingsDto,
   ): Promise<LiquidityManagementRuleOutputDto> {
-    const rule = await this.ruleRepo.findOne({ id });
+    const rule = await this.ruleRepo.findOneBy({ id });
 
     if (!rule) throw new NotFoundException(`Rule with id: ${id} not found.`);
 
@@ -107,7 +107,7 @@ export class LiquidityManagementRuleService {
 
   @Cron(CronExpression.EVERY_5_MINUTES)
   async reactivateRules(): Promise<void> {
-    const rules = await this.ruleRepo.find({
+    const rules = await this.ruleRepo.findBy({
       status: LiquidityManagementRuleStatus.PAUSED,
       reactivationTime: Not(IsNull()),
     });
@@ -144,16 +144,10 @@ export class LiquidityManagementRuleService {
   private async findExistingRuleOnCreation(
     dto: LiquidityManagementRuleCreationDto,
   ): Promise<LiquidityManagementRule | undefined> {
-    return this.ruleRepo.findOne({
-      where: [
-        {
-          targetAsset: dto.targetAssetId,
-        },
-        {
-          targetFiat: dto.targetFiatId,
-        },
-      ],
-    });
+    return this.ruleRepo.findOneBy([
+      { targetAsset: { id: dto.targetAssetId } },
+      { targetFiat: { id: dto.targetFiatId } },
+    ]);
   }
 
   private async checkTarget(dto: LiquidityManagementRuleCreationDto): Promise<[Asset | null, Fiat | null]> {
@@ -261,7 +255,13 @@ export class LiquidityManagementRuleService {
 
     return (
       this.actionRepo.findOne({
-        where: { system, command, onSuccess, onFail, params: params ? JSON.stringify(params) : null },
+        where: {
+          system,
+          command,
+          onSuccess: { id: onSuccess.id },
+          onFail: { id: onFail.id },
+          params: params ? JSON.stringify(params) : null,
+        },
         relations: ['onSuccess', 'onFail'],
       }) ?? null
     );
