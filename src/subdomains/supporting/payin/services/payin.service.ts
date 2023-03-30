@@ -10,7 +10,7 @@ import { In, IsNull, Not } from 'typeorm';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { SendType } from '../strategies/send/impl/base/send.strategy';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
+import { DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { RegisterStrategiesFacade } from '../strategies/register/register.facade';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
@@ -82,7 +82,7 @@ export class PayInService {
     await this.payInRepository.save(_payIn);
   }
 
-  async ignorePayIn(payIn: CryptoInput, purpose: PayInPurpose, route: DepositRoute): Promise<void> {
+  async ignorePayIn(payIn: CryptoInput, purpose: PayInPurpose, route: DepositRouteType): Promise<void> {
     const _payIn = await this.payInRepository.findOneBy({ id: payIn.id });
 
     _payIn.ignore(purpose, route);

@@ -1,4 +1,5 @@
 import { Column, ManyToOne, ChildEntity, OneToMany } from 'typeorm';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { BankAccount } from '../../../supporting/bank/bank-account/bank-account.entity';
 import { BuyFiat } from '../process/buy-fiat.entity';
@@ -15,6 +16,9 @@ export class Sell extends DepositRoute {
 
   @Column({ type: 'float', default: 0 })
   annualVolume: number;
+
+  @ManyToOne(() => User, (user) => user.sells, { nullable: false })
+  user: User;
 
   @ManyToOne(() => BankAccount, (bankAccount) => bankAccount.sells)
   bankAccount: BankAccount;

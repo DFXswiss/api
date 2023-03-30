@@ -1,7 +1,11 @@
 import { IEntity } from 'src/shared/models/entity';
-import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { Entity, TableInheritance, OneToOne, JoinColumn, Column, ManyToOne } from 'typeorm';
+import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
+import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
+import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
+import { Entity, TableInheritance, OneToOne, JoinColumn, Column } from 'typeorm';
 import { Deposit } from '../deposit/deposit.entity';
+
+export type DepositRouteType = Sell | Staking | CryptoRoute;
 
 export enum RouteType {
   SELL = 'Sell',
@@ -23,7 +27,4 @@ export class DepositRoute extends IEntity {
   @OneToOne(() => Deposit, (deposit) => deposit.route, { eager: true, nullable: false })
   @JoinColumn()
   deposit: Deposit;
-
-  @ManyToOne(() => User, (user) => user.sells, { nullable: false })
-  user: User;
 }
