@@ -1,5 +1,11 @@
-import { EntityRepository, Repository } from 'typeorm';
+import { Injectable } from '@nestjs/common';
+import { BaseRepository } from 'src/shared/repositories/base.repository';
+import { EntityManager } from 'typeorm';
 import { SystemStateSnapshot } from './system-state-snapshot.entity';
 
-@EntityRepository(SystemStateSnapshot)
-export class SystemStateSnapshotRepository extends Repository<SystemStateSnapshot> {}
+@Injectable()
+export class SystemStateSnapshotRepository extends BaseRepository<SystemStateSnapshot> {
+  constructor(manager: EntityManager) {
+    super(SystemStateSnapshot, manager);
+  }
+}

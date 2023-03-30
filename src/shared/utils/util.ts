@@ -195,6 +195,16 @@ export class Util {
     });
   }
 
+  static async doInBatches<T, U>(list: T[], action: (batch: T[]) => Promise<U>, batchSize: number): Promise<U[]> {
+    const results: U[] = [];
+    while (list.length > 0) {
+      const batch = list.splice(0, batchSize);
+      results.push(await action(batch));
+    }
+
+    return results;
+  }
+
   static async timeout<T>(promise: Promise<T>, timeout: number): Promise<T> {
     const timeoutPromise = new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout));
 

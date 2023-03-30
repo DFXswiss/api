@@ -34,17 +34,13 @@ import { PayoutController } from './payout.controller';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { PayoutOptimismService } from './services/payout-optimism.service';
 import { PayoutArbitrumService } from './services/payout-arbitrum.service';
+import { PayoutOrder } from './entities/payout-order.entity';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([PayoutOrderRepository]),
-    BlockchainModule,
-    SharedModule,
-    DexModule,
-    NotificationModule,
-  ],
+  imports: [TypeOrmModule.forFeature([PayoutOrder]), BlockchainModule, SharedModule, DexModule, NotificationModule],
   controllers: [PayoutController],
   providers: [
+    PayoutOrderRepository,
     PayoutOrderFactory,
     PayoutLogService,
     PayoutService,

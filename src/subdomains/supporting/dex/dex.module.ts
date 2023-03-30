@@ -58,11 +58,13 @@ import { BscStrategy as BscStrategyS } from './strategies/supplementary/impl/bsc
 import { DeFiChainStrategy as DeFiChainStrategyS } from './strategies/supplementary/impl/defichain.strategy';
 import { EthereumStrategy as EthereumStrategyS } from './strategies/supplementary/impl/ethereum.strategy';
 import { OptimismStrategy as OptimismStrategyS } from './strategies/supplementary/impl/optimism.strategy';
+import { LiquidityOrder } from './entities/liquidity-order.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([LiquidityOrderRepository]), BlockchainModule, NotificationModule, SharedModule],
+  imports: [TypeOrmModule.forFeature([LiquidityOrder]), BlockchainModule, NotificationModule, SharedModule],
   controllers: [DexController],
   providers: [
+    LiquidityOrderRepository,
     DexService,
     LiquidityOrderFactory,
     DexDeFiChainService,

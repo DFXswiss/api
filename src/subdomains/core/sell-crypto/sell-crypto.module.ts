@@ -10,15 +10,17 @@ import { BuyCryptoModule } from '../buy-crypto/buy-crypto.module';
 import { BuyFiatNotificationService } from './process/buy-fiat-notification.service';
 import { BuyFiatRegistrationService } from './process/buy-fiat-registration.service';
 import { BuyFiatController } from './process/buy-fiat.controller';
+import { BuyFiat } from './process/buy-fiat.entity';
 import { BuyFiatRepository } from './process/buy-fiat.repository';
 import { BuyFiatService } from './process/buy-fiat.service';
 import { SellController } from './route/sell.controller';
+import { Sell } from './route/sell.entity';
 import { SellRepository } from './route/sell.repository';
 import { SellService } from './route/sell.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([BuyFiatRepository, SellRepository]),
+    TypeOrmModule.forFeature([BuyFiat, Sell]),
     SharedModule,
     UserModule,
     NotificationModule,
@@ -28,7 +30,15 @@ import { SellService } from './route/sell.service';
     forwardRef(() => AddressPoolModule),
   ],
   controllers: [BuyFiatController, SellController],
-  providers: [SellController, BuyFiatNotificationService, BuyFiatRegistrationService, BuyFiatService, SellService],
+  providers: [
+    BuyFiatRepository,
+    SellRepository,
+    SellController,
+    BuyFiatNotificationService,
+    BuyFiatRegistrationService,
+    BuyFiatService,
+    SellService,
+  ],
   exports: [SellController, BuyFiatService, SellService],
 })
 export class SellCryptoModule {}
