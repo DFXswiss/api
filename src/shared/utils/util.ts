@@ -205,6 +205,15 @@ export class Util {
     return results;
   }
 
+  static async doInBatchesAndJoin<T, U>(
+    list: T[],
+    action: (batch: T[]) => Promise<U[]>,
+    batchSize: number,
+  ): Promise<U[]> {
+    const batches = await this.doInBatches(list, action, batchSize);
+    return batches.reduce((prev, curr) => prev.concat(curr), []);
+  }
+
   static async timeout<T>(promise: Promise<T>, timeout: number): Promise<T> {
     const timeoutPromise = new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout));
 

@@ -2,18 +2,13 @@ import { Repository } from 'typeorm';
 import { Util } from '../utils/util';
 
 export abstract class BaseRepository<T> extends Repository<T> {
-  async saveMany(entities: T[], batchSize = 1000): Promise<T[]> {
-    const batches = await Util.doInBatches(entities, (batch) => this.saveBatch(batch), batchSize);
-    return batches.reduce((prev, curr) => prev.concat(curr), []);
+  async saveMany(entities: T[], transactionSize = 1000, batchSize = 100): Promise<T[]> {
+    return Util.doInBatchesAndJoin(entities, (batch) => this.saveBatch(batch, batchSize), transactionSize);
   }
 
-  private async saveBatch(entities: T[]): Promise<T[]> {
+  private async saveBatch(entities: T[], batchSize: number): Promise<T[]> {
     return this.manager.transaction(async (manager) => {
-      const results = [];
-      for (const entity of entities) {
-        results.push(await manager.save(entity));
-      }
-      return results;
+      return Util.doInBatchesAndJoin(entities, (batch) => manager.save(batch), batchSize);
     });
   }
 }

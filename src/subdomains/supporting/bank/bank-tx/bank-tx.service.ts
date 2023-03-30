@@ -123,7 +123,7 @@ export class BankTxService {
     const sepaFile = SepaParser.parseSepaFile(xmlFile);
 
     // parse the file
-    const batch = this.bankTxBatchRepo.create(SepaParser.parseBatch(sepaFile));
+    let batch = this.bankTxBatchRepo.create(SepaParser.parseBatch(sepaFile));
     const txList = this.bankTxRepo.create(SepaParser.parseEntries(sepaFile, batch.iban));
 
     // find duplicate entries
@@ -140,18 +140,19 @@ export class BankTxService {
       });
     }
 
-    const newTxs = txList
+    let newTxs = txList
       .filter((i) => !duplicates.includes(i.accountServiceRef))
-      .map((tx) => ({
-        type: tx.name?.includes('DFX AG') || tx.name?.includes('Payward Ltd.') ? BankTxType.INTERNAL : null,
-        batch: batch,
-        ...tx,
-      }));
+      .map((tx) => {
+        tx.type = tx.name?.includes('DFX AG') || tx.name?.includes('Payward Ltd.') ? BankTxType.INTERNAL : null;
+        tx.batch = batch;
+
+        return tx;
+      });
 
     // store batch and entries in one transaction
     await this.bankTxBatchRepo.manager.transaction(async (manager) => {
-      await manager.save(batch);
-      await new BankTxRepository(manager).saveMany(newTxs);
+      batch = await manager.save(batch);
+      newTxs = await new BankTxRepository(manager).saveMany(newTxs, 10, 5);
     });
 
     // avoid infinite loop in JSON
