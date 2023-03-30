@@ -36,6 +36,7 @@ import { Fiat } from './models/fiat/fiat.entity';
 import { IpLog } from './models/ip-log/ip-log.entity';
 import { Language } from './models/language/language.entity';
 import { Setting } from './models/setting/setting.entity';
+import { RepositoryFactory } from './repositories/repository.factory';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { Setting } from './models/setting/setting.entity';
   ],
   controllers: [AssetController, FiatController, CountryController, LanguageController, SettingController],
   providers: [
+    RepositoryFactory,
     AssetRepository,
     FiatRepository,
     CountryRepository,
@@ -69,6 +71,7 @@ import { Setting } from './models/setting/setting.entity';
     IpLogService,
   ],
   exports: [
+    RepositoryFactory,
     PassportModule,
     JwtModule,
     ScheduleModule,

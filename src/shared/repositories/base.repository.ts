@@ -2,8 +2,8 @@ import { Repository } from 'typeorm';
 import { Util } from '../utils/util';
 
 export abstract class BaseRepository<T> extends Repository<T> {
-  async saveMany(entities: T[]): Promise<T[]> {
-    const batches = await Util.doInBatches(entities, (batch) => this.saveBatch(batch), 1000);
+  async saveMany(entities: T[], batchSize = 1000): Promise<T[]> {
+    const batches = await Util.doInBatches(entities, (batch) => this.saveBatch(batch), batchSize);
     return batches.reduce((prev, curr) => prev.concat(curr), []);
   }
 

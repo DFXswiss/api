@@ -3,12 +3,10 @@ import { Interval } from '@nestjs/schedule';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 import { Util } from 'src/shared/utils/util';
-import { SpiderDataRepository } from 'src/subdomains/generic/user/models/spider-data/spider-data.repository';
 import { KycStatus, IdentCompletedStates } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
-import { UserRepository } from 'src/subdomains/generic/user/models/user/user.repository';
-import { getCustomRepository, LessThan, IsNull, In } from 'typeorm';
+import { LessThan, IsNull, In } from 'typeorm';
+import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 
 interface UserData {
   kycStatus: {
@@ -26,7 +24,7 @@ interface UserWithout {
 
 @Injectable()
 export class UserObserver extends MetricObserver<UserData> {
-  constructor(monitoringService: MonitoringService) {
+  constructor(monitoringService: MonitoringService, private readonly repos: RepositoryFactory) {
     super(monitoringService, 'user', 'kyc');
   }
 
@@ -54,7 +52,7 @@ export class UserObserver extends MetricObserver<UserData> {
   private async getKycStatusData(date: Date = new Date()): Promise<any> {
     const kycStatusData = {};
     for (const kycStatus of Object.values(KycStatus)) {
-      kycStatusData[kycStatus] = await getCustomRepository(UserDataRepository).countBy([
+      kycStatusData[kycStatus] = await this.repos.userData.countBy([
         {
           kycStatus,
           kycStatusChangeDate: LessThan(date),
@@ -71,14 +69,14 @@ export class UserObserver extends MetricObserver<UserData> {
 
   private async getUserWithout(): Promise<UserWithout> {
     return {
-      ipCountry: await getCustomRepository(UserRepository).countBy({ ipCountry: IsNull() }),
-      riskState: await getCustomRepository(UserDataRepository)
+      ipCountry: await this.repos.user.countBy({ ipCountry: IsNull() }),
+      riskState: await this.repos.userData
         .createQueryBuilder('userData')
         .leftJoin(User, 'user', 'userData.id = user.userDataId')
         .where('user.status != :status', { status: UserStatus.NA })
         .andWhere('userData.riskState is NULL')
         .getCount(),
-      pdfUrl: await getCustomRepository(SpiderDataRepository).count({
+      pdfUrl: await this.repos.spiderData.count({
         where: { identPdf: IsNull(), userData: { kycStatus: In(IdentCompletedStates) } },
         relations: ['userData'],
       }),
