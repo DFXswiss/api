@@ -1,4 +1,4 @@
-import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
+import { DepositRoute, DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { IEntity } from 'src/shared/models/entity';
@@ -87,7 +87,7 @@ export class CryptoInput extends IEntity {
   purpose: PayInPurpose;
 
   @ManyToOne(() => DepositRoute, { eager: true, nullable: true })
-  route: DepositRoute;
+  route: DepositRouteType;
 
   @Column({ type: 'float', nullable: true })
   btcAmount?: number;
@@ -141,13 +141,13 @@ export class CryptoInput extends IEntity {
 
   //*** PUBLIC API ***//
 
-  acknowledge(purpose: PayInPurpose, route: DepositRoute, amlCheck: AmlCheck): this {
+  acknowledge(purpose: PayInPurpose, route: DepositRouteType, amlCheck: AmlCheck): this {
     this.purpose = purpose;
     this.route = route;
     this.amlCheck = amlCheck;
     this.status = PayInStatus.ACKNOWLEDGED;
     this.sendType = PayInSendType.FORWARD;
- 
+
     return this;
   }
 
@@ -158,7 +158,7 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
-  ignore(purpose: PayInPurpose, route: DepositRoute): this {
+  ignore(purpose: PayInPurpose, route: DepositRouteType): this {
     this.purpose = purpose;
     this.route = route;
     this.status = PayInStatus.IGNORED;
@@ -169,7 +169,7 @@ export class CryptoInput extends IEntity {
   triggerReturn(
     purpose: PayInPurpose,
     returnAddress: BlockchainAddress,
-    route: DepositRoute,
+    route: DepositRouteType,
     amlCheck: AmlCheck,
   ): this {
     this.purpose = purpose;

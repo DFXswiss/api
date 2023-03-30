@@ -3,8 +3,6 @@ import { Config } from 'src/config/config';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
-import { UserRepository } from 'src/subdomains/generic/user/models/user/user.repository';
-import { EntityManager } from 'typeorm';
 import { CountryService } from '../country/country.service';
 import { IpLog } from './ip-log.entity';
 import { IpLogRepository } from './ip-log.repository';

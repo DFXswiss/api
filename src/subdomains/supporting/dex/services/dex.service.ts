@@ -206,10 +206,10 @@ export class DexService {
 
   async getPendingOrdersCount(asset: Asset): Promise<number> {
     return this.liquidityOrderRepo.countBy([
-      { targetAsset: asset, isComplete: false },
-      { targetAsset: asset, isReady: false },
-      { swapAsset: asset, isComplete: false },
-      { swapAsset: asset, isReady: false },
+      { targetAsset: { id: asset.id }, isComplete: false },
+      { targetAsset: { id: asset.id }, isReady: false },
+      { swapAsset: { id: asset.id }, isComplete: false },
+      { swapAsset: { id: asset.id }, isReady: false },
     ]);
   }
 

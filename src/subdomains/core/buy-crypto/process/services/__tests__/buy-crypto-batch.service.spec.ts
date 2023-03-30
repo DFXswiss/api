@@ -124,7 +124,7 @@ describe('BuyCryptoBatchService', () => {
       const transactions = [createCustomBuyCrypto({ outputAsset: createCustomAsset({ dexName: 'dDOGE' }) })];
 
       buyCryptoBatchRepoFindOne = jest
-        .spyOn(buyCryptoBatchRepo, 'findOne')
+        .spyOn(buyCryptoBatchRepo, 'findOneBy')
         .mockImplementation(async () =>
           createCustomBuyCryptoBatch({ outputAsset: createCustomAsset({ dexName: 'dDOGE' }) }),
         );
@@ -252,7 +252,7 @@ describe('BuyCryptoBatchService', () => {
   function setupSpies() {
     buyCryptoRepoFind = jest.spyOn(buyCryptoRepo, 'find').mockImplementation(async () => [createDefaultBuyCrypto()]);
 
-    buyCryptoBatchRepoFindOne = jest.spyOn(buyCryptoBatchRepo, 'findOne').mockImplementation(async () => null);
+    buyCryptoBatchRepoFindOne = jest.spyOn(buyCryptoBatchRepo, 'findOneBy').mockImplementation(async () => null);
 
     buyCryptoBatchRepoSave = jest
       .spyOn(buyCryptoBatchRepo, 'save')
