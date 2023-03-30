@@ -151,7 +151,7 @@ export class BankTxService {
     // store batch and entries in one transaction
     await this.bankTxBatchRepo.manager.transaction(async (manager) => {
       await manager.save(batch);
-      await manager.getCustomRepository(BankTxRepository).saveMany(newTxs);
+      await new BankTxRepository(manager).saveMany(newTxs);
     });
 
     // avoid infinite loop in JSON

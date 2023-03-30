@@ -8,7 +8,6 @@ import { BankTxRepeatService } from 'src/subdomains/supporting/bank/bank-tx-repe
 import { BankTxType } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
 import { FiatOutputService } from 'src/subdomains/supporting/bank/fiat-output/fiat-output.service';
-import { getConnection } from 'typeorm';
 import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { UserService } from '../user/models/user/user.service';
@@ -16,6 +15,7 @@ import { DbQueryBaseDto, DbQueryDto } from './dto/db-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
+import { DataSource } from 'typeorm';
 
 export enum SupportTable {
   USER_DATA = 'userData',
@@ -44,10 +44,11 @@ export class GsService {
     private readonly bankTxRepeatService: BankTxRepeatService,
     private readonly bankTxService: BankTxService,
     private readonly fiatOutputService: FiatOutputService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async getRawData(query: DbQueryDto): Promise<any> {
-    const request = getConnection()
+    const request = this.dataSource
       .createQueryBuilder()
       .from(query.table, query.table)
       .orderBy(`${query.table}.id`, query.sorting)
@@ -139,7 +140,7 @@ export class GsService {
   private async getExtendedBankTxData(dbQuery: DbQueryBaseDto): Promise<any[]> {
     const select = dbQuery.select ? dbQuery.select.map((e) => dbQuery.table + '.' + e).join(',') : dbQuery.table;
 
-    const buyCryptoData = await getConnection()
+    const buyCryptoData = await this.dataSource
       .createQueryBuilder()
       .from(dbQuery.table, dbQuery.table)
       .select(select)
@@ -158,7 +159,7 @@ export class GsService {
         throw new BadRequestException(e.message);
       });
 
-    const buyFiatData = await getConnection()
+    const buyFiatData = await this.dataSource
       .createQueryBuilder()
       .from(dbQuery.table, dbQuery.table)
       .select(select)
@@ -177,7 +178,7 @@ export class GsService {
         throw new BadRequestException(e.message);
       });
 
-    const bankTxRestData = await getConnection()
+    const bankTxRestData = await this.dataSource
       .createQueryBuilder()
       .from(dbQuery.table, dbQuery.table)
       .select(select)

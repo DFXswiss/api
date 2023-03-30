@@ -2,14 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
-import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
-import { DepositRepository } from 'src/subdomains/supporting/address-pool/deposit/deposit.repository';
-import { getCustomRepository, In, IsNull, Not } from 'typeorm';
-import { BankTxRepository } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.repository';
+import { In, IsNull, Not } from 'typeorm';
 import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
-import { BuyCryptoRepository } from '../../buy-crypto/process/repositories/buy-crypto.repository';
-import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 
 interface PaymentData {
   lastOutputDates: LastOutputDates;
@@ -31,7 +27,7 @@ interface IncompleteTransactions {
 
 @Injectable()
 export class PaymentObserver extends MetricObserver<PaymentData> {
-  constructor(monitoringService: MonitoringService) {
+  constructor(monitoringService: MonitoringService, private readonly repos: RepositoryFactory) {
     super(monitoringService, 'payment', 'combined');
   }
 
@@ -50,13 +46,13 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
     return {
       lastOutputDates: await this.getLastOutputDates(),
       incomplete: await this.getIncompleteTransactions(),
-      bankTxWithoutType: await getCustomRepository(BankTxRepository).countBy({ type: IsNull() }),
-      freeDeposit: await getCustomRepository(DepositRepository)
+      bankTxWithoutType: await this.repos.bankTx.countBy({ type: IsNull() }),
+      freeDeposit: await this.repos.deposit
         .createQueryBuilder('deposit')
         .leftJoin('deposit.route', 'route')
         .where('route.id IS NULL')
         .getCount(),
-      unhandledCryptoInputs: await getCustomRepository(PayInRepository).countBy({
+      unhandledCryptoInputs: await this.repos.payIn.countBy({
         amlCheck: Not(AmlCheck.FAIL),
         status: Not(In([PayInStatus.FAILED, PayInStatus.IGNORED, PayInStatus.RETURNED, PayInStatus.FORWARDED])),
       }),
@@ -65,11 +61,11 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
 
   private async getIncompleteTransactions(): Promise<IncompleteTransactions> {
     return {
-      buyCrypto: await getCustomRepository(BuyCryptoRepository).countBy({
+      buyCrypto: await this.repos.buyCrypto.countBy({
         mailSendDate: IsNull(),
         amlCheck: Not(AmlCheck.FAIL),
       }),
-      buyFiat: await getCustomRepository(BuyFiatRepository).countBy({
+      buyFiat: await this.repos.buyFiat.countBy({
         mail3SendDate: IsNull(),
         amlCheck: Not(AmlCheck.FAIL),
       }),
@@ -78,12 +74,10 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
 
   private async getLastOutputDates(): Promise<LastOutputDates> {
     return {
-      buyCrypto: await getCustomRepository(BuyCryptoRepository)
+      buyCrypto: await this.repos.buyCrypto
         .findOne({ where: {}, order: { outputDate: 'DESC' } })
         .then((b) => b.outputDate),
-      buyFiat: await getCustomRepository(BuyFiatRepository)
-        .findOne({ where: {}, order: { outputDate: 'DESC' } })
-        .then((b) => b.outputDate),
+      buyFiat: await this.repos.buyFiat.findOne({ where: {}, order: { outputDate: 'DESC' } }).then((b) => b.outputDate),
     };
   }
 }

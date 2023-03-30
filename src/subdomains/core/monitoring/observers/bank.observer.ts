@@ -6,10 +6,9 @@ import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.ser
 import { BankName } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { Util } from 'src/shared/utils/util';
-import { getCustomRepository } from 'typeorm';
-import { BankTxRepository } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.repository';
 import { FrickService } from 'src/subdomains/supporting/bank/bank-tx/frick.service';
 import { OlkypayService } from 'src/subdomains/supporting/bank/bank-tx/olkypay.service';
+import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 
 interface BankData {
   name: string;
@@ -27,6 +26,7 @@ export class BankObserver extends MetricObserver<BankData[]> {
     private readonly olkypayService: OlkypayService,
     private readonly frickService: FrickService,
     private readonly bankService: BankService,
+    private readonly repos: RepositoryFactory,
   ) {
     super(monitoringService, 'bank', 'balance');
   }
@@ -81,7 +81,7 @@ export class BankObserver extends MetricObserver<BankData[]> {
   }
 
   private async getDbBalance(iban: string): Promise<number> {
-    const { dbBalance } = await getCustomRepository(BankTxRepository)
+    const { dbBalance } = await this.repos.bankTx
       .createQueryBuilder('bankTx')
       .select(
         "SUM(CASE WHEN bankTx.creditDebitIndicator = 'DBIT' THEN bankTx.amount * -1 ELSE bankTx.amount END)",
