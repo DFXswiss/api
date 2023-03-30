@@ -89,7 +89,7 @@ export class AuthService {
   }
 
   private async companySignIn(dto: AuthCredentialsDto): Promise<{ accessToken: string }> {
-    const wallet = await this.walletRepo.findOne({ where: { address: dto.address } });
+    const wallet = await this.walletRepo.findOneBy({ address: dto.address });
     if (!wallet || !wallet.isKycClient) throw new NotFoundException('Wallet not found');
 
     if (!this.verifyCompanySignature(dto.address, dto.signature, dto.key))
@@ -99,7 +99,7 @@ export class AuthService {
   }
 
   async getCompanyChallenge(address: string): Promise<ChallengeDto> {
-    const wallet = await this.walletRepo.findOne({ where: { address: address } });
+    const wallet = await this.walletRepo.findOneBy({ address });
     if (!wallet || !wallet.isKycClient) throw new BadRequestException('Wallet not found/invalid');
 
     const challenge = randomUUID();

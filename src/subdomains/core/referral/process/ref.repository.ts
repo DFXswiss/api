@@ -4,7 +4,7 @@ import { Ref } from './ref.entity';
 @EntityRepository(Ref)
 export class RefRepository extends Repository<Ref> {
   async getAndRemove(ip: string): Promise<Ref> {
-    const ref = await this.findOne({ ip });
+    const ref = await this.findOneBy({ ip });
     if (ref) {
       await this.remove(ref);
     }

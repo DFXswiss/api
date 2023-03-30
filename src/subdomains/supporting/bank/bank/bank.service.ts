@@ -21,7 +21,7 @@ export class BankService {
   }
 
   async getBankInternal(name: BankName, currency: string): Promise<Bank> {
-    return this.bankRepo.findOne({ where: { name, currency } });
+    return this.bankRepo.findOneBy({ name, currency });
   }
 
   // --- BankSelector --- //

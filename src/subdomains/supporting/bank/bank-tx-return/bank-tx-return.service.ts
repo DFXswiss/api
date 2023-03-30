@@ -14,7 +14,7 @@ export class BankTxReturnService {
   ) {}
 
   async create(bankTx: BankTx): Promise<BankTxReturn> {
-    let entity = await this.bankTxReturnRepo.findOne({ where: { bankTx: { id: bankTx.id } } });
+    let entity = await this.bankTxReturnRepo.findOneBy({ bankTx: { id: bankTx.id } });
     if (entity) throw new BadRequestException('BankTx already used');
 
     entity = this.bankTxReturnRepo.create({ bankTx });
@@ -30,11 +30,11 @@ export class BankTxReturnService {
 
     // chargeback bank tx
     if (dto.chargebackBankTxId && !entity.chargebackBankTx) {
-      update.chargebackBankTx = await this.bankTxRepo.findOne({ where: { id: dto.chargebackBankTxId } });
+      update.chargebackBankTx = await this.bankTxRepo.findOneBy({ id: dto.chargebackBankTxId });
       if (!update.chargebackBankTx) throw new BadRequestException('ChargebackBankTx not found');
 
-      const existingReturnForChargeback = await this.bankTxReturnRepo.findOne({
-        where: { chargebackBankTx: { id: dto.chargebackBankTxId } },
+      const existingReturnForChargeback = await this.bankTxReturnRepo.findOneBy({
+        chargebackBankTx: { id: dto.chargebackBankTxId },
       });
       if (existingReturnForChargeback) throw new BadRequestException('ChargebackBankTx already used');
 

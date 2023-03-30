@@ -15,13 +15,13 @@ export class RefService {
   async checkRefs(): Promise<void> {
     const expirationDate = Util.daysBefore(this.refExpirationDays);
 
-    const expiredRefs = await this.repo.find({ updated: LessThan(expirationDate), origin: IsNull() });
+    const expiredRefs = await this.repo.findBy({ updated: LessThan(expirationDate), origin: IsNull() });
     await this.repo.remove(expiredRefs);
   }
 
   async addOrUpdate(ip: string, ref?: string, origin?: string): Promise<Ref | undefined> {
     try {
-      const entity = (await this.repo.findOne({ ip })) ?? this.repo.create({ ip, ref, origin });
+      const entity = (await this.repo.findOneBy({ ip })) ?? this.repo.create({ ip, ref, origin });
 
       // ignore update if ref is still valid
       if (entity.updated && Util.daysDiff(entity.updated, new Date()) < this.refExpirationDays) return;

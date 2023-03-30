@@ -177,7 +177,7 @@ export class DexDeFiChainService {
   }
 
   async getAssetAvailability(asset: Asset): Promise<number> {
-    const pendingOrders = (await this.liquidityOrderRepo.find({ isComplete: false })).filter(
+    const pendingOrders = (await this.liquidityOrderRepo.findBy({ isComplete: false })).filter(
       (o) => o.targetAsset.dexName === asset.dexName && o.targetAsset.blockchain === Blockchain.DEFICHAIN,
     );
     const pendingAmount = Util.sumObj<LiquidityOrder>(pendingOrders, 'estimatedTargetAmount');

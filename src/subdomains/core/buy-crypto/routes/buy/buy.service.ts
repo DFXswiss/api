@@ -71,7 +71,8 @@ export class BuyService {
     const existing = await this.buyRepo.findOne({
       where: {
         iban: dto.iban,
-        ...{ asset: asset, deposit: IsNull() },
+        asset: { id: asset.id },
+        deposit: IsNull(),
         user: { id: userId },
       },
       relations: ['deposit', 'bankAccount', 'user', 'user.userData'],
@@ -104,7 +105,7 @@ export class BuyService {
   }
 
   async getUserBuys(userId: number): Promise<Buy[]> {
-    return this.buyRepo.find({ user: { id: userId } });
+    return this.buyRepo.findBy({ user: { id: userId } });
   }
 
   async getBuyByKey(key: string, value: any): Promise<Buy> {
@@ -120,7 +121,7 @@ export class BuyService {
   }
 
   async updateBuy(userId: number, buyId: number, dto: UpdateBuyDto): Promise<Buy> {
-    const buy = await this.buyRepo.findOne({ id: buyId, user: { id: userId } });
+    const buy = await this.buyRepo.findOneBy({ id: buyId, user: { id: userId } });
     if (!buy) throw new NotFoundException('Buy route not found');
 
     return this.buyRepo.save({ ...buy, ...dto });

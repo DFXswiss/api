@@ -12,20 +12,20 @@ export class CountryService {
   }
 
   async getCountry(id: number): Promise<Country> {
-    return this.countryRepo.findOne(id);
+    return this.countryRepo.findOneBy({ id });
   }
 
   async getCountryWithSymbol(symbol: string): Promise<Country> {
-    return this.countryRepo.findOne({ where: { symbol } });
+    return this.countryRepo.findOneBy({ symbol });
   }
 
   async getCountriesByKycType(kycType: KycType): Promise<Country[]> {
     switch (kycType) {
       case KycType.DFX:
-        return this.countryRepo.find({ where: { dfxEnable: true } });
+        return this.countryRepo.findBy({ dfxEnable: true });
 
       case KycType.LOCK:
-        return this.countryRepo.find({ where: { lockEnable: true } });
+        return this.countryRepo.findBy({ lockEnable: true });
     }
   }
 }

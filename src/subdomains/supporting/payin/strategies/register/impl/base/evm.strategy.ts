@@ -167,7 +167,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
     blockHeight: number,
     log: PayInInputLog,
   ): Promise<void> {
-    const recordedLastBlockPayIns = await this.payInRepository.find({
+    const recordedLastBlockPayIns = await this.payInRepository.findBy({
       address: { address, blockchain: this.blockchain },
       blockHeight,
     });

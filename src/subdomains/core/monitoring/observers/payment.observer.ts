@@ -50,28 +50,26 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
     return {
       lastOutputDates: await this.getLastOutputDates(),
       incomplete: await this.getIncompleteTransactions(),
-      bankTxWithoutType: await getCustomRepository(BankTxRepository).count({ type: IsNull() }),
+      bankTxWithoutType: await getCustomRepository(BankTxRepository).countBy({ type: IsNull() }),
       freeDeposit: await getCustomRepository(DepositRepository)
         .createQueryBuilder('deposit')
         .leftJoin('deposit.route', 'route')
         .where('route.id IS NULL')
         .getCount(),
-      unhandledCryptoInputs: await getCustomRepository(PayInRepository).count({
-        where: {
-          amlCheck: Not(AmlCheck.FAIL),
-          status: Not(In([PayInStatus.FAILED, PayInStatus.IGNORED, PayInStatus.RETURNED, PayInStatus.FORWARDED])),
-        },
+      unhandledCryptoInputs: await getCustomRepository(PayInRepository).countBy({
+        amlCheck: Not(AmlCheck.FAIL),
+        status: Not(In([PayInStatus.FAILED, PayInStatus.IGNORED, PayInStatus.RETURNED, PayInStatus.FORWARDED])),
       }),
     };
   }
 
   private async getIncompleteTransactions(): Promise<IncompleteTransactions> {
     return {
-      buyCrypto: await getCustomRepository(BuyCryptoRepository).count({
+      buyCrypto: await getCustomRepository(BuyCryptoRepository).countBy({
         mailSendDate: IsNull(),
         amlCheck: Not(AmlCheck.FAIL),
       }),
-      buyFiat: await getCustomRepository(BuyFiatRepository).count({
+      buyFiat: await getCustomRepository(BuyFiatRepository).countBy({
         mail3SendDate: IsNull(),
         amlCheck: Not(AmlCheck.FAIL),
       }),
@@ -81,10 +79,10 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
   private async getLastOutputDates(): Promise<LastOutputDates> {
     return {
       buyCrypto: await getCustomRepository(BuyCryptoRepository)
-        .findOne({ order: { outputDate: 'DESC' } })
+        .findOne({ where: {}, order: { outputDate: 'DESC' } })
         .then((b) => b.outputDate),
       buyFiat: await getCustomRepository(BuyFiatRepository)
-        .findOne({ order: { outputDate: 'DESC' } })
+        .findOne({ where: {}, order: { outputDate: 'DESC' } })
         .then((b) => b.outputDate),
     };
   }

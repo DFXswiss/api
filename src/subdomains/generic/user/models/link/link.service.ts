@@ -27,9 +27,7 @@ export class LinkService {
   ) {}
 
   async getLinkAddress(authentication: string): Promise<LinkAddress> {
-    return this.linkAddressRepo.findOne({
-      where: { authentication },
-    });
+    return this.linkAddressRepo.findOneBy({ authentication });
   }
 
   async createNewLinkAddress(user: UserData, completedUser: UserData): Promise<void> {
@@ -37,8 +35,10 @@ export class LinkService {
     const existingAddress = oldestToNewestUser[0].address;
     const newAddress = user.users[0].address;
 
-    const existing = await this.linkAddressRepo.findOne({
-      where: { existingAddress, newAddress, expiration: MoreThan(new Date()) },
+    const existing = await this.linkAddressRepo.findOneBy({
+      existingAddress,
+      newAddress,
+      expiration: MoreThan(new Date()),
     });
     if (existing) return;
 

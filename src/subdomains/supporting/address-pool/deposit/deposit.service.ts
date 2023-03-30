@@ -13,11 +13,11 @@ export class DepositService {
   constructor(private depositRepo: DepositRepository) {}
 
   async getDeposit(id: number): Promise<Deposit> {
-    return this.depositRepo.findOne(id);
+    return this.depositRepo.findOneBy({ id });
   }
 
   async getDepositByAddress({ address, blockchain }: BlockchainAddress): Promise<Deposit> {
-    return this.depositRepo.findOne({ address, blockchain });
+    return this.depositRepo.findOneBy({ address, blockchain });
   }
 
   async getDepositKey(address: BlockchainAddress): Promise<string> {

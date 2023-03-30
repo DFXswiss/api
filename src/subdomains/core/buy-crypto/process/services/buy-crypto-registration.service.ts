@@ -62,7 +62,7 @@ export class BuyCryptoRegistrationService {
   private async createBuyCryptosAndAckPayIns(payInsPairs: [CryptoInput, CryptoRoute][]): Promise<void> {
     for (const [payIn, cryptoRoute] of payInsPairs) {
       try {
-        const existingBuyCrypto = await this.buyCryptoRepo.findOne({ cryptoInput: payIn });
+        const existingBuyCrypto = await this.buyCryptoRepo.findOneBy({ cryptoInput: { id: payIn.id } });
 
         if (!existingBuyCrypto) {
           const newBuyCrypto = BuyCrypto.createFromPayIn(payIn, cryptoRoute);

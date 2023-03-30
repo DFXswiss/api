@@ -33,8 +33,8 @@ export class NotificationService {
     const { correlationId, context } = newNotification;
 
     const existingNotification = await this.notificationRepo.findOne({
-      order: { id: 'DESC' },
       where: { correlationId, context },
+      order: { id: 'DESC' },
     });
 
     if (existingNotification) newNotification.shouldAbortGiven(existingNotification);

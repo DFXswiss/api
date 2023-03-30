@@ -67,9 +67,10 @@ export class LiquidityManagementBalanceService {
   private async saveBalanceResults(balances: LiquidityBalance[]): Promise<void> {
     for (const balance of balances) {
       try {
-        const existingBalance = await this.balanceRepo.findOne({
-          where: [{ asset: balance.asset }, { fiat: balance.fiat }],
-        });
+        const existingBalance = await this.balanceRepo.findOneBy([
+          { asset: { id: balance.asset.id } },
+          { fiat: { id: balance.fiat.id } },
+        ]);
 
         if (existingBalance) {
           existingBalance.updateBalance(balance.amount ?? 0);

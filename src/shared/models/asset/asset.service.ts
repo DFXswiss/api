@@ -6,7 +6,7 @@ import { Asset, AssetType } from './asset.entity';
 
 export interface AssetQuery {
   dexName: string;
-  blockchain: string;
+  blockchain: Blockchain;
   type: AssetType;
   chainId?: string | null;
 }
@@ -16,17 +16,15 @@ export class AssetService {
   constructor(private assetRepo: AssetRepository) {}
 
   async getAllAsset(blockchains: Blockchain[]): Promise<Asset[]> {
-    return blockchains.length > 0
-      ? this.assetRepo.find({ where: { blockchain: In(blockchains) } })
-      : this.assetRepo.find();
+    return blockchains.length > 0 ? this.assetRepo.findBy({ blockchain: In(blockchains) }) : this.assetRepo.find();
   }
 
   async getAssetById(id: number): Promise<Asset> {
-    return this.assetRepo.findOne(id);
+    return this.assetRepo.findOneBy({ id });
   }
 
   async getAssetByQuery(query: AssetQuery): Promise<Asset> {
-    return this.assetRepo.findOne({ where: query });
+    return this.assetRepo.findOneBy(query);
   }
 
   //*** UTILITY METHODS ***//

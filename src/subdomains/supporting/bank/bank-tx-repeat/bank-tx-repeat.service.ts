@@ -15,7 +15,7 @@ export class BankTxRepeatService {
   ) {}
 
   async create(bankTx: BankTx): Promise<BankTxRepeat> {
-    let entity = await this.bankTxRepeatRepo.findOne({ where: { bankTx: { id: bankTx.id } } });
+    let entity = await this.bankTxRepeatRepo.findOneBy({ bankTx: { id: bankTx.id } });
     if (entity) throw new BadRequestException('BankTx already used');
 
     entity = this.bankTxRepeatRepo.create({ bankTx });
@@ -34,11 +34,11 @@ export class BankTxRepeatService {
 
     // chargeback bank tx
     if (dto.chargebackBankTxId && !entity.chargebackBankTx) {
-      update.chargebackBankTx = await this.bankTxRepo.findOne({ where: { id: dto.chargebackBankTxId } });
+      update.chargebackBankTx = await this.bankTxRepo.findOneBy({ id: dto.chargebackBankTxId });
       if (!update.chargebackBankTx) throw new NotFoundException('ChargebackBankTx not found');
 
-      const existingRepeatForChargeback = await this.bankTxRepeatRepo.findOne({
-        where: { chargebackBankTx: { id: dto.chargebackBankTxId } },
+      const existingRepeatForChargeback = await this.bankTxRepeatRepo.findOneBy({
+        chargebackBankTx: { id: dto.chargebackBankTxId },
       });
       if (existingRepeatForChargeback) throw new BadRequestException('ChargebackBankTx already used');
 
@@ -47,11 +47,11 @@ export class BankTxRepeatService {
 
     // source bank tx
     if (dto.sourceBankTxId && !entity.sourceBankTx) {
-      update.sourceBankTx = await this.bankTxRepo.findOne({ where: { id: dto.sourceBankTxId } });
+      update.sourceBankTx = await this.bankTxRepo.findOneBy({ id: dto.sourceBankTxId });
       if (!update.sourceBankTx) throw new NotFoundException('SourceBankTx not found');
 
-      const existingRepeatForSource = await this.bankTxRepeatRepo.findOne({
-        where: { sourceBankTx: { id: dto.sourceBankTxId } },
+      const existingRepeatForSource = await this.bankTxRepeatRepo.findOneBy({
+        sourceBankTx: { id: dto.sourceBankTxId },
       });
       if (existingRepeatForSource) throw new BadRequestException('SourceBankTx already used');
     }

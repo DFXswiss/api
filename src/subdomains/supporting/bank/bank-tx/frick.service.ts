@@ -1,4 +1,4 @@
-import { AxiosRequestHeaders, Method } from 'axios';
+import { Method, RawAxiosRequestHeaders } from 'axios';
 import { Config } from 'src/config/config';
 import { HttpError, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
@@ -297,7 +297,7 @@ export class FrickService {
     return token;
   }
 
-  private getHeaders(data?: any): AxiosRequestHeaders {
+  private getHeaders(data?: any): RawAxiosRequestHeaders {
     return {
       Accept: 'application/json',
       algorithm: 'rsa-sha512',

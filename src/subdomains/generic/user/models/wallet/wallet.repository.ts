@@ -4,6 +4,6 @@ import { Wallet } from './wallet.entity';
 @EntityRepository(Wallet)
 export class WalletRepository extends Repository<Wallet> {
   async getByAddress(address: string): Promise<Wallet> {
-    return this.findOne({ where: { address } });
+    return this.findOneBy({ address });
   }
 }

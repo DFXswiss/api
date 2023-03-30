@@ -54,18 +54,16 @@ export class UserObserver extends MetricObserver<UserData> {
   private async getKycStatusData(date: Date = new Date()): Promise<any> {
     const kycStatusData = {};
     for (const kycStatus of Object.values(KycStatus)) {
-      kycStatusData[kycStatus] = await getCustomRepository(UserDataRepository).count({
-        where: [
-          {
-            kycStatus,
-            kycStatusChangeDate: LessThan(date),
-          },
-          {
-            kycStatus,
-            kycStatusChangeDate: IsNull(),
-          },
-        ],
-      });
+      kycStatusData[kycStatus] = await getCustomRepository(UserDataRepository).countBy([
+        {
+          kycStatus,
+          kycStatusChangeDate: LessThan(date),
+        },
+        {
+          kycStatus,
+          kycStatusChangeDate: IsNull(),
+        },
+      ]);
     }
 
     return kycStatusData;
@@ -73,7 +71,7 @@ export class UserObserver extends MetricObserver<UserData> {
 
   private async getUserWithout(): Promise<UserWithout> {
     return {
-      ipCountry: await getCustomRepository(UserRepository).count({ where: { ipCountry: IsNull() } }),
+      ipCountry: await getCustomRepository(UserRepository).countBy({ ipCountry: IsNull() }),
       riskState: await getCustomRepository(UserDataRepository)
         .createQueryBuilder('userData')
         .leftJoin(User, 'user', 'userData.id = user.userDataId')

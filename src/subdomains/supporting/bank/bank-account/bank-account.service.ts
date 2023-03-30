@@ -84,7 +84,7 @@ export class BankAccountService {
 
   @Cron(CronExpression.EVERY_WEEK)
   async checkFailedBankAccounts(): Promise<void> {
-    const failedBankAccounts = await this.bankAccountRepo.find({ where: { returnCode: 256 } });
+    const failedBankAccounts = await this.bankAccountRepo.findBy({ returnCode: 256 });
     for (const bankAccount of failedBankAccounts) {
       await this.reloadBankAccount(bankAccount);
     }

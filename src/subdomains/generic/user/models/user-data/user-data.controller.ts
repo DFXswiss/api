@@ -51,7 +51,7 @@ export class UserDataController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getUserData(@Param('id') id: string): Promise<UserData> {
-    return this.userDataRepo.findOne(id);
+    return this.userDataRepo.findOneBy({ id: +id });
   }
 
   @Put(':id/bankDatas')
@@ -76,7 +76,7 @@ export class UserDataController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async requestKyc(@Param('id') id: string): Promise<string> {
-    const userData = await this.userDataRepo.findOne({ where: { id }, relations: ['users'] });
+    const userData = await this.userDataRepo.findOne({ where: { id: +id }, relations: ['users'] });
 
     await this.kycService.requestKyc(userData.kycHash);
     return userData.kycHash;

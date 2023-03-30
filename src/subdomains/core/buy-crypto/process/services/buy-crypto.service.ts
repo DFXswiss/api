@@ -57,13 +57,13 @@ export class BuyCryptoService {
   ) {}
 
   async createFromFiat(bankTxId: number, buyId: number): Promise<BuyCrypto> {
-    let entity = await this.buyCryptoRepo.findOne({ bankTx: { id: bankTxId } });
+    let entity = await this.buyCryptoRepo.findOneBy({ bankTx: { id: bankTxId } });
     if (entity) throw new ConflictException('There is already a buy crypto for the specified bank TX');
 
     entity = this.buyCryptoRepo.create();
 
     // bank tx
-    entity.bankTx = await this.bankTxService.getBankTxRepo().findOne(bankTxId);
+    entity.bankTx = await this.bankTxService.getBankTxRepo().findOneBy({ id: bankTxId });
     if (!entity.bankTx) throw new BadRequestException('Bank TX not found');
 
     // buy
@@ -73,7 +73,8 @@ export class BuyCryptoService {
   }
 
   async update(id: number, dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
-    let entity = await this.buyCryptoRepo.findOne(id, {
+    let entity = await this.buyCryptoRepo.findOne({
+      where: { id },
       relations: [
         'buy',
         'buy.user',
@@ -95,7 +96,7 @@ export class BuyCryptoService {
 
     // chargeback bank tx
     if (dto.chargebackBankTxId) {
-      update.chargebackBankTx = await this.bankTxService.getBankTxRepo().findOne({ id: dto.chargebackBankTxId });
+      update.chargebackBankTx = await this.bankTxService.getBankTxRepo().findOneBy({ id: dto.chargebackBankTxId });
       if (!update.chargebackBankTx) throw new BadRequestException('Bank TX not found');
     }
 
@@ -370,7 +371,6 @@ export class BuyCryptoService {
   // Statistics
 
   async getTransactions(dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<TransactionDetailsDto[]> {
-    // TODO Add cryptoInput buyCryptos, consultation with Daniel regarding statistic data
     const buyCryptos = await this.buyCryptoRepo.find({
       where: { buy: { id: Not(IsNull()) }, outputDate: Between(dateFrom, dateTo), amlCheck: AmlCheck.PASS },
       relations: ['buy', 'buy.asset'],

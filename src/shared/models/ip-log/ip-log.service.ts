@@ -41,7 +41,7 @@ export class IpLogService {
     const country = await this.geoLocationService.getCountry(userIp);
     const countryObject = await this.countryService.getCountryWithSymbol(country);
 
-    const user = await this.userRepo.findOne({ address });
+    const user = await this.userRepo.findOneBy({ address });
     if (!countryObject || (user && user.role != UserRole.USER)) return { country, result: true };
 
     return { country, result: countryObject?.ipEnable };
