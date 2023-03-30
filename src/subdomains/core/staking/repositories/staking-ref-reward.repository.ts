@@ -1,5 +1,11 @@
-import { EntityRepository, Repository } from 'typeorm';
+import { Injectable } from '@nestjs/common';
+import { BaseRepository } from 'src/shared/repositories/base.repository';
+import { EntityManager } from 'typeorm';
 import { StakingRefReward } from '../entities/staking-ref-reward.entity';
 
-@EntityRepository(StakingRefReward)
-export class StakingRefRewardRepository extends Repository<StakingRefReward> {}
+@Injectable()
+export class StakingRefRewardRepository extends BaseRepository<StakingRefReward> {
+  constructor(manager: EntityManager) {
+    super(StakingRefReward, manager);
+  }
+}

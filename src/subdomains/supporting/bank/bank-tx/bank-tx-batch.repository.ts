@@ -1,5 +1,11 @@
-import { EntityRepository, Repository } from 'typeorm';
+import { Injectable } from '@nestjs/common';
+import { BaseRepository } from 'src/shared/repositories/base.repository';
+import { EntityManager } from 'typeorm';
 import { BankTxBatch } from './bank-tx-batch.entity';
 
-@EntityRepository(BankTxBatch)
-export class BankTxBatchRepository extends Repository<BankTxBatch> {}
+@Injectable()
+export class BankTxBatchRepository extends BaseRepository<BankTxBatch> {
+  constructor(manager: EntityManager) {
+    super(BankTxBatch, manager);
+  }
+}

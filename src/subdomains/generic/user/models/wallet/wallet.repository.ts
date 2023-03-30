@@ -1,8 +1,14 @@
-import { EntityRepository, Repository } from 'typeorm';
+import { Injectable } from '@nestjs/common';
+import { BaseRepository } from 'src/shared/repositories/base.repository';
+import { EntityManager } from 'typeorm';
 import { Wallet } from './wallet.entity';
 
-@EntityRepository(Wallet)
-export class WalletRepository extends Repository<Wallet> {
+@Injectable()
+export class WalletRepository extends BaseRepository<Wallet> {
+  constructor(manager: EntityManager) {
+    super(Wallet, manager);
+  }
+
   async getByAddress(address: string): Promise<Wallet> {
     return this.findOneBy({ address });
   }

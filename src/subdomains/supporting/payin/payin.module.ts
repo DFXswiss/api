@@ -7,6 +7,7 @@ import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.mo
 import { DexModule } from '../dex/dex.module';
 import { PayoutModule } from '../payout/payout.module';
 import { PricingModule } from '../pricing/pricing.module';
+import { CryptoInput } from './entities/crypto-input.entity';
 import { PayInFactory } from './factories/payin.factory';
 import { PayInRepository } from './repositories/payin.repository';
 import { PayInArbitrumService } from './services/payin-arbitrum.service';
@@ -38,7 +39,7 @@ import { SendStrategiesFacade } from './strategies/send/send.facade';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([PayInRepository]),
+    TypeOrmModule.forFeature([CryptoInput]),
     BlockchainModule,
     SharedModule,
     PricingModule,
@@ -49,6 +50,7 @@ import { SendStrategiesFacade } from './strategies/send/send.facade';
   ],
   controllers: [],
   providers: [
+    PayInRepository,
     PayInService,
     PayInFactory,
     PayInArbitrumService,

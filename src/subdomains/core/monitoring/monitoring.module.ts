@@ -18,10 +18,11 @@ import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
 import { BankModule as BankIntegrationModule } from 'src/integration/bank/bank.module';
 import { LetterModule } from 'src/integration/letter/letter.module';
 import { IntegrationModule } from 'src/integration/integration.module';
+import { SystemStateSnapshot } from './system-state-snapshot.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([SystemStateSnapshotRepository]),
+    TypeOrmModule.forFeature([SystemStateSnapshot]),
     SharedModule,
     AinModule,
     UserModule,
@@ -32,6 +33,7 @@ import { IntegrationModule } from 'src/integration/integration.module';
     IntegrationModule,
   ],
   providers: [
+    SystemStateSnapshotRepository,
     MonitoringService,
     NodeBalanceObserver,
     NodeHealthObserver,

@@ -1,8 +1,14 @@
-import { EntityRepository, Repository, SaveOptions } from 'typeorm';
+import { Injectable } from '@nestjs/common';
+import { BaseRepository } from 'src/shared/repositories/base.repository';
+import { EntityManager, SaveOptions } from 'typeorm';
 import { BankTx } from './bank-tx.entity';
 
-@EntityRepository(BankTx)
-export class BankTxRepository extends Repository<BankTx> {
+@Injectable()
+export class BankTxRepository extends BaseRepository<BankTx> {
+  constructor(manager: EntityManager) {
+    super(BankTx, manager);
+  }
+
   async saveMany(entities: BankTx[], options?: SaveOptions): Promise<BankTx[]> {
     const results = [];
 

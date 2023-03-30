@@ -8,14 +8,11 @@ import { MailFactory } from './factories/mail.factory';
 import { NotificationController } from './notification.controller';
 import { NotificationRepository } from './repositories/notification.repository';
 import { NotificationService } from './services/notification.service';
+import { Notification } from './entities/notification.entity';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([NotificationRepository]),
-    MailerModule.forRoot(GetConfig().mail.options),
-    SharedModule,
-  ],
-  providers: [MailService, NotificationService, MailFactory],
+  imports: [TypeOrmModule.forFeature([Notification]), MailerModule.forRoot(GetConfig().mail.options), SharedModule],
+  providers: [NotificationRepository, MailService, NotificationService, MailFactory],
   controllers: [NotificationController],
   exports: [NotificationService],
 })

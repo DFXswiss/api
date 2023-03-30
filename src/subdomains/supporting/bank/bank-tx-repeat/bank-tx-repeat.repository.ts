@@ -1,5 +1,11 @@
-import { EntityRepository, Repository } from 'typeorm';
+import { Injectable } from '@nestjs/common';
+import { BaseRepository } from 'src/shared/repositories/base.repository';
+import { EntityManager } from 'typeorm';
 import { BankTxRepeat } from './bank-tx-repeat.entity';
 
-@EntityRepository(BankTxRepeat)
-export class BankTxRepeatRepository extends Repository<BankTxRepeat> {}
+@Injectable()
+export class BankTxRepeatRepository extends BaseRepository<BankTxRepeat> {
+  constructor(manager: EntityManager) {
+    super(BankTxRepeat, manager);
+  }
+}
