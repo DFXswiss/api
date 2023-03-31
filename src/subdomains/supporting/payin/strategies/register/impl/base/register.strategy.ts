@@ -28,10 +28,12 @@ export abstract class RegisterStrategy {
   abstract addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void>;
   abstract doAmlCheck(payIn: CryptoInput, route: Staking | Sell | CryptoRoute): Promise<AmlCheck> | AmlCheck;
 
-  protected async createPayInAndSave(transaction: PayInEntry): Promise<void> {
-    const payIn = this.payInFactory.createFromEntry(transaction);
+  protected async createPayInsAndSave(transactions: PayInEntry[], log: PayInInputLog): Promise<void> {
+    const payIns = transactions.map((t) => this.payInFactory.createFromEntry(t));
 
-    await this.payInRepository.save(payIn);
+    await this.payInRepository.saveMany(payIns);
+
+    log.newRecords.push(...transactions.map((p) => ({ address: p.address.address, txId: p.txId })));
   }
 
   protected createNewLogObject(): PayInInputLog {

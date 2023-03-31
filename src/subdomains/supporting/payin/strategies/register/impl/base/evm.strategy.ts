@@ -68,22 +68,21 @@ export abstract class EvmStrategy extends RegisterStrategy {
       .then((input) => input?.blockHeight ?? 0);
   }
 
-  private async getTransactionsAndCreatePayIns(addresses: string[], blockHeight: number): Promise<void> {
+  private async getTransactionsAndCreatePayIns(addresses: string[], lastCheckedBlockHeight: number): Promise<void> {
     const log = this.createNewLogObject();
     const supportedAssets = await this.assetService.getAllAsset([this.blockchain]);
 
     for (const address of addresses) {
-      const [coinHistory, tokenHistory] = await this.payInEvmService.getHistory(address, blockHeight);
+      const [coinHistory, tokenHistory] = await this.payInEvmService.getHistory(address, lastCheckedBlockHeight + 1);
 
       const entries = this.mapHistoryToPayInEntries(address, coinHistory, tokenHistory, supportedAssets);
 
       if (entries.length === 0) continue;
 
-      await this.verifyLastBlockEntries(address, entries, blockHeight, log);
-      await this.processNewEntries(entries, blockHeight, log);
+      await this.processNewEntries(entries, lastCheckedBlockHeight, log);
     }
 
-    this.printInputLog(log, blockHeight, this.blockchain);
+    this.printInputLog(log, lastCheckedBlockHeight, this.blockchain);
   }
 
   private mapHistoryToPayInEntries(
@@ -148,55 +147,6 @@ export abstract class EvmStrategy extends RegisterStrategy {
     }));
   }
 
-  private async verifyLastBlockEntries(
-    address: string,
-    allTransactions: PayInEntry[],
-    blockHeight: number,
-    log: PayInInputLog,
-  ) {
-    const transactionsFromLastRecordedBlock = allTransactions.filter((t) => t.blockHeight === blockHeight);
-
-    if (transactionsFromLastRecordedBlock.length === 0) return;
-
-    await this.checkIfAllEntriesRecorded(address, transactionsFromLastRecordedBlock, blockHeight, log);
-  }
-
-  private async checkIfAllEntriesRecorded(
-    address: string,
-    entries: PayInEntry[],
-    blockHeight: number,
-    log: PayInInputLog,
-  ): Promise<void> {
-    const recordedLastBlockPayIns = await this.payInRepository.findBy({
-      address: { address, blockchain: this.blockchain },
-      blockHeight,
-    });
-
-    const lostEntries = entries
-      .filter((e) => !recordedLastBlockPayIns.find((p) => p.inTxId === e.txId))
-      .map((h) => this.filterOutNonSellable(h))
-      .filter((p) => p != null);
-
-    if (lostEntries.length === 0) return;
-
-    await this.addReferenceAmounts(lostEntries);
-
-    console.log(
-      `Recreating ${lostEntries.length} lost entries for ${this.blockchain} from block ${blockHeight}. TxId(s):`,
-      lostEntries.map((e) => e.txId),
-    );
-
-    for (const tx of lostEntries) {
-      try {
-        await this.createPayInAndSave(tx);
-        log.recoveredRecords.push({ address, txId: tx.txId });
-      } catch (e) {
-        console.log('Did not register pay-in: ', e);
-        continue;
-      }
-    }
-  }
-
   private async processNewEntries(allEntries: PayInEntry[], blockHeight: number, log: PayInInputLog) {
     const newEntries = allEntries.filter((t) => t.blockHeight > blockHeight);
 
@@ -204,14 +154,6 @@ export abstract class EvmStrategy extends RegisterStrategy {
 
     await this.addReferenceAmounts(newEntries);
 
-    for (const entry of newEntries) {
-      try {
-        await this.createPayInAndSave(entry);
-        log.newRecords.push({ address: entry.address.address, txId: entry.txId });
-      } catch (e) {
-        console.error('Did not register pay-in: ', e);
-        continue;
-      }
-    }
+    await this.createPayInsAndSave(newEntries, log);
   }
 }
