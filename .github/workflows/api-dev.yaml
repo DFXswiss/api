@@ -9,10 +9,11 @@ env:
   AZURE_WEBAPP_NAME: app-dfx-api-dev
   AZURE_WEBAPP_PACKAGE_PATH: '.'
   NODE_VERSION: '16.x'
+  ZIP_PACKAGE_NAME: 'release.zip'
 
 jobs:
-  build-and-deploy:
-    name: Build, test and deploy to DEV
+  build-and-test:
+    name: Build and test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -39,9 +40,29 @@ jobs:
         run: |
           npm run lint
 
+      - name: Zip artifact
+        run: zip -r ${{ env.ZIP_PACKAGE_NAME }} ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.AZURE_WEBAPP_NAME }}
+          path: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}/${{ env.ZIP_PACKAGE_NAME }}
+          retention-days: 1
+
+  deploy:
+    name: Deploy to DEV
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ env.AZURE_WEBAPP_NAME }}
+
       - name: Deploy to Azure App Service (DEV)
         uses: azure/webapps-deploy@v2
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           publish-profile: ${{ secrets.DEV_PUBLISH_PROFILE }}
-          package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+          package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}/${{ env.ZIP_PACKAGE_NAME }}
