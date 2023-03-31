@@ -408,7 +408,7 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
 
     siteConfig: {
       alwaysOn: true
-      linuxFxVersion: 'NODE|14-lts'
+      linuxFxVersion: 'NODE|16-lts'
       appCommandLine: 'npm run start:prod'
       httpLoggingEnabled: true
       logsDirectorySizeLimit: 100

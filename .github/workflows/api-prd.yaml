@@ -2,13 +2,13 @@ name: API PRD CI/CD
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   workflow_dispatch:
 
 env:
   AZURE_WEBAPP_NAME: app-dfx-api-prd
   AZURE_WEBAPP_PACKAGE_PATH: '.'
-  NODE_VERSION: '14.x'
+  NODE_VERSION: '16.x'
 
 jobs:
   build-and-deploy:
