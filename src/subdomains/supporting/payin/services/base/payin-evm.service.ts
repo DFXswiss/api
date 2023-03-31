@@ -1,4 +1,5 @@
 import { BigNumber } from 'ethers';
+import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmService } from 'src/integration/blockchain/shared/evm/evm.service';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
@@ -11,14 +12,8 @@ export abstract class PayInEvmService {
     this.#client = service.getDefaultClient();
   }
 
-  async sendNativeCoin(
-    addressFrom: string,
-    withPrivateKey: string,
-    addressTo: string,
-    amount: number,
-    feeLimit?: number,
-  ): Promise<string> {
-    return this.#client.sendNativeCoinFromAddress(addressFrom, withPrivateKey, addressTo, amount, feeLimit);
+  async sendNativeCoin(account: WalletAccount, addressTo: string, amount: number, feeLimit?: number): Promise<string> {
+    return this.#client.sendNativeCoinFromAccount(account, addressTo, amount, feeLimit);
   }
 
   async sendNativeCoinFromDex(addressTo: string, amount: number): Promise<string> {
@@ -26,14 +21,13 @@ export abstract class PayInEvmService {
   }
 
   async sendToken(
-    addressFrom: string,
-    withPrivateKey: string,
+    account: WalletAccount,
     addressTo: string,
     tokenName: Asset,
     amount: number,
     feeLimit?: number,
   ): Promise<string> {
-    return this.#client.sendTokenFromAddress(addressFrom, withPrivateKey, addressTo, tokenName, amount, feeLimit);
+    return this.#client.sendTokenFromAccount(account, addressTo, tokenName, amount, feeLimit);
   }
 
   async checkTransactionCompletion(txHash: string): Promise<boolean> {

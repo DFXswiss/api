@@ -31,11 +31,10 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     scanApiKey: string,
     gatewayUrl: string,
     privateKey: string,
-    dfxAddress: string,
     swapContractAddress: string,
     swapTokenAddress: string,
   ) {
-    super(http, scanApiUrl, scanApiKey, gatewayUrl, privateKey, dfxAddress, swapContractAddress, swapTokenAddress);
+    super(http, scanApiUrl, scanApiKey, gatewayUrl, privateKey, swapContractAddress, swapTokenAddress);
 
     const { ethGatewayUrl, ethApiKey, ethWalletPrivateKey } = GetConfig().blockchain.ethereum;
     const ethereumGateway = `${ethGatewayUrl}/${ethApiKey ?? ''}`;
@@ -185,11 +184,11 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
 
   protected async sendNativeCoin(
     wallet: ethers.Wallet,
-    fromAddress: string,
     toAddress: string,
     amount: number,
     feeLimit?: number,
   ): Promise<string> {
+    const fromAddress = wallet.address;
     const gasLimit = await this.getCurrentGasForCoinTransaction(amount);
     const gasPrice = await this.getGasPrice(+gasLimit, feeLimit);
     const nonce = await this.getNonce(fromAddress);

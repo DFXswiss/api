@@ -10,7 +10,6 @@ export abstract class EvmService {
     scanApiKey: string,
     gatewayUrl: string,
     apiKey: string,
-    walletAddress: string,
     walletPrivateKey: string,
     swapContractAddress: string,
     swapTokenAddress: string,
@@ -21,7 +20,6 @@ export abstract class EvmService {
         scanApiKey: string,
         gatewayUrl: string,
         privateKey: string,
-        dfxAddress: string,
         swapContractAddress: string,
         swapTokenAddress: string,
       ): EvmClient;
@@ -33,7 +31,6 @@ export abstract class EvmService {
       scanApiKey,
       `${gatewayUrl}/${apiKey ?? ''}`,
       walletPrivateKey,
-      walletAddress,
       swapContractAddress,
       swapTokenAddress,
     );

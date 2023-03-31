@@ -71,7 +71,7 @@
     "utxoSpenderAddress": {
       "value": "xxx"
     },
-    "evmEncryptionKey": {
+    "evmDepositSeed": {
       "value": "xxx"
     },
     "ethWalletAddress": {
