@@ -223,7 +223,7 @@ export class KycProcessService {
 
   // --- HELPER METHODS --- //
   private async hasRole(userDataId: number, role: UserRole): Promise<boolean> {
-    return this.userRepo.findOne({ where: { userData: { id: userDataId }, role } }).then((u) => u != null);
+    return this.userRepo.exist({ where: { userData: { id: userDataId }, role } });
   }
 
   private async updateSpiderData(userData: UserData, initiateData: InitiateResponse) {
