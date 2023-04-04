@@ -88,6 +88,10 @@ export class LiquidityManagementRule extends IEntity {
     };
   }
 
+  getMissing(balance: LiquidityBalance): number {
+    return this.optimal ? Util.round(Math.abs(this.optimal - balance.amount), 8) : 0;
+  }
+
   processing(): this {
     this.status = LiquidityManagementRuleStatus.PROCESSING;
     return this;

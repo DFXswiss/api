@@ -1996,12 +1996,12 @@
     "method": "POST",
     "sortNum": 780000,
     "created": "2023-02-27T10:55:51.265Z",
-    "modified": "2023-02-27T10:59:34.633Z",
+    "modified": "2023-04-04T12:47:38.462Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\n  \"assetId\": 61,\n  \"amount\": 0.0001\n}",
+      "raw": "{\n  \"assetId\": 3,\n  \"amount\": 1,\n  \"targetOptimal\": true\n}",
       "form": []
     },
     "tests": []
@@ -2079,6 +2079,20 @@
       "raw": "{\n  \"l1AssetId\": 142,\n  \"l2AssetId\": 143\n}",
       "form": []
     },
+    "tests": []
+  },
+  {
+    "_id": "599bd62a-6313-40a6-9fd8-f93c8520b931",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "ed149df1-5a55-4eb1-836a-6b84742c8f38",
+    "name": "Get Rule",
+    "url": "{{url}}/v1/liquidityManagement/rule/60",
+    "method": "GET",
+    "sortNum": 725000,
+    "created": "2023-03-16T10:15:40.428Z",
+    "modified": "2023-03-16T10:15:59.499Z",
+    "headers": [],
+    "params": [],
     "tests": []
   }
 ]

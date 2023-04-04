@@ -76,6 +76,6 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     BinanceAdapter,
     KrakenAdapter,
   ],
-  exports: [],
+  exports: [LiquidityManagementService],
 })
 export class LiquidityManagementModule {}

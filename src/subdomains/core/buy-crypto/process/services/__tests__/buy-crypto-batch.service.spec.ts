@@ -17,6 +17,7 @@ import { BuyCryptoBatchService } from '../buy-crypto-batch.service';
 import { BuyCryptoNotificationService } from '../buy-crypto-notification.service';
 import { BuyCryptoPricingService } from '../buy-crypto-pricing.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { LiquidityManagementService } from 'src/subdomains/core/liquidity-management/services/liquidity-management.service';
 
 describe('BuyCryptoBatchService', () => {
   let service: BuyCryptoBatchService;
@@ -31,6 +32,7 @@ describe('BuyCryptoBatchService', () => {
   let dexService: DexService;
   let payoutService: PayoutService;
   let buyCryptoNotificationService: BuyCryptoNotificationService;
+  let liquidityManagementService: LiquidityManagementService;
 
   /*** Spies ***/
 
@@ -236,6 +238,7 @@ describe('BuyCryptoBatchService', () => {
     dexService = mock<DexService>();
     payoutService = mock<PayoutService>();
     buyCryptoNotificationService = mock<BuyCryptoNotificationService>();
+    liquidityManagementService = mock<LiquidityManagementService>();
 
     service = new BuyCryptoBatchService(
       buyCryptoRepo,
@@ -246,6 +249,7 @@ describe('BuyCryptoBatchService', () => {
       dexService,
       payoutService,
       buyCryptoNotificationService,
+      liquidityManagementService,
     );
   }
 

@@ -10,9 +10,12 @@ import { LiquidityManagementBalanceService } from './liquidity-management-balanc
 import { LiquidityManagementPipelineRepository } from '../repositories/liquidity-management-pipeline.repository';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
 import { In } from 'typeorm';
+import { Util } from 'src/shared/utils/util';
 
 @Injectable()
 export class LiquidityManagementService {
+  private readonly ruleActivations = new Map<number, Date>();
+
   constructor(
     private readonly ruleRepo: LiquidityManagementRuleRepository,
     private readonly pipelineRepo: LiquidityManagementPipelineRepository,
@@ -34,11 +37,15 @@ export class LiquidityManagementService {
 
   //*** PUBLIC API ***//
 
-  async buyLiquidity(assetId: number, amount: number): Promise<PipelineId> {
+  async buyLiquidity(assetId: number, amount: number, targetOptimal: boolean): Promise<PipelineId> {
     const rule = await this.findRuleByAssetOrThrow(assetId);
 
     if (!rule.deficitStartAction) {
       throw new BadRequestException(`Rule ${rule.id} does not support liquidity deficit path`);
+    }
+
+    if (targetOptimal) {
+      amount += await this.getMissingLiquidity(rule);
     }
 
     const liquidityState = { deficit: amount, redundancy: 0 };
@@ -46,11 +53,15 @@ export class LiquidityManagementService {
     return this.executeRule(rule, liquidityState);
   }
 
-  async sellLiquidity(assetId: number, amount: number): Promise<PipelineId> {
+  async sellLiquidity(assetId: number, amount: number, targetOptimal: boolean): Promise<PipelineId> {
     const rule = await this.findRuleByAssetOrThrow(assetId);
 
     if (!rule.redundancyStartAction) {
       throw new BadRequestException(`Rule ${rule.id} does not support liquidity redundancy path`);
+    }
+
+    if (targetOptimal) {
+      amount -= await this.getMissingLiquidity(rule);
     }
 
     const liquidityState = { deficit: 0, redundancy: amount };
@@ -68,16 +79,31 @@ export class LiquidityManagementService {
     return rule;
   }
 
+  private async getMissingLiquidity(rule: LiquidityManagementRule): Promise<number> {
+    const balances = await this.balanceService.getBalances();
+    const balance = this.balanceService.findRelevantBalance(rule, balances);
+
+    return balance ? rule.getMissing(balance) : 0;
+  }
+
   private async verifyRule(rule: LiquidityManagementRule, balances: LiquidityBalance[]): Promise<void> {
     try {
       const balance = this.balanceService.findRelevantBalance(rule, balances);
-
       if (!balance) throw new Error('Could not proceed with rule verification, balance not found.');
 
       const result = rule.verify(balance);
 
       if (result.deficit || result.redundancy) {
-        await this.executeRule(rule, result);
+        if (!this.ruleActivations.has(rule.id)) this.ruleActivations.set(rule.id, new Date());
+
+        // execute rule 30 minutes after activation
+        if (this.ruleActivations.get(rule.id) < Util.minutesBefore(30)) {
+          this.ruleActivations.delete(rule.id);
+
+          await this.executeRule(rule, result);
+        }
+      } else {
+        this.ruleActivations.delete(rule.id);
       }
     } catch (e) {
       if (e instanceof ConflictException) return;
