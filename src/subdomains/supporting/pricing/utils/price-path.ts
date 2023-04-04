@@ -1,8 +1,8 @@
 import { cloneDeep } from 'lodash';
-import { Price } from '../../../../integration/exchange/dto/price.dto';
-import { PriceRequest, PriceResult, PriceStepResult } from '../interfaces';
+import { Price } from '../domain/entities/price';
+import { PriceRequest, PriceResult, PriceStepResult } from '../domain/interfaces';
 import { PricingPathAlias } from '../services/pricing.service';
-import { PricePathInitSpecification } from '../specifications/price-path-init.specification';
+import { PricePathInitSpecification } from '../domain/specifications/price-path-init.specification';
 import { PriceStep } from './price-step';
 
 export class PricePath {

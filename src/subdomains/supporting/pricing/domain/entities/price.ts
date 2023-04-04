@@ -12,4 +12,12 @@ export class Price {
 
     return price;
   }
+
+  static join(...prices: Price[]): Price {
+    return Price.create(
+      prices[0].source,
+      prices[prices.length - 1].target,
+      prices.reduce((prev, curr) => prev * curr.price, 1),
+    );
+  }
 }

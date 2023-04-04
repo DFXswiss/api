@@ -8,7 +8,7 @@ import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AmlReason } from '../enums/aml-reason.enum';
 import { BuyCryptoFee } from './buy-crypto-fees.entity';
-import { Price } from 'src/integration/exchange/dto/price.dto';
+import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';

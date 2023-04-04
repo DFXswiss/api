@@ -1,4 +1,4 @@
-import { Price } from '../../../../integration/exchange/dto/price.dto';
+import { Price } from '../entities/price';
 import { PriceRequestContext } from '../enums';
 
 export interface PriceRequest {

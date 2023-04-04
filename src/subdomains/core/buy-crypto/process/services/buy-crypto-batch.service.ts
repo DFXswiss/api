@@ -9,14 +9,14 @@ import { MissingBuyCryptoLiquidityException } from '../exceptions/abort-batch-cr
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { BuyCryptoPricingService } from './buy-crypto-pricing.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { Price } from 'src/integration/exchange/dto/price.dto';
+import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { CheckLiquidityRequest, CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { FeeResult, FeeRequest } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
-import { PriceRequestContext } from 'src/subdomains/supporting/pricing/enums';
-import { PriceResult, PriceRequest } from 'src/subdomains/supporting/pricing/interfaces';
+import { PriceRequestContext } from 'src/subdomains/supporting/pricing/domain/enums';
+import { PriceResult, PriceRequest } from 'src/subdomains/supporting/pricing/domain/interfaces';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FeeLimitExceededException } from '../exceptions/fee-limit-exceeded.exception';
 import { Util } from 'src/shared/utils/util';

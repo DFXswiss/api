@@ -1,6 +1,6 @@
 import { mock } from 'jest-mock-extended';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { Price } from '../../../../integration/exchange/dto/price.dto';
+import { Price } from '../domain/entities/price';
 import { createCustomPrice } from '../../../../integration/exchange/dto/__mocks__/price.dto.mock';
 import { BinanceService } from '../../../../integration/exchange/services/binance.service';
 import { BitpandaService } from '../../../../integration/exchange/services/bitpanda.service';
@@ -10,7 +10,7 @@ import { FixerService } from '../../../../integration/exchange/services/fixer.se
 import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
 import { KrakenService } from '../../../../integration/exchange/services/kraken.service';
 import { DfiPricingDexService } from '../services/dfi-pricing-dex.service';
-import { PriceRequestContext } from '../enums';
+import { PriceRequestContext } from '../domain/enums';
 import { PricingService } from '../services/pricing.service';
 
 describe('Pricing Module Integration Tests', () => {

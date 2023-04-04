@@ -1,9 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
 import { Exchange, Market, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
 import { TradeResponse, PartialTradeResponse } from '../dto/trade-response.dto';
-import { Price } from '../dto/price.dto';
+import { Price } from '../../../subdomains/supporting/pricing/domain/entities/price';
 import { Util } from 'src/shared/utils/util';
-import { PriceProvider } from 'src/subdomains/supporting/pricing/interfaces';
+import { PriceProvider } from 'src/subdomains/supporting/pricing/domain/interfaces';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { OrderType } from 'ccxt/js/src/base/types';
 
