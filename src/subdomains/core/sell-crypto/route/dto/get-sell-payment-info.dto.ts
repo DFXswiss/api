@@ -1,7 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsEnum, IsNotEmpty, IsNotEmptyObject, IsString, ValidateNested } from 'class-validator';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { IsNotEmpty, IsNotEmptyObject, IsString, ValidateNested } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -27,9 +26,4 @@ export class GetSellPaymentInfoDto {
   @ValidateNested()
   @Type(() => EntityDto)
   asset: Asset;
-
-  @ApiProperty({ enum: Blockchain, default: Blockchain.DEFICHAIN })
-  @IsNotEmpty()
-  @IsEnum(Blockchain)
-  blockchain: Blockchain = Blockchain.DEFICHAIN;
 }
