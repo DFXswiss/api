@@ -31,10 +31,11 @@ import { BuyCryptoBatch } from './process/entities/buy-crypto-batch.entity';
 import { BuyCrypto } from './process/entities/buy-crypto.entity';
 import { Buy } from './routes/buy/buy.entity';
 import { CryptoRoute } from './routes/crypto-route/crypto-route.entity';
+import { BuyCryptoFee } from './process/entities/buy-crypto-fees.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([BuyCrypto, BuyCryptoBatch, Buy, CryptoRoute]),
+    TypeOrmModule.forFeature([BuyCrypto, BuyCryptoBatch, BuyCryptoFee, Buy, CryptoRoute]),
     SharedModule,
     DexModule,
     PricingModule,
