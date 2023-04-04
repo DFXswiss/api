@@ -214,6 +214,14 @@ export class Util {
     return batches.reduce((prev, curr) => prev.concat(curr), []);
   }
 
+  static async doGetFulfilled<T>(tasks: Promise<T>[]): Promise<T[]> {
+    return Promise.allSettled(tasks).then((results) => results.filter(this.filterFulfilledCalls).map((r) => r.value));
+  }
+
+  private static filterFulfilledCalls<T>(result: PromiseSettledResult<T>): result is PromiseFulfilledResult<T> {
+    return result.status === 'fulfilled';
+  }
+
   static async timeout<T>(promise: Promise<T>, timeout: number): Promise<T> {
     const timeoutPromise = new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout));
 

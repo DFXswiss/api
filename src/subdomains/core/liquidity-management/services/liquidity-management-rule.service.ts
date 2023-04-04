@@ -13,7 +13,7 @@ import { LiquidityManagementRuleOutputDto } from '../dto/output/liquidity-manage
 import { LiquidityManagementRuleOutputDtoMapper } from '../dto/output/mappers/liquidity-management-rule-output-dto.mapper';
 import { LiquidityManagementRuleCreationDto } from '../dto/input/liquidity-management-rule-creation.dto';
 import { LiquidityActionIntegrationFactory } from '../factories/liquidity-action-integration.factory';
-import { LiquidityManagementRuleStatus } from '../enums';
+import { LiquidityManagementRuleStatus, LiquidityManagementSystem } from '../enums';
 import { IsNull, Not } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { LiquidityManagementRuleSettingsDto } from '../dto/input/liquidity-management-settings.dto';
@@ -258,9 +258,9 @@ export class LiquidityManagementRuleService {
         where: {
           system,
           command,
-          onSuccess: { id: onSuccess.id },
-          onFail: { id: onFail.id },
-          params: params ? JSON.stringify(params) : null,
+          onSuccess: onSuccess ? { id: onSuccess.id } : IsNull(),
+          onFail: onFail ? { id: onFail?.id } : IsNull(),
+          params: params ? JSON.stringify(params) : IsNull(),
         },
         relations: ['onSuccess', 'onFail'],
       }) ?? null
