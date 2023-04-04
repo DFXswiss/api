@@ -65,6 +65,7 @@ export class Configuration {
     password: process.env.SQL_PASSWORD,
     database: process.env.SQL_DB,
     entities: ['dist/**/*.entity{.ts,.js}'],
+    autoLoadEntities: true,
     synchronize: process.env.SQL_SYNCHRONIZE === 'true',
     migrationsRun: process.env.SQL_MIGRATE === 'true',
     migrations: ['migration/*.js'],

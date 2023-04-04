@@ -36,13 +36,13 @@ import { ReferralModule } from 'src/subdomains/core/referral/referral.module';
 import { LimitRequestNotificationService } from './models/limit-request/limit-request-notification.service';
 import { WebhookService } from './services/webhook/webhook.service';
 import { UserDataNotificationService } from './models/user-data/user-data-notification.service';
-import { Wallet } from 'ethers';
 import { BankData } from './models/bank-data/bank-data.entity';
 import { LimitRequest } from './models/limit-request/limit-request.entity';
 import { LinkAddress } from './models/link/link-address.entity';
 import { SpiderData } from './models/spider-data/spider-data.entity';
 import { UserData } from './models/user-data/user-data.entity';
 import { User } from './models/user/user.entity';
+import { Wallet } from './models/wallet/wallet.entity';
 
 @Module({
   imports: [
