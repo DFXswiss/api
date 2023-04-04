@@ -13,7 +13,7 @@ import { LiquidityManagementRuleOutputDto } from '../dto/output/liquidity-manage
 import { LiquidityManagementRuleOutputDtoMapper } from '../dto/output/mappers/liquidity-management-rule-output-dto.mapper';
 import { LiquidityManagementRuleCreationDto } from '../dto/input/liquidity-management-rule-creation.dto';
 import { LiquidityActionIntegrationFactory } from '../factories/liquidity-action-integration.factory';
-import { LiquidityManagementRuleStatus, LiquidityManagementSystem } from '../enums';
+import { LiquidityManagementRuleStatus } from '../enums';
 import { IsNull, Not } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { LiquidityManagementRuleSettingsDto } from '../dto/input/liquidity-management-settings.dto';

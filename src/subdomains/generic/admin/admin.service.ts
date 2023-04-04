@@ -49,7 +49,7 @@ export class AdminService {
       };
       await this.payoutService.doPayout(payoutRequest);
     } catch (e) {
-      throw new ServiceUnavailableException(e);
+      throw new ServiceUnavailableException('Exception during payout', { cause: e });
     }
   }
 

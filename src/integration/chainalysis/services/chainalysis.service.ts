@@ -1,8 +1,8 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Method } from 'axios';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Config } from 'src/config/config';
-import { HttpError, HttpService } from 'src/shared/services/http.service';
+import { HttpService } from 'src/shared/services/http.service';
 
 enum Rating {
   LOW_RISK = 'lowRisk',
@@ -44,9 +44,7 @@ export class ChainalysisService {
 
   // --- HELPER METHODS --- //
   private async callApi<T>(url: string, method: Method = 'GET', data?: any): Promise<T> {
-    return this.request<T>(url, method, data).catch((e: HttpError) => {
-      throw new ServiceUnavailableException(e);
-    });
+    return this.request<T>(url, method, data);
   }
 
   private async request<T>(url: string, method: Method, data?: any, nthTry = 3): Promise<T> {

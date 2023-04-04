@@ -28,11 +28,7 @@ export class NodeClient {
 
   readonly #mode: NodeMode;
 
-  constructor(
-    private readonly http: HttpService,
-    private readonly url: string,
-    mode: NodeMode,
-  ) {
+  constructor(private readonly http: HttpService, private readonly url: string, mode: NodeMode) {
     this.client = this.createJellyfishClient();
     this.queue = new QueueHandler(180000, 60000);
     this.#mode = mode;
@@ -129,7 +125,7 @@ export class NodeClient {
       return await this.call(call);
     } catch (e) {
       console.log('Exception during node call:', e);
-      throw new ServiceUnavailableException(e);
+      throw e;
     }
   }
 

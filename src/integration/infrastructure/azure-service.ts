@@ -1,7 +1,7 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Method } from 'axios';
 import { Config } from 'src/config/config';
-import { HttpError, HttpService } from 'src/shared/services/http.service';
+import { HttpService } from 'src/shared/services/http.service';
 
 @Injectable()
 export class AzureService {
@@ -24,9 +24,7 @@ export class AzureService {
   }
 
   private async callApi<T>(url: string, method: Method = 'GET', data?: any): Promise<T> {
-    return this.request<T>(url, method, data).catch((e: HttpError) => {
-      throw new ServiceUnavailableException(e);
-    });
+    return this.request<T>(url, method, data);
   }
 
   private async request<T>(url: string, method: Method, data?: any, nthTry = 3, getNewAccessToken = false): Promise<T> {

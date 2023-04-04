@@ -379,9 +379,7 @@ export class SpiderApiService {
         identType === KycDocument.INITIATE_CHATBOT_IDENTIFICATION ? Config.kyc.chatbotStyle : undefined,
     };
 
-    return this.callApi<InitiateResponse[]>(`customers/initiate-${identType}-sessions`, 'POST', data).then(
-      (r) => r[0],
-    );
+    return this.callApi<InitiateResponse[]>(`customers/initiate-${identType}-sessions`, 'POST', data).then((r) => r[0]);
   }
 
   // --- HELPER METHODS --- //
@@ -405,7 +403,7 @@ export class SpiderApiService {
         return null;
       }
 
-      throw new ServiceUnavailableException(e);
+      throw new ServiceUnavailableException(e.response.data);
     });
   }
 

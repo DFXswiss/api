@@ -128,8 +128,8 @@ export class KycService {
 
         params: { address: dfxUser.address },
       });
-    } catch (error) {
-      throw new ServiceUnavailableException(error);
+    } catch (e) {
+      throw new ServiceUnavailableException('Failed to transfer KYC data', { cause: e });
     }
 
     const externalUser = await this.userRepo.findOne({ where: { address: result.kycId }, relations: ['userData'] });
