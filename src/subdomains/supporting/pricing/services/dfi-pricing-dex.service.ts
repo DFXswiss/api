@@ -5,8 +5,8 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityOrderContext } from '../../../../subdomains/supporting/dex/entities/liquidity-order.entity';
 import { CheckLiquidityRequest } from '../../../../subdomains/supporting/dex/interfaces';
 import { DexService } from '../../../../subdomains/supporting/dex/services/dex.service';
-import { Price } from '../../../../integration/exchange/dto/price.dto';
-import { PriceProvider } from '../interfaces';
+import { Price } from '../domain/entities/price';
+import { PriceProvider } from '../domain/interfaces';
 import { Util } from 'src/shared/utils/util';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 

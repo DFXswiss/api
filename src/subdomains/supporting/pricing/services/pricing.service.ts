@@ -9,9 +9,9 @@ import { CurrencyService } from '../../../../integration/exchange/services/curre
 import { FixerService } from '../../../../integration/exchange/services/fixer.service';
 import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
 import { KrakenService } from '../../../../integration/exchange/services/kraken.service';
-import { BadPriceRequestException } from '../exceptions/bad-price-request.exception';
-import { PathNotConfiguredException } from '../exceptions/path-not-configured.exception';
-import { PriceRequest, PriceResult } from '../interfaces';
+import { BadPriceRequestException } from '../domain/exceptions/bad-price-request.exception';
+import { PathNotConfiguredException } from '../domain/exceptions/path-not-configured.exception';
+import { PriceRequest, PriceResult } from '../domain/interfaces';
 import { PricePath } from '../utils/price-path';
 import { PriceStep } from '../utils/price-step';
 import { PricingUtil } from '../utils/pricing.util';
@@ -33,6 +33,9 @@ export enum PricingPathAlias {
   ALTCOIN_TO_USD_STABLE_COIN = 'AltcoinToUSDStableCoin',
 }
 
+/**
+ * Payment pricing service - use this service for exact swap prices
+ */
 @Injectable()
 export class PricingService {
   private readonly pricingPaths: Map<PricingPathAlias, PricePath> = new Map();

@@ -1,6 +1,6 @@
 import { PathMisconfiguredException } from '../exceptions/path-misconfigured.exception';
-import { PricePath } from '../utils/price-path';
-import { PriceStep } from '../utils/price-step';
+import { PricePath } from '../../utils/price-path';
+import { PriceStep } from '../../utils/price-step';
 
 export class PricePathInitSpecification {
   public static isSatisfiedBy(path: PricePath): boolean {

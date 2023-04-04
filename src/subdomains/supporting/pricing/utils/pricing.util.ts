@@ -1,4 +1,4 @@
-import { Altcoin, Bitcoin, Fiat, USDStableCoin } from '../enums';
+import { Altcoin, Bitcoin, Fiat, USDStableCoin } from '../domain/enums';
 
 export class PricingUtil {
   static isFiat(asset: string): boolean {

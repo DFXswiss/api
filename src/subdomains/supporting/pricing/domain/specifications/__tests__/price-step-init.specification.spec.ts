@@ -1,5 +1,5 @@
 import { StepMisconfiguredException } from '../../exceptions/step-misconfigured.exception';
-import { createCustomPriceStep } from '../../utils/__mocks__/price-step.mock';
+import { createCustomPriceStep } from '../../../utils/__mocks__/price-step.mock';
 import { PriceStepInitSpecification } from '../price-step-init.specification';
 
 describe('PriceStepInitSpecification', () => {

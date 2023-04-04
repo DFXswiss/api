@@ -2,7 +2,7 @@ import { mock } from 'jest-mock-extended';
 import { createCustomBuy } from 'src/subdomains/core/buy-crypto/routes/buy/__mocks__/buy.entity.mock';
 import { CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
-import { Price } from 'src/integration/exchange/dto/price.dto';
+import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';

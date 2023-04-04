@@ -23,6 +23,10 @@ export class AssetService {
     return this.assetRepo.findOneBy({ id });
   }
 
+  async getAssetByChainId(blockchain: Blockchain, chainId: string): Promise<Asset> {
+    return this.assetRepo.findOneBy({ blockchain, chainId });
+  }
+
   async getAssetByQuery(query: AssetQuery): Promise<Asset> {
     return this.assetRepo.findOneBy(query);
   }

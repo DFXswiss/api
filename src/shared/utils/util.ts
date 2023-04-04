@@ -113,6 +113,16 @@ export class Util {
     return this.minutesAfter(-minutes, from);
   }
 
+  static hoursAfter(hours: number, from?: Date): Date {
+    const date = from ? new Date(from) : new Date();
+    date.setHours(date.getHours() + hours);
+    return date;
+  }
+
+  static hourBefore(hours: number, from?: Date): Date {
+    return this.hoursAfter(-hours, from);
+  }
+
   static daysAfter(days: number, from?: Date): Date {
     const date = from ? new Date(from) : new Date();
     date.setDate(date.getDate() + days);
