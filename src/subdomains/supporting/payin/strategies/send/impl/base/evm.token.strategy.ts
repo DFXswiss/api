@@ -1,21 +1,21 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
-import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { PayInEvmService } from 'src/subdomains/supporting/payin/services/base/payin-evm.service';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { EvmStrategy } from './evm.strategy';
 import { SendGroup } from './send.strategy';
+import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 
 export abstract class EvmTokenStrategy extends EvmStrategy {
   constructor(
-    protected readonly dexService: DexService,
+    protected readonly priceProvider: PriceProviderService,
     protected readonly payoutService: PayoutService,
     protected readonly payInEvmService: PayInEvmService,
     protected readonly payInRepo: PayInRepository,
     protected readonly blockchain: Blockchain,
   ) {
-    super(dexService, payoutService, payInEvmService, payInRepo, blockchain);
+    super(priceProvider, payoutService, payInEvmService, payInRepo, blockchain);
   }
 
   protected async checkPreparation(payInGroup: SendGroup): Promise<boolean> {

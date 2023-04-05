@@ -42,11 +42,7 @@ export class ExchangeService implements PriceProvider {
 
     const { direction } = await this.getTradePair(from, to);
 
-    return {
-      source: from,
-      target: to,
-      price: direction === OrderSide.BUY ? orderPrice : 1 / orderPrice,
-    };
+    return Price.create(from, to, direction === OrderSide.BUY ? orderPrice : 1 / orderPrice);
   }
 
   async getTrades(since?: Date, from?: string, to?: string): Promise<Trade[]> {

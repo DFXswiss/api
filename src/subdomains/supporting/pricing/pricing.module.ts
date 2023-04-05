@@ -32,6 +32,6 @@ import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
     PricingService,
     DfiPricingDexService,
   ],
-  exports: [PricingService],
+  exports: [PricingService, PriceProviderService],
 })
 export class PricingModule {}

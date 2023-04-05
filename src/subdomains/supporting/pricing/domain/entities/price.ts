@@ -3,6 +3,10 @@ export class Price {
   target: string;
   price: number;
 
+  invert(): Price {
+    return Price.create(this.target, this.source, 1 / this.price);
+  }
+
   static create(source: string, target: string, _price: number): Price {
     const price = new Price();
 

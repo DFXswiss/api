@@ -13,6 +13,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
  */
 @Injectable()
 export class PriceProviderService {
+  private readonly chainsWithSwapPricing = [Blockchain.DEFICHAIN];
   private readonly refAssetMap = new Map<Blockchain, Asset>();
 
   constructor(
@@ -20,6 +21,18 @@ export class PriceProviderService {
     private readonly coinGeckoService: CoinGeckoService,
     private readonly deFiChainService: PricingDeFiChainService,
   ) {}
+
+  async getPrice(from: Asset, to: Asset): Promise<Price> {
+    // get swap price, if available
+    if (from.blockchain === to.blockchain && this.chainsWithSwapPricing.includes(from.blockchain))
+      return this.getSwapPrice(from, to);
+
+    // get exchange price via USD
+    const toRef = await this.getFiatPrice(from, Fiat.USD);
+    const fromRef = await this.getFiatPrice(to, Fiat.USD);
+
+    return Price.join(toRef, fromRef.invert());
+  }
 
   async getFiatPrice(asset: Asset, fiat: Fiat): Promise<Price> {
     try {
@@ -31,20 +44,10 @@ export class PriceProviderService {
     // metadata not found -> use reference asset
     const refAsset = await this.getFiatReferenceAssetFor(asset.blockchain);
 
-    const exchangePrice = await this.getExchangePrice(asset, refAsset);
+    const exchangePrice = await this.getSwapPrice(asset, refAsset);
     const fiatPrice = await this.coinGeckoService.getPrice(refAsset, fiat);
 
     return Price.join(exchangePrice, fiatPrice);
-  }
-
-  async getExchangePrice(from: Asset, to: Asset): Promise<Price> {
-    if (from.blockchain !== to.blockchain)
-      throw new NotImplementedException('Inter blockchain exchange prices not implemented');
-
-    if (from.blockchain !== Blockchain.DEFICHAIN)
-      throw new NotImplementedException(`Pricing is not implemented for ${from.blockchain}`);
-
-    return this.deFiChainService.getPrice(from, to);
   }
 
   // --- HELPER METHODS --- //
@@ -59,5 +62,14 @@ export class PriceProviderService {
     }
 
     return this.refAssetMap.get(blockchain);
+  }
+
+  async getSwapPrice(from: Asset, to: Asset): Promise<Price> {
+    if (from.blockchain !== to.blockchain) throw new Error('Inter blockchain swap prices not possible');
+
+    if (!this.chainsWithSwapPricing.includes(from.blockchain))
+      throw new NotImplementedException(`Swap pricing is not implemented for ${from.blockchain}`);
+
+    return this.deFiChainService.getPrice(from, to);
   }
 }
