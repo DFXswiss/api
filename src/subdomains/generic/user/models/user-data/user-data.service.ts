@@ -11,7 +11,7 @@ import { UserDataRepository } from './user-data.repository';
 import { KycCompleted, KycInProgress, KycState, KycType, UserData, UserDataStatus } from './user-data.entity';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { getRepository, In, MoreThan, Not } from 'typeorm';
+import { In, MoreThan, Not } from 'typeorm';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -22,15 +22,16 @@ import { SpiderApiService } from 'src/subdomains/generic/user/services/spider/sp
 import { Util } from 'src/shared/utils/util';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { KycProcessService } from '../kyc/kyc-process.service';
-import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { AccountType } from './account-type.enum';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { LinkService } from '../link/link.service';
+import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 
 @Injectable()
 export class UserDataService {
   constructor(
+    private readonly repos: RepositoryFactory,
     private readonly userDataRepo: UserDataRepository,
     private readonly userRepo: UserRepository,
     private readonly bankDataRepo: BankDataRepository,
@@ -329,7 +330,7 @@ export class UserDataService {
   }
 
   private async updateBankTxTime(userDataId: number): Promise<void> {
-    const txList = await getRepository(BankTx).find({
+    const txList = await this.repos.bankTx.find({
       select: ['id'],
       where: [
         { buyCrypto: { buy: { user: { userData: { id: userDataId } } } } },
@@ -348,7 +349,7 @@ export class UserDataService {
     });
 
     if (txList.length != 0)
-      await getRepository(BankTx).update(
+      await this.repos.bankTx.update(
         txList.map((tx) => tx.id),
         { updated: new Date() },
       );
