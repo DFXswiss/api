@@ -3,11 +3,11 @@ import { WhaleClient } from 'src/integration/blockchain/ain/whale/whale-client';
 import { WhaleService } from 'src/integration/blockchain/ain/whale/whale.service';
 import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Price } from '../domain/entities/price';
+import { Price } from '../../domain/entities/price';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 @Injectable()
-export class PricingDeFiChainService {
+export class PriceProviderDeFiChainService {
   private client: WhaleClient;
 
   constructor(readonly whaleService: WhaleService, private readonly assetService: AssetService) {

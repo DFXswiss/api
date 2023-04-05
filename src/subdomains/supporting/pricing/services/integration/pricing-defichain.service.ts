@@ -2,20 +2,20 @@ import { v4 as uuid } from 'uuid';
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { LiquidityOrderContext } from '../../../../subdomains/supporting/dex/entities/liquidity-order.entity';
-import { CheckLiquidityRequest } from '../../../../subdomains/supporting/dex/interfaces';
-import { DexService } from '../../../../subdomains/supporting/dex/services/dex.service';
-import { Price } from '../domain/entities/price';
-import { PriceProvider } from '../domain/interfaces';
+import { LiquidityOrderContext } from '../../../dex/entities/liquidity-order.entity';
+import { CheckLiquidityRequest } from '../../../dex/interfaces';
+import { DexService } from '../../../dex/services/dex.service';
+import { Price } from '../../domain/entities/price';
+import { PricingProvider } from '../../domain/interfaces';
 import { Util } from 'src/shared/utils/util';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 
 @Injectable()
-export class DfiPricingDexService implements PriceProvider {
+export class PricingDeFiChainService implements PricingProvider {
   name: string;
 
   constructor(private dexService: DexService, private assetService: AssetService) {
-    this.name = 'DfiDex';
+    this.name = 'DeFiChain';
   }
 
   async getPrice(from: string, to: string): Promise<Price> {

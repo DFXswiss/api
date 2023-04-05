@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
-import { PriceProvider } from 'src/subdomains/supporting/pricing/domain/interfaces';
-import { Price } from '../../../subdomains/supporting/pricing/domain/entities/price';
+import { PricingProvider } from 'src/subdomains/supporting/pricing/domain/interfaces';
+import { Price } from '../../domain/entities/price';
 
 interface FixerResponse {
   base: string;
@@ -15,7 +15,7 @@ interface FixerResponse {
 }
 
 @Injectable()
-export class FixerService implements PriceProvider {
+export class FixerService implements PricingProvider {
   readonly name: string;
 
   constructor(private http: HttpService) {

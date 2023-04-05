@@ -3,7 +3,7 @@ import { Exchange, Market, Order, Trade, Transaction, WithdrawalResponse } from 
 import { TradeResponse, PartialTradeResponse } from '../dto/trade-response.dto';
 import { Price } from '../../../subdomains/supporting/pricing/domain/entities/price';
 import { Util } from 'src/shared/utils/util';
-import { PriceProvider } from 'src/subdomains/supporting/pricing/domain/interfaces';
+import { PricingProvider } from 'src/subdomains/supporting/pricing/domain/interfaces';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { OrderType } from 'ccxt/js/src/base/types';
 
@@ -18,7 +18,7 @@ enum OrderStatus {
   CANCELED = 'canceled',
 }
 
-export class ExchangeService implements PriceProvider {
+export class ExchangeService implements PricingProvider {
   private markets: Market[];
 
   constructor(private readonly exchange: Exchange, private readonly queue?: QueueHandler) {
