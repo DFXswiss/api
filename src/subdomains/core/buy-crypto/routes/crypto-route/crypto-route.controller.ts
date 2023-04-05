@@ -20,6 +20,7 @@ import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/service
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { HistoryDto } from 'src/subdomains/core/history/dto/history.dto';
+import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
 
 @ApiTags('CryptoRoute')
 @Controller('cryptoRoute')
@@ -86,46 +87,54 @@ export class CryptoRouteController {
 
   // --- DTO --- //
   private async toDtoList(userId: number, cryptos: CryptoRoute[]): Promise<CryptoRouteDto[]> {
-    const fees = await this.getFees(userId);
+    const fee = await this.getFee(userId);
 
-    return Promise.all(cryptos.map((b) => this.toDto(userId, b, fees)));
+    return Promise.all(cryptos.map((b) => this.toDto(userId, b, fee)));
   }
 
-  private async toDto(
-    userId: number,
-    crypto: CryptoRoute,
-    fees?: { fee: number; refBonus: number },
-  ): Promise<CryptoRouteDto> {
-    fees ??= await this.getFees(userId);
+  private async toDto(userId: number, crypto: CryptoRoute, fee?: { fee: number }): Promise<CryptoRouteDto> {
+    fee ??= await this.getFee(userId);
 
     return {
-      ...crypto,
+      id: crypto.id,
+      volume: crypto.volume,
+      annualVolume: crypto.annualVolume,
+      active: crypto.active,
+      deposit: DepositDtoMapper.entityToDto(crypto.deposit),
       asset: AssetDtoMapper.entityToDto(crypto.asset),
       blockchain: crypto.deposit.blockchain,
-      ...fees,
+      fee: fee.fee,
       minDeposits: this.getMinDeposits(crypto.deposit.blockchain),
     };
   }
 
   private async toPaymentInfoDto(userId: number, cryptoRoute: CryptoRoute): Promise<CryptoPaymentInfoDto> {
     return {
+      ...(await this.getFee(userId)),
       depositAddress: cryptoRoute.deposit.address,
-      ...(await this.getFees(userId)),
-      minDeposits: this.getMinDeposits(cryptoRoute.deposit.blockchain),
+      blockchain: cryptoRoute.deposit.blockchain,
+      minDeposit: this.getMinDeposit(cryptoRoute.deposit.blockchain),
     };
   }
 
   // --- HELPER-METHODS --- //
+
+  async getFee(userId: number): Promise<{ fee: number }> {
+    return this.userService.getUserCryptoFee(userId);
+  }
+
+  private getMinDeposit(blockchain: Blockchain): MinDeposit {
+    // TODO: refactor transaction volume calculation (DEV-1195)
+    return this.getMinDeposits(blockchain)[0];
+  }
+
   private getMinDeposits(blockchain: Blockchain): MinDeposit[] {
+    // TODO: fix minDeposit calculation for all chains
     switch (blockchain) {
       case Blockchain.BITCOIN:
         return Config.transformToMinDeposit(Config.blockchain.default.minDeposit.Bitcoin);
       case Blockchain.DEFICHAIN:
-        return Config.transformToMinDeposit(Config.blockchain.default.minDeposit.DeFiChain, 'USD');
+        return Config.transformToMinDeposit(Config.transaction.minVolume.Bitcoin.BTC);
     }
-  }
-
-  async getFees(userId: number): Promise<{ fee: number; refBonus: number }> {
-    return this.userService.getUserCryptoFee(userId);
   }
 }
