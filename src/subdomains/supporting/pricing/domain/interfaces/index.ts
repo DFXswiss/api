@@ -15,13 +15,13 @@ export interface PriceResult {
 
 export interface PriceStepResult {
   price: Price;
-  provider: PriceProviderName;
+  provider: PricingProviderName;
   timestamp: Date;
 }
 
-export type PriceProviderName = string;
+export type PricingProviderName = string;
 
-export interface PriceProvider {
-  name: PriceProviderName;
+export interface PricingProvider {
+  name: PricingProviderName;
   getPrice(from: string, to: string): Promise<Price>;
 }

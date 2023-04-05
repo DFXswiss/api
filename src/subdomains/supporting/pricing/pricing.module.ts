@@ -3,16 +3,17 @@ import { NotificationModule } from 'src/subdomains/supporting/notification/notif
 import { SharedModule } from 'src/shared/shared.module';
 import { DexModule } from '../../../subdomains/supporting/dex/dex.module';
 import { ExchangeModule } from '../../../integration/exchange/exchange.module';
-import { DfiPricingDexService } from './services/dfi-pricing-dex.service';
+import { PricingDeFiChainService } from './services/integration/pricing-defichain.service';
 import { PricingController } from './pricing.controller';
 import { PricingService } from './services/pricing.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AssetPricingMetadata } from './domain/entities/asset-pricing-metadata.entity';
 import { AssetPricingMetadataRepository } from './repositories/asset-pricing-metadata.repository';
-import { CoinGeckoService } from './services/coin-gecko.service';
+import { CoinGeckoService } from './services/integration/coin-gecko.service';
 import { PriceProviderService } from './services/price-provider.service';
-import { PricingDeFiChainService } from './services/pricing-defichain.service';
+import { PriceProviderDeFiChainService } from './services/integration/price-provider-defichain.service';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
+import { FixerService } from './services/integration/fixer.service';
 
 @Module({
   imports: [
@@ -27,10 +28,11 @@ import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
   providers: [
     AssetPricingMetadataRepository,
     CoinGeckoService,
+    FixerService,
     PriceProviderService,
-    PricingDeFiChainService,
+    PriceProviderDeFiChainService,
     PricingService,
-    DfiPricingDexService,
+    PricingDeFiChainService,
   ],
   exports: [PricingService, PriceProviderService],
 })

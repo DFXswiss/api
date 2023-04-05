@@ -2,11 +2,11 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import CoinGeckoClient = require('coingecko-api');
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/utils/util';
-import { AssetPricingMetadata } from '../domain/entities/asset-pricing-metadata.entity';
-import { Price } from '../domain/entities/price';
-import { Fiat } from '../domain/enums';
-import { MetadataNotFoundException } from '../domain/exceptions/metadata-not-found.exception';
-import { AssetPricingMetadataRepository } from '../repositories/asset-pricing-metadata.repository';
+import { AssetPricingMetadata } from '../../domain/entities/asset-pricing-metadata.entity';
+import { Price } from '../../domain/entities/price';
+import { Fiat } from '../../domain/enums';
+import { MetadataNotFoundException } from '../../domain/exceptions/metadata-not-found.exception';
+import { AssetPricingMetadataRepository } from '../../repositories/asset-pricing-metadata.repository';
 
 @Injectable()
 export class CoinGeckoService {

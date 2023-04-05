@@ -5,8 +5,7 @@ import { PriceMismatchException } from '../../../../integration/exchange/excepti
 import { BinanceService } from '../../../../integration/exchange/services/binance.service';
 import { BitpandaService } from '../../../../integration/exchange/services/bitpanda.service';
 import { BitstampService } from '../../../../integration/exchange/services/bitstamp.service';
-import { CurrencyService } from '../../../../integration/exchange/services/currency.service';
-import { FixerService } from '../../../../integration/exchange/services/fixer.service';
+import { FixerService } from './integration/fixer.service';
 import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
 import { KrakenService } from '../../../../integration/exchange/services/kraken.service';
 import { BadPriceRequestException } from '../domain/exceptions/bad-price-request.exception';
@@ -15,7 +14,7 @@ import { PriceRequest, PriceResult } from '../domain/interfaces';
 import { PricePath } from '../utils/price-path';
 import { PriceStep } from '../utils/price-step';
 import { PricingUtil } from '../utils/pricing.util';
-import { DfiPricingDexService } from './dfi-pricing-dex.service';
+import { PricingDeFiChainService } from './integration/pricing-defichain.service';
 
 export enum PricingPathAlias {
   MATCHING_ASSETS = 'MatchingAssets',
@@ -43,9 +42,8 @@ export class PricingService {
     private readonly bitstampService: BitstampService,
     private readonly bitpandaService: BitpandaService,
     private readonly kucoinService: KucoinService,
-    private readonly currencyService: CurrencyService,
     private readonly fixerService: FixerService,
-    private readonly dfiDexService: DfiPricingDexService,
+    private readonly defichainService: PricingDeFiChainService,
   ) {
     this.configurePaths();
   }
@@ -206,7 +204,7 @@ export class PricingService {
           },
           reference: {
             overwrite: 'USD',
-            providers: [this.fixerService, this.currencyService],
+            providers: [this.fixerService],
           },
         }),
       ]),
@@ -226,7 +224,7 @@ export class PricingService {
         new PriceStep({
           from: 'BTC',
           primary: {
-            providers: [this.dfiDexService],
+            providers: [this.defichainService],
           },
           reference: {
             providers: [],

@@ -1,6 +1,6 @@
 import { Injectable, NotImplementedException } from '@nestjs/common';
-import { CoinGeckoService } from './coin-gecko.service';
-import { PricingDeFiChainService } from './pricing-defichain.service';
+import { CoinGeckoService } from './integration/coin-gecko.service';
+import { PriceProviderDeFiChainService } from './integration/price-provider-defichain.service';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Price } from '../domain/entities/price';
@@ -19,7 +19,7 @@ export class PriceProviderService {
   constructor(
     private readonly assetService: AssetService,
     private readonly coinGeckoService: CoinGeckoService,
-    private readonly deFiChainService: PricingDeFiChainService,
+    private readonly deFiChainService: PriceProviderDeFiChainService,
   ) {}
 
   async getPrice(from: Asset, to: Asset): Promise<Price> {
