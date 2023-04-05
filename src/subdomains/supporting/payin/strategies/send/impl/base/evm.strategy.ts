@@ -1,4 +1,3 @@
-import { v4 as uuid } from 'uuid';
 import { PayInEvmService } from 'src/subdomains/supporting/payin/services/base/payin-evm.service';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { SendGroup, SendGroupKey, SendStrategy, SendType } from './send.strategy';
@@ -9,8 +8,6 @@ import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/utils/util';
 import { Config } from 'src/config/config';
-import { CheckLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
-import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 
 export abstract class EvmStrategy extends SendStrategy {
