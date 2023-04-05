@@ -2,8 +2,9 @@
 
 API for DFX.swiss crypto exchange
 
-## Documentation
+## API Documentation
 
+- [Swagger](#swagger)
 - [Registration](#registration)
 - [KYC](#kyc-optional)
 - [Transactions](#transactions)
@@ -11,6 +12,11 @@ API for DFX.swiss crypto exchange
   - [Sell Crypto](#sell-crypto)
   - [Bank Accounts](#bank-accounts-optional)
 - [Integration Example](#integration-example)
+
+### Swagger
+
+- [Swagger UI](https://api.dfx.swiss)
+- [Swagger JSON](https://api.dfx.swiss/swagger-json)
 
 ### Registration
 

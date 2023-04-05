@@ -195,6 +195,33 @@ export class Util {
     });
   }
 
+  static async doInBatches<T, U>(list: T[], action: (batch: T[]) => Promise<U>, batchSize: number): Promise<U[]> {
+    const results: U[] = [];
+    while (list.length > 0) {
+      const batch = list.splice(0, batchSize);
+      results.push(await action(batch));
+    }
+
+    return results;
+  }
+
+  static async doInBatchesAndJoin<T, U>(
+    list: T[],
+    action: (batch: T[]) => Promise<U[]>,
+    batchSize: number,
+  ): Promise<U[]> {
+    const batches = await this.doInBatches(list, action, batchSize);
+    return batches.reduce((prev, curr) => prev.concat(curr), []);
+  }
+
+  static async doGetFulfilled<T>(tasks: Promise<T>[]): Promise<T[]> {
+    return Promise.allSettled(tasks).then((results) => results.filter(this.filterFulfilledCalls).map((r) => r.value));
+  }
+
+  private static filterFulfilledCalls<T>(result: PromiseSettledResult<T>): result is PromiseFulfilledResult<T> {
+    return result.status === 'fulfilled';
+  }
+
   static async timeout<T>(promise: Promise<T>, timeout: number): Promise<T> {
     const timeoutPromise = new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout));
 

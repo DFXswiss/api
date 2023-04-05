@@ -67,7 +67,7 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
   async verifyDerivedOrders(): Promise<void> {
     if ((await this.settingService.get('purchase-poolpair-liquidity')) !== 'on') return;
 
-    const pendingParentOrders = await this.liquidityOrderRepo.find({
+    const pendingParentOrders = await this.liquidityOrderRepo.findBy({
       context: Not(LiquidityOrderContext.CREATE_POOL_PAIR),
       isReady: false,
       txId: IsNull(),
@@ -75,7 +75,7 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
 
     for (const parentOrder of pendingParentOrders) {
       try {
-        const derivedOrders = await this.liquidityOrderRepo.find({
+        const derivedOrders = await this.liquidityOrderRepo.findBy({
           context: LiquidityOrderContext.CREATE_POOL_PAIR,
           correlationId: parentOrder.id.toString(),
           isReady: true,
@@ -121,7 +121,7 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
 
   private async secureLiquidityForPairAsset(parentOrder: LiquidityOrder, pairAsset: Asset): Promise<void> {
     // in case of retry - check if a liquidity order was created in a previous try, if yes - prevent creating new one
-    const existingOrder = await this.liquidityOrderRepo.findOne({
+    const existingOrder = await this.liquidityOrderRepo.findOneBy({
       context: LiquidityOrderContext.CREATE_POOL_PAIR,
       correlationId: parentOrder.id.toString(),
       targetAsset: pairAsset,

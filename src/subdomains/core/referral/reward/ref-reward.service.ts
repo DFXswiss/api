@@ -30,11 +30,11 @@ export class RefRewardService {
   }
 
   async update(id: number, dto: UpdateRefRewardDto): Promise<RefReward> {
-    let entity = await this.rewardRepo.findOne(id, { relations: ['user'] });
+    let entity = await this.rewardRepo.findOne({ where: { id }, relations: ['user'] });
     if (!entity) throw new NotFoundException('Ref reward not found');
 
     const internalIdWithOtherReward = dto.internalId
-      ? await this.rewardRepo.findOne({ id: Not(id), internalId: dto.internalId })
+      ? await this.rewardRepo.findOneBy({ id: Not(id), internalId: dto.internalId })
       : null;
     if (internalIdWithOtherReward)
       throw new ConflictException('There is already a ref reward for the specified internal id');
@@ -105,9 +105,7 @@ export class RefRewardService {
   }
 
   async getTransactions(dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<TransactionDetailsDto[]> {
-    const refRewards = await this.rewardRepo.find({
-      where: { outputDate: Between(dateFrom, dateTo) },
-    });
+    const refRewards = await this.rewardRepo.findBy({ outputDate: Between(dateFrom, dateTo) });
 
     return refRewards.map((v) => ({
       id: v.id,

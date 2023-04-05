@@ -85,7 +85,12 @@ export class BuyController {
   private async toDto(userId: number, buy: Buy): Promise<BuyDto> {
     const fee = await this.userService.getUserBuyFee(userId, buy.asset);
     return {
-      ...buy,
+      id: buy.id,
+      active: buy.active,
+      iban: buy.iban,
+      volume: buy.volume,
+      annualVolume: buy.annualVolume,
+      bankUsage: buy.bankUsage,
       asset: AssetDtoMapper.entityToDto(buy.asset),
       ...fee,
       minDeposits: Config.transaction.minVolume.getMany(buy.asset),

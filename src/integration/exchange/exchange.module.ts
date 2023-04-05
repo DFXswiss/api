@@ -13,11 +13,13 @@ import { ExchangeRegistryService } from './services/exchange-registry.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ExchangeTxRepository } from './repositories/exchange-tx.repository';
 import { ExchangeTxService } from './services/exchange-tx.service';
+import { ExchangeTx } from './entities/exchange-tx.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ExchangeTxRepository]), SharedModule],
+  imports: [TypeOrmModule.forFeature([ExchangeTx]), SharedModule],
   controllers: [ExchangeController],
   providers: [
+    ExchangeTxRepository,
     ExchangeRegistryService,
     KrakenService,
     BinanceService,

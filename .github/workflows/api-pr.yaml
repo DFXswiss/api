@@ -8,12 +8,12 @@ on:
   workflow_dispatch:
 
 env:
-  NODE_VERSION: '14.x'
+  NODE_VERSION: '16.x'
 
 jobs:
   build:
     name: Build and test
-    if:  github.head_ref != 'develop'
+    if: github.head_ref != 'develop'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

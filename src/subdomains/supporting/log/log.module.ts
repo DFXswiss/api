@@ -2,13 +2,14 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SharedModule } from 'src/shared/shared.module';
 import { LogController } from './log.controller';
+import { Log } from './log.entity';
 import { LogRepository } from './log.repository';
 import { LogService } from './log.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([LogRepository]), SharedModule],
+  imports: [TypeOrmModule.forFeature([Log]), SharedModule],
   controllers: [LogController],
-  providers: [LogService],
+  providers: [LogRepository, LogService],
   exports: [],
 })
 export class LogModule {}

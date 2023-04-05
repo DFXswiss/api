@@ -1,9 +1,9 @@
-import { AxiosRequestHeaders, Method } from 'axios';
+import { Method, RawAxiosRequestHeaders } from 'axios';
 import { Config } from 'src/config/config';
-import { HttpError, HttpService } from 'src/shared/services/http.service';
+import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { BankTx, BankTxIndicator, BankTxType } from './bank-tx.entity';
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 
 interface Transactions {
   moreResults: boolean;
@@ -260,9 +260,7 @@ export class FrickService {
   // --- HELPER METHODS --- //
 
   private async callApi<T>(url: string, method: Method = 'GET', data?: any): Promise<T> {
-    return this.request<T>(url, method, data).catch((e: HttpError) => {
-      throw new ServiceUnavailableException(e);
-    });
+    return this.request<T>(url, method, data);
   }
 
   private async request<T>(url: string, method: Method, data?: any, nthTry = 3, getNewAccessToken = false): Promise<T> {
@@ -297,7 +295,7 @@ export class FrickService {
     return token;
   }
 
-  private getHeaders(data?: any): AxiosRequestHeaders {
+  private getHeaders(data?: any): RawAxiosRequestHeaders {
     return {
       Accept: 'application/json',
       algorithm: 'rsa-sha512',

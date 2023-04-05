@@ -59,7 +59,7 @@ export class SellController {
   ): Promise<SellPaymentInfoDto> {
     dto = await this.paymentInfoService.sellCheck(dto);
     return this.sellService
-      .createSell(jwt.id, { ...dto, fiat: dto.currency }, true)
+      .createSell(jwt.id, { ...dto, fiat: dto.currency, blockchain: dto.asset.blockchain }, true)
       .then((sell) => this.toPaymentInfoDto(jwt.id, sell, dto));
   }
 
@@ -86,7 +86,11 @@ export class SellController {
 
   private async toDto(sell: Sell): Promise<SellDto> {
     return {
-      ...sell,
+      id: sell.id,
+      iban: sell.iban,
+      active: sell.active,
+      volume: sell.volume,
+      annualVolume: sell.annualVolume,
       fiat: FiatDtoMapper.entityToDto(sell.fiat),
       deposit: DepositDtoMapper.entityToDto(sell.deposit),
       fee: undefined,

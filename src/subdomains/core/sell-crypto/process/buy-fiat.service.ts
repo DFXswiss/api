@@ -65,7 +65,8 @@ export class BuyFiatService {
   }
 
   async update(id: number, dto: UpdateBuyFiatDto): Promise<BuyFiat> {
-    let entity = await this.buyFiatRepo.findOne(id, {
+    let entity = await this.buyFiatRepo.findOne({
+      where: { id },
       relations: ['sell', 'sell.user', 'sell.user.wallet', 'sell.user.userData'],
     });
     if (!entity) throw new NotFoundException('Buy fiat not found');
@@ -80,7 +81,7 @@ export class BuyFiatService {
 
     // bank tx
     if (dto.bankTxId) {
-      update.bankTx = await this.bankTxService.getBankTxRepo().findOne({ id: dto.bankTxId });
+      update.bankTx = await this.bankTxService.getBankTxRepo().findOneBy({ id: dto.bankTxId });
       if (!update.bankTx) throw new BadRequestException('Bank TX not found');
       await this.bankTxService.getBankTxRepo().setNewUpdateTime(dto.bankTxId);
     }

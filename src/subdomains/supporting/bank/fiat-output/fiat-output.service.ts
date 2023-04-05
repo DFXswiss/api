@@ -19,7 +19,7 @@ export class FiatOutputService {
     const entity = this.fiatOutputRepo.create(dto);
 
     if (dto.buyFiatId) {
-      entity.buyFiat = await this.buyFiatRepo.findOne({ where: { id: dto.buyFiatId } });
+      entity.buyFiat = await this.buyFiatRepo.findOneBy({ id: dto.buyFiatId });
       if (!entity.buyFiat) throw new NotFoundException('Buy fiat not found');
     }
 
@@ -27,11 +27,11 @@ export class FiatOutputService {
   }
 
   async update(id: number, dto: UpdateFiatOutputDto): Promise<FiatOutput> {
-    const entity = await this.fiatOutputRepo.findOne(id);
+    const entity = await this.fiatOutputRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('FiatOutput not found');
 
     if (dto.bankTxId) {
-      entity.bankTx = await this.bankTxService.getBankTxRepo().findOne({ id: dto.bankTxId });
+      entity.bankTx = await this.bankTxService.getBankTxRepo().findOneBy({ id: dto.bankTxId });
       if (!entity.bankTx) throw new NotFoundException('BankTx not found');
     }
 

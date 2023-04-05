@@ -27,19 +27,18 @@ import { FiatOutputController } from './fiat-output/fiat-output.controller';
 import { BankTxRepeatController } from './bank-tx-repeat/bank-tx-repeat.controller';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
+import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
+import { BankAccount } from './bank-account/bank-account.entity';
+import { BankTxRepeat } from './bank-tx-repeat/bank-tx-repeat.entity';
+import { BankTxReturn } from './bank-tx-return/bank-tx-return.entity';
+import { BankTxBatch } from './bank-tx/bank-tx-batch.entity';
+import { BankTx } from './bank-tx/bank-tx.entity';
+import { Bank } from './bank/bank.entity';
+import { FiatOutput } from './fiat-output/fiat-output.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      BankTxRepository,
-      BankTxBatchRepository,
-      BankAccountRepository,
-      BankTxReturnRepository,
-      BankTxRepeatRepository,
-      BankRepository,
-      FiatOutputRepository,
-      BuyFiatRepository,
-    ]),
+    TypeOrmModule.forFeature([BankTx, BankTxBatch, BankAccount, BankTxReturn, BankTxRepeat, Bank, FiatOutput, BuyFiat]),
     SharedModule,
     BankIntegrationModule,
     NotificationModule,
@@ -56,6 +55,14 @@ import { UserModule } from 'src/subdomains/generic/user/user.module';
     FiatOutputController,
   ],
   providers: [
+    BankTxRepository,
+    BankTxBatchRepository,
+    BankAccountRepository,
+    BankTxReturnRepository,
+    BankTxRepeatRepository,
+    BankRepository,
+    FiatOutputRepository,
+    BuyFiatRepository,
     BankTxService,
     BankTxReturnService,
     BankTxRepeatService,

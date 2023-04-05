@@ -63,7 +63,7 @@ export class BankTxService {
   }
 
   async create(bankTx: Partial<BankTx>): Promise<Partial<BankTx>> {
-    let entity = await this.bankTxRepo.findOne({ accountServiceRef: bankTx.accountServiceRef });
+    let entity = await this.bankTxRepo.findOneBy({ accountServiceRef: bankTx.accountServiceRef });
     if (entity)
       throw new ConflictException(`There is already a bank tx with the accountServiceRef: ${bankTx.accountServiceRef}`);
 
@@ -76,7 +76,7 @@ export class BankTxService {
   }
 
   async update(bankTxId: number, dto: UpdateBankTxDto): Promise<BankTx> {
-    const bankTx = await this.bankTxRepo.findOne(bankTxId);
+    const bankTx = await this.bankTxRepo.findOneBy({ id: bankTxId });
     if (!bankTx) throw new NotFoundException('BankTx not found');
     if (dto.type && dto.type != bankTx.type) {
       if (BankTxTypeCompleted(bankTx.type)) throw new ConflictException('BankTx type already set');
@@ -123,12 +123,12 @@ export class BankTxService {
     const sepaFile = SepaParser.parseSepaFile(xmlFile);
 
     // parse the file
-    const batch = this.bankTxBatchRepo.create(SepaParser.parseBatch(sepaFile));
+    let batch = this.bankTxBatchRepo.create(SepaParser.parseBatch(sepaFile));
     const txList = this.bankTxRepo.create(SepaParser.parseEntries(sepaFile, batch.iban));
 
     // find duplicate entries
     const duplicates = await this.bankTxRepo
-      .find({ accountServiceRef: In(txList.map((i) => i.accountServiceRef)) })
+      .findBy({ accountServiceRef: In(txList.map((i) => i.accountServiceRef)) })
       .then((list) => list.map((i) => i.accountServiceRef));
     if (duplicates.length > 0) {
       const message = `Duplicate SEPA entries found in batch ${batch.identification}:`;
@@ -140,18 +140,19 @@ export class BankTxService {
       });
     }
 
-    const newTxs = txList
+    let newTxs = txList
       .filter((i) => !duplicates.includes(i.accountServiceRef))
-      .map((tx) => ({
-        type: tx.name?.includes('DFX AG') || tx.name?.includes('Payward Ltd.') ? BankTxType.INTERNAL : null,
-        batch: batch,
-        ...tx,
-      }));
+      .map((tx) => {
+        tx.type = tx.name?.includes('DFX AG') || tx.name?.includes('Payward Ltd.') ? BankTxType.INTERNAL : null;
+        tx.batch = batch;
+
+        return tx;
+      });
 
     // store batch and entries in one transaction
     await this.bankTxBatchRepo.manager.transaction(async (manager) => {
-      await manager.save(batch);
-      await manager.getCustomRepository(BankTxRepository).saveMany(newTxs);
+      batch = await manager.save(batch);
+      newTxs = await new BankTxRepository(manager).saveMany(newTxs);
     });
 
     // avoid infinite loop in JSON

@@ -17,6 +17,11 @@ import { LiquidityBalanceController } from './controllers/balance.controller';
 import { LiquidityManagementOrderController } from './controllers/order.controller';
 import { LiquidityManagementPipelineController } from './controllers/pipeline.controller';
 import { LiquidityManagementRuleController } from './controllers/rule.controller';
+import { LiquidityBalance } from './entities/liquidity-balance.entity';
+import { LiquidityManagementAction } from './entities/liquidity-management-action.entity';
+import { LiquidityManagementOrder } from './entities/liquidity-management-order.entity';
+import { LiquidityManagementPipeline } from './entities/liquidity-management-pipeline.entity';
+import { LiquidityManagementRule } from './entities/liquidity-management-rule.entity';
 import { LiquidityActionIntegrationFactory } from './factories/liquidity-action-integration.factory';
 import { LiquidityBalanceIntegrationFactory } from './factories/liquidity-balance-integration.factory';
 import { LiquidityBalanceRepository } from './repositories/liquidity-balance.repository';
@@ -32,11 +37,11 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
 @Module({
   imports: [
     TypeOrmModule.forFeature([
-      LiquidityManagementRuleRepository,
-      LiquidityManagementActionRepository,
-      LiquidityManagementPipelineRepository,
-      LiquidityManagementOrderRepository,
-      LiquidityBalanceRepository,
+      LiquidityManagementRule,
+      LiquidityManagementAction,
+      LiquidityManagementPipeline,
+      LiquidityManagementOrder,
+      LiquidityBalance,
     ]),
     SharedModule,
     DexModule,
@@ -52,6 +57,11 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     LiquidityManagementPipelineController,
   ],
   providers: [
+    LiquidityManagementRuleRepository,
+    LiquidityManagementActionRepository,
+    LiquidityManagementPipelineRepository,
+    LiquidityManagementOrderRepository,
+    LiquidityBalanceRepository,
     LiquidityManagementService,
     LiquidityManagementRuleService,
     LiquidityManagementPipelineService,

@@ -1,13 +1,14 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { Exchange } from 'ccxt';
-import { I18nJsonParser, I18nOptions } from 'nestjs-i18n';
+import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
 import { Asset, FeeTier } from 'src/shared/models/asset/asset.entity';
 import { MinDeposit } from 'src/subdomains/supporting/address-pool/deposit/dto/min-deposit.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { NetworkName } from '@defichain/jellyfish-network';
 
 export enum Process {
   PAY_IN = 'PayIn',
@@ -24,7 +25,7 @@ export function GetConfig(): Configuration {
 
 export class Configuration {
   environment = process.env.ENVIRONMENT;
-  network = process.env.NETWORK;
+  network = process.env.NETWORK as NetworkName;
   githubToken = process.env.GH_TOKEN;
   defaultLanguage = 'en';
   defaultCountry = 'DE';
@@ -64,23 +65,21 @@ export class Configuration {
     password: process.env.SQL_PASSWORD,
     database: process.env.SQL_DB,
     entities: ['dist/**/*.entity{.ts,.js}'],
+    autoLoadEntities: true,
     synchronize: process.env.SQL_SYNCHRONIZE === 'true',
     migrationsRun: process.env.SQL_MIGRATE === 'true',
     migrations: ['migration/*.js'],
-    cli: {
-      migrationsDir: 'migration',
-    },
     connectionTimeout: 30000,
     requestTimeout: 30000,
   };
 
   i18n: I18nOptions = {
     fallbackLanguage: this.defaultLanguage,
-    parser: I18nJsonParser,
-    parserOptions: {
+    loaderOptions: {
       path: join(__dirname, '../shared/i18n/'),
       watch: true,
     },
+    resolvers: [{ resolve: () => this.defaultLanguage }],
   };
 
   mydefichain = {
@@ -416,8 +415,7 @@ export class Configuration {
   };
 
   crypto = {
-    fee: 0.012,
-    refBonus: 0.001,
+    fee: 0.0099,
   };
 
   ftp = {

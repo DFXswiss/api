@@ -1,5 +1,11 @@
-import { EntityRepository, Repository } from 'typeorm';
+import { Injectable } from '@nestjs/common';
+import { BaseRepository } from 'src/shared/repositories/base.repository';
+import { EntityManager } from 'typeorm';
 import { PayoutOrder } from '../entities/payout-order.entity';
 
-@EntityRepository(PayoutOrder)
-export class PayoutOrderRepository extends Repository<PayoutOrder> {}
+@Injectable()
+export class PayoutOrderRepository extends BaseRepository<PayoutOrder> {
+  constructor(manager: EntityManager) {
+    super(PayoutOrder, manager);
+  }
+}

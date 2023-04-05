@@ -147,7 +147,7 @@ export class KycProcessService {
 
   async storeChatbotResult(userData: UserData): Promise<UserData> {
     try {
-      const spiderData = userData.spiderData ?? (await this.spiderDataRepo.findOne({ userData: { id: userData.id } }));
+      const spiderData = userData.spiderData ?? (await this.spiderDataRepo.findOneBy({ userData: { id: userData.id } }));
       if (spiderData) {
         // get and store the result
         const chatbotResult = {
@@ -209,7 +209,7 @@ export class KycProcessService {
 
   async storeIdentResult(userData: UserData, result: IdentResultDto): Promise<UserData> {
     try {
-      const spiderData = userData.spiderData ?? (await this.spiderDataRepo.findOne({ userData: { id: userData.id } }));
+      const spiderData = userData.spiderData ?? (await this.spiderDataRepo.findOneBy({ userData: { id: userData.id } }));
       if (spiderData) {
         spiderData.identResult = JSON.stringify(result);
         userData.spiderData = await this.spiderDataRepo.save(spiderData);
@@ -223,14 +223,14 @@ export class KycProcessService {
 
   // --- HELPER METHODS --- //
   private async hasRole(userDataId: number, role: UserRole): Promise<boolean> {
-    return this.userRepo.findOne({ where: { userData: { id: userDataId }, role } }).then((u) => u != null);
+    return this.userRepo.exist({ where: { userData: { id: userDataId }, role } });
   }
 
   private async updateSpiderData(userData: UserData, initiateData: InitiateResponse) {
     const sessionData = await this.getSessionData(userData, initiateData);
 
     const spiderData =
-      (await this.spiderDataRepo.findOne({ userData: { id: userData.id } })) ??
+      (await this.spiderDataRepo.findOneBy({ userData: { id: userData.id } })) ??
       this.spiderDataRepo.create({ userData: userData });
 
     spiderData.url = sessionData.url;

@@ -255,8 +255,8 @@ export class BuyCryptoBatchService {
     for (const batch of batches) {
       const { outputAsset } = batch;
 
-      const existingBatch = await this.buyCryptoBatchRepo.findOne({
-        outputAsset,
+      const existingBatch = await this.buyCryptoBatchRepo.findOneBy({
+        outputAsset: { id: outputAsset.id },
         status: Not(BuyCryptoBatchStatus.COMPLETE),
       });
       const newBatch = filteredBatches.find((b) => b.outputAsset.id === outputAsset.id);

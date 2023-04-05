@@ -129,7 +129,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
       throw new Error('Cannot get balance, cache was invalidated due to error while getting new balances');
     }
 
-    return this.defiChainCache.get(`${name}_${type}`);
+    return this.defiChainCache.get(`${name}_${type}`) ?? 0;
   }
 
   private aggregateBalances(tokens: AccountResult<string, string>[], coinAmount: number): Balance[] {

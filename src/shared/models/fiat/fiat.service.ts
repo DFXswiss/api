@@ -11,10 +11,10 @@ export class FiatService {
   }
 
   async getFiat(id: number): Promise<Fiat> {
-    return this.fiatRepo.findOne(id);
+    return this.fiatRepo.findOneBy({ id });
   }
 
   async getFiatByName(name: string): Promise<Fiat> {
-    return this.fiatRepo.findOne({ name });
+    return this.fiatRepo.findOneBy({ name });
   }
 }

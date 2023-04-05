@@ -30,20 +30,20 @@ import { IpLogRepository } from './models/ip-log/ip-log.repository';
 import { IpLogService } from './models/ip-log/ip-log.service';
 import { GeoLocationModule } from 'src/integration/geolocation/geo-location.module';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { Asset } from './models/asset/asset.entity';
+import { Country } from './models/country/country.entity';
+import { Fiat } from './models/fiat/fiat.entity';
+import { IpLog } from './models/ip-log/ip-log.entity';
+import { Language } from './models/language/language.entity';
+import { Setting } from './models/setting/setting.entity';
+import { RepositoryFactory } from './repositories/repository.factory';
 
 @Module({
   imports: [
     HttpModule,
     ConfigModule,
     GeoLocationModule,
-    TypeOrmModule.forFeature([
-      AssetRepository,
-      FiatRepository,
-      CountryRepository,
-      LanguageRepository,
-      SettingRepository,
-      IpLogRepository,
-    ]),
+    TypeOrmModule.forFeature([Asset, Fiat, Country, Language, Setting, IpLog]),
     PassportModule.register({ defaultStrategy: 'jwt', session: true }),
     JwtModule.register(GetConfig().auth.jwt),
     I18nModule.forRoot(GetConfig().i18n),
@@ -52,6 +52,13 @@ import { ThrottlerModule } from '@nestjs/throttler';
   ],
   controllers: [AssetController, FiatController, CountryController, LanguageController, SettingController],
   providers: [
+    RepositoryFactory,
+    AssetRepository,
+    FiatRepository,
+    CountryRepository,
+    LanguageRepository,
+    SettingRepository,
+    IpLogRepository,
     HttpService,
     AssetService,
     FiatService,
@@ -64,6 +71,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     IpLogService,
   ],
   exports: [
+    RepositoryFactory,
     PassportModule,
     JwtModule,
     ScheduleModule,

@@ -5,6 +5,7 @@ import { Price } from '../dto/price.dto';
 import { Util } from 'src/shared/utils/util';
 import { PriceProvider } from 'src/subdomains/supporting/pricing/interfaces';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
+import { OrderType } from 'ccxt/js/src/base/types';
 
 export enum OrderSide {
   BUY = 'buy',
@@ -155,7 +156,7 @@ export class ExchangeService implements PriceProvider {
     from: string,
     to: string,
     amount: number,
-    orderType: string,
+    orderType: OrderType,
     maxRetries = 100,
   ): Promise<TradeResponse> {
     const orders: { [id: string]: PartialTradeResponse } = {};
@@ -230,7 +231,7 @@ export class ExchangeService implements PriceProvider {
   private async createOrUpdateOrder(
     from: string,
     to: string,
-    orderType: string,
+    orderType: OrderType,
     amount: number,
     price: number,
     order?: Order,

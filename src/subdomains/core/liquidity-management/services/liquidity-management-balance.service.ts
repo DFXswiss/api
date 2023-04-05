@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { LiquidityBalance } from '../entities/liquidity-balance.entity';
 import { LiquidityManagementRule } from '../entities/liquidity-management-rule.entity';
-import { BalanceNotCertainException } from '../exceptions/balance-not-certain.exception';
 import { LiquidityBalanceIntegrationFactory } from '../factories/liquidity-balance-integration.factory';
 import { LiquidityBalanceRepository } from '../repositories/liquidity-balance.repository';
+import { Util } from 'src/shared/utils/util';
 
 @Injectable()
 export class LiquidityManagementBalanceService {
@@ -15,27 +15,20 @@ export class LiquidityManagementBalanceService {
   //*** PUBLIC API ***//
 
   async refreshBalances(rules: LiquidityManagementRule[]): Promise<LiquidityBalance[]> {
-    const balanceRequests = await Promise.all(
-      rules.map(async (rule) => {
-        try {
-          const integration = this.balanceIntegrationFactory.getIntegration(rule);
+    const balanceRequests = rules.map(async (rule) => {
+      try {
+        const integration = this.balanceIntegrationFactory.getIntegration(rule);
+        if (!integration) throw new Error(`Not balance integration found`);
 
-          if (!integration) return null;
+        return await integration.getBalance(rule.target);
+      } catch (e) {
+        console.warn(`Error getting liquidity management balance for rule ${rule.id}:`, e);
 
-          return await integration.getBalance(rule.target);
-        } catch (e) {
-          if (e instanceof BalanceNotCertainException) {
-            console.warn(e.message);
-          }
+        throw e;
+      }
+    });
 
-          return null;
-        }
-      }),
-    ).then((r) => r.filter((i) => i));
-
-    const balances = await Promise.allSettled(balanceRequests).then((values) =>
-      values.filter(this.filterFulfilledBalanceCalls).map((b) => b.value),
-    );
+    const balances = await Util.doGetFulfilled(balanceRequests);
 
     await this.saveBalanceResults(balances);
 
@@ -58,18 +51,13 @@ export class LiquidityManagementBalanceService {
 
   //*** HELPER METHODS ***//
 
-  private filterFulfilledBalanceCalls(
-    result: PromiseSettledResult<LiquidityBalance>,
-  ): result is PromiseFulfilledResult<LiquidityBalance> {
-    return result.status === 'fulfilled';
-  }
-
   private async saveBalanceResults(balances: LiquidityBalance[]): Promise<void> {
     for (const balance of balances) {
       try {
-        const existingBalance = await this.balanceRepo.findOne({
-          where: [{ asset: balance.asset }, { fiat: balance.fiat }],
-        });
+        const existingBalance = await this.balanceRepo.findOneBy([
+          { asset: { id: balance.asset?.id } },
+          { fiat: { id: balance.fiat?.id } },
+        ]);
 
         if (existingBalance) {
           existingBalance.updateBalance(balance.amount ?? 0);

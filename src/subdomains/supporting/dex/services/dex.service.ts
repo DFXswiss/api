@@ -145,7 +145,7 @@ export class DexService {
     context: LiquidityOrderContext,
     correlationId: string,
   ): Promise<LiquidityTransactionResult> {
-    const order = await this.liquidityOrderRepo.findOne({ where: { context, correlationId } });
+    const order = await this.liquidityOrderRepo.findOneBy({ context, correlationId });
 
     if (!order) {
       throw new Error(`Order not found. Context: ${context}. Correlation ID: ${correlationId}.`);
@@ -162,7 +162,7 @@ export class DexService {
     context: LiquidityOrderContext,
     correlationId: string,
   ): Promise<{ isReady: boolean; purchaseTxId: string }> {
-    const order = await this.liquidityOrderRepo.findOne({ context, correlationId });
+    const order = await this.liquidityOrderRepo.findOneBy({ context, correlationId });
 
     const purchaseTxId = order && order.txId;
     const isReady = order && order.isReady;
@@ -174,7 +174,7 @@ export class DexService {
     context: LiquidityOrderContext,
     correlationId: string,
   ): Promise<{ isComplete: boolean; purchaseTxId: string }> {
-    const order = await this.liquidityOrderRepo.findOne({ context, correlationId });
+    const order = await this.liquidityOrderRepo.findOneBy({ context, correlationId });
 
     const purchaseTxId = order && order.txId;
     const isComplete = order && order.isComplete;
@@ -205,14 +205,12 @@ export class DexService {
   }
 
   async getPendingOrdersCount(asset: Asset): Promise<number> {
-    return this.liquidityOrderRepo.count({
-      where: [
-        { targetAsset: asset, isComplete: false },
-        { targetAsset: asset, isReady: false },
-        { swapAsset: asset, isComplete: false },
-        { swapAsset: asset, isReady: false },
-      ],
-    });
+    return this.liquidityOrderRepo.countBy([
+      { targetAsset: { id: asset.id }, isComplete: false },
+      { targetAsset: { id: asset.id }, isReady: false },
+      { swapAsset: { id: asset.id }, isComplete: false },
+      { swapAsset: { id: asset.id }, isReady: false },
+    ]);
   }
 
   // *** SUPPLEMENTARY PUBLIC API *** //
@@ -300,7 +298,7 @@ export class DexService {
   @Interval(30000)
   @Lock(1800)
   async finalizePurchaseOrders(): Promise<void> {
-    const standingOrders = await this.liquidityOrderRepo.find({
+    const standingOrders = await this.liquidityOrderRepo.findBy({
       isReady: false,
       txId: Not(IsNull()),
     });

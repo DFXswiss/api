@@ -10,7 +10,7 @@ import { In, IsNull, Not } from 'typeorm';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { SendType } from '../strategies/send/impl/base/send.strategy';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
+import { DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { RegisterStrategiesFacade } from '../strategies/register/register.facade';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
@@ -28,11 +28,11 @@ export class PayInService {
   //*** PUBLIC API ***//
 
   async getNewPayIns(): Promise<CryptoInput[]> {
-    return this.payInRepository.find({ status: PayInStatus.CREATED });
+    return this.payInRepository.findBy({ status: PayInStatus.CREATED });
   }
 
   async getNewPayInsForBlockchain(blockchain: Blockchain): Promise<CryptoInput[]> {
-    return this.payInRepository.find({ status: PayInStatus.CREATED, address: { blockchain } });
+    return this.payInRepository.findBy({ status: PayInStatus.CREATED, address: { blockchain } });
   }
 
   async getAllUserTransactions(userIds: number[]): Promise<CryptoInput[]> {
@@ -48,7 +48,7 @@ export class PayInService {
     purpose: PayInPurpose,
     route: Staking | Sell | CryptoRoute,
   ): Promise<AmlCheck> {
-    const payIn = await this.payInRepository.findOne(payInId);
+    const payIn = await this.payInRepository.findOneBy({ id: payInId });
 
     const amlCheck = await this.doAmlCheck(payIn, route);
 
@@ -65,7 +65,7 @@ export class PayInService {
     returnAddress: BlockchainAddress,
     route: Staking | Sell | CryptoRoute,
   ): Promise<void> {
-    const payIn = await this.payInRepository.findOne(payInId);
+    const payIn = await this.payInRepository.findOneBy({ id: payInId });
 
     const amlCheck = await this.doAmlCheck(payIn, route);
 
@@ -75,15 +75,15 @@ export class PayInService {
   }
 
   async failedPayIn(payIn: CryptoInput, purpose: PayInPurpose): Promise<void> {
-    const _payIn = await this.payInRepository.findOne(payIn.id);
+    const _payIn = await this.payInRepository.findOneBy({ id: payIn.id });
 
     _payIn.fail(purpose);
 
     await this.payInRepository.save(_payIn);
   }
 
-  async ignorePayIn(payIn: CryptoInput, purpose: PayInPurpose, route: DepositRoute): Promise<void> {
-    const _payIn = await this.payInRepository.findOne(payIn.id);
+  async ignorePayIn(payIn: CryptoInput, purpose: PayInPurpose, route: DepositRouteType): Promise<void> {
+    const _payIn = await this.payInRepository.findOneBy({ id: payIn.id });
 
     _payIn.ignore(purpose, route);
 

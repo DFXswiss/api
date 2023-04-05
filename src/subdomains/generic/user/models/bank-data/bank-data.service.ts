@@ -18,7 +18,7 @@ export class BankDataService {
     const userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['bankDatas'] });
     if (!userData) throw new NotFoundException('User data not found');
 
-    const bankDataCheck = await this.bankDataRepo.findOne({
+    const bankDataCheck = await this.bankDataRepo.findOneBy({
       iban: dto.iban,
       name: dto.name,
     });
@@ -38,7 +38,7 @@ export class BankDataService {
   }
 
   async updateBankData(id: number, dto: BankDataDto): Promise<BankData> {
-    const bankData = await this.bankDataRepo.findOne({ id });
+    const bankData = await this.bankDataRepo.findOneBy({ id });
     if (!bankData) throw new NotFoundException('Bank data not found');
 
     return this.bankDataRepo.save({ ...bankData, ...dto });

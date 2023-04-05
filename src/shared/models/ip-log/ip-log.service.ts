@@ -2,24 +2,19 @@ import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { UserRepository } from 'src/subdomains/generic/user/models/user/user.repository';
-import { EntityManager } from 'typeorm';
+import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { CountryService } from '../country/country.service';
 import { IpLog } from './ip-log.entity';
 import { IpLogRepository } from './ip-log.repository';
 
 @Injectable()
 export class IpLogService {
-  private readonly userRepo: UserRepository;
-
   constructor(
     private readonly geoLocationService: GeoLocationService,
     private readonly countryService: CountryService,
     private readonly ipLogRepo: IpLogRepository,
-    entityManager: EntityManager,
-  ) {
-    this.userRepo = entityManager.getCustomRepository(UserRepository);
-  }
+    private readonly repos: RepositoryFactory,
+  ) {}
 
   async create(ip: string, url: string, address: string): Promise<IpLog> {
     const { country, result } = await this.checkIpCountry(ip, address);
@@ -41,7 +36,7 @@ export class IpLogService {
     const country = await this.geoLocationService.getCountry(userIp);
     const countryObject = await this.countryService.getCountryWithSymbol(country);
 
-    const user = await this.userRepo.findOne({ address });
+    const user = await this.repos.user.findOneBy({ address });
     if (!countryObject || (user && user.role != UserRole.USER)) return { country, result: true };
 
     return { country, result: countryObject?.ipEnable };

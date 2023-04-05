@@ -1,16 +1,17 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { MinDeposit } from '../../../../../supporting/address-pool/deposit/dto/min-deposit.dto';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { MinDeposit } from 'src/subdomains/supporting/address-pool/deposit/dto/min-deposit.dto';
 
 export class CryptoPaymentInfoDto {
   @ApiProperty()
   fee: number;
 
   @ApiProperty()
-  refBonus: number;
-
-  @ApiProperty()
   depositAddress: string;
 
-  @ApiProperty({ type: MinDeposit, isArray: true })
-  minDeposits: MinDeposit[];
+  @ApiProperty()
+  blockchain: Blockchain;
+
+  @ApiProperty({ type: MinDeposit })
+  minDeposit: MinDeposit;
 }

@@ -55,13 +55,6 @@
         "sortNum": 90000
       },
       {
-        "_id": "ff6a426b-fcf1-4eb2-bb1c-fa412402dfed",
-        "name": "Masternode",
-        "containerId": "",
-        "created": "2022-02-01T17:41:00.068Z",
-        "sortNum": 100000
-      },
-      {
         "_id": "abff3bcc-baef-471c-bd79-bd812dd74e47",
         "name": "App",
         "containerId": "",

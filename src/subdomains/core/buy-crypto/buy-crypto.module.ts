@@ -27,10 +27,15 @@ import { CryptoRouteService } from './routes/crypto-route/crypto-route.service';
 import { BuyService } from './routes/buy/buy.service';
 import { AddressPoolModule } from 'src/subdomains/supporting/address-pool/address-pool.module';
 import { AinModule } from 'src/integration/blockchain/ain/ain.module';
+import { BuyCryptoBatch } from './process/entities/buy-crypto-batch.entity';
+import { BuyCrypto } from './process/entities/buy-crypto.entity';
+import { Buy } from './routes/buy/buy.entity';
+import { CryptoRoute } from './routes/crypto-route/crypto-route.entity';
+import { BuyCryptoFee } from './process/entities/buy-crypto-fees.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([BuyCryptoRepository, BuyCryptoBatchRepository, BuyRepository, CryptoRouteRepository]),
+    TypeOrmModule.forFeature([BuyCrypto, BuyCryptoBatch, BuyCryptoFee, Buy, CryptoRoute]),
     SharedModule,
     DexModule,
     PricingModule,
@@ -45,6 +50,10 @@ import { AinModule } from 'src/integration/blockchain/ain/ain.module';
   ],
   controllers: [BuyCryptoController, BuyController, CryptoRouteController],
   providers: [
+    BuyCryptoRepository,
+    BuyCryptoBatchRepository,
+    BuyRepository,
+    CryptoRouteRepository,
     CryptoRouteController,
     BuyController,
     BuyCryptoService,

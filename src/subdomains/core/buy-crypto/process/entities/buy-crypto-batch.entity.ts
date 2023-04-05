@@ -106,7 +106,7 @@ export class BuyCryptoBatch extends IEntity {
     }
 
     if (reBatchTransactions.length === 0) {
-      throw new Error(
+      throw new FeeLimitExceededException(
         `Cannot re-batch transactions by payout fee, no transaction exceeds the fee limit. Out asset: ${this.outputAsset.uniqueName}`,
       );
     }

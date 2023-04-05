@@ -1,8 +1,14 @@
-import { EntityRepository, Repository } from 'typeorm';
+import { Injectable } from '@nestjs/common';
+import { BaseRepository } from 'src/shared/repositories/base.repository';
+import { EntityManager } from 'typeorm';
 import { UserData, UserDataStatus } from './user-data.entity';
 
-@EntityRepository(UserData)
-export class UserDataRepository extends Repository<UserData> {
+@Injectable()
+export class UserDataRepository extends BaseRepository<UserData> {
+  constructor(manager: EntityManager) {
+    super(UserData, manager);
+  }
+
   async setNewUpdateTime(userDataId: number): Promise<void> {
     await this.update(userDataId, { updated: new Date() });
   }

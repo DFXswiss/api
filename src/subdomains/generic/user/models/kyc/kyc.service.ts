@@ -56,7 +56,7 @@ export class KycService {
 
   // --- ADMIN/SUPPORT --- //
   async doNameCheck(userDataId: number): Promise<string> {
-    const userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
+    const userData = await this.userDataRepo.findOneBy({ id: userDataId });
     if (!userData) throw new NotFoundException('User data not found');
 
     userData.riskState = await this.spiderService.checkCustomer(userData.id);
@@ -112,7 +112,7 @@ export class KycService {
   async transferKycData(userId: number, dto: KycDataTransferDto): Promise<void> {
     let result: { kycId: string };
 
-    const wallet = await this.walletRepo.findOne({ where: { name: dto.walletName } });
+    const wallet = await this.walletRepo.findOneBy({ name: dto.walletName });
     if (!wallet || !wallet.isKycClient || !wallet.apiUrl) throw new NotFoundException('Wallet not found');
 
     const dfxUser = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
@@ -128,8 +128,8 @@ export class KycService {
 
         params: { address: dfxUser.address },
       });
-    } catch (error) {
-      throw new ServiceUnavailableException(error);
+    } catch (e) {
+      throw new ServiceUnavailableException('Failed to transfer KYC data', { cause: e });
     }
 
     const externalUser = await this.userRepo.findOne({ where: { address: result.kycId }, relations: ['userData'] });

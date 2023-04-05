@@ -1,10 +1,8 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
-import { DepositRouteRepository } from 'src/subdomains/supporting/address-pool/route/deposit-route.repository';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { getCustomRepository } from 'typeorm';
 import { PayInFactory } from '../../../../factories/payin.factory';
 import { PayInEntry } from '../../../../interfaces';
 import { PayInRepository } from '../../../../repositories/payin.repository';
@@ -18,6 +16,7 @@ import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-inp
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
+import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 
 export abstract class EvmStrategy extends RegisterStrategy {
   constructor(
@@ -29,6 +28,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
     protected readonly payInFactory: PayInFactory,
     protected readonly payInRepository: PayInRepository,
     protected readonly assetService: AssetService,
+    private readonly repos: RepositoryFactory,
   ) {
     super(dexService, payInFactory, payInRepository);
   }
@@ -49,7 +49,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
   //*** HELPER METHODS ***//
 
   private async getPayInAddresses(): Promise<string[]> {
-    const routes = await getCustomRepository(DepositRouteRepository).find({
+    const routes = await this.repos.depositRoute.find({
       where: { deposit: { blockchain: this.blockchain } },
       relations: ['deposit'],
     });
@@ -167,7 +167,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
     blockHeight: number,
     log: PayInInputLog,
   ): Promise<void> {
-    const recordedLastBlockPayIns = await this.payInRepository.find({
+    const recordedLastBlockPayIns = await this.payInRepository.findBy({
       address: { address, blockchain: this.blockchain },
       blockHeight,
     });

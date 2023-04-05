@@ -61,7 +61,7 @@ export class UserDataService {
   }
 
   async getUserDataByKycHash(kycHash: string): Promise<UserData | undefined> {
-    return this.userDataRepo.findOne({ kycHash });
+    return this.userDataRepo.findOneBy({ kycHash });
   }
 
   async getUsersByMail(mail: string): Promise<UserData[]> {
@@ -114,14 +114,12 @@ export class UserDataService {
     }
 
     if (dto.mainBankDataId) {
-      userData.mainBankData = await this.bankDataRepo.findOne(dto.mainBankDataId);
+      userData.mainBankData = await this.bankDataRepo.findOneBy({ id: dto.mainBankDataId });
       if (!userData.mainBankData) throw new BadRequestException('Bank data not found');
     }
 
     if (dto.kycFileId) {
-      const userWithSameFileId = await this.userDataRepo.findOne({
-        where: { id: Not(userDataId), kycFileId: dto.kycFileId },
-      });
+      const userWithSameFileId = await this.userDataRepo.findOneBy({ id: Not(userDataId), kycFileId: dto.kycFileId });
       if (userWithSameFileId) throw new ConflictException('A user with this KYC file ID already exists');
 
       await this.userDataRepo.save({ ...userData, ...{ kycFileId: dto.kycFileId } });
@@ -320,7 +318,7 @@ export class UserDataService {
   }
 
   async getAllUserDataWithEmptyFileId(): Promise<number[]> {
-    const userDataList = await this.userDataRepo.find({ where: { kycFileId: MoreThan(0) } });
+    const userDataList = await this.userDataRepo.findBy({ kycFileId: MoreThan(0) });
     const idList = [];
     for (const userData of userDataList) {
       const customerInfo = await this.spiderApiService.getCustomerInfo(userData.id);

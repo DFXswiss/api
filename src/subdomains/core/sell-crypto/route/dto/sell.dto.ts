@@ -24,9 +24,13 @@ export class SellDto {
   volume: number;
 
   @ApiProperty()
+  annualVolume: number;
+
+  @ApiProperty()
   fee: number;
 
-  @ApiProperty({ enum: Blockchain })
+  // TODO: remove
+  @ApiProperty({ enum: Blockchain, deprecated: true })
   blockchain: Blockchain;
 
   @ApiProperty({ type: MinDeposit, isArray: true })

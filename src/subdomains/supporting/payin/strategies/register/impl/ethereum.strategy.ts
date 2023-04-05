@@ -13,6 +13,7 @@ import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { PayInEntry } from '../../../interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
+import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 
 @Injectable()
 export class EthereumStrategy extends EvmStrategy {
@@ -24,6 +25,7 @@ export class EthereumStrategy extends EvmStrategy {
     payInFactory: PayInFactory,
     payInRepository: PayInRepository,
     assetService: AssetService,
+    repos: RepositoryFactory,
   ) {
     super(
       Blockchain.ETHEREUM,
@@ -34,6 +36,7 @@ export class EthereumStrategy extends EvmStrategy {
       payInFactory,
       payInRepository,
       assetService,
+      repos,
     );
   }
 

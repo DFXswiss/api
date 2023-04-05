@@ -1,5 +1,11 @@
-import { EntityRepository, Repository } from 'typeorm';
+import { Injectable } from '@nestjs/common';
+import { BaseRepository } from 'src/shared/repositories/base.repository';
+import { EntityManager } from 'typeorm';
 import { CryptoInput } from '../entities/crypto-input.entity';
 
-@EntityRepository(CryptoInput)
-export class PayInRepository extends Repository<CryptoInput> {}
+@Injectable()
+export class PayInRepository extends BaseRepository<CryptoInput> {
+  constructor(manager: EntityManager) {
+    super(CryptoInput, manager);
+  }
+}

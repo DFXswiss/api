@@ -22,7 +22,7 @@ export class ExchangeTxService {
   async syncExchanges() {
     if (Config.processDisabled(Process.EXCHANGE_TX_SYNC)) return;
 
-    const since = Util.minutesBefore(120);
+    const since = Util.minutesBefore(720);
 
     for (const exchange of ExchangeSyncs) {
       const exchangeService = this.registryService.getExchange(exchange);
@@ -54,8 +54,10 @@ export class ExchangeTxService {
       transactions.sort((a, b) => a.externalCreated.getTime() - b.externalCreated.getTime());
 
       for (const transaction of transactions) {
-        let entity = await this.exchangeTxRepo.findOne({
-          where: { exchange: exchange, externalId: transaction.externalId, type: transaction.type },
+        let entity = await this.exchangeTxRepo.findOneBy({
+          exchange: exchange,
+          externalId: transaction.externalId,
+          type: transaction.type,
         });
         entity = entity ? Object.assign(entity, transaction) : this.exchangeTxRepo.create(transaction);
 

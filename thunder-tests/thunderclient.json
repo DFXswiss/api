@@ -367,25 +367,6 @@
     "tests": []
   },
   {
-    "_id": "be2ef579-62c9-4c1c-a574-35c58e025b36",
-    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "ff6a426b-fcf1-4eb2-bb1c-fa412402dfed",
-    "name": "Create Masternode",
-    "url": "{{url}}/v1/masternode/4/create",
-    "method": "PUT",
-    "sortNum": 190000,
-    "created": "2022-02-01T17:41:08.086Z",
-    "modified": "2022-06-14T13:13:13.193Z",
-    "headers": [],
-    "params": [],
-    "body": {
-      "type": "json",
-      "raw": "{\n  \"creationHash\": \"string5\",\n  \"creationDate\": \"2022-01-01\",\n  \"owner\": \"owner\",\n  \"timelock\": 0\n}",
-      "form": []
-    },
-    "tests": []
-  },
-  {
     "_id": "ae412440-58fa-4623-9601-58249b354157",
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "abff3bcc-baef-471c-bd79-bd812dd74e47",
@@ -566,25 +547,6 @@
     "tests": []
   },
   {
-    "_id": "339c57ca-faeb-4445-b41a-9789f700155d",
-    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "ff6a426b-fcf1-4eb2-bb1c-fa412402dfed",
-    "name": "Resign Masternode",
-    "url": "{{url}}/v1/masternode/4/resign",
-    "method": "PUT",
-    "sortNum": 200000,
-    "created": "2022-03-26T14:41:22.341Z",
-    "modified": "2022-06-14T13:13:44.832Z",
-    "headers": [],
-    "params": [],
-    "body": {
-      "type": "json",
-      "raw": "{\n  \"resignDate\": \"2022-04-01\",\n  \"resignHash\": \"resign 4\"\n}",
-      "form": []
-    },
-    "tests": []
-  },
-  {
     "_id": "1a9ca935-04c8-4df2-a1ac-65285d9060d8",
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "fd2e8b01-0e57-4f22-bbb5-226617dc19db",
@@ -683,20 +645,6 @@
     "sortNum": 370000,
     "created": "2022-06-07T21:46:37.975Z",
     "modified": "2022-06-07T21:46:56.090Z",
-    "headers": [],
-    "params": [],
-    "tests": []
-  },
-  {
-    "_id": "c56af162-5681-4d4c-8c8b-05de16534430",
-    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "ff6a426b-fcf1-4eb2-bb1c-fa412402dfed",
-    "name": "Get Masternodes",
-    "url": "{{url}}/v1/masternode",
-    "method": "GET",
-    "sortNum": 380000,
-    "created": "2022-06-08T10:26:56.667Z",
-    "modified": "2022-06-08T10:27:04.613Z",
     "headers": [],
     "params": [],
     "tests": []
@@ -1406,33 +1354,6 @@
         "isPath": false
       }
     ],
-    "tests": []
-  },
-  {
-    "_id": "2be46b02-7d04-4f16-8939-1ef1a6badbb9",
-    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "f378a918-ebc2-424e-9cd5-f1b49ffa4348",
-    "name": "Get History CT",
-    "url": "{{url}}/v1/history/CT",
-    "method": "GET",
-    "sortNum": 160000,
-    "created": "2022-08-18T15:08:15.494Z",
-    "modified": "2022-08-18T15:09:47.169Z",
-    "headers": [
-      {
-        "name": "DFX-ACCESS-KEY",
-        "value": "CF505D58F7B8319C4491FE2EB25D8D20"
-      },
-      {
-        "name": "DFX-ACCESS-SIGN",
-        "value": "ee6783abbe9b5beb9053cbdabf914cd2c4145bedef9fa32db0e380d73e9d093f"
-      },
-      {
-        "name": "DFX-ACCESS-TIMESTAMP",
-        "value": "2022-08-18T10:00:20.100"
-      }
-    ],
-    "params": [],
     "tests": []
   },
   {
