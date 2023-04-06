@@ -28,10 +28,10 @@ export class PriceProviderService {
       return this.getSwapPrice(from, to);
 
     // get exchange price via USD
-    const toRef = await this.getFiatPrice(from, Fiat.USD);
-    const fromRef = await this.getFiatPrice(to, Fiat.USD);
+    const fromPrice = await this.getFiatPrice(from, Fiat.USD);
+    const toPrice = await this.getFiatPrice(to, Fiat.USD);
 
-    return Price.join(toRef, fromRef.invert());
+    return Price.join(fromPrice, toPrice.invert());
   }
 
   async getFiatPrice(asset: Asset, fiat: Fiat): Promise<Price> {
@@ -44,10 +44,10 @@ export class PriceProviderService {
     // metadata not found -> use reference asset
     const refAsset = await this.getFiatReferenceAssetFor(asset.blockchain);
 
-    const exchangePrice = await this.getSwapPrice(asset, refAsset);
-    const fiatPrice = await this.coinGeckoService.getPrice(refAsset, fiat);
+    const toRef = await this.getSwapPrice(asset, refAsset);
+    const fromRef = await this.coinGeckoService.getPrice(refAsset, fiat);
 
-    return Price.join(exchangePrice, fiatPrice);
+    return Price.join(toRef, fromRef);
   }
 
   // --- HELPER METHODS --- //
