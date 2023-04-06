@@ -876,6 +876,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           name: 'REQUEST_LIMIT_CHECK'
           value: limitCheck
         }
+        {
+          name: 'WEBSITE_RUN_FROM_PACKAGE'
+          value: '1'
+        }
       ]
     }
   }
