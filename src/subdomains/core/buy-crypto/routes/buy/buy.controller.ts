@@ -114,7 +114,7 @@ export class BuyController {
     const bank = await this.bankService.getBank({
       amount: dto.amount,
       currency: dto.currency.name,
-      bankAccount: buy.bankAccount,
+      bankAccount: buy?.bankAccount,
       kycStatus: buy.user.userData.kycStatus,
     });
 

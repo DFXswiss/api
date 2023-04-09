@@ -31,9 +31,9 @@ export class BankService {
     const frickAmountLimit = 9000;
     const fallBackCurrency = 'EUR';
 
-    const ibanCodeCountry = await this.countryService.getCountryWithSymbol(
-      bankSelectorInput.bankAccount.iban.substring(0, 2),
-    );
+    const ibanCodeCountry = bankSelectorInput?.bankAccount
+      ? await this.countryService.getCountryWithSymbol(bankSelectorInput?.bankAccount.iban.substring(0, 2))
+      : undefined;
 
     const banks = await this.bankRepo.find();
 
@@ -51,7 +51,7 @@ export class BankService {
       // instant => Olkypay / EUR
       account = this.getMatchingBank(banks, BankName.OLKY, bankSelectorInput.currency, fallBackCurrency);
     }
-    if (!account && ibanCodeCountry.maerkiBaumannEnable) {
+    if (!account && ibanCodeCountry && ibanCodeCountry.maerkiBaumannEnable) {
       // Valid Maerki Baumann country => MB CHF/USD/EUR
       account = this.getMatchingBank(banks, BankName.MAERKI, bankSelectorInput.currency, fallBackCurrency);
     }

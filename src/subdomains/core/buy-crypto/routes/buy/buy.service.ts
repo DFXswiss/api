@@ -70,7 +70,6 @@ export class BuyService {
     // check if exists
     const existing = await this.buyRepo.findOne({
       where: {
-        iban: dto.iban,
         asset: { id: asset.id },
         deposit: IsNull(),
         user: { id: userId },
@@ -94,10 +93,10 @@ export class BuyService {
     const buy = this.buyRepo.create(dto);
     buy.user = await this.userService.getUser(userId, true);
     buy.asset = asset;
-    buy.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);
+    if (dto.iban) buy.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);
 
     // create hash
-    const hash = Util.createHash(userAddress + asset.uniqueName + buy.iban).toUpperCase();
+    const hash = Util.createHash(userAddress + asset.uniqueName).toUpperCase();
     buy.bankUsage = `${hash.slice(0, 4)}-${hash.slice(4, 8)}-${hash.slice(8, 12)}`;
 
     // save
