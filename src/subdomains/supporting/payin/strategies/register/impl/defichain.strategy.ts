@@ -105,15 +105,7 @@ export class DeFiChainStrategy extends RegisterStrategy {
     const newEntries = await this.getNewEntriesSince(lastCheckedBlockHeight);
     await this.addReferenceAmounts(newEntries);
 
-    for (const entry of newEntries) {
-      try {
-        await this.createPayInAndSave(entry);
-        log.newRecords.push({ address: entry.address.address, txId: entry.txId });
-      } catch (e) {
-        console.log('Did not register pay-in: ', e);
-        continue;
-      }
-    }
+    await this.createPayInsAndSave(newEntries, log);
 
     this.printInputLog(log, lastCheckedBlockHeight, Blockchain.DEFICHAIN);
   }

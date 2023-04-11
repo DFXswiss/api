@@ -88,15 +88,7 @@ export class BitcoinStrategy extends JellyfishStrategy {
 
     await this.addReferenceAmounts(newEntries);
 
-    for (const tx of newEntries) {
-      try {
-        await this.createPayInAndSave(tx);
-        log.newRecords.push({ address: tx.address.address, txId: tx.txId });
-      } catch (e) {
-        console.error('Did not register pay-in: ', e);
-        continue;
-      }
-    }
+    await this.createPayInsAndSave(newEntries, log);
 
     this.printInputLog(log, 'omitted', Blockchain.BITCOIN);
   }
