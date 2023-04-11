@@ -34,11 +34,10 @@ export abstract class EvmCoinStrategy extends EvmStrategy {
   }
 
   protected dispatchSend(payInGroup: SendGroup, estimatedNativeFee: number): Promise<string> {
-    const { sourceAddress, privateKey, destinationAddress } = payInGroup;
+    const { account, destinationAddress } = payInGroup;
 
     return this.payInEvmService.sendNativeCoin(
-      sourceAddress,
-      privateKey,
+      account,
       destinationAddress,
       /**
        * @note

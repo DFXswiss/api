@@ -9,6 +9,7 @@ import { Asset, FeeTier } from 'src/shared/models/asset/asset.entity';
 import { MinDeposit } from 'src/subdomains/supporting/address-pool/deposit/dto/min-deposit.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { NetworkName } from '@defichain/jellyfish-network';
+import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 
 export enum Process {
   PAY_IN = 'PayIn',
@@ -329,8 +330,13 @@ export class Configuration {
       },
     },
     evm: {
-      encryptionKey: process.env.EVM_ENCRYPTION_KEY,
+      depositSeed: process.env.EVM_DEPOSIT_SEED,
       minimalPreparationFee: 0.00000001,
+
+      walletAccount: (accountIndex: number): WalletAccount => ({
+        seed: this.blockchain.evm.depositSeed,
+        index: accountIndex,
+      }),
     },
     ethereum: {
       ethScanApiUrl: process.env.ETH_SCAN_API_URL,

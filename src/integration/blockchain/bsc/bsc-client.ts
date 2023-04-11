@@ -8,10 +8,9 @@ export class BscClient extends EvmClient {
     scanApiKey: string,
     gatewayUrl: string,
     privateKey: string,
-    dfxAddress: string,
     swapContractAddress: string,
     swapTokenAddress: string,
   ) {
-    super(http, scanApiUrl, scanApiKey, gatewayUrl, privateKey, dfxAddress, swapContractAddress, swapTokenAddress);
+    super(http, scanApiUrl, scanApiKey, gatewayUrl, privateKey, swapContractAddress, swapTokenAddress);
   }
 }

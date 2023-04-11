@@ -5,6 +5,10 @@ import { DepositRoute } from '../route/deposit-route.entity';
 
 @Entity()
 @Index((deposit: Deposit) => [deposit.address, deposit.blockchain], { unique: true })
+@Index((deposit: Deposit) => [deposit.accountIndex, deposit.blockchain], {
+  unique: true,
+  where: 'accountIndex IS NOT NULL',
+})
 export class Deposit extends IEntity {
   @Column({ length: 256 })
   address: string;
@@ -15,17 +19,17 @@ export class Deposit extends IEntity {
   @Column({ length: 256, default: Blockchain.DEFICHAIN })
   blockchain: Blockchain;
 
-  @Column({ length: 256, nullable: true })
-  key: string;
+  @Column({ nullable: true })
+  accountIndex?: number;
 
   //*** FACTORY METHODS ***//
 
-  static create(address: string, blockchain: Blockchain, key?: string): Deposit {
+  static create(address: string, blockchain: Blockchain, accountIndex?: number): Deposit {
     const entity = new Deposit();
 
     entity.address = address;
     entity.blockchain = blockchain;
-    entity.key = key;
+    entity.accountIndex = accountIndex;
 
     return entity;
   }

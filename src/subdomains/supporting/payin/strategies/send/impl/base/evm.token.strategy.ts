@@ -43,11 +43,10 @@ export abstract class EvmTokenStrategy extends EvmStrategy {
   }
 
   protected dispatchSend(payInGroup: SendGroup, estimatedNativeFee: number): Promise<string> {
-    const { sourceAddress, privateKey, destinationAddress, asset } = payInGroup;
+    const { account, destinationAddress, asset } = payInGroup;
 
     return this.payInEvmService.sendToken(
-      sourceAddress,
-      privateKey,
+      account,
       destinationAddress,
       asset,
       this.getTotalGroupAmount(payInGroup),

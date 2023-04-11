@@ -7,15 +7,8 @@ import { HttpService } from 'src/shared/services/http.service';
 @Injectable()
 export class BscService extends EvmService {
   constructor(http: HttpService) {
-    const {
-      bscScanApiUrl,
-      bscScanApiKey,
-      bscGatewayUrl,
-      bscWalletAddress,
-      bscWalletPrivateKey,
-      pancakeRouterAddress,
-      swapTokenAddress,
-    } = GetConfig().blockchain.bsc;
+    const { bscScanApiUrl, bscScanApiKey, bscGatewayUrl, bscWalletPrivateKey, pancakeRouterAddress, swapTokenAddress } =
+      GetConfig().blockchain.bsc;
 
     super(
       http,
@@ -23,7 +16,6 @@ export class BscService extends EvmService {
       bscScanApiKey,
       bscGatewayUrl,
       '',
-      bscWalletAddress,
       bscWalletPrivateKey,
       pancakeRouterAddress,
       swapTokenAddress,
