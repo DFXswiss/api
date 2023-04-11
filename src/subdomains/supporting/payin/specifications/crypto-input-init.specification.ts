@@ -10,7 +10,7 @@ export class CryptoInputInitSpecification {
     if (asset) {
       switch (asset.blockchain) {
         case Blockchain.DEFICHAIN: {
-          if (asset.dexName === 'DFI' && amount < Config.blockchain.default.minDeposit.DeFiChain.DFI) {
+          if (asset.dexName === 'DFI' && amount < Config.payIn.minDeposit.DeFiChain.DFI) {
             throw new Error(`Ignoring too small DeFiChain input (${amount} ${asset.dexName})`);
           }
 

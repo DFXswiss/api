@@ -319,15 +319,6 @@ export class Configuration {
       intWalletAddress: process.env.INT_WALLET_ADDRESS,
       btcOutWalletAddress: process.env.BTC_OUT_WALLET_ADDRESS,
       minTxAmount: 0.00000297,
-      minDeposit: {
-        Bitcoin: {
-          BTC: 0.0005,
-        },
-        DeFiChain: {
-          DFI: 0.01,
-          USDT: 0.4,
-        },
-      },
     },
     evm: {
       depositSeed: process.env.EVM_DEPOSIT_SEED,
@@ -379,6 +370,19 @@ export class Configuration {
       pancakeRouterAddress: process.env.ARBITRUM_SWAP_CONTRACT_ADDRESS,
       swapTokenAddress: process.env.ARBITRUM_SWAP_TOKEN_ADDRESS,
     },
+  };
+
+  payIn = {
+    minDeposit: {
+      Bitcoin: {
+        BTC: 0.0005,
+      },
+      DeFiChain: {
+        DFI: 0.01,
+        USDT: 0.4,
+      },
+    },
+    forwardFeeLimit: +(process.env.PAY_IN_FEE_LIMIT ?? 0.005),
   };
 
   buy = {

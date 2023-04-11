@@ -132,7 +132,7 @@ export class CryptoRouteController {
     // TODO: fix minDeposit calculation for all chains
     switch (blockchain) {
       case Blockchain.BITCOIN:
-        return Config.transformToMinDeposit(Config.blockchain.default.minDeposit.Bitcoin);
+        return Config.transformToMinDeposit(Config.payIn.minDeposit.Bitcoin);
       case Blockchain.DEFICHAIN:
         return Config.transformToMinDeposit(Config.transaction.minVolume.Bitcoin.BTC);
     }

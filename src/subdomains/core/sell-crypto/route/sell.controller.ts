@@ -116,7 +116,7 @@ export class SellController {
   private getMinDeposit(sell: Sell): MinDeposit {
     // TODO: refactor transaction volume calculation (DEV-1195)
     if (sell.deposit.blockchain === Blockchain.BITCOIN && sell.fiat.name !== 'USD')
-      return { amount: Config.blockchain.default.minDeposit.Bitcoin.BTC, asset: 'BTC' };
+      return { amount: Config.payIn.minDeposit.Bitcoin.BTC, asset: 'BTC' };
 
     return Config.transaction.minVolume.get(sell.fiat, sell.fiat.name);
   }

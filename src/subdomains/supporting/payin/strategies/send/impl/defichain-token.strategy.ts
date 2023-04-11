@@ -54,7 +54,7 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
     const feeUtxo = await this.deFiChainService.getFeeUtxo(payIn.address.address);
 
     if (!feeUtxo) {
-      const fee = Config.blockchain.default.minDeposit.DeFiChain.DFI / 2;
+      const fee = Config.payIn.minDeposit.DeFiChain.DFI / 2;
       const prepareTxId = await this.deFiChainService.sendFeeUtxo(payIn.address.address, fee);
 
       payIn.preparing(prepareTxId, fee);

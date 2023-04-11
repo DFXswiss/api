@@ -18,8 +18,8 @@ export class BuyFiatInitSpecification {
            * @note
            * duplicate check for DFI min amount left here on purpose, constraints in CryptoInputInitSpecification might change
            */
-          (asset.dexName === 'DFI' && amount < Config.blockchain.default.minDeposit.DeFiChain.DFI) ||
-          (asset.dexName !== 'DFI' && usdtAmount < Config.blockchain.default.minDeposit.DeFiChain.USDT)
+          (asset.dexName === 'DFI' && amount < Config.payIn.minDeposit.DeFiChain.DFI) ||
+          (asset.dexName !== 'DFI' && usdtAmount < Config.payIn.minDeposit.DeFiChain.USDT)
         ) {
           this.throw(cryptoInput);
         }
@@ -28,7 +28,7 @@ export class BuyFiatInitSpecification {
       }
 
       case Blockchain.BITCOIN: {
-        if (btcAmount < Config.blockchain.default.minDeposit.Bitcoin.BTC) this.throw(cryptoInput);
+        if (btcAmount < Config.payIn.minDeposit.Bitcoin.BTC) this.throw(cryptoInput);
         break;
       }
 

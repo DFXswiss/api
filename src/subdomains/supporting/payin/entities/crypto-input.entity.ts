@@ -7,6 +7,7 @@ import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { CryptoInputInitSpecification } from '../specifications/crypto-input-init.specification';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
+import { Config } from 'src/config/config';
 
 export enum PayInPurpose {
   STAKING = 'Staking',
@@ -133,7 +134,7 @@ export class CryptoInput extends IEntity {
     if (estimatedFeeInPayInAsset == null) throw new Error('No fee estimation provided');
     if (totalAmount === 0) throw new Error('Total forward amount cannot be zero');
 
-    if (estimatedFeeInPayInAsset / totalAmount > 0.005) {
+    if (estimatedFeeInPayInAsset / totalAmount > Config.payIn.forwardFeeLimit) {
       const feePercent = Util.round((estimatedFeeInPayInAsset / totalAmount) * 100, 1);
       throw new Error(`Forward fee is too high (${estimatedFeeInPayInAsset}, ${feePercent}%)`);
     }

@@ -112,7 +112,7 @@ export class DexDeFiChainService {
       Config.blockchain.default.dexWalletAddress,
       address,
       'DFI',
-      Config.blockchain.default.minDeposit.DeFiChain.DFI / 2,
+      Config.payIn.minDeposit.DeFiChain.DFI / 2,
     );
   }
 
