@@ -1,4 +1,3 @@
-import { BigNumber } from 'ethers';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmService } from 'src/integration/blockchain/shared/evm/evm.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -29,7 +28,7 @@ export abstract class PayoutEvmService {
   async getCurrentGasForCoinTransaction(): Promise<number> {
     const gasPrice = await this.client.getCurrentGasPrice();
     const gasLimit = this.client.sendCoinGasLimit;
-    const gasInWei = BigNumber.from(+gasPrice * gasLimit);
+    const gasInWei = gasPrice.mul(gasLimit);
 
     return Util.round(this.client.convertToEthLikeDenomination(gasInWei), 16);
   }
@@ -37,7 +36,7 @@ export abstract class PayoutEvmService {
   async getCurrentGasForTokenTransaction(token: Asset): Promise<number> {
     const gasPrice = await this.client.getCurrentGasPrice();
     const gasLimit = await this.client.getTokenGasLimitForAsset(token);
-    const gasInWei = BigNumber.from(+gasPrice * +gasLimit);
+    const gasInWei = gasPrice.mul(gasLimit);
 
     return Util.round(this.client.convertToEthLikeDenomination(gasInWei), 8);
   }

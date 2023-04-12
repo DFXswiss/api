@@ -33,7 +33,7 @@ export class DexBitcoinService {
     const pendingAmount = await this.getPendingAmount();
     const availableAmount = await this.#client.getBalance();
 
-    return [inputAmount, +availableAmount - pendingAmount];
+    return [inputAmount, +availableAmount.minus(pendingAmount)];
   }
 
   async checkTransferCompletion(transferTxId: string): Promise<boolean> {
