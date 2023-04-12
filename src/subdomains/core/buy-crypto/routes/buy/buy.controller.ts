@@ -55,7 +55,7 @@ export class BuyController {
     @GetJwt() jwt: JwtPayload,
     @Body() dto: GetBuyPaymentInfoDto,
   ): Promise<BuyPaymentInfoDto> {
-    dto = await this.paymentInfoService.buyCheck(dto);
+    dto = await this.paymentInfoService.buyCheck(jwt, dto);
     return this.buyService
       .createBuy(jwt.id, jwt.address, dto, true)
       .then((buy) => this.toPaymentInfoDto(jwt.id, buy, dto));
