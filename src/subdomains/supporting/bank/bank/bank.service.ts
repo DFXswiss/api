@@ -45,13 +45,13 @@ export class BankService {
     if (
       !account &&
       bankSelectorInput.currency === 'EUR' &&
-      bankSelectorInput.bankAccount.sctInst &&
+      (!bankSelectorInput.bankAccount || bankSelectorInput.bankAccount?.sctInst) &&
       KycCompleted(bankSelectorInput.kycStatus)
     ) {
       // instant => Olkypay / EUR
       account = this.getMatchingBank(banks, BankName.OLKY, bankSelectorInput.currency, fallBackCurrency);
     }
-    if (!account && ibanCodeCountry && ibanCodeCountry.maerkiBaumannEnable) {
+    if (!account && (!ibanCodeCountry || ibanCodeCountry?.maerkiBaumannEnable)) {
       // Valid Maerki Baumann country => MB CHF/USD/EUR
       account = this.getMatchingBank(banks, BankName.MAERKI, bankSelectorInput.currency, fallBackCurrency);
     }
