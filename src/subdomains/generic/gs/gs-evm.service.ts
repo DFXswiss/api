@@ -8,6 +8,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DepositService } from 'src/subdomains/supporting/address-pool/deposit/deposit.service';
 import { EvmRawTransactionDto } from '../../../integration/blockchain/shared/evm/dto/evm-raw-transaction.dto';
+import { Config } from 'src/config/config';
 
 @Injectable()
 export class GsEvmService {
@@ -23,13 +24,11 @@ export class GsEvmService {
   }: EvmRawTransactionDto): Promise<ethers.providers.TransactionResponse> {
     const client = this.evmRegistryService.getClient(blockchain);
 
-    const depositPrivateKey = await this.depositService.getDepositKey(
-      BlockchainAddress.create(request.from, blockchain),
-    );
+    const deposit = await this.depositService.getDepositByAddress(BlockchainAddress.create(request.from, blockchain));
 
-    if (depositPrivateKey) {
-      return client.sendRawTransactionFromAddress(depositPrivateKey, request);
-    } else if (request.from === client._dfxAddress) {
+    if (deposit?.accountIndex != null) {
+      return client.sendRawTransactionFromAccount(Config.blockchain.evm.walletAccount(deposit.accountIndex), request);
+    } else if (request.from === client.dfxAddress) {
       return client.sendRawTransactionFromDex(request);
     }
 
@@ -44,13 +43,17 @@ export class GsEvmService {
 
     const client = this.evmRegistryService.getClient(blockchain);
 
-    const depositPrivateKey = await this.depositService.getDepositKey(
-      BlockchainAddress.create(fromAddress, blockchain),
-    );
+    const deposit = await this.depositService.getDepositByAddress(BlockchainAddress.create(fromAddress, blockchain));
 
-    if (depositPrivateKey) {
-      return client.sendTokenFromAddress(fromAddress, depositPrivateKey, toAddress, token, amount, feeLimit);
-    } else if (fromAddress === client._dfxAddress) {
+    if (deposit?.accountIndex != null) {
+      return client.sendTokenFromAccount(
+        Config.blockchain.evm.walletAccount(deposit.accountIndex),
+        toAddress,
+        token,
+        amount,
+        feeLimit,
+      );
+    } else if (fromAddress === client.dfxAddress) {
       return client.sendTokenFromDex(toAddress, token, amount, feeLimit);
     }
 
@@ -61,13 +64,16 @@ export class GsEvmService {
     const { fromAddress, toAddress, amount, feeLimit, blockchain } = dto;
     const client = this.evmRegistryService.getClient(blockchain);
 
-    const depositPrivateKey = await this.depositService.getDepositKey(
-      BlockchainAddress.create(fromAddress, blockchain),
-    );
+    const deposit = await this.depositService.getDepositByAddress(BlockchainAddress.create(fromAddress, blockchain));
 
-    if (depositPrivateKey) {
-      return client.sendNativeCoinFromAddress(fromAddress, depositPrivateKey, toAddress, amount, feeLimit);
-    } else if (fromAddress === client._dfxAddress) {
+    if (deposit?.accountIndex != null) {
+      return client.sendNativeCoinFromAccount(
+        Config.blockchain.evm.walletAccount(deposit.accountIndex),
+        toAddress,
+        amount,
+        feeLimit,
+      );
+    } else if (fromAddress === client.dfxAddress) {
       return client.sendNativeCoinFromDex(toAddress, amount, feeLimit);
     }
 

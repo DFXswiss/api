@@ -120,7 +120,7 @@ export abstract class EvmStrategy extends SendStrategy {
       if (!group) {
         groups.set(this.getPayInGroupKey(payIn), {
           sourceAddress: address.address,
-          privateKey: Util.decrypt(payIn.route.deposit.key, Config.blockchain.evm.encryptionKey),
+          account: Config.blockchain.evm.walletAccount(payIn.route.deposit.accountIndex),
           destinationAddress: destinationAddress.address,
           asset,
           status,

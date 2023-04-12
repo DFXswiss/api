@@ -44,11 +44,9 @@ export class CryptoRouteController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
-  async createCrypto(
-    @GetJwt() jwt: JwtPayload,
-    @Body() createCryptoDto: CreateCryptoRouteDto,
-  ): Promise<CryptoRouteDto> {
-    return this.cryptoRouteService.createCrypto(jwt.id, createCryptoDto).then((b) => this.toDto(jwt.id, b));
+  async createCrypto(@GetJwt() jwt: JwtPayload, @Body() dto: CreateCryptoRouteDto): Promise<CryptoRouteDto> {
+    dto = await this.paymentInfoService.cryptoCheck(jwt, dto);
+    return this.cryptoRouteService.createCrypto(jwt.id, dto).then((b) => this.toDto(jwt.id, b));
   }
 
   @Put('/paymentInfos')
@@ -59,7 +57,7 @@ export class CryptoRouteController {
     @GetJwt() jwt: JwtPayload,
     @Body() dto: GetCryptoPaymentInfoDto,
   ): Promise<CryptoPaymentInfoDto> {
-    dto = await this.paymentInfoService.cryptoCheck(dto);
+    dto = await this.paymentInfoService.cryptoCheck(jwt, dto);
     return this.cryptoRouteService
       .createCrypto(jwt.id, { ...dto, blockchain: dto.sourceAsset.blockchain }, true)
       .then((crypto) => this.toPaymentInfoDto(jwt.id, crypto));
@@ -132,7 +130,7 @@ export class CryptoRouteController {
     // TODO: fix minDeposit calculation for all chains
     switch (blockchain) {
       case Blockchain.BITCOIN:
-        return Config.transformToMinDeposit(Config.blockchain.default.minDeposit.Bitcoin);
+        return Config.transformToMinDeposit(Config.payIn.minDeposit.Bitcoin);
       case Blockchain.DEFICHAIN:
         return Config.transformToMinDeposit(Config.transaction.minVolume.Bitcoin.BTC);
     }

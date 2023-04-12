@@ -37,13 +37,13 @@ class BankingBotFileDataDto {
 
 class BankingBotDataDto {
   @IsNotEmpty()
-  @ValidateIf((o) => !o.dfx || o.bank)
+  @ValidateIf((o: BankingBotDataDto) => Boolean(!o.dfx || o.bank))
   @ValidateNested()
   @Type(() => BankingBotFileDataDto)
   bank: BankingBotFileDataDto;
 
   @IsNotEmpty()
-  @ValidateIf((o) => !o.bank || o.dfx)
+  @ValidateIf((o: BankingBotDataDto) => Boolean(!o.bank || o.dfx))
   @ValidateNested()
   @Type(() => BankingBotFileDataDto)
   dfx: BankingBotFileDataDto;

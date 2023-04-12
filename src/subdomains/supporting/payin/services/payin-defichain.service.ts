@@ -133,7 +133,7 @@ export class PayInDeFiChainService extends PayInJellyfishService {
 
           // check for min. deposit
           const usdtAmount = await this.client.testCompositeSwap(asset, 'USDT', amount);
-          if (usdtAmount < Config.blockchain.default.minDeposit.DeFiChain.USDT) {
+          if (usdtAmount < Config.payIn.minDeposit.DeFiChain.USDT) {
             console.log('Retrieving small token:', token);
 
             await this.doTokenTx(token.owner, async (utxo) =>
@@ -154,8 +154,8 @@ export class PayInDeFiChainService extends PayInJellyfishService {
         utxos.find(
           (u) =>
             u.address === address &&
-            u.amount.toNumber() < Config.blockchain.default.minDeposit.DeFiChain.DFI &&
-            u.amount.toNumber() > Config.blockchain.default.minDeposit.DeFiChain.DFI / 4,
+            u.amount.toNumber() < Config.payIn.minDeposit.DeFiChain.DFI &&
+            u.amount.toNumber() > Config.payIn.minDeposit.DeFiChain.DFI / 4,
         ),
       );
   }
@@ -164,7 +164,7 @@ export class PayInDeFiChainService extends PayInJellyfishService {
     return this.client.getUtxo().then((utxos) => utxos.find((u) => u.txid === utxoTx && u.address === addressFrom));
   }
 
-  async sendFeeUtxo(address: string, fee = Config.blockchain.default.minDeposit.DeFiChain.DFI / 2): Promise<string> {
+  async sendFeeUtxo(address: string, fee = Config.payIn.minDeposit.DeFiChain.DFI / 2): Promise<string> {
     return this.client.sendUtxo(Config.blockchain.default.utxoSpenderAddress, address, fee);
   }
 

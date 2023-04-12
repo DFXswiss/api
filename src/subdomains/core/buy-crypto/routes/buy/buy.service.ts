@@ -1,7 +1,6 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 import { Buy } from './buy.entity';
-import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { IsNull, Not, Repository } from 'typeorm';
 import { Util } from 'src/shared/utils/util';
@@ -15,7 +14,6 @@ import { CreateBuyDto } from './dto/create-buy.dto';
 export class BuyService {
   constructor(
     private readonly buyRepo: BuyRepository,
-    private readonly assetService: AssetService,
     private readonly userService: UserService,
     private readonly bankAccountService: BankAccountService,
   ) {}
@@ -61,17 +59,11 @@ export class BuyService {
 
   // --- BUYS --- //
   async createBuy(userId: number, userAddress: string, dto: CreateBuyDto, ignoreExisting = false): Promise<Buy> {
-    // check asset
-    const asset = await this.assetService.getAssetById(dto.asset.id);
-
-    if (!asset) throw new BadRequestException('Asset not found');
-    if (!asset.buyable) throw new BadRequestException('Asset not buyable');
-
     // check if exists
     const existing = await this.buyRepo.findOne({
       where: {
-        iban: dto.iban,
-        asset: { id: asset.id },
+        ...(dto.iban ? { iban: dto.iban } : {}),
+        asset: { id: dto.asset.id },
         deposit: IsNull(),
         user: { id: userId },
       },
@@ -87,17 +79,19 @@ export class BuyService {
         await this.buyRepo.save(existing);
       }
 
+      // remove bank account info, if no IBAN was provided
+      if (existing.bankAccount && !dto.iban) delete existing.bankAccount;
+
       return existing;
     }
 
     // create the entity
     const buy = this.buyRepo.create(dto);
     buy.user = await this.userService.getUser(userId, true);
-    buy.asset = asset;
-    buy.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);
+    if (dto.iban) buy.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);
 
     // create hash
-    const hash = Util.createHash(userAddress + asset.uniqueName + buy.iban).toUpperCase();
+    const hash = Util.createHash(userAddress + buy.asset.uniqueName + (buy.iban ?? '')).toUpperCase();
     buy.bankUsage = `${hash.slice(0, 4)}-${hash.slice(4, 8)}-${hash.slice(8, 12)}`;
 
     // save

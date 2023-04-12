@@ -7,9 +7,9 @@ import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-ac
 import { BuyCrypto } from '../../process/entities/buy-crypto.entity';
 
 @Entity()
-@Index('ibanAssetDepositUser', (buy: Buy) => [buy.iban, buy.asset, buy.deposit, buy.user], { unique: true })
+@Index((buy: Buy) => [buy.iban, buy.asset, buy.deposit, buy.user], { unique: true })
 export class Buy extends IEntity {
-  @Column({ length: 256 })
+  @Column({ length: 256, nullable: true })
   iban: string;
 
   @Column({ length: 256, unique: true })
@@ -27,8 +27,8 @@ export class Buy extends IEntity {
   @ManyToOne(() => User, (user) => user.buys)
   user: User;
 
-  @ManyToOne(() => BankAccount, (bankAccount) => bankAccount.buys, { nullable: false })
-  bankAccount: BankAccount;
+  @ManyToOne(() => BankAccount, (bankAccount) => bankAccount.buys, { nullable: true })
+  bankAccount?: BankAccount;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })
   asset: Asset;

@@ -16,7 +16,7 @@ export class IsDfxIbanValidator implements ValidatorConstraintInterface {
   }
 
   defaultMessage(args: ValidationArguments): string | undefined {
-    //Iban Tools
+    // IBAN tools
     const { valid } = ibantools.validateIBAN(args.value);
     if (!valid) return 'IBAN not valid';
 

@@ -1,6 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsEnum, IsNotEmpty, IsNotEmptyObject, IsString, ValidateNested } from 'class-validator';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsNotEmptyObject,
+  IsOptional,
+  IsString,
+  ValidateIf,
+  ValidateNested,
+} from 'class-validator';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -15,11 +23,19 @@ export class CreateSellDto {
   @IsDfxIban()
   iban: string;
 
-  @ApiProperty({ type: EntityDto })
-  @IsNotEmptyObject()
+  // TODO: remove
+  @ApiProperty({ type: EntityDto, deprecated: true, description: 'Use the currency property' })
+  @IsOptional()
   @ValidateNested()
   @Type(() => EntityDto)
-  fiat: Fiat;
+  fiat?: Fiat;
+
+  @ApiProperty({ type: EntityDto })
+  @IsNotEmptyObject()
+  @ValidateIf((dto: CreateSellDto) => Boolean(dto.currency || !dto.fiat))
+  @ValidateNested()
+  @Type(() => EntityDto)
+  currency: Fiat;
 
   @ApiProperty({ enum: Blockchain, default: Blockchain.DEFICHAIN })
   @IsNotEmpty()

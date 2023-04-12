@@ -5,11 +5,12 @@ import { Util } from 'src/shared/utils/util';
 import ERC20_ABI from './abi/erc20.abi.json';
 import UNISWAP_ROUTER_02_ABI from './abi/uniswap-router02.abi.json';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
+import { WalletAccount } from './domain/wallet-account';
+import { EvmUtil } from './evm.util';
 
 export abstract class EvmClient {
   protected provider: ethers.providers.JsonRpcProvider;
   protected randomReceiverAddress = '0x4975f78e8903548bD33aF404B596690D47588Ff5';
-  protected dfxAddress: string;
   protected wallet: ethers.Wallet;
   protected nonce = new Map<string, number>();
 
@@ -25,13 +26,11 @@ export abstract class EvmClient {
     protected scanApiKey: string,
     gatewayUrl: string,
     privateKey: string,
-    dfxAddress: string,
     swapContractAddress: string,
     swapTokenAddress: string,
   ) {
     this.provider = new ethers.providers.JsonRpcProvider(gatewayUrl);
     this.wallet = new ethers.Wallet(privateKey, this.provider);
-    this.dfxAddress = dfxAddress;
     this.#swapTokenAddress = swapTokenAddress;
     this.#router = new ethers.Contract(swapContractAddress, UNISWAP_ROUTER_02_ABI, this.wallet);
   }
@@ -98,11 +97,11 @@ export abstract class EvmClient {
 
   //*** PUBLIC API - WRITE TRANSACTIONS ***//
 
-  async sendRawTransactionFromAddress(
-    privateKey: string,
+  async sendRawTransactionFromAccount(
+    account: WalletAccount,
     request: ethers.providers.TransactionRequest,
   ): Promise<ethers.providers.TransactionResponse> {
-    const wallet = new ethers.Wallet(privateKey, this.provider);
+    const wallet = EvmUtil.createWallet(account, this.provider);
 
     return this.sendRawTransaction(wallet, request);
   }
@@ -131,37 +130,33 @@ export abstract class EvmClient {
     });
   }
 
-  async sendNativeCoinFromAddress(
-    fromAddress: string,
-    privateKey: string,
+  async sendNativeCoinFromAccount(
+    account: WalletAccount,
     toAddress: string,
     amount: number,
     feeLimit?: number,
   ): Promise<string> {
-    const wallet = new ethers.Wallet(privateKey, this.provider);
+    const wallet = EvmUtil.createWallet(account, this.provider);
 
-    return this.sendNativeCoin(wallet, fromAddress, toAddress, amount, feeLimit);
+    return this.sendNativeCoin(wallet, toAddress, amount, feeLimit);
   }
 
   async sendNativeCoinFromDex(toAddress: string, amount: number, feeLimit?: number): Promise<string> {
-    return this.sendNativeCoin(this.wallet, this.dfxAddress, toAddress, amount, feeLimit);
+    return this.sendNativeCoin(this.wallet, toAddress, amount, feeLimit);
   }
 
-  async sendTokenFromAddress(
-    fromAddress: string,
-    privateKey: string,
+  async sendTokenFromAccount(
+    account: WalletAccount,
     toAddress: string,
     token: Asset,
     amount: number,
     feeLimit?: number,
   ): Promise<string> {
-    /**
-     * @note
-     * source address is derived from private key, thus not used directly
-     */
-    const contract = this.getERC20ContractForAddress(privateKey, token.chainId);
+    const wallet = EvmUtil.createWallet(account, this.provider);
 
-    return this.sendToken(contract, fromAddress, toAddress, amount, feeLimit);
+    const contract = new ethers.Contract(token.chainId, ERC20_ABI, wallet);
+
+    return this.sendToken(contract, wallet.address, toAddress, amount, feeLimit);
   }
 
   async sendTokenFromDex(toAddress: string, token: Asset, amount: number, feeLimit?: number): Promise<string> {
@@ -233,8 +228,8 @@ export abstract class EvmClient {
     return '0x' + method + destination + value;
   }
 
-  get _dfxAddress(): string {
-    return this.dfxAddress;
+  get dfxAddress(): string {
+    return this.wallet.address;
   }
 
   //*** PUBLIC HELPER METHODS ***//
@@ -266,16 +261,16 @@ export abstract class EvmClient {
 
   protected async sendNativeCoin(
     wallet: ethers.Wallet,
-    fromAddress: string,
     toAddress: string,
     amount: number,
     feeLimit?: number,
   ): Promise<string> {
+    const fromAddress = wallet.address;
     const gasPrice = await this.getGasPrice(this.#sendCoinGasLimit, feeLimit);
     const nonce = await this.getNonce(fromAddress);
 
     const tx = await wallet.sendTransaction({
-      from: fromAddress,
+      from: wallet.address,
       to: toAddress,
       value: this.convertToWeiLikeDenomination(amount, 'ether'),
       nonce,
@@ -343,11 +338,5 @@ export abstract class EvmClient {
       apikey: this.scanApiKey,
       sort: 'asc',
     };
-  }
-
-  private getERC20ContractForAddress(privateKey: string, tokenAddress: string): Contract {
-    const wallet = new ethers.Wallet(privateKey, this.provider);
-
-    return new ethers.Contract(tokenAddress, ERC20_ABI, wallet);
   }
 }

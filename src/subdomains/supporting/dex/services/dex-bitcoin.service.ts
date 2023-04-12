@@ -26,16 +26,14 @@ export class DexBitcoinService {
   }
 
   async transferMinimalUtxo(address: string): Promise<string> {
-    return this.sendUtxoToMany([
-      { addressTo: address, amount: Config.blockchain.default.minDeposit.Bitcoin.BTC / 1000 },
-    ]);
+    return this.sendUtxoToMany([{ addressTo: address, amount: Config.payIn.minDeposit.Bitcoin.BTC / 1000 }]);
   }
 
   async checkAvailableTargetLiquidity(inputAmount: number): Promise<[number, number]> {
     const pendingAmount = await this.getPendingAmount();
     const availableAmount = await this.#client.getBalance();
 
-    return [inputAmount, +availableAmount - pendingAmount];
+    return [inputAmount, +availableAmount.minus(pendingAmount)];
   }
 
   async checkTransferCompletion(transferTxId: string): Promise<boolean> {

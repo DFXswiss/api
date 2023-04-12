@@ -4,7 +4,7 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DepositService } from './deposit.service';
-import { RandomDepositDto } from './dto/random-deposit.dto';
+import { CreateDepositDto } from './dto/create-deposit.dto';
 
 @ApiTags('deposit')
 @Controller('deposit')
@@ -15,7 +15,7 @@ export class DepositController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async createRandomDeposits(@Body() dto: RandomDepositDto): Promise<void> {
-    await this.depositService.createRandomDeposits(dto);
+  async createDeposits(@Body() dto: CreateDepositDto): Promise<void> {
+    await this.depositService.createDeposits(dto);
   }
 }

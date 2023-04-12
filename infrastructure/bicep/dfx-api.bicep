@@ -6,7 +6,6 @@ param knownIps string
 param limitCheck string
 param bsLink string
 
-
 param dbAllowAllIps bool
 param dbAdminLogin string
 @secure()
@@ -43,7 +42,7 @@ param utxoSpenderAddress string
 param btcOutWalletAddress string
 
 @secure()
-param evmEncryptionKey string
+param evmDepositSeed string
 param ethWalletAddress string
 @secure()
 param ethWalletPrivateKey string
@@ -114,7 +113,6 @@ param binanceSecret string
 
 param binanceEthWalletWithdrawKey string
 param binanceBscWalletWithdrawKey string
-
 
 param olkyClient string
 @secure()
@@ -573,8 +571,8 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: utxoSpenderAddress
         }
         {
-          name: 'EVM_ENCRYPTION_KEY'
-          value: evmEncryptionKey
+          name: 'EVM_DEPOSIT_SEED'
+          value: evmDepositSeed
         }
         {
           name: 'ETH_WALLET_ADDRESS'
@@ -875,6 +873,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'REQUEST_LIMIT_CHECK'
           value: limitCheck
+        }
+        {
+          name: 'WEBSITE_RUN_FROM_PACKAGE'
+          value: '1'
         }
       ]
     }

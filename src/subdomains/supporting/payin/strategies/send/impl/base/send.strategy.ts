@@ -1,3 +1,4 @@
+import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { CryptoInput, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -5,7 +6,7 @@ import { CryptoInput, PayInStatus } from 'src/subdomains/supporting/payin/entiti
 export type SendGroupKey = string;
 
 export interface SendGroup {
-  privateKey: string;
+  account: WalletAccount;
   sourceAddress: string;
   destinationAddress: string;
   asset: Asset;

@@ -1,12 +1,11 @@
 import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
-import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { DepositRepository } from 'src/subdomains/supporting/address-pool/deposit/deposit.repository';
-import { Util } from 'src/shared/utils/util';
 import { Deposit } from './deposit.entity';
-import { RandomDepositDto } from './dto/random-deposit.dto';
+import { CreateDepositDto } from './dto/create-deposit.dto';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { Config } from 'src/config/config';
 
 @Injectable()
 export class DepositService {
@@ -18,14 +17,6 @@ export class DepositService {
 
   async getDepositByAddress({ address, blockchain }: BlockchainAddress): Promise<Deposit> {
     return this.depositRepo.findOneBy({ address, blockchain });
-  }
-
-  async getDepositKey(address: BlockchainAddress): Promise<string> {
-    const deposit = await this.getDepositByAddress(address);
-
-    if (!deposit) return null;
-
-    return Util.decrypt(deposit.key, Config.blockchain.evm.encryptionKey);
   }
 
   async getAllDeposit(): Promise<Deposit[]> {
@@ -44,7 +35,7 @@ export class DepositService {
     return deposit;
   }
 
-  async createRandomDeposits({ blockchain, count }: RandomDepositDto): Promise<void> {
+  async createDeposits({ blockchain, count }: CreateDepositDto): Promise<void> {
     const { ARBITRUM, OPTIMISM, ETHEREUM, BINANCE_SMART_CHAIN } = Blockchain;
 
     if (![ARBITRUM, OPTIMISM, ETHEREUM, BINANCE_SMART_CHAIN].includes(blockchain)) {
@@ -53,17 +44,15 @@ export class DepositService {
       );
     }
 
-    for (const _ of new Array(count)) {
-      await this.createRandomDeposit(blockchain);
+    const lastDeposit = await this.depositRepo.findOne({ where: { blockchain }, order: { accountIndex: 'DESC' } });
+    const nextAccountIndex = (lastDeposit?.accountIndex ?? -1) + 1;
+
+    for (let i = 0; i < count; i++) {
+      const accountIndex = nextAccountIndex + i;
+
+      const wallet = EvmUtil.createWallet(Config.blockchain.evm.walletAccount(accountIndex));
+      const deposit = Deposit.create(wallet.address, blockchain, accountIndex);
+      await this.depositRepo.save(deposit);
     }
-  }
-
-  //*** HELPER METHODS ***//
-
-  private async createRandomDeposit(blockchain: Blockchain): Promise<void> {
-    const { address, privateKey } = EvmUtil.getRandomWallet();
-    const deposit = Deposit.create(address, blockchain, Util.encrypt(privateKey, Config.blockchain.evm.encryptionKey));
-
-    await this.depositRepo.save(deposit);
   }
 }

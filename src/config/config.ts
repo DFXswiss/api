@@ -9,6 +9,7 @@ import { Asset, FeeTier } from 'src/shared/models/asset/asset.entity';
 import { MinDeposit } from 'src/subdomains/supporting/address-pool/deposit/dto/min-deposit.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { NetworkName } from '@defichain/jellyfish-network';
+import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 
 export enum Process {
   PAY_IN = 'PayIn',
@@ -318,19 +319,15 @@ export class Configuration {
       intWalletAddress: process.env.INT_WALLET_ADDRESS,
       btcOutWalletAddress: process.env.BTC_OUT_WALLET_ADDRESS,
       minTxAmount: 0.00000297,
-      minDeposit: {
-        Bitcoin: {
-          BTC: 0.0005,
-        },
-        DeFiChain: {
-          DFI: 0.01,
-          USDT: 0.4,
-        },
-      },
     },
     evm: {
-      encryptionKey: process.env.EVM_ENCRYPTION_KEY,
+      depositSeed: process.env.EVM_DEPOSIT_SEED,
       minimalPreparationFee: 0.00000001,
+
+      walletAccount: (accountIndex: number): WalletAccount => ({
+        seed: this.blockchain.evm.depositSeed,
+        index: accountIndex,
+      }),
     },
     ethereum: {
       ethScanApiUrl: process.env.ETH_SCAN_API_URL,
@@ -373,6 +370,19 @@ export class Configuration {
       pancakeRouterAddress: process.env.ARBITRUM_SWAP_CONTRACT_ADDRESS,
       swapTokenAddress: process.env.ARBITRUM_SWAP_TOKEN_ADDRESS,
     },
+  };
+
+  payIn = {
+    minDeposit: {
+      Bitcoin: {
+        BTC: 0.0005,
+      },
+      DeFiChain: {
+        DFI: 0.01,
+        USDT: 0.4,
+      },
+    },
+    forwardFeeLimit: +(process.env.PAY_IN_FEE_LIMIT ?? 0.005),
   };
 
   buy = {
