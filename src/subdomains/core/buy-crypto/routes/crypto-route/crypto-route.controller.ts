@@ -44,11 +44,9 @@ export class CryptoRouteController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
-  async createCrypto(
-    @GetJwt() jwt: JwtPayload,
-    @Body() createCryptoDto: CreateCryptoRouteDto,
-  ): Promise<CryptoRouteDto> {
-    return this.cryptoRouteService.createCrypto(jwt.id, createCryptoDto).then((b) => this.toDto(jwt.id, b));
+  async createCrypto(@GetJwt() jwt: JwtPayload, @Body() dto: CreateCryptoRouteDto): Promise<CryptoRouteDto> {
+    dto = await this.paymentInfoService.cryptoCheck(jwt, dto);
+    return this.cryptoRouteService.createCrypto(jwt.id, dto).then((b) => this.toDto(jwt.id, b));
   }
 
   @Put('/paymentInfos')
