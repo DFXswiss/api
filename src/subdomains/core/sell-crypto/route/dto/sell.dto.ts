@@ -17,8 +17,11 @@ export class SellDto {
   @ApiProperty()
   iban: string;
 
-  @ApiProperty({ type: FiatDto })
+  @ApiProperty({ type: FiatDto, deprecated: true })
   fiat: FiatDto;
+
+  @ApiProperty({ type: FiatDto })
+  currency: FiatDto;
 
   @ApiProperty()
   volume: number;

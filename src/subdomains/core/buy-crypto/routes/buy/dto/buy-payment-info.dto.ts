@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { MinDeposit } from 'src/subdomains/supporting/address-pool/deposit/dto/min-deposit.dto';
 
 export class BankInfoDto {
@@ -20,7 +20,7 @@ export class BankInfoDto {
   @ApiProperty()
   country: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   iban: string;
 
   @ApiProperty()

@@ -2,7 +2,6 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { CreateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/create-sell.dto';
 import { UpdateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/update-sell.dto';
 import { SellRepository } from 'src/subdomains/core/sell-crypto/route/sell.repository';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Sell } from './sell.entity';
 import { DepositService } from '../../../supporting/address-pool/deposit/deposit.service';
 import { User } from '../../../generic/user/models/user/user.entity';
@@ -18,7 +17,6 @@ import { Config } from 'src/config/config';
 export class SellService {
   constructor(
     private readonly sellRepo: SellRepository,
-    private readonly fiatService: FiatService,
     private readonly depositService: DepositService,
     private readonly kycService: KycService,
     private readonly userService: UserService,
@@ -48,14 +46,14 @@ export class SellService {
     const dataComplete = await this.kycService.userDataComplete(userId);
     if (!dataComplete) throw new BadRequestException('Ident data incomplete');
 
-    // check fiat
-    const fiat = await this.fiatService.getFiat(dto.fiat.id);
-    if (!fiat) throw new BadRequestException('Fiat not found');
-    if (!fiat.buyable) throw new BadRequestException('Fiat not buyable');
-
     // check if exists
     const existing = await this.sellRepo.findOne({
-      where: { iban: dto.iban, fiat: { id: fiat.id }, deposit: { blockchain: dto.blockchain }, user: { id: userId } },
+      where: {
+        iban: dto.iban,
+        fiat: { id: dto.currency.id },
+        deposit: { blockchain: dto.blockchain },
+        user: { id: userId },
+      },
       relations: ['deposit'],
     });
 
@@ -74,7 +72,7 @@ export class SellService {
     // create the entity
     const sell = this.sellRepo.create(dto);
     sell.user = { id: userId } as User;
-    sell.fiat = fiat;
+    sell.fiat = dto.currency;
     sell.deposit = await this.depositService.getNextDeposit(dto.blockchain);
     sell.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);
 

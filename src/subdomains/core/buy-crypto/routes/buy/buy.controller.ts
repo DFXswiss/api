@@ -44,6 +44,7 @@ export class BuyController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
   async createBuy(@GetJwt() jwt: JwtPayload, @Body() dto: CreateBuyDto): Promise<BuyDto> {
+    dto = await this.paymentInfoService.buyCheck(jwt, dto);
     return this.buyService.createBuy(jwt.id, jwt.address, dto).then((b) => this.toDto(jwt.id, b));
   }
 
@@ -55,7 +56,7 @@ export class BuyController {
     @GetJwt() jwt: JwtPayload,
     @Body() dto: GetBuyPaymentInfoDto,
   ): Promise<BuyPaymentInfoDto> {
-    dto = await this.paymentInfoService.buyCheck(dto);
+    dto = await this.paymentInfoService.buyCheck(jwt, dto);
     return this.buyService
       .createBuy(jwt.id, jwt.address, dto, true)
       .then((buy) => this.toPaymentInfoDto(jwt.id, buy, dto));
@@ -87,7 +88,6 @@ export class BuyController {
     return {
       id: buy.id,
       active: buy.active,
-      iban: buy.iban,
       volume: buy.volume,
       annualVolume: buy.annualVolume,
       bankUsage: buy.bankUsage,
@@ -102,7 +102,7 @@ export class BuyController {
 
     return {
       ...bankInfo,
-      sepaInstant: bankInfo.sepaInstant && buy.bankAccount.sctInst,
+      sepaInstant: bankInfo.sepaInstant && buy.bankAccount?.sctInst,
       remittanceInfo: buy.bankUsage,
       ...(await this.userService.getUserBuyFee(userId, buy.asset)),
       minDeposit: Config.transaction.minVolume.get(buy.asset, dto.currency.name),

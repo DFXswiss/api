@@ -46,6 +46,9 @@ export class SellController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
   async createSell(@GetJwt() jwt: JwtPayload, @Body() dto: CreateSellDto): Promise<SellDto> {
+    dto.currency ??= dto.fiat;
+
+    dto = await this.paymentInfoService.sellCheck(jwt, dto);
     return this.sellService.createSell(jwt.id, dto).then((s) => this.toDto(s));
   }
 
@@ -57,9 +60,9 @@ export class SellController {
     @GetJwt() jwt: JwtPayload,
     @Body() dto: GetSellPaymentInfoDto,
   ): Promise<SellPaymentInfoDto> {
-    dto = await this.paymentInfoService.sellCheck(dto);
+    dto = await this.paymentInfoService.sellCheck(jwt, dto);
     return this.sellService
-      .createSell(jwt.id, { ...dto, fiat: dto.currency, blockchain: dto.asset.blockchain }, true)
+      .createSell(jwt.id, { ...dto, blockchain: dto.asset.blockchain }, true)
       .then((sell) => this.toPaymentInfoDto(jwt.id, sell, dto));
   }
 
@@ -92,6 +95,7 @@ export class SellController {
       volume: sell.volume,
       annualVolume: sell.annualVolume,
       fiat: FiatDtoMapper.entityToDto(sell.fiat),
+      currency: FiatDtoMapper.entityToDto(sell.fiat),
       deposit: DepositDtoMapper.entityToDto(sell.deposit),
       fee: undefined,
       blockchain: sell.deposit.blockchain,

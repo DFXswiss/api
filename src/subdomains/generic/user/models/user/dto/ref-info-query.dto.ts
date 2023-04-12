@@ -14,11 +14,11 @@ export class RefInfoQuery {
 
   @IsNotEmpty()
   @IsString()
-  @ValidateIf((o) => !o.origin || o.refCode)
+  @ValidateIf((o: RefInfoQuery) => Boolean(!o.origin || o.refCode))
   refCode: string;
 
   @IsNotEmpty()
   @IsString()
-  @ValidateIf((o) => !o.refCode || o.origin)
+  @ValidateIf((o: RefInfoQuery) => Boolean(!o.refCode || o.origin))
   origin: string;
 }

@@ -85,20 +85,10 @@ export class CryptoRouteService {
     const user = await this.userService.getUser(userId);
     if (user.status !== UserStatus.ACTIVE) throw new BadRequestException('Missing bank transaction');
 
-    // check asset
-    const targetAsset = await this.assetService.getAssetById(dto.asset.id);
-    if (!targetAsset) throw new BadRequestException('Asset not found');
-    if (!targetAsset.buyable) throw new BadRequestException('Asset not buyable');
-
-    // check blockchain target asset
-    const userBlockchains = this.cryptoService.getBlockchainsBasedOn(user.address);
-    if (!userBlockchains.includes(targetAsset.blockchain))
-      throw new BadRequestException(`Target asset must be on ${userBlockchains.join(', ')}`);
-
     // check if exists
     const existing = await this.cryptoRepo.findOne({
       where: {
-        asset: { id: targetAsset.id },
+        asset: { id: dto.asset.id },
         targetDeposit: IsNull(),
         user: { id: userId },
         deposit: { blockchain: dto.blockchain },
@@ -121,7 +111,6 @@ export class CryptoRouteService {
     // create the entity
     const crypto = this.cryptoRepo.create();
     crypto.user = { id: userId } as User;
-    crypto.asset = targetAsset;
     crypto.deposit = await this.depositService.getNextDeposit(dto.blockchain);
 
     // save
