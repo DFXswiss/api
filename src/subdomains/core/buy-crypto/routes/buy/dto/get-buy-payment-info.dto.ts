@@ -13,7 +13,7 @@ export class GetBuyPaymentInfoDto {
   @IsString()
   @Transform(Util.trimIban)
   @IsDfxIban()
-  iban: string;
+  iban?: string;
 
   @ApiProperty({ type: EntityDto })
   @IsNotEmptyObject()

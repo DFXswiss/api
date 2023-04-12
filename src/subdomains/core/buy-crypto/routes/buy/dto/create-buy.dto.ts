@@ -11,7 +11,7 @@ export class CreateBuyDto {
   @IsOptional()
   @Transform(Util.trimIban)
   @IsDfxIban()
-  iban: string;
+  iban?: string;
 
   @ApiProperty({ type: EntityDto })
   @IsNotEmptyObject()

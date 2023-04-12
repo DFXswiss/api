@@ -9,9 +9,6 @@ export class BuyDto {
   @ApiProperty()
   active: boolean;
 
-  @ApiProperty()
-  iban: string;
-
   @ApiProperty({ type: AssetDto })
   asset: AssetDto;
 

@@ -70,6 +70,7 @@ export class BuyService {
     // check if exists
     const existing = await this.buyRepo.findOne({
       where: {
+        ...(dto.iban ? { iban: dto.iban } : {}),
         asset: { id: asset.id },
         deposit: IsNull(),
         user: { id: userId },
@@ -86,6 +87,9 @@ export class BuyService {
         await this.buyRepo.save(existing);
       }
 
+      // remove bank account info, if no IBAN was provided
+      if (existing.bankAccount && !dto.iban) delete existing.bankAccount;
+
       return existing;
     }
 
@@ -96,7 +100,7 @@ export class BuyService {
     if (dto.iban) buy.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);
 
     // create hash
-    const hash = Util.createHash(userAddress + asset.uniqueName).toUpperCase();
+    const hash = Util.createHash(userAddress + asset.uniqueName + (buy.iban ?? '')).toUpperCase();
     buy.bankUsage = `${hash.slice(0, 4)}-${hash.slice(4, 8)}-${hash.slice(8, 12)}`;
 
     // save

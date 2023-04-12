@@ -87,7 +87,6 @@ export class BuyController {
     return {
       id: buy.id,
       active: buy.active,
-      iban: buy.iban,
       volume: buy.volume,
       annualVolume: buy.annualVolume,
       bankUsage: buy.bankUsage,
@@ -102,7 +101,7 @@ export class BuyController {
 
     return {
       ...bankInfo,
-      sepaInstant: bankInfo.sepaInstant && buy.bankAccount.sctInst,
+      sepaInstant: bankInfo.sepaInstant && buy.bankAccount?.sctInst,
       remittanceInfo: buy.bankUsage,
       ...(await this.userService.getUserBuyFee(userId, buy.asset)),
       minDeposit: Config.transaction.minVolume.get(buy.asset, dto.currency.name),
@@ -114,7 +113,7 @@ export class BuyController {
     const bank = await this.bankService.getBank({
       amount: dto.amount,
       currency: dto.currency.name,
-      bankAccount: buy?.bankAccount,
+      bankAccount: buy.bankAccount,
       kycStatus: buy.user.userData.kycStatus,
     });
 
