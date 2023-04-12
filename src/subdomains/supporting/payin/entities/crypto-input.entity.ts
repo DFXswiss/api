@@ -4,7 +4,6 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { IEntity } from 'src/shared/models/entity';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { Column, Entity, Index, ManyToOne } from 'typeorm';
-import { CryptoInputInitSpecification } from '../specifications/crypto-input-init.specification';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
 import { Config } from 'src/config/config';
@@ -122,8 +121,6 @@ export class CryptoInput extends IEntity {
     payIn.status = PayInStatus.CREATED;
 
     payIn.addReferenceAmounts(btcAmount, usdtAmount);
-
-    CryptoInputInitSpecification.isSatisfiedBy(payIn);
 
     return payIn;
   }

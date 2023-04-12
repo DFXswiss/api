@@ -131,16 +131,28 @@ export class DeFiChainStrategy extends RegisterStrategy {
       }
     }
 
-    return inputs.map((h) => this.filterOutNonSellableAndPoolPairs(h)).filter((p) => p != null);
+    return inputs.map((h) => this.filterOutInvalid(h)).filter((p) => p != null);
   }
 
-  private filterOutNonSellableAndPoolPairs(_entry: PayInEntry): PayInEntry | null {
-    let entry: PayInEntry | null = null;
+  private filterOutInvalid(_entry: PayInEntry): PayInEntry | null {
+    let entry: PayInEntry | null = _entry;
 
-    entry = this.filterOutNonSellable(_entry);
+    entry = this.filterOutNonSellable(entry);
     entry = this.filterOutPoolPairs(entry);
+    entry = this.filterOutTooSmall(entry);
 
     return entry;
+  }
+
+  private filterOutTooSmall(p: PayInEntry): PayInEntry | null {
+    if (p == null) return null;
+
+    if (p.asset && p.asset.dexName === 'DFI' && p.amount < Config.payIn.minDeposit.DeFiChain.DFI) {
+      console.log(`Ignoring too small DeFiChain input (${p.amount} ${p.asset.dexName}). PayIn entry:`, p);
+      return null;
+    }
+
+    return p;
   }
 
   private createEntry(
