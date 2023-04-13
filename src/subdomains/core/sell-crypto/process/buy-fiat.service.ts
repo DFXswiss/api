@@ -21,6 +21,7 @@ import { WebhookService } from 'src/subdomains/generic/user/services/webhook/web
 import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 import { TransactionDetailsDto } from '../../statistic/dto/statistic.dto';
 import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { TypedHistoryDto } from '../../history/dto/history.dto';
 
 @Injectable()
 export class BuyFiatService {
@@ -186,6 +187,7 @@ export class BuyFiatService {
       date: buyFiat.fiatOutput?.outputDate,
       amlCheck: buyFiat.amlCheck,
       isComplete: buyFiat.isComplete,
+      status: TypedHistoryDto.PaymentStatusMapper[buyFiat.isComplete ? 'Complete' : 'Incomplete'],
     };
   }
 

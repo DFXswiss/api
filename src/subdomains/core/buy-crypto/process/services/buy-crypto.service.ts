@@ -22,7 +22,7 @@ import { BuyCryptoNotificationService } from './buy-crypto-notification.service'
 import { AmlCheck } from '../enums/aml-check.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { CryptoRouteService } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.service';
-import { HistoryDto } from 'src/subdomains/core/history/dto/history.dto';
+import { HistoryDto, TypedHistoryDto } from 'src/subdomains/core/history/dto/history.dto';
 import { BuyHistoryDto } from '../../routes/buy/dto/buy-history.dto';
 import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
@@ -256,6 +256,7 @@ export class BuyCryptoService {
           : undefined,
       isComplete: buyCrypto.isComplete,
       date: buyCrypto.outputDate,
+      status: TypedHistoryDto.PaymentStatusMapper[buyCrypto.status],
     };
   }
 

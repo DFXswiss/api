@@ -1,5 +1,5 @@
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
-import { HistoryDto } from 'src/subdomains/core/history/dto/history.dto';
+import { HistoryDto, PaymentStatus } from 'src/subdomains/core/history/dto/history.dto';
 
 const defaultHistory: HistoryDto = {
   inputAmount: 0.0006,
@@ -11,6 +11,7 @@ const defaultHistory: HistoryDto = {
   txId: 'TX_INPUT_ID_01',
   txUrl: 'https://defiscan.live/transactions/TX_ID_01',
   amlCheck: AmlCheck.PASS,
+  status: PaymentStatus.COMPLETE,
 };
 
 export function createDefaultHistory(): HistoryDto {
