@@ -11,7 +11,7 @@ const defaultHistory: HistoryDto = {
   txId: 'TX_INPUT_ID_01',
   txUrl: 'https://defiscan.live/transactions/TX_ID_01',
   amlCheck: AmlCheck.PASS,
-  status: PaymentStatus.COMPLETE,
+  status: PaymentStatus.PENDING,
 };
 
 export function createDefaultHistory(): HistoryDto {
