@@ -79,6 +79,15 @@ export class BuyCrypto extends IEntity {
   percentFeeAmount: number;
 
   @Column({ type: 'float', nullable: true })
+  minFeeAmount: number;
+
+  @Column({ type: 'float', nullable: true })
+  totalFeeAmount: number;
+
+  @Column({ type: 'float', nullable: true })
+  totalFeeAmountChf: number;
+
+  @Column({ type: 'float', nullable: true })
   absoluteFeeAmount: number;
 
   @Column({ type: 'float', nullable: true })

@@ -49,6 +49,7 @@ export class LimitRequestNotificationService {
                   entity.userData.language.symbol === 'DE'
                     ? entity.limit.toLocaleString('de-DE')
                     : entity.limit.toLocaleString('en-US'),
+                mailName: Config.support.limitRequest.mailName.split(' ')[0],
               },
               from: Config.support.limitRequest.mailAddress,
               displayName: Config.support.limitRequest.mailName,
