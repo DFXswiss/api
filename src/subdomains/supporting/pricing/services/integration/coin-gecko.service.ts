@@ -7,10 +7,10 @@ import { Price } from '../../domain/entities/price';
 import { Fiat } from '../../domain/enums';
 import { MetadataNotFoundException } from '../../domain/exceptions/metadata-not-found.exception';
 import { AssetPricingMetadataRepository } from '../../repositories/asset-pricing-metadata.repository';
+import { Config } from 'src/config/config';
 
 @Injectable()
 export class CoinGeckoService {
-  private readonly refreshPeriod = 15; // minutes
   private readonly client: CoinGeckoClient;
 
   private metaDataCache?: AssetPricingMetadata[];
@@ -20,16 +20,16 @@ export class CoinGeckoService {
     this.client = new CoinGeckoClient();
   }
 
+  async getFiatPrice(from: Fiat, to: Fiat): Promise<Price> {
+    const fromPrice = await this.getPriceWithId('USDT', 'tether', from);
+    const toPrice = await this.getPriceWithId('USDT', 'tether', to);
+
+    return Price.join(fromPrice.invert(), toPrice);
+  }
+
   async getPrice(asset: Asset, fiat: Fiat): Promise<Price> {
     const { name, coinGeckoId } = await this.getAssetInfo(asset);
-    const identifier = `${coinGeckoId}/${fiat}`;
-
-    if (!(this.priceCache.get(identifier)?.updated > Util.minutesBefore(this.refreshPeriod))) {
-      const price = await this.fetchPrice(name, coinGeckoId, fiat);
-      this.priceCache.set(identifier, { updated: new Date(), price });
-    }
-
-    return this.priceCache.get(identifier).price;
+    return this.getPriceWithId(name, coinGeckoId, fiat);
   }
 
   async getPriceAt(asset: Asset, fiat: Fiat, date: Date): Promise<Price> {
@@ -53,6 +53,17 @@ export class CoinGeckoService {
   }
 
   // --- HELPER METHODS --- //
+  private async getPriceWithId(name: string, id: string, fiat: Fiat): Promise<Price> {
+    const identifier = `${id}/${fiat}`;
+
+    if (!(this.priceCache.get(identifier)?.updated > Util.minutesBefore(Config.transaction.pricing.refreshRate))) {
+      const price = await this.fetchPrice(name, id, fiat);
+      this.priceCache.set(identifier, { updated: new Date(), price });
+    }
+
+    return this.priceCache.get(identifier).price;
+  }
+
   private async fetchPrice(name: string, coinGeckoId: string, fiat: Fiat): Promise<Price> {
     const { data } = await this.callApi((c) => c.simple.price({ ids: coinGeckoId, vs_currencies: fiat }));
 
