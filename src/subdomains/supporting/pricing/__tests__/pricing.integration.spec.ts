@@ -5,6 +5,7 @@ import { createCustomPrice } from '../../../../integration/exchange/dto/__mocks_
 import { BinanceService } from '../../../../integration/exchange/services/binance.service';
 import { BitpandaService } from '../../../../integration/exchange/services/bitpanda.service';
 import { BitstampService } from '../../../../integration/exchange/services/bitstamp.service';
+import { CurrencyService } from '../services/integration/currency.service';
 import { FixerService } from '../services/integration/fixer.service';
 import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
 import { KrakenService } from '../../../../integration/exchange/services/kraken.service';
@@ -19,6 +20,7 @@ describe('Pricing Module Integration Tests', () => {
   let bitstampService: BitstampService;
   let bitpandaService: BitpandaService;
   let kucoinService: KucoinService;
+  let currencyService: CurrencyService;
   let fixerService: FixerService;
   let deFiChainService: PricingDeFiChainService;
 
@@ -27,6 +29,7 @@ describe('Pricing Module Integration Tests', () => {
   let bitstampServiceGetPriceSpy: jest.SpyInstance;
   let bitpandaServiceGetPriceSpy: jest.SpyInstance;
   let kucoinServiceGetPriceSpy: jest.SpyInstance;
+  let currencyServiceGetPriceSpy: jest.SpyInstance;
   let fixerServiceGetPriceSpy: jest.SpyInstance;
   let deFiChainServiceGetPriceSpy: jest.SpyInstance;
 
@@ -39,6 +42,7 @@ describe('Pricing Module Integration Tests', () => {
     bitstampService = mock<BitstampService>({ name: 'Bitstamp' });
     bitpandaService = mock<BitpandaService>({ name: 'Bitpanda' });
     kucoinService = mock<KucoinService>({ name: 'Kucoin' });
+    currencyService = mock<CurrencyService>({ name: 'CurrencyService' });
     fixerService = mock<FixerService>({ name: 'FixerService' });
     deFiChainService = mock<PricingDeFiChainService>({ name: 'PricingDeFiChainService' });
 
@@ -49,6 +53,7 @@ describe('Pricing Module Integration Tests', () => {
       bitstampService,
       bitpandaService,
       kucoinService,
+      currencyService,
       fixerService,
       deFiChainService,
     );
@@ -58,6 +63,7 @@ describe('Pricing Module Integration Tests', () => {
     bitstampServiceGetPriceSpy = jest.spyOn(bitstampService, 'getPrice');
     bitpandaServiceGetPriceSpy = jest.spyOn(bitpandaService, 'getPrice');
     kucoinServiceGetPriceSpy = jest.spyOn(kucoinService, 'getPrice');
+    currencyServiceGetPriceSpy = jest.spyOn(currencyService, 'getPrice');
     fixerServiceGetPriceSpy = jest.spyOn(fixerService, 'getPrice');
     deFiChainServiceGetPriceSpy = jest.spyOn(deFiChainService, 'getPrice');
   });
@@ -68,6 +74,7 @@ describe('Pricing Module Integration Tests', () => {
     bitstampServiceGetPriceSpy.mockClear();
     bitpandaServiceGetPriceSpy.mockClear();
     kucoinServiceGetPriceSpy.mockClear();
+    currencyServiceGetPriceSpy.mockClear();
     fixerServiceGetPriceSpy.mockClear();
     deFiChainServiceGetPriceSpy.mockClear();
   });

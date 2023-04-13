@@ -5,6 +5,7 @@ import { PriceMismatchException } from '../../../../integration/exchange/excepti
 import { BinanceService } from '../../../../integration/exchange/services/binance.service';
 import { BitpandaService } from '../../../../integration/exchange/services/bitpanda.service';
 import { BitstampService } from '../../../../integration/exchange/services/bitstamp.service';
+import { CurrencyService } from './integration/currency.service';
 import { FixerService } from './integration/fixer.service';
 import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
 import { KrakenService } from '../../../../integration/exchange/services/kraken.service';
@@ -42,6 +43,7 @@ export class PricingService {
     private readonly bitstampService: BitstampService,
     private readonly bitpandaService: BitpandaService,
     private readonly kucoinService: KucoinService,
+    private readonly currencyService: CurrencyService,
     private readonly fixerService: FixerService,
     private readonly defichainService: PricingDeFiChainService,
   ) {
@@ -204,7 +206,7 @@ export class PricingService {
           },
           reference: {
             overwrite: 'USD',
-            providers: [this.fixerService],
+            providers: [this.fixerService, this.currencyService],
           },
         }),
       ]),
