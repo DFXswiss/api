@@ -109,7 +109,7 @@ export class CryptoRouteService {
     }
 
     // create the entity
-    const crypto = this.cryptoRepo.create();
+    const crypto = this.cryptoRepo.create(dto);
     crypto.user = { id: userId } as User;
     crypto.deposit = await this.depositService.getNextDeposit(dto.blockchain);
 

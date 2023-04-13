@@ -10,7 +10,7 @@ import { AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { CryptoInput } from '../entities/crypto-input.entity';
 import { PayInRepository } from '../repositories/payin.repository';
-import { Interval } from '@nestjs/schedule';
+import { Cron, CronExpression, Interval } from '@nestjs/schedule';
 import { PayInJellyfishService } from './base/payin-jellyfish.service';
 
 export interface HistoryAmount {
@@ -144,6 +144,36 @@ export class PayInDeFiChainService extends PayInJellyfishService {
       } catch (e) {
         console.error(`Failed to convert token (${token.amount} on ${token.owner}):`, e);
       }
+    }
+  }
+
+  @Cron(CronExpression.EVERY_DAY_AT_4AM)
+  async retrieveFeeUtxos(): Promise<void> {
+    try {
+      const utxos = await this.client.getUtxo();
+
+      for (const utxo of utxos) {
+        try {
+          if (
+            utxo.address != Config.blockchain.default.utxoSpenderAddress &&
+            utxo.amount.toNumber() < Config.payIn.minDeposit.DeFiChain.DFI &&
+            utxo.amount.toNumber() - this.client.utxoFee >= Config.blockchain.default.minTxAmount &&
+            !utxos.find(
+              (u) => u.address === utxo.address && u.amount.toNumber() >= Config.payIn.minDeposit.DeFiChain.DFI,
+            )
+          ) {
+            await this.client.sendCompleteUtxo(
+              utxo.address,
+              Config.blockchain.default.utxoSpenderAddress,
+              utxo.amount.toNumber(),
+            );
+          }
+        } catch (e) {
+          console.log('Failed to retrieve fee UTXO:', e);
+        }
+      }
+    } catch (e) {
+      console.error('Exception during fee UTXO retrieval:', e);
     }
   }
 
