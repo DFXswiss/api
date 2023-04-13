@@ -3,6 +3,7 @@ import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
 import { PricingProvider } from 'src/subdomains/supporting/pricing/domain/interfaces';
 import { Price } from '../../domain/entities/price';
+import { Util } from 'src/shared/utils/util';
 
 interface FixerResponse {
   base: string;
@@ -16,6 +17,8 @@ interface FixerResponse {
 
 @Injectable()
 export class FixerService implements PricingProvider {
+  private priceCache = new Map<string, { updated: Date; price: Price }>();
+
   readonly name: string;
 
   constructor(private http: HttpService) {
@@ -23,6 +26,17 @@ export class FixerService implements PricingProvider {
   }
 
   async getPrice(from: string, to: string): Promise<Price> {
+    const identifier = `${from}/${to}`;
+
+    if (!(this.priceCache.get(identifier)?.updated > Util.minutesBefore(Config.transaction.pricing.refreshRate))) {
+      const price = await this.fetchPrice(from, to);
+      this.priceCache.set(identifier, { updated: new Date(), price });
+    }
+
+    return this.priceCache.get(identifier).price;
+  }
+
+  private async fetchPrice(from: string, to: string): Promise<Price> {
     // currency pair have to be inverted.
     const response = await this.http.get<FixerResponse>(`${Config.fixer.baseUrl}/latest?base=${to}&symbols=${from}`, {
       headers: { apikey: Config.fixer.apiKey },

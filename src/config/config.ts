@@ -213,6 +213,9 @@ export class Configuration {
   };
 
   transaction = {
+    pricing: {
+      refreshRate: 15, // minutes
+    },
     minVolume: {
       // blockchain: { outputAsset: { minTransactionAsset: minTransactionVolume }}
       Fiat: {
