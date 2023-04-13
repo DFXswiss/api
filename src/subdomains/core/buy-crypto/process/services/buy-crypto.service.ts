@@ -115,6 +115,8 @@ export class BuyCryptoService {
     }
 
     Util.removeNullFields(entity);
+    const fee = entity.fee;
+    if (dto.allowedTotalFeePercent && entity.fee) fee.allowedTotalFeePercent = dto.allowedTotalFeePercent;
 
     const amlUpdate =
       entity.amlCheck === AmlCheck.PENDING && update.amlCheck && update.amlCheck !== AmlCheck.PENDING
@@ -125,7 +127,7 @@ export class BuyCryptoService {
         ...update,
         ...entity,
         ...amlUpdate,
-        fee: { allowedTotalFeePercent: dto.allowedTotalFeePercent },
+        fee,
       }),
     );
 
