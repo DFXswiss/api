@@ -121,7 +121,7 @@ KYC is not required for a daily transaction volume up to 1000 EUR/CHF. To increa
 
 #### Sell Crypto
 
-<em>In order to perform bank transactions, DFX needs to know the name and address of the recipient. Therefore, user data must be collected once before a sale can be made. The user data can be updated with the [kyc data endpoint](https://api.dfx.swiss/swagger#/KYC/KycController_updateKycData). Required fields are mail, phone, firstname, surname, street, houseNumber, location, zip, country. For non personal accounts, organizationName, organizationStreet, organizationHouseNumber, organizationLocation, organizationZip, organizationCountry are also required.</em>
+<em>In order to perform bank transactions, DFX needs to know the name and address of the recipient. Therefore, user data must be collected once before a sale can be made. The user data can be updated with the [kyc data endpoint](https://api.dfx.swiss/swagger#/KYC/KycController_updateKycData). Required fields are `mail, phone, firstname, surname, street, houseNumber, location, zip, country`. For non personal accounts, `organizationName, organizationStreet, organizationHouseNumber, organizationLocation, organizationZip, organizationCountry` are also required.</em>
 
 1. Get all available assets with the [asset endpoint](https://api.dfx.swiss/swagger/#/Asset/AssetController_getAllAsset)
    - Only assets with the `sellable` field set to `true` can be sold
