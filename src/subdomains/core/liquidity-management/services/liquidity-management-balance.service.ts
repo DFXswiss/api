@@ -62,7 +62,7 @@ export class LiquidityManagementBalanceService {
 
         await this.balanceRepo.save(balance);
       } catch (e) {
-        console.error(`Could not save balance of ${balance.target.name}.`, e);
+        console.error(`Could not save balance of ${balance.targetName}.`, e);
       }
     }
   }

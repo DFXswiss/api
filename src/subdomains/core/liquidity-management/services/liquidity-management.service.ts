@@ -136,13 +136,8 @@ export class LiquidityManagementService {
   }
 
   private logRuleExecution(rule: LiquidityManagementRule, result: LiquidityState): void {
-    const deficitMessage = `${result.deficit} deficit`;
-    const redundancyMessage = `${result.redundancy} redundancy`;
+    const message = result.deficit ? `${result.deficit} deficit` : `${result.redundancy} redundancy`;
 
-    console.log(
-      `Executing liquidity management rule ${rule.id}. Summary -> ${
-        result.deficit ? deficitMessage : redundancyMessage
-      } of ${rule.target.name}`,
-    );
+    console.log(`Executing liquidity management rule ${rule.id}. Summary -> ${message} of ${rule.targetName}`);
   }
 }
