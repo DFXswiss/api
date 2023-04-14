@@ -7,6 +7,7 @@ import { Price } from '../domain/entities/price';
 import { Fiat } from '../domain/enums';
 import { MetadataNotFoundException } from '../domain/exceptions/metadata-not-found.exception';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { CurrencyService } from './integration/currency.service';
 
 /**
  * Price provider service - use this service for indicative and fiat prices
@@ -19,38 +20,72 @@ export class PriceProviderService {
   constructor(
     private readonly assetService: AssetService,
     private readonly coinGeckoService: CoinGeckoService,
+    private readonly currencyService: CurrencyService,
     private readonly deFiChainService: PriceProviderDeFiChainService,
   ) {}
 
-  async getPrice(from: Asset, to: Asset): Promise<Price> {
+  async getPrice(from: Asset | Fiat, to: Asset | Fiat): Promise<Price> {
+    if (this.isFiat(from)) {
+      return this.isFiat(to) ? this.fiatFiat(from, to) : this.fiatCrypto(from, to);
+    } else {
+      return this.isFiat(to) ? this.cryptoFiat(from, to) : this.cryptoCrypto(from, to);
+    }
+  }
+
+  // --- CONVERSION METHODS --- //
+  private async cryptoCrypto(from: Asset, to: Asset): Promise<Price> {
     // get swap price, if available
     if (from.blockchain === to.blockchain && this.chainsWithSwapPricing.includes(from.blockchain))
       return this.getSwapPrice(from, to);
 
     // get exchange price via USD
-    const fromPrice = await this.getFiatPrice(from, Fiat.USD);
-    const toPrice = await this.getFiatPrice(to, Fiat.USD);
+    const fromPrice = await this.cryptoFiat(from, Fiat.USD);
+    const toPrice = await this.fiatCrypto(Fiat.USD, to);
 
-    return Price.join(fromPrice, toPrice.invert());
+    return Price.join(fromPrice, toPrice);
   }
 
-  async getFiatPrice(asset: Asset, fiat: Fiat): Promise<Price> {
+  private async cryptoFiat(from: Asset, to: Fiat): Promise<Price> {
     try {
-      return await this.coinGeckoService.getPrice(asset, fiat);
+      return await this.coinGeckoService.toFiat(from, to);
     } catch (e) {
       if (!(e instanceof MetadataNotFoundException)) throw e;
     }
 
     // metadata not found -> use reference asset
-    const refAsset = await this.getFiatReferenceAssetFor(asset.blockchain);
+    const refAsset = await this.getFiatReferenceAssetFor(from.blockchain);
 
-    const toRef = await this.getSwapPrice(asset, refAsset);
-    const fromRef = await this.coinGeckoService.getPrice(refAsset, fiat);
+    const toRef = await this.getSwapPrice(from, refAsset);
+    const fromRef = await this.coinGeckoService.toFiat(refAsset, to);
 
     return Price.join(toRef, fromRef);
   }
 
+  private async fiatCrypto(from: Fiat, to: Asset): Promise<Price> {
+    try {
+      return await this.coinGeckoService.fromFiat(from, to);
+    } catch (e) {
+      if (!(e instanceof MetadataNotFoundException)) throw e;
+    }
+
+    // metadata not found -> use reference asset
+    const refAsset = await this.getFiatReferenceAssetFor(to.blockchain);
+
+    const toRef = await this.coinGeckoService.fromFiat(from, refAsset);
+    const fromRef = await this.getSwapPrice(refAsset, to);
+
+    return Price.join(toRef, fromRef);
+  }
+
+  private async fiatFiat(from: Fiat, to: Fiat): Promise<Price> {
+    return this.currencyService.getPrice(from, to);
+  }
+
   // --- HELPER METHODS --- //
+  private isFiat(item: Asset | Fiat): item is Fiat {
+    return typeof item === 'string' && Object.values(Fiat).includes(item);
+  }
+
   private async getFiatReferenceAssetFor(blockchain: Blockchain): Promise<Asset> {
     if (!this.refAssetMap.has(blockchain)) {
       const refAsset = await this.assetService.getAssetByQuery({

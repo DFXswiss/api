@@ -29,9 +29,14 @@ export class CoinGeckoService {
     return Price.join(fromPrice.invert(), toPrice);
   }
 
-  async getPrice(asset: Asset, fiat: Fiat): Promise<Price> {
+  async toFiat(asset: Asset, fiat: Fiat): Promise<Price> {
     const { name, coinGeckoId } = await this.getAssetInfo(asset);
     return this.getPriceWithId(name, coinGeckoId, fiat);
+  }
+
+  async fromFiat(fiat: Fiat, asset: Asset): Promise<Price> {
+    const price = await this.toFiat(asset, fiat);
+    return price.invert();
   }
 
   async getPriceAt(asset: Asset, fiat: Fiat, date: Date): Promise<Price> {
