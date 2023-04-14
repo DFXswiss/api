@@ -3,7 +3,7 @@ import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
 import { PricingProvider } from 'src/subdomains/supporting/pricing/domain/interfaces';
 import { Price } from '../../domain/entities/price';
-import { Util } from 'src/shared/utils/util';
+import { AsyncCache } from 'src/shared/utils/async-cache';
 
 interface FixerResponse {
   base: string;
@@ -17,23 +17,17 @@ interface FixerResponse {
 
 @Injectable()
 export class FixerService implements PricingProvider {
-  private priceCache = new Map<string, { updated: Date; price: Price }>();
-
   readonly name: string;
+
+  private readonly priceCache: AsyncCache<Price>;
 
   constructor(private http: HttpService) {
     this.name = 'Fixer';
+    this.priceCache = new AsyncCache(Config.transaction.pricing.refreshRate * 60);
   }
 
   async getPrice(from: string, to: string): Promise<Price> {
-    const identifier = `${from}/${to}`;
-
-    if (!(this.priceCache.get(identifier)?.updated > Util.minutesBefore(Config.transaction.pricing.refreshRate))) {
-      const price = await this.fetchPrice(from, to);
-      this.priceCache.set(identifier, { updated: new Date(), price });
-    }
-
-    return this.priceCache.get(identifier).price;
+    return this.priceCache.get(`${from}/${to}`, () => this.fetchPrice(from, to));
   }
 
   private async fetchPrice(from: string, to: string): Promise<Price> {
