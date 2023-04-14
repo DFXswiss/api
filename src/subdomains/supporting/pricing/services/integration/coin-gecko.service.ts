@@ -8,16 +8,18 @@ import { Fiat } from '../../domain/enums';
 import { MetadataNotFoundException } from '../../domain/exceptions/metadata-not-found.exception';
 import { AssetPricingMetadataRepository } from '../../repositories/asset-pricing-metadata.repository';
 import { Config } from 'src/config/config';
+import { AsyncCache } from 'src/shared/utils/async-cache';
 
 @Injectable()
 export class CoinGeckoService {
   private readonly client: CoinGeckoClient;
+  private readonly priceCache: AsyncCache<Price>;
 
   private metaDataCache?: AssetPricingMetadata[];
-  private priceCache = new Map<string, { updated: Date; price: Price }>();
 
   constructor(private readonly assetPricingMetadataRepo: AssetPricingMetadataRepository) {
     this.client = new CoinGeckoClient();
+    this.priceCache = new AsyncCache(Config.transaction.pricing.refreshRate * 60);
   }
 
   async getFiatPrice(from: Fiat, to: Fiat): Promise<Price> {
@@ -54,14 +56,7 @@ export class CoinGeckoService {
 
   // --- HELPER METHODS --- //
   private async getPriceWithId(name: string, id: string, fiat: Fiat): Promise<Price> {
-    const identifier = `${id}/${fiat}`;
-
-    if (!(this.priceCache.get(identifier)?.updated > Util.minutesBefore(Config.transaction.pricing.refreshRate))) {
-      const price = await this.fetchPrice(name, id, fiat);
-      this.priceCache.set(identifier, { updated: new Date(), price });
-    }
-
-    return this.priceCache.get(identifier).price;
+    return this.priceCache.get(`${id}/${fiat}`, () => this.fetchPrice(name, id, fiat));
   }
 
   private async fetchPrice(name: string, coinGeckoId: string, fiat: Fiat): Promise<Price> {
