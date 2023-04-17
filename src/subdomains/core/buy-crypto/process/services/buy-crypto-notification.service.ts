@@ -80,7 +80,7 @@ export class BuyCryptoNotificationService {
                   buyWalletAddress: Util.blankBlockchainAddress(tx.target.address),
                   buyTxId: tx.txId,
                   buyTransactionLink: `${BlockchainExplorerUrls[tx.target.asset.blockchain]}/${tx.txId}`,
-                  minFeeAmount: tx.minFeeAmount,
+                  minFeeAmount: tx.minFeeAmountFiat,
                   minFeeAsset: tx.inputReferenceAsset,
                 },
               },

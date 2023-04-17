@@ -99,7 +99,7 @@ export class BuyFiatNotificationService {
                 exchangeRate: entity.exchangeRateString,
                 outputAmount: entity.outputAmount,
                 outputAsset: entity.outputAsset,
-                minFeeAmount: entity.minFeeAmount,
+                minFeeAmount: entity.minFeeAmountFiat,
                 minFeeAsset: entity.outputReferenceAsset,
               },
             },

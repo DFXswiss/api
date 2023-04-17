@@ -75,20 +75,24 @@ export class BuyCrypto extends IEntity {
   @Column({ type: 'float', nullable: true })
   percentFee: number;
 
+  
   @Column({ type: 'float', nullable: true })
-  percentFeeAmount: number;
+  percentFeeAmount: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
-  minFeeAmount: number;
+  minFeeAmount: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
-  totalFeeAmount: number;
+  minFeeAmountFiat: number; //inputReferenceAsset if FIAT else EUR
+  
+  @Column({ type: 'float', nullable: true })
+  totalFeeAmount: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
   totalFeeAmountChf: number;
 
   @Column({ type: 'float', nullable: true })
-  absoluteFeeAmount: number;
+  absoluteFeeAmount: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
   inputReferenceAmountMinusFee: number;
