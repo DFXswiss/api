@@ -33,6 +33,7 @@ import { Buy } from './routes/buy/buy.entity';
 import { CryptoRoute } from './routes/crypto-route/crypto-route.entity';
 import { BuyCryptoFee } from './process/entities/buy-crypto-fees.entity';
 import { PaymentModule } from 'src/shared/payment/payment.module';
+import { LiquidityManagementModule } from '../liquidity-management/liquidity-management.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { PaymentModule } from 'src/shared/payment/payment.module';
     PaymentModule,
     forwardRef(() => SellCryptoModule),
     forwardRef(() => AddressPoolModule),
+    LiquidityManagementModule,
   ],
   controllers: [BuyCryptoController, BuyController, CryptoRouteController],
   providers: [

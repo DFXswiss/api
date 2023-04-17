@@ -45,4 +45,8 @@ export class LiquidityBalance extends IEntity {
   get target(): Asset | Fiat {
     return this.asset ?? this.fiat;
   }
+
+  get targetName(): string {
+    return this.asset?.uniqueName ?? this.fiat.name;
+  }
 }

@@ -23,7 +23,7 @@ export class PriceProviderDeFiChainService {
         ? await this.getPoolPrice(from, to)
         : await this.getPriceValue(from, to);
 
-    return Price.create(from.name, to.name, 1 / price);
+    return Price.create(from.dexName, to.dexName, 1 / price);
   }
 
   // --- HELPER METHODS --- //

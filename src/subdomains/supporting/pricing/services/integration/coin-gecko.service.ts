@@ -79,7 +79,7 @@ export class CoinGeckoService {
     const assetPricingMetadata = metadata.find((m) => m.asset.id === asset.id);
     if (!assetPricingMetadata) throw new MetadataNotFoundException(`No metadata found for asset ${asset.id}`);
 
-    return { name: asset.name, coinGeckoId: assetPricingMetadata.fiatPriceProviderAssetId };
+    return { name: asset.dexName, coinGeckoId: assetPricingMetadata.fiatPriceProviderAssetId };
   }
 
   private callApi<T>(call: (c: CoinGeckoClient) => Promise<T>): Promise<T> {

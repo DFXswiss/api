@@ -1,3 +1,4 @@
+import { PaymentStatus } from 'src/subdomains/core/history/dto/history.dto';
 import { AmlCheck } from '../../../../process/enums/aml-check.enum';
 import { BuyHistoryDto } from '../buy-history.dto';
 
@@ -11,6 +12,7 @@ const defaultBuyHistory: BuyHistoryDto = {
   txId: 'TX_ID_01',
   txUrl: 'https://defiscan.live/transactions/TX_ID_01',
   amlCheck: AmlCheck.PASS,
+  status: PaymentStatus.PENDING,
 };
 
 export function createDefaultBuyHistory(): BuyHistoryDto {
