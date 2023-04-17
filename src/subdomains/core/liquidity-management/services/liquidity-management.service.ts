@@ -44,9 +44,7 @@ export class LiquidityManagementService {
       throw new BadRequestException(`Rule ${rule.id} does not support liquidity deficit path`);
     }
 
-    if (targetOptimal) {
-      amount += await this.getMissingLiquidity(rule);
-    }
+    if (targetOptimal) amount += rule.optimal;
 
     const liquidityState = { deficit: amount, redundancy: 0 };
 
@@ -60,9 +58,7 @@ export class LiquidityManagementService {
       throw new BadRequestException(`Rule ${rule.id} does not support liquidity redundancy path`);
     }
 
-    if (targetOptimal) {
-      amount -= await this.getMissingLiquidity(rule);
-    }
+    if (targetOptimal) amount -= rule.optimal;
 
     const liquidityState = { deficit: 0, redundancy: amount };
 
@@ -77,13 +73,6 @@ export class LiquidityManagementService {
     if (!rule) throw new NotFoundException(`No liquidity management rule found for asset ${assetId}`);
 
     return rule;
-  }
-
-  private async getMissingLiquidity(rule: LiquidityManagementRule): Promise<number> {
-    const balances = await this.balanceService.getBalances();
-    const balance = this.balanceService.findRelevantBalance(rule, balances);
-
-    return balance ? rule.getMissing(balance) : 0;
   }
 
   private async verifyRule(rule: LiquidityManagementRule, balances: LiquidityBalance[]): Promise<void> {
