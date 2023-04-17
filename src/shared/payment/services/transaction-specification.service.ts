@@ -4,6 +4,8 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { MinAmount } from 'src/shared/payment/dto/min-amount.dto';
+import { Util } from 'src/shared/utils/util';
+import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
 import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
@@ -18,8 +20,9 @@ export class TransactionSpecificationService implements OnModuleInit {
   private eur: Fiat;
   private transactionSpecifications: TransactionSpecification[];
 
-  OnModuleInit() {
+  onModuleInit() {
     void this.fiatService.getFiatByName('EUR').then((f) => (this.eur = f));
+    void this.updateCache();
   }
   async get(from: Asset | Fiat, to: Asset | Fiat): Promise<{ minFee: MinAmount; minDeposit: MinAmount }> {
     const { system: fromSystem, asset: fromAsset } = this.getProps(from);
@@ -29,9 +32,13 @@ export class TransactionSpecificationService implements OnModuleInit {
     const price = await this.priceProviderService.getPrice(this.eur, from);
 
     return {
-      minFee: { amount: minFee.amount / price.price, asset: price.target },
-      minDeposit: { amount: minDeposit.amount / price.price, asset: price.target },
+      minFee: this.convert(minFee, price),
+      minDeposit: this.convert(minDeposit, price),
     };
+  }
+
+  private convert(minAmount: MinAmount, price: Price): MinAmount {
+    return { amount: Util.roundByPrecision(minAmount.amount / price.price, 3), asset: price.target };
   }
 
   private getProps(param: Asset | Fiat): { system: string; asset: string } {
@@ -70,12 +77,8 @@ export class TransactionSpecificationService implements OnModuleInit {
     );
   }
 
-  onModuleInit() {
-    void this.dailyUpdate();
-  }
-
   @Cron(CronExpression.EVERY_HOUR)
-  async dailyUpdate() {
+  async updateCache() {
     this.transactionSpecifications = await this.transactionSpecificationRepo.find();
   }
 }
