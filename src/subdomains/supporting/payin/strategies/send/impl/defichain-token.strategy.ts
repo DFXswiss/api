@@ -7,6 +7,7 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { JellyfishStrategy } from './base/jellyfish.strategy';
+import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 
 @Injectable()
 export class DeFiChainTokenStrategy extends JellyfishStrategy {
@@ -77,16 +78,21 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
   private async dispatch(payIn: CryptoInput, type: SendType): Promise<void> {
     this.designateSend(payIn, type);
 
-    const utxo = payIn.prepareTxId
-      ? await this.deFiChainService.getFeeUtxoByTransaction(payIn.address.address, payIn.prepareTxId)
-      : await this.deFiChainService.getFeeUtxo(payIn.address.address);
+    const utxo = await this.getFeeUtxo(payIn);
     if (!utxo) throw new Error(`Tried to send token from ${payIn.address.address} without UTXO`);
 
-    const outTxId = await this.deFiChainService.sendTokenSync(payIn, utxo);
+    const outTxId = await this.deFiChainService.sendToken(payIn, utxo);
 
     this.updatePayInWithSendData(payIn, type, outTxId);
 
     await this.payInRepo.save(payIn);
     console.log(`Token pay-in ${payIn.id} sent:`, payIn);
+  }
+
+  private async getFeeUtxo(payIn: CryptoInput): Promise<UTXO> {
+    return (
+      (await this.deFiChainService.getFeeUtxoByTransaction(payIn.address.address, payIn.prepareTxId)) ??
+      (await this.deFiChainService.getFeeUtxo(payIn.address.address))
+    );
   }
 }
