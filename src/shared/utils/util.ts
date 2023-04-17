@@ -103,6 +103,16 @@ export class Util {
     return this.secondsDiff(from, to) / (3600 * 24);
   }
 
+  static secondsAfter(seconds: number, from?: Date): Date {
+    const date = from ? new Date(from) : new Date();
+    date.setSeconds(date.getSeconds() + seconds);
+    return date;
+  }
+
+  static secondsBefore(seconds: number, from?: Date): Date {
+    return this.secondsAfter(-seconds, from);
+  }
+
   static minutesAfter(minutes: number, from?: Date): Date {
     const date = from ? new Date(from) : new Date();
     date.setMinutes(date.getMinutes() + minutes);
@@ -111,6 +121,16 @@ export class Util {
 
   static minutesBefore(minutes: number, from?: Date): Date {
     return this.minutesAfter(-minutes, from);
+  }
+
+  static hoursAfter(hours: number, from?: Date): Date {
+    const date = from ? new Date(from) : new Date();
+    date.setHours(date.getHours() + hours);
+    return date;
+  }
+
+  static hourBefore(hours: number, from?: Date): Date {
+    return this.hoursAfter(-hours, from);
   }
 
   static daysAfter(days: number, from?: Date): Date {

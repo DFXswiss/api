@@ -1,4 +1,4 @@
-import { Price } from '../price.dto';
+import { Price } from '../../../../subdomains/supporting/pricing/domain/entities/price';
 
 export function createDefaultPrice(): Price {
   return createCustomPrice({});

@@ -35,14 +35,8 @@ export class LiquidityManagementBalanceService {
     return balances;
   }
 
-  findRelevantBalance(rule: LiquidityManagementRule, balances: LiquidityBalance[]): LiquidityBalance {
-    const balance = balances.find((b) => b.target === rule.target);
-
-    if (!balance) {
-      throw new Error(`Error while trying to find reference asset for ruleId: ${rule.id}. Balance not found`);
-    }
-
-    return balance;
+  findRelevantBalance(rule: LiquidityManagementRule, balances: LiquidityBalance[]): LiquidityBalance | undefined {
+    return balances.find((b) => b.target.id === rule.target.id);
   }
 
   async getBalances(): Promise<LiquidityBalance[]> {
@@ -68,7 +62,7 @@ export class LiquidityManagementBalanceService {
 
         await this.balanceRepo.save(balance);
       } catch (e) {
-        console.error(`Could not save balance of ${balance.target.name}.`, e);
+        console.error(`Could not save balance of ${balance.targetName}.`, e);
       }
     }
   }

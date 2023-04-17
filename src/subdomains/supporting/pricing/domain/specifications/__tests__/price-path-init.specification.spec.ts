@@ -1,7 +1,7 @@
 import { PathMisconfiguredException } from '../../exceptions/path-misconfigured.exception';
-import { PriceStep } from '../../utils/price-step';
-import { createCustomPricePath } from '../../utils/__mocks__/price-path.mock';
-import { createCustomPriceStep, createDefaultPriceStep } from '../../utils/__mocks__/price-step.mock';
+import { PriceStep } from '../../../utils/price-step';
+import { createCustomPricePath } from '../../../utils/__mocks__/price-path.mock';
+import { createCustomPriceStep, createDefaultPriceStep } from '../../../utils/__mocks__/price-step.mock';
 import { PricePathInitSpecification } from '../price-path-init.specification';
 
 describe('PricePathInitSpecification', () => {

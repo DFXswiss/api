@@ -1,5 +1,5 @@
 import { StepMisconfiguredException } from '../exceptions/step-misconfigured.exception';
-import { PriceStep } from '../utils/price-step';
+import { PriceStep } from '../../utils/price-step';
 
 export class PriceStepInitSpecification {
   public static isSatisfiedBy(step: PriceStep): boolean {

@@ -403,7 +403,7 @@ export class SpiderApiService {
         return null;
       }
 
-      throw new ServiceUnavailableException(e.response.data);
+      throw new ServiceUnavailableException(e.response);
     });
   }
 

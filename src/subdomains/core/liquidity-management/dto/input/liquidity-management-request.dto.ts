@@ -1,4 +1,4 @@
-import { IsInt, IsNotEmpty, IsNumber } from 'class-validator';
+import { IsBoolean, IsInt, IsNotEmpty, IsNumber } from 'class-validator';
 
 export class LiquidityManagementRequestDto {
   @IsNotEmpty()
@@ -8,4 +8,8 @@ export class LiquidityManagementRequestDto {
   @IsNotEmpty()
   @IsNumber()
   amount: number;
+
+  @IsNotEmpty()
+  @IsBoolean()
+  targetOptimal: boolean;
 }

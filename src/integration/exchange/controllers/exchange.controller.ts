@@ -15,7 +15,7 @@ import { Balances, ExchangeError, Order, Trade, Transaction, WithdrawalResponse 
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { TradeOrder } from '../dto/trade-order.dto';
-import { Price } from '../dto/price.dto';
+import { Price } from '../../../subdomains/supporting/pricing/domain/entities/price';
 import { TradeResult, TradeStatus } from '../dto/trade-result.dto';
 import { WithdrawalOrder } from '../dto/withdrawal-order.dto';
 

@@ -1,4 +1,5 @@
 import { WhaleApiClient } from '@defichain/whale-api-client';
+import { PoolPairData } from '@defichain/whale-api-client/dist/api/poolpairs';
 import { Transaction } from '@defichain/whale-api-client/dist/api/transactions';
 import { GetConfig } from 'src/config/config';
 
@@ -19,5 +20,13 @@ export class WhaleClient {
 
   async getTx(txId: string): Promise<Transaction> {
     return this.client.transactions.get(txId);
+  }
+
+  async getPool(id: string): Promise<PoolPairData> {
+    return this.client.poolpairs.get(id);
+  }
+
+  async getSwapPrice(fromTokenId: string, toTokenId: string): Promise<number> {
+    return this.client.poolpairs.getBestPath(fromTokenId, toTokenId).then((p) => +p.estimatedReturnLessDexFees);
   }
 }

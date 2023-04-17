@@ -1,9 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
 import { Exchange, Market, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
 import { TradeResponse, PartialTradeResponse } from '../dto/trade-response.dto';
-import { Price } from '../dto/price.dto';
+import { Price } from '../../../subdomains/supporting/pricing/domain/entities/price';
 import { Util } from 'src/shared/utils/util';
-import { PriceProvider } from 'src/subdomains/supporting/pricing/interfaces';
+import { PricingProvider } from 'src/subdomains/supporting/pricing/domain/interfaces';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { OrderType } from 'ccxt/js/src/base/types';
 
@@ -18,7 +18,7 @@ enum OrderStatus {
   CANCELED = 'canceled',
 }
 
-export class ExchangeService implements PriceProvider {
+export class ExchangeService implements PricingProvider {
   private markets: Market[];
 
   constructor(private readonly exchange: Exchange, private readonly queue?: QueueHandler) {
@@ -42,11 +42,7 @@ export class ExchangeService implements PriceProvider {
 
     const { direction } = await this.getTradePair(from, to);
 
-    return {
-      source: from,
-      target: to,
-      price: direction === OrderSide.BUY ? orderPrice : 1 / orderPrice,
-    };
+    return Price.create(from, to, direction === OrderSide.BUY ? orderPrice : 1 / orderPrice);
   }
 
   async getTrades(since?: Date, from?: string, to?: string): Promise<Trade[]> {

@@ -2,7 +2,7 @@ import { mock } from 'jest-mock-extended';
 import { createCustomBuy } from 'src/subdomains/core/buy-crypto/routes/buy/__mocks__/buy.entity.mock';
 import { CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
-import { Price } from 'src/integration/exchange/dto/price.dto';
+import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
@@ -17,6 +17,7 @@ import { BuyCryptoBatchService } from '../buy-crypto-batch.service';
 import { BuyCryptoNotificationService } from '../buy-crypto-notification.service';
 import { BuyCryptoPricingService } from '../buy-crypto-pricing.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { LiquidityManagementService } from 'src/subdomains/core/liquidity-management/services/liquidity-management.service';
 
 describe('BuyCryptoBatchService', () => {
   let service: BuyCryptoBatchService;
@@ -31,6 +32,7 @@ describe('BuyCryptoBatchService', () => {
   let dexService: DexService;
   let payoutService: PayoutService;
   let buyCryptoNotificationService: BuyCryptoNotificationService;
+  let liquidityManagementService: LiquidityManagementService;
 
   /*** Spies ***/
 
@@ -236,6 +238,7 @@ describe('BuyCryptoBatchService', () => {
     dexService = mock<DexService>();
     payoutService = mock<PayoutService>();
     buyCryptoNotificationService = mock<BuyCryptoNotificationService>();
+    liquidityManagementService = mock<LiquidityManagementService>();
 
     service = new BuyCryptoBatchService(
       buyCryptoRepo,
@@ -246,6 +249,7 @@ describe('BuyCryptoBatchService', () => {
       dexService,
       payoutService,
       buyCryptoNotificationService,
+      liquidityManagementService,
     );
   }
 

@@ -1,9 +1,9 @@
 import { cloneDeep } from 'lodash';
-import { Price } from '../../../../integration/exchange/dto/price.dto';
+import { Price } from '../domain/entities/price';
 import { PriceMismatchException } from '../../../../integration/exchange/exceptions/price-mismatch.exception';
-import { Fiat } from '../enums';
-import { PriceStepResult, PriceProvider, PriceProviderName } from '../interfaces';
-import { PriceStepInitSpecification } from '../specifications/price-step-init.specification';
+import { Fiat } from '../domain/enums';
+import { PriceStepResult, PricingProvider, PricingProviderName } from '../domain/interfaces';
+import { PriceStepInitSpecification } from '../domain/specifications/price-step-init.specification';
 import { PricingUtil } from './pricing.util';
 
 export interface PriceStepOptions {
@@ -15,7 +15,7 @@ export interface PriceStepOptions {
 }
 
 export interface PriceStepProviderOptions {
-  providers?: PriceProvider[];
+  providers?: PricingProvider[];
   fallback?: string;
   overwrite?: string;
 }
@@ -73,7 +73,7 @@ export class PriceStep {
     };
   }
 
-  private getFixedPrice(fromCurrency: string, toCurrency: string): [Price, PriceProviderName] {
+  private getFixedPrice(fromCurrency: string, toCurrency: string): [Price, PricingProviderName] {
     const price = Price.create(fromCurrency, toCurrency, this.options.fixedPrice);
 
     return [price, 'FixedPrice'];
@@ -83,7 +83,7 @@ export class PriceStep {
     fromCurrency: string,
     toCurrency: string,
     _matchThreshold?: number,
-  ): Promise<[Price, PriceProviderName]> {
+  ): Promise<[Price, PricingProviderName]> {
     const matchThreshold = _matchThreshold ?? this.defineMatchThreshold(fromCurrency, toCurrency);
     const [primaryPrice, primaryProvider] = await this.getPrice(
       'primary',
@@ -134,7 +134,7 @@ export class PriceStep {
     fromCurrency: string,
     toCurrency: string,
     options: PriceStepProviderOptions,
-  ): Promise<[Price, PriceProviderName]> {
+  ): Promise<[Price, PricingProviderName]> {
     let [price, providerName] = await this.tryProviders(
       fromCurrency,
       options.overwrite ? options.overwrite : toCurrency,
@@ -155,8 +155,8 @@ export class PriceStep {
   private async tryProviders(
     fromCurrency: string,
     toCurrency: string,
-    providers: PriceProvider[] = [],
-  ): Promise<[Price, PriceProviderName]> {
+    providers: PricingProvider[] = [],
+  ): Promise<[Price, PricingProviderName]> {
     for (const provider of providers) {
       try {
         return [await provider.getPrice(fromCurrency, toCurrency), provider.name];

@@ -9,19 +9,20 @@ import { MissingBuyCryptoLiquidityException } from '../exceptions/abort-batch-cr
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { BuyCryptoPricingService } from './buy-crypto-pricing.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { Price } from 'src/integration/exchange/dto/price.dto';
+import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { CheckLiquidityRequest, CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { FeeResult, FeeRequest } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
-import { PriceRequestContext } from 'src/subdomains/supporting/pricing/enums';
-import { PriceResult, PriceRequest } from 'src/subdomains/supporting/pricing/interfaces';
+import { PriceRequestContext } from 'src/subdomains/supporting/pricing/domain/enums';
+import { PriceResult, PriceRequest } from 'src/subdomains/supporting/pricing/domain/interfaces';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FeeLimitExceededException } from '../exceptions/fee-limit-exceeded.exception';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
 import { PriceMismatchException } from 'src/integration/exchange/exceptions/price-mismatch.exception';
+import { LiquidityManagementService } from 'src/subdomains/core/liquidity-management/services/liquidity-management.service';
 
 @Injectable()
 export class BuyCryptoBatchService {
@@ -34,6 +35,7 @@ export class BuyCryptoBatchService {
     private readonly dexService: DexService,
     private readonly payoutService: PayoutService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
+    private readonly liquidityService: LiquidityManagementService,
   ) {}
 
   async prepareTransactions(): Promise<void> {
@@ -455,20 +457,27 @@ export class BuyCryptoBatchService {
       const targetDeficit = Util.round(targetAmount - availableTargetAmount, 8);
       const referenceDeficit = Util.round(outputReferenceAmount - availableReferenceAmount, 8);
 
+      // order liquidity
+      let liqOrderMessage = undefined;
+      try {
+        const orderId = await this.liquidityService.buyLiquidity(oa.id, targetDeficit, true);
+        liqOrderMessage = `Liquidity management order created: ${orderId}`;
+      } catch (e) {
+        console.info(`Failed to order missing liquidity for asset ${oa}:`, e);
+        liqOrderMessage = `Liquidity management order failed: ${e.message}`;
+      }
+
       const maxPurchasableTargetAmountMessage =
-        maxPurchasableTargetAmount != null
-          ? `Could be automatically swapped from other available swap assets: ${maxPurchasableTargetAmount}`
-          : '';
+        maxPurchasableTargetAmount != null ? `, purchasable: ${maxPurchasableTargetAmount}` : '';
 
       const maxPurchasableReferenceAmountMessage =
-        maxPurchasableReferenceAmount != null
-          ? `Could be automatically swapped from other available swap assets: ${maxPurchasableReferenceAmount}`
-          : '';
+        maxPurchasableReferenceAmount != null ? `, purchasable: ${maxPurchasableReferenceAmount}` : '';
 
       const messages = [
         `${error.message} Details:`,
-        `In target asset (${oa.uniqueName}): Required amount: ${targetAmount}, available amount: ${availableTargetAmount}, deficit: ${targetDeficit}. ${maxPurchasableTargetAmountMessage}`,
-        `In reference asset (${ora.uniqueName}): Required amount: ${outputReferenceAmount}, available amount: ${availableReferenceAmount}, deficit: ${referenceDeficit}. ${maxPurchasableReferenceAmountMessage}`,
+        `Target: ${targetDeficit} ${oa.uniqueName} (required ${targetAmount}, available: ${availableTargetAmount}${maxPurchasableTargetAmountMessage})`,
+        `Reference: ${referenceDeficit} ${ora.uniqueName} (required ${outputReferenceAmount}, available: ${availableReferenceAmount}${maxPurchasableReferenceAmountMessage})`,
+        liqOrderMessage,
       ];
 
       await this.buyCryptoNotificationService.sendMissingLiquidityError(

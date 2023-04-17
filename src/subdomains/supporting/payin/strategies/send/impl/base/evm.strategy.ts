@@ -1,4 +1,3 @@
-import { v4 as uuid } from 'uuid';
 import { PayInEvmService } from 'src/subdomains/supporting/payin/services/base/payin-evm.service';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { SendGroup, SendGroupKey, SendStrategy, SendType } from './send.strategy';
@@ -9,13 +8,11 @@ import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/utils/util';
 import { Config } from 'src/config/config';
-import { CheckLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
-import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
-import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
+import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 
 export abstract class EvmStrategy extends SendStrategy {
   constructor(
-    protected readonly dexService: DexService,
+    protected readonly priceProvider: PriceProviderService,
     protected readonly payoutService: PayoutService,
     protected readonly payInEvmService: PayInEvmService,
     protected readonly payInRepo: PayInRepository,
@@ -191,24 +188,8 @@ export abstract class EvmStrategy extends SendStrategy {
   }
 
   private async getFeeReferenceAmount(fromAsset: Asset, fromAmount: number, toAsset: Asset): Promise<number> {
-    const request = this.createLiquidityRequest(fromAsset, fromAmount, toAsset);
-    const liquidity = await this.dexService.checkLiquidity(request);
-
-    return liquidity.target.amount;
-  }
-
-  private createLiquidityRequest(
-    referenceAsset: Asset,
-    referenceAmount: number,
-    targetAsset: Asset,
-  ): CheckLiquidityRequest {
-    return {
-      context: LiquidityOrderContext.PAY_IN,
-      correlationId: uuid(),
-      referenceAsset,
-      referenceAmount,
-      targetAsset,
-    };
+    const result = await this.priceProvider.getPrice(fromAsset, toAsset);
+    return result.price ? Util.round(fromAmount / result.price, 8) : 0;
   }
 
   protected getTotalGroupAmount(payInGroup: SendGroup): number {

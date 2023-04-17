@@ -32,6 +32,7 @@ import { BuyCrypto } from './process/entities/buy-crypto.entity';
 import { Buy } from './routes/buy/buy.entity';
 import { CryptoRoute } from './routes/crypto-route/crypto-route.entity';
 import { BuyCryptoFee } from './process/entities/buy-crypto-fees.entity';
+import { LiquidityManagementModule } from '../liquidity-management/liquidity-management.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { BuyCryptoFee } from './process/entities/buy-crypto-fees.entity';
     AinModule,
     forwardRef(() => SellCryptoModule),
     forwardRef(() => AddressPoolModule),
+    LiquidityManagementModule,
   ],
   controllers: [BuyCryptoController, BuyController, CryptoRouteController],
   providers: [

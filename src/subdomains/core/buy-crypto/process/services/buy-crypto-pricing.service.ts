@@ -2,16 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/utils/util';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
-import { PriceRequestContext } from 'src/subdomains/supporting/pricing/enums';
-import { PriceResult, PriceRequest } from 'src/subdomains/supporting/pricing/interfaces';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
+import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 
 @Injectable()
 export class BuyCryptoPricingService {
   constructor(
-    private readonly pricingService: PricingService,
+    private readonly priceProvider: PriceProviderService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
   ) {}
 
@@ -25,15 +23,10 @@ export class BuyCryptoPricingService {
   ): Promise<number | null> {
     try {
       return nativeFee.amount
-        ? await this.convertToTargetAsset(
-            nativeFee.asset,
-            nativeFee.amount,
-            batch.outputReferenceAsset,
-            priceRequestCorrelationId,
-          )
+        ? await this.convertToTargetAsset(nativeFee.asset, nativeFee.amount, batch.outputReferenceAsset)
         : 0;
     } catch (e) {
-      console.error(errorMessage, e);
+      console.error('Failed to convert fee amount:', e);
 
       await this.handleFeeConversionError(
         nativeFee.asset.dexName,
@@ -49,26 +42,10 @@ export class BuyCryptoPricingService {
 
   //*** HELPER METHODS ***//
 
-  private async convertToTargetAsset(
-    sourceAsset: Asset,
-    sourceAmount: number,
-    targetAsset: Asset,
-    correlationId: string,
-  ): Promise<number> {
-    const priceRequest = this.createPriceRequest([sourceAsset.dexName, targetAsset.dexName], correlationId);
+  private async convertToTargetAsset(sourceAsset: Asset, sourceAmount: number, targetAsset: Asset): Promise<number> {
+    const result = await this.priceProvider.getPrice(sourceAsset, targetAsset);
 
-    const result = (await this.pricingService.getPrice(priceRequest).catch((e) => {
-      console.error('Failed to get price:', e);
-      return undefined;
-    })) as PriceResult | undefined;
-
-    if (!result) {
-      throw new Error(
-        `Could not get price from source asset: ${sourceAsset.dexName} to target asset: ${targetAsset.dexName}`,
-      );
-    }
-
-    return result.price.price ? Util.round(sourceAmount / result.price.price, 8) : 0;
+    return result.price ? Util.round(sourceAmount / result.price, 8) : 0;
   }
 
   private async handleFeeConversionError(
@@ -88,9 +65,5 @@ export class BuyCryptoPricingService {
     } catch (e) {
       console.error(`Error in handling fee calculation error. Correlation: ${correlationId}`, e);
     }
-  }
-
-  private createPriceRequest(currencyPair: string[], correlationId: string): PriceRequest {
-    return { context: PriceRequestContext.BUY_CRYPTO, correlationId, from: currencyPair[0], to: currencyPair[1] };
   }
 }

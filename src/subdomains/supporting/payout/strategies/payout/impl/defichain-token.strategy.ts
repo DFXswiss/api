@@ -49,6 +49,7 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
         } catch (e) {
           console.error(
             `Error in paying out a group of ${group.length} token orders(s). Order ID(s): ${group.map((o) => o.id)}`,
+            e,
           );
           // continue with next group in case payout failed
           continue;
