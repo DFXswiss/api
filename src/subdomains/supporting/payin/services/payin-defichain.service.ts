@@ -116,8 +116,8 @@ export class PayInDeFiChainService extends PayInJellyfishService {
           }
 
           // check for min. deposit
-          const usdtAmount = await this.client.testCompositeSwap(asset, 'USDT', amount);
-          if (usdtAmount < Config.payIn.minDeposit.DeFiChain.USDT) {
+          const dfiAmount = await this.client.testCompositeSwap(asset, 'DFI', amount);
+          if (dfiAmount < Config.payIn.minDeposit.DeFiChain.DFI) {
             console.log('Retrieving small token:', token);
 
             await this.doTokenTx(token.owner, async (utxo) =>

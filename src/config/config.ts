@@ -5,9 +5,7 @@ import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
-import { Asset, FeeTier } from 'src/shared/models/asset/asset.entity';
-import { MinAmount } from 'src/shared/payment/dto/min-amount.dto';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { FeeTier } from 'src/shared/models/asset/asset.entity';
 import { NetworkName } from '@defichain/jellyfish-network';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 
@@ -313,11 +311,10 @@ export class Configuration {
   payIn = {
     minDeposit: {
       Bitcoin: {
-        BTC: 0.0005,
+        BTC: 0.000001,
       },
       DeFiChain: {
         DFI: 0.01,
-        USDT: 0.4,
       },
     },
     forwardFeeLimit: +(process.env.PAY_IN_FEE_LIMIT ?? 0.005),
@@ -364,13 +361,6 @@ export class Configuration {
 
   crypto = {
     fee: 0.0099,
-  };
-
-  ftp = {
-    host: process.env.FTP_HOST,
-    user: process.env.FTP_USER,
-    password: process.env.FTP_PASSWORD,
-    directory: process.env.FTP_FOLDER,
   };
 
   exchange: Partial<Exchange> = {
