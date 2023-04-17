@@ -81,7 +81,7 @@ export class BuyCryptoNotificationService {
                   buyTxId: tx.txId,
                   buyTransactionLink: `${BlockchainExplorerUrls[tx.target.asset.blockchain]}/${tx.txId}`,
                   minFeeAmount: tx.minFeeAmount,
-                  inputReferenceAsset: tx.inputReferenceAsset,
+                  minFeeAsset: tx.inputReferenceAsset,
                 },
               },
             }));

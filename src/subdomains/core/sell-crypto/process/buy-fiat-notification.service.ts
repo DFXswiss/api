@@ -100,7 +100,7 @@ export class BuyFiatNotificationService {
                 outputAmount: entity.outputAmount,
                 outputAsset: entity.outputAsset,
                 minFeeAmount: entity.minFeeAmount,
-                outputReferenceAsset: entity.outputReferenceAsset,
+                minFeeAsset: entity.outputReferenceAsset,
               },
             },
           });
