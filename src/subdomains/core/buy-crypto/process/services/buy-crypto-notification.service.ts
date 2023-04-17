@@ -62,6 +62,7 @@ export class BuyCryptoNotificationService {
 
       for (const tx of txOutput) {
         try {
+          const minFee = tx.minFeeAmountFiat ? ` min. ${tx.minFeeAmountFiat} ${tx.inputReferenceAsset}` : '';
           tx.user.userData.mail &&
             (await this.notificationService.sendMail({
               type: MailType.USER,
@@ -79,9 +80,7 @@ export class BuyCryptoNotificationService {
                   buyWalletAddress: Util.blankBlockchainAddress(tx.target.address),
                   buyTxId: tx.txId,
                   buyTransactionLink: `${BlockchainExplorerUrls[tx.target.asset.blockchain]}/${tx.txId}`,
-                  fee: `${Util.round(tx.percentFee * 100, 2)}% ${
-                    tx.minFeeAmountFiat ? `min. ${tx.minFeeAmountFiat} ${tx.inputReferenceAsset}` : ''
-                  }`,
+                  fee: `${Util.round(tx.percentFee * 100, 2)}%` + minFee,
                 },
               },
             }));
