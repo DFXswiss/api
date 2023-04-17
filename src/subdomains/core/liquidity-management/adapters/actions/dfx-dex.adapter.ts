@@ -189,7 +189,7 @@ export class DfxDexAdapter extends LiquidityManagementAdapter {
 
   private mapWithdrawParams(params: DfxDexWithdrawParams): { address: string; system: LiquidityManagementSystem } {
     const address = process.env[params.destinationAddress];
-    const system = process.env[params.destinationSystem] as LiquidityManagementSystem;
+    const system = params.destinationSystem as LiquidityManagementSystem;
 
     return { address, system };
   }
