@@ -47,6 +47,6 @@ export class LiquidityBalance extends IEntity {
   }
 
   get targetName(): string {
-    return this.asset?.uniqueName ?? this.asset.name;
+    return this.asset?.uniqueName ?? this.fiat.name;
   }
 }

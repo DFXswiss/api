@@ -34,6 +34,8 @@ export class PriceProviderService {
 
   // --- CONVERSION METHODS --- //
   private async cryptoCrypto(from: Asset, to: Asset): Promise<Price> {
+    if (from.id === to.id) return Price.create(from.dexName, to.dexName, 1);
+
     // get swap price, if available
     if (from.blockchain === to.blockchain && this.chainsWithSwapPricing.includes(from.blockchain))
       return this.getSwapPrice(from, to);
@@ -78,6 +80,8 @@ export class PriceProviderService {
   }
 
   private async fiatFiat(from: Fiat, to: Fiat): Promise<Price> {
+    if (from === to) return Price.create(from, to, 1);
+
     return this.currencyService.getPrice(from, to);
   }
 
