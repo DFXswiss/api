@@ -32,6 +32,7 @@ import { BuyCrypto } from './process/entities/buy-crypto.entity';
 import { Buy } from './routes/buy/buy.entity';
 import { CryptoRoute } from './routes/crypto-route/crypto-route.entity';
 import { BuyCryptoFee } from './process/entities/buy-crypto-fees.entity';
+import { PaymentModule } from 'src/shared/payment/payment.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { BuyCryptoFee } from './process/entities/buy-crypto-fees.entity';
     UserModule,
     BankModule,
     AinModule,
+    PaymentModule,
     forwardRef(() => SellCryptoModule),
     forwardRef(() => AddressPoolModule),
   ],

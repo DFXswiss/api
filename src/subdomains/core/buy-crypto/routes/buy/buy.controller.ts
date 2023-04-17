@@ -19,6 +19,7 @@ import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { BuyCryptoService } from '../../process/services/buy-crypto.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
+import { TransactionSpecificationService } from 'src/shared/payment/services/transaction-specification.service';
 
 @ApiTags('Buy')
 @Controller('buy')
@@ -27,8 +28,9 @@ export class BuyController {
     private readonly buyService: BuyService,
     private readonly userService: UserService,
     private readonly buyCryptoService: BuyCryptoService,
-    private readonly bankService: BankService,
     private readonly paymentInfoService: PaymentInfoService,
+    private readonly bankService: BankService,
+    private readonly transactionSpecificationService: TransactionSpecificationService,
   ) {}
 
   @Get()
@@ -85,6 +87,12 @@ export class BuyController {
 
   private async toDto(userId: number, buy: Buy): Promise<BuyDto> {
     const fee = await this.userService.getUserBuyFee(userId, buy.asset);
+    const { minFee, minDeposit } = this.transactionSpecificationService.get(
+      'Fiat',
+      undefined,
+      buy.asset.blockchain,
+      buy.asset.dexName,
+    );
     return {
       id: buy.id,
       active: buy.active,
@@ -93,19 +101,19 @@ export class BuyController {
       bankUsage: buy.bankUsage,
       asset: AssetDtoMapper.entityToDto(buy.asset),
       ...fee,
-      minDeposits: Config.transaction.minVolume.getMany(buy.asset),
+      minDeposits: [minDeposit],
+      minFee,
     };
   }
 
   private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
     const bankInfo = await this.getBankInfo(buy, dto);
-
     return {
       ...bankInfo,
       sepaInstant: bankInfo.sepaInstant && buy.bankAccount?.sctInst,
       remittanceInfo: buy.bankUsage,
       ...(await this.userService.getUserBuyFee(userId, buy.asset)),
-      minDeposit: Config.transaction.minVolume.get(buy.asset, dto.currency.name),
+      ...this.transactionSpecificationService.get('Fiat', dto.currency.name, buy.asset.blockchain, buy.asset.dexName),
     };
   }
 

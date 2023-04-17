@@ -1,5 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { PaymentModule } from 'src/shared/payment/payment.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { AddressPoolModule } from 'src/subdomains/supporting/address-pool/address-pool.module';
@@ -24,6 +25,7 @@ import { SellService } from './route/sell.service';
     SharedModule,
     UserModule,
     NotificationModule,
+    PaymentModule,
     forwardRef(() => BankModule),
     forwardRef(() => PayInModule),
     forwardRef(() => BuyCryptoModule),

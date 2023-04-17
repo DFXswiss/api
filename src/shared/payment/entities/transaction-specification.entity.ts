@@ -1,4 +1,4 @@
-import { Entity, Column } from 'typeorm';
+import { Entity, Column, Index } from 'typeorm';
 import { IEntity } from 'src/shared/models/entity';
 
 export enum TransactionDirection {
@@ -7,19 +7,20 @@ export enum TransactionDirection {
 }
 
 @Entity()
+@Index((ts: TransactionSpecification) => [ts.system, ts.asset, ts.direction], { unique: true })
 export class TransactionSpecification extends IEntity {
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 256 })
   system: string;
 
   @Column({ length: 256, nullable: true })
   asset: string;
 
-  @Column({ type: 'float', nullable: true })
-  minVolume: number;
-
-  @Column({ type: 'float', nullable: true })
-  minFee: number;
-
   @Column({ length: 256, nullable: true })
   direction: TransactionDirection;
+
+  @Column({ type: 'float' })
+  minVolume: number;
+
+  @Column({ type: 'float' })
+  minFee: number;
 }

@@ -6,7 +6,7 @@ import { join } from 'path';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
 import { Asset, FeeTier } from 'src/shared/models/asset/asset.entity';
-import { MinDeposit } from 'src/subdomains/supporting/address-pool/deposit/dto/min-deposit.dto';
+import { MinAmount } from 'src/shared/payment/dto/min-amount.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { NetworkName } from '@defichain/jellyfish-network';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
@@ -264,12 +264,12 @@ export class Configuration {
         EUR: 1,
       },
 
-      get: (target: Asset | Fiat, referenceCurrency: string): MinDeposit => {
+      get: (target: Asset | Fiat, referenceCurrency: string): MinAmount => {
         const minDeposits = this.transaction.minVolume.getMany(target);
         return minDeposits.find((d) => d.asset === referenceCurrency) ?? minDeposits.find((d) => d.asset === 'USD');
       },
 
-      getMany: (target: Asset | Fiat): MinDeposit[] => {
+      getMany: (target: Asset | Fiat): MinAmount[] => {
         const system = 'blockchain' in target ? target.blockchain : 'Fiat';
         const asset = target.name;
 
@@ -511,7 +511,7 @@ export class Configuration {
   }
 
   // --- HELPERS --- //
-  transformToMinDeposit = (deposit: { [asset: string]: number }, filter?: string[] | string): MinDeposit[] =>
+  transformToMinDeposit = (deposit: { [asset: string]: number }, filter?: string[] | string): MinAmount[] =>
     Object.entries(deposit)
       .filter(([key, _]) => filter?.includes(key) ?? true)
       .map(([key, value]) => ({ amount: value, asset: key }));

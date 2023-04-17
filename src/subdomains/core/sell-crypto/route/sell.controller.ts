@@ -13,15 +13,13 @@ import { Sell } from './sell.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BuyFiatService } from '../process/buy-fiat.service';
 import { SellHistoryDto } from './dto/sell-history.dto';
-import { Config } from 'src/config/config';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { MinDeposit } from 'src/subdomains/supporting/address-pool/deposit/dto/min-deposit.dto';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
+import { TransactionSpecificationService } from 'src/shared/payment/services/transaction-specification.service';
 
 @ApiTags('Sell')
 @Controller('sell')
@@ -31,6 +29,7 @@ export class SellController {
     private readonly userService: UserService,
     private readonly buyFiatService: BuyFiatService,
     private readonly paymentInfoService: PaymentInfoService,
+    private readonly transactionSpecificationService: TransactionSpecificationService,
   ) {}
 
   @Get()
@@ -88,6 +87,12 @@ export class SellController {
   }
 
   private async toDto(sell: Sell): Promise<SellDto> {
+    const { minFee, minDeposit } = this.transactionSpecificationService.get(
+      sell.deposit.blockchain,
+      undefined,
+      'Fiat',
+      sell.fiat.name,
+    );
     return {
       id: sell.id,
       iban: sell.iban,
@@ -99,7 +104,8 @@ export class SellController {
       deposit: DepositDtoMapper.entityToDto(sell.deposit),
       fee: undefined,
       blockchain: sell.deposit.blockchain,
-      minDeposits: [this.getMinDeposit(sell)],
+      minFee,
+      minDeposits: [minDeposit],
     };
   }
 
@@ -108,20 +114,12 @@ export class SellController {
       ...(await this.getFee(userId, dto.asset)),
       depositAddress: sell.deposit.address,
       blockchain: sell.deposit.blockchain,
-      minDeposit: this.getMinDeposit(sell),
+      ...this.transactionSpecificationService.get(sell.deposit.blockchain, dto.asset.dexName, 'Fiat', sell.fiat.name),
     };
   }
 
   // --- HELPER-METHODS --- //
   async getFee(userId: number, asset: Asset): Promise<{ fee: number }> {
     return this.userService.getUserSellFee(userId, asset);
-  }
-
-  private getMinDeposit(sell: Sell): MinDeposit {
-    // TODO: refactor transaction volume calculation (DEV-1195)
-    if (sell.deposit.blockchain === Blockchain.BITCOIN && sell.fiat.name !== 'USD')
-      return { amount: Config.payIn.minDeposit.Bitcoin.BTC, asset: 'BTC' };
-
-    return Config.transaction.minVolume.get(sell.fiat, sell.fiat.name);
   }
 }

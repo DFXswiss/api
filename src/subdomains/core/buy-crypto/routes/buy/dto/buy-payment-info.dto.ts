@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { MinDeposit } from 'src/subdomains/supporting/address-pool/deposit/dto/min-deposit.dto';
+import { MinAmount } from 'src/shared/payment/dto/min-amount.dto';
 
 export class BankInfoDto {
   @ApiProperty()
@@ -37,6 +37,9 @@ export class BuyPaymentInfoDto extends BankInfoDto {
   @ApiProperty()
   remittanceInfo: string;
 
-  @ApiProperty({ type: MinDeposit })
-  minDeposit: MinDeposit;
+  @ApiProperty({ type: MinAmount })
+  minDeposit: MinAmount;
+
+  @ApiProperty({ type: MinAmount })
+  minFee: MinAmount;
 }
