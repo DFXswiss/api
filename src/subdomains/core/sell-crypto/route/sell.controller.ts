@@ -19,7 +19,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
-import { TransactionSpecificationService } from 'src/shared/payment/services/transaction-specification.service';
+import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
 
 @ApiTags('Sell')
 @Controller('sell')
@@ -29,7 +29,7 @@ export class SellController {
     private readonly userService: UserService,
     private readonly buyFiatService: BuyFiatService,
     private readonly paymentInfoService: PaymentInfoService,
-    private readonly transactionSpecificationService: TransactionSpecificationService,
+    private readonly transactionSpecificationService: TransactionHelper,
   ) {}
 
   @Get()
@@ -87,7 +87,7 @@ export class SellController {
   }
 
   private async toDto(sell: Sell): Promise<SellDto> {
-    const { minFee, minDeposit } = this.transactionSpecificationService.getDefault(
+    const { minFee, minDeposit } = this.transactionSpecificationService.getDefaultSpecs(
       sell.deposit.blockchain,
       undefined,
       'Fiat',
@@ -110,16 +110,28 @@ export class SellController {
   }
 
   private async toPaymentInfoDto(userId: number, sell: Sell, dto: GetSellPaymentInfoDto): Promise<SellPaymentInfoDto> {
+    const fee = await this.getFee(userId, dto.asset);
+    const { minVolume, minFee } = await this.transactionSpecificationService.getSpecs(dto.asset, dto.currency);
+    const estimatedAmount = await this.transactionSpecificationService.getTargetEstimation(
+      dto.amount,
+      fee,
+      minFee,
+      dto.asset,
+      dto.currency,
+    );
     return {
-      ...(await this.getFee(userId, dto.asset)),
+      fee,
       depositAddress: sell.deposit.address,
       blockchain: sell.deposit.blockchain,
-      ...(await this.transactionSpecificationService.get(dto.asset, dto.currency)),
+      minDeposit: { amount: minVolume, asset: dto.asset.dexName },
+      minVolume,
+      minFee,
+      estimatedAmount,
     };
   }
 
   // --- HELPER-METHODS --- //
-  async getFee(userId: number, asset: Asset): Promise<{ fee: number }> {
+  async getFee(userId: number, asset: Asset): Promise<number> {
     return this.userService.getUserSellFee(userId, asset);
   }
 }

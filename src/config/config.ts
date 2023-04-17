@@ -5,9 +5,7 @@ import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
-import { Asset, FeeTier } from 'src/shared/models/asset/asset.entity';
-import { MinAmount } from 'src/shared/payment/dto/min-amount.dto';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { FeeTier } from 'src/shared/models/asset/asset.entity';
 import { NetworkName } from '@defichain/jellyfish-network';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 

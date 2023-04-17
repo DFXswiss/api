@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsNotEmpty, IsNotEmptyObject, IsString, ValidateNested } from 'class-validator';
+import { IsNotEmpty, IsNotEmptyObject, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -26,4 +26,9 @@ export class GetSellPaymentInfoDto {
   @ValidateNested()
   @Type(() => EntityDto)
   asset: Asset;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsNumber()
+  amount = 0;
 }

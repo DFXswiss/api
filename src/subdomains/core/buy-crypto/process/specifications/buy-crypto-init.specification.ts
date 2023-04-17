@@ -1,20 +1,20 @@
 import { Injectable } from '@nestjs/common';
 import { SmallAmountException } from 'src/shared/exceptions/small-amount.exception';
-import { TransactionSpecificationService } from 'src/shared/payment/services/transaction-specification.service';
+import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 
 @Injectable()
 export class BuyCryptoInitSpecification {
-  constructor(private readonly transactionSpecificationService: TransactionSpecificationService) {}
+  constructor(private readonly transactionSpecificationService: TransactionHelper) {}
   async isSatisfiedBy(buyCrypto: BuyCrypto): Promise<boolean> {
     const { cryptoInput, buy } = buyCrypto;
 
     if (!cryptoInput) return true;
 
-    const { minDeposit } = await this.transactionSpecificationService.get(cryptoInput.asset, buy.asset);
+    const { minVolume } = await this.transactionSpecificationService.getSpecs(cryptoInput.asset, buy.asset);
 
-    if (minDeposit.amount * 0.5 > cryptoInput.amount) this.throw(cryptoInput);
+    if (minVolume * 0.5 > cryptoInput.amount) this.throw(cryptoInput);
 
     return true;
   }

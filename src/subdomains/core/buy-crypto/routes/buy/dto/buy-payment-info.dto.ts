@@ -32,14 +32,20 @@ export class BankInfoDto {
 
 export class BuyPaymentInfoDto extends BankInfoDto {
   @ApiProperty()
-  fee: number;
-
-  @ApiProperty()
   remittanceInfo: string;
 
-  @ApiProperty({ type: MinAmount })
+  @ApiProperty({ type: MinAmount, deprecated: true })
   minDeposit: MinAmount;
 
-  @ApiProperty({ type: MinAmount })
-  minFee: MinAmount;
+  @ApiProperty({ description: 'Fee in percentage' })
+  fee: number;
+
+  @ApiProperty({ description: 'Minimum fee in source currency' })
+  minFee: number;
+
+  @ApiProperty({ description: 'Minimum volume in source currency' })
+  minVolume: number;
+
+  @ApiProperty({ description: 'Estimated amount in target asset' })
+  estimatedAmount: number;
 }

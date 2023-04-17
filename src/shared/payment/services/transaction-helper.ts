@@ -11,34 +11,36 @@ import { TransactionDirection, TransactionSpecification } from '../entities/tran
 import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
 
 @Injectable()
-export class TransactionSpecificationService implements OnModuleInit {
+export class TransactionHelper implements OnModuleInit {
+  private eur: Fiat;
+  private transactionSpecifications: TransactionSpecification[];
+
   constructor(
     private readonly transactionSpecificationRepo: TransactionSpecificationRepository,
     private readonly priceProviderService: PriceProviderService,
     private readonly fiatService: FiatService,
   ) {}
-  private eur: Fiat;
-  private transactionSpecifications: TransactionSpecification[];
 
   onModuleInit() {
     void this.fiatService.getFiatByName('EUR').then((f) => (this.eur = f));
     void this.updateCache();
   }
-  async get(from: Asset | Fiat, to: Asset | Fiat): Promise<{ minFee: MinAmount; minDeposit: MinAmount }> {
+
+  @Cron(CronExpression.EVERY_HOUR)
+  async updateCache() {
+    this.transactionSpecifications = await this.transactionSpecificationRepo.find();
+  }
+
+  async getSpecs(from: Asset | Fiat, to: Asset | Fiat): Promise<{ minFee: number; minVolume: number }> {
     const { system: fromSystem, asset: fromAsset } = this.getProps(from);
     const { system: toSystem, asset: toAsset } = this.getProps(to);
-
-    const { minFee, minDeposit } = this.getDefault(fromSystem, fromAsset, toSystem, toAsset);
+    const { minFee, minDeposit } = this.getDefaultSpecs(fromSystem, fromAsset, toSystem, toAsset);
     const price = await this.priceProviderService.getPrice(this.eur, from);
 
     return {
-      minFee: this.convert(minFee, price),
-      minDeposit: this.convert(minDeposit, price),
+      minFee: this.convert(minFee.amount, price, from instanceof Fiat),
+      minVolume: this.convert(minDeposit.amount, price, from instanceof Fiat),
     };
-  }
-
-  private convert(minAmount: MinAmount, price: Price): MinAmount {
-    return { amount: Util.roundByPrecision(minAmount.amount / price.price, 3), asset: price.target };
   }
 
   private getProps(param: Asset | Fiat): { system: string; asset: string } {
@@ -47,7 +49,7 @@ export class TransactionSpecificationService implements OnModuleInit {
       : { system: 'Fiat', asset: param.name };
   }
 
-  getDefault(
+  getDefaultSpecs(
     fromSystem: string,
     fromAsset: string,
     toSystem: string,
@@ -77,8 +79,19 @@ export class TransactionSpecificationService implements OnModuleInit {
     );
   }
 
-  @Cron(CronExpression.EVERY_HOUR)
-  async updateCache() {
-    this.transactionSpecifications = await this.transactionSpecificationRepo.find();
+  async getTargetEstimation(
+    amount: number,
+    fee: number,
+    minFee: number,
+    from: Asset | Fiat,
+    to: Asset | Fiat,
+  ): Promise<number> {
+    const price = await this.priceProviderService.getPrice(from, to);
+    const feeAmount = Math.max(amount * (fee / 100), minFee);
+    return this.convert(Math.max(amount - feeAmount, 0), price, to instanceof Fiat);
+  }
+
+  private convert(amount: number, price: Price, isFiat: boolean): number {
+    return isFiat ? Util.round(amount / price.price, 2) : Util.roundByPrecision(amount / price.price, 5);
   }
 }

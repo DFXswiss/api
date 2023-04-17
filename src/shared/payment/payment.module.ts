@@ -4,11 +4,11 @@ import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module'
 import { SharedModule } from '../shared.module';
 import { TransactionSpecification } from './entities/transaction-specification.entity';
 import { TransactionSpecificationRepository } from './repositories/transaction-specification.repository';
-import { TransactionSpecificationService } from './services/transaction-specification.service';
+import { TransactionHelper } from './services/transaction-helper';
 
 @Module({
   imports: [PricingModule, SharedModule, TypeOrmModule.forFeature([TransactionSpecification])],
-  providers: [TransactionSpecificationService, TransactionSpecificationRepository],
-  exports: [TransactionSpecificationService],
+  providers: [TransactionHelper, TransactionSpecificationRepository],
+  exports: [TransactionHelper],
 })
 export class PaymentModule {}

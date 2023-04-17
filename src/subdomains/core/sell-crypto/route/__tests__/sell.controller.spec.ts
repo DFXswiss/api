@@ -6,13 +6,8 @@ import { BuyFiatService } from '../../process/buy-fiat.service';
 import { SellController } from '../sell.controller';
 import { SellService } from '../sell.service';
 import { TestUtil } from 'src/shared/utils/test.util';
-import { createCustomSell, createDefaultSell } from '../__mocks__/sell.entity.mock';
-import { UserRole } from 'src/shared/auth/user-role.enum';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { createCustomFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
-import { createCustomDeposit } from 'src/subdomains/supporting/address-pool/deposit/__mocks__/deposit.entity.mock';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
-import { TransactionSpecificationService } from 'src/shared/payment/services/transaction-specification.service';
+import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
 
 describe('SellController', () => {
   let controller: SellController;
@@ -21,14 +16,14 @@ describe('SellController', () => {
   let userService: UserService;
   let buyFiatService: BuyFiatService;
   let paymentInfoService: PaymentInfoService;
-  let transactionSpecificationService: TransactionSpecificationService;
+  let transactionSpecificationService: TransactionHelper;
 
   beforeEach(async () => {
     sellService = createMock<SellService>();
     userService = createMock<UserService>();
     buyFiatService = createMock<BuyFiatService>();
     paymentInfoService = createMock<PaymentInfoService>();
-    transactionSpecificationService = createMock<TransactionSpecificationService>();
+    transactionSpecificationService = createMock<TransactionHelper>();
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
       providers: [
@@ -37,7 +32,7 @@ describe('SellController', () => {
         { provide: UserService, useValue: userService },
         { provide: BuyFiatService, useValue: buyFiatService },
         { provide: PaymentInfoService, useValue: paymentInfoService },
-        { provide: TransactionSpecificationService, useValue: transactionSpecificationService },
+        { provide: TransactionHelper, useValue: transactionSpecificationService },
         TestUtil.provideConfig(),
       ],
     }).compile();

@@ -18,7 +18,7 @@ import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { BuyCryptoService } from '../../../process/services/buy-crypto.service';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
-import { TransactionSpecificationService } from 'src/shared/payment/services/transaction-specification.service';
+import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 
 function createBuyPaymentInfoDto(amount = 1, currency: Fiat = { id: 1 } as Fiat): GetBuyPaymentInfoDto {
@@ -49,7 +49,7 @@ describe('BuyController', () => {
   let bankAccountService: BankAccountService;
   let bankService: BankService;
   let paymentInfoService: PaymentInfoService;
-  let transactionSpecificationService: TransactionSpecificationService;
+  let transactionSpecificationService: TransactionHelper;
   let priceProviderService: PriceProviderService;
 
   beforeEach(async () => {
@@ -60,7 +60,7 @@ describe('BuyController', () => {
     bankAccountService = createMock<BankAccountService>();
     bankService = createMock<BankService>();
     paymentInfoService = createMock<PaymentInfoService>();
-    transactionSpecificationService = createMock<TransactionSpecificationService>();
+    transactionSpecificationService = createMock<TransactionHelper>();
     priceProviderService = createMock<PriceProviderService>();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -74,7 +74,7 @@ describe('BuyController', () => {
         { provide: BankAccountService, useValue: bankAccountService },
         { provide: BankService, useValue: bankService },
         { provide: PaymentInfoService, useValue: paymentInfoService },
-        { provide: TransactionSpecificationService, useValue: transactionSpecificationService },
+        { provide: TransactionHelper, useValue: transactionSpecificationService },
         { provide: PriceProviderService, useValue: priceProviderService },
 
         TestUtil.provideConfig(),
