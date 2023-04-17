@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsNotEmptyObject, IsNumber, IsOptional, ValidateNested } from 'class-validator';
+import { IsNotEmpty, IsNotEmptyObject, IsNumber, ValidateNested } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 
@@ -18,7 +18,7 @@ export class GetCryptoPaymentInfoDto {
   asset: Asset;
 
   @ApiProperty()
-  @IsOptional()
+  @IsNotEmpty()
   @IsNumber()
   amount = 0;
 }

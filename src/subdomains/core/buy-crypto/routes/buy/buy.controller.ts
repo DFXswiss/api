@@ -30,7 +30,7 @@ export class BuyController {
     private readonly buyCryptoService: BuyCryptoService,
     private readonly paymentInfoService: PaymentInfoService,
     private readonly bankService: BankService,
-    private readonly transactionCalcService: TransactionHelper,
+    private readonly transactionHelper: TransactionHelper,
   ) {}
 
   @Get()
@@ -87,7 +87,7 @@ export class BuyController {
 
   private async toDto(userId: number, buy: Buy): Promise<BuyDto> {
     const fee = await this.userService.getUserBuyFee(userId, buy.asset);
-    const { minFee, minDeposit } = this.transactionCalcService.getDefaultSpecs(
+    const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
       'Fiat',
       undefined,
       buy.asset.blockchain,
@@ -110,8 +110,8 @@ export class BuyController {
   private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
     const bankInfo = await this.getBankInfo(buy, dto);
     const fee = await this.userService.getUserBuyFee(userId, buy.asset);
-    const { minVolume, minFee } = await this.transactionCalcService.getSpecs(dto.currency, dto.asset);
-    const estimatedAmount = await this.transactionCalcService.getTargetEstimation(
+    const { minVolume, minFee } = await this.transactionHelper.getSpecs(dto.currency, dto.asset);
+    const estimatedAmount = await this.transactionHelper.getTargetEstimation(
       dto.amount,
       fee,
       minFee,

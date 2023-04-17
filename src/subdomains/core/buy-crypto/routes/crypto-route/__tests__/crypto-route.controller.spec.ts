@@ -16,14 +16,14 @@ describe('CryptoRouteController', () => {
   let userService: UserService;
   let buyCryptoService: BuyCryptoService;
   let paymentInfoService: PaymentInfoService;
-  let transactionSpecificationService: TransactionHelper;
+  let transactionHelper: TransactionHelper;
 
   beforeEach(async () => {
     cryptoRouteService = createMock<CryptoRouteService>();
     userService = createMock<UserService>();
     buyCryptoService = createMock<BuyCryptoService>();
     paymentInfoService = createMock<PaymentInfoService>();
-    transactionSpecificationService = createMock<TransactionHelper>();
+    transactionHelper = createMock<TransactionHelper>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -33,7 +33,7 @@ describe('CryptoRouteController', () => {
         { provide: UserService, useValue: userService },
         { provide: BuyCryptoService, useValue: buyCryptoService },
         { provide: PaymentInfoService, useValue: paymentInfoService },
-        { provide: TransactionHelper, useValue: transactionSpecificationService },
+        { provide: TransactionHelper, useValue: transactionHelper },
         TestUtil.provideConfig(),
       ],
     }).compile();

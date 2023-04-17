@@ -6,16 +6,16 @@ import { BuyFiat } from '../buy-fiat.entity';
 
 @Injectable()
 export class BuyFiatInitSpecification {
-  constructor(private readonly transactionSpecificationService: TransactionHelper) {}
+  constructor(private readonly transactionHelper: TransactionHelper) {}
 
   async isSatisfiedBy(buyFiat: BuyFiat): Promise<boolean> {
     const { cryptoInput, sell } = buyFiat;
 
     if (!cryptoInput) return true;
 
-    const { minVolume } = await this.transactionSpecificationService.getSpecs(cryptoInput.asset, sell.fiat);
+    const { minVolume } = await this.transactionHelper.getSpecs(cryptoInput.asset, sell.fiat);
 
-    if (minVolume * 0.5 > cryptoInput.amount) this.throw(cryptoInput);
+    if (cryptoInput.amount < minVolume * 0.5) this.throw(cryptoInput);
 
     return true;
   }

@@ -49,7 +49,7 @@ describe('BuyController', () => {
   let bankAccountService: BankAccountService;
   let bankService: BankService;
   let paymentInfoService: PaymentInfoService;
-  let transactionSpecificationService: TransactionHelper;
+  let transactionHelper: TransactionHelper;
   let priceProviderService: PriceProviderService;
 
   beforeEach(async () => {
@@ -60,7 +60,7 @@ describe('BuyController', () => {
     bankAccountService = createMock<BankAccountService>();
     bankService = createMock<BankService>();
     paymentInfoService = createMock<PaymentInfoService>();
-    transactionSpecificationService = createMock<TransactionHelper>();
+    transactionHelper = createMock<TransactionHelper>();
     priceProviderService = createMock<PriceProviderService>();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -74,7 +74,7 @@ describe('BuyController', () => {
         { provide: BankAccountService, useValue: bankAccountService },
         { provide: BankService, useValue: bankService },
         { provide: PaymentInfoService, useValue: paymentInfoService },
-        { provide: TransactionHelper, useValue: transactionSpecificationService },
+        { provide: TransactionHelper, useValue: transactionHelper },
         { provide: PriceProviderService, useValue: priceProviderService },
 
         TestUtil.provideConfig(),

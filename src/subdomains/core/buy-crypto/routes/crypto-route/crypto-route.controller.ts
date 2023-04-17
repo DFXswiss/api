@@ -28,7 +28,7 @@ export class CryptoRouteController {
     private readonly userService: UserService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly paymentInfoService: PaymentInfoService,
-    private readonly transactionSpecificationService: TransactionHelper,
+    private readonly transactionHelper: TransactionHelper,
   ) {}
 
   @Get()
@@ -91,7 +91,7 @@ export class CryptoRouteController {
 
   private async toDto(userId: number, crypto: CryptoRoute, fee?: number): Promise<CryptoRouteDto> {
     fee ??= await this.getFee(userId);
-    const { minFee, minDeposit } = this.transactionSpecificationService.getDefaultSpecs(
+    const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
       crypto.deposit.blockchain,
       undefined,
       crypto.asset.blockchain,
@@ -117,8 +117,8 @@ export class CryptoRouteController {
     dto: GetCryptoPaymentInfoDto,
   ): Promise<CryptoPaymentInfoDto> {
     const fee = await this.getFee(userId);
-    const { minVolume, minFee } = await this.transactionSpecificationService.getSpecs(dto.sourceAsset, dto.asset);
-    const estimatedAmount = await this.transactionSpecificationService.getTargetEstimation(
+    const { minVolume, minFee } = await this.transactionHelper.getSpecs(dto.sourceAsset, dto.asset);
+    const estimatedAmount = await this.transactionHelper.getTargetEstimation(
       dto.amount,
       fee,
       minFee,

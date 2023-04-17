@@ -16,14 +16,15 @@ describe('SellController', () => {
   let userService: UserService;
   let buyFiatService: BuyFiatService;
   let paymentInfoService: PaymentInfoService;
-  let transactionSpecificationService: TransactionHelper;
+  let transactionHelper: TransactionHelper;
 
   beforeEach(async () => {
     sellService = createMock<SellService>();
     userService = createMock<UserService>();
     buyFiatService = createMock<BuyFiatService>();
     paymentInfoService = createMock<PaymentInfoService>();
-    transactionSpecificationService = createMock<TransactionHelper>();
+    transactionHelper = createMock<TransactionHelper>();
+
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
       providers: [
@@ -32,7 +33,7 @@ describe('SellController', () => {
         { provide: UserService, useValue: userService },
         { provide: BuyFiatService, useValue: buyFiatService },
         { provide: PaymentInfoService, useValue: paymentInfoService },
-        { provide: TransactionHelper, useValue: transactionSpecificationService },
+        { provide: TransactionHelper, useValue: transactionHelper },
         TestUtil.provideConfig(),
       ],
     }).compile();

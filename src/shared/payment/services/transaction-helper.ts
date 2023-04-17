@@ -31,6 +31,7 @@ export class TransactionHelper implements OnModuleInit {
     this.transactionSpecifications = await this.transactionSpecificationRepo.find();
   }
 
+  // --- SPECIFICATIONS --- //
   async getSpecs(from: Asset | Fiat, to: Asset | Fiat): Promise<{ minFee: number; minVolume: number }> {
     const { system: fromSystem, asset: fromAsset } = this.getProps(from);
     const { system: toSystem, asset: toAsset } = this.getProps(to);
@@ -41,12 +42,6 @@ export class TransactionHelper implements OnModuleInit {
       minFee: this.convert(minFee.amount, price, from instanceof Fiat),
       minVolume: this.convert(minDeposit.amount, price, from instanceof Fiat),
     };
-  }
-
-  private getProps(param: Asset | Fiat): { system: string; asset: string } {
-    return param instanceof Asset
-      ? { system: param.blockchain, asset: param.dexName }
-      : { system: 'Fiat', asset: param.name };
   }
 
   getDefaultSpecs(
@@ -79,6 +74,7 @@ export class TransactionHelper implements OnModuleInit {
     );
   }
 
+  // --- TARGET ESTIMATION --- //
   async getTargetEstimation(
     amount: number,
     fee: number,
@@ -89,6 +85,13 @@ export class TransactionHelper implements OnModuleInit {
     const price = await this.priceProviderService.getPrice(from, to);
     const feeAmount = Math.max(amount * (fee / 100), minFee);
     return this.convert(Math.max(amount - feeAmount, 0), price, to instanceof Fiat);
+  }
+
+  // --- HELPER METHODS --- //
+  private getProps(param: Asset | Fiat): { system: string; asset: string } {
+    return param instanceof Fiat
+      ? { system: 'Fiat', asset: param.name }
+      : { system: param.blockchain, asset: param.dexName };
   }
 
   private convert(amount: number, price: Price, isFiat: boolean): number {
