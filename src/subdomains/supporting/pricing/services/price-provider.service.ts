@@ -11,12 +11,13 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 
 /**
- * Price provider service - use this service for indicative and fiat prices
+ * Price provider service - use this service for indicative prices
  */
 @Injectable()
 export class PriceProviderService implements OnModuleInit {
   private readonly chainsWithSwapPricing = [Blockchain.DEFICHAIN];
   private readonly refAssetMap = new Map<Blockchain, Asset>();
+
   private usd: Fiat;
 
   constructor(
@@ -87,7 +88,7 @@ export class PriceProviderService implements OnModuleInit {
   }
 
   private async fiatFiat(from: Fiat, to: Fiat): Promise<Price> {
-    if (from === to) return Price.create(from.name, to.name, 1);
+    if (from.id === to.id) return Price.create(from.name, to.name, 1);
 
     return this.currencyService.getPrice(from.name, to.name);
   }

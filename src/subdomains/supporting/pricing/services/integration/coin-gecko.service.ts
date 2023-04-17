@@ -68,7 +68,7 @@ export class CoinGeckoService {
     const { data } = await this.callApi((c) => c.simple.price({ ids: coinGeckoId, vs_currencies: fiat.name }));
 
     const price = data[coinGeckoId.toLowerCase()]?.[fiat.name.toLowerCase()];
-    if (!price) throw new ServiceUnavailableException(`Failed to get price for ${name} -> ${fiat}`);
+    if (!price) throw new ServiceUnavailableException(`Failed to get price for ${name} -> ${fiat.name}`);
 
     return Price.create(name, fiat.name, 1 / price);
   }
