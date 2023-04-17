@@ -419,15 +419,14 @@ export class UserService {
       kycDataComplete: this.kycService.isDataComplete(user.userData),
       apiKeyCT: user.apiKeyCT,
       apiFilterCT: this.apiKeyService.getFilterArray(user.apiFilterCT),
-
-      ...(detailed ? await this.getUserDetails(user) : undefined),
+      ...(detailed && user.status == UserStatus.ACTIVE ? await this.getUserDetails(user) : undefined),
       linkedAddresses: detailed ? await this.getAllLinkedUsers(user.id) : undefined,
     };
   }
 
   private async getUserDetails(user: User): Promise<UserDetails> {
     return {
-      ref: user.status === UserStatus.ACTIVE ? user.ref : undefined,
+      ref: user.ref,
       refFeePercent: user.refFeePercent,
       refVolume: user.refVolume,
       refCredit: user.refCredit,

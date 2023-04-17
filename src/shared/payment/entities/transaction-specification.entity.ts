@@ -1,7 +1,7 @@
 import { Entity, Column } from 'typeorm';
 import { IEntity } from 'src/shared/models/entity';
 
-enum TransactionDirection {
+export enum TransactionDirection {
   IN = 'In',
   OUT = 'Out',
 }
