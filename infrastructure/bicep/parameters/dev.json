@@ -200,6 +200,12 @@
     "krakenSecret": {
       "value": "xxx"
     },
+    "krakenBtcWalletWithdrawKey": {
+      "value": "xxx"
+    },
+    "krakenBtcDepositAddress": {
+      "value": "xxx"
+    },
     "binanceKey": {
       "value": "xxx"
     },

@@ -125,7 +125,7 @@ export abstract class DeFiChainNonPoolPairStrategy extends PurchaseLiquidityStra
   private async getSwapAsset(descriptor: { name: string; type: AssetType }): Promise<Asset> {
     const { name, type } = descriptor;
     const cachedAsset = this.prioritySwapAssets.find(
-      (a) => a.name === name && a.type === type && a.blockchain === Blockchain.DEFICHAIN,
+      (a) => a.dexName === name && a.type === type && a.blockchain === Blockchain.DEFICHAIN,
     );
 
     if (cachedAsset) return cachedAsset;
