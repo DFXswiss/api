@@ -135,4 +135,8 @@ export class LiquidityManagementRule extends IEntity {
   get target(): Asset | Fiat {
     return this.targetAsset ?? this.targetFiat;
   }
+
+  get targetName(): string {
+    return this.targetAsset?.uniqueName ?? this.targetFiat.name;
+  }
 }

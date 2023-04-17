@@ -90,7 +90,7 @@ export class LiquidityManagementPipelineService {
   private async checkRunningPipelines(): Promise<void> {
     const runningPipelines = await this.pipelineRepo.find({
       where: { status: LiquidityManagementPipelineStatus.IN_PROGRESS },
-      relations: ['currentAction', 'currentAction.onSuccess', 'currentAction.onFail'],
+      relations: { currentAction: { onSuccess: true, onFail: true } },
     });
 
     for (const pipeline of runningPipelines) {
@@ -126,7 +126,7 @@ export class LiquidityManagementPipelineService {
           }
 
           if (pipeline.status === LiquidityManagementPipelineStatus.FAILED) {
-            await this.handlePipelineFail(pipeline);
+            await this.handlePipelineFail(pipeline, order);
             continue;
           }
 
@@ -228,12 +228,15 @@ export class LiquidityManagementPipelineService {
     console.log(successMessage);
   }
 
-  private async handlePipelineFail(pipeline: LiquidityManagementPipeline): Promise<void> {
+  private async handlePipelineFail(
+    pipeline: LiquidityManagementPipeline,
+    order: LiquidityManagementOrder,
+  ): Promise<void> {
     const rule = pipeline.rule.pause();
 
     await this.ruleRepo.save(rule);
 
-    const [errorMessage, mailRequest] = this.generateFailMessage(pipeline);
+    const [errorMessage, mailRequest] = this.generateFailMessage(pipeline, order);
 
     console.log(errorMessage);
 
@@ -241,8 +244,8 @@ export class LiquidityManagementPipelineService {
   }
 
   private generateSuccessMessage(pipeline: LiquidityManagementPipeline): [string, MailRequest] {
-    const { type, targetAmount, rule } = pipeline;
-    const successMessage = `Successfully completed a ${type} pipeline for ${targetAmount} ${rule.target.name}. Pipeline ID: ${pipeline.id}`;
+    const { id, type, targetAmount, rule } = pipeline;
+    const successMessage = `${type} pipeline for ${targetAmount} ${rule.targetName} (rule ${rule.id}) completed. Pipeline ID: ${id}`;
 
     const mailRequest: MailRequest = {
       type: MailType.ERROR_MONITORING,
@@ -255,14 +258,18 @@ export class LiquidityManagementPipelineService {
     return [successMessage, mailRequest];
   }
 
-  private generateFailMessage(pipeline: LiquidityManagementPipeline): [string, MailRequest] {
-    const errorMessage = `Liquidity management pipeline failed. Rule ${pipeline.rule.id} is paused. Pipeline ID: ${pipeline.id}`;
+  private generateFailMessage(
+    pipeline: LiquidityManagementPipeline,
+    order: LiquidityManagementOrder,
+  ): [string, MailRequest] {
+    const { id, type, rule } = pipeline;
+    const errorMessage = `${type} pipeline for ${rule.targetName} (rule ${rule.id}) failed. Pipeline ID: ${id}`;
 
     const mailRequest: MailRequest = {
       type: MailType.ERROR_MONITORING,
       input: {
-        subject: 'Liquidity management pipeline failed',
-        errors: [errorMessage],
+        subject: 'Liquidity management pipeline FAIL',
+        errors: [errorMessage, order.errorMessage],
       },
     };
 
