@@ -75,13 +75,13 @@ export class BuyCryptoNotificationService {
                   buyOutputAmount: tx.outputAmount,
                   buyOutputAsset: tx.outputAsset.name,
                   blockchain: tx.outputAsset.blockchain,
-                  buyFeePercentage: Util.round(tx.percentFee * 100, 2),
                   exchangeRate: Util.round(tx.inputAmount / tx.outputAmount, 2),
                   buyWalletAddress: Util.blankBlockchainAddress(tx.target.address),
                   buyTxId: tx.txId,
                   buyTransactionLink: `${BlockchainExplorerUrls[tx.target.asset.blockchain]}/${tx.txId}`,
-                  minFeeAmount: tx.minFeeAmountFiat,
-                  minFeeAsset: tx.inputReferenceAsset,
+                  fee: `${Util.round(tx.percentFee * 100, 2)}% ${
+                    tx.minFeeAmountFiat ? `min. ${tx.minFeeAmountFiat} ${tx.inputReferenceAsset}` : ''
+                  }`,
                 },
               },
             }));
@@ -195,7 +195,7 @@ export class BuyCryptoNotificationService {
                 inputAmount: entity.inputAmount,
                 inputAsset: entity.inputAsset,
                 returnTransactionLink: entity.chargebackRemittanceInfo?.split(' Zahlung')[0],
-                returnReason: await this.i18nService.translate(`mail.amlReasonMailText.${entity.amlReason}`, {
+                returnReason: this.i18nService.translate(`mail.amlReasonMailText.${entity.amlReason}`, {
                   lang: entity.user.userData.language?.symbol.toLowerCase(),
                 }),
                 userAddressTrimmed: entity.target.trimmedReturnAddress,

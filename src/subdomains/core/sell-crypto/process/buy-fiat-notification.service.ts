@@ -95,12 +95,12 @@ export class BuyFiatNotificationService {
                 inputAmount: entity.inputAmount,
                 inputAsset: entity.inputAsset,
                 blockchain: entity.cryptoInput.asset.blockchain,
-                percentFee: entity.percentFeeString,
                 exchangeRate: entity.exchangeRateString,
                 outputAmount: entity.outputAmount,
                 outputAsset: entity.outputAsset,
-                minFeeAmount: entity.minFeeAmountFiat,
-                minFeeAsset: entity.outputReferenceAsset,
+                fee: `${entity.percentFeeString}% ${
+                  entity.minFeeAmountFiat ? `min. ${entity.minFeeAmountFiat} ${entity.outputReferenceAsset}` : ''
+                }`,
               },
             },
           });
@@ -183,7 +183,7 @@ export class BuyFiatNotificationService {
                 returnTransactionLink: `${BlockchainExplorerUrls[entity.cryptoInput.asset.blockchain]}/${
                   entity.cryptoReturnTxId
                 }`,
-                returnReason: await this.i18nService.translate(`mail.amlReasonMailText.${entity.amlReason}`, {
+                returnReason: this.i18nService.translate(`mail.amlReasonMailText.${entity.amlReason}`, {
                   lang: entity.sell.user.userData.language?.symbol.toLowerCase(),
                 }),
                 userAddressTrimmed: Util.blankBlockchainAddress(entity.sell.user.address),
