@@ -147,8 +147,6 @@ export class BuyFiat extends IEntity {
     entity.cryptoInput = payIn;
     entity.sell = sellRoute;
 
-    BuyFiatInitSpecification.isSatisfiedBy(entity);
-
     return entity;
   }
 

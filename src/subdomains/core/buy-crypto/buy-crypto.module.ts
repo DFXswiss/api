@@ -34,6 +34,7 @@ import { CryptoRoute } from './routes/crypto-route/crypto-route.entity';
 import { BuyCryptoFee } from './process/entities/buy-crypto-fees.entity';
 import { PaymentModule } from 'src/shared/payment/payment.module';
 import { LiquidityManagementModule } from '../liquidity-management/liquidity-management.module';
+import { BuyCryptoInitSpecification } from './process/specifications/buy-crypto-init.specification';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { LiquidityManagementModule } from '../liquidity-management/liquidity-man
     BuyCryptoOutService,
     BuyService,
     CryptoRouteService,
+    BuyCryptoInitSpecification,
   ],
   exports: [BuyController, CryptoRouteController, BuyCryptoService, BuyService],
 })
