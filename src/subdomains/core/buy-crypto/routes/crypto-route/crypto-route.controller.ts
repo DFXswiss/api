@@ -59,7 +59,7 @@ export class CryptoRouteController {
     dto = await this.paymentInfoService.cryptoCheck(jwt, dto);
     return this.cryptoRouteService
       .createCrypto(jwt.id, { ...dto, blockchain: dto.sourceAsset.blockchain }, true)
-      .then((crypto) => this.toPaymentInfoDto(jwt.id, crypto));
+      .then((crypto) => this.toPaymentInfoDto(jwt.id, crypto, dto));
   }
 
   @Put(':id')
@@ -91,7 +91,7 @@ export class CryptoRouteController {
 
   private async toDto(userId: number, crypto: CryptoRoute, fee?: { fee: number }): Promise<CryptoRouteDto> {
     fee ??= await this.getFee(userId);
-    const { minFee, minDeposit } = this.transactionSpecificationService.get(
+    const { minFee, minDeposit } = this.transactionSpecificationService.getDefault(
       crypto.deposit.blockchain,
       undefined,
       crypto.asset.blockchain,
@@ -111,17 +111,16 @@ export class CryptoRouteController {
     };
   }
 
-  private async toPaymentInfoDto(userId: number, cryptoRoute: CryptoRoute): Promise<CryptoPaymentInfoDto> {
+  private async toPaymentInfoDto(
+    userId: number,
+    cryptoRoute: CryptoRoute,
+    dto: GetCryptoPaymentInfoDto,
+  ): Promise<CryptoPaymentInfoDto> {
     return {
       ...(await this.getFee(userId)),
       depositAddress: cryptoRoute.deposit.address,
       blockchain: cryptoRoute.deposit.blockchain,
-      ...this.transactionSpecificationService.get(
-        cryptoRoute.deposit.blockchain,
-        undefined,
-        cryptoRoute.asset.blockchain,
-        cryptoRoute.asset.dexName,
-      ),
+      ...(await this.transactionSpecificationService.get(dto.sourceAsset, dto.asset)),
     };
   }
 

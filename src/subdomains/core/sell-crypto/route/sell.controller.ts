@@ -87,7 +87,7 @@ export class SellController {
   }
 
   private async toDto(sell: Sell): Promise<SellDto> {
-    const { minFee, minDeposit } = this.transactionSpecificationService.get(
+    const { minFee, minDeposit } = this.transactionSpecificationService.getDefault(
       sell.deposit.blockchain,
       undefined,
       'Fiat',
@@ -114,7 +114,7 @@ export class SellController {
       ...(await this.getFee(userId, dto.asset)),
       depositAddress: sell.deposit.address,
       blockchain: sell.deposit.blockchain,
-      ...this.transactionSpecificationService.get(sell.deposit.blockchain, dto.asset.dexName, 'Fiat', sell.fiat.name),
+      ...(await this.transactionSpecificationService.get(dto.asset, dto.currency)),
     };
   }
 

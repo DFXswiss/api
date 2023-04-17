@@ -20,6 +20,7 @@ import { BuyCryptoService } from '../../process/services/buy-crypto.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { TransactionSpecificationService } from 'src/shared/payment/services/transaction-specification.service';
+import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 
 @ApiTags('Buy')
 @Controller('buy')
@@ -31,6 +32,7 @@ export class BuyController {
     private readonly paymentInfoService: PaymentInfoService,
     private readonly bankService: BankService,
     private readonly transactionSpecificationService: TransactionSpecificationService,
+    private readonly priceProviderService: PriceProviderService,
   ) {}
 
   @Get()
@@ -87,12 +89,13 @@ export class BuyController {
 
   private async toDto(userId: number, buy: Buy): Promise<BuyDto> {
     const fee = await this.userService.getUserBuyFee(userId, buy.asset);
-    const { minFee, minDeposit } = this.transactionSpecificationService.get(
+    const { minFee, minDeposit } = this.transactionSpecificationService.getDefault(
       'Fiat',
       undefined,
       buy.asset.blockchain,
       buy.asset.dexName,
     );
+
     return {
       id: buy.id,
       active: buy.active,
@@ -113,7 +116,7 @@ export class BuyController {
       sepaInstant: bankInfo.sepaInstant && buy.bankAccount?.sctInst,
       remittanceInfo: buy.bankUsage,
       ...(await this.userService.getUserBuyFee(userId, buy.asset)),
-      ...this.transactionSpecificationService.get('Fiat', dto.currency.name, buy.asset.blockchain, buy.asset.dexName),
+      ...(await this.transactionSpecificationService.get(dto.currency, dto.asset)),
     };
   }
 

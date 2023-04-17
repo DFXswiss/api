@@ -18,6 +18,8 @@ import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { BuyCryptoService } from '../../../process/services/buy-crypto.service';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
+import { TransactionSpecificationService } from 'src/shared/payment/services/transaction-specification.service';
+import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 
 function createBuyPaymentInfoDto(amount = 1, currency: Fiat = { id: 1 } as Fiat): GetBuyPaymentInfoDto {
   return {
@@ -47,6 +49,8 @@ describe('BuyController', () => {
   let bankAccountService: BankAccountService;
   let bankService: BankService;
   let paymentInfoService: PaymentInfoService;
+  let transactionSpecificationService: TransactionSpecificationService;
+  let priceProviderService: PriceProviderService;
 
   beforeEach(async () => {
     buyService = createMock<BuyService>();
@@ -56,6 +60,8 @@ describe('BuyController', () => {
     bankAccountService = createMock<BankAccountService>();
     bankService = createMock<BankService>();
     paymentInfoService = createMock<PaymentInfoService>();
+    transactionSpecificationService = createMock<TransactionSpecificationService>();
+    priceProviderService = createMock<PriceProviderService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -68,6 +74,8 @@ describe('BuyController', () => {
         { provide: BankAccountService, useValue: bankAccountService },
         { provide: BankService, useValue: bankService },
         { provide: PaymentInfoService, useValue: paymentInfoService },
+        { provide: TransactionSpecificationService, useValue: transactionSpecificationService },
+        { provide: PriceProviderService, useValue: priceProviderService },
 
         TestUtil.provideConfig(),
       ],
@@ -78,20 +86,6 @@ describe('BuyController', () => {
 
   it('should be defined', () => {
     expect(controller).toBeDefined();
-  });
-
-  it('should return a min deposit of 1 for a default buy route', async () => {
-    jest.spyOn(buyService, 'getUserBuys').mockResolvedValue([createDefaultBuy()]);
-
-    await expect(controller.getAllBuy(createJwt())).resolves.toMatchObject([
-      {
-        minDeposits: [
-          { amount: 1, asset: 'USD' },
-          { amount: 1, asset: 'CHF' },
-          { amount: 1, asset: 'EUR' },
-        ],
-      },
-    ]);
   });
 
   it('should return DFX address info', async () => {

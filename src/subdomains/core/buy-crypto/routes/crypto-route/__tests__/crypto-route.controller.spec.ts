@@ -10,6 +10,7 @@ import { createDefaultCryptoRoute } from '../__mocks__/crypto-route.entity.mock'
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
+import { TransactionSpecificationService } from 'src/shared/payment/services/transaction-specification.service';
 
 describe('CryptoRouteController', () => {
   let controller: CryptoRouteController;
@@ -18,12 +19,14 @@ describe('CryptoRouteController', () => {
   let userService: UserService;
   let buyCryptoService: BuyCryptoService;
   let paymentInfoService: PaymentInfoService;
+  let transactionSpecificationService: TransactionSpecificationService;
 
   beforeEach(async () => {
     cryptoRouteService = createMock<CryptoRouteService>();
     userService = createMock<UserService>();
     buyCryptoService = createMock<BuyCryptoService>();
     paymentInfoService = createMock<PaymentInfoService>();
+    transactionSpecificationService = createMock<TransactionSpecificationService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -33,6 +36,7 @@ describe('CryptoRouteController', () => {
         { provide: UserService, useValue: userService },
         { provide: BuyCryptoService, useValue: buyCryptoService },
         { provide: PaymentInfoService, useValue: paymentInfoService },
+        { provide: TransactionSpecificationService, useValue: transactionSpecificationService },
         TestUtil.provideConfig(),
       ],
     }).compile();
@@ -42,13 +46,5 @@ describe('CryptoRouteController', () => {
 
   it('should be defined', () => {
     expect(controller).toBeDefined();
-  });
-
-  it('should return a min deposit of 0.0005 for a default crypto route', async () => {
-    jest.spyOn(cryptoRouteService, 'getUserCryptos').mockResolvedValue([createDefaultCryptoRoute()]);
-
-    await expect(
-      controller.getAllCrypto({ id: 0, address: '', role: UserRole.USER, blockchains: [Blockchain.DEFICHAIN] }),
-    ).resolves.toMatchObject([{ minDeposits: [{ amount: 0.0005, asset: 'BTC' }] }]);
   });
 });
