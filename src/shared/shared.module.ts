@@ -37,12 +37,14 @@ import { IpLog } from './models/ip-log/ip-log.entity';
 import { Language } from './models/language/language.entity';
 import { Setting } from './models/setting/setting.entity';
 import { RepositoryFactory } from './repositories/repository.factory';
+import { PaymentModule } from './payment/payment.module';
 
 @Module({
   imports: [
     HttpModule,
     ConfigModule,
     GeoLocationModule,
+    PaymentModule,
     TypeOrmModule.forFeature([Asset, Fiat, Country, Language, Setting, IpLog]),
     PassportModule.register({ defaultStrategy: 'jwt', session: true }),
     JwtModule.register(GetConfig().auth.jwt),
