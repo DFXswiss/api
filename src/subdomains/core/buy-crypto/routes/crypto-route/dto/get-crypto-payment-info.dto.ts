@@ -17,8 +17,9 @@ export class GetCryptoPaymentInfoDto {
   @Type(() => EntityDto)
   asset: Asset;
 
+  //eslint-disable-next-line @typescript-eslint/no-inferrable-types
   @ApiProperty()
   @IsNotEmpty()
   @IsNumber()
-  amount = 0;
+  amount: number = 0;
 }
