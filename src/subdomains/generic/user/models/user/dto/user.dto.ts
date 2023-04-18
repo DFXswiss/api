@@ -76,20 +76,20 @@ export class UserDetailDto extends UserDto implements UserDetails {
   @ApiPropertyOptional()
   refFeePercent?: number;
 
-  @ApiProperty()
-  refVolume: number;
+  @ApiPropertyOptional()
+  refVolume?: number;
 
-  @ApiProperty()
-  refCredit: number;
+  @ApiPropertyOptional()
+  refCredit?: number;
 
-  @ApiProperty()
-  paidRefCredit: number;
+  @ApiPropertyOptional()
+  paidRefCredit?: number;
 
-  @ApiProperty()
-  refCount: number;
+  @ApiPropertyOptional()
+  refCount?: number;
 
-  @ApiProperty()
-  refCountActive: number;
+  @ApiPropertyOptional()
+  refCountActive?: number;
 
   @ApiProperty({ type: VolumeInformation })
   buyVolume: VolumeInformation;

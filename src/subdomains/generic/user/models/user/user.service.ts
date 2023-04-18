@@ -413,20 +413,14 @@ export class UserService {
       kycDataComplete: this.kycService.isDataComplete(user.userData),
       apiKeyCT: user.apiKeyCT,
       apiFilterCT: this.apiKeyService.getFilterArray(user.apiFilterCT),
-      ...(detailed && user.status == UserStatus.ACTIVE ? await this.getUserDetails(user) : undefined),
+      ...(detailed ? await this.getUserDetails(user) : undefined),
       linkedAddresses: detailed ? await this.getAllLinkedUsers(user.id) : undefined,
     };
   }
 
   private async getUserDetails(user: User): Promise<UserDetails> {
     return {
-      ref: user.ref,
-      refFeePercent: user.refFeePercent,
-      refVolume: user.refVolume,
-      refCredit: user.refCredit,
-      paidRefCredit: user.paidRefCredit,
-      refCount: await this.userRepo.countBy({ usedRef: user.ref }),
-      refCountActive: await this.userRepo.countBy({ usedRef: user.ref, status: Not(UserStatus.NA) }),
+      ...(user.status == UserStatus.ACTIVE ? await this.getUserRef(user) : undefined),
       bsLink:
         user.buyVolume + user.sellVolume + user.cryptoVolume >= Config.support.blackSquad.limit
           ? Config.support.blackSquad.link
@@ -435,6 +429,18 @@ export class UserService {
       sellVolume: { total: user.sellVolume, annual: user.annualSellVolume },
       cryptoVolume: { total: user.cryptoVolume, annual: user.annualCryptoVolume },
       stakingBalance: 0,
+    };
+  }
+
+  private async getUserRef(user: User): Promise<Partial<UserDetails>> {
+    return {
+      ref: user.ref,
+      refFeePercent: user.refFeePercent,
+      refVolume: user.refVolume,
+      refCredit: user.refCredit,
+      paidRefCredit: user.paidRefCredit,
+      refCount: await this.userRepo.countBy({ usedRef: user.ref }),
+      refCountActive: await this.userRepo.countBy({ usedRef: user.ref, status: Not(UserStatus.NA) }),
     };
   }
 }
