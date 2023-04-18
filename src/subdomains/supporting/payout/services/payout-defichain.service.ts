@@ -41,7 +41,7 @@ export class PayoutDeFiChainService extends PayoutJellyfishService {
   }
 
   async getUtxoForAddress(address: string): Promise<number> {
-    return parseFloat(await this.whaleService.getClient().getBalance(address));
+    return parseFloat(await this.whaleService.getCurrentClient().getBalance(address));
   }
 
   getWalletAddress(_context: PayoutOrderContext): string {

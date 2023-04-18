@@ -19,6 +19,7 @@ import { BankModule as BankIntegrationModule } from 'src/integration/bank/bank.m
 import { LetterModule } from 'src/integration/letter/letter.module';
 import { IntegrationModule } from 'src/integration/integration.module';
 import { SystemStateSnapshot } from './system-state-snapshot.entity';
+import { WhaleHealthObserver } from './observers/whale-health.observer';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { SystemStateSnapshot } from './system-state-snapshot.entity';
     BankingBotObserver,
     BankObserver,
     ExternalServicesObserver,
+    WhaleHealthObserver,
   ],
   controllers: [MonitoringController],
   exports: [MonitoringService],

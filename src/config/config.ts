@@ -18,6 +18,7 @@ export enum Process {
   BUY_CRYPTO_MAIL = 'BuyCryptoMail',
   BUY_FIAT_MAIL = 'BuyFiatMail',
   EXCHANGE_TX_SYNC = 'ExchangeTxSync',
+  MONITORING = 'Monitoring',
 }
 
 export function GetConfig(): Configuration {
@@ -209,7 +210,7 @@ export class Configuration {
   whale = {
     version: 'v0',
     network: this.network,
-    url: 'https://ocean.defichain.com',
+    urls: process.env.OCEAN_URLS?.split(','),
   };
 
   transaction = {
