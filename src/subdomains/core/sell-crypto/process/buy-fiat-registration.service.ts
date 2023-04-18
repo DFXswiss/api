@@ -7,6 +7,7 @@ import { Sell } from '../route/sell.entity';
 import { SellRepository } from '../route/sell.repository';
 import { BuyFiat } from './buy-fiat.entity';
 import { BuyFiatRepository } from './buy-fiat.repository';
+import { BuyFiatInitSpecification } from './specifications/buy-fiat-init.specification';
 
 @Injectable()
 export class BuyFiatRegistrationService {
@@ -14,6 +15,7 @@ export class BuyFiatRegistrationService {
     private readonly buyFiatRepo: BuyFiatRepository,
     private readonly sellRepository: SellRepository,
     private readonly payInService: PayInService,
+    private readonly buyFiatInitSpec: BuyFiatInitSpecification,
   ) {}
 
   async registerSellPayIn(): Promise<void> {
@@ -66,6 +68,7 @@ export class BuyFiatRegistrationService {
 
         if (!buyFiat) {
           buyFiat = BuyFiat.createFromPayIn(payIn, sellRoute);
+          await this.buyFiatInitSpec.isSatisfiedBy(buyFiat);
           await this.buyFiatRepo.save(buyFiat);
         }
 

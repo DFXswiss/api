@@ -1,5 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { PaymentModule } from 'src/shared/payment/payment.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { AddressPoolModule } from 'src/subdomains/supporting/address-pool/address-pool.module';
@@ -13,6 +14,7 @@ import { BuyFiatController } from './process/buy-fiat.controller';
 import { BuyFiat } from './process/buy-fiat.entity';
 import { BuyFiatRepository } from './process/buy-fiat.repository';
 import { BuyFiatService } from './process/buy-fiat.service';
+import { BuyFiatInitSpecification } from './process/specifications/buy-fiat-init.specification';
 import { SellController } from './route/sell.controller';
 import { Sell } from './route/sell.entity';
 import { SellRepository } from './route/sell.repository';
@@ -24,6 +26,7 @@ import { SellService } from './route/sell.service';
     SharedModule,
     UserModule,
     NotificationModule,
+    PaymentModule,
     forwardRef(() => BankModule),
     forwardRef(() => PayInModule),
     forwardRef(() => BuyCryptoModule),
@@ -38,6 +41,7 @@ import { SellService } from './route/sell.service';
     BuyFiatRegistrationService,
     BuyFiatService,
     SellService,
+    BuyFiatInitSpecification,
   ],
   exports: [SellController, BuyFiatService, SellService],
 })

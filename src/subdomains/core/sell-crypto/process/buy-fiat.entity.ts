@@ -7,7 +7,6 @@ import { AmlReason } from '../../buy-crypto/process/enums/aml-reason.enum';
 import { FiatOutput } from '../../../supporting/bank/fiat-output/fiat-output.entity';
 import { Sell } from '../route/sell.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { BuyFiatInitSpecification } from './specifications/buy-fiat-init.specification';
 
 @Entity()
 export class BuyFiat extends IEntity {
@@ -159,8 +158,6 @@ export class BuyFiat extends IEntity {
     entity.cryptoInput = payIn;
     entity.sell = sellRoute;
 
-    BuyFiatInitSpecification.isSatisfiedBy(entity);
-
     return entity;
   }
 
@@ -203,7 +200,10 @@ export class BuyFiat extends IEntity {
   }
 
   get exchangeRateString(): string {
-    return `${Util.round(this.outputAmount / this.inputAmount, 2)} ${this.outputAsset}/${this.inputAsset}`;
+    return `${Util.round(
+      (this.outputAmount / this.inputReferenceAmountMinusFee) * (this.inputReferenceAmount / this.inputAmount),
+      2,
+    )} ${this.outputAsset}/${this.inputAsset}`;
   }
 
   get percentFeeString(): string {

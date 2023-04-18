@@ -5,9 +5,7 @@ import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
-import { Asset, FeeTier } from 'src/shared/models/asset/asset.entity';
-import { MinDeposit } from 'src/subdomains/supporting/address-pool/deposit/dto/min-deposit.dto';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { FeeTier } from 'src/shared/models/asset/asset.entity';
 import { NetworkName } from '@defichain/jellyfish-network';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 
@@ -216,71 +214,6 @@ export class Configuration {
     pricing: {
       refreshRate: 15, // minutes
     },
-    minVolume: {
-      // blockchain: { outputAsset: { minTransactionAsset: minTransactionVolume }}
-      Fiat: {
-        USD: {
-          USD: 1000,
-        },
-      },
-      Bitcoin: {
-        BTC: {
-          USD: 10,
-          CHF: 10,
-          EUR: 10,
-        },
-      },
-      BinanceSmartChain: {
-        default: {
-          USD: 10,
-          CHF: 10,
-          EUR: 10,
-        },
-      },
-      Arbitrum: {
-        default: {
-          USD: 25,
-          CHF: 25,
-          EUR: 25,
-        },
-      },
-      Optimism: {
-        default: {
-          USD: 25,
-          CHF: 25,
-          EUR: 25,
-        },
-      },
-      Ethereum: {
-        default: {
-          USD: 1000,
-          CHF: 1000,
-          EUR: 1000,
-        },
-      },
-      default: {
-        USD: 1,
-        CHF: 1,
-        EUR: 1,
-      },
-
-      get: (target: Asset | Fiat, referenceCurrency: string): MinDeposit => {
-        const minDeposits = this.transaction.minVolume.getMany(target);
-        return minDeposits.find((d) => d.asset === referenceCurrency) ?? minDeposits.find((d) => d.asset === 'USD');
-      },
-
-      getMany: (target: Asset | Fiat): MinDeposit[] => {
-        const system = 'blockchain' in target ? target.blockchain : 'Fiat';
-        const asset = target.name;
-
-        const minVolume =
-          this.transaction.minVolume[system]?.[asset] ??
-          this.transaction.minVolume[system]?.default ??
-          this.transaction.minVolume.default;
-
-        return this.transformToMinDeposit(minVolume);
-      },
-    },
   };
 
   blockchain = {
@@ -378,11 +311,10 @@ export class Configuration {
   payIn = {
     minDeposit: {
       Bitcoin: {
-        BTC: 0.0005,
+        BTC: 0.000001,
       },
       DeFiChain: {
         DFI: 0.01,
-        USDT: 0.4,
       },
     },
     forwardFeeLimit: +(process.env.PAY_IN_FEE_LIMIT ?? 0.005),
@@ -429,13 +361,6 @@ export class Configuration {
 
   crypto = {
     fee: 0.0099,
-  };
-
-  ftp = {
-    host: process.env.FTP_HOST,
-    user: process.env.FTP_USER,
-    password: process.env.FTP_PASSWORD,
-    directory: process.env.FTP_FOLDER,
   };
 
   exchange: Partial<Exchange> = {
@@ -511,10 +436,6 @@ export class Configuration {
   }
 
   // --- HELPERS --- //
-  transformToMinDeposit = (deposit: { [asset: string]: number }, filter?: string[] | string): MinDeposit[] =>
-    Object.entries(deposit)
-      .filter(([key, _]) => filter?.includes(key) ?? true)
-      .map(([key, value]) => ({ amount: value, asset: key }));
 
   processDisabled = (processName: Process) =>
     process.env.DISABLED_PROCESSES === '*' || (process.env.DISABLED_PROCESSES?.split(',') ?? []).includes(processName);

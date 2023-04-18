@@ -1,63 +1,26 @@
-import { Config } from 'src/config/config';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Injectable } from '@nestjs/common';
 import { SmallAmountException } from 'src/shared/exceptions/small-amount.exception';
+import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 
+@Injectable()
 export class BuyCryptoInitSpecification {
-  public static isSatisfiedBy(buyCrypto: BuyCrypto): boolean {
-    const { cryptoInput } = buyCrypto;
+  constructor(private readonly transactionHelper: TransactionHelper) {}
+
+  async isSatisfiedBy(buyCrypto: BuyCrypto): Promise<boolean> {
+    const { cryptoInput, buy } = buyCrypto;
 
     if (!cryptoInput) return true;
 
-    const { asset, btcAmount, usdtAmount, amount } = cryptoInput;
+    const { minVolume } = await this.transactionHelper.getSpecs(cryptoInput.asset, buy.asset);
 
-    switch (asset.blockchain) {
-      case Blockchain.DEFICHAIN: {
-        if (
-          /**
-           * @note
-           * duplicate check for DFI min amount left here on purpose, constraints in CryptoInputInitSpecification might change
-           */
-          (asset.dexName === 'DFI' && amount < Config.payIn.minDeposit.DeFiChain.DFI) ||
-          (asset.dexName !== 'DFI' && usdtAmount < Config.payIn.minDeposit.DeFiChain.USDT)
-        ) {
-          this.throw(cryptoInput);
-        }
-
-        break;
-      }
-
-      case Blockchain.BITCOIN: {
-        if (btcAmount < Config.payIn.minDeposit.Bitcoin.BTC) this.throw(cryptoInput);
-        break;
-      }
-
-      case Blockchain.ETHEREUM: {
-        if (usdtAmount < Config.transaction.minVolume.Ethereum.default.USD) this.throw(cryptoInput);
-        break;
-      }
-
-      case Blockchain.BINANCE_SMART_CHAIN: {
-        if (usdtAmount < Config.transaction.minVolume.BinanceSmartChain.default.USD) this.throw(cryptoInput);
-        break;
-      }
-
-      case Blockchain.ARBITRUM: {
-        if (usdtAmount < Config.transaction.minVolume.Arbitrum.default.USD) this.throw(cryptoInput);
-        break;
-      }
-
-      case Blockchain.OPTIMISM: {
-        if (usdtAmount < Config.transaction.minVolume.Optimism.default.USD) this.throw(cryptoInput);
-        break;
-      }
-    }
+    if (cryptoInput.amount < minVolume * 0.5) this.throw(cryptoInput);
 
     return true;
   }
 
-  private static throw(cryptoInput: CryptoInput): never {
+  private throw(cryptoInput: CryptoInput): never {
     const { asset, amount } = cryptoInput;
 
     throw new SmallAmountException(

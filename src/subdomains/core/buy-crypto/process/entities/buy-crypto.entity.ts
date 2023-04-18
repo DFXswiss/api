@@ -12,7 +12,6 @@ import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { BuyCryptoInitSpecification } from '../specifications/buy-crypto-init.specification';
 import { Buy } from '../../routes/buy/buy.entity';
 
 export enum BuyCryptoStatus {
@@ -157,8 +156,6 @@ export class BuyCrypto extends IEntity {
     entity.cryptoInput = payIn;
     entity.cryptoRoute = cryptoRoute;
     entity.status = BuyCryptoStatus.CREATED;
-
-    BuyCryptoInitSpecification.isSatisfiedBy(entity);
 
     return entity;
   }

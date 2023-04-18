@@ -3,6 +3,7 @@ import { TransformFnParams } from 'class-transformer';
 import { BinaryLike, createHash, createSign, KeyLike } from 'crypto';
 import { XMLValidator, XMLParser } from 'fast-xml-parser';
 import { readFile } from 'fs';
+import BigNumber from 'bignumber.js';
 
 export type KeyType<T, U> = {
   [K in keyof T]: T[K] extends U ? K : never;
@@ -14,6 +15,10 @@ export class Util {
   // --- MATH --- //
   static round(amount: number, decimals: number): number {
     return Math.round(amount * Math.pow(10, decimals)) / Math.pow(10, decimals);
+  }
+
+  static roundByPrecision(amount: number, precision: number): number {
+    return new BigNumber(amount).precision(precision).toNumber();
   }
 
   static sum(list: number[]): number {
