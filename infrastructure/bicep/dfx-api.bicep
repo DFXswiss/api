@@ -2,6 +2,7 @@
 param location string
 param env string
 param network string
+param oceanUrls string
 param knownIps string
 param limitCheck string
 param bsLink string
@@ -428,6 +429,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'NETWORK'
           value: network
+        }
+        {
+          name: 'OCEAN_URLS'
+          value: oceanUrls
         }
         {
           name: 'SQL_HOST'
