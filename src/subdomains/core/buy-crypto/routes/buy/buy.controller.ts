@@ -97,6 +97,7 @@ export class BuyController {
     return {
       id: buy.id,
       active: buy.active,
+      iban: buy.iban,
       volume: buy.volume,
       annualVolume: buy.annualVolume,
       bankUsage: buy.bankUsage,
