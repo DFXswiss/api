@@ -88,7 +88,7 @@ export class BuyCryptoBatch extends IEntity {
     return [true, false];
   }
 
-  optimizeByPayoutFeeEstimation(estimatePayoutFeeAmount: number | null): BuyCrypto[] {
+  optimizeByPayoutFeeEstimation(estimatePayoutFeeAmount: number): BuyCrypto[] {
     const reBatchTransactions = [];
     const filteredOutTransactions = [];
 
@@ -116,14 +116,14 @@ export class BuyCryptoBatch extends IEntity {
     return filteredOutTransactions;
   }
 
-  checkByPurchaseFeeEstimation(estimatePurchaseFeeAmount: number | null): this {
+  checkByPurchaseFeeEstimation(estimatePurchaseFeeAmount: number): this {
     this.checkPurchaseFees(estimatePurchaseFeeAmount);
     this.recordPurchaseFees(estimatePurchaseFeeAmount);
 
     return this;
   }
 
-  secure(liquidity: number, purchaseFee: number | null): this {
+  secure(liquidity: number, purchaseFee: number): this {
     this.outputAmount = liquidity;
     this.status = BuyCryptoBatchStatus.SECURED;
 
@@ -233,7 +233,7 @@ export class BuyCryptoBatch extends IEntity {
     this.outputReferenceAmount = 0;
   }
 
-  private checkPurchaseFees(purchaseFeeAmount: number | null): void {
+  private checkPurchaseFees(purchaseFeeAmount: number): void {
     const feeRatio = purchaseFeeAmount / this.outputReferenceAmount;
 
     if (feeRatio > Config.buy.fee.limit) {
@@ -246,19 +246,16 @@ export class BuyCryptoBatch extends IEntity {
     }
   }
 
-  private recordPurchaseFees(estimatePurchaseFeeAmount: number | null): void {
+  private recordPurchaseFees(estimatePurchaseFeeAmount: number): void {
     this.transactions.forEach((tx) => {
-      tx.fee.addPurchaseFeeEstimation(
-        estimatePurchaseFeeAmount != null ? this.calculateFeeShare(tx, estimatePurchaseFeeAmount) : null,
-        tx,
-      );
+      tx.fee.addPurchaseFeeEstimation(this.calculateFeeShare(tx, estimatePurchaseFeeAmount), tx);
 
       tx.batched();
     });
   }
 
-  private addActualPurchaseFee(purchaseFeeAmount: number | null, tx: BuyCrypto): void {
-    const txPurchaseFee = purchaseFeeAmount != null ? this.calculateFeeShare(tx, purchaseFeeAmount) : null;
+  private addActualPurchaseFee(purchaseFeeAmount: number, tx: BuyCrypto): void {
+    const txPurchaseFee = this.calculateFeeShare(tx, purchaseFeeAmount);
     tx.addActualPurchaseFee(txPurchaseFee);
   }
 
