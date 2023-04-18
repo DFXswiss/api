@@ -115,12 +115,21 @@ export class BuyCryptoService {
     }
 
     Util.removeNullFields(entity);
+    const fee = entity.fee;
+    if (dto.allowedTotalFeePercent && entity.fee) fee.allowedTotalFeePercent = dto.allowedTotalFeePercent;
 
     const amlUpdate =
       entity.amlCheck === AmlCheck.PENDING && update.amlCheck && update.amlCheck !== AmlCheck.PENDING
         ? { amlCheck: update.amlCheck, mailSendDate: null }
         : undefined;
-    entity = await this.buyCryptoRepo.save(Object.assign(new BuyCrypto(), { ...update, ...entity, ...amlUpdate }));
+    entity = await this.buyCryptoRepo.save(
+      Object.assign(new BuyCrypto(), {
+        ...update,
+        ...entity,
+        ...amlUpdate,
+        fee,
+      }),
+    );
 
     // activate user
     if (entity.amlCheck === AmlCheck.PASS && entity.buy?.user) {
