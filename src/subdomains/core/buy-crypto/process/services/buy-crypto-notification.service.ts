@@ -130,21 +130,6 @@ export class BuyCryptoNotificationService {
     });
   }
 
-  async sendFeeConversionError(
-    nativeAssetName: string,
-    referenceAssetName: string,
-    message: string,
-    error: Error,
-  ): Promise<void> {
-    const correlationId = `BuyCryptoBatch&FeeConversion&from_${nativeAssetName}&to_${referenceAssetName}`;
-    await this.notificationService.sendMail({
-      type: MailType.ERROR_MONITORING,
-      input: { subject: 'Buy Crypto Error - cannot calculate fee.', errors: [message, error.message] },
-      options: { debounce: 1800000 },
-      metadata: { context: MailContext.BUY_CRYPTO, correlationId },
-    });
-  }
-
   async sendNonRecoverableErrorMail(batch: BuyCryptoBatch, message: string, e?: Error): Promise<void> {
     const correlationId = `BuyCryptoBatch&${batch.id}`;
     const errors = e ? [message, e.message] : [message];
