@@ -9,7 +9,6 @@ import { NotEnoughLiquidityException } from 'src/subdomains/supporting/dex/excep
 import { PriceSlippageException } from 'src/subdomains/supporting/dex/exceptions/price-slippage.exception';
 import { PurchaseLiquidityRequest, ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
-import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 
@@ -50,7 +49,7 @@ export class BuyCryptoDexService {
           batch.id.toString(),
         );
 
-        const finalFee = await this.getPurchaseFeeAmountInBatchAsset(batch, nativeFee);
+        const finalFee = await this.buyCryptoPricingService.getFeeAmountInBatchAsset(batch, nativeFee);
 
         batch.secure(liquidity.amount, finalFee);
         await this.buyCryptoBatchRepo.save(batch);
@@ -142,18 +141,6 @@ export class BuyCryptoDexService {
       );
       throw e;
     }
-  }
-
-  private async getPurchaseFeeAmountInBatchAsset(batch: BuyCryptoBatch, nativeFee: FeeResult): Promise<number> {
-    const priceRequestCorrelationId = `BuyCryptoBatch_ConvertActualPurchaseFee_${batch.id}`;
-    const errorMessage = `Could not get price for actual purchase fee calculation. Ignoring fee. Batch ID: ${batch.id}. Native fee asset: ${nativeFee.asset.dexName}, batch reference asset: ${batch.outputReferenceAsset.dexName}`;
-
-    return this.buyCryptoPricingService.getFeeAmountInBatchAsset(
-      batch,
-      nativeFee,
-      priceRequestCorrelationId,
-      errorMessage,
-    );
   }
 
   private async createLiquidityRequest(
