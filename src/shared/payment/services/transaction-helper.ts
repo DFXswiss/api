@@ -59,16 +59,21 @@ export class TransactionHelper implements OnModuleInit {
     };
   }
 
-  private getSpec(system: string, asset: string, direction: TransactionDirection) {
+  private getSpec(system: string, asset: string, direction: TransactionDirection): TransactionSpecification {
     return (
       this.findSpec(system, asset, direction) ??
       this.findSpec(system, undefined, direction) ??
       this.findSpec(system, asset, undefined) ??
-      this.findSpec(system, undefined, undefined)
+      this.findSpec(system, undefined, undefined) ??
+      TransactionSpecification.default()
     );
   }
 
-  private findSpec(system: string, asset: string | undefined, direction: TransactionDirection | undefined) {
+  private findSpec(
+    system: string,
+    asset: string | undefined,
+    direction: TransactionDirection | undefined,
+  ): TransactionSpecification | undefined {
     return this.transactionSpecifications.find(
       (t) => t.system == system && t.asset == asset && t.direction == direction,
     );

@@ -13,14 +13,23 @@ export class TransactionSpecification extends IEntity {
   system: string;
 
   @Column({ length: 256, nullable: true })
-  asset: string;
+  asset?: string;
 
   @Column({ length: 256, nullable: true })
-  direction: TransactionDirection;
+  direction?: TransactionDirection;
 
   @Column({ type: 'float' })
   minVolume: number;
 
   @Column({ type: 'float' })
   minFee: number;
+
+  static default(): TransactionSpecification {
+    const spec = new TransactionSpecification();
+
+    spec.minVolume = 0;
+    spec.minFee = 0;
+
+    return spec;
+  }
 }
