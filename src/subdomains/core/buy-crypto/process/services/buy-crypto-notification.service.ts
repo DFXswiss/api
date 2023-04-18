@@ -62,6 +62,9 @@ export class BuyCryptoNotificationService {
 
       for (const tx of txOutput) {
         try {
+          const minFee = tx.minFeeAmountFiat
+            ? ` min. ${tx.minFeeAmountFiat} ${tx.cryptoInput ? 'EUR' : tx.inputReferenceAsset}`
+            : '';
           tx.user.userData.mail &&
             (await this.notificationService.sendMail({
               type: MailType.USER,
@@ -83,6 +86,7 @@ export class BuyCryptoNotificationService {
                   buyWalletAddress: Util.blankBlockchainAddress(tx.target.address),
                   buyTxId: tx.txId,
                   buyTransactionLink: `${BlockchainExplorerUrls[tx.target.asset.blockchain]}/${tx.txId}`,
+                  fee: `${Util.round(tx.percentFee * 100, 2)}%` + minFee,
                 },
               },
             }));
@@ -128,21 +132,6 @@ export class BuyCryptoNotificationService {
     await this.notificationService.sendMail({
       type: MailType.ERROR_MONITORING,
       input: { subject: 'Buy Crypto Error - missing liquidity.', errors: messages },
-      options: { debounce: 1800000 },
-      metadata: { context: MailContext.BUY_CRYPTO, correlationId },
-    });
-  }
-
-  async sendFeeConversionError(
-    nativeAssetName: string,
-    referenceAssetName: string,
-    message: string,
-    error: Error,
-  ): Promise<void> {
-    const correlationId = `BuyCryptoBatch&FeeConversion&from_${nativeAssetName}&to_${referenceAssetName}`;
-    await this.notificationService.sendMail({
-      type: MailType.ERROR_MONITORING,
-      input: { subject: 'Buy Crypto Error - cannot calculate fee.', errors: [message, error.message] },
       options: { debounce: 1800000 },
       metadata: { context: MailContext.BUY_CRYPTO, correlationId },
     });
@@ -196,7 +185,7 @@ export class BuyCryptoNotificationService {
                 inputAmount: entity.inputAmount,
                 inputAsset: entity.inputAsset,
                 returnTransactionLink: entity.chargebackRemittanceInfo?.split(' Zahlung')[0],
-                returnReason: await this.i18nService.translate(`mail.amlReasonMailText.${entity.amlReason}`, {
+                returnReason: this.i18nService.translate(`mail.amlReasonMailText.${entity.amlReason}`, {
                   lang: entity.user.userData.language?.symbol.toLowerCase(),
                 }),
                 userAddressTrimmed: entity.target.trimmedReturnAddress,

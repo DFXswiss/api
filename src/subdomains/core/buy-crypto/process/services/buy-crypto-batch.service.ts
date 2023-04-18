@@ -346,43 +346,23 @@ export class BuyCryptoBatchService {
   ): Promise<[number, number]> {
     const { purchaseFee: nativePurchaseFee } = liquidity;
 
-    const purchaseFeeInBatchCurrency = await this.getPurchaseFeeAmountInBatchAsset(batch, nativePurchaseFee);
-    const payoutFeeInBatchCurrency = await this.getPayoutFeeAmountInBatchAsset(batch, nativePayoutFee);
-
-    return [purchaseFeeInBatchCurrency, payoutFeeInBatchCurrency];
-  }
-
-  private async getPurchaseFeeAmountInBatchAsset(batch: BuyCryptoBatch, nativePurchaseFee: FeeResult): Promise<number> {
-    const txIdStrings = batch.transactions.reduce((acc, t) => acc + `|${t.id}|`, '');
-    const priceRequestCorrelationId = `BuyCryptoBatch_ConvertEstimatedPurchaseFee_${txIdStrings}`;
-    const errorMessage = `Could not get price for purchase fee calculation. Ignoring fee estimate. Native fee asset: ${nativePurchaseFee.asset.dexName}, batch reference asset: ${batch.outputReferenceAsset.dexName}`;
-
-    return this.buyCryptoPricingService.getFeeAmountInBatchAsset(
+    const purchaseFeeInBatchCurrency = await this.buyCryptoPricingService.getFeeAmountInBatchAsset(
       batch,
       nativePurchaseFee,
-      priceRequestCorrelationId,
-      errorMessage,
     );
-  }
-
-  private async getPayoutFeeAmountInBatchAsset(batch: BuyCryptoBatch, nativePayoutFee: FeeResult): Promise<number> {
-    const txIdStrings = batch.transactions.reduce((acc, t) => acc + `|${t.id}|`, '');
-    const priceRequestCorrelationId = `BuyCryptoBatch_ConvertEstimatedPayoutFee_${txIdStrings}`;
-    const errorMessage = `Could not get price for payout fee calculation. Ignoring fee estimate. Native fee asset: ${nativePayoutFee.asset.dexName}, batch reference asset: ${batch.outputReferenceAsset.dexName}`;
-
-    return this.buyCryptoPricingService.getFeeAmountInBatchAsset(
+    const payoutFeeInBatchCurrency = await this.buyCryptoPricingService.getFeeAmountInBatchAsset(
       batch,
       nativePayoutFee,
-      priceRequestCorrelationId,
-      errorMessage,
     );
+
+    return [purchaseFeeInBatchCurrency, payoutFeeInBatchCurrency];
   }
 
   private async optimizeBatch(
     batch: BuyCryptoBatch,
     liquidity: CheckLiquidityResult,
-    purchaseFee: number | null,
-    payoutFee: number | null,
+    purchaseFee: number,
+    payoutFee: number,
   ): Promise<void> {
     try {
       const inputBatchLength = batch.transactions.length;

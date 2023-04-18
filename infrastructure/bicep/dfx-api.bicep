@@ -106,6 +106,9 @@ param krakenKey string
 @secure()
 param krakenSecret string
 
+param krakenBtcWalletWithdrawKey string
+param krakenBtcDepositAddress string
+
 @secure()
 param binanceKey string
 @secure()
@@ -737,6 +740,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'KRAKEN_SECRET'
           value: krakenSecret
+        }
+        {
+          name: 'KRAKEN_BTC_WALLET_WITHDRAW_KEY'
+          value: krakenBtcWalletWithdrawKey
+        }
+        {
+          name: 'KRAKEN_BTC_DEPOSIT_ADDRESS'
+          value: krakenBtcDepositAddress
         }
         {
           name: 'BINANCE_KEY'

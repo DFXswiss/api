@@ -99,7 +99,7 @@ describe('BuyCryptoBatchService', () => {
           outputAsset: createDefaultAsset(),
           outputReferenceAsset: createCustomAsset({ dexName: 'BTC' }),
           outputReferenceAmount: null,
-          inputReferenceAmountMinusFee: 100,
+          inputReferenceAmountMinusFee: 10000,
         }),
       ];
       const calculateOutputReferenceAmountSpy = jest.spyOn(transactions[0], 'calculateOutputReferenceAmount');
@@ -112,7 +112,7 @@ describe('BuyCryptoBatchService', () => {
 
       expect(exchangeUtilityServiceGetMatchingPrice).toBeCalledTimes(1);
       expect(calculateOutputReferenceAmountSpy).toBeCalledTimes(1);
-      expect(transactions[0].outputReferenceAmount).toBe(10);
+      expect(transactions[0].outputReferenceAmount).toBe(1000);
       expect(dexServiceCheckLiquidity).toBeCalledTimes(1);
     });
 

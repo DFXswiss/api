@@ -56,46 +56,30 @@ export class BuyCryptoFee extends IEntity {
 
   //*** PUBLIC API ***//
 
-  addPayoutFeeEstimation(estimatedPayoutFeeAmount: number | null, transaction: BuyCrypto): this {
+  addPayoutFeeEstimation(estimatedPayoutFeeAmount: number, transaction: BuyCrypto): this {
     this.estimatePayoutFeeAmount = estimatedPayoutFeeAmount;
-    this.estimatePayoutFeePercent =
-      estimatedPayoutFeeAmount != null
-        ? Util.round(estimatedPayoutFeeAmount / transaction.outputReferenceAmount, 8)
-        : null;
+    this.estimatePayoutFeePercent = Util.round(estimatedPayoutFeeAmount / transaction.outputReferenceAmount, 8);
 
     return this;
   }
 
-  addPurchaseFeeEstimation(estimatedPurchaseFeeAmount: number | null, transaction: BuyCrypto): this {
+  addPurchaseFeeEstimation(estimatedPurchaseFeeAmount: number, transaction: BuyCrypto): this {
     this.estimatePurchaseFeeAmount = estimatedPurchaseFeeAmount;
-    this.estimatePurchaseFeePercent =
-      estimatedPurchaseFeeAmount != null
-        ? Util.round(estimatedPurchaseFeeAmount / transaction.outputReferenceAmount, 8)
-        : null;
+    this.estimatePurchaseFeePercent = Util.round(estimatedPurchaseFeeAmount / transaction.outputReferenceAmount, 8);
 
     return this;
   }
 
-  addActualPurchaseFee(purchaseFeeAmount: number | null, transaction: BuyCrypto): this {
-    if (purchaseFeeAmount == null) {
-      this.actualPurchaseFeeAmount = null;
-      this.actualPurchaseFeePercent = null;
-    } else {
-      this.actualPurchaseFeeAmount = purchaseFeeAmount;
-      this.actualPurchaseFeePercent = Util.round(purchaseFeeAmount / transaction.outputReferenceAmount, 8);
-    }
+  addActualPurchaseFee(purchaseFeeAmount: number, transaction: BuyCrypto): this {
+    this.actualPurchaseFeeAmount = purchaseFeeAmount;
+    this.actualPurchaseFeePercent = Util.round(purchaseFeeAmount / transaction.outputReferenceAmount, 8);
 
     return this;
   }
 
-  addActualPayoutFee(payoutFeeAmount: number | null, transaction: BuyCrypto): this {
-    if (payoutFeeAmount == null) {
-      this.actualPayoutFeeAmount = null;
-      this.actualPayoutFeePercent = null;
-    } else {
-      this.actualPayoutFeeAmount = payoutFeeAmount;
-      this.actualPayoutFeePercent = Util.round(payoutFeeAmount / transaction.outputReferenceAmount, 8);
-    }
+  addActualPayoutFee(payoutFeeAmount: number, transaction: BuyCrypto): this {
+    this.actualPayoutFeeAmount = payoutFeeAmount;
+    this.actualPayoutFeePercent = Util.round(payoutFeeAmount / transaction.outputReferenceAmount, 8);
 
     return this;
   }
