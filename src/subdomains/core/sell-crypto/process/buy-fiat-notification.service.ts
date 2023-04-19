@@ -87,7 +87,7 @@ export class BuyFiatNotificationService {
       try {
         if (entity.sell.user.userData.mail) {
           const minFee = entity.minFeeAmountFiat
-            ? ` min. ${entity.minFeeAmountFiat} ${entity.outputReferenceAsset}`
+            ? ` (min. ${entity.minFeeAmountFiat} ${entity.outputReferenceAsset})`
             : '';
           await this.notificationService.sendMail({
             type: MailType.USER,
