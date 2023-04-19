@@ -63,7 +63,7 @@ export class BuyCryptoNotificationService {
       for (const tx of txOutput) {
         try {
           const minFee = tx.minFeeAmountFiat
-            ? ` min. ${tx.minFeeAmountFiat} ${tx.cryptoInput ? 'EUR' : tx.inputReferenceAsset}`
+            ? ` (min. ${tx.minFeeAmountFiat} ${tx.cryptoInput ? 'EUR)' : tx.inputReferenceAsset})`
             : '';
           tx.user.userData.mail &&
             (await this.notificationService.sendMail({
