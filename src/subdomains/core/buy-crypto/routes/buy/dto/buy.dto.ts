@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { MinDeposit } from 'src/subdomains/supporting/address-pool/deposit/dto/min-deposit.dto';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { MinAmount } from 'src/shared/payment/dto/min-amount.dto';
 import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 
 export class BuyDto {
@@ -8,6 +8,9 @@ export class BuyDto {
 
   @ApiProperty()
   active: boolean;
+
+  @ApiPropertyOptional()
+  iban: string;
 
   @ApiProperty({ type: AssetDto })
   asset: AssetDto;
@@ -24,6 +27,9 @@ export class BuyDto {
   @ApiProperty()
   fee: number;
 
-  @ApiProperty({ type: MinDeposit, isArray: true })
-  minDeposits: MinDeposit[];
+  @ApiProperty({ type: MinAmount, isArray: true })
+  minDeposits: MinAmount[];
+
+  @ApiProperty({ type: MinAmount })
+  minFee: MinAmount;
 }

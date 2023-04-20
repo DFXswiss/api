@@ -24,6 +24,7 @@ import { randomUUID } from 'crypto';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
 import { ChallengeDto } from './dto/challenge.dto';
 import { SignMessageDto } from './dto/sign-message.dto';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 export interface ChallengeData {
   created: Date;
@@ -55,7 +56,7 @@ export class AuthService {
   // --- AUTH METHODS --- //
 
   async signUp(dto: CreateUserDto, userIp: string): Promise<{ accessToken: string }> {
-    const existingUser = await this.userRepo.getByAddress(dto.address);
+    const existingUser = await this.userRepo.getByAddress(dto.address, true);
     if (existingUser) throw new ConflictException('User already exists');
 
     if (!this.verifySignature(dto.address, dto.signature, dto.key)) throw new BadRequestException('Invalid signature');
@@ -75,7 +76,7 @@ export class AuthService {
     const isCompany = this.hasChallenge(dto.address);
     if (isCompany) return this.companySignIn(dto);
 
-    const user = await this.userRepo.getByAddress(dto.address);
+    const user = await this.userRepo.getByAddress(dto.address, true);
     if (!user || user.status == UserStatus.BLOCKED) throw new NotFoundException('User not found');
     if (!this.verifySignature(dto.address, dto.signature, dto.key))
       throw new UnauthorizedException('Invalid credentials');
@@ -134,14 +135,16 @@ export class AuthService {
   // --- HELPER METHODS --- //
 
   private async getLinkedUser(id: number, address: string): Promise<User> {
-    return this.userRepo
+    const user = await this.userRepo
       .createQueryBuilder('user')
-      .select('linkedUser.*')
-      .leftJoin('user.userData', 'userData')
-      .leftJoin('userData.users', 'linkedUser')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('userData.users', 'linkedUser')
+      .leftJoinAndSelect('linkedUser.wallet', 'wallet')
       .where('user.id = :id', { id })
       .andWhere('linkedUser.address = :address', { address })
-      .getRawOne<User>();
+      .getOne();
+
+    return user?.userData?.users.find((u) => u.address === address);
   }
 
   private verifySignature(address: string, signature: string, key?: string): boolean {
@@ -170,7 +173,7 @@ export class AuthService {
       id: user.id,
       address: user.address,
       role: user.role,
-      blockchains: this.cryptoService.getBlockchainsBasedOn(user.address),
+      blockchains: this.getBlockchains(user),
     };
     return this.jwtService.sign(payload);
   }
@@ -186,5 +189,14 @@ export class AuthService {
 
   private isChallengeValid(challenge: ChallengeData): boolean {
     return challenge && Util.secondsDiff(challenge.created, new Date()) <= Config.auth.challenge.expiresIn;
+  }
+
+  private getBlockchains(user: User): Blockchain[] {
+    // wallet name / blockchain map
+    const customChains = {
+      Talium: ['Talium' as Blockchain],
+    };
+
+    return customChains[user.wallet.name] ?? this.cryptoService.getBlockchainsBasedOn(user.address);
   }
 }

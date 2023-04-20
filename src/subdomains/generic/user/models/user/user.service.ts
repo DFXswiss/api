@@ -223,7 +223,7 @@ export class UserService {
   }
 
   // --- FEES --- //
-  async getUserBuyFee(userId: number, asset: Asset): Promise<{ fee: number }> {
+  async getUserBuyFee(userId: number, asset: Asset): Promise<number> {
     const { buyFee, userData } = await this.userRepo.findOne({
       select: ['id', 'buyFee', 'userData'],
       where: { id: userId },
@@ -234,12 +234,10 @@ export class UserService {
         ? Config.buy.fee.private[asset.feeTier]
         : Config.buy.fee.organization[asset.feeTier];
 
-    return {
-      fee: Util.round((buyFee ? Math.min(buyFee, defaultFee) : defaultFee) * 100, Config.defaultPercentageDecimal),
-    };
+    return Util.round((buyFee ? Math.min(buyFee, defaultFee) : defaultFee) * 100, Config.defaultPercentageDecimal);
   }
 
-  async getUserSellFee(userId: number, asset: Asset): Promise<{ fee: number }> {
+  async getUserSellFee(userId: number, asset: Asset): Promise<number> {
     const { sellFee, userData } = await this.userRepo.findOne({
       select: ['id', 'sellFee', 'userData'],
       where: { id: userId },
@@ -250,12 +248,10 @@ export class UserService {
         ? Config.sell.fee.private[asset.feeTier]
         : Config.sell.fee.organization[asset.feeTier];
 
-    return {
-      fee: Util.round((sellFee ? Math.min(sellFee, defaultFee) : defaultFee) * 100, Config.defaultPercentageDecimal),
-    };
+    return Util.round((sellFee ? Math.min(sellFee, defaultFee) : defaultFee) * 100, Config.defaultPercentageDecimal);
   }
 
-  async getUserCryptoFee(userId: number): Promise<{ fee: number }> {
+  async getUserCryptoFee(userId: number): Promise<number> {
     // fee
     const { cryptoFee } = await this.userRepo.findOne({
       select: ['id', 'cryptoFee', 'usedRef'],
@@ -264,9 +260,7 @@ export class UserService {
 
     const baseFee = cryptoFee ? Math.min(cryptoFee, Config.crypto.fee) : Config.crypto.fee;
 
-    return {
-      fee: Util.round(baseFee * 100, Config.defaultPercentageDecimal),
-    };
+    return Util.round(baseFee * 100, Config.defaultPercentageDecimal);
   }
 
   // --- REF --- //
@@ -419,7 +413,6 @@ export class UserService {
       kycDataComplete: this.kycService.isDataComplete(user.userData),
       apiKeyCT: user.apiKeyCT,
       apiFilterCT: this.apiKeyService.getFilterArray(user.apiFilterCT),
-
       ...(detailed ? await this.getUserDetails(user) : undefined),
       linkedAddresses: detailed ? await this.getAllLinkedUsers(user.id) : undefined,
     };
@@ -427,13 +420,7 @@ export class UserService {
 
   private async getUserDetails(user: User): Promise<UserDetails> {
     return {
-      ref: user.status === UserStatus.ACTIVE ? user.ref : undefined,
-      refFeePercent: user.refFeePercent,
-      refVolume: user.refVolume,
-      refCredit: user.refCredit,
-      paidRefCredit: user.paidRefCredit,
-      refCount: await this.userRepo.countBy({ usedRef: user.ref }),
-      refCountActive: await this.userRepo.countBy({ usedRef: user.ref, status: Not(UserStatus.NA) }),
+      ...(user.status == UserStatus.ACTIVE ? await this.getUserRef(user) : undefined),
       bsLink:
         user.buyVolume + user.sellVolume + user.cryptoVolume >= Config.support.blackSquad.limit
           ? Config.support.blackSquad.link
@@ -442,6 +429,18 @@ export class UserService {
       sellVolume: { total: user.sellVolume, annual: user.annualSellVolume },
       cryptoVolume: { total: user.cryptoVolume, annual: user.annualCryptoVolume },
       stakingBalance: 0,
+    };
+  }
+
+  private async getUserRef(user: User): Promise<Partial<UserDetails>> {
+    return {
+      ref: user.ref,
+      refFeePercent: user.refFeePercent,
+      refVolume: user.refVolume,
+      refCredit: user.refCredit,
+      paidRefCredit: user.paidRefCredit,
+      refCount: await this.userRepo.countBy({ usedRef: user.ref }),
+      refCountActive: await this.userRepo.countBy({ usedRef: user.ref, status: Not(UserStatus.NA) }),
     };
   }
 }

@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DepositDto } from '../../../../supporting/address-pool/deposit/dto/deposit.dto';
 import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
-import { MinDeposit } from '../../../../supporting/address-pool/deposit/dto/min-deposit.dto';
+import { MinAmount } from '../../../../../shared/payment/dto/min-amount.dto';
 
 export class SellDto {
   @ApiProperty()
@@ -36,6 +36,9 @@ export class SellDto {
   @ApiProperty({ enum: Blockchain, deprecated: true })
   blockchain: Blockchain;
 
-  @ApiProperty({ type: MinDeposit, isArray: true })
-  minDeposits: MinDeposit[];
+  @ApiProperty({ type: MinAmount, isArray: true })
+  minDeposits: MinAmount[];
+
+  @ApiProperty({ type: MinAmount })
+  minFee: MinAmount;
 }

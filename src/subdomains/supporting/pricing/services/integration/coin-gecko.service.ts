@@ -4,11 +4,11 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/utils/util';
 import { AssetPricingMetadata } from '../../domain/entities/asset-pricing-metadata.entity';
 import { Price } from '../../domain/entities/price';
-import { Fiat } from '../../domain/enums';
 import { MetadataNotFoundException } from '../../domain/exceptions/metadata-not-found.exception';
 import { AssetPricingMetadataRepository } from '../../repositories/asset-pricing-metadata.repository';
 import { Config } from 'src/config/config';
 import { AsyncCache } from 'src/shared/utils/async-cache';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 
 @Injectable()
 export class CoinGeckoService {
@@ -48,7 +48,7 @@ export class CoinGeckoService {
 
     const { data } = await this.callApi((c) =>
       c.coins.fetchMarketChartRange(coinGeckoId, {
-        vs_currency: fiat,
+        vs_currency: fiat.name,
         from: from.getTime() / 1000,
         to: to.getTime() / 1000,
       }),
@@ -56,21 +56,21 @@ export class CoinGeckoService {
 
     const price = Util.avg(data.prices.map((p) => p[1]));
 
-    return Price.create(name, fiat, 1 / price);
+    return Price.create(name, fiat.name, 1 / price);
   }
 
   // --- HELPER METHODS --- //
   private async getPriceWithId(name: string, id: string, fiat: Fiat): Promise<Price> {
-    return this.priceCache.get(`${id}/${fiat}`, () => this.fetchPrice(name, id, fiat));
+    return this.priceCache.get(`${id}/${fiat.name}`, () => this.fetchPrice(name, id, fiat));
   }
 
   private async fetchPrice(name: string, coinGeckoId: string, fiat: Fiat): Promise<Price> {
-    const { data } = await this.callApi((c) => c.simple.price({ ids: coinGeckoId, vs_currencies: fiat }));
+    const { data } = await this.callApi((c) => c.simple.price({ ids: coinGeckoId, vs_currencies: fiat.name }));
 
-    const price = data[coinGeckoId.toLowerCase()]?.[fiat.toLowerCase()];
-    if (!price) throw new ServiceUnavailableException(`Failed to get price for ${name} -> ${fiat}`);
+    const price = data[coinGeckoId.toLowerCase()]?.[fiat.name.toLowerCase()];
+    if (!price) throw new ServiceUnavailableException(`Failed to get price for ${name} -> ${fiat.name}`);
 
-    return Price.create(name, fiat, 1 / price);
+    return Price.create(name, fiat.name, 1 / price);
   }
 
   private async getAssetInfo(asset: Asset): Promise<{ name: string; coinGeckoId: string }> {

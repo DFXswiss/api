@@ -7,6 +7,7 @@ import { PayInService } from 'src/subdomains/supporting/payin/services/payin.ser
 import { IsNull, Not } from 'typeorm';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
+import { BuyCryptoInitSpecification } from '../specifications/buy-crypto-init.specification';
 
 @Injectable()
 export class BuyCryptoRegistrationService {
@@ -14,6 +15,7 @@ export class BuyCryptoRegistrationService {
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly cryptoRouteRepository: CryptoRouteRepository,
     private readonly payInService: PayInService,
+    private readonly buyCryptoInitSpec: BuyCryptoInitSpecification,
   ) {}
 
   async registerCryptoPayIn(): Promise<void> {
@@ -66,6 +68,7 @@ export class BuyCryptoRegistrationService {
 
         if (!existingBuyCrypto) {
           const newBuyCrypto = BuyCrypto.createFromPayIn(payIn, cryptoRoute);
+          await this.buyCryptoInitSpec.isSatisfiedBy(newBuyCrypto);
           await this.buyCryptoRepo.save(newBuyCrypto);
         }
 
