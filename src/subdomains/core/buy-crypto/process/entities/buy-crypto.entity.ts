@@ -74,7 +74,6 @@ export class BuyCrypto extends IEntity {
   @Column({ type: 'float', nullable: true })
   percentFee: number;
 
-  
   @Column({ type: 'float', nullable: true })
   percentFeeAmount: number; //inputReferenceAsset
 
@@ -83,7 +82,7 @@ export class BuyCrypto extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   minFeeAmountFiat: number; //inputReferenceAsset if FIAT else EUR
-  
+
   @Column({ type: 'float', nullable: true })
   totalFeeAmount: number; //inputReferenceAsset
 
@@ -186,22 +185,9 @@ export class BuyCrypto extends IEntity {
       case Blockchain.ETHEREUM:
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
-        if (['DFI', 'WBTC'].includes(this.outputAsset.dexName)) {
-          this.setOutputReferenceAsset(this.outputAsset);
-
-          return null;
-        }
-
-        return { outputReferenceAssetName: 'ETH', type: AssetType.COIN };
-
       case Blockchain.BINANCE_SMART_CHAIN:
-        if (['DFI', 'BUSD', 'BTCB', 'ETH'].includes(this.outputAsset.dexName)) {
-          this.setOutputReferenceAsset(this.outputAsset);
-
-          return null;
-        }
-
-        return { outputReferenceAssetName: 'BNB', type: AssetType.COIN };
+        this.setOutputReferenceAsset(this.outputAsset);
+        return null;
 
       default:
         return {
