@@ -193,21 +193,6 @@ describe('BuyCrypto', () => {
       expect(entity.outputReferenceAsset.dexName).toBe('USDT');
     });
 
-    it('returns query pointer to ETH, on Ethereum blockchain when outputAsset is not DFI', () => {
-      const entity = createCustomBuyCrypto({
-        outputReferenceAsset: undefined,
-        buy: createCustomBuy({ asset: createCustomAsset({ blockchain: Blockchain.ETHEREUM, dexName: 'GOOGL' }) }),
-      });
-
-      expect(entity.outputReferenceAsset).toBeUndefined();
-
-      const requiredAssetFetch = entity.defineAssetExchangePair();
-
-      expect(requiredAssetFetch.outputReferenceAssetName).toBe('ETH');
-      expect(requiredAssetFetch.type).toBe(AssetType.COIN);
-      expect(entity.outputReferenceAsset).toBeUndefined();
-    });
-
     it('assigns outputReferenceAsset to outputAsset, on Ethereum blockchain when outputAsset is DFI', () => {
       const entity = createCustomBuyCrypto({
         outputReferenceAsset: undefined,
@@ -220,20 +205,6 @@ describe('BuyCrypto', () => {
 
       expect(requiredAssetFetch).toBe(null);
       expect(entity.outputReferenceAsset.dexName).toBe('DFI');
-    });
-    it('returns query pointer to ETH, on ARBITRUM blockchain when outputAsset is not DFI', () => {
-      const entity = createCustomBuyCrypto({
-        outputReferenceAsset: undefined,
-        buy: createCustomBuy({ asset: createCustomAsset({ blockchain: Blockchain.ARBITRUM, dexName: 'GOOGL' }) }),
-      });
-
-      expect(entity.outputReferenceAsset).toBeUndefined();
-
-      const requiredAssetFetch = entity.defineAssetExchangePair();
-
-      expect(requiredAssetFetch.outputReferenceAssetName).toBe('ETH');
-      expect(requiredAssetFetch.type).toBe(AssetType.COIN);
-      expect(entity.outputReferenceAsset).toBeUndefined();
     });
 
     it('assigns outputReferenceAsset to outputAsset, on ARBITRUM blockchain when outputAsset is DFI', () => {
@@ -249,20 +220,6 @@ describe('BuyCrypto', () => {
       expect(requiredAssetFetch).toBe(null);
       expect(entity.outputReferenceAsset.dexName).toBe('DFI');
     });
-    it('returns query pointer to ETH, on OPTIMISM blockchain when outputAsset is not DFI', () => {
-      const entity = createCustomBuyCrypto({
-        outputReferenceAsset: undefined,
-        buy: createCustomBuy({ asset: createCustomAsset({ blockchain: Blockchain.OPTIMISM, dexName: 'GOOGL' }) }),
-      });
-
-      expect(entity.outputReferenceAsset).toBeUndefined();
-
-      const requiredAssetFetch = entity.defineAssetExchangePair();
-
-      expect(requiredAssetFetch.outputReferenceAssetName).toBe('ETH');
-      expect(requiredAssetFetch.type).toBe(AssetType.COIN);
-      expect(entity.outputReferenceAsset).toBeUndefined();
-    });
 
     it('assigns outputReferenceAsset to outputAsset, on OPTIMISM blockchain when outputAsset is DFI', () => {
       const entity = createCustomBuyCrypto({
@@ -276,23 +233,6 @@ describe('BuyCrypto', () => {
 
       expect(requiredAssetFetch).toBe(null);
       expect(entity.outputReferenceAsset.dexName).toBe('DFI');
-    });
-
-    it('returns query pointer to BNB, on BSC blockchain when outputAsset is not DFI | BUSD', () => {
-      const entity = createCustomBuyCrypto({
-        outputReferenceAsset: undefined,
-        buy: createCustomBuy({
-          asset: createCustomAsset({ blockchain: Blockchain.BINANCE_SMART_CHAIN, dexName: 'GOOGL' }),
-        }),
-      });
-
-      expect(entity.outputReferenceAsset).toBeUndefined();
-
-      const requiredAssetFetch = entity.defineAssetExchangePair();
-
-      expect(requiredAssetFetch.outputReferenceAssetName).toBe('BNB');
-      expect(requiredAssetFetch.type).toBe(AssetType.COIN);
-      expect(entity.outputReferenceAsset).toBeUndefined();
     });
 
     it('assigns outputReferenceAsset to outputAsset, on BSC blockchain when outputAsset is DFI', () => {
@@ -325,6 +265,22 @@ describe('BuyCrypto', () => {
 
       expect(requiredAssetFetch).toBe(null);
       expect(entity.outputReferenceAsset.dexName).toBe('BUSD');
+    });
+
+    it('assigns outputReferenceAsset to outputAsset, on BSC blockchain when outputAsset is MANA', () => {
+      const entity = createCustomBuyCrypto({
+        outputReferenceAsset: undefined,
+        buy: createCustomBuy({
+          asset: createCustomAsset({ blockchain: Blockchain.BINANCE_SMART_CHAIN, dexName: 'MANA' }),
+        }),
+      });
+
+      expect(entity.outputReferenceAsset).toBeUndefined();
+
+      const requiredAssetFetch = entity.defineAssetExchangePair();
+
+      expect(requiredAssetFetch).toBe(null);
+      expect(entity.outputReferenceAsset.dexName).toBe('MANA');
     });
 
     it('defaults outputReferenceAsset to BTC on Bitcoin blockchain', () => {
@@ -372,7 +328,7 @@ describe('BuyCrypto', () => {
       const entity = createCustomBuyCrypto({
         outputReferenceAsset: undefined,
         buy: createCustomBuy({
-          asset: createCustomAsset({ blockchain: Blockchain.BINANCE_SMART_CHAIN, dexName: 'GOOGL' }),
+          asset: createCustomAsset({ blockchain: Blockchain.DEFICHAIN, dexName: 'GOOGL' }),
         }),
       });
 
