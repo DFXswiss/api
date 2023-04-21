@@ -19,7 +19,8 @@ export abstract class JellyfishStrategy extends SendStrategy {
 
     for (const payIn of payIns) {
       try {
-        const { confirmations } = await this.jellyfishService.getTx(payIn.outTxId);
+        const txToConfirm = this.blockchain === Blockchain.BITCOIN ? payIn.inTxId : payIn.outTxId;
+        const { confirmations } = await this.jellyfishService.getTx(txToConfirm);
         if (confirmations > this.confirmationBlocksCount) {
           payIn.confirm();
 
