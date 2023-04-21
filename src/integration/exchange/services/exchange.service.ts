@@ -1,11 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
 import { Exchange, Market, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
-import { TradeResponse, PartialTradeResponse } from '../dto/trade-response.dto';
 import { Price } from '../../../subdomains/supporting/pricing/domain/entities/price';
 import { Util } from 'src/shared/utils/util';
 import { PricingProvider } from 'src/subdomains/supporting/pricing/domain/interfaces';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
-import { OrderType } from 'ccxt/js/src/base/types';
+import { TradeChangedException } from '../exceptions/trade-changed.exception';
 
 export enum OrderSide {
   BUY = 'buy',
@@ -55,17 +54,7 @@ export class ExchangeService implements PricingProvider {
     return this.callApi((e) => e.fetchOpenOrders(pair));
   }
 
-  async trade(from: string, to: string, amount: number): Promise<TradeResponse> {
-    /*
-      The following logic is applied
-
-      1. place order
-      2. query every 5s if order has been filled up to 60s
-      3. if after 60s order is not filled then cancel order and go back to 1.)
-      4. if after 60s order is partially filled then cancel order and go back to 1 with the remaining funds that were not filled
-      5. return buy/sell price. If partially filled then return average price over all the orders
-    */
-
+  async trade(from: string, to: string, amount: number): Promise<string> {
     // check balance
     const balance = await this.getBalance(from);
     if (amount > balance) {
@@ -75,7 +64,42 @@ export class ExchangeService implements PricingProvider {
     }
 
     // place the order
-    return this.tryToOrder(from, to, amount, 'limit');
+    const { pair, direction } = await this.getTradePair(from, to);
+    return this.createOrder(pair, direction, amount);
+  }
+
+  async checkTrade(id: string): Promise<boolean> {
+    // loop in case we have to cancel the order
+    for (let i = 0; i < 5; i++) {
+      const order = await this.callApi((e) => e.fetchOrder(id));
+
+      switch (order.status) {
+        case OrderStatus.OPEN:
+          const price = await this.fetchCurrentOrderPrice(order.symbol, order.side);
+          if (price === order.price) return false;
+
+          // price changed -> abort and re-fetch
+          await this.cancelOrder(order).catch(() => undefined);
+          break;
+
+        case OrderStatus.CANCELED:
+          // check for min. amount
+          const minAmount = await this.getMinTradeAmount(order.symbol);
+          if (order.remaining < minAmount) {
+            return true;
+          }
+          const id = await this.createOrder(order.symbol, order.side as OrderSide, order.remaining);
+          throw new TradeChangedException(id);
+
+        case OrderStatus.CLOSED:
+          return true;
+
+        default:
+          return false;
+      }
+    }
+
+    throw new Error(`${this.name}: failed to cancel order ${id}`);
   }
 
   async withdrawFunds(
@@ -111,6 +135,10 @@ export class ExchangeService implements PricingProvider {
     return this.markets;
   }
 
+  private async getMinTradeAmount(pair: string): Promise<number> {
+    return this.getMarkets().then((m) => m.find((m) => m.symbol === pair).limits.amount.min);
+  }
+
   async getPair(from: string, to: string): Promise<string> {
     return this.getTradePair(from, to).then((p) => p.pair);
   }
@@ -134,9 +162,7 @@ export class ExchangeService implements PricingProvider {
     return trades.sort((a, b) => b.timestamp - a.timestamp)[0].price;
   }
 
-  private async fetchCurrentOrderPrice(from: string, to: string): Promise<number> {
-    const { pair, direction } = await this.getTradePair(from, to);
-
+  private async fetchCurrentOrderPrice(pair: string, direction: string): Promise<number> {
     /* 
         If 'buy' we want to buy token1 using token2. Example BTC/EUR on 'buy' means we buy BTC using EUR
             > We want to have the highest 'bids' price in the orderbook
@@ -148,123 +174,16 @@ export class ExchangeService implements PricingProvider {
   }
 
   // orders
-  private async tryToOrder(
-    from: string,
-    to: string,
-    amount: number,
-    orderType: OrderType,
-    maxRetries = 100,
-  ): Promise<TradeResponse> {
-    const orders: { [id: string]: PartialTradeResponse } = {};
-    let order: Order;
-    let numRetries = 0;
-    let remainingAmount = amount;
-    let error: string;
 
-    try {
-      do {
-        // create a new order with the remaining amount, if order undefined or price changed
-        const price = await this.fetchCurrentOrderPrice(from, to);
-        if (price !== order?.price) {
-          remainingAmount = amount - Util.sumObj(Object.values(orders), 'fromAmount');
-
-          order = await this.createOrUpdateOrder(from, to, orderType, remainingAmount, price, order);
-          if (!order) break;
-        }
-
-        // wait for completion
-        order = await this.pollOrder(order);
-
-        // get amounts
-        const fromAmount = order.side === OrderSide.BUY ? order.filled * order.price : order.filled;
-        const toAmount = order.side === OrderSide.BUY ? order.filled : order.filled * order.price;
-
-        console.log(
-          `${this.name}: order ${order.id} is ${order.status} (filled: ${fromAmount}/${remainingAmount} at price ${order.price}, total: ${amount})`,
-        );
-
-        // check for partial orders
-        if (order.status != OrderStatus.CANCELED && order.filled) {
-          orders[order.id] = {
-            id: order.id,
-            price: order.price,
-            fromAmount: fromAmount,
-            toAmount: toAmount,
-            timestamp: new Date(order.timestamp),
-            fee: order.fee,
-          };
-        }
-
-        numRetries++;
-      } while (order?.status !== OrderStatus.CLOSED && numRetries < maxRetries);
-    } catch (e) {
-      console.error(`${this.name}: error during trade (${amount} ${from} -> ${to}):`, e);
-      error = e.message;
-
-      if (!order) throw e;
-    }
-
-    // cancel existing order
-    if (order?.status === OrderStatus.OPEN) {
-      await this.cancelOrder(order).catch(() => undefined);
-    }
-
-    const orderList = Object.values(orders);
-    const avg = this.getWeightedAveragePrice(orderList);
-    return {
-      orderSummary: {
-        currencyPair: order?.symbol,
-        orderSide: order?.side,
-        price: avg.price,
-        amount: avg.amountSum,
-        fees: avg.feeSum,
-      },
-      orderList: orderList,
-      error: error,
-    };
-  }
-
-  private async createOrUpdateOrder(
-    from: string,
-    to: string,
-    orderType: OrderType,
-    amount: number,
-    price: number,
-    order?: Order,
-  ): Promise<Order | undefined> {
-    // cancel existing order
-    if (order?.status === OrderStatus.OPEN) {
-      await this.cancelOrder(order);
-    }
-
-    const { pair, direction } = await this.getTradePair(from, to);
+  private async createOrder(pair: string, direction: OrderSide, amount: number): Promise<string> {
+    const price = await this.fetchCurrentOrderPrice(pair, direction);
     const orderAmount = direction === OrderSide.BUY ? amount / price : amount;
 
-    // check for min amount
-    const minAmount = await this.getMarkets().then((m) => m.find((m) => m.symbol === pair).limits.amount.min);
-    if (orderAmount < minAmount) {
-      console.log(`${this.name}: amount (${amount} ${from}) is too small to create a ${direction} order for ${pair}`);
-      return undefined;
-    }
+    const order = await this.callApi((e) =>
+      e.createOrder(pair, 'limit', direction, orderAmount, price, { oflags: 'post' }),
+    );
 
-    console.log(
-      `${this.name}: creating new ${direction} order on ${pair} (${amount} ${from} for price ${price}, order amount ${orderAmount})`,
-    );
-    return this.callApi((e) =>
-      e.createOrder(pair, orderType, direction, orderAmount, price, {
-        oflags: 'post',
-      }),
-    );
-  }
-
-  private async pollOrder(order: Order): Promise<Order> {
-    return Util.poll<Order>(
-      () => this.callApi((e) => e.fetchOrder(order.id, order.symbol)),
-      (o) => [OrderStatus.CLOSED, OrderStatus.CANCELED].includes(o?.status as OrderStatus),
-      5000,
-      120000,
-      true,
-    );
+    return order.id;
   }
 
   private async cancelOrder(order: Order): Promise<void> {
@@ -274,20 +193,5 @@ export class ExchangeService implements PricingProvider {
   // other
   private async callApi<T>(action: (exchange: Exchange) => Promise<T>): Promise<T> {
     return this.queue.handle(() => action(this.exchange));
-  }
-
-  getWeightedAveragePrice(list: PartialTradeResponse[]): { price: number; amountSum: number; feeSum: number } {
-    const priceSum = list.reduce((a, b) => a + b.price * b.toAmount, 0);
-    const amountSum = Util.round(
-      list.reduce((a, b) => a + b.toAmount, 0),
-      8,
-    );
-    const price = Util.round(priceSum / amountSum, 8);
-    const feeSum = Util.round(
-      list.reduce((a, b) => a + b.fee.cost, 0),
-      8,
-    );
-
-    return { price, amountSum, feeSum };
   }
 }

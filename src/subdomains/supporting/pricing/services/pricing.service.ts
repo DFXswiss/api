@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { PriceMismatchException } from '../../../../integration/exchange/exceptions/price-mismatch.exception';
+import { PriceMismatchException } from '../domain/exceptions/price-mismatch.exception';
 import { BinanceService } from '../../../../integration/exchange/services/binance.service';
 import { BitpandaService } from '../../../../integration/exchange/services/bitpanda.service';
 import { BitstampService } from '../../../../integration/exchange/services/bitstamp.service';

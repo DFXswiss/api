@@ -18,10 +18,12 @@ import { TradeOrder } from '../dto/trade-order.dto';
 import { Price } from '../../../subdomains/supporting/pricing/domain/entities/price';
 import { TradeResult, TradeStatus } from '../dto/trade-result.dto';
 import { WithdrawalOrder } from '../dto/withdrawal-order.dto';
-
 import { Util } from 'src/shared/utils/util';
 import { ExchangeRegistryService } from '../services/exchange-registry.service';
-import { ExchangeService } from '../services/exchange.service';
+import { ExchangeService, OrderSide } from '../services/exchange.service';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { TradeChangedException } from '../exceptions/trade-changed.exception';
+import { PartialTradeResponse, TradeResponse } from '../dto/trade-response.dto';
 
 @ApiTags('exchange')
 @Controller('exchange')
@@ -46,38 +48,6 @@ export class ExchangeController {
     return this.call(exchange, (e) => e.getPrice(from.toUpperCase(), to.toUpperCase()));
   }
 
-  @Post(':exchange/trade')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async trade(@Param('exchange') exchange: string, @Body() orderDto: TradeOrder): Promise<number> {
-    // register trade
-    const tradeId = Util.randomId();
-    this.trades[tradeId] = { status: TradeStatus.OPEN };
-
-    // run trade (without waiting)
-    this.call(exchange, (e) => e.trade(orderDto.from.toUpperCase(), orderDto.to.toUpperCase(), orderDto.amount))
-      .then((r) => this.updateTrade(tradeId, { status: TradeStatus.WITHDRAWING, trade: r }))
-      // withdraw
-      .then((r) =>
-        orderDto.withdrawal
-          ? this.withdrawFunds(exchange, {
-              token: orderDto.to,
-              amount: orderDto.withdrawal.withdrawAll ? undefined : r.trade.orderSummary.amount,
-              ...orderDto.withdrawal,
-            })
-          : undefined,
-      )
-      .then((r) => this.updateTrade(tradeId, { status: TradeStatus.CLOSED, withdraw: r }))
-      // error
-      .catch((e) => {
-        console.error(`Exception during trade:`, e);
-        this.updateTrade(tradeId, { status: TradeStatus.FAILED, error: e });
-      });
-
-    return tradeId;
-  }
-
   @Get(':exchange/trade')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
@@ -100,6 +70,20 @@ export class ExchangeController {
     @Query('to') to: string,
   ): Promise<Trade[]> {
     return this.call(exchange, (e) => e.getTrades(undefined, from?.toUpperCase(), to?.toUpperCase()));
+  }
+
+  @Post(':exchange/trade')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async trade(@Param('exchange') exchange: string, @Body() { from, to, amount }: TradeOrder): Promise<number> {
+    // start and register trade
+    const orderId = await this.call(exchange, (e) => e.trade(from.toUpperCase(), to.toUpperCase(), amount));
+
+    const tradeId = Util.randomId();
+    this.trades[tradeId] = { exchange, status: TradeStatus.OPEN, orders: [orderId] };
+
+    return tradeId;
   }
 
   @Get('trade/:id')
@@ -145,14 +129,82 @@ export class ExchangeController {
     return withdrawal;
   }
 
-  private updateTrade(tradeId: number, result: Partial<TradeResult>): TradeResult {
-    return (this.trades[tradeId] = { ...this.trades[tradeId], ...result });
-  }
-
   private async call<T>(exchange: string, call: (e: ExchangeService) => Promise<T>): Promise<T> {
     const exchangeService = this.registryService.getExchange(exchange);
     return call(exchangeService).catch((e: ExchangeError) => {
       throw new ServiceUnavailableException(e.message);
     });
+  }
+
+  // --- JOBS --- //
+  @Cron(CronExpression.EVERY_MINUTE)
+  async checkTrades() {
+    const openTrades = Object.values(this.trades).filter(({ status }) => status === TradeStatus.OPEN);
+    for (const trade of openTrades) {
+      const { exchange, orders } = trade;
+
+      const currentOrder = orders[orders.length - 1];
+      try {
+        const isComplete = await this.registryService.getExchange(exchange).checkTrade(currentOrder);
+        if (isComplete) {
+          trade.status = TradeStatus.CLOSED;
+          trade.trade = await this.getTradeResponse(exchange, orders);
+        }
+      } catch (e) {
+        if (e instanceof TradeChangedException) {
+          orders.push(e.id);
+          continue;
+        }
+
+        trade.status = TradeStatus.FAILED;
+        trade.trade = await this.getTradeResponse(exchange, orders);
+        trade.error = e;
+      }
+    }
+  }
+
+  private async getTradeResponse(exchange: string, orders: string[]): Promise<TradeResponse | undefined> {
+    const recentTrades = await this.registryService.getExchange(exchange).getTrades();
+    const trades = recentTrades.filter((t) => orders.includes(t.order));
+
+    if (trades.length === 0) return undefined;
+
+    const orderList = trades.map((t) => ({
+      id: t.id,
+      order: t.order,
+      price: t.price,
+      fromAmount: t.side === OrderSide.BUY ? t.amount * t.price : t.amount,
+      toAmount: t.side === OrderSide.BUY ? t.amount : t.amount * t.price,
+      timestamp: new Date(t.timestamp),
+      fee: t.fee,
+    }));
+
+    const avg = this.getWeightedAveragePrice(orderList);
+
+    return {
+      orderList,
+      orderSummary: {
+        currencyPair: trades[0].symbol,
+        orderSide: trades[0].side,
+        price: avg.price,
+        amount: avg.amountSum,
+        fees: avg.feeSum,
+      },
+    };
+  }
+
+  private getWeightedAveragePrice(list: PartialTradeResponse[]): { price: number; amountSum: number; feeSum: number } {
+    const priceSum = list.reduce((a, b) => a + b.price * b.toAmount, 0);
+    const amountSum = Util.round(
+      list.reduce((a, b) => a + b.toAmount, 0),
+      8,
+    );
+    const price = Util.round(priceSum / amountSum, 8);
+    const feeSum = Util.round(
+      list.reduce((a, b) => a + b.fee.cost, 0),
+      8,
+    );
+
+    return { price, amountSum, feeSum };
   }
 }

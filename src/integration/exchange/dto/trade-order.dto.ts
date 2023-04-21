@@ -1,14 +1,5 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsNotEmpty, IsString, IsNumber, IsOptional, IsObject, ValidateNested, IsBoolean } from 'class-validator';
-import { WithdrawalOrderBase } from './withdrawal-order.dto';
-
-export class TradeWithdrawal extends WithdrawalOrderBase {
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsBoolean()
-  withdrawAll?: boolean;
-}
+import { ApiProperty } from '@nestjs/swagger';
+import { IsNotEmpty, IsString, IsNumber } from 'class-validator';
 
 export class TradeOrder {
   @ApiProperty()
@@ -25,11 +16,4 @@ export class TradeOrder {
   @IsNotEmpty()
   @IsNumber()
   amount: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsObject()
-  @ValidateNested()
-  @Type(() => TradeWithdrawal)
-  withdrawal?: TradeWithdrawal;
 }
