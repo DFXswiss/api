@@ -1,30 +1,19 @@
 import { Injectable } from '@nestjs/common';
-import { SmallAmountException } from 'src/shared/exceptions/small-amount.exception';
+import { PayInIgnoredException } from 'src/shared/payment/exceptions/pay-in-ignored.exception';
 import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
-import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 
 @Injectable()
 export class BuyCryptoInitSpecification {
   constructor(private readonly transactionHelper: TransactionHelper) {}
 
-  async isSatisfiedBy(buyCrypto: BuyCrypto): Promise<boolean> {
-    const { cryptoInput, buy } = buyCrypto;
+  async isSatisfiedBy({ cryptoInput, buy }: BuyCrypto): Promise<void> {
+    if (!cryptoInput) return;
 
-    if (!cryptoInput) return true;
-
-    const { minVolume } = await this.transactionHelper.getSpecs(cryptoInput.asset, buy.asset);
-
-    if (cryptoInput.amount < minVolume * 0.5) this.throw(cryptoInput);
-
-    return true;
-  }
-
-  private throw(cryptoInput: CryptoInput): never {
-    const { asset, amount } = cryptoInput;
-
-    throw new SmallAmountException(
-      `Ignoring too small ${asset.blockchain} input for BuyCrypto (${amount} ${asset.dexName}). Pay-in: ${cryptoInput}`,
-    );
+    const isValid = await this.transactionHelper.isValid(cryptoInput.asset, buy.asset, cryptoInput.amount);
+    if (!isValid)
+      throw new PayInIgnoredException(
+        `Ignoring invalid ${cryptoInput.asset.blockchain} input for BuyCrypto. Pay-in: ${cryptoInput}`,
+      );
   }
 }

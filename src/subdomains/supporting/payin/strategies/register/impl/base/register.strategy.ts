@@ -91,17 +91,6 @@ export abstract class RegisterStrategy {
     return p;
   }
 
-  protected filterOutNonSellable(p: PayInEntry): PayInEntry | null {
-    if (p == null) return null;
-
-    if (p.asset && !p.asset.sellable) {
-      console.log(`Ignoring unsellable input (${p.amount} ${p.asset.uniqueName}). PayIn entry:`, p);
-      return null;
-    }
-
-    return p;
-  }
-
   private createLiquidityRequest(
     referenceAsset: Asset,
     referenceAmount: number,
