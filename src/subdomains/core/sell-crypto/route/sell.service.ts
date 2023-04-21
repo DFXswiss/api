@@ -24,8 +24,8 @@ export class SellService {
   ) {}
 
   // --- SELLS --- //
-  async get(id: number): Promise<Sell> {
-    return this.sellRepo.findOneBy({ id });
+  async get(userId: number, id: number): Promise<Sell> {
+    return this.sellRepo.findOneBy({ id, user: { id: userId } });
   }
 
   async getSellByKey(key: string, value: any): Promise<Sell> {

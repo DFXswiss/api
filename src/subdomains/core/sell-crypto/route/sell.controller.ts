@@ -44,8 +44,8 @@ export class SellController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: SellDto })
-  async getSell(@Param('id') id: string): Promise<SellDto> {
-    return this.sellService.get(+id).then((l) => this.toDto(l));
+  async getSell(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<SellDto> {
+    return this.sellService.get(jwt.id, +id).then((l) => this.toDto(l));
   }
 
   @Post()

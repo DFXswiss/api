@@ -77,8 +77,8 @@ export class CryptoRouteService {
   }
 
   // --- CRYPTOS --- //
-  async get(id: number): Promise<CryptoRoute> {
-    return this.cryptoRepo.findOneBy({ id });
+  async get(userId: number, id: number): Promise<CryptoRoute> {
+    return this.cryptoRepo.findOneBy({ id, user: { id: userId } });
   }
 
   async createCrypto(userId: number, dto: CreateCryptoRouteDto, ignoreExisting = false): Promise<CryptoRoute> {

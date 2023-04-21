@@ -44,7 +44,7 @@ export class CryptoRouteController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: CryptoRouteDto })
   async getCrypto(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<CryptoRouteDto> {
-    return this.cryptoRouteService.get(+id).then((l) => this.toDto(jwt.id, l));
+    return this.cryptoRouteService.get(jwt.id, +id).then((l) => this.toDto(jwt.id, l));
   }
 
   @Post()
