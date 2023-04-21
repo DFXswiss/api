@@ -58,6 +58,10 @@ export class BuyService {
   }
 
   // --- BUYS --- //
+  async get(id: number): Promise<Buy> {
+    return this.buyRepo.findOneBy({ id });
+  }
+
   async createBuy(userId: number, userAddress: string, dto: CreateBuyDto, ignoreExisting = false): Promise<Buy> {
     // check if exists
     const existing = await this.buyRepo.findOne({

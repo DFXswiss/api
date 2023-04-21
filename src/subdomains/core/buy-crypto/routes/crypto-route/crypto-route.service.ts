@@ -77,6 +77,10 @@ export class CryptoRouteService {
   }
 
   // --- CRYPTOS --- //
+  async get(id: number): Promise<CryptoRoute> {
+    return this.cryptoRepo.findOneBy({ id });
+  }
+
   async createCrypto(userId: number, dto: CreateCryptoRouteDto, ignoreExisting = false): Promise<CryptoRoute> {
     // KYC check
     const { kycStatus } = await this.userDataService.getUserDataByUser(userId);

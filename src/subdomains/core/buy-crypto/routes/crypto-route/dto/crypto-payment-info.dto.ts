@@ -4,6 +4,9 @@ import { MinAmount } from 'src/shared/payment/dto/min-amount.dto';
 
 export class CryptoPaymentInfoDto {
   @ApiProperty()
+  routeId: number;
+
+  @ApiProperty()
   depositAddress: string;
 
   @ApiProperty()

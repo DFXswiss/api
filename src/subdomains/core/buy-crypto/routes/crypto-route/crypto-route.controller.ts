@@ -39,6 +39,14 @@ export class CryptoRouteController {
     return this.cryptoRouteService.getUserCryptos(jwt.id).then((l) => this.toDtoList(jwt.id, l));
   }
 
+  @Get(':id')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse({ type: CryptoRouteDto })
+  async getCrypto(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<CryptoRouteDto> {
+    return this.cryptoRouteService.get(+id).then((l) => this.toDto(jwt.id, l));
+  }
+
   @Post()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
@@ -126,6 +134,7 @@ export class CryptoRouteController {
       dto.asset,
     );
     return {
+      routeId: cryptoRoute.id,
       fee,
       depositAddress: cryptoRoute.deposit.address,
       blockchain: cryptoRoute.deposit.blockchain,

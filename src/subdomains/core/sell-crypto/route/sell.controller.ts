@@ -40,6 +40,14 @@ export class SellController {
     return this.sellService.getUserSells(jwt.id).then((l) => this.toDtoList(l));
   }
 
+  @Get(':id')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse({ type: SellDto })
+  async getSell(@Param('id') id: string): Promise<SellDto> {
+    return this.sellService.get(+id).then((l) => this.toDto(l));
+  }
+
   @Post()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
@@ -120,6 +128,7 @@ export class SellController {
       dto.currency,
     );
     return {
+      routeId: sell.id,
       fee,
       depositAddress: sell.deposit.address,
       blockchain: sell.deposit.blockchain,

@@ -24,6 +24,10 @@ export class SellService {
   ) {}
 
   // --- SELLS --- //
+  async get(id: number): Promise<Sell> {
+    return this.sellRepo.findOneBy({ id });
+  }
+
   async getSellByKey(key: string, value: any): Promise<Sell> {
     return this.sellRepo
       .createQueryBuilder('sell')

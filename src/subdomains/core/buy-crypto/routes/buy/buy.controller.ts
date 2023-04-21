@@ -41,6 +41,14 @@ export class BuyController {
     return this.buyService.getUserBuys(jwt.id).then((l) => this.toDtoList(jwt.id, l));
   }
 
+  @Get(':id')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse({ type: BuyDto })
+  async getBuy(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<BuyDto> {
+    return this.buyService.get(+id).then((l) => this.toDto(jwt.id, l));
+  }
+
   @Post()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
@@ -120,6 +128,7 @@ export class BuyController {
       dto.asset,
     );
     return {
+      routeId: buy.id,
       ...bankInfo,
       sepaInstant: bankInfo.sepaInstant && buy.bankAccount?.sctInst,
       remittanceInfo: buy.bankUsage,
