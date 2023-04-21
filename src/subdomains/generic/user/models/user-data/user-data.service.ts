@@ -183,8 +183,11 @@ export class UserDataService {
 
   async updateUserSettings(user: UserData, dto: UpdateUserDto): Promise<{ user: UserData; isKnownUser: boolean }> {
     // check phone & mail if KYC is already started
-    if (user.kycStatus != KycStatus.NA && (!dto.mail || !dto.phone))
-      throw new BadRequestException('KYC already start, user data deletion not allowed');
+    if (
+      user.kycStatus != KycStatus.NA &&
+      (dto.mail === null || dto.mail === '' || dto.phone === null || dto.phone === '')
+    )
+      throw new BadRequestException('KYC already started, user data deletion not allowed');
 
     // check language
     if (dto.language) {
