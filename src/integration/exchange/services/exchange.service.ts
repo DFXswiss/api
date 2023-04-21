@@ -65,7 +65,7 @@ export class ExchangeService implements PricingProvider {
 
     // place the order
     const { pair, direction } = await this.getTradePair(from, to);
-    return this.createOrder(pair, direction, amount);
+    return this.placeOrder(pair, direction, amount);
   }
 
   async checkTrade(id: string): Promise<boolean> {
@@ -88,7 +88,7 @@ export class ExchangeService implements PricingProvider {
           if (order.remaining < minAmount) {
             return true;
           }
-          const id = await this.createOrder(order.symbol, order.side as OrderSide, order.remaining);
+          const id = await this.placeOrder(order.symbol, order.side as OrderSide, order.remaining);
           throw new TradeChangedException(id);
 
         case OrderStatus.CLOSED:
@@ -175,15 +175,17 @@ export class ExchangeService implements PricingProvider {
 
   // orders
 
-  private async createOrder(pair: string, direction: OrderSide, amount: number): Promise<string> {
+  private async placeOrder(pair: string, direction: OrderSide, amount: number): Promise<string> {
     const price = await this.fetchCurrentOrderPrice(pair, direction);
     const orderAmount = direction === OrderSide.BUY ? amount / price : amount;
 
-    const order = await this.callApi((e) =>
-      e.createOrder(pair, 'limit', direction, orderAmount, price, { oflags: 'post' }),
-    );
+    const order = await this.createOrder(pair, direction, orderAmount, price);
 
     return order.id;
+  }
+
+  protected async createOrder(pair: string, direction: OrderSide, amount: number, price: number): Promise<Order> {
+    return this.callApi((e) => e.createOrder(pair, 'limit', direction, amount, price));
   }
 
   private async cancelOrder(order: Order): Promise<void> {
@@ -191,7 +193,7 @@ export class ExchangeService implements PricingProvider {
   }
 
   // other
-  private async callApi<T>(action: (exchange: Exchange) => Promise<T>): Promise<T> {
+  protected async callApi<T>(action: (exchange: Exchange) => Promise<T>): Promise<T> {
     return this.queue.handle(() => action(this.exchange));
   }
 }
