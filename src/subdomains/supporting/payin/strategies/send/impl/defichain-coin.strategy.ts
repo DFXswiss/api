@@ -14,7 +14,7 @@ export class DeFiChainCoinStrategy extends JellyfishStrategy {
     protected readonly deFiChainService: PayInDeFiChainService,
     protected readonly payInRepo: PayInRepository,
   ) {
-    super(deFiChainService, payInRepo, 60, Blockchain.DEFICHAIN);
+    super(deFiChainService, payInRepo, Blockchain.DEFICHAIN);
   }
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
@@ -44,5 +44,10 @@ export class DeFiChainCoinStrategy extends JellyfishStrategy {
 
   protected getForwardAddress(): BlockchainAddress {
     return BlockchainAddress.create(Config.blockchain.default.dexWalletAddress, Blockchain.DEFICHAIN);
+  }
+
+  protected async isConfirmed(payIn: CryptoInput): Promise<boolean> {
+    const { confirmations } = await this.jellyfishService.getTx(payIn.outTxId);
+    return confirmations >= 60;
   }
 }

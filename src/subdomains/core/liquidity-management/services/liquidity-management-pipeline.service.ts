@@ -262,14 +262,14 @@ export class LiquidityManagementPipelineService {
     pipeline: LiquidityManagementPipeline,
     order: LiquidityManagementOrder,
   ): [string, MailRequest] {
-    const { id, type, rule } = pipeline;
-    const errorMessage = `${type} pipeline for ${rule.targetName} (rule ${rule.id}) failed. Pipeline ID: ${id}`;
+    const { id, type, targetAmount, rule } = pipeline;
+    const errorMessage = `${type} pipeline for ${targetAmount} ${rule.targetName} (rule ${rule.id}) failed. Pipeline ID: ${id}`;
 
     const mailRequest: MailRequest = {
       type: MailType.ERROR_MONITORING,
       input: {
         subject: 'Liquidity management pipeline FAIL',
-        errors: [errorMessage, order.errorMessage],
+        errors: [errorMessage, `Error: ${order.errorMessage}`],
       },
     };
 

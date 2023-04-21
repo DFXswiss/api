@@ -11,7 +11,7 @@ import { JellyfishStrategy } from './base/jellyfish.strategy';
 @Injectable()
 export class BitcoinStrategy extends JellyfishStrategy {
   constructor(protected readonly bitcoinService: PayInBitcoinService, protected readonly payInRepo: PayInRepository) {
-    super(bitcoinService, payInRepo, 1, Blockchain.BITCOIN);
+    super(bitcoinService, payInRepo, Blockchain.BITCOIN);
   }
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
@@ -37,5 +37,10 @@ export class BitcoinStrategy extends JellyfishStrategy {
 
   protected getForwardAddress(): BlockchainAddress {
     return BlockchainAddress.create(Config.blockchain.default.btcOutWalletAddress, Blockchain.BITCOIN);
+  }
+
+  protected async isConfirmed(payIn: CryptoInput): Promise<boolean> {
+    const { confirmations } = await this.jellyfishService.getTx(payIn.inTxId);
+    return confirmations >= 1;
   }
 }

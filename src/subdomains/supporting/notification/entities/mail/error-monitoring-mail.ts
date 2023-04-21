@@ -17,13 +17,15 @@ export class ErrorMonitoringMail extends Mail {
     const to = [GetConfig().mail.contact.monitoringMail];
     ErrorMonitoringMail.isLiqMail(params) && to.push(GetConfig().mail.contact.liqMail);
 
+    const env = GetConfig().environment.toUpperCase();
+
     const _params: MailParams = {
       to: to,
-      subject: `${params.subject} (${GetConfig().environment.toUpperCase()})`,
+      subject: `${params.subject} (${env})`,
       metadata: params.metadata,
       options: params.options,
       templateParams: {
-        salutation: 'Hi DFX Tech Support',
+        salutation: `${env} API`,
         body: ErrorMonitoringMail.createBody(params.errors),
         date: new Date().getFullYear(),
       },
@@ -39,10 +41,7 @@ export class ErrorMonitoringMail extends Mail {
   }
 
   static createBody(errors: string[]): string {
-    const env = GetConfig().environment.toUpperCase();
-
     return `
-    <p>there seem to be some problems on ${env} API:</p>
     <ul>
       ${errors.reduce((prev, curr) => prev + '<li>' + curr + '</li>', '')}
     </ul>

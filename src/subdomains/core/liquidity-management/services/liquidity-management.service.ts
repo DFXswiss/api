@@ -78,7 +78,7 @@ export class LiquidityManagementService {
   private async verifyRule(rule: LiquidityManagementRule, balances: LiquidityBalance[]): Promise<void> {
     try {
       const balance = this.balanceService.findRelevantBalance(rule, balances);
-      if (!balance) throw new Error('Could not proceed with rule verification, balance not found.');
+      if (!balance) throw new Error('Could not proceed with rule verification, balance not found');
 
       const result = rule.verify(balance);
 
@@ -102,8 +102,8 @@ export class LiquidityManagementService {
   }
 
   private async executeRule(rule: LiquidityManagementRule, result: LiquidityState): Promise<PipelineId> {
-    if (await this.findExistingPipeline(rule)) {
-      throw new ConflictException(`Pipeline for the rule ${rule.id} is already running.`);
+    if (rule.status !== LiquidityManagementRuleStatus.ACTIVE || (await this.findExistingPipeline(rule))) {
+      throw new ConflictException(`Pipeline for rule ${rule.id} cannot be started (status ${rule.status})`);
     }
 
     this.logRuleExecution(rule, result);
