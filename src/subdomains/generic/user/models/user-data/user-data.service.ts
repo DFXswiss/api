@@ -8,7 +8,15 @@ import {
 } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { UserDataRepository } from './user-data.repository';
-import { KycCompleted, KycInProgress, KycState, KycType, UserData, UserDataStatus } from './user-data.entity';
+import {
+  KycCompleted,
+  KycInProgress,
+  KycState,
+  KycStatus,
+  KycType,
+  UserData,
+  UserDataStatus,
+} from './user-data.entity';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { In, MoreThan, Not } from 'typeorm';
@@ -174,6 +182,10 @@ export class UserDataService {
   }
 
   async updateUserSettings(user: UserData, dto: UpdateUserDto): Promise<{ user: UserData; isKnownUser: boolean }> {
+    // check phone & mail if KYC is already started
+    if (user.kycStatus != KycStatus.NA && (!dto.mail || !dto.phone))
+      throw new BadRequestException('KYC already start, user data deletion not allowed');
+
     // check language
     if (dto.language) {
       dto.language = await this.languageService.getLanguage(dto.language.id);
