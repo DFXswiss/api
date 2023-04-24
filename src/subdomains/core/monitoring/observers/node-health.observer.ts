@@ -9,6 +9,7 @@ import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.ser
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { Lock } from 'src/shared/utils/lock';
+import { Config, Process } from 'src/config/config';
 
 interface NodePoolState {
   type: NodeType;
@@ -48,6 +49,7 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(360)
   async fetch(): Promise<NodesState> {
+    if (Config.processDisabled(Process.NODE_HEALTH_OBSERVER)) return;
     const previousState = this.data;
 
     let state = await this.getState(previousState);

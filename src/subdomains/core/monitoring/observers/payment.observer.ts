@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { Interval } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 import { In, IsNull, Not } from 'typeorm';
 import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
 import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
+import { Config, Process } from 'src/config/config';
 
 interface PaymentData {
   lastOutputDates: LastOutputDates;
@@ -31,8 +32,9 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
     super(monitoringService, 'payment', 'combined');
   }
 
-  @Interval(900000)
+  @Cron(CronExpression.EVERY_10_MINUTES)
   async fetch() {
+    if (Config.processDisabled(Process.PAYMENT_OBSERVER)) return;
     const data = await this.getPayment();
 
     this.emit(data);

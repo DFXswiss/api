@@ -23,7 +23,7 @@ import { In, MoreThan, Not } from 'typeorm';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { Config } from 'src/config/config';
+import { Config, Process } from 'src/config/config';
 import { ReferenceType, SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
 import { UserRepository } from '../user/user.repository';
 import { SpiderApiService } from 'src/subdomains/generic/user/services/spider/spider-api.service';
@@ -230,6 +230,7 @@ export class UserDataService {
   // --- VOLUMES --- //
   @Cron(CronExpression.EVERY_YEAR)
   async resetAnnualVolumes(): Promise<void> {
+    if (Config.processDisabled(Process.USER_DATA_RESET_ANNUAL)) return;
     await this.userDataRepo.update({ annualBuyVolume: Not(0) }, { annualBuyVolume: 0 });
     await this.userDataRepo.update({ annualSellVolume: Not(0) }, { annualSellVolume: 0 });
   }

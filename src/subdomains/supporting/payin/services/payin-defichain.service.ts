@@ -2,7 +2,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
 import { InWalletTransaction, UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { Injectable } from '@nestjs/common';
-import { Config } from 'src/config/config';
+import { Config, Process } from 'src/config/config';
 import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -10,7 +10,7 @@ import { AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { CryptoInput } from '../entities/crypto-input.entity';
 import { PayInRepository } from '../repositories/payin.repository';
-import { Cron, CronExpression, Interval } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PayInJellyfishService } from './base/payin-jellyfish.service';
 
 export interface HistoryAmount {
@@ -80,9 +80,10 @@ export class PayInDeFiChainService extends PayInJellyfishService {
     );
   }
 
-  @Interval(900000)
+  @Cron(CronExpression.EVERY_10_MINUTES)
   @Lock(7200)
   async convertTokens(): Promise<void> {
+    if (Config.processDisabled(Process.CRYPTO_PAY_IN_CONVERT_TOKEN)) return;
     await this.client.checkSync();
 
     const tokens = await this.client.getToken();
@@ -134,6 +135,7 @@ export class PayInDeFiChainService extends PayInJellyfishService {
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
   async retrieveFeeUtxos(): Promise<void> {
     try {
+      if (Config.processDisabled(Process.CRYPTO_PAY_IN_FEE)) return;
       const utxos = await this.client.getUtxo();
 
       for (const utxo of utxos) {

@@ -18,6 +18,7 @@ import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { Util } from 'src/shared/utils/util';
 import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { Config, Process } from 'src/config/config';
 
 @Injectable()
 export class StakingService {
@@ -37,6 +38,7 @@ export class StakingService {
   @Lock(1800)
   async checkCryptoPayIn() {
     if ((await this.settingService.get('staking-return')) !== 'on') return;
+    if (Config.processDisabled(Process.CRYPTO_PAY_IN_CHECK)) return;
 
     await this.returnStakingPayIn();
   }

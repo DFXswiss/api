@@ -10,7 +10,7 @@ import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { JwtPayloadBase, JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { JwtService } from '@nestjs/jwt';
 import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
-import { Config } from 'src/config/config';
+import { Config, Process } from 'src/config/config';
 import { UserService } from '../user/user.service';
 import { UserRepository } from '../user/user.repository';
 import { User, UserStatus } from '../user/user.entity';
@@ -19,7 +19,7 @@ import { WalletRepository } from '../wallet/wallet.repository';
 import { Wallet } from '../wallet/wallet.entity';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Util } from 'src/shared/utils/util';
-import { Interval } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
 import { ChallengeDto } from './dto/challenge.dto';
@@ -44,8 +44,9 @@ export class AuthService {
     private readonly refService: RefService,
   ) {}
 
-  @Interval(90000)
+  @Cron(CronExpression.EVERY_MINUTE)
   checkChallengeList() {
+    if (Config.processDisabled(Process.CHECK_CHALLENGE)) return;
     for (const [key, challenge] of this.challengeList.entries()) {
       if (!this.isChallengeValid(challenge)) {
         this.challengeList.delete(key);

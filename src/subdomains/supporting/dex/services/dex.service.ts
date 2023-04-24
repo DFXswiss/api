@@ -4,7 +4,7 @@ import { LiquidityOrderRepository } from '../repositories/liquidity-order.reposi
 import { PriceSlippageException } from '../exceptions/price-slippage.exception';
 import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
 import { LiquidityOrderNotReadyException } from '../exceptions/liquidity-order-not-ready.exception';
-import { Interval } from '@nestjs/schedule';
+import { CronExpression, Cron } from '@nestjs/schedule';
 import { Lock } from 'src/shared/utils/lock';
 import { Not, IsNull } from 'typeorm';
 import { LiquidityOrderFactory } from '../factories/liquidity-order.factory';
@@ -26,6 +26,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { SupplementaryStrategies } from '../strategies/supplementary/supplementary.facade';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Config, Process } from 'src/config/config';
 
 @Injectable()
 export class DexService {
@@ -294,10 +295,10 @@ export class DexService {
   }
 
   //*** JOBS ***//
-
-  @Interval(30000)
+  @Cron(CronExpression.EVERY_30_SECONDS)
   @Lock(1800)
   async finalizePurchaseOrders(): Promise<void> {
+    if (Config.processDisabled(Process.LIQUIDITY_ORDERS_FINALIZE)) return;
     const standingOrders = await this.liquidityOrderRepo.findBy({
       isReady: false,
       txId: Not(IsNull()),

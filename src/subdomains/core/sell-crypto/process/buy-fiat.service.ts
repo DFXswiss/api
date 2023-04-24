@@ -22,6 +22,7 @@ import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhoo
 import { TransactionDetailsDto } from '../../statistic/dto/statistic.dto';
 import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { PaymentStatus } from '../../history/dto/history.dto';
+import { Config, Process } from 'src/config/config';
 
 @Injectable()
 export class BuyFiatService {
@@ -44,6 +45,7 @@ export class BuyFiatService {
   @Cron(CronExpression.EVERY_10_MINUTES)
   @Lock(7200)
   async addFiatOutputs(): Promise<void> {
+    if (Config.processDisabled(Process.FIAT_OUTPUTS_ADD)) return;
     const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
       relations: ['fiatOutput'],
       where: { amlCheck: AmlCheck.PASS, fiatOutput: IsNull() },
@@ -61,7 +63,7 @@ export class BuyFiatService {
   @Lock(1800)
   async checkCryptoPayIn() {
     if ((await this.settingService.get('sell-crypto')) !== 'on') return;
-
+    if (Config.processDisabled(Process.CRYPTO_PAY_IN_CHECK)) return;
     await this.buyFiatRegistrationService.registerSellPayIn();
   }
 

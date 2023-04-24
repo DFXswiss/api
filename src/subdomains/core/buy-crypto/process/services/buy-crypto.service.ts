@@ -34,6 +34,7 @@ import { WebhookService } from 'src/subdomains/generic/user/services/webhook/web
 import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
 import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Config, Process } from 'src/config/config';
 
 @Injectable()
 export class BuyCryptoService {
@@ -172,6 +173,7 @@ export class BuyCryptoService {
   @Lock(1800)
   async checkCryptoPayIn() {
     if ((await this.settingService.get('crypto-crypto')) !== 'on') return;
+    if (Config.processDisabled(Process.CRYPTO_PAY_IN)) return;
 
     await this.buyCryptoRegistrationService.registerCryptoPayIn();
   }
@@ -180,7 +182,7 @@ export class BuyCryptoService {
   @Lock(7200)
   async process() {
     if ((await this.settingService.get('buy-process')) !== 'on') return;
-
+    if (Config.processDisabled(Process.FIAT_PAY_IN)) return;
     await this.buyCryptoBatchService.prepareTransactions();
     await this.buyCryptoBatchService.batchAndOptimizeTransactions();
     await this.buyCryptoDexService.secureLiquidity();

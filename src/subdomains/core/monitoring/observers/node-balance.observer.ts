@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { Interval } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import BigNumber from 'bignumber.js';
+import { Config, Process } from 'src/config/config';
 import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
 import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
@@ -41,8 +42,9 @@ export class NodeBalanceObserver extends MetricObserver<NodeBalanceData> {
       .subscribe((client) => (this.btcInpClient = client));
   }
 
-  @Interval(900000)
+  @Cron(CronExpression.EVERY_10_MINUTES)
   async fetch(): Promise<NodeBalanceData> {
+    if (Config.processDisabled(Process.NODE_BALANCE_OBSERVER)) return;
     const data = await this.getNode();
 
     this.emit(data);

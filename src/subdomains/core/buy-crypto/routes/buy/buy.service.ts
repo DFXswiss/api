@@ -5,7 +5,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { IsNull, Not, Repository } from 'typeorm';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { Config } from 'src/config/config';
+import { Config, Process } from 'src/config/config';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { BuyRepository } from './buy.repository';
 import { CreateBuyDto } from './dto/create-buy.dto';
@@ -21,6 +21,7 @@ export class BuyService {
   // --- VOLUMES --- //
   @Cron(CronExpression.EVERY_YEAR)
   async resetAnnualVolumes(): Promise<void> {
+    if (Config.processDisabled(Process.BUY_RESET_ANNUAL)) return;
     await this.buyRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
   }
 

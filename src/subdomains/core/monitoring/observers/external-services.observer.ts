@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { Interval } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 import { IbanService } from 'src/integration/bank/services/iban.service';
 import { LetterService } from 'src/integration/letter/letter.service';
+import { Config, Process } from 'src/config/config';
 
 interface ExternalServicesData {
   name: string;
@@ -26,8 +27,9 @@ export class ExternalServicesObserver extends MetricObserver<ExternalServicesDat
     super(monitoringService, 'externalServices', 'combined');
   }
 
-  @Interval(900000)
+  @Cron(CronExpression.EVERY_10_MINUTES)
   async fetch() {
+    if (Config.processDisabled(Process.EXTERNAL_SERVICES_OBSERVER)) return;
     const data = await this.getExternalServices();
 
     this.emit(data);

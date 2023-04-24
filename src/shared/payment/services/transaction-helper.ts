@@ -9,6 +9,7 @@ import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
 import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
+import { Config, Process } from 'src/config/config';
 
 @Injectable()
 export class TransactionHelper implements OnModuleInit {
@@ -28,6 +29,7 @@ export class TransactionHelper implements OnModuleInit {
 
   @Cron(CronExpression.EVERY_HOUR)
   async updateCache() {
+    if (Config.processDisabled(Process.TRANSACTION_SPECIFICATION)) return;
     this.transactionSpecifications = await this.transactionSpecificationRepo.find();
   }
 

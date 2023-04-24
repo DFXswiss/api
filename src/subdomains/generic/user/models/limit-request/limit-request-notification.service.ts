@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Interval } from '@nestjs/schedule';
+import { CronExpression, Cron } from '@nestjs/schedule';
 import { Config, Process } from 'src/config/config';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -15,7 +15,7 @@ export class LimitRequestNotificationService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  @Interval(300000)
+  @Cron(CronExpression.EVERY_5_MINUTES)
   @Lock(1800)
   async sendNotificationMails(): Promise<void> {
     if (Config.processDisabled(Process.LIMIT_REQUEST_MAIL)) return;

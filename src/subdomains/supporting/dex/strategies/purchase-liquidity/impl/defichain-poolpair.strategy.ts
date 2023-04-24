@@ -1,5 +1,5 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
-import { Interval } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { IsNull, Not } from 'typeorm';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -19,6 +19,7 @@ import { PurchaseLiquidityStrategy } from './base/purchase-liquidity.strategy';
 import { DexDeFiChainService } from '../../../services/dex-defichain.service';
 import { DexUtil } from '../../../utils/dex.util';
 import { PurchaseLiquidityStrategyAlias } from '../purchase-liquidity.facade';
+import { Config, Process } from 'src/config/config';
 
 @Injectable()
 export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
@@ -62,10 +63,11 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
     await this.liquidityOrderRepo.save(order);
   }
 
-  @Interval(30000)
+  @Cron(CronExpression.EVERY_30_SECONDS)
   @Lock(1800)
   async verifyDerivedOrders(): Promise<void> {
     if ((await this.settingService.get('purchase-poolpair-liquidity')) !== 'on') return;
+    if (Config.processDisabled(Process.PURCHASE_POOL_PAIR_LIQUIDITY)) return;
 
     const pendingParentOrders = await this.liquidityOrderRepo.findBy({
       context: Not(LiquidityOrderContext.CREATE_POOL_PAIR),
