@@ -54,18 +54,17 @@ export class ExchangeService implements PricingProvider {
     return this.callApi((e) => e.fetchOpenOrders(pair));
   }
 
-  async trade(from: string, to: string, amount: number): Promise<string> {
-    // check balance
-    const balance = await this.getBalance(from);
-    if (amount > balance) {
-      throw new BadRequestException(
-        `There is not enough balance for token ${from}. Current balance: ${balance} requested balance: ${amount}`,
-      );
-    }
-
-    // place the order
+  async buy(from: string, to: string, amount: number): Promise<string> {
     const { pair, direction } = await this.getTradePair(from, to);
-    return this.placeOrder(pair, direction, amount);
+    const price = await this.fetchCurrentOrderPrice(pair, direction);
+
+    const tradeAmount = amount / price;
+
+    return this.trade(from, to, tradeAmount);
+  }
+
+  async sell(from: string, to: string, amount: number): Promise<string> {
+    return this.trade(from, to, amount);
   }
 
   async checkTrade(id: string): Promise<boolean> {
@@ -174,6 +173,20 @@ export class ExchangeService implements PricingProvider {
   }
 
   // orders
+
+  private async trade(from: string, to: string, amount: number): Promise<string> {
+    // check balance
+    const balance = await this.getBalance(from);
+    if (amount > balance) {
+      throw new BadRequestException(
+        `There is not enough balance for token ${from}. Current balance: ${balance} requested balance: ${amount}`,
+      );
+    }
+
+    // place the order
+    const { pair, direction } = await this.getTradePair(from, to);
+    return this.placeOrder(pair, direction, amount);
+  }
 
   private async placeOrder(pair: string, direction: OrderSide, amount: number): Promise<string> {
     const price = await this.fetchCurrentOrderPrice(pair, direction);

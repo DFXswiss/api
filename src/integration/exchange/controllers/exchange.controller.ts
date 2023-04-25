@@ -78,7 +78,7 @@ export class ExchangeController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async trade(@Param('exchange') exchange: string, @Body() { from, to, amount }: TradeOrder): Promise<number> {
     // start and register trade
-    const orderId = await this.call(exchange, (e) => e.trade(from.toUpperCase(), to.toUpperCase(), amount));
+    const orderId = await this.call(exchange, (e) => e.sell(from.toUpperCase(), to.toUpperCase(), amount));
 
     const tradeId = Util.randomId();
     this.trades[tradeId] = { exchange, status: TradeStatus.OPEN, orders: [orderId] };
