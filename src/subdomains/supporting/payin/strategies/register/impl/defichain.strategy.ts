@@ -137,7 +137,6 @@ export class DeFiChainStrategy extends RegisterStrategy {
   private filterOutInvalid(_entry: PayInEntry): PayInEntry | null {
     let entry: PayInEntry | null = _entry;
 
-    entry = this.filterOutNonSellable(entry);
     entry = this.filterOutPoolPairs(entry);
     entry = this.filterOutTooSmall(entry);
 
