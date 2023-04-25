@@ -9,11 +9,11 @@ export class BuyCryptoInitSpecification {
   constructor(private readonly transactionHelper: TransactionHelper) {}
 
   async isSatisfiedBy(buyCrypto: BuyCrypto): Promise<boolean> {
-    const { cryptoInput, cryptoRoute } = buyCrypto;
+    const { cryptoInput, target } = buyCrypto;
 
     if (!cryptoInput) return true;
 
-    const { minVolume } = await this.transactionHelper.getSpecs(cryptoInput.asset, cryptoRoute.asset);
+    const { minVolume } = await this.transactionHelper.getSpecs(cryptoInput.asset, target.asset);
 
     if (cryptoInput.amount < minVolume * 0.5) this.throw(cryptoInput);
 
