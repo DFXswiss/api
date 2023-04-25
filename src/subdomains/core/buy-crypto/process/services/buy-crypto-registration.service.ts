@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { CryptoRouteRepository } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.repository';
-import { SmallAmountException } from 'src/shared/exceptions/small-amount.exception';
+import { PayInIgnoredException } from 'src/shared/payment/exceptions/pay-in-ignored.exception';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { IsNull, Not } from 'typeorm';
@@ -74,7 +74,7 @@ export class BuyCryptoRegistrationService {
 
         await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_CRYPTO, cryptoRoute);
       } catch (e) {
-        if (e instanceof SmallAmountException) {
+        if (e instanceof PayInIgnoredException) {
           await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_CRYPTO, cryptoRoute);
 
           continue;

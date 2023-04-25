@@ -32,6 +32,15 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   // --- SPECIFICATIONS --- //
+  async isValid(from: Asset | Fiat, to: Asset | Fiat, amount: number): Promise<boolean> {
+    // check buyable/sellable
+    if (!from.sellable || !to.buyable) return false;
+
+    // check min. volume
+    const { minVolume } = await this.getSpecs(from, to);
+    return amount > minVolume * 0.5;
+  }
+
   async getSpecs(from: Asset | Fiat, to: Asset | Fiat): Promise<{ minFee: number; minVolume: number }> {
     const { system: fromSystem, asset: fromAsset } = this.getProps(from);
     const { system: toSystem, asset: toAsset } = this.getProps(to);

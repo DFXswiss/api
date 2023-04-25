@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Interval } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Util } from 'src/shared/utils/util';
 import { IsNull, LessThan } from 'typeorm';
 import { Ref } from './ref.entity';
@@ -11,7 +11,7 @@ export class RefService {
 
   constructor(private repo: RefRepository) {}
 
-  @Interval(3600000)
+  @Cron(CronExpression.EVERY_HOUR)
   async checkRefs(): Promise<void> {
     const expirationDate = Util.daysBefore(this.refExpirationDays);
 

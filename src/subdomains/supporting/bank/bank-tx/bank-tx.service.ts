@@ -6,7 +6,7 @@ import { SepaParser } from './sepa-parser.service';
 import { In } from 'typeorm';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
 import { BankTx, BankTxType, BankTxTypeCompleted } from './bank-tx.entity';
-import { Interval } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { FrickService } from './frick.service';
 import { OlkypayService } from './olkypay.service';
@@ -15,6 +15,7 @@ import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { BankTxReturnService } from '../bank-tx-return/bank-tx-return.service';
 import { BankTxRepeatService } from '../bank-tx-repeat/bank-tx-repeat.service';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
+import { Config, Process } from 'src/config/config';
 
 @Injectable()
 export class BankTxService {
@@ -32,9 +33,10 @@ export class BankTxService {
   ) {}
 
   // --- TRANSACTION HANDLING --- //
-  @Interval(60000)
+  @Cron(CronExpression.EVERY_MINUTE)
   async checkTransactions(): Promise<void> {
     try {
+      if (Config.processDisabled(Process.BANK_TX)) return;
       // Get settings
       const settingKeyFrick = 'lastBankFrickDate';
       const settingKeyOlky = 'lastBankOlkyDate';

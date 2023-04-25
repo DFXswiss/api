@@ -1,11 +1,10 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
-import { Interval } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { IsNull, Not } from 'typeorm';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Util } from 'src/shared/utils/util';
 import { Lock } from 'src/shared/utils/lock';
-import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LiquidityOrderContext, LiquidityOrder } from '../../../entities/liquidity-order.entity';
 import { NotEnoughLiquidityException } from '../../../exceptions/not-enough-liquidity.exception';
@@ -24,7 +23,6 @@ import { PurchaseLiquidityStrategyAlias } from '../purchase-liquidity.facade';
 export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
   constructor(
     readonly notificationService: NotificationService,
-    private readonly settingService: SettingService,
     private readonly assetService: AssetService,
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
     private readonly liquidityOrderFactory: LiquidityOrderFactory,
@@ -36,8 +34,6 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
   }
 
   async purchaseLiquidity(request: PurchaseLiquidityRequest): Promise<void> {
-    if ((await this.settingService.get('purchase-poolpair-liquidity')) !== 'on') return;
-
     const newParentOrder = this.liquidityOrderFactory.createPurchaseOrder(request, Blockchain.DEFICHAIN, this.name);
     const savedParentOrder = await this.liquidityOrderRepo.save(newParentOrder);
 
@@ -62,11 +58,9 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
     await this.liquidityOrderRepo.save(order);
   }
 
-  @Interval(30000)
+  @Cron(CronExpression.EVERY_30_SECONDS)
   @Lock(1800)
   async verifyDerivedOrders(): Promise<void> {
-    if ((await this.settingService.get('purchase-poolpair-liquidity')) !== 'on') return;
-
     const pendingParentOrders = await this.liquidityOrderRepo.findBy({
       context: Not(LiquidityOrderContext.CREATE_POOL_PAIR),
       isReady: false,

@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Lock } from 'src/shared/utils/lock';
 import { PayoutType, StakingReward } from '../entities/staking-reward.entity';
 import { StakingRewardRepository } from '../repositories/staking-reward.repository';
@@ -18,11 +17,11 @@ import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { Util } from 'src/shared/utils/util';
 import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { Config, Process } from 'src/config/config';
 
 @Injectable()
 export class StakingService {
   constructor(
-    private readonly settingService: SettingService,
     private readonly stakingRewardRepo: StakingRewardRepository,
     private readonly stakingRefRewardRepo: StakingRefRewardRepository,
     private readonly cryptoStakingRepo: CryptoStakingRepository,
@@ -36,8 +35,7 @@ export class StakingService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async checkCryptoPayIn() {
-    if ((await this.settingService.get('staking-return')) !== 'on') return;
-
+    if (Config.processDisabled(Process.STAKING)) return;
     await this.returnStakingPayIn();
   }
 
