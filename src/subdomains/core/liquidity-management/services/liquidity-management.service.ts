@@ -44,7 +44,7 @@ export class LiquidityManagementService {
       throw new BadRequestException(`Rule ${rule.id} does not support liquidity deficit path`);
     }
 
-    if (targetOptimal) amount += rule.optimal;
+    if (targetOptimal) amount = Util.round(amount + rule.optimal, 8);
 
     const liquidityState = { deficit: amount, redundancy: 0 };
 
@@ -58,7 +58,7 @@ export class LiquidityManagementService {
       throw new BadRequestException(`Rule ${rule.id} does not support liquidity redundancy path`);
     }
 
-    if (targetOptimal) amount -= rule.optimal;
+    if (targetOptimal) amount = Util.round(amount - rule.optimal, 8);
 
     const liquidityState = { deficit: 0, redundancy: amount };
 
