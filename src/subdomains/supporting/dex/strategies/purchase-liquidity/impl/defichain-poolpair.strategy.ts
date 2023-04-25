@@ -37,8 +37,6 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
   }
 
   async purchaseLiquidity(request: PurchaseLiquidityRequest): Promise<void> {
-    if ((await this.settingService.get('purchase-poolpair-liquidity')) !== 'on') return;
-
     const newParentOrder = this.liquidityOrderFactory.createPurchaseOrder(request, Blockchain.DEFICHAIN, this.name);
     const savedParentOrder = await this.liquidityOrderRepo.save(newParentOrder);
 
@@ -66,7 +64,6 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
   @Cron(CronExpression.EVERY_30_SECONDS)
   @Lock(1800)
   async verifyDerivedOrders(): Promise<void> {
-    if ((await this.settingService.get('purchase-poolpair-liquidity')) !== 'on') return;
     if (Config.processDisabled(Process.PURCHASE_POOL_PAIR_LIQUIDITY)) return;
 
     const pendingParentOrders = await this.liquidityOrderRepo.findBy({

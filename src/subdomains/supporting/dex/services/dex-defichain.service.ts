@@ -266,7 +266,7 @@ export class DexDeFiChainService {
     maxSlippage: number,
   ): Promise<[boolean, string]> {
     // how much sourceAsset we are willing to pay for 1 unit of targetAsset max
-    const maxPrice = await this.calculateMaxTargetAssetPrice(sourceAsset, targetAsset, maxSlippage);
+    const maxPrice = await this.getMaxPriceForPurchaseLiquidity(sourceAsset, targetAsset, maxSlippage);
 
     const minimalAllowedTargetAmount = Util.round(sourceAmount / maxPrice, 8);
 
@@ -291,16 +291,6 @@ export class DexDeFiChainService {
   }
 
   private async getMaxPriceForPurchaseLiquidity(
-    swapAsset: Asset,
-    targetAsset: Asset,
-    maxSlippage: number,
-  ): Promise<number | undefined> {
-    return (await this.settingService.get('slippage-protection')) === 'on'
-      ? this.calculateMaxTargetAssetPrice(swapAsset, targetAsset, maxSlippage)
-      : undefined;
-  }
-
-  private async calculateMaxTargetAssetPrice(
     sourceAsset: Asset,
     targetAsset: Asset,
     maxSlippage: number,

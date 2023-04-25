@@ -37,9 +37,7 @@ export class StakingService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async checkCryptoPayIn() {
-    if ((await this.settingService.get('staking-return')) !== 'on') return;
     if (Config.processDisabled(Process.CRYPTO_PAY_IN_CHECK)) return;
-
     await this.returnStakingPayIn();
   }
 

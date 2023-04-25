@@ -172,16 +172,13 @@ export class BuyCryptoService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async checkCryptoPayIn() {
-    if ((await this.settingService.get('crypto-crypto')) !== 'on') return;
     if (Config.processDisabled(Process.CRYPTO_PAY_IN)) return;
-
     await this.buyCryptoRegistrationService.registerCryptoPayIn();
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(7200)
   async process() {
-    if ((await this.settingService.get('buy-process')) !== 'on') return;
     if (Config.processDisabled(Process.FIAT_PAY_IN)) return;
     await this.buyCryptoBatchService.prepareTransactions();
     await this.buyCryptoBatchService.batchAndOptimizeTransactions();

@@ -62,7 +62,6 @@ export class BuyFiatService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async checkCryptoPayIn() {
-    if ((await this.settingService.get('sell-crypto')) !== 'on') return;
     if (Config.processDisabled(Process.CRYPTO_PAY_IN_CHECK)) return;
     await this.buyFiatRegistrationService.registerSellPayIn();
   }
