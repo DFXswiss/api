@@ -33,7 +33,7 @@ export class BankObserver extends MetricObserver<BankData[]> {
 
   @Cron(CronExpression.EVERY_MINUTE)
   async fetch() {
-    if (Config.processDisabled(Process.BANK_TX_OBSERVER)) return;
+    if (Config.processDisabled(Process.MONITORING)) return;
     let data = [];
 
     if (Config.bank.olkypay.credentials.clientId) data = data.concat(await this.getOlkypay());

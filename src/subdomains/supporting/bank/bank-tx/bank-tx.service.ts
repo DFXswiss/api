@@ -36,7 +36,7 @@ export class BankTxService {
   @Cron(CronExpression.EVERY_MINUTE)
   async checkTransactions(): Promise<void> {
     try {
-      if (Config.processDisabled(Process.BANK_TX_CHECK)) return;
+      if (Config.processDisabled(Process.BANK_ACCOUNT_CHECK)) return;
       // Get settings
       const settingKeyFrick = 'lastBankFrickDate';
       const settingKeyOlky = 'lastBankOlkyDate';

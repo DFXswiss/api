@@ -108,7 +108,7 @@ export class LiquidityManagementRuleService {
 
   @Cron(CronExpression.EVERY_5_MINUTES)
   async reactivateRules(): Promise<void> {
-    if (Config.processDisabled(Process.LIQUIDITY_MANAGEMENT_REACTIVATE_RULES)) return;
+    if (Config.processDisabled(Process.LIQUIDITY_MANAGEMENT)) return;
     const rules = await this.ruleRepo.findBy({
       status: LiquidityManagementRuleStatus.PAUSED,
       reactivationTime: Not(IsNull()),

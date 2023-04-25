@@ -83,7 +83,7 @@ export class PayInDeFiChainService extends PayInJellyfishService {
   @Cron(CronExpression.EVERY_10_MINUTES)
   @Lock(7200)
   async convertTokens(): Promise<void> {
-    if (Config.processDisabled(Process.CRYPTO_PAY_IN_CONVERT_TOKEN)) return;
+    if (Config.processDisabled(Process.CRYPTO_PAY_IN)) return;
     await this.client.checkSync();
 
     const tokens = await this.client.getToken();
@@ -135,7 +135,7 @@ export class PayInDeFiChainService extends PayInJellyfishService {
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
   async retrieveFeeUtxos(): Promise<void> {
     try {
-      if (Config.processDisabled(Process.CRYPTO_PAY_IN_FEE)) return;
+      if (Config.processDisabled(Process.CRYPTO_PAY_IN)) return;
       const utxos = await this.client.getUtxo();
 
       for (const utxo of utxos) {

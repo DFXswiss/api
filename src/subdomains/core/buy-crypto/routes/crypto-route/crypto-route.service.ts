@@ -40,7 +40,7 @@ export class CryptoRouteService {
   // --- VOLUMES --- //
   @Cron(CronExpression.EVERY_YEAR)
   async resetAnnualVolumes(): Promise<void> {
-    if (Config.processDisabled(Process.CRYPTO_RESET_ANNUAL)) return;
+    if (Config.processDisabled(Process.RESET_ANNUAL)) return;
     await this.cryptoRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
   }
 

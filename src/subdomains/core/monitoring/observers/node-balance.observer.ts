@@ -44,7 +44,7 @@ export class NodeBalanceObserver extends MetricObserver<NodeBalanceData> {
 
   @Cron(CronExpression.EVERY_10_MINUTES)
   async fetch(): Promise<NodeBalanceData> {
-    if (Config.processDisabled(Process.NODE_BALANCE_OBSERVER)) return;
+    if (Config.processDisabled(Process.MONITORING)) return;
     const data = await this.getNode();
 
     this.emit(data);

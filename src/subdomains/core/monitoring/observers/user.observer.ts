@@ -31,7 +31,7 @@ export class UserObserver extends MetricObserver<UserData> {
 
   @Cron(CronExpression.EVERY_10_MINUTES)
   async fetch(): Promise<UserData> {
-    if (Config.processDisabled(Process.USER_OBSERVER)) return;
+    if (Config.processDisabled(Process.MONITORING)) return;
     const data = await this.getUser();
 
     this.emit(data);

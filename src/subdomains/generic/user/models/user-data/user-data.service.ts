@@ -230,7 +230,7 @@ export class UserDataService {
   // --- VOLUMES --- //
   @Cron(CronExpression.EVERY_YEAR)
   async resetAnnualVolumes(): Promise<void> {
-    if (Config.processDisabled(Process.USER_DATA_RESET_ANNUAL)) return;
+    if (Config.processDisabled(Process.RESET_ANNUAL)) return;
     await this.userDataRepo.update({ annualBuyVolume: Not(0) }, { annualBuyVolume: 0 });
     await this.userDataRepo.update({ annualSellVolume: Not(0) }, { annualSellVolume: 0 });
   }

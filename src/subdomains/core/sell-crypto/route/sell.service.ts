@@ -97,7 +97,7 @@ export class SellService {
   // --- VOLUMES --- //
   @Cron(CronExpression.EVERY_YEAR)
   async resetAnnualVolumes(): Promise<void> {
-    if (Config.processDisabled(Process.SELL_RESET_ANNUAL)) return;
+    if (Config.processDisabled(Process.RESET_ANNUAL)) return;
     await this.sellRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
   }
 

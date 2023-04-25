@@ -29,7 +29,7 @@ export class ExternalServicesObserver extends MetricObserver<ExternalServicesDat
 
   @Cron(CronExpression.EVERY_10_MINUTES)
   async fetch() {
-    if (Config.processDisabled(Process.EXTERNAL_SERVICES_OBSERVER)) return;
+    if (Config.processDisabled(Process.MONITORING)) return;
     const data = await this.getExternalServices();
 
     this.emit(data);

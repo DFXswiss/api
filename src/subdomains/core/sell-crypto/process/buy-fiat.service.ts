@@ -45,7 +45,7 @@ export class BuyFiatService {
   @Cron(CronExpression.EVERY_10_MINUTES)
   @Lock(7200)
   async addFiatOutputs(): Promise<void> {
-    if (Config.processDisabled(Process.FIAT_OUTPUTS_ADD)) return;
+    if (Config.processDisabled(Process.BUY_FIAT)) return;
     const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
       relations: ['fiatOutput'],
       where: { amlCheck: AmlCheck.PASS, fiatOutput: IsNull() },
@@ -62,7 +62,7 @@ export class BuyFiatService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async checkCryptoPayIn() {
-    if (Config.processDisabled(Process.CRYPTO_PAY_IN_CHECK)) return;
+    if (Config.processDisabled(Process.BUY_FIAT)) return;
     await this.buyFiatRegistrationService.registerSellPayIn();
   }
 

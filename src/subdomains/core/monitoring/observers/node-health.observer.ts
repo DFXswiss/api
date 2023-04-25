@@ -49,7 +49,7 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(360)
   async fetch(): Promise<NodesState> {
-    if (Config.processDisabled(Process.NODE_HEALTH_OBSERVER)) return;
+    if (Config.processDisabled(Process.MONITORING)) return;
     const previousState = this.data;
 
     let state = await this.getState(previousState);

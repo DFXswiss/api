@@ -57,7 +57,7 @@ export class AdminService {
   @Cron(CronExpression.EVERY_5_MINUTES)
   async completeLiquidityOrders() {
     try {
-      if (Config.processDisabled(Process.LIQUIDITY_ORDERS_COMPLETE)) return;
+      if (Config.processDisabled(Process.LIQUIDITY_MANAGEMENT)) return;
       for (const context of Object.values(PayoutRequestContext)) {
         const lContext = context as unknown as LiquidityOrderContext;
         const pContext = context as unknown as PayoutOrderContext;

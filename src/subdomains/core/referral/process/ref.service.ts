@@ -4,7 +4,6 @@ import { Util } from 'src/shared/utils/util';
 import { IsNull, LessThan } from 'typeorm';
 import { Ref } from './ref.entity';
 import { RefRepository } from './ref.repository';
-import { Config, Process } from 'src/config/config';
 
 @Injectable()
 export class RefService {
@@ -14,7 +13,6 @@ export class RefService {
 
   @Cron(CronExpression.EVERY_HOUR)
   async checkRefs(): Promise<void> {
-    if (Config.processDisabled(Process.REF_CHECK)) return;
     const expirationDate = Util.daysBefore(this.refExpirationDays);
 
     const expiredRefs = await this.repo.findBy({ updated: LessThan(expirationDate), origin: IsNull() });

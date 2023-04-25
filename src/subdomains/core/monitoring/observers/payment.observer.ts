@@ -34,7 +34,7 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
 
   @Cron(CronExpression.EVERY_10_MINUTES)
   async fetch() {
-    if (Config.processDisabled(Process.PAYMENT_OBSERVER)) return;
+    if (Config.processDisabled(Process.MONITORING)) return;
     const data = await this.getPayment();
 
     this.emit(data);

@@ -10,7 +10,7 @@ import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { JwtPayloadBase, JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { JwtService } from '@nestjs/jwt';
 import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
-import { Config, Process } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { UserService } from '../user/user.service';
 import { UserRepository } from '../user/user.repository';
 import { User, UserStatus } from '../user/user.entity';
@@ -46,7 +46,6 @@ export class AuthService {
 
   @Cron(CronExpression.EVERY_MINUTE)
   checkChallengeList() {
-    if (Config.processDisabled(Process.CHECK_CHALLENGE)) return;
     for (const [key, challenge] of this.challengeList.entries()) {
       if (!this.isChallengeValid(challenge)) {
         this.challengeList.delete(key);
