@@ -5,7 +5,6 @@ import { DeFiChainUtil } from 'src/integration/blockchain/ain/utils/defichain.ut
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Config } from 'src/config/config';
 import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
-import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Util } from 'src/shared/utils/util';
 import { ChainSwapId, LiquidityOrder } from '../entities/liquidity-order.entity';
 import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
@@ -29,7 +28,6 @@ export class DexDeFiChainService {
   constructor(
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
     private readonly deFiChainUtil: DeFiChainUtil,
-    private readonly settingService: SettingService,
     readonly nodeService: NodeService,
   ) {
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.#dexClient = client));

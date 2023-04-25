@@ -85,7 +85,7 @@ export class BankAccountService {
 
   @Cron(CronExpression.EVERY_WEEK)
   async checkFailedBankAccounts(): Promise<void> {
-    if (Config.processDisabled(Process.BANK_ACCOUNT_CHECK)) return;
+    if (Config.processDisabled(Process.BANK_ACCOUNT)) return;
     const failedBankAccounts = await this.bankAccountRepo.findBy({ returnCode: 256 });
     for (const bankAccount of failedBankAccounts) {
       await this.reloadBankAccount(bankAccount);

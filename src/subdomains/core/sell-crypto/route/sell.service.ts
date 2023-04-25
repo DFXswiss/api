@@ -11,7 +11,7 @@ import { Not } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankAccountService } from '../../../supporting/bank/bank-account/bank-account.service';
-import { Config, Process } from 'src/config/config';
+import { Config } from 'src/config/config';
 
 @Injectable()
 export class SellService {
@@ -97,7 +97,6 @@ export class SellService {
   // --- VOLUMES --- //
   @Cron(CronExpression.EVERY_YEAR)
   async resetAnnualVolumes(): Promise<void> {
-    if (Config.processDisabled(Process.RESET_ANNUAL)) return;
     await this.sellRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
   }
 

@@ -5,7 +5,7 @@ import { IsNull, Not } from 'typeorm';
 import { User, UserStatus } from '../../../../generic/user/models/user/user.entity';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { Config, Process } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { CryptoRouteRepository } from './crypto-route.repository';
 import { UpdateCryptoRouteDto } from './dto/update-crypto-route.dto';
 import { CreateCryptoRouteDto } from './dto/create-crypto-route.dto';
@@ -40,7 +40,6 @@ export class CryptoRouteService {
   // --- VOLUMES --- //
   @Cron(CronExpression.EVERY_YEAR)
   async resetAnnualVolumes(): Promise<void> {
-    if (Config.processDisabled(Process.RESET_ANNUAL)) return;
     await this.cryptoRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
   }
 

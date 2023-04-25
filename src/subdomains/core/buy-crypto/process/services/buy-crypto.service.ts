@@ -14,7 +14,6 @@ import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { SettingService } from 'src/shared/models/setting/setting.service';
 import { BuyCryptoBatchService } from './buy-crypto-batch.service';
 import { BuyCryptoOutService } from './buy-crypto-out.service';
 import { BuyCryptoDexService } from './buy-crypto-dex.service';
@@ -45,7 +44,6 @@ export class BuyCryptoService {
     private readonly buyFiatService: BuyFiatService,
     @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
-    private readonly settingService: SettingService,
     private readonly buyService: BuyService,
     private readonly cryptoRouteService: CryptoRouteService,
     private readonly buyCryptoBatchService: BuyCryptoBatchService,
@@ -172,7 +170,7 @@ export class BuyCryptoService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async checkCryptoPayIn() {
-    if (Config.processDisabled(Process.CRYPTO_PAY_IN)) return;
+    if (Config.processDisabled(Process.BUY_CRYPTO)) return;
     await this.buyCryptoRegistrationService.registerCryptoPayIn();
   }
 

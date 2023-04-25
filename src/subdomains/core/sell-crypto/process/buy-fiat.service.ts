@@ -15,7 +15,6 @@ import { FiatOutputService } from '../../../supporting/bank/fiat-output/fiat-out
 import { Lock } from 'src/shared/utils/lock';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
-import { SettingService } from 'src/shared/models/setting/setting.service';
 import { BuyFiatRegistrationService } from './buy-fiat-registration.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
@@ -37,7 +36,6 @@ export class BuyFiatService {
     @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
     private readonly fiatOutputService: FiatOutputService,
-    private readonly settingService: SettingService,
     private readonly webhookService: WebhookService,
   ) {}
 

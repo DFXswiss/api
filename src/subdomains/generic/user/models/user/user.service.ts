@@ -16,7 +16,7 @@ import { WalletService } from '../wallet/wallet.service';
 import { Between, Not } from 'typeorm';
 import { AccountType } from '../user-data/account-type.enum';
 import { DfiTaxService } from 'src/integration/blockchain/ain/services/dfi-tax.service';
-import { Config, Process } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { ApiKeyDto } from './dto/api-key.dto';
 import { KycService } from '../kyc/kyc.service';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
@@ -158,7 +158,6 @@ export class UserService {
   // --- VOLUMES --- //
   @Cron(CronExpression.EVERY_YEAR)
   async resetAnnualVolumes(): Promise<void> {
-    if (Config.processDisabled(Process.RESET_ANNUAL)) return;
     await this.userRepo.update({ annualBuyVolume: Not(0) }, { annualBuyVolume: 0 });
     await this.userRepo.update({ annualSellVolume: Not(0) }, { annualSellVolume: 0 });
   }

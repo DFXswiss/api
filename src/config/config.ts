@@ -12,7 +12,6 @@ import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wall
 export enum Process {
   PAY_OUT = 'PayOut',
   PAY_IN = 'PayIn',
-  CRYPTO_PAY_IN = 'CryptoPayIn',
   BUY_FIAT = 'BuyFiat',
   BUY_CRYPTO = 'BuyCrypto',
   LIMIT_REQUEST_MAIL = 'LimitRequestMail',
@@ -20,13 +19,13 @@ export enum Process {
   BUY_CRYPTO_MAIL = 'BuyCryptoMail',
   BUY_FIAT_MAIL = 'BuyFiatMail',
   EXCHANGE_TX_SYNC = 'ExchangeTxSync',
-  RESET_ANNUAL = 'ResetAnnual',
   LIQUIDITY_MANAGEMENT = 'LiquidityManagement',
   MONITORING = 'Monitoring',
   UPDATE_CFP = 'UpdateCfp',
   UPDATE_STATISTIC = 'UpdateStatistic',
   KYC = 'Kyc',
-  BANK_ACCOUNT_CHECK = 'BankAccountCheck',
+  BANK_ACCOUNT = 'BankAccount',
+  BANK_TX = 'BankTx',
   STAKING = 'Staking',
 }
 
