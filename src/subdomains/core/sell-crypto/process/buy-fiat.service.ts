@@ -15,13 +15,13 @@ import { FiatOutputService } from '../../../supporting/bank/fiat-output/fiat-out
 import { Lock } from 'src/shared/utils/lock';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
-import { SettingService } from 'src/shared/models/setting/setting.service';
 import { BuyFiatRegistrationService } from './buy-fiat-registration.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 import { TransactionDetailsDto } from '../../statistic/dto/statistic.dto';
 import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { PaymentStatus } from '../../history/dto/history.dto';
+import { Config, Process } from 'src/config/config';
 
 @Injectable()
 export class BuyFiatService {
@@ -36,7 +36,6 @@ export class BuyFiatService {
     @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
     private readonly fiatOutputService: FiatOutputService,
-    private readonly settingService: SettingService,
     private readonly webhookService: WebhookService,
   ) {}
 
@@ -44,6 +43,7 @@ export class BuyFiatService {
   @Cron(CronExpression.EVERY_10_MINUTES)
   @Lock(7200)
   async addFiatOutputs(): Promise<void> {
+    if (Config.processDisabled(Process.BUY_FIAT)) return;
     const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
       relations: ['fiatOutput'],
       where: { amlCheck: AmlCheck.PASS, fiatOutput: IsNull() },
@@ -60,8 +60,7 @@ export class BuyFiatService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async checkCryptoPayIn() {
-    if ((await this.settingService.get('sell-crypto')) !== 'on') return;
-
+    if (Config.processDisabled(Process.BUY_FIAT)) return;
     await this.buyFiatRegistrationService.registerSellPayIn();
   }
 

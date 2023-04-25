@@ -14,6 +14,7 @@ import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { OrderFailedException } from '../exceptions/order-failed.exception';
 import { In } from 'typeorm';
+import { Config, Process } from 'src/config/config';
 
 @Injectable()
 export class LiquidityManagementPipelineService {
@@ -30,6 +31,7 @@ export class LiquidityManagementPipelineService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async processPipelines() {
+    if (Config.processDisabled(Process.LIQUIDITY_MANAGEMENT)) return;
     await this.startNewPipelines();
     await this.checkRunningPipelines();
   }
@@ -37,6 +39,7 @@ export class LiquidityManagementPipelineService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async processOrders() {
+    if (Config.processDisabled(Process.LIQUIDITY_MANAGEMENT)) return;
     await this.startNewOrders();
     await this.checkRunningOrders();
   }

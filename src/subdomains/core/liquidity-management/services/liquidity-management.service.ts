@@ -11,6 +11,7 @@ import { LiquidityManagementPipelineRepository } from '../repositories/liquidity
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
 import { In } from 'typeorm';
 import { Util } from 'src/shared/utils/util';
+import { Config, Process } from 'src/config/config';
 
 @Injectable()
 export class LiquidityManagementService {
@@ -27,6 +28,7 @@ export class LiquidityManagementService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async verifyRules() {
+    if (Config.processDisabled(Process.LIQUIDITY_MANAGEMENT)) return;
     const rules = await this.ruleRepo.findBy({ status: LiquidityManagementRuleStatus.ACTIVE });
     const balances = await this.balanceService.refreshBalances(rules);
 

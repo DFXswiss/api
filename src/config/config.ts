@@ -10,12 +10,23 @@ import { NetworkName } from '@defichain/jellyfish-network';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 
 export enum Process {
+  PAY_OUT = 'PayOut',
   PAY_IN = 'PayIn',
+  BUY_FIAT = 'BuyFiat',
+  BUY_CRYPTO = 'BuyCrypto',
   LIMIT_REQUEST_MAIL = 'LimitRequestMail',
   BLACK_SQUAD_MAIL = 'BlackSquadMail',
   BUY_CRYPTO_MAIL = 'BuyCryptoMail',
   BUY_FIAT_MAIL = 'BuyFiatMail',
   EXCHANGE_TX_SYNC = 'ExchangeTxSync',
+  LIQUIDITY_MANAGEMENT = 'LiquidityManagement',
+  MONITORING = 'Monitoring',
+  UPDATE_CFP = 'UpdateCfp',
+  UPDATE_STATISTIC = 'UpdateStatistic',
+  KYC = 'Kyc',
+  BANK_ACCOUNT = 'BankAccount',
+  BANK_TX = 'BankTx',
+  STAKING = 'Staking',
 }
 
 export function GetConfig(): Configuration {

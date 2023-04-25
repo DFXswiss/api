@@ -14,7 +14,6 @@ import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { SettingService } from 'src/shared/models/setting/setting.service';
 import { BuyCryptoBatchService } from './buy-crypto-batch.service';
 import { BuyCryptoOutService } from './buy-crypto-out.service';
 import { BuyCryptoDexService } from './buy-crypto-dex.service';
@@ -34,6 +33,7 @@ import { WebhookService } from 'src/subdomains/generic/user/services/webhook/web
 import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
 import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Config, Process } from 'src/config/config';
 
 @Injectable()
 export class BuyCryptoService {
@@ -44,7 +44,6 @@ export class BuyCryptoService {
     private readonly buyFiatService: BuyFiatService,
     @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
-    private readonly settingService: SettingService,
     private readonly buyService: BuyService,
     private readonly cryptoRouteService: CryptoRouteService,
     private readonly buyCryptoBatchService: BuyCryptoBatchService,
@@ -171,16 +170,14 @@ export class BuyCryptoService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async checkCryptoPayIn() {
-    if ((await this.settingService.get('crypto-crypto')) !== 'on') return;
-
+    if (Config.processDisabled(Process.BUY_CRYPTO)) return;
     await this.buyCryptoRegistrationService.registerCryptoPayIn();
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(7200)
   async process() {
-    if ((await this.settingService.get('buy-process')) !== 'on') return;
-
+    if (Config.processDisabled(Process.BUY_CRYPTO)) return;
     await this.buyCryptoBatchService.prepareTransactions();
     await this.buyCryptoBatchService.batchAndOptimizeTransactions();
     await this.buyCryptoDexService.secureLiquidity();
