@@ -4,7 +4,6 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
-import { SettingService } from 'src/shared/models/setting/setting.service';
 import { LiquidityOrderFactory } from '../../../factories/liquidity-order.factory';
 import { LiquidityOrderRepository } from '../../../repositories/liquidity-order.repository';
 import { DexBitcoinService } from '../../../services/dex-bitcoin.service';
@@ -62,7 +61,6 @@ describe('PurchaseLiquidityStrategies', () => {
 
     deFiChainPoolPair = new DeFiChainPoolPairStrategy(
       mock<NotificationService>(),
-      mock<SettingService>(),
       mock<AssetService>(),
       mock<LiquidityOrderRepository>(),
       mock<LiquidityOrderFactory>(),
