@@ -14,7 +14,7 @@ export interface SepaAgent {
       ClrSysId: {
         Cd: string;
       };
-      MmbId: string;
+      MmbId: number;
     };
     Nm: string;
     PstlAdr: SepaAddress;
