@@ -12,7 +12,6 @@ import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { BuyCryptoInitSpecification } from '../specifications/buy-crypto-init.specification';
 import { Buy } from '../../routes/buy/buy.entity';
 
 export enum BuyCryptoStatus {
@@ -76,10 +75,22 @@ export class BuyCrypto extends IEntity {
   percentFee: number;
 
   @Column({ type: 'float', nullable: true })
-  percentFeeAmount: number;
+  percentFeeAmount: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
-  absoluteFeeAmount: number;
+  minFeeAmount: number; //inputReferenceAsset
+
+  @Column({ type: 'float', nullable: true })
+  minFeeAmountFiat: number; //inputReferenceAsset if FIAT else EUR
+
+  @Column({ type: 'float', nullable: true })
+  totalFeeAmount: number; //inputReferenceAsset
+
+  @Column({ type: 'float', nullable: true })
+  totalFeeAmountChf: number;
+
+  @Column({ type: 'float', nullable: true })
+  absoluteFeeAmount: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
   inputReferenceAmountMinusFee: number;
@@ -145,8 +156,6 @@ export class BuyCrypto extends IEntity {
     entity.cryptoRoute = cryptoRoute;
     entity.status = BuyCryptoStatus.CREATED;
 
-    BuyCryptoInitSpecification.isSatisfiedBy(entity);
-
     return entity;
   }
 
@@ -176,22 +185,9 @@ export class BuyCrypto extends IEntity {
       case Blockchain.ETHEREUM:
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
-        if (['DFI', 'WBTC'].includes(this.outputAsset.dexName)) {
-          this.setOutputReferenceAsset(this.outputAsset);
-
-          return null;
-        }
-
-        return { outputReferenceAssetName: 'ETH', type: AssetType.COIN };
-
       case Blockchain.BINANCE_SMART_CHAIN:
-        if (['DFI', 'BUSD', 'BTCB', 'ETH'].includes(this.outputAsset.dexName)) {
-          this.setOutputReferenceAsset(this.outputAsset);
-
-          return null;
-        }
-
-        return { outputReferenceAssetName: 'BNB', type: AssetType.COIN };
+        this.setOutputReferenceAsset(this.outputAsset);
+        return null;
 
       default:
         return {
@@ -306,7 +302,7 @@ export class BuyCrypto extends IEntity {
     return this;
   }
 
-  complete(payoutTxId: string, payoutFee: number | null): this {
+  complete(payoutTxId: string, payoutFee: number): this {
     this.txId = payoutTxId;
     this.outputDate = new Date();
     this.isComplete = true;

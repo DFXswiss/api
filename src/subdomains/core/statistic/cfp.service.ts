@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { Interval } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Util } from 'src/shared/utils/util';
-import { Config } from 'src/config/config';
+import { Config, Process } from 'src/config/config';
 import { CfpResult, ResultStatus, Vote, VotingType } from './dto/cfp.dto';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { DeFiClient, Proposal, ProposalType, ProposalVote } from 'src/integration/blockchain/ain/node/defi-client';
@@ -33,9 +33,10 @@ export class CfpService implements OnModuleInit {
     void this.doUpdate();
   }
 
-  @Interval(600000)
+  @Cron(CronExpression.EVERY_10_MINUTES)
   async doUpdate(): Promise<void> {
     try {
+      if (Config.processDisabled(Process.UPDATE_CFP)) return;
       // update masternodes
       this.allMasternodes = await this.client.listMasternodes();
       this.lockMasternodes = await this.callApi<any>(this.lockUrl);

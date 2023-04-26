@@ -26,7 +26,7 @@ export class DexBitcoinService {
   }
 
   async transferMinimalUtxo(address: string): Promise<string> {
-    return this.sendUtxoToMany([{ addressTo: address, amount: Config.payIn.minDeposit.Bitcoin.BTC / 1000 }]);
+    return this.sendUtxoToMany([{ addressTo: address, amount: Config.payIn.minDeposit.Bitcoin.BTC / 2 }]);
   }
 
   async checkAvailableTargetLiquidity(inputAmount: number): Promise<[number, number]> {

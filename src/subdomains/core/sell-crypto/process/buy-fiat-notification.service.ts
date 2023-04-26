@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Interval } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { I18nService } from 'nestjs-i18n';
 import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Config, Process } from 'src/config/config';
@@ -20,7 +20,7 @@ export class BuyFiatNotificationService {
     private readonly i18nService: I18nService,
   ) {}
 
-  @Interval(60000)
+  @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async sendNotificationMails(): Promise<void> {
     if (Config.processDisabled(Process.BUY_FIAT_MAIL)) return;
@@ -86,6 +86,9 @@ export class BuyFiatNotificationService {
     for (const entity of entities) {
       try {
         if (entity.sell.user.userData.mail) {
+          const minFee = entity.minFeeAmountFiat
+            ? ` (min. ${entity.minFeeAmountFiat} ${entity.outputReferenceAsset})`
+            : '';
           await this.notificationService.sendMail({
             type: MailType.USER,
             input: {
@@ -95,10 +98,10 @@ export class BuyFiatNotificationService {
                 inputAmount: entity.inputAmount,
                 inputAsset: entity.inputAsset,
                 blockchain: entity.cryptoInput.asset.blockchain,
-                percentFee: entity.percentFeeString,
                 exchangeRate: entity.exchangeRateString,
                 outputAmount: entity.outputAmount,
                 outputAsset: entity.outputAsset,
+                fee: `${entity.percentFeeString}` + minFee,
               },
             },
           });
@@ -181,7 +184,7 @@ export class BuyFiatNotificationService {
                 returnTransactionLink: `${BlockchainExplorerUrls[entity.cryptoInput.asset.blockchain]}/${
                   entity.cryptoReturnTxId
                 }`,
-                returnReason: await this.i18nService.translate(`mail.amlReasonMailText.${entity.amlReason}`, {
+                returnReason: this.i18nService.translate(`mail.amlReasonMailText.${entity.amlReason}`, {
                   lang: entity.sell.user.userData.language?.symbol.toLowerCase(),
                 }),
                 userAddressTrimmed: Util.blankBlockchainAddress(entity.sell.user.address),

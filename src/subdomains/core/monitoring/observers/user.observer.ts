@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Interval } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 import { Util } from 'src/shared/utils/util';
@@ -7,6 +7,7 @@ import { KycStatus, IdentCompletedStates } from 'src/subdomains/generic/user/mod
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { LessThan, IsNull, In } from 'typeorm';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
+import { Config, Process } from 'src/config/config';
 
 interface UserData {
   kycStatus: {
@@ -28,8 +29,9 @@ export class UserObserver extends MetricObserver<UserData> {
     super(monitoringService, 'user', 'kyc');
   }
 
-  @Interval(900000)
+  @Cron(CronExpression.EVERY_10_MINUTES)
   async fetch(): Promise<UserData> {
+    if (Config.processDisabled(Process.MONITORING)) return;
     const data = await this.getUser();
 
     this.emit(data);

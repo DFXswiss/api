@@ -36,6 +36,10 @@ export class PaymentInfoService {
       if (!jwt.blockchains.includes(dto.asset.blockchain)) throw new BadRequestException('Asset blockchain mismatch');
     }
 
+    if ('blockchain' in dto) {
+      if (!jwt.blockchains.includes(dto.blockchain)) throw new BadRequestException('Asset blockchain mismatch');
+    }
+
     dto.currency = await this.fiatService.getFiat(dto.currency.id);
     if (!dto.currency) throw new NotFoundException('Currency not found');
     if (!dto.currency.buyable) throw new BadRequestException('Currency not buyable');

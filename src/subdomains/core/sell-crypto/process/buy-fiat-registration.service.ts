@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { SmallAmountException } from 'src/shared/exceptions/small-amount.exception';
+import { PayInIgnoredException } from 'src/shared/payment/exceptions/pay-in-ignored.exception';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { IsNull, Not } from 'typeorm';
@@ -7,6 +7,7 @@ import { Sell } from '../route/sell.entity';
 import { SellRepository } from '../route/sell.repository';
 import { BuyFiat } from './buy-fiat.entity';
 import { BuyFiatRepository } from './buy-fiat.repository';
+import { BuyFiatInitSpecification } from './specifications/buy-fiat-init.specification';
 
 @Injectable()
 export class BuyFiatRegistrationService {
@@ -14,6 +15,7 @@ export class BuyFiatRegistrationService {
     private readonly buyFiatRepo: BuyFiatRepository,
     private readonly sellRepository: SellRepository,
     private readonly payInService: PayInService,
+    private readonly buyFiatInitSpec: BuyFiatInitSpecification,
   ) {}
 
   async registerSellPayIn(): Promise<void> {
@@ -66,12 +68,13 @@ export class BuyFiatRegistrationService {
 
         if (!buyFiat) {
           buyFiat = BuyFiat.createFromPayIn(payIn, sellRoute);
+          await this.buyFiatInitSpec.isSatisfiedBy(buyFiat);
           await this.buyFiatRepo.save(buyFiat);
         }
 
         await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_FIAT, sellRoute);
       } catch (e) {
-        if (e instanceof SmallAmountException) {
+        if (e instanceof PayInIgnoredException) {
           await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_FIAT, sellRoute);
 
           continue;

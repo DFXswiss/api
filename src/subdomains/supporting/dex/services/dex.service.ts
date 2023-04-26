@@ -4,7 +4,7 @@ import { LiquidityOrderRepository } from '../repositories/liquidity-order.reposi
 import { PriceSlippageException } from '../exceptions/price-slippage.exception';
 import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
 import { LiquidityOrderNotReadyException } from '../exceptions/liquidity-order-not-ready.exception';
-import { Interval } from '@nestjs/schedule';
+import { CronExpression, Cron } from '@nestjs/schedule';
 import { Lock } from 'src/shared/utils/lock';
 import { Not, IsNull } from 'typeorm';
 import { LiquidityOrderFactory } from '../factories/liquidity-order.factory';
@@ -294,8 +294,7 @@ export class DexService {
   }
 
   //*** JOBS ***//
-
-  @Interval(30000)
+  @Cron(CronExpression.EVERY_30_SECONDS)
   @Lock(1800)
   async finalizePurchaseOrders(): Promise<void> {
     const standingOrders = await this.liquidityOrderRepo.findBy({

@@ -19,6 +19,7 @@ import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { BuyCryptoService } from '../../process/services/buy-crypto.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
+import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
 
 @ApiTags('Buy')
 @Controller('buy')
@@ -27,8 +28,9 @@ export class BuyController {
     private readonly buyService: BuyService,
     private readonly userService: UserService,
     private readonly buyCryptoService: BuyCryptoService,
-    private readonly bankService: BankService,
     private readonly paymentInfoService: PaymentInfoService,
+    private readonly bankService: BankService,
+    private readonly transactionHelper: TransactionHelper,
   ) {}
 
   @Get()
@@ -37,6 +39,14 @@ export class BuyController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getAllBuy(@GetJwt() jwt: JwtPayload): Promise<BuyDto[]> {
     return this.buyService.getUserBuys(jwt.id).then((l) => this.toDtoList(jwt.id, l));
+  }
+
+  @Get(':id')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse({ type: BuyDto })
+  async getBuy(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<BuyDto> {
+    return this.buyService.get(jwt.id, +id).then((l) => this.toDto(jwt.id, l));
   }
 
   @Post()
@@ -85,27 +95,48 @@ export class BuyController {
 
   private async toDto(userId: number, buy: Buy): Promise<BuyDto> {
     const fee = await this.userService.getUserBuyFee(userId, buy.asset);
+    const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
+      'Fiat',
+      undefined,
+      buy.asset.blockchain,
+      buy.asset.dexName,
+    );
+
     return {
       id: buy.id,
       active: buy.active,
+      iban: buy.iban,
       volume: buy.volume,
       annualVolume: buy.annualVolume,
       bankUsage: buy.bankUsage,
       asset: AssetDtoMapper.entityToDto(buy.asset),
-      ...fee,
-      minDeposits: Config.transaction.minVolume.getMany(buy.asset),
+      fee,
+      minDeposits: [minDeposit],
+      minFee,
     };
   }
 
   private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
     const bankInfo = await this.getBankInfo(buy, dto);
-
+    const fee = await this.userService.getUserBuyFee(userId, buy.asset);
+    const { minVolume, minFee } = await this.transactionHelper.getSpecs(dto.currency, dto.asset);
+    const estimatedAmount = await this.transactionHelper.getTargetEstimation(
+      dto.amount,
+      fee,
+      minFee,
+      dto.currency,
+      dto.asset,
+    );
     return {
+      routeId: buy.id,
       ...bankInfo,
       sepaInstant: bankInfo.sepaInstant && buy.bankAccount?.sctInst,
       remittanceInfo: buy.bankUsage,
-      ...(await this.userService.getUserBuyFee(userId, buy.asset)),
-      minDeposit: Config.transaction.minVolume.get(buy.asset, dto.currency.name),
+      fee,
+      minDeposit: { amount: minVolume, asset: dto.currency.name }, //TODO remove
+      minVolume,
+      minFee,
+      estimatedAmount,
     };
   }
 

@@ -8,7 +8,7 @@ import { BuyCryptoPricingService } from './buy-crypto-pricing.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
-import { PayoutRequest, FeeResult } from 'src/subdomains/supporting/payout/interfaces';
+import { PayoutRequest } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
@@ -123,7 +123,7 @@ export class BuyCryptoOutService {
         } = await this.payoutService.checkOrderCompletion(PayoutOrderContext.BUY_CRYPTO, tx.id.toString());
 
         if (isComplete) {
-          const payoutFee = await this.getPayoutFeeAmountInBatchAsset(batch, nativePayoutFee);
+          const payoutFee = await this.buyCryptoPricingService.getFeeAmountInBatchAsset(batch, nativePayoutFee);
 
           tx.complete(payoutTxId, payoutFee);
           await this.buyCryptoRepo.save(tx);
@@ -148,18 +148,6 @@ export class BuyCryptoOutService {
       await this.buyCryptoBatchRepo.save(batch);
       await this.dexService.completeOrders(LiquidityOrderContext.BUY_CRYPTO, batch.id.toString());
     }
-  }
-
-  private async getPayoutFeeAmountInBatchAsset(batch: BuyCryptoBatch, nativeFee: FeeResult): Promise<number> {
-    const priceRequestCorrelationId = `BuyCryptoBatch_ConvertActualPayoutFee_${batch.id}`;
-    const errorMessage = `Could not get price for actual payout fee calculation. Ignoring fee. Batch ID: ${batch.id}. Native fee asset: ${nativeFee.asset.dexName}, batch reference asset: ${batch.outputReferenceAsset.dexName}.`;
-
-    return this.buyCryptoPricingService.getFeeAmountInBatchAsset(
-      batch,
-      nativeFee,
-      priceRequestCorrelationId,
-      errorMessage,
-    );
   }
 
   //*** LOGS ***//

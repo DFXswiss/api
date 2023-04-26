@@ -11,9 +11,6 @@ import { CryptoRouteDto } from './dto/crypto-route.dto';
 import { CryptoRoute } from './crypto-route.entity';
 import { CreateCryptoRouteDto } from './dto/create-crypto-route.dto';
 import { UpdateCryptoRouteDto } from './dto/update-crypto-route.dto';
-import { Config } from 'src/config/config';
-import { MinDeposit } from '../../../../supporting/address-pool/deposit/dto/min-deposit.dto';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoPaymentInfoDto } from './dto/crypto-payment-info.dto';
 import { GetCryptoPaymentInfoDto } from './dto/get-crypto-payment-info.dto';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
@@ -21,6 +18,7 @@ import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { HistoryDto } from 'src/subdomains/core/history/dto/history.dto';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
+import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
 
 @ApiTags('CryptoRoute')
 @Controller('cryptoRoute')
@@ -30,6 +28,7 @@ export class CryptoRouteController {
     private readonly userService: UserService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly paymentInfoService: PaymentInfoService,
+    private readonly transactionHelper: TransactionHelper,
   ) {}
 
   @Get()
@@ -38,6 +37,14 @@ export class CryptoRouteController {
   @ApiExcludeEndpoint()
   async getAllCrypto(@GetJwt() jwt: JwtPayload): Promise<CryptoRouteDto[]> {
     return this.cryptoRouteService.getUserCryptos(jwt.id).then((l) => this.toDtoList(jwt.id, l));
+  }
+
+  @Get(':id')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse({ type: CryptoRouteDto })
+  async getCrypto(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<CryptoRouteDto> {
+    return this.cryptoRouteService.get(jwt.id, +id).then((l) => this.toDto(jwt.id, l));
   }
 
   @Post()
@@ -60,7 +67,7 @@ export class CryptoRouteController {
     dto = await this.paymentInfoService.cryptoCheck(jwt, dto);
     return this.cryptoRouteService
       .createCrypto(jwt.id, { ...dto, blockchain: dto.sourceAsset.blockchain }, true)
-      .then((crypto) => this.toPaymentInfoDto(jwt.id, crypto));
+      .then((crypto) => this.toPaymentInfoDto(jwt.id, crypto, dto));
   }
 
   @Put(':id')
@@ -90,9 +97,14 @@ export class CryptoRouteController {
     return Promise.all(cryptos.map((b) => this.toDto(userId, b, fee)));
   }
 
-  private async toDto(userId: number, crypto: CryptoRoute, fee?: { fee: number }): Promise<CryptoRouteDto> {
+  private async toDto(userId: number, crypto: CryptoRoute, fee?: number): Promise<CryptoRouteDto> {
     fee ??= await this.getFee(userId);
-
+    const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
+      crypto.deposit.blockchain,
+      undefined,
+      crypto.asset.blockchain,
+      crypto.asset.dexName,
+    );
     return {
       id: crypto.id,
       volume: crypto.volume,
@@ -101,38 +113,41 @@ export class CryptoRouteController {
       deposit: DepositDtoMapper.entityToDto(crypto.deposit),
       asset: AssetDtoMapper.entityToDto(crypto.asset),
       blockchain: crypto.deposit.blockchain,
-      fee: fee.fee,
-      minDeposits: this.getMinDeposits(crypto.deposit.blockchain),
+      fee,
+      minDeposits: [minDeposit],
+      minFee,
     };
   }
 
-  private async toPaymentInfoDto(userId: number, cryptoRoute: CryptoRoute): Promise<CryptoPaymentInfoDto> {
+  private async toPaymentInfoDto(
+    userId: number,
+    cryptoRoute: CryptoRoute,
+    dto: GetCryptoPaymentInfoDto,
+  ): Promise<CryptoPaymentInfoDto> {
+    const fee = await this.getFee(userId);
+    const { minVolume, minFee } = await this.transactionHelper.getSpecs(dto.sourceAsset, dto.asset);
+    const estimatedAmount = await this.transactionHelper.getTargetEstimation(
+      dto.amount,
+      fee,
+      minFee,
+      dto.sourceAsset,
+      dto.asset,
+    );
     return {
-      ...(await this.getFee(userId)),
+      routeId: cryptoRoute.id,
+      fee,
       depositAddress: cryptoRoute.deposit.address,
       blockchain: cryptoRoute.deposit.blockchain,
-      minDeposit: this.getMinDeposit(cryptoRoute.deposit.blockchain),
+      minDeposit: { amount: minVolume, asset: dto.sourceAsset.dexName },
+      minVolume,
+      minFee,
+      estimatedAmount,
     };
   }
 
   // --- HELPER-METHODS --- //
 
-  async getFee(userId: number): Promise<{ fee: number }> {
+  async getFee(userId: number): Promise<number> {
     return this.userService.getUserCryptoFee(userId);
-  }
-
-  private getMinDeposit(blockchain: Blockchain): MinDeposit {
-    // TODO: refactor transaction volume calculation (DEV-1195)
-    return this.getMinDeposits(blockchain)[0];
-  }
-
-  private getMinDeposits(blockchain: Blockchain): MinDeposit[] {
-    // TODO: fix minDeposit calculation for all chains
-    switch (blockchain) {
-      case Blockchain.BITCOIN:
-        return Config.transformToMinDeposit(Config.payIn.minDeposit.Bitcoin);
-      case Blockchain.DEFICHAIN:
-        return Config.transformToMinDeposit(Config.transaction.minVolume.Bitcoin.BTC);
-    }
   }
 }

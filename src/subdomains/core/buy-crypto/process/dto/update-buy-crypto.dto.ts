@@ -54,6 +54,22 @@ export class UpdateBuyCryptoDto {
 
   @IsOptional()
   @IsNumber()
+  minFeeAmount: number;
+
+  @IsOptional()
+  @IsNumber()
+  minFeeAmountFiat: number;
+
+  @IsOptional()
+  @IsNumber()
+  totalFeeAmount: number;
+
+  @IsOptional()
+  @IsNumber()
+  totalFeeAmountChf: number;
+
+  @IsOptional()
+  @IsNumber()
   absoluteFeeAmount: number;
 
   @IsOptional()
@@ -122,4 +138,8 @@ export class UpdateBuyCryptoDto {
   @IsOptional()
   @IsBoolean()
   isComplete: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  allowedTotalFeePercent: number;
 }

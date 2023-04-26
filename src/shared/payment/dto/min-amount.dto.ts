@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-export class MinDeposit {
+export class MinAmount {
   @ApiProperty()
   amount: number;
 

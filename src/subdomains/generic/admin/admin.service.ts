@@ -8,6 +8,7 @@ import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/pa
 import { PayoutRequest } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { PayoutRequestContext, PayoutRequestDto } from './dto/payout-request.dto';
+import { Config, Process } from 'src/config/config';
 
 @Injectable()
 export class AdminService {
@@ -49,13 +50,14 @@ export class AdminService {
       };
       await this.payoutService.doPayout(payoutRequest);
     } catch (e) {
-      throw new ServiceUnavailableException('Exception during payout', { cause: e });
+      throw new ServiceUnavailableException('Exception during payout', { description: e.message });
     }
   }
 
   @Cron(CronExpression.EVERY_5_MINUTES)
   async completeLiquidityOrders() {
     try {
+      if (Config.processDisabled(Process.LIQUIDITY_MANAGEMENT)) return;
       for (const context of Object.values(PayoutRequestContext)) {
         const lContext = context as unknown as LiquidityOrderContext;
         const pContext = context as unknown as PayoutOrderContext;

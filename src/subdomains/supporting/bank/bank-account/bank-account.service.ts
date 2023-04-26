@@ -10,6 +10,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { Config, Process } from 'src/config/config';
 
 @Injectable()
 export class BankAccountService {
@@ -84,6 +85,7 @@ export class BankAccountService {
 
   @Cron(CronExpression.EVERY_WEEK)
   async checkFailedBankAccounts(): Promise<void> {
+    if (Config.processDisabled(Process.BANK_ACCOUNT)) return;
     const failedBankAccounts = await this.bankAccountRepo.findBy({ returnCode: 256 });
     for (const bankAccount of failedBankAccounts) {
       await this.reloadBankAccount(bankAccount);

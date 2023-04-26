@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Interval, Cron, CronExpression } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import {
   IdentCompleted,
   IdentInProgress,
@@ -16,7 +16,7 @@ import { In, LessThan } from 'typeorm';
 import { Lock } from 'src/shared/utils/lock';
 import { SpiderDataRepository } from 'src/subdomains/generic/user/models/spider-data/spider-data.repository';
 import { Util } from 'src/shared/utils/util';
-import { Config } from 'src/config/config';
+import { Config, Process } from 'src/config/config';
 import { KycDocuments, KycDocumentState, KycContentType, KycDocument, DocumentVersionPart } from './dto/spider.dto';
 import { IdentResultDto } from 'src/subdomains/generic/user/models/ident/dto/ident-result.dto';
 import { DocumentState, SpiderService } from './spider.service';
@@ -42,8 +42,9 @@ export class SpiderSyncService {
     private readonly spiderDataRepo: SpiderDataRepository,
   ) {}
 
-  @Interval(7230000)
+  @Cron(CronExpression.EVERY_2_HOURS)
   async checkOngoingKyc() {
+    if (Config.processDisabled(Process.KYC)) return;
     const userInProgress = await this.userDataRepo.find({
       select: ['id'],
       where: [
@@ -74,9 +75,10 @@ export class SpiderSyncService {
     }
   }
 
-  @Interval(300000)
+  @Cron(CronExpression.EVERY_5_MINUTES)
   @Lock(1800)
   async continuousSync() {
+    if (Config.processDisabled(Process.KYC)) return;
     const settingKey = 'spiderModificationDate';
     const lastModificationTime = await this.settingService.get(settingKey);
     const newModificationTime = Date.now().toString();
@@ -88,6 +90,7 @@ export class SpiderSyncService {
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
   async dailySync() {
+    if (Config.processDisabled(Process.KYC)) return;
     const modificationDate = Util.daysBefore(1);
     await this.syncKycData(modificationDate.getTime());
   }

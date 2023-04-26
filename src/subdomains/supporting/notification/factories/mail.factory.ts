@@ -155,9 +155,9 @@ export class MailFactory {
     lang: string,
     args?: any,
   ): Promise<{ salutation: string; body: string; subject: string }> {
-    const salutation = await this.i18n.translate(`${key}.salutation`, { lang, args });
-    const body = await this.i18n.translate(`${key}.body`, { lang, args });
-    const subject = await this.i18n.translate(`${key}.title`, { lang, args });
+    const salutation = this.i18n.translate(`${key}.salutation`, { lang, args });
+    const body = this.i18n.translate(`${key}.body`, { lang, args });
+    const subject = this.i18n.translate(`${key}.title`, { lang, args });
 
     return { salutation, body, subject };
   }
