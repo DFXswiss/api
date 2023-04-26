@@ -44,7 +44,7 @@ export class SepaParser {
     }
 
     return {
-      identification,
+      identification: `${identification}`,
       ...data,
     };
   }
