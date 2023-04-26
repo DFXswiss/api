@@ -135,7 +135,7 @@ export class SepaParser {
     return {
       bic: agent?.FinInstnId?.BICFI,
       clearingSystemId: agent?.FinInstnId?.ClrSysMmbId?.ClrSysId?.Cd,
-      memberId: agent?.FinInstnId?.ClrSysMmbId?.MmbId,
+      memberId: `${agent?.FinInstnId?.ClrSysMmbId?.MmbId}`,
       bankName: agent?.FinInstnId?.Nm,
       bankAddressLine1: this.getAddress(agent?.FinInstnId?.PstlAdr)?.addressLine1,
       bankAddressLine2: this.getAddress(agent?.FinInstnId?.PstlAdr)?.addressLine2,
