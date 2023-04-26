@@ -58,7 +58,7 @@ export class ExchangeService implements PricingProvider {
     const { pair, direction } = await this.getTradePair(from, to);
     const price = await this.fetchCurrentOrderPrice(pair, direction);
 
-    const tradeAmount = amount / price;
+    const tradeAmount = amount * price;
 
     return this.trade(from, to, tradeAmount);
   }
@@ -87,6 +87,7 @@ export class ExchangeService implements PricingProvider {
           if (order.remaining < minAmount) {
             return true;
           }
+
           const id = await this.placeOrder(order.symbol, order.side as OrderSide, order.remaining);
           throw new TradeChangedException(id);
 
@@ -185,14 +186,16 @@ export class ExchangeService implements PricingProvider {
 
     // place the order
     const { pair, direction } = await this.getTradePair(from, to);
-    return this.placeOrder(pair, direction, amount);
+    const price = await this.fetchCurrentOrderPrice(pair, direction);
+    const orderAmount = Util.round(direction === OrderSide.BUY ? amount / price : amount, 8);
+
+    return this.placeOrder(pair, direction, orderAmount, price);
   }
 
-  private async placeOrder(pair: string, direction: OrderSide, amount: number): Promise<string> {
-    const price = await this.fetchCurrentOrderPrice(pair, direction);
-    const orderAmount = direction === OrderSide.BUY ? amount / price : amount;
+  private async placeOrder(pair: string, direction: OrderSide, amount: number, price?: number): Promise<string> {
+    price ??= await this.fetchCurrentOrderPrice(pair, direction);
 
-    const order = await this.createOrder(pair, direction, orderAmount, price);
+    const order = await this.createOrder(pair, direction, amount, price);
 
     return order.id;
   }
