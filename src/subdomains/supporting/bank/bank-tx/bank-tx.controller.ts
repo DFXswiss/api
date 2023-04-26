@@ -30,9 +30,16 @@ export class BankTxController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.BANKING_BOT))
   @UseInterceptors(FilesInterceptor('files'))
   async uploadSepaFiles(@UploadedFiles() files: Express.Multer.File[]): Promise<(BankTxBatch | Error)[]> {
-    const batches = await this.bankTxService.storeSepaFiles(files.map((f) => f.buffer.toString()));
+    const batches = [];
+    for (const file of files) {
+      try {
+        const batch = await this.bankTxService.storeSepaFile(file.buffer.toString());
+        batches.push(batch);
+      } catch (e) {
+        throw new BadRequestException(`Failed to save SEPA file`, { description: e.message });
+      }
+    }
 
-    if (batches.some((r) => r instanceof Error)) throw new BadRequestException(batches);
     return batches;
   }
 

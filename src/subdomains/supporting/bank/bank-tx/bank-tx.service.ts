@@ -73,10 +73,6 @@ export class BankTxService {
     return this.bankTxRepo.save(entity);
   }
 
-  async storeSepaFiles(files: string[]): Promise<(BankTxBatch | Error)[]> {
-    return Promise.all(files.map((f) => this.storeSepaFile(f).catch((e: Error) => e)));
-  }
-
   async update(bankTxId: number, dto: UpdateBankTxDto): Promise<BankTx> {
     const bankTx = await this.bankTxRepo.findOneBy({ id: bankTxId });
     if (!bankTx) throw new NotFoundException('BankTx not found');
@@ -119,9 +115,7 @@ export class BankTxService {
       .getOne();
   }
 
-  // --- HELPER METHODS --- //
-
-  private async storeSepaFile(xmlFile: string): Promise<BankTxBatch> {
+  async storeSepaFile(xmlFile: string): Promise<BankTxBatch> {
     const sepaFile = SepaParser.parseSepaFile(xmlFile);
 
     // parse the file
