@@ -11,7 +11,7 @@ export class PriceProviderDeFiChainService {
   private client: WhaleClient;
 
   constructor(readonly whaleService: WhaleService, private readonly assetService: AssetService) {
-    this.client = whaleService.getCurrentClient();
+    whaleService.getClient().subscribe((client) => (this.client = client));
   }
 
   async getPrice(from: Asset, to: Asset): Promise<Price> {
