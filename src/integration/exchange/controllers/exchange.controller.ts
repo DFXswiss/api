@@ -137,7 +137,7 @@ export class ExchangeController {
   }
 
   // --- JOBS --- //
-  @Cron(CronExpression.EVERY_MINUTE)
+  @Cron(CronExpression.EVERY_30_SECONDS)
   async checkTrades() {
     const openTrades = Object.values(this.trades).filter(({ status }) => status === TradeStatus.OPEN);
     for (const trade of openTrades) {
