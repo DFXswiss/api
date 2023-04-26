@@ -36,7 +36,8 @@ export class BankTxController {
         const batch = await this.bankTxService.storeSepaFile(file.buffer.toString());
         batches.push(batch);
       } catch (e) {
-        throw new BadRequestException(`Failed to save SEPA file`, { description: e.message });
+        console.log(`Failed to store SEPA file:`, e);
+        throw new BadRequestException(`Failed to store SEPA file`, { description: e.message });
       }
     }
 
