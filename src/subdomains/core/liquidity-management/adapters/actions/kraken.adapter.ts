@@ -11,6 +11,7 @@ export class KrakenAdapter extends CcxtExchangeAdapter {
     Arbitrum: 'arbitrum',
     BinanceSmartChain: 'bsc',
     Bitcoin: 'bitcoin',
+    Lightning: undefined,
     Cardano: 'cardano',
     DeFiChain: 'defichain',
     Ethereum: 'ethereum',

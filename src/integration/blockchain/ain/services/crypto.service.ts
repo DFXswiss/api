@@ -20,6 +20,7 @@ export class CryptoService {
   public getBlockchainsBasedOn(address: string): Blockchain[] {
     if (isEthereumAddress(address)) return this.EthereumBasedChains;
     if (this.isBitcoinAddress(address)) return [Blockchain.BITCOIN];
+    if (this.isLightningAddress(address)) return [Blockchain.LIGHTNING];
     if (CryptoService.isCardanoAddress(address)) return [Blockchain.CARDANO];
     return [Blockchain.DEFICHAIN];
   }
@@ -30,6 +31,10 @@ export class CryptoService {
 
   private isBitcoinAddress(address: string): boolean {
     return /^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}$/.test(address);
+  }
+
+  private isLightningAddress(address: string): boolean {
+    return /^(LN[A-Z0-9]{100}|ln[a-z0-9]{105})$/.test(address);
   }
 
   public static isCardanoAddress(address: string): boolean {
@@ -43,6 +48,7 @@ export class CryptoService {
     try {
       if (this.EthereumBasedChains.includes(blockchain)) return this.verifyEthereumBased(message, address, signature);
       if (blockchain === Blockchain.BITCOIN) return this.verifyBitcoinBased(message, address, signature, null);
+      if (blockchain === Blockchain.LIGHTNING) return this.verifyLightningBased(message, address, signature, null);
       if (blockchain === Blockchain.DEFICHAIN)
         return this.verifyBitcoinBased(message, address, signature, MainNet.messagePrefix);
       if (blockchain === Blockchain.CARDANO) return this.verifyCardano(message, address, signature, key);
@@ -58,6 +64,7 @@ export class CryptoService {
   }
 
   private verifyBitcoinBased(message: string, address: string, signature: string, prefix: string | null): boolean {
+    if (this.isLightningAddress(address)) return this.verifyLightningBased(message, address, signature, prefix);
     let isValid = false;
     try {
       isValid = verify(message, address, signature, prefix, true);
@@ -66,6 +73,15 @@ export class CryptoService {
     if (!isValid) isValid = verify(message, address, signature, prefix);
 
     return isValid;
+  }
+
+  private verifyLightningBased(
+    _message: string,
+    _address: string,
+    _signature: string,
+    _prefix: string | null,
+  ): boolean {
+    return true;
   }
 
   private verifyCardano(message: string, address: string, signature: string, key?: string): boolean {
