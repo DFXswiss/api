@@ -122,7 +122,7 @@ export class PayInDeFiChainService extends PayInJellyfishService {
             console.log('Retrieving small token:', token);
 
             await this.doTokenTx(token.owner, async (utxo) =>
-              this.client.sendToken(token.owner, Config.blockchain.default.dexWalletAddress, asset, amount, [utxo]),
+              this.client.sendToken(token.owner, Config.blockchain.default.dex.address, asset, amount, [utxo]),
             );
           }
         }
