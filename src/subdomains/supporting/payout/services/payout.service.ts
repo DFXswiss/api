@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Interval } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Lock } from 'src/shared/utils/lock';
 import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../entities/payout-order.entity';
 import { PayoutOrderFactory } from '../factories/payout-order.factory';
@@ -14,6 +14,7 @@ import { PrepareStrategiesFacade } from '../strategies/prepare/prepare.facade';
 import { Util } from 'src/shared/utils/util';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IsNull, Not } from 'typeorm';
+import { Config, Process } from 'src/config/config';
 
 @Injectable()
 export class PayoutService {
@@ -66,10 +67,10 @@ export class PayoutService {
   }
 
   //*** JOBS ***//
-
-  @Interval(30000)
+  @Cron(CronExpression.EVERY_30_SECONDS)
   @Lock(1800)
   async processOrders(): Promise<void> {
+    if (Config.processDisabled(Process.PAY_OUT)) return;
     await this.checkExistingOrders();
     await this.prepareNewOrders();
     await this.payoutOrders();

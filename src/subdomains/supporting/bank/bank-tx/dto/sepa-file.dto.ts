@@ -4,7 +4,7 @@ import { SepaEntry } from './sepa-entry.dto';
 export interface SepaFile {
   BkToCstmrStmt: {
     Stmt: {
-      Id: string; // unique
+      Id: number; // unique
       ElctrncSeqNb: string;
       CreDtTm: string;
       FrToDt: {

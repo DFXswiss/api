@@ -20,6 +20,7 @@ import { LiquidityManagementRuleSettingsDto } from '../dto/input/liquidity-manag
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { Config, Process } from 'src/config/config';
 
 @Injectable()
 export class LiquidityManagementRuleService {
@@ -107,6 +108,7 @@ export class LiquidityManagementRuleService {
 
   @Cron(CronExpression.EVERY_5_MINUTES)
   async reactivateRules(): Promise<void> {
+    if (Config.processDisabled(Process.LIQUIDITY_MANAGEMENT)) return;
     const rules = await this.ruleRepo.findBy({
       status: LiquidityManagementRuleStatus.PAUSED,
       reactivationTime: Not(IsNull()),

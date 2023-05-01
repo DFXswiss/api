@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Interval } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { I18nService } from 'nestjs-i18n';
 import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Config, Process } from 'src/config/config';
@@ -20,7 +20,7 @@ export class BuyFiatNotificationService {
     private readonly i18nService: I18nService,
   ) {}
 
-  @Interval(60000)
+  @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async sendNotificationMails(): Promise<void> {
     if (Config.processDisabled(Process.BUY_FIAT_MAIL)) return;
@@ -101,7 +101,7 @@ export class BuyFiatNotificationService {
                 exchangeRate: entity.exchangeRateString,
                 outputAmount: entity.outputAmount,
                 outputAsset: entity.outputAsset,
-                fee: `${entity.percentFeeString}%` + minFee,
+                fee: `${entity.percentFeeString}` + minFee,
               },
             },
           });

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { Interval } from '@nestjs/schedule';
-import { Config } from 'src/config/config';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { Config, Process } from 'src/config/config';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 import { BankName } from 'src/subdomains/supporting/bank/bank/bank.entity';
@@ -31,8 +31,9 @@ export class BankObserver extends MetricObserver<BankData[]> {
     super(monitoringService, 'bank', 'balance');
   }
 
-  @Interval(90000)
+  @Cron(CronExpression.EVERY_MINUTE)
   async fetch() {
+    if (Config.processDisabled(Process.MONITORING)) return;
     let data = [];
 
     if (Config.bank.olkypay.credentials.clientId) data = data.concat(await this.getOlkypay());

@@ -23,17 +23,17 @@ export class SepaParser {
         creationDate: new Date(info?.CreDtTm),
         fromDate: new Date(info?.FrToDt?.FrDtTm),
         toDate: new Date(info?.FrToDt?.ToDtTm),
-        duplicate: info?.CpyDplctInd,
-        iban: info?.Acct?.Id?.IBAN,
+        duplicate: this.toString(info?.CpyDplctInd),
+        iban: this.toString(info?.Acct?.Id?.IBAN),
         balanceBeforeAmount: +info?.Bal?.[0]?.Amt?.['#text'],
-        balanceBeforeCurrency: info?.Bal?.[0]?.Amt?.['@_Ccy'],
-        balanceBeforeCdi: info?.Bal?.[0]?.CdtDbtInd,
+        balanceBeforeCurrency: this.toString(info?.Bal?.[0]?.Amt?.['@_Ccy']),
+        balanceBeforeCdi: this.toString(info?.Bal?.[0]?.CdtDbtInd),
         balanceAfterAmount: +info?.Bal?.[1]?.Amt?.['#text'],
-        balanceAfterCurrency: info?.Bal?.[1]?.Amt?.['@_Ccy'],
-        balanceAfterCdi: info?.Bal?.[1]?.CdtDbtInd,
+        balanceAfterCurrency: this.toString(info?.Bal?.[1]?.Amt?.['@_Ccy']),
+        balanceAfterCdi: this.toString(info?.Bal?.[1]?.CdtDbtInd),
         totalCount: +info?.TxsSummry?.TtlNtries?.NbOfNtries,
         totalAmount: +info?.TxsSummry?.TtlNtries?.TtlNetNtry?.Amt,
-        totalCdi: info?.TxsSummry?.TtlNtries?.TtlNetNtry?.CdtDbtInd,
+        totalCdi: this.toString(info?.TxsSummry?.TtlNtries?.TtlNetNtry?.CdtDbtInd),
         creditCount: +info?.TxsSummry?.TtlCdtNtries?.NbOfNtries,
         creditAmount: +info?.TxsSummry?.TtlCdtNtries?.Sum,
         debitCount: +info?.TxsSummry?.TtlDbtNtries?.NbOfNtries,
@@ -44,7 +44,7 @@ export class SepaParser {
     }
 
     return {
-      identification,
+      identification: this.toString(identification),
       ...data,
     };
   }
@@ -65,25 +65,25 @@ export class SepaParser {
           bookingDate: new Date(entry?.BookgDt?.Dt),
           valueDate: new Date(entry?.ValDt?.Dt),
           txCount: +entry?.NtryDtls?.Btch?.NbOfTxs,
-          endToEndId: entry?.NtryDtls?.TxDtls?.Refs?.EndToEndId,
-          instructionId: entry?.NtryDtls?.TxDtls?.Refs?.InstrId,
-          txId: entry?.NtryDtls?.TxDtls?.Refs?.TxId,
+          endToEndId: this.toString(entry?.NtryDtls?.TxDtls?.Refs?.EndToEndId),
+          instructionId: this.toString(entry?.NtryDtls?.TxDtls?.Refs?.InstrId),
+          txId: this.toString(entry?.NtryDtls?.TxDtls?.Refs?.TxId),
           amount: +entry?.NtryDtls?.TxDtls?.Amt?.['#text'],
-          currency: entry?.NtryDtls?.TxDtls?.Amt?.['@_Ccy'],
-          creditDebitIndicator: entry?.NtryDtls?.TxDtls?.CdtDbtInd,
+          currency: this.toString(entry?.NtryDtls?.TxDtls?.Amt?.['@_Ccy']),
+          creditDebitIndicator: this.toString(entry?.NtryDtls?.TxDtls?.CdtDbtInd),
           instructedAmount: +entry?.NtryDtls?.TxDtls?.AmtDtls?.InstdAmt?.Amt?.['#text'],
-          instructedCurrency: entry?.NtryDtls?.TxDtls?.AmtDtls?.InstdAmt?.Amt?.['@_Ccy'],
+          instructedCurrency: this.toString(entry?.NtryDtls?.TxDtls?.AmtDtls?.InstdAmt?.Amt?.['@_Ccy']),
           txAmount: +entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.Amt?.['#text'],
-          txCurrency: entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.Amt?.['@_Ccy'],
-          exchangeSourceCurrency: entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.CcyXchg?.SrcCcy,
-          exchangeTargetCurrency: entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.CcyXchg?.TrgtCcy,
+          txCurrency: this.toString(entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.Amt?.['@_Ccy']),
+          exchangeSourceCurrency: this.toString(entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.CcyXchg?.SrcCcy),
+          exchangeTargetCurrency: this.toString(entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.CcyXchg?.TrgtCcy),
           exchangeRate: +entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.CcyXchg?.XchgRate,
           ...this.getTotalCharge(entry?.NtryDtls?.TxDtls?.Chrgs?.Rcrd),
           ...this.getRelatedPartyInfo(entry),
           ...this.getRelatedAgentInfo(entry),
           accountIban,
-          remittanceInfo: entry?.NtryDtls?.TxDtls?.RmtInf?.Ustrd,
-          txInfo: entry?.NtryDtls?.TxDtls?.AddtlTxInf,
+          remittanceInfo: this.toString(entry?.NtryDtls?.TxDtls?.RmtInf?.Ustrd),
+          txInfo: this.toString(entry?.NtryDtls?.TxDtls?.AddtlTxInf),
         };
       } catch (e) {
         console.error(`Failed to import SEPA entry data for ref ${accountServiceRef}:`, e);
@@ -121,10 +121,10 @@ export class SepaParser {
         : { party: parties?.Cdtr, account: parties?.CdtrAcct, ultimateParty: parties?.UltmtCdtr };
 
     return {
-      name: party?.Nm,
-      ultimateName: ultimateParty?.Nm,
+      name: this.toString(party?.Nm),
+      ultimateName: this.toString(ultimateParty?.Nm),
       ...this.getAddress(party?.PstlAdr),
-      iban: account?.Id?.IBAN,
+      iban: this.toString(account?.Id?.IBAN),
     };
   }
 
@@ -133,12 +133,12 @@ export class SepaParser {
     const agent = entry?.NtryDtls?.TxDtls?.CdtDbtInd === SepaCdi.CREDIT ? agents?.DbtrAgt : agents?.CdtrAgt;
 
     return {
-      bic: agent?.FinInstnId?.BICFI,
-      clearingSystemId: agent?.FinInstnId?.ClrSysMmbId?.ClrSysId?.Cd,
-      memberId: agent?.FinInstnId?.ClrSysMmbId?.MmbId,
-      bankName: agent?.FinInstnId?.Nm,
-      bankAddressLine1: this.getAddress(agent?.FinInstnId?.PstlAdr)?.addressLine1,
-      bankAddressLine2: this.getAddress(agent?.FinInstnId?.PstlAdr)?.addressLine2,
+      bic: this.toString(agent?.FinInstnId?.BICFI),
+      clearingSystemId: this.toString(agent?.FinInstnId?.ClrSysMmbId?.ClrSysId?.Cd),
+      memberId: this.toString(agent?.FinInstnId?.ClrSysMmbId?.MmbId),
+      bankName: this.toString(agent?.FinInstnId?.Nm),
+      bankAddressLine1: this.toString(this.getAddress(agent?.FinInstnId?.PstlAdr)?.addressLine1),
+      bankAddressLine2: this.toString(this.getAddress(agent?.FinInstnId?.PstlAdr)?.addressLine2),
     };
   }
 
@@ -150,12 +150,16 @@ export class SepaParser {
       addressLine2:
         (Array.isArray(address?.AdrLine) ? address?.AdrLine[1] : undefined) ??
         this.join([address?.PstCd, address?.TwnNm]),
-      country: address?.Ctry,
+      country: this.toString(address?.Ctry),
     };
   }
 
   private static join(array: (string | undefined)[]): string | undefined {
     const join = array.filter((s) => s).join(' ');
     return join ? join : undefined;
+  }
+
+  private static toString(item: unknown): string | undefined {
+    return item != null ? `${item}` : undefined;
   }
 }

@@ -11,6 +11,7 @@ import { LiquidityManagementPipelineRepository } from '../repositories/liquidity
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
 import { In } from 'typeorm';
 import { Util } from 'src/shared/utils/util';
+import { Config, Process } from 'src/config/config';
 
 @Injectable()
 export class LiquidityManagementService {
@@ -27,6 +28,7 @@ export class LiquidityManagementService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async verifyRules() {
+    if (Config.processDisabled(Process.LIQUIDITY_MANAGEMENT)) return;
     const rules = await this.ruleRepo.findBy({ status: LiquidityManagementRuleStatus.ACTIVE });
     const balances = await this.balanceService.refreshBalances(rules);
 
@@ -44,7 +46,7 @@ export class LiquidityManagementService {
       throw new BadRequestException(`Rule ${rule.id} does not support liquidity deficit path`);
     }
 
-    if (targetOptimal) amount += rule.optimal;
+    if (targetOptimal) amount = Util.round(amount + rule.optimal, 8);
 
     const liquidityState = { deficit: amount, redundancy: 0 };
 
@@ -58,7 +60,7 @@ export class LiquidityManagementService {
       throw new BadRequestException(`Rule ${rule.id} does not support liquidity redundancy path`);
     }
 
-    if (targetOptimal) amount -= rule.optimal;
+    if (targetOptimal) amount = Util.round(amount - rule.optimal, 8);
 
     const liquidityState = { deficit: 0, redundancy: amount };
 

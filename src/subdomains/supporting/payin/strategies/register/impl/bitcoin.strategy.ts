@@ -123,17 +123,14 @@ export class BitcoinStrategy extends JellyfishStrategy {
   private async mapUtxosToEntries(utxos: UTXO[]): Promise<PayInEntry[]> {
     const asset = await this.assetService.getBtcCoin();
 
-    return utxos
-      .map((u) => ({
-        address: BlockchainAddress.create(u.address, Blockchain.BITCOIN),
-        txId: u.txid,
-        txType: null,
-        txSequence: u.vout,
-        blockHeight: null,
-        amount: u.amount.toNumber(),
-        asset,
-      }))
-      .map((h) => this.filterOutNonSellable(h))
-      .filter((p) => p != null);
+    return utxos.map((u) => ({
+      address: BlockchainAddress.create(u.address, Blockchain.BITCOIN),
+      txId: u.txid,
+      txType: null,
+      txSequence: u.vout,
+      blockHeight: null,
+      amount: u.amount.toNumber(),
+      asset,
+    }));
   }
 }

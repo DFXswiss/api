@@ -97,9 +97,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
     return [
       ...this.mapCoinEntries(relevantCoinEntries, supportedAssets),
       ...this.mapTokenEntries(relevantTokenEntries, supportedAssets),
-    ]
-      .map((h) => this.filterOutNonSellable(h))
-      .filter((p) => p != null);
+    ];
   }
 
   private filterEntriesByRelevantAddresses<T extends EvmCoinHistoryEntry | EvmTokenHistoryEntry>(

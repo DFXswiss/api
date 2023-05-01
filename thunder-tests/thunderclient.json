@@ -22,12 +22,12 @@
     "method": "POST",
     "sortNum": 20000,
     "created": "2022-01-15T13:35:02.988Z",
-    "modified": "2023-04-18T01:52:26.259Z",
+    "modified": "2023-04-26T10:20:27.646Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\n  \"from\": \"btc\",\n  \"to\": \"eur\",\n  \"amount\": 0.001\n}",
+      "raw": "{\n  \"from\": \"eur\",\n  \"to\": \"btc\",\n  \"amount\": 20\n}",
       "form": []
     },
     "tests": []
