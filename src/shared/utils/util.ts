@@ -258,7 +258,7 @@ export class Util {
   }
 
   static removeNullFields(entity: any): void {
-    Object.keys(entity).forEach((k) => !entity[k] && delete entity[k]);
+    Object.keys(entity).forEach((k) => entity[k] == null && delete entity[k]);
   }
 
   static createHash(data: BinaryLike, algo: CryptoAlgorithm = 'sha256'): string {

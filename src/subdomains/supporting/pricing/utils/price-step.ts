@@ -1,6 +1,6 @@
 import { cloneDeep } from 'lodash';
 import { Price } from '../domain/entities/price';
-import { PriceMismatchException } from '../../../../integration/exchange/exceptions/price-mismatch.exception';
+import { PriceMismatchException } from '../domain/exceptions/price-mismatch.exception';
 import { Fiat } from '../domain/enums';
 import { PriceStepResult, PricingProvider, PricingProviderName } from '../domain/interfaces';
 import { PriceStepInitSpecification } from '../domain/specifications/price-step-init.specification';

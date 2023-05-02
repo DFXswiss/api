@@ -68,7 +68,7 @@ export abstract class EvmL2BridgeAdapter extends LiquidityManagementAdapter {
     }
   }
 
-  validateParams(_command: string, _params: any): boolean {
+  validateParams(_command: string, _params: Record<string, unknown>): boolean {
     /**
      * @note
      * no params supported by evm L2 bridge
