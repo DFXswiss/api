@@ -64,7 +64,6 @@ export class CryptoService {
   }
 
   private verifyBitcoinBased(message: string, address: string, signature: string, prefix: string | null): boolean {
-    if (this.isLightningAddress(address)) return this.verifyLightningBased(message, address, signature, prefix);
     let isValid = false;
     try {
       isValid = verify(message, address, signature, prefix, true);
@@ -81,6 +80,7 @@ export class CryptoService {
     _signature: string,
     _prefix: string | null,
   ): boolean {
+    // TODO: correctly validate lightning signatures
     return true;
   }
 
