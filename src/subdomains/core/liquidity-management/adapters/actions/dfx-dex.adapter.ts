@@ -51,7 +51,7 @@ export class DfxDexAdapter extends LiquidityManagementAdapter {
     }
   }
 
-  validateParams(command: string, params: any): boolean {
+  validateParams(command: string, params: Record<string, unknown>): boolean {
     switch (command) {
       case DfxDexAdapterCommands.WITHDRAW:
         return this.validateWithdrawParams(params);
@@ -67,7 +67,7 @@ export class DfxDexAdapter extends LiquidityManagementAdapter {
     }
   }
 
-  //*** COMMANDS IMPLEMENTATIONS ***//
+  // --- COMMAND IMPLEMENTATIONS --- //
 
   /**
    * @note
@@ -121,7 +121,7 @@ export class DfxDexAdapter extends LiquidityManagementAdapter {
   }
 
   private async withdraw(order: LiquidityManagementOrder): Promise<CorrelationId> {
-    const { address } = this.parseAndValidateParams(order.action.params);
+    const { address } = this.parseWithdrawParams(order.action.paramMap);
     const { amount } = order;
 
     const request = {
@@ -133,7 +133,7 @@ export class DfxDexAdapter extends LiquidityManagementAdapter {
     return this.dexService.transferLiquidity(request);
   }
 
-  //*** HELPER METHODS ***//
+  // --- COMPLETION CHECKS --- //
 
   private async checkSellPurchaseCompletion(order: LiquidityManagementOrder): Promise<boolean> {
     try {
@@ -153,7 +153,7 @@ export class DfxDexAdapter extends LiquidityManagementAdapter {
   }
 
   private async checkWithdrawCompletion(order: LiquidityManagementOrder): Promise<boolean> {
-    const { system } = this.parseAndValidateParams(order.action.params);
+    const { system } = this.parseWithdrawParams(order.action.paramMap);
 
     const exchange = this.registryService.getExchange(system.toLowerCase());
 
@@ -163,34 +163,35 @@ export class DfxDexAdapter extends LiquidityManagementAdapter {
     return deposit && deposit.status === 'ok';
   }
 
-  private parseAndValidateParams(_params: any): { address: string; system: LiquidityManagementSystem } {
-    const params = this.parseActionParams<DfxDexWithdrawParams>(_params);
-    const isValid = this.validateWithdrawParams(params);
-
-    if (!isValid) throw new Error(`Params provided to DfxDexAdapter.withdraw(...) command are invalid.`);
-
-    return this.mapWithdrawParams(params);
-  }
-
-  private validateWithdrawParams(params: any): boolean {
+  // --- PARAM VALIDATION --- //
+  private validateWithdrawParams(params: Record<string, unknown>): boolean {
     try {
-      const { address, system } = this.mapWithdrawParams(params);
-
-      return !!(
-        address &&
-        system &&
-        Object.values(LiquidityManagementSystem).includes(system) &&
-        this.registryService.getExchange(system.toLowerCase())
-      );
+      this.parseWithdrawParams(params);
+      return true;
     } catch {
       return false;
     }
   }
 
-  private mapWithdrawParams(params: DfxDexWithdrawParams): { address: string; system: LiquidityManagementSystem } {
-    const address = process.env[params.destinationAddress];
+  private parseWithdrawParams(params: Record<string, unknown>): {
+    address: string;
+    system: LiquidityManagementSystem;
+  } {
+    const address = process.env[params.destinationAddress as string];
     const system = params.destinationSystem as LiquidityManagementSystem;
 
+    const isValid = this.withdrawParamsValid(address, system);
+    if (!isValid) throw new Error(`Params provided to DfxDexAdapter.withdraw(...) command are invalid.`);
+
     return { address, system };
+  }
+
+  private withdrawParamsValid(address: string, system: LiquidityManagementSystem): boolean {
+    return !!(
+      address &&
+      system &&
+      Object.values(LiquidityManagementSystem).includes(system) &&
+      this.registryService.getExchange(system.toLowerCase())
+    );
   }
 }

@@ -2,6 +2,7 @@ import { Fee } from 'ccxt';
 
 export interface PartialTradeResponse {
   id: string;
+  order: string;
   price: number;
   fromAmount: number;
   toAmount: number;
@@ -20,5 +21,4 @@ export interface TradeSummary {
 export interface TradeResponse {
   orderSummary: TradeSummary;
   orderList: PartialTradeResponse[];
-  error?: string;
 }

@@ -249,7 +249,8 @@ export class DexDeFiChainService {
       return await this.testSwap(swapAsset, targetAsset, availableAmount);
     } catch (e) {
       console.warn(
-        `Could not find purchasable amount for swapAsset: ${swapAsset.dexName}, targetAsset: ${targetAsset.dexName}`,
+        `Could not find purchasable amount for swapAsset: ${swapAsset.dexName}, targetAsset: ${targetAsset.dexName}:`,
+        e,
       );
 
       return 0;

@@ -12,6 +12,8 @@ import { JellyfishStrategy } from './base/jellyfish.strategy';
 
 @Injectable()
 export class BitcoinStrategy extends JellyfishStrategy {
+  private readonly averageTransactionSize = 180; // vBytes
+
   constructor(
     notificationService: NotificationService,
     protected readonly bitcoinService: PayoutBitcoinService,
@@ -23,7 +25,7 @@ export class BitcoinStrategy extends JellyfishStrategy {
 
   async estimateFee(): Promise<FeeResult> {
     const feeRate = await this.bitcoinService.getCurrentFastestFeeRate();
-    const satoshiFeeAmount = 250 * feeRate;
+    const satoshiFeeAmount = this.averageTransactionSize * feeRate;
     const btcFeeAmount = Util.round(satoshiFeeAmount / 100000000, 8);
 
     return { asset: await this.feeAsset(), amount: btcFeeAmount };

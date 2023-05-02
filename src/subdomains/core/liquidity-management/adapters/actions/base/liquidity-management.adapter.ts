@@ -11,7 +11,7 @@ export abstract class LiquidityManagementAdapter implements LiquidityActionInteg
 
   protected abstract commands: Map<string, Command>;
   abstract checkCompletion(order: LiquidityManagementOrder): Promise<boolean>;
-  abstract validateParams(command: string, params: any): boolean;
+  abstract validateParams(command: string, params: Record<string, unknown>): boolean;
 
   async executeOrder(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const {
@@ -37,15 +37,6 @@ export abstract class LiquidityManagementAdapter implements LiquidityActionInteg
   }
 
   //*** HELPER METHODS ***//
-
-  protected parseActionParams<T>(paramsJsonString: string): T | null {
-    try {
-      return JSON.parse(paramsJsonString);
-    } catch {
-      return null;
-    }
-  }
-
   get supportedCommands(): string[] {
     return [...this.commands.keys()];
   }
