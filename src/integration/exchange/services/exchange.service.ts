@@ -55,8 +55,7 @@ export class ExchangeService implements PricingProvider {
   }
 
   async buy(from: string, to: string, amount: number): Promise<string> {
-    const { pair, direction } = await this.getTradePair(from, to);
-    const price = await this.fetchCurrentOrderPrice(pair, direction);
+    const price = await this.getCurrentPrice(from, to);
 
     const tradeAmount = amount * price;
 
@@ -164,6 +163,12 @@ export class ExchangeService implements PricingProvider {
     return trades.sort((a, b) => b.timestamp - a.timestamp)[0].price;
   }
 
+  private async getCurrentPrice(from: string, to: string): Promise<number> {
+    const { pair, direction } = await this.getTradePair(from, to);
+    const price = await this.fetchCurrentOrderPrice(pair, direction);
+    return direction === OrderSide.BUY ? price : 1 / price;
+  }
+
   private async fetchCurrentOrderPrice(pair: string, direction: string): Promise<number> {
     /* 
         If 'buy' we want to buy token1 using token2. Example BTC/EUR on 'buy' means we buy BTC using EUR
@@ -189,7 +194,7 @@ export class ExchangeService implements PricingProvider {
     // place the order
     const { pair, direction } = await this.getTradePair(from, to);
     const price = await this.fetchCurrentOrderPrice(pair, direction);
-    const orderAmount = Util.round(direction === OrderSide.BUY ? amount / price : amount, 8);
+    const orderAmount = Util.round(direction === OrderSide.BUY ? amount / price : amount, 6);
 
     return this.placeOrder(pair, direction, orderAmount, price);
   }
