@@ -117,15 +117,17 @@ export class BuyCryptoService {
     const fee = entity.fee;
     if (dto.allowedTotalFeePercent && entity.fee) fee.allowedTotalFeePercent = dto.allowedTotalFeePercent;
 
-    const amlUpdate =
-      entity.amlCheck === AmlCheck.PENDING && update.amlCheck && update.amlCheck !== AmlCheck.PENDING
+    const forceUpdate = {
+      ...(entity.amlCheck === AmlCheck.PENDING && update.amlCheck && update.amlCheck !== AmlCheck.PENDING
         ? { amlCheck: update.amlCheck, mailSendDate: null }
-        : undefined;
+        : undefined),
+      isComplete: dto.isComplete,
+    };
     entity = await this.buyCryptoRepo.save(
       Object.assign(new BuyCrypto(), {
         ...update,
         ...entity,
-        ...amlUpdate,
+        ...forceUpdate,
         fee,
       }),
     );

@@ -88,11 +88,13 @@ export class BuyFiatService {
 
     Util.removeNullFields(entity);
 
-    const amlUpdate =
-      entity.amlCheck === AmlCheck.PENDING && update.amlCheck && update.amlCheck !== AmlCheck.PENDING
-        ? { amlCheck: update.amlCheck, mail2SendDate: null, mailReturnSendDate: null }
-        : undefined;
-    entity = await this.buyFiatRepo.save({ ...update, ...entity, ...amlUpdate });
+    const forceUpdate = {
+      ...(entity.amlCheck === AmlCheck.PENDING && update.amlCheck && update.amlCheck !== AmlCheck.PENDING
+        ? { amlCheck: update.amlCheck, mailSendDate: null }
+        : undefined),
+      isComplete: dto.isComplete,
+    };
+    entity = await this.buyFiatRepo.save({ ...update, ...entity, ...forceUpdate });
 
     // activate user
     if (entity.amlCheck === AmlCheck.PASS && entity.sell?.user) {
