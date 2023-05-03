@@ -7,6 +7,7 @@ import { LiquidityManagementAdapter } from './liquidity-management.adapter';
 import { ExchangeService } from 'src/integration/exchange/services/exchange.service';
 import { TradeChangedException } from 'src/integration/exchange/exceptions/trade-changed.exception';
 import { LiquidityManagementOrderRepository } from '../../../repositories/liquidity-management-order.repository';
+import { OrderNotProcessableException } from '../../../exceptions/order-not-processable.exception';
 
 export interface CcxtExchangeWithdrawParams {
   destinationBlockchain: Blockchain;
@@ -77,9 +78,17 @@ export abstract class CcxtExchangeAdapter extends LiquidityManagementAdapter {
 
     const token = order.pipeline.rule.targetAsset.dexName;
 
-    const response = await this.exchangeService.withdrawFunds(token, order.amount, address, key, network);
+    try {
+      const response = await this.exchangeService.withdrawFunds(token, order.amount, address, key, network);
 
-    return response.id;
+      return response.id;
+    } catch (e) {
+      if (['Insufficient funds', 'insufficient balance'].some((m) => e.message?.includes(m))) {
+        throw new OrderNotProcessableException(e.message);
+      }
+
+      throw e;
+    }
   }
 
   private async trade(order: LiquidityManagementOrder): Promise<CorrelationId> {
@@ -87,8 +96,16 @@ export abstract class CcxtExchangeAdapter extends LiquidityManagementAdapter {
 
     const asset = order.pipeline.rule.targetAsset.dexName;
 
-    // small cap for price changes
-    return this.exchangeService.buy(tradeAsset, asset, order.amount * 1.05);
+    try {
+      // small cap for price changes
+      return await this.exchangeService.buy(tradeAsset, asset, order.amount * 1.05);
+    } catch (e) {
+      if (e.message?.includes('not enough balance')) {
+        throw new OrderNotProcessableException(e.message);
+      }
+
+      throw e;
+    }
   }
 
   // --- COMPLETION CHECKS --- //
