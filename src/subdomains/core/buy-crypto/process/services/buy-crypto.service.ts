@@ -32,8 +32,8 @@ import { BuyService } from '../../routes/buy/buy.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
-import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Config, Process } from 'src/config/config';
+import { txExplorerUrl } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 @Injectable()
 export class BuyCryptoService {
@@ -258,7 +258,7 @@ export class BuyCryptoService {
       txId: buyCrypto.txId,
       txUrl:
         buyCrypto.outputAsset && buyCrypto.txId
-          ? `${BlockchainExplorerUrls[buyCrypto.outputAsset.blockchain]}/${buyCrypto.txId}`
+          ? txExplorerUrl(buyCrypto.outputAsset.blockchain, buyCrypto.txId)
           : undefined,
       isComplete: buyCrypto.isComplete,
       date: buyCrypto.outputDate,

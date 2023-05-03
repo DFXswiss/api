@@ -9,8 +9,11 @@ export class AssetDto {
   @ApiProperty()
   name: string;
 
-  @ApiProperty()
-  chainId: string;
+  @ApiPropertyOptional()
+  chainId?: string;
+
+  @ApiPropertyOptional()
+  explorerUrl?: string;
 
   @ApiProperty()
   uniqueName: string;

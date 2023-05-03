@@ -5,11 +5,11 @@ import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-bat
 import { Util } from 'src/shared/utils/util';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
-import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AmlCheck } from '../enums/aml-check.enum';
 import { I18nService } from 'nestjs-i18n';
 import { Config, Process } from 'src/config/config';
 import { BuyCryptoAmlReasonPendingStates } from '../entities/buy-crypto.entity';
+import { txExplorerUrl } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 @Injectable()
 export class BuyCryptoNotificationService {
@@ -85,7 +85,7 @@ export class BuyCryptoNotificationService {
                   ),
                   buyWalletAddress: Util.blankBlockchainAddress(tx.target.address),
                   buyTxId: tx.txId,
-                  buyTransactionLink: `${BlockchainExplorerUrls[tx.target.asset.blockchain]}/${tx.txId}`,
+                  buyTransactionLink: txExplorerUrl(tx.target.asset.blockchain, tx.txId),
                   fee: `${Util.round(tx.percentFee * 100, 2)}%` + minFee,
                 },
               },

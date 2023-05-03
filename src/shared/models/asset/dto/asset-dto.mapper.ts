@@ -1,3 +1,4 @@
+import { assetExplorerUrl } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from '../asset.entity';
 import { AssetDto } from './asset.dto';
 
@@ -7,6 +8,7 @@ export class AssetDtoMapper {
       id: asset.id,
       name: asset.name,
       chainId: asset.chainId,
+      explorerUrl: assetExplorerUrl(asset),
       uniqueName: asset.uniqueName,
       description: asset.description,
       type: asset.type,

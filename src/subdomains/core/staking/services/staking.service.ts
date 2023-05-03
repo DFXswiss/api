@@ -15,9 +15,9 @@ import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entit
 import { Staking } from '../entities/staking.entity';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { Util } from 'src/shared/utils/util';
-import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Config, Process } from 'src/config/config';
+import { txExplorerUrl } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 @Injectable()
 export class StakingService {
@@ -146,7 +146,7 @@ export class StakingService {
                 inputAmount: payIn.amount,
                 inputAsset: payIn.asset.name,
                 userAddressTrimmed: Util.blankBlockchainAddress(staking.user.address),
-                transactionLink: `${BlockchainExplorerUrls[payIn.asset.blockchain]}/${payIn.inTxId}`,
+                transactionLink: txExplorerUrl(payIn.asset.blockchain, payIn.inTxId),
               },
             },
           });

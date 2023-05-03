@@ -19,9 +19,9 @@ import { BuyFiatRegistrationService } from './buy-fiat-registration.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 import { TransactionDetailsDto } from '../../statistic/dto/statistic.dto';
-import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { PaymentStatus } from '../../history/dto/history.dto';
 import { Config, Process } from 'src/config/config';
+import { txExplorerUrl } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 @Injectable()
 export class BuyFiatService {
@@ -182,7 +182,7 @@ export class BuyFiatService {
       outputAmount: buyFiat.outputAmount,
       outputAsset: buyFiat.outputAsset,
       txId: buyFiat.cryptoInput.inTxId,
-      txUrl: `${BlockchainExplorerUrls[buyFiat.cryptoInput.asset.blockchain]}/${buyFiat.cryptoInput.inTxId}`,
+      txUrl: txExplorerUrl(buyFiat.cryptoInput.asset.blockchain, buyFiat.cryptoInput.inTxId),
       date: buyFiat.fiatOutput?.outputDate,
       amlCheck: buyFiat.amlCheck,
       isComplete: buyFiat.isComplete,
