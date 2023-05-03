@@ -31,7 +31,9 @@ export class ExchangeTxService {
 
       // trades
       transactions.push(
-        ...(await exchangeService.getTrades(since).then((t) => ExchangeTxKrakenMapper.mapTrades(t, exchange))),
+        ...(await exchangeService
+          .getTrades(undefined, undefined, since)
+          .then((t) => ExchangeTxKrakenMapper.mapTrades(t, exchange))),
       );
 
       for (const asset of ExchangeTokens) {

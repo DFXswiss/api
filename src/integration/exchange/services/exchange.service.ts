@@ -44,13 +44,13 @@ export class ExchangeService implements PricingProvider {
     return Price.create(from, to, direction === OrderSide.BUY ? orderPrice : 1 / orderPrice);
   }
 
-  async getTrades(since?: Date, from?: string, to?: string): Promise<Trade[]> {
+  async getTrades(from?: string, to?: string, since?: Date): Promise<Trade[]> {
     const pair = from && to && (await this.getPair(from, to));
     return this.callApi((e) => e.fetchMyTrades(pair, since?.getTime()));
   }
 
-  async getOpenTrades(from?: string, to?: string): Promise<Order[]> {
-    const pair = from && to && (await this.getPair(from, to));
+  async getOpenTrades(from: string, to: string): Promise<Order[]> {
+    const pair = await this.getPair(from, to);
     return this.callApi((e) => e.fetchOpenOrders(pair));
   }
 
@@ -67,10 +67,12 @@ export class ExchangeService implements PricingProvider {
     return this.trade(from, to, amount);
   }
 
-  async checkTrade(id: string): Promise<boolean> {
+  async checkTrade(id: string, from: string, to: string): Promise<boolean> {
+    const pair = await this.getPair(from, to);
+
     // loop in case we have to cancel the order
     for (let i = 0; i < 5; i++) {
-      const order = await this.callApi((e) => e.fetchOrder(id));
+      const order = await this.callApi((e) => e.fetchOrder(id, pair));
 
       switch (order.status) {
         case OrderStatus.OPEN:

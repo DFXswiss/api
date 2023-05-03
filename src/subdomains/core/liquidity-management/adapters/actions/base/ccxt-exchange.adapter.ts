@@ -115,8 +115,12 @@ export abstract class CcxtExchangeAdapter extends LiquidityManagementAdapter {
   }
 
   private async checkTradeCompletion(order: LiquidityManagementOrder): Promise<boolean> {
+    const { tradeAsset } = this.parseTradeParams(order.action.paramMap);
+
+    const asset = order.pipeline.rule.targetAsset.dexName;
+
     try {
-      return await this.exchangeService.checkTrade(order.correlationId);
+      return await this.exchangeService.checkTrade(order.correlationId, tradeAsset, asset);
     } catch (e) {
       if (e instanceof TradeChangedException) {
         order.correlationId = e.id;

@@ -9,6 +9,8 @@ export enum TradeStatus {
 export interface TradeResult {
   exchange: string;
   status: TradeStatus;
+  from: string;
+  to: string;
   orders: string[];
   trade?: TradeResponse;
   error?: Error;
