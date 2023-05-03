@@ -9,7 +9,7 @@ import { AmlCheck } from '../enums/aml-check.enum';
 import { I18nService } from 'nestjs-i18n';
 import { Config, Process } from 'src/config/config';
 import { BuyCryptoAmlReasonPendingStates } from '../entities/buy-crypto.entity';
-import { txExplorerUrl } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 
 @Injectable()
 export class BuyCryptoNotificationService {

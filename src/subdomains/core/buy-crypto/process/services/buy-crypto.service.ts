@@ -33,7 +33,7 @@ import { WebhookService } from 'src/subdomains/generic/user/services/webhook/web
 import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
 import { Config, Process } from 'src/config/config';
-import { txExplorerUrl } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 
 @Injectable()
 export class BuyCryptoService {

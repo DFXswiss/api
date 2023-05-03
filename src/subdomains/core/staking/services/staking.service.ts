@@ -17,7 +17,7 @@ import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { Util } from 'src/shared/utils/util';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Config, Process } from 'src/config/config';
-import { txExplorerUrl } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 
 @Injectable()
 export class StakingService {

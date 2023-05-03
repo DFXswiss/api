@@ -10,7 +10,7 @@ import { IsNull, Not, In } from 'typeorm';
 import { BuyFiatRepository } from './buy-fiat.repository';
 import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
 import { BuyFiatAmlReasonPendingStates } from './buy-fiat.entity';
-import { txExplorerUrl } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 
 @Injectable()
 export class BuyFiatNotificationService {

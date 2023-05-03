@@ -1,4 +1,4 @@
-import { assetExplorerUrl } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { assetExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { Asset } from '../asset.entity';
 import { AssetDto } from './asset.dto';
 

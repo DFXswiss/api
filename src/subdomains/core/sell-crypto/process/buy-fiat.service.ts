@@ -21,7 +21,7 @@ import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhoo
 import { TransactionDetailsDto } from '../../statistic/dto/statistic.dto';
 import { PaymentStatus } from '../../history/dto/history.dto';
 import { Config, Process } from 'src/config/config';
-import { txExplorerUrl } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 
 @Injectable()
 export class BuyFiatService {
