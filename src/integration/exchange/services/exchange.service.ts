@@ -44,19 +44,18 @@ export class ExchangeService implements PricingProvider {
     return Price.create(from, to, direction === OrderSide.BUY ? orderPrice : 1 / orderPrice);
   }
 
-  async getTrades(since?: Date, from?: string, to?: string): Promise<Trade[]> {
+  async getTrades(from?: string, to?: string, since?: Date): Promise<Trade[]> {
     const pair = from && to && (await this.getPair(from, to));
     return this.callApi((e) => e.fetchMyTrades(pair, since?.getTime()));
   }
 
-  async getOpenTrades(from?: string, to?: string): Promise<Order[]> {
-    const pair = from && to && (await this.getPair(from, to));
+  async getOpenTrades(from: string, to: string): Promise<Order[]> {
+    const pair = await this.getPair(from, to);
     return this.callApi((e) => e.fetchOpenOrders(pair));
   }
 
   async buy(from: string, to: string, amount: number): Promise<string> {
-    const { pair, direction } = await this.getTradePair(from, to);
-    const price = await this.fetchCurrentOrderPrice(pair, direction);
+    const price = await this.getCurrentPrice(from, to);
 
     const tradeAmount = amount * price;
 
@@ -67,10 +66,12 @@ export class ExchangeService implements PricingProvider {
     return this.trade(from, to, amount);
   }
 
-  async checkTrade(id: string): Promise<boolean> {
+  async checkTrade(id: string, from: string, to: string): Promise<boolean> {
+    const pair = await this.getPair(from, to);
+
     // loop in case we have to cancel the order
     for (let i = 0; i < 5; i++) {
-      const order = await this.callApi((e) => e.fetchOrder(id));
+      const order = await this.callApi((e) => e.fetchOrder(id, pair));
 
       switch (order.status) {
         case OrderStatus.OPEN:
@@ -162,6 +163,12 @@ export class ExchangeService implements PricingProvider {
     return trades.sort((a, b) => b.timestamp - a.timestamp)[0].price;
   }
 
+  private async getCurrentPrice(from: string, to: string): Promise<number> {
+    const { pair, direction } = await this.getTradePair(from, to);
+    const price = await this.fetchCurrentOrderPrice(pair, direction);
+    return direction === OrderSide.BUY ? price : 1 / price;
+  }
+
   private async fetchCurrentOrderPrice(pair: string, direction: string): Promise<number> {
     /* 
         If 'buy' we want to buy token1 using token2. Example BTC/EUR on 'buy' means we buy BTC using EUR
@@ -187,7 +194,7 @@ export class ExchangeService implements PricingProvider {
     // place the order
     const { pair, direction } = await this.getTradePair(from, to);
     const price = await this.fetchCurrentOrderPrice(pair, direction);
-    const orderAmount = Util.round(direction === OrderSide.BUY ? amount / price : amount, 8);
+    const orderAmount = Util.round(direction === OrderSide.BUY ? amount / price : amount, 6);
 
     return this.placeOrder(pair, direction, orderAmount, price);
   }

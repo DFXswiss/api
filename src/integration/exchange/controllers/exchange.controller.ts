@@ -24,6 +24,7 @@ import { ExchangeService, OrderSide } from '../services/exchange.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { TradeChangedException } from '../exceptions/trade-changed.exception';
 import { PartialTradeResponse, TradeResponse } from '../dto/trade-response.dto';
+import { Lock } from 'src/shared/utils/lock';
 
 @ApiTags('exchange')
 @Controller('exchange')
@@ -69,7 +70,7 @@ export class ExchangeController {
     @Query('from') from: string,
     @Query('to') to: string,
   ): Promise<Trade[]> {
-    return this.call(exchange, (e) => e.getTrades(undefined, from?.toUpperCase(), to?.toUpperCase()));
+    return this.call(exchange, (e) => e.getTrades(from?.toUpperCase(), to?.toUpperCase()));
   }
 
   @Post(':exchange/trade')
@@ -81,7 +82,13 @@ export class ExchangeController {
     const orderId = await this.call(exchange, (e) => e.sell(from.toUpperCase(), to.toUpperCase(), amount));
 
     const tradeId = Util.randomId();
-    this.trades[tradeId] = { exchange, status: TradeStatus.OPEN, orders: [orderId] };
+    this.trades[tradeId] = {
+      exchange,
+      status: TradeStatus.OPEN,
+      from: from.toUpperCase(),
+      to: to.toUpperCase(),
+      orders: [orderId],
+    };
 
     return tradeId;
   }
@@ -138,17 +145,18 @@ export class ExchangeController {
 
   // --- JOBS --- //
   @Cron(CronExpression.EVERY_30_SECONDS)
+  @Lock(1800)
   async checkTrades() {
     const openTrades = Object.values(this.trades).filter(({ status }) => status === TradeStatus.OPEN);
     for (const trade of openTrades) {
-      const { exchange, orders } = trade;
+      const { exchange, from, to, orders } = trade;
 
       const currentOrder = orders[orders.length - 1];
       try {
-        const isComplete = await this.registryService.getExchange(exchange).checkTrade(currentOrder);
+        const isComplete = await this.registryService.getExchange(exchange).checkTrade(currentOrder, from, to);
         if (isComplete) {
           trade.status = TradeStatus.CLOSED;
-          trade.trade = await this.getTradeResponse(exchange, orders);
+          trade.trade = await this.getTradeResponse(exchange, from, to, orders);
         }
       } catch (e) {
         if (e instanceof TradeChangedException) {
@@ -156,41 +164,53 @@ export class ExchangeController {
           continue;
         }
 
+        console.warn(`Trade on ${exchange} failed:`, e);
+
         trade.status = TradeStatus.FAILED;
-        trade.trade = await this.getTradeResponse(exchange, orders);
+        trade.trade = await this.getTradeResponse(exchange, from, to, orders);
         trade.error = e;
       }
     }
   }
 
-  private async getTradeResponse(exchange: string, orders: string[]): Promise<TradeResponse | undefined> {
-    const recentTrades = await this.registryService.getExchange(exchange).getTrades();
-    const trades = recentTrades.filter((t) => orders.includes(t.order));
+  private async getTradeResponse(
+    exchange: string,
+    from: string,
+    to: string,
+    orders: string[],
+  ): Promise<TradeResponse | undefined> {
+    try {
+      const recentTrades = await this.registryService.getExchange(exchange).getTrades(from, to);
+      const trades = recentTrades.filter((t) => orders.includes(t.order));
 
-    if (trades.length === 0) return undefined;
+      if (trades.length === 0) return undefined;
 
-    const orderList = trades.map((t) => ({
-      id: t.id,
-      order: t.order,
-      price: t.price,
-      fromAmount: t.side === OrderSide.BUY ? t.amount * t.price : t.amount,
-      toAmount: t.side === OrderSide.BUY ? t.amount : t.amount * t.price,
-      timestamp: new Date(t.timestamp),
-      fee: t.fee,
-    }));
+      const orderList = trades.map((t) => ({
+        id: t.id,
+        order: t.order,
+        price: t.price,
+        fromAmount: t.side === OrderSide.BUY ? t.amount * t.price : t.amount,
+        toAmount: t.side === OrderSide.BUY ? t.amount : t.amount * t.price,
+        timestamp: new Date(t.timestamp),
+        fee: t.fee,
+      }));
 
-    const avg = this.getWeightedAveragePrice(orderList);
+      const avg = this.getWeightedAveragePrice(orderList);
 
-    return {
-      orderList,
-      orderSummary: {
-        currencyPair: trades[0].symbol,
-        orderSide: trades[0].side,
-        price: avg.price,
-        amount: avg.amountSum,
-        fees: avg.feeSum,
-      },
-    };
+      return {
+        orderList,
+        orderSummary: {
+          currencyPair: trades[0].symbol,
+          orderSide: trades[0].side,
+          price: avg.price,
+          amount: avg.amountSum,
+          fees: avg.feeSum,
+        },
+      };
+    } catch (e) {
+      console.error(`Failed to get trade result on ${exchange}:`, e);
+      return undefined;
+    }
   }
 
   private getWeightedAveragePrice(list: PartialTradeResponse[]): { price: number; amountSum: number; feeSum: number } {

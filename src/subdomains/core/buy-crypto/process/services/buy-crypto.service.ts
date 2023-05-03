@@ -32,8 +32,8 @@ import { BuyService } from '../../routes/buy/buy.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
-import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Config, Process } from 'src/config/config';
+import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 
 @Injectable()
 export class BuyCryptoService {
@@ -117,15 +117,17 @@ export class BuyCryptoService {
     const fee = entity.fee;
     if (dto.allowedTotalFeePercent && entity.fee) fee.allowedTotalFeePercent = dto.allowedTotalFeePercent;
 
-    const amlUpdate =
-      entity.amlCheck === AmlCheck.PENDING && update.amlCheck && update.amlCheck !== AmlCheck.PENDING
+    const forceUpdate = {
+      ...(entity.amlCheck === AmlCheck.PENDING && update.amlCheck && update.amlCheck !== AmlCheck.PENDING
         ? { amlCheck: update.amlCheck, mailSendDate: null }
-        : undefined;
+        : undefined),
+      isComplete: dto.isComplete,
+    };
     entity = await this.buyCryptoRepo.save(
       Object.assign(new BuyCrypto(), {
         ...update,
         ...entity,
-        ...amlUpdate,
+        ...forceUpdate,
         fee,
       }),
     );
@@ -258,7 +260,7 @@ export class BuyCryptoService {
       txId: buyCrypto.txId,
       txUrl:
         buyCrypto.outputAsset && buyCrypto.txId
-          ? `${BlockchainExplorerUrls[buyCrypto.outputAsset.blockchain]}/${buyCrypto.txId}`
+          ? txExplorerUrl(buyCrypto.outputAsset.blockchain, buyCrypto.txId)
           : undefined,
       isComplete: buyCrypto.isComplete,
       date: buyCrypto.outputDate,
