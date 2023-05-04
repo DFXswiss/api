@@ -8,11 +8,11 @@ import { PayoutGroup, PayoutJellyfishService } from './base/payout-jellyfish.ser
 
 @Injectable()
 export class PayoutDeFiChainService extends PayoutJellyfishService {
-  #outClient: DeFiClient;
+  #client: DeFiClient;
 
   constructor(readonly nodeService: NodeService, private readonly whaleService: WhaleService) {
     super();
-    nodeService.getConnectedNode(NodeType.OUTPUT).subscribe((client) => (this.#outClient = client));
+    nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.#client = client));
   }
 
   async isHealthy(context: PayoutOrderContext): Promise<boolean> {
@@ -53,6 +53,6 @@ export class PayoutDeFiChainService extends PayoutJellyfishService {
   }
 
   private getClient(_context: PayoutOrderContext): DeFiClient {
-    return this.#outClient;
+    return this.#client;
   }
 }
