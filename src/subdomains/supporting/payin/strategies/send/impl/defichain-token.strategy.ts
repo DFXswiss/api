@@ -72,7 +72,7 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
   }
 
   protected getForwardAddress(): BlockchainAddress {
-    return BlockchainAddress.create(Config.blockchain.default.dexWalletAddress, Blockchain.DEFICHAIN);
+    return BlockchainAddress.create(Config.blockchain.default.dex.address, Blockchain.DEFICHAIN);
   }
 
   protected async isConfirmed(payIn: CryptoInput): Promise<boolean> {

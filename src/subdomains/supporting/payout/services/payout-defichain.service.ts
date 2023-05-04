@@ -45,7 +45,7 @@ export class PayoutDeFiChainService extends PayoutJellyfishService {
   }
 
   getWalletAddress(_context: PayoutOrderContext): string {
-    return Config.blockchain.default.outWalletAddress;
+    return Config.blockchain.default.dex.address;
   }
 
   isLightWalletAddress(address: string): boolean {

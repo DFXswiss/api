@@ -52,7 +52,7 @@ export class BtcClient extends NodeClient {
             null,
             'unset',
             null,
-            { fee_rate: feeRate, replaceable: true, change_address: Config.blockchain.default.btcOutWalletAddress },
+            { fee_rate: feeRate, replaceable: true, change_address: Config.blockchain.default.btcOutput.address },
           ],
           'number',
         ),

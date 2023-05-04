@@ -134,7 +134,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
 
   private aggregateBalances(tokens: AccountResult<string, string>[], coinAmount: number): Balance[] {
     return tokens
-      .filter((t) => t.owner === Config.blockchain.default.dexWalletAddress)
+      .filter((t) => t.owner === Config.blockchain.default.dex.address)
       .map((t) => {
         const { asset, amount } = this.dexClient.parseAmount(t.amount);
 
