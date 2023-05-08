@@ -223,15 +223,8 @@ export class DexService {
       throw new Error(`No supplementary strategy found for asset ${asset.uniqueName} during #transferLiquidity(...)`);
     }
 
-    try {
-      console.info(`Transferring ${amount} ${asset.uniqueName} liquidity.`);
-      return await strategy.transferLiquidity(request);
-    } catch (e) {
-      console.error(e.message);
-
-      // default public exception
-      throw new Error(`Error while transferring  ${amount} ${asset.uniqueName} liquidity.`);
-    }
+    console.info(`Transferring ${amount} ${asset.uniqueName} liquidity.`);
+    return strategy.transferLiquidity(request);
   }
 
   async transferMinimalCoin(address: BlockchainAddress): Promise<string> {

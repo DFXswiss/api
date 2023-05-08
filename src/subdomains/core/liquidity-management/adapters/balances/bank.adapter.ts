@@ -5,8 +5,8 @@ import { LiquidityBalanceIntegration } from '../../interfaces';
 
 @Injectable()
 export class BankAdapter implements LiquidityBalanceIntegration {
-  getBalance(fiat: Fiat): Promise<LiquidityBalance> {
-    if (!(fiat instanceof Fiat)) {
+  getBalances(fiats: Fiat[]): Promise<LiquidityBalance[]> {
+    if (!fiats.every((f) => f instanceof Fiat)) {
       throw new Error(`BankAdapter supports only Fiat.`);
     }
 

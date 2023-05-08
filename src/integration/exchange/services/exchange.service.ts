@@ -147,7 +147,7 @@ export class ExchangeService implements PricingProvider {
   async getTradePair(from: string, to: string): Promise<{ pair: string; direction: OrderSide }> {
     const currencyPairs = await this.getMarkets().then((m) => m.map((m) => m.symbol));
     const selectedPair = currencyPairs.find((p) => p === `${from}/${to}` || p === `${to}/${from}`);
-    if (!selectedPair) throw new BadRequestException(`Pair with ${from} and ${to} not supported`);
+    if (!selectedPair) throw new BadRequestException(`${this.name}: pair with ${from} and ${to} not supported`);
 
     const selectedDirection = selectedPair.startsWith(to) ? OrderSide.BUY : OrderSide.SELL;
 
@@ -158,7 +158,7 @@ export class ExchangeService implements PricingProvider {
     const pair = await this.getPair(from, to);
 
     const trades = await this.callApi((e) => e.fetchTrades(pair));
-    if (trades.length === 0) throw new Error(`No trades found for ${pair}`);
+    if (trades.length === 0) throw new Error(`${this.name}: no trades found for ${pair}`);
 
     return trades.sort((a, b) => b.timestamp - a.timestamp)[0].price;
   }
@@ -187,7 +187,7 @@ export class ExchangeService implements PricingProvider {
     const balance = await this.getBalance(from);
     if (amount > balance) {
       throw new BadRequestException(
-        `There is not enough balance for token ${from}. Current balance: ${balance} requested balance: ${amount}`,
+        `${this.name}: there is not enough balance on for token ${from}. Current balance: ${balance} requested balance: ${amount}`,
       );
     }
 

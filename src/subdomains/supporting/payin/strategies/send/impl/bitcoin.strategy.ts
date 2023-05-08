@@ -36,7 +36,7 @@ export class BitcoinStrategy extends JellyfishStrategy {
   }
 
   protected getForwardAddress(): BlockchainAddress {
-    return BlockchainAddress.create(Config.blockchain.default.btcOutWalletAddress, Blockchain.BITCOIN);
+    return BlockchainAddress.create(Config.blockchain.default.btcOutput.address, Blockchain.BITCOIN);
   }
 
   protected async isConfirmed(payIn: CryptoInput): Promise<boolean> {

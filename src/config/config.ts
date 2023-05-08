@@ -238,14 +238,17 @@ export class Configuration {
       dex: {
         active: process.env.NODE_DEX_URL_ACTIVE,
         passive: process.env.NODE_DEX_URL_PASSIVE,
+        address: process.env.DEX_WALLET_ADDRESS,
       },
       out: {
         active: process.env.NODE_OUT_URL_ACTIVE,
         passive: process.env.NODE_OUT_URL_PASSIVE,
+        address: process.env.OUT_WALLET_ADDRESS,
       },
       int: {
         active: process.env.NODE_INT_URL_ACTIVE,
         passive: process.env.NODE_INT_URL_PASSIVE,
+        address: process.env.INT_WALLET_ADDRESS,
       },
       ref: {
         active: process.env.NODE_REF_URL_ACTIVE,
@@ -258,13 +261,10 @@ export class Configuration {
       btcOutput: {
         active: process.env.NODE_BTC_OUT_URL_ACTIVE,
         passive: process.env.NODE_BTC_OUT_URL_PASSIVE,
+        address: process.env.BTC_OUT_WALLET_ADDRESS,
       },
       walletPassword: process.env.NODE_WALLET_PASSWORD,
       utxoSpenderAddress: process.env.UTXO_SPENDER_ADDRESS,
-      dexWalletAddress: process.env.DEX_WALLET_ADDRESS,
-      outWalletAddress: process.env.OUT_WALLET_ADDRESS,
-      intWalletAddress: process.env.INT_WALLET_ADDRESS,
-      btcOutWalletAddress: process.env.BTC_OUT_WALLET_ADDRESS,
       minTxAmount: 0.00000297,
     },
     evm: {
