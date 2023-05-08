@@ -274,6 +274,8 @@ export class PricingService {
 
     if (PricingUtil.isBTC(from) && PricingUtil.isAltcoin(to)) return PricingPathAlias.BTC_TO_ALTCOIN;
 
+    if (PricingUtil.isBTC(from) && PricingUtil.isBTC(to)) return PricingPathAlias.BTC_TO_ALTCOIN;
+
     if (from === 'USD' && PricingUtil.isUSDStablecoin(to)) return PricingPathAlias.MATCHING_FIAT_TO_USD_STABLE_COIN;
 
     if (PricingUtil.isFiat(from) && PricingUtil.isUSDStablecoin(to))
