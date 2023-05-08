@@ -15,7 +15,7 @@ export interface LiquidityActionIntegration {
   supportedCommands: string[];
   executeOrder(order: LiquidityManagementOrder): Promise<CorrelationId>;
   checkCompletion(order: LiquidityManagementOrder): Promise<boolean>;
-  validateParams(command: string, params: any): boolean;
+  validateParams(command: string, params: Record<string, unknown>): boolean;
 }
 
 export interface LiquidityState {

@@ -1,8 +1,7 @@
-import { Lock } from 'src/shared/utils/lock';
 import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
 import { InWalletTransaction, UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { Injectable } from '@nestjs/common';
-import { Config, Process } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -10,7 +9,6 @@ import { AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { CryptoInput } from '../entities/crypto-input.entity';
 import { PayInRepository } from '../repositories/payin.repository';
-import { Cron, CronExpression } from '@nestjs/schedule';
 import { PayInJellyfishService } from './base/payin-jellyfish.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 
@@ -82,89 +80,6 @@ export class PayInDeFiChainService extends PayInJellyfishService {
     );
   }
 
-  @Cron(CronExpression.EVERY_10_MINUTES)
-  @Lock(7200)
-  async convertTokens(): Promise<void> {
-    if (Config.processDisabled(Process.PAY_IN)) return;
-    await this.client.checkSync();
-
-    const tokens = await this.client.getToken();
-
-    for (const token of tokens) {
-      try {
-        const { amount, asset } = this.client.parseAmount(token.amount);
-        const assetEntity = await this.assetService.getAssetByQuery({
-          dexName: asset,
-          blockchain: Blockchain.DEFICHAIN,
-          type: AssetType.TOKEN,
-        });
-
-        if (assetEntity?.category === AssetCategory.POOL_PAIR) {
-          this.logger.info(`Removing pool liquidity: ${token}`);
-
-          // remove pool liquidity
-          await this.doTokenTx(token.owner, (utxo) =>
-            this.client.removePoolLiquidity(token.owner, token.amount, [utxo]),
-          );
-
-          // send UTXO (for second token)
-          const additionalFeeUtxo = await this.getFeeUtxo(token.owner);
-          if (!additionalFeeUtxo) {
-            await this.sendFeeUtxo(token.owner);
-          }
-        } else {
-          // ignoring dust DFI transactions
-          if (asset === 'DFI' && amount < Config.blockchain.default.minTxAmount) {
-            continue;
-          }
-
-          // check for min. deposit
-          const dfiAmount = await this.client.testCompositeSwap(asset, 'DFI', amount);
-          if (dfiAmount < Config.payIn.minDeposit.DeFiChain.DFI) {
-            this.logger.info(`Retrieving small token: ${token}`);
-
-            await this.doTokenTx(token.owner, async (utxo) =>
-              this.client.sendToken(token.owner, Config.blockchain.default.dexWalletAddress, asset, amount, [utxo]),
-            );
-          }
-        }
-      } catch (e) {
-        this.logger.error(`Failed to convert token (${token.amount} on ${token.owner}):`, e);
-      }
-    }
-  }
-
-  @Cron(CronExpression.EVERY_DAY_AT_4AM)
-  async retrieveFeeUtxos(): Promise<void> {
-    try {
-      if (Config.processDisabled(Process.PAY_IN)) return;
-      const utxos = await this.client.getUtxo();
-
-      for (const utxo of utxos) {
-        try {
-          if (
-            utxo.address != Config.blockchain.default.utxoSpenderAddress &&
-            utxo.amount.toNumber() < Config.payIn.minDeposit.DeFiChain.DFI &&
-            utxo.amount.toNumber() - this.client.utxoFee >= Config.blockchain.default.minTxAmount &&
-            !utxos.find(
-              (u) => u.address === utxo.address && u.amount.toNumber() >= Config.payIn.minDeposit.DeFiChain.DFI,
-            )
-          ) {
-            await this.client.sendCompleteUtxo(
-              utxo.address,
-              Config.blockchain.default.utxoSpenderAddress,
-              utxo.amount.toNumber(),
-            );
-          }
-        } catch (e) {
-          this.logger.info('Failed to retrieve fee UTXO:', e);
-        }
-      }
-    } catch (e) {
-      this.logger.error('Exception during fee UTXO retrieval:', e);
-    }
-  }
-
   async getFeeUtxo(address: string): Promise<UTXO | undefined> {
     return this.client
       .getUtxo()
@@ -186,7 +101,7 @@ export class PayInDeFiChainService extends PayInJellyfishService {
     return this.client.sendUtxo(Config.blockchain.default.utxoSpenderAddress, address, fee);
   }
 
-  //*** HELPER METHODS ***//
+  // --- HELPER METHODS --- //
 
   private async doTokenTx(addressFrom: string, tx: (utxo: UTXO) => Promise<string>): Promise<void> {
     const feeUtxo = await this.getFeeUtxo(addressFrom);
@@ -219,5 +134,89 @@ export class PayInDeFiChainService extends PayInJellyfishService {
 
   private parseAmount(amount: string, type: AssetType): HistoryAmount {
     return { ...this.client.parseAmount(amount), type };
+  }
+
+  // --- JOBS --- //
+  async splitPools(): Promise<void> {
+    await this.client.checkSync();
+
+    const tokens = await this.client.getToken();
+
+    for (const token of tokens) {
+      try {
+        const { asset } = this.client.parseAmount(token.amount);
+        const assetEntity = await this.assetService.getAssetByQuery({
+          dexName: asset,
+          blockchain: Blockchain.DEFICHAIN,
+          type: AssetType.TOKEN,
+        });
+
+        if (assetEntity?.category === AssetCategory.POOL_PAIR) {
+          this.logger.info(`Removing pool liquidity: owner: ${token.owner}`);
+
+          // remove pool liquidity
+          await this.doTokenTx(token.owner, (utxo) =>
+            this.client.removePoolLiquidity(token.owner, token.amount, [utxo]),
+          );
+
+          // send UTXO (for second token)
+          const additionalFeeUtxo = await this.getFeeUtxo(token.owner);
+          if (!additionalFeeUtxo) {
+            await this.sendFeeUtxo(token.owner);
+          }
+        }
+      } catch (e) {
+        this.logger.error(`Failed to split liquidity pool (${token.amount} on ${token.owner}):`, e);
+      }
+    }
+  }
+
+  async retrieveSmallDfiTokens(): Promise<void> {
+    await this.client.checkSync();
+
+    const tokens = await this.client.getToken();
+
+    for (const token of tokens) {
+      try {
+        const { amount, asset } = this.client.parseAmount(token.amount);
+
+        if (
+          asset === 'DFI' &&
+          amount >= Config.blockchain.default.minTxAmount &&
+          amount < Config.payIn.minDeposit.DeFiChain.DFI
+        ) {
+          this.logger.info(`Retrieving small token: owner: ${token.owner}`);
+
+          await this.doTokenTx(token.owner, async (utxo) =>
+            this.client.sendToken(token.owner, Config.blockchain.default.dex.address, asset, amount, [utxo]),
+          );
+        }
+      } catch (e) {
+        this.logger.error(`Failed to retrieve small token (${token.amount} on ${token.owner}):`, e);
+      }
+    }
+  }
+
+  async retrieveFeeUtxos(): Promise<void> {
+    const utxos = await this.client.getUtxo();
+
+    for (const utxo of utxos) {
+      try {
+        if (
+          utxo.address != Config.blockchain.default.utxoSpenderAddress &&
+          utxo.amount.toNumber() < Config.payIn.minDeposit.DeFiChain.DFI &&
+          utxo.amount.toNumber() - this.client.utxoFee >= Config.blockchain.default.minTxAmount &&
+          !utxos.find((u) => u.address === utxo.address && u.amount.toNumber() >= Config.payIn.minDeposit.DeFiChain.DFI)
+        ) {
+          await this.client.sendCompleteUtxo(
+            utxo.address,
+            Config.blockchain.default.utxoSpenderAddress,
+            utxo.amount.toNumber(),
+          );
+        }
+      } catch (e) {
+        this.logger.error('Failed to retrieve fee UTXO:', e);
+      }
+    }
   }
 }

@@ -13,7 +13,7 @@ export abstract class JellyfishStrategy extends SendStrategy {
   ) {
     super();
   }
-  logger: DfxLogger;
+  private readonly logger = new DfxLogger();
 
   protected abstract isConfirmed(payIn: CryptoInput): Promise<boolean>;
 

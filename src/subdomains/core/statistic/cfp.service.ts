@@ -28,7 +28,7 @@ export class CfpService implements OnModuleInit {
   private blockInfo: BlockchainInfo;
 
   constructor(nodeService: NodeService, private readonly http: HttpService) {
-    nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.client = client));
+    nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.client = client));
   }
 
   onModuleInit() {

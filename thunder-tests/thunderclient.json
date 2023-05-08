@@ -22,12 +22,12 @@
     "method": "POST",
     "sortNum": 20000,
     "created": "2022-01-15T13:35:02.988Z",
-    "modified": "2022-01-15T13:40:03.207Z",
+    "modified": "2023-04-26T10:20:27.646Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\n    \"from\": \"eur\",\n    \"to\": \"btc\",\n    \"amount\": 100,\n    \"withdrawal\": {\n        \"address\": \"38w2xMqoGX2JxQJkqxr7ei7Ck2A3eEPUy8\",\n        \"key\": \"CAKE DFX Account\",\n        \"withdrawAll\": false\n    }\n}",
+      "raw": "{\n  \"from\": \"eur\",\n  \"to\": \"btc\",\n  \"amount\": 20\n}",
       "form": []
     },
     "tests": []
@@ -1996,12 +1996,12 @@
     "method": "POST",
     "sortNum": 780000,
     "created": "2023-02-27T10:55:51.265Z",
-    "modified": "2023-04-04T12:47:38.462Z",
+    "modified": "2023-04-21T08:27:30.957Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\n  \"assetId\": 3,\n  \"amount\": 1,\n  \"targetOptimal\": true\n}",
+      "raw": "{\n  \"assetId\": 113,\n  \"amount\": 0.0005,\n  \"targetOptimal\": false\n}",
       "form": []
     },
     "tests": []
@@ -2015,12 +2015,12 @@
     "method": "POST",
     "sortNum": 790000,
     "created": "2023-02-27T10:59:54.219Z",
-    "modified": "2023-02-27T12:40:19.275Z",
+    "modified": "2023-04-21T08:20:12.504Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\n  \"assetId\": 61,\n  \"amount\": 0.0001\n}",
+      "raw": "{\n  \"assetId\": 113,\n  \"amount\": 0.0005,\n  \"targetOptimal\": false\n}",
       "form": []
     },
     "tests": []

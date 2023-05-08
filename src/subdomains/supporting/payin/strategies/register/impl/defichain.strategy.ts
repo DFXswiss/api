@@ -83,12 +83,28 @@ export class DeFiChainStrategy extends RegisterStrategy {
     await this.processNewPayInEntries();
   }
 
-  @Cron(CronExpression.EVERY_10_MINUTES)
+  @Cron(CronExpression.EVERY_5_MINUTES)
   @Lock(7200)
-  async convertTokens(): Promise<void> {
+  async splitPools(): Promise<void> {
     if (Config.processDisabled(Process.PAY_IN)) return;
 
-    await this.deFiChainService.convertTokens();
+    await this.deFiChainService.splitPools();
+  }
+
+  @Cron(CronExpression.EVERY_HOUR)
+  @Lock(7200)
+  async retrieveSmallDfiTokens(): Promise<void> {
+    if (Config.processDisabled(Process.PAY_IN)) return;
+
+    await this.deFiChainService.retrieveSmallDfiTokens();
+  }
+
+  @Cron(CronExpression.EVERY_DAY_AT_4AM)
+  @Lock(7200)
+  async retrieveFeeUtxos(): Promise<void> {
+    if (Config.processDisabled(Process.PAY_IN)) return;
+
+    await this.deFiChainService.retrieveFeeUtxos();
   }
 
   //*** HELPER METHODS ***//

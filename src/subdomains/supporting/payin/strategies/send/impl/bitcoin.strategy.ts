@@ -14,10 +14,10 @@ export class BitcoinStrategy extends JellyfishStrategy {
   constructor(protected readonly bitcoinService: PayInBitcoinService, protected readonly payInRepo: PayInRepository) {
     super(bitcoinService, payInRepo, Blockchain.BITCOIN);
   }
-  logger = new DfxLogger(BitcoinStrategy);
+  private readonly dfxLogger = new DfxLogger(BitcoinStrategy);
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
-    this.logger.info(
+    this.dfxLogger.info(
       `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${payIns.length} Bitcoin input(s): ${payIns.map(
         (p) => p.id,
       )}`,
@@ -33,13 +33,13 @@ export class BitcoinStrategy extends JellyfishStrategy {
 
         await this.payInRepo.save(payIn);
       } catch (e) {
-        this.logger.error(`Failed to send Bitcoin input ${payIn.id} of type ${type}`, e);
+        this.dfxLogger.error(`Failed to send Bitcoin input ${payIn.id} of type ${type}`, e);
       }
     }
   }
 
   protected getForwardAddress(): BlockchainAddress {
-    return BlockchainAddress.create(Config.blockchain.default.btcOutWalletAddress, Blockchain.BITCOIN);
+    return BlockchainAddress.create(Config.blockchain.default.btcOutput.address, Blockchain.BITCOIN);
   }
 
   protected async isConfirmed(payIn: CryptoInput): Promise<boolean> {

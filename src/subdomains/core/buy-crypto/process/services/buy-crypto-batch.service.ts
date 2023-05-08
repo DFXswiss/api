@@ -21,7 +21,7 @@ import { PricingService } from 'src/subdomains/supporting/pricing/services/prici
 import { FeeLimitExceededException } from '../exceptions/fee-limit-exceeded.exception';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
-import { PriceMismatchException } from 'src/integration/exchange/exceptions/price-mismatch.exception';
+import { PriceMismatchException } from 'src/subdomains/supporting/pricing/domain/exceptions/price-mismatch.exception';
 import { LiquidityManagementService } from 'src/subdomains/core/liquidity-management/services/liquidity-management.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 

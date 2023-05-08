@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { I18nService } from 'nestjs-i18n';
-import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Config, Process } from 'src/config/config';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -11,6 +10,7 @@ import { IsNull, Not, In } from 'typeorm';
 import { BuyFiatRepository } from './buy-fiat.repository';
 import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
 import { BuyFiatAmlReasonPendingStates } from './buy-fiat.entity';
+import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
@@ -55,9 +55,7 @@ export class BuyFiatNotificationService {
                 inputAmount: entity.cryptoInput.amount,
                 inputAsset: entity.cryptoInput.asset.dexName,
                 blockchain: entity.cryptoInput.asset.blockchain,
-                inputTransactionLink: `${BlockchainExplorerUrls[entity.cryptoInput.asset.blockchain]}/${
-                  entity.cryptoInput.inTxId
-                }`,
+                inputTransactionLink: txExplorerUrl(entity.cryptoInput.asset.blockchain, entity.cryptoInput.inTxId),
               },
             },
           });
@@ -183,9 +181,7 @@ export class BuyFiatNotificationService {
                 inputAmount: entity.inputAmount,
                 inputAsset: entity.inputAsset,
                 blockchain: entity.cryptoInput.asset.blockchain,
-                returnTransactionLink: `${BlockchainExplorerUrls[entity.cryptoInput.asset.blockchain]}/${
-                  entity.cryptoReturnTxId
-                }`,
+                returnTransactionLink: txExplorerUrl(entity.cryptoInput.asset.blockchain, entity.cryptoReturnTxId),
                 returnReason: this.i18nService.translate(`mail.amlReasonMailText.${entity.amlReason}`, {
                   lang: entity.sell.user.userData.language?.symbol.toLowerCase(),
                 }),

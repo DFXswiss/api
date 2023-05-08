@@ -18,10 +18,10 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
   ) {
     super(deFiChainService, payInRepo, Blockchain.DEFICHAIN);
   }
-  logger = new DfxLogger(DeFiChainTokenStrategy);
+  private readonly dfxLogger = new DfxLogger(DeFiChainTokenStrategy);
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
-    this.logger.info(
+    this.dfxLogger.info(
       `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${
         payIns.length
       } DeFiChain Token input(s): ${payIns.map((p) => p.id)}`,
@@ -49,7 +49,7 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
           await this.dispatch(payIn, type);
         }
       } catch (e) {
-        this.logger.error(`Failed to send DeFiChain token input ${payIn.id} of type ${type}`, e);
+        this.dfxLogger.error(`Failed to send DeFiChain token input ${payIn.id} of type ${type}`, e);
       }
     }
   }
@@ -75,7 +75,7 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
   }
 
   protected getForwardAddress(): BlockchainAddress {
-    return BlockchainAddress.create(Config.blockchain.default.dexWalletAddress, Blockchain.DEFICHAIN);
+    return BlockchainAddress.create(Config.blockchain.default.dex.address, Blockchain.DEFICHAIN);
   }
 
   protected async isConfirmed(payIn: CryptoInput): Promise<boolean> {
@@ -94,7 +94,7 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
     this.updatePayInWithSendData(payIn, type, outTxId);
 
     await this.payInRepo.save(payIn);
-    this.logger.info(`Token pay-in ${payIn.id} sent: ${payIn}`);
+    this.dfxLogger.info(`Token pay-in ${payIn.id} sent: ${payIn}`);
   }
 
   private async getFeeUtxo(payIn: CryptoInput): Promise<UTXO> {

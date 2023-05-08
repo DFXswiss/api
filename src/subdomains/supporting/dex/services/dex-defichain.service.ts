@@ -77,9 +77,9 @@ export class DexDeFiChainService {
 
     try {
       return await this.#dexClient.compositeSwap(
-        Config.blockchain.default.dexWalletAddress,
+        Config.blockchain.default.dex.address,
         swapAsset.dexName,
-        Config.blockchain.default.dexWalletAddress,
+        Config.blockchain.default.dex.address,
         targetAsset.dexName,
         swapAmount,
         [],
@@ -97,11 +97,11 @@ export class DexDeFiChainService {
   }
 
   async sellDfiCoin(amount: number): Promise<string> {
-    return this.#dexClient.toToken(Config.blockchain.default.dexWalletAddress, amount);
+    return this.#dexClient.toToken(Config.blockchain.default.dex.address, amount);
   }
 
   async addPoolLiquidity(poolPair: [string, string]): Promise<string> {
-    return this.#dexClient.addPoolLiquidity(Config.blockchain.default.dexWalletAddress, poolPair);
+    return this.#dexClient.addPoolLiquidity(Config.blockchain.default.dex.address, poolPair);
   }
 
   async transferLiquidity(addressTo: string, asset: string, amount: number): Promise<string> {
@@ -110,7 +110,7 @@ export class DexDeFiChainService {
 
   async transferMinimalUtxo(address: string): Promise<string> {
     return this.#dexClient.sendToken(
-      Config.blockchain.default.dexWalletAddress,
+      Config.blockchain.default.dex.address,
       address,
       'DFI',
       Config.payIn.minDeposit.DeFiChain.DFI / 2,
@@ -200,7 +200,7 @@ export class DexDeFiChainService {
   }
 
   async getRecentHistory(depth: number): Promise<AccountHistory[]> {
-    return this.#dexClient.getRecentHistory(depth, Config.blockchain.default.dexWalletAddress);
+    return this.#dexClient.getRecentHistory(depth, Config.blockchain.default.dex.address);
   }
 
   parseAmounts(amounts: string[]): { asset: string; amount: number }[] {
@@ -210,7 +210,7 @@ export class DexDeFiChainService {
   //*** GETTERS ***//
 
   get dexWalletAddress(): string {
-    return Config.blockchain.default.dexWalletAddress;
+    return Config.blockchain.default.dex.address;
   }
 
   // *** HELPER METHODS *** //

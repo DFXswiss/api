@@ -4,6 +4,7 @@ import { BinanceService } from 'src/integration/exchange/services/binance.servic
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { LiquidityManagementSystem } from '../../enums';
 import { CcxtExchangeAdapter } from './base/ccxt-exchange.adapter';
+import { LiquidityManagementOrderRepository } from '../../repositories/liquidity-management-order.repository';
 
 @Injectable()
 export class BinanceAdapter extends CcxtExchangeAdapter {
@@ -18,8 +19,12 @@ export class BinanceAdapter extends CcxtExchangeAdapter {
     Polygon: 'MATIC',
   };
 
-  constructor(binanceService: BinanceService, dexService: DexService) {
-    super(LiquidityManagementSystem.BINANCE, binanceService, dexService);
+  constructor(
+    binanceService: BinanceService,
+    dexService: DexService,
+    liquidityOrderRepo: LiquidityManagementOrderRepository,
+  ) {
+    super(LiquidityManagementSystem.BINANCE, binanceService, dexService, liquidityOrderRepo);
   }
 
   protected mapBlockchainToCcxtNetwork(blockchain: Blockchain): string {

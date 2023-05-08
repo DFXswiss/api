@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { Util } from 'src/shared/utils/util';
 import { TransactionQuery, TransactionResult, TransferRequest } from '../../../interfaces';
 import { DexDeFiChainService } from '../../../services/dex-defichain.service';
+import { TransferNotRequiredException } from '../../../exceptions/transfer-not-required.exception';
 
 @Injectable()
 export class DeFiChainStrategy {
@@ -10,6 +11,11 @@ export class DeFiChainStrategy {
 
   async transferLiquidity(request: TransferRequest): Promise<string> {
     const { destinationAddress, asset, amount } = request;
+    const sourceAddress = this.dexDeFiChainService.dexWalletAddress;
+
+    if (asset.name !== 'DFI' && destinationAddress === sourceAddress) {
+      throw new TransferNotRequiredException('Transfer of token to same address is not required/useless');
+    }
 
     return this.dexDeFiChainService.transferLiquidity(destinationAddress, asset.dexName, amount);
   }
