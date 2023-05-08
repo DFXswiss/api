@@ -7,6 +7,7 @@ import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.
 import { DeFiClient, Proposal, ProposalType, ProposalVote } from 'src/integration/blockchain/ain/node/defi-client';
 import { HttpService } from 'src/shared/services/http.service';
 import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 interface Masternodes {
   [id: string]: { ownerAuthAddress: string };
@@ -16,6 +17,7 @@ interface Masternodes {
 export class CfpService implements OnModuleInit {
   private readonly lockUrl = 'https://api.lock.space/v1/masternode';
   private readonly cakeUrl = 'https://api.cakedefi.com/nodes?order=status&orderBy=DESC';
+  private readonly logger = new DfxLogger(CfpService);
 
   private client: DeFiClient;
   private cfpResults: CfpResult[];
@@ -49,7 +51,7 @@ export class CfpService implements OnModuleInit {
       const filterProposal = currentProposals.filter((p) => this.blockInfo.blocks < p.proposalEndHeight + 20160);
       this.cfpResults = await Promise.all(filterProposal.map((cfp) => this.getCfpResult(cfp)));
     } catch (e) {
-      console.error('Exception during CFP update:', e);
+      this.logger.error('Exception during CFP update:', e);
     }
   }
 

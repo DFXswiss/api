@@ -1,7 +1,9 @@
 import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
+import { DfxLogger } from '../services/dfx-logger';
 
 @Catch()
 export class AllExceptionFilter implements ExceptionFilter {
+  private readonly logger = new DfxLogger(AllExceptionFilter);
   catch(exception: { message: string }, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse();
@@ -10,7 +12,7 @@ export class AllExceptionFilter implements ExceptionFilter {
 
     if (status >= 500) {
       // log server errors
-      console.error(`Exception during request to '${request.url}':`, exception);
+      this.logger.error(`Exception during request to '${request.url}': ${exception}`);
     }
 
     response.status(status).json(

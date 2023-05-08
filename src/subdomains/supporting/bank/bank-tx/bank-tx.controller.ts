@@ -18,11 +18,13 @@ import { BankTxBatch } from './bank-tx-batch.entity';
 import { BankTx } from './bank-tx.entity';
 import { BankTxService } from './bank-tx.service';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @ApiTags('bankTx')
 @Controller('bankTx')
 export class BankTxController {
   constructor(private readonly bankTxService: BankTxService) {}
+  private readonly logger = new DfxLogger(BankTxController);
 
   @Post()
   @ApiBearerAuth()
@@ -36,7 +38,7 @@ export class BankTxController {
         const batch = await this.bankTxService.storeSepaFile(file.buffer.toString());
         batches.push(batch);
       } catch (e) {
-        console.log(`Failed to store SEPA file:`, e);
+        this.logger.error(`Failed to store SEPA file:`, e);
         throw new BadRequestException(`Failed to store SEPA file`, { description: e.message });
       }
     }

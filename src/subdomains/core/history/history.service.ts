@@ -14,6 +14,7 @@ import { BuyCrypto } from '../buy-crypto/process/entities/buy-crypto.entity';
 import { AmlCheck } from '../buy-crypto/process/enums/aml-check.enum';
 import { BuyCryptoService } from '../buy-crypto/process/services/buy-crypto.service';
 import { StakingService } from '../staking/services/staking.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class HistoryService {
@@ -24,6 +25,7 @@ export class HistoryService {
     private readonly refRewardService: RefRewardService,
     private readonly dfiTaxService: DfiTaxService,
   ) {}
+  private readonly logger = new DfxLogger(HistoryService);
 
   async getHistory(
     userId: number,
@@ -435,7 +437,7 @@ export class HistoryService {
         sellValueInEur: null,
       }));
     } catch (error) {
-      console.error(`Failed to get DFI.tax rewards for ${userAddress}:`, error);
+      this.logger.error(`Failed to get DFI.tax rewards for ${userAddress}:`, error);
       return [];
     }
   }

@@ -9,6 +9,7 @@ import { PayoutOrderRepository } from '../../../repositories/payout-order.reposi
 import { PayoutGroup } from '../../../services/base/payout-jellyfish.service';
 import { PayoutBitcoinService } from '../../../services/payout-bitcoin.service';
 import { JellyfishStrategy } from './base/jellyfish.strategy';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BitcoinStrategy extends JellyfishStrategy {
@@ -17,9 +18,12 @@ export class BitcoinStrategy extends JellyfishStrategy {
     protected readonly bitcoinService: PayoutBitcoinService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
     protected readonly assetService: AssetService,
+    logger: DfxLogger,
   ) {
-    super(notificationService, payoutOrderRepo, bitcoinService);
+    super(notificationService, payoutOrderRepo, bitcoinService, logger);
+    this.logger = logger;
   }
+  logger = new DfxLogger(BitcoinStrategy);
 
   async estimateFee(): Promise<FeeResult> {
     const feeRate = await this.bitcoinService.getCurrentFastestFeeRate();
@@ -42,7 +46,7 @@ export class BitcoinStrategy extends JellyfishStrategy {
 
         await this.sendBTC(context, group);
       } catch (e) {
-        console.error(
+        this.logger.error(
           `Error in paying out a group of ${group.length} BTC orders(s). Order ID(s): ${group.map((o) => o.id)}`,
           e,
         );

@@ -16,6 +16,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class PayInService {
@@ -24,6 +25,7 @@ export class PayInService {
     private readonly sendStrategies: SendStrategiesFacade,
     private readonly registerStrategies: RegisterStrategiesFacade,
   ) {}
+  private readonly logger = new DfxLogger(PayInService);
 
   //*** PUBLIC API ***//
 
@@ -131,7 +133,7 @@ export class PayInService {
       const strategy = this.registerStrategies.getRegisterStrategy(payIn.asset);
       return await strategy.doAmlCheck(payIn, route);
     } catch (e) {
-      console.error(`Error during AML check for pay-in ID: ${payIn.id}`, e);
+      this.logger.error(`Error during AML check for pay-in ID: ${payIn.id}`, e);
     }
   }
 

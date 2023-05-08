@@ -7,6 +7,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { IsNull, Not } from 'typeorm';
 import { LimitRequestDecision } from './limit-request.entity';
 import { LimitRequestRepository } from './limit-request.repository';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class LimitRequestNotificationService {
@@ -14,6 +15,7 @@ export class LimitRequestNotificationService {
     private readonly limitRequestRepo: LimitRequestRepository,
     private readonly notificationService: NotificationService,
   ) {}
+  private readonly logger = new DfxLogger(LimitRequestNotificationService);
 
   @Cron(CronExpression.EVERY_5_MINUTES)
   @Lock(1800)
@@ -33,7 +35,7 @@ export class LimitRequestNotificationService {
       relations: ['userData'],
     });
 
-    entities.length > 0 && console.log(`Sending ${entities.length} 'limit-request accepted' email(s)`);
+    entities.length > 0 && this.logger.info(`Sending ${entities.length} 'limit-request accepted' email(s)`);
 
     for (const entity of entities) {
       try {
@@ -57,12 +59,12 @@ export class LimitRequestNotificationService {
             },
           });
         } else {
-          console.error(`Failed to send limit request accepted mail ${entity.id}: user has no email`);
+          this.logger.error(`Failed to send limit request accepted mail ${entity.id}: user has no email`);
         }
 
         await this.limitRequestRepo.update(...entity.sendMail());
       } catch (e) {
-        console.error(`Failed to send limit request accepted mail ${entity.id}:`, e);
+        this.logger.error(`Failed to send limit request accepted mail ${entity.id}:`, e);
       }
     }
   }

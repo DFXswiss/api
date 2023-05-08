@@ -4,10 +4,12 @@ import { UserDataRepository } from '../user-data/user-data.repository';
 import { IdentFailed, IdentPending, IdentResultDto, IdentSucceeded } from './dto/ident-result.dto';
 import { KycProcessService } from '../kyc/kyc-process.service';
 import { Like } from 'typeorm';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class IdentService {
   constructor(private readonly userDataRepo: UserDataRepository, private readonly kycProcess: KycProcessService) {}
+  private readonly logger = new DfxLogger(IdentService);
 
   // --- WEBHOOK UPDATES --- //
   async identUpdate(result: IdentResultDto): Promise<void> {
@@ -25,16 +27,16 @@ export class IdentService {
     });
 
     if (!user) {
-      console.error(`Received unmatched webhook call:`, result);
+      this.logger.error(`Received unmatched webhook call: ${result}`);
       return;
     }
 
     if (!IdentInProgress(user.kycStatus)) {
-      console.error(`Received webhook call for user ${user.id} in invalid KYC status ${user.kycStatus}:`, result);
+      this.logger.error(`Received webhook call for user ${user.id} in invalid KYC status ${user.kycStatus}: ${result}`);
       return;
     }
 
-    console.log(
+    this.logger.info(
       `Received webhook call for user ${user.id} (${result.identificationprocess.id}): ${result.identificationprocess.result}`,
     );
 
@@ -45,7 +47,7 @@ export class IdentService {
     } else if (IdentFailed(result)) {
       user = await this.kycProcess.identFailed(user, result);
     } else {
-      console.error(`Unknown ident result ${result.identificationprocess.result}`);
+      this.logger.error(`Unknown ident result ${result.identificationprocess.result}`);
     }
 
     await this.userDataRepo.save(user);

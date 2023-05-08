@@ -8,6 +8,7 @@ import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { MasternodeInfo, MasternodeResult } from '@defichain/jellyfish-api-core/dist/category/masternode';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export enum NodeCommand {
   UNLOCK = 'walletpassphrase',
@@ -25,6 +26,7 @@ export class NodeClient {
   protected chain = Config.network;
   private readonly client: ApiClient;
   private readonly queue: QueueHandler;
+  private readonly logger = new DfxLogger(NodeClient);
 
   readonly #mode: NodeMode;
 
@@ -124,7 +126,7 @@ export class NodeClient {
       if (unlock) await this.unlock();
       return await this.call(call);
     } catch (e) {
-      console.log('Exception during node call:', e);
+      this.logger.error('Exception during node call:', e);
       throw e;
     }
   }
@@ -140,7 +142,7 @@ export class NodeClient {
       return await this.queue.handle(() => call(this.client));
     } catch (e) {
       if (e instanceof SyntaxError && tryCount > 1) {
-        console.log('Retrying node call ...');
+        this.logger.info('Retrying node call ...');
         return this.call<T>(call, tryCount - 1);
       }
 

@@ -8,6 +8,7 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { JellyfishStrategy } from './base/jellyfish.strategy';
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class DeFiChainTokenStrategy extends JellyfishStrategy {
@@ -17,11 +18,13 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
   ) {
     super(deFiChainService, payInRepo, Blockchain.DEFICHAIN);
   }
+  logger = new DfxLogger(DeFiChainTokenStrategy);
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
-    console.log(
-      `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${payIns.length} DeFiChain Token input(s).`,
-      payIns.map((p) => p.id),
+    this.logger.info(
+      `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${payIns.length} DeFiChain Token input(s): ${payIns
+        .map((p) => p.id)
+        .join(', ')}`,
     );
 
     await this.deFiChainService.checkHealthOrThrow();
@@ -46,7 +49,7 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
           await this.dispatch(payIn, type);
         }
       } catch (e) {
-        console.error(`Failed to send DeFiChain token input ${payIn.id} of type ${type}`, e);
+        this.logger.error(`Failed to send DeFiChain token input ${payIn.id} of type ${type}`, e);
       }
     }
   }
@@ -91,7 +94,7 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
     this.updatePayInWithSendData(payIn, type, outTxId);
 
     await this.payInRepo.save(payIn);
-    console.log(`Token pay-in ${payIn.id} sent:`, payIn);
+    this.logger.info(`Token pay-in ${payIn.id} sent: ${payIn}`);
   }
 
   private async getFeeUtxo(payIn: CryptoInput): Promise<UTXO> {

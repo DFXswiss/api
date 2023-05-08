@@ -18,6 +18,7 @@ import { Util } from 'src/shared/utils/util';
 import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Config, Process } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class StakingService {
@@ -29,6 +30,7 @@ export class StakingService {
     private readonly payInService: PayInService,
     private readonly notificationService: NotificationService,
   ) {}
+  private readonly logger = new DfxLogger(StakingService);
 
   //*** JOBS ***//
 
@@ -152,7 +154,7 @@ export class StakingService {
           });
         }
       } catch (e) {
-        console.error(`Failed to send staking return mail ${payIn.id}:`, e);
+        this.logger.error(`Failed to send staking return mail ${payIn.id}:`, e);
       }
 
       await this.payInService.returnPayIn(

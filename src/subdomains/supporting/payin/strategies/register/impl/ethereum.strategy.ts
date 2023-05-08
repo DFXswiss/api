@@ -14,6 +14,7 @@ import { PayInEntry } from '../../../interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class EthereumStrategy extends EvmStrategy {
@@ -26,6 +27,7 @@ export class EthereumStrategy extends EvmStrategy {
     payInRepository: PayInRepository,
     assetService: AssetService,
     repos: RepositoryFactory,
+    logger: DfxLogger,
   ) {
     super(
       Blockchain.ETHEREUM,
@@ -37,8 +39,11 @@ export class EthereumStrategy extends EvmStrategy {
       payInRepository,
       assetService,
       repos,
+      logger,
     );
   }
+
+  logger = new DfxLogger(EthereumStrategy);
 
   //*** PUBLIC API ***//
 
@@ -64,7 +69,7 @@ export class EthereumStrategy extends EvmStrategy {
 
         await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
       } catch (e) {
-        console.error('Could not set reference amounts for Ethereum pay-in', e);
+        this.logger.error('Could not set reference amounts for Ethereum pay-in', e);
         continue;
       }
     }

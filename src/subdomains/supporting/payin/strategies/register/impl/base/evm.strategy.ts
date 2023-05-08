@@ -17,6 +17,7 @@ import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export abstract class EvmStrategy extends RegisterStrategy {
   constructor(
@@ -29,8 +30,9 @@ export abstract class EvmStrategy extends RegisterStrategy {
     protected readonly payInRepository: PayInRepository,
     protected readonly assetService: AssetService,
     private readonly repos: RepositoryFactory,
+    logger: DfxLogger,
   ) {
-    super(dexService, payInFactory, payInRepository);
+    super(dexService, payInFactory, payInRepository, logger);
   }
 
   protected abstract getOwnAddresses(): string[];

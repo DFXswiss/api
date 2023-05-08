@@ -4,6 +4,7 @@ import { LiquidityManagementRule } from '../entities/liquidity-management-rule.e
 import { LiquidityBalanceIntegrationFactory } from '../factories/liquidity-balance-integration.factory';
 import { LiquidityBalanceRepository } from '../repositories/liquidity-balance.repository';
 import { Util } from 'src/shared/utils/util';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class LiquidityManagementBalanceService {
@@ -11,6 +12,7 @@ export class LiquidityManagementBalanceService {
     private readonly balanceIntegrationFactory: LiquidityBalanceIntegrationFactory,
     private readonly balanceRepo: LiquidityBalanceRepository,
   ) {}
+  private readonly logger = new DfxLogger(LiquidityManagementBalanceService);
 
   //*** PUBLIC API ***//
 
@@ -62,7 +64,7 @@ export class LiquidityManagementBalanceService {
 
         await this.balanceRepo.save(balance);
       } catch (e) {
-        console.error(`Could not save balance of ${balance.targetName}.`, e);
+        this.logger.error(`Could not save balance of ${balance.targetName}.`, e);
       }
     }
   }

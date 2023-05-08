@@ -37,6 +37,7 @@ import { IpLog } from './models/ip-log/ip-log.entity';
 import { Language } from './models/language/language.entity';
 import { Setting } from './models/setting/setting.entity';
 import { RepositoryFactory } from './repositories/repository.factory';
+import { DfxLogger } from './services/dfx-logger';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { RepositoryFactory } from './repositories/repository.factory';
     ApiKeyService,
     PaymentInfoService,
     IpLogService,
+    DfxLogger,
   ],
   exports: [
     RepositoryFactory,
@@ -85,6 +87,7 @@ import { RepositoryFactory } from './repositories/repository.factory';
     ApiKeyService,
     PaymentInfoService,
     IpLogService,
+    DfxLogger,
   ],
 })
 export class SharedModule {}

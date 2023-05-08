@@ -12,6 +12,7 @@ import { CryptoInput } from '../entities/crypto-input.entity';
 import { PayInRepository } from '../repositories/payin.repository';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PayInJellyfishService } from './base/payin-jellyfish.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export interface HistoryAmount {
   amount: number;
@@ -22,6 +23,7 @@ export interface HistoryAmount {
 @Injectable()
 export class PayInDeFiChainService extends PayInJellyfishService {
   private client: DeFiClient;
+  private readonly logger = new DfxLogger(PayInDeFiChainService);
 
   private readonly utxoTxTypes = ['receive', 'blockReward'];
   private readonly tokenTxTypes = [
@@ -98,7 +100,7 @@ export class PayInDeFiChainService extends PayInJellyfishService {
         });
 
         if (assetEntity?.category === AssetCategory.POOL_PAIR) {
-          console.log('Removing pool liquidity:', token);
+          this.logger.info(`Removing pool liquidity: ${token}`);
 
           // remove pool liquidity
           await this.doTokenTx(token.owner, (utxo) =>
@@ -119,7 +121,7 @@ export class PayInDeFiChainService extends PayInJellyfishService {
           // check for min. deposit
           const dfiAmount = await this.client.testCompositeSwap(asset, 'DFI', amount);
           if (dfiAmount < Config.payIn.minDeposit.DeFiChain.DFI) {
-            console.log('Retrieving small token:', token);
+            this.logger.info(`Retrieving small token: ${token}`);
 
             await this.doTokenTx(token.owner, async (utxo) =>
               this.client.sendToken(token.owner, Config.blockchain.default.dexWalletAddress, asset, amount, [utxo]),
@@ -127,7 +129,7 @@ export class PayInDeFiChainService extends PayInJellyfishService {
           }
         }
       } catch (e) {
-        console.error(`Failed to convert token (${token.amount} on ${token.owner}):`, e);
+        this.logger.error(`Failed to convert token (${token.amount} on ${token.owner}):`, e);
       }
     }
   }
@@ -155,11 +157,11 @@ export class PayInDeFiChainService extends PayInJellyfishService {
             );
           }
         } catch (e) {
-          console.log('Failed to retrieve fee UTXO:', e);
+          this.logger.info('Failed to retrieve fee UTXO:', e);
         }
       }
     } catch (e) {
-      console.error('Exception during fee UTXO retrieval:', e);
+      this.logger.error('Exception during fee UTXO retrieval:', e);
     }
   }
 
@@ -203,7 +205,7 @@ export class PayInDeFiChainService extends PayInJellyfishService {
       // do TX
       await tx(feeUtxo);
     } catch (e) {
-      console.error('Failed to do token TX:', e);
+      this.logger.error('Failed to do token TX:', e);
     }
   }
 

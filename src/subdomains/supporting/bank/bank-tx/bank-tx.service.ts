@@ -16,6 +16,7 @@ import { BankTxReturnService } from '../bank-tx-return/bank-tx-return.service';
 import { BankTxRepeatService } from '../bank-tx-repeat/bank-tx-repeat.service';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { Config, Process } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BankTxService {
@@ -31,6 +32,7 @@ export class BankTxService {
     private readonly bankTxReturnService: BankTxReturnService,
     private readonly bankTxRepeatService: BankTxRepeatService,
   ) {}
+  private readonly logger = new DfxLogger(BankTxService);
 
   // --- TRANSACTION HANDLING --- //
   @Cron(CronExpression.EVERY_MINUTE)
@@ -53,14 +55,14 @@ export class BankTxService {
         try {
           await this.create(bankTx);
         } catch (e) {
-          if (!(e instanceof ConflictException)) console.error(`Failed to import transaction:`, e);
+          if (!(e instanceof ConflictException)) this.logger.error(`Failed to import transaction:`, e);
         }
       }
 
       if (frickTransactions.length > 0) await this.settingService.set(settingKeyFrick, newModificationTime);
       if (olkyTransactions.length > 0) await this.settingService.set(settingKeyOlky, newModificationTime);
     } catch (e) {
-      console.error(`Failed to check bank transactions:`, e);
+      this.logger.error(`Failed to check bank transactions:`, e);
     }
   }
 
@@ -127,8 +129,8 @@ export class BankTxService {
       .findBy({ accountServiceRef: In(txList.map((i) => i.accountServiceRef)) })
       .then((list) => list.map((i) => i.accountServiceRef));
     if (duplicates.length > 0) {
-      const message = `Duplicate SEPA entries found in batch ${batch.identification}:`;
-      console.log(message, duplicates);
+      const message = `Duplicate SEPA entries found in batch ${batch.identification}: ${duplicates.join(', ')}`;
+      this.logger.error(message);
 
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,

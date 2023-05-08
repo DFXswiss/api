@@ -5,6 +5,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { Config, Process } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class UserDataNotificationService {
@@ -12,6 +13,7 @@ export class UserDataNotificationService {
     private readonly userDataRepo: UserDataRepository,
     private readonly notificationService: NotificationService,
   ) {}
+  private readonly logger = new DfxLogger(UserDataNotificationService);
 
   @Cron(CronExpression.EVERY_HOUR)
   @Lock(1800)
@@ -30,7 +32,7 @@ export class UserDataNotificationService {
       })
       .getMany();
 
-    entities.length > 0 && console.log(`Sending ${entities.length} 'blackSquad invitation' email(s)`);
+    entities.length > 0 && this.logger.info(`Sending ${entities.length} 'blackSquad invitation' email(s)`);
 
     for (const entity of entities) {
       try {
@@ -51,12 +53,12 @@ export class UserDataNotificationService {
             },
           });
         } else {
-          console.error(`Failed to send blackSquad invitation mails ${entity.id}: user has no email`);
+          this.logger.error(`Failed to send blackSquad invitation mails ${entity.id}: user has no email`);
         }
 
         await this.userDataRepo.update(...entity.sendMail());
       } catch (e) {
-        console.error(`Failed to send blackSquad invitation initiated mail ${entity.id}:`, e);
+        this.logger.error(`Failed to send blackSquad invitation initiated mail ${entity.id}:`, e);
       }
     }
   }

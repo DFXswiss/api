@@ -8,6 +8,7 @@ import { IsNull, Not } from 'typeorm';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoInitSpecification } from '../specifications/buy-crypto-init.specification';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BuyCryptoRegistrationService {
@@ -17,6 +18,7 @@ export class BuyCryptoRegistrationService {
     private readonly payInService: PayInService,
     private readonly buyCryptoInitSpec: BuyCryptoInitSpecification,
   ) {}
+  private readonly logger = new DfxLogger(BuyCryptoRegistrationService);
 
   async registerCryptoPayIn(): Promise<void> {
     const newPayIns = await this.payInService.getNewPayIns();
@@ -26,9 +28,10 @@ export class BuyCryptoRegistrationService {
     const buyCryptoPayIns = await this.filterBuyCryptoPayIns(newPayIns);
 
     buyCryptoPayIns.length > 0 &&
-      console.log(
-        `Registering ${buyCryptoPayIns.length} new buy-crypto(s) from crypto pay-in(s) ID(s):`,
-        buyCryptoPayIns.map((s) => s[0].id),
+      this.logger.info(
+        `Registering ${buyCryptoPayIns.length} new buy-crypto(s) from crypto pay-in(s) ID(s): ${buyCryptoPayIns
+          .map((s) => s[0].id)
+          .join(', ')}`,
       );
 
     await this.createBuyCryptosAndAckPayIns(buyCryptoPayIns);
@@ -80,7 +83,7 @@ export class BuyCryptoRegistrationService {
           continue;
         }
 
-        console.error(`Error occurred during pay-in registration at buy-crypto. Pay-in ID: ${payIn.id}`, e);
+        this.logger.error(`Error occurred during pay-in registration at buy-crypto. Pay-in ID: ${payIn.id}`, e);
       }
     }
   }

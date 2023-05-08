@@ -6,6 +6,7 @@ import { Util } from 'src/shared/utils/util';
 import { PricingProvider } from 'src/subdomains/supporting/pricing/domain/interfaces';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { OrderType } from 'ccxt/js/src/base/types';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export enum OrderSide {
   BUY = 'buy',
@@ -20,6 +21,7 @@ enum OrderStatus {
 
 export class ExchangeService implements PricingProvider {
   private markets: Market[];
+  private readonly logger = new DfxLogger(ExchangeService);
 
   constructor(private readonly exchange: Exchange, private readonly queue?: QueueHandler) {
     this.queue ??= new QueueHandler(180000, 60000);
@@ -179,7 +181,7 @@ export class ExchangeService implements PricingProvider {
         const fromAmount = order.side === OrderSide.BUY ? order.filled * order.price : order.filled;
         const toAmount = order.side === OrderSide.BUY ? order.filled : order.filled * order.price;
 
-        console.log(
+        this.logger.info(
           `${this.name}: order ${order.id} is ${order.status} (filled: ${fromAmount}/${remainingAmount} at price ${order.price}, total: ${amount})`,
         );
 
@@ -198,7 +200,7 @@ export class ExchangeService implements PricingProvider {
         numRetries++;
       } while (order?.status !== OrderStatus.CLOSED && numRetries < maxRetries);
     } catch (e) {
-      console.error(`${this.name}: error during trade (${amount} ${from} -> ${to}):`, e);
+      this.logger.error(`${this.name}: error during trade (${amount} ${from} -> ${to}):`, e);
       error = e.message;
 
       if (!order) throw e;
@@ -243,11 +245,13 @@ export class ExchangeService implements PricingProvider {
     // check for min amount
     const minAmount = await this.getMarkets().then((m) => m.find((m) => m.symbol === pair).limits.amount.min);
     if (orderAmount < minAmount) {
-      console.log(`${this.name}: amount (${amount} ${from}) is too small to create a ${direction} order for ${pair}`);
+      this.logger.warn(
+        `${this.name}: amount (${amount} ${from}) is too small to create a ${direction} order for ${pair}`,
+      );
       return undefined;
     }
 
-    console.log(
+    this.logger.info(
       `${this.name}: creating new ${direction} order on ${pair} (${amount} ${from} for price ${price}, order amount ${orderAmount})`,
     );
     return this.callApi((e) =>

@@ -8,8 +8,12 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
 import { AllExceptionFilter } from './shared/filters/exception.filter';
 import { json, text } from 'express';
-import { KycChangedWebhookDto, KycFailedWebhookDto } from './subdomains/generic/user/services/webhook/dto/kyc-webhook.dto';
+import {
+  KycChangedWebhookDto,
+  KycFailedWebhookDto,
+} from './subdomains/generic/user/services/webhook/dto/kyc-webhook.dto';
 import { PaymentWebhookDto } from './subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
+import { DfxLogger } from './shared/services/dfx-logger';
 
 async function bootstrap() {
   if (process.env.APPINSIGHTS_INSTRUMENTATIONKEY) {
@@ -45,7 +49,7 @@ async function bootstrap() {
 
   await app.listen(process.env.PORT || 3000);
 
-  console.log(`Server listening on: ${await app.getUrl()}`);
+  new DfxLogger().info(`Server listening on: ${await app.getUrl()}`);
 }
 
 void bootstrap();

@@ -11,6 +11,7 @@ import { PaymentWebhookState, PaymentWebhookData, PaymentWebhookType } from './d
 import { WebhookType, WebhookDto } from './dto/webhook.dto';
 import { User } from '../../models/user/user.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class WebhookService {
@@ -20,6 +21,7 @@ export class WebhookService {
     private readonly userRepo: UserRepository,
     private readonly notificationService: NotificationService,
   ) {}
+  private readonly logger = new DfxLogger(WebhookService);
 
   async kycChanged(userData: UserData): Promise<void> {
     await this.triggerUserDataWebhook(userData, this.getKycWebhookData(userData), WebhookType.KYC_CHANGED);
@@ -90,7 +92,7 @@ export class WebhookService {
     } catch (error) {
       const errMessage = `Exception during ${type} webhook for user ${user.id}:`;
 
-      console.error(errMessage, error);
+      this.logger.error(errMessage, error);
 
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,

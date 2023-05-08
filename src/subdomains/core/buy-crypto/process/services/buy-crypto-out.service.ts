@@ -12,6 +12,7 @@ import { PayoutRequest } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BuyCryptoOutService {
@@ -23,6 +24,7 @@ export class BuyCryptoOutService {
     private readonly payoutService: PayoutService,
     private readonly webhookService: WebhookService,
   ) {}
+  private readonly logger = new DfxLogger(BuyCryptoOutService);
 
   async payoutTransactions(): Promise<void> {
     try {
@@ -37,7 +39,7 @@ export class BuyCryptoOutService {
           try {
             await this.checkCompletion(batch);
           } catch (e) {
-            console.error(`Error on checking pervious payout for a batch ID: ${batch.id}`, e);
+            this.logger.error(`Error on checking pervious payout for a batch ID: ${batch.id}`, e);
             continue;
           }
         } else {
@@ -60,7 +62,7 @@ export class BuyCryptoOutService {
           await this.doPayout(transaction);
           successfulRequests.push(transaction);
         } catch (e) {
-          console.error(`Failed to initiate buy-crypto payout. Transaction ID: ${transaction.id}`);
+          this.logger.error(`Failed to initiate buy-crypto payout. Transaction ID: ${transaction.id}`);
           // continue with next transaction in case payout initiation failed
           continue;
         }
@@ -68,7 +70,7 @@ export class BuyCryptoOutService {
 
       this.logTransactionsPayouts(successfulRequests);
     } catch (e) {
-      console.error(e);
+      this.logger.error(e);
     }
   }
 
@@ -134,7 +136,7 @@ export class BuyCryptoOutService {
             : await this.webhookService.cryptoCryptoUpdate(tx.user, tx, PaymentWebhookState.COMPLETED);
         }
       } catch (e) {
-        console.error(`Error on validating transaction completion. ID: ${tx.id}.`, e);
+        this.logger.error(`Error on validating transaction completion. ID: ${tx.id}.`, e);
         continue;
       }
     }

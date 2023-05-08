@@ -6,6 +6,7 @@ import { HttpService } from 'src/shared/services/http.service';
 import { BtcClient } from './btc-client';
 import { DeFiClient } from './defi-client';
 import { NodeClient, NodeMode } from './node-client';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export enum NodeType {
   INPUT = 'inp',
@@ -34,6 +35,7 @@ type TypedNodeClient<T> = T extends NodeType.BTC_INPUT | NodeType.BTC_OUTPUT ? B
 export class NodeService {
   readonly #allNodes: Map<NodeType, Record<NodeMode, NodeClient | null>> = new Map();
   readonly #connectedNodes: Map<NodeType, BehaviorSubject<NodeClient | null>> = new Map();
+  private readonly logger = new DfxLogger(NodeClient);
 
   constructor(private readonly http: HttpService) {
     this.initAllNodes();
@@ -83,7 +85,7 @@ export class NodeService {
   swapNode(type: NodeType, mode: NodeMode): void {
     if (this.isNodeClientAvailable(type, mode)) {
       this.#connectedNodes.get(type)?.next(this.#allNodes.get(type)[mode]);
-      console.log(`Swapped node ${type} to ${mode}`);
+      this.logger.warn(`Swapped node ${type} to ${mode}`);
     } else {
       throw new Error(`Tried to swap to node ${type} to ${mode}, but NodeClient is not available in the pool`);
     }

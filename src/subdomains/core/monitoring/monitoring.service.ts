@@ -6,6 +6,7 @@ import { Metric, MetricName, SubsystemName, SubsystemState, SystemState } from '
 import { SystemStateSnapshotRepository } from './system-state-snapshot.repository';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 type SubsystemObservers = Map<MetricName, MetricObserver<unknown>>;
 
@@ -18,6 +19,7 @@ export class MonitoringService implements OnModuleInit {
     private systemStateSnapshotRepo: SystemStateSnapshotRepository,
     readonly notificationService: NotificationService,
   ) {}
+  private readonly logger = new DfxLogger(MonitoringService);
 
   onModuleInit() {
     void this.initState();
@@ -50,7 +52,7 @@ export class MonitoringService implements OnModuleInit {
 
       return JSON.parse(latestPersistedState.data);
     } catch (e) {
-      console.error('Failed to parse loaded system state. Defaulting to empty state', e);
+      this.logger.error('Failed to parse loaded system state. Defaulting to empty state', e);
 
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,
@@ -120,7 +122,7 @@ export class MonitoringService implements OnModuleInit {
         await this.systemStateSnapshotRepo.save({ id: 1, data: JSON.stringify(newState) });
       }
     } catch (e) {
-      console.error('Error persisting the state', e);
+      this.logger.error('Error persisting the state', e);
 
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,
@@ -202,7 +204,7 @@ export class MonitoringService implements OnModuleInit {
 
       this.#$state.next(newSystemState);
     } catch (e) {
-      console.error('Error updating monitoring state', e);
+      this.logger.error('Error updating monitoring state', e);
 
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,

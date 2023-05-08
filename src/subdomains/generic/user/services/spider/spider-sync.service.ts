@@ -23,6 +23,7 @@ import { DocumentState, SpiderService } from './spider.service';
 import { KycProcessService } from 'src/subdomains/generic/user/models/kyc/kyc-process.service';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class SpiderSyncService {
@@ -41,6 +42,7 @@ export class SpiderSyncService {
     private readonly settingService: SettingService,
     private readonly spiderDataRepo: SpiderDataRepository,
   ) {}
+  private readonly logger = new DfxLogger(SpiderSyncService);
 
   @Cron(CronExpression.EVERY_2_HOURS)
   async checkOngoingKyc() {
@@ -65,7 +67,7 @@ export class SpiderSyncService {
       try {
         await this.syncKycUser(user.id);
       } catch (e) {
-        console.error(`Exception during KYC check for user ${user.id}:`, e);
+        this.logger.error(`Exception during KYC check for user ${user.id}:`, e);
 
         await this.notificationService.sendMail({
           type: MailType.ERROR_MONITORING,
@@ -105,7 +107,7 @@ export class SpiderSyncService {
       try {
         await this.syncKycUser(userDataId);
       } catch (e) {
-        console.error(`Exception during KYC sync for user ${userDataId}:`, e);
+        this.logger.error(`Exception during KYC sync for user ${userDataId}:`, e);
 
         await this.notificationService.sendMail({
           type: MailType.ERROR_MONITORING,
@@ -147,7 +149,7 @@ export class SpiderSyncService {
         }
       }
 
-      if (!userData.spiderData.identPdf) console.error(`Failed to fetch ident PDF for user ${userDataId}`);
+      if (!userData.spiderData.identPdf) this.logger.error(`Failed to fetch ident PDF for user ${userDataId}`);
 
       userData.spiderData.userData ??= userData;
       await this.spiderDataRepo.save(userData.spiderData);

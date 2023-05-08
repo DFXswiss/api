@@ -22,11 +22,13 @@ import { WithdrawalOrder } from '../dto/withdrawal-order.dto';
 import { Util } from 'src/shared/utils/util';
 import { ExchangeRegistryService } from '../services/exchange-registry.service';
 import { ExchangeService } from '../services/exchange.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @ApiTags('exchange')
 @Controller('exchange')
 export class ExchangeController {
   private trades: { [key: number]: TradeResult } = {};
+  private readonly logger = new DfxLogger(ExchangeController);
 
   constructor(private readonly registryService: ExchangeRegistryService) {}
 
@@ -71,7 +73,7 @@ export class ExchangeController {
       .then((r) => this.updateTrade(tradeId, { status: TradeStatus.CLOSED, withdraw: r }))
       // error
       .catch((e) => {
-        console.error(`Exception during trade:`, e);
+        this.logger.error(`Exception during trade:`, e);
         this.updateTrade(tradeId, { status: TradeStatus.FAILED, error: e });
       });
 

@@ -15,6 +15,7 @@ import { Util } from 'src/shared/utils/util';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IsNull, Not } from 'typeorm';
 import { Config, Process } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class PayoutService {
@@ -26,6 +27,7 @@ export class PayoutService {
     private readonly payoutOrderRepo: PayoutOrderRepository,
     private readonly payoutOrderFactory: PayoutOrderFactory,
   ) {}
+  private readonly logger = new DfxLogger(PayoutService);
 
   //*** PUBLIC API ***//
 
@@ -35,7 +37,7 @@ export class PayoutService {
 
       await this.payoutOrderRepo.save(order);
     } catch (e) {
-      console.error(e);
+      this.logger.error(e);
 
       throw new Error(
         `Error while trying to create PayoutOrder for context ${request.context} and correlationId: ${request.correlationId}`,
@@ -96,11 +98,7 @@ export class PayoutService {
         const strategy = this.prepareStrategies.getPrepareStrategy(group[0]);
         await strategy.checkPreparationCompletion(group[1]);
       } catch (e) {
-        console.error(
-          'Error while checking payout preparation status',
-          group[1].map((o) => o.id),
-          e,
-        );
+        this.logger.error(`Error while checking payout preparation status: ${group[1].map((o) => o.id).join(', ')}`, e);
         continue;
       }
     }
@@ -120,11 +118,7 @@ export class PayoutService {
         const strategy = this.payoutStrategies.getPayoutStrategy(group[0]);
         await strategy.checkPayoutCompletionData(group[1]);
       } catch (e) {
-        console.error(
-          'Error while checking payout completion status',
-          group[1].map((o) => o.id),
-          e,
-        );
+        this.logger.error(`Error while checking payout completion status: ${group[1].map((o) => o.id).join(', ')}`, e);
         continue;
       }
     }
@@ -141,11 +135,7 @@ export class PayoutService {
         const strategy = this.prepareStrategies.getPrepareStrategy(group[0]);
         await strategy.preparePayout(group[1]);
       } catch (e) {
-        console.error(
-          'Error while preparing new payout orders',
-          group[1].map((o) => o.id),
-          e,
-        );
+        this.logger.error(`Error while preparing new payout orders ${group[1].map((o) => o.id).join(', ')}`, e);
         continue;
       }
     }
@@ -162,11 +152,7 @@ export class PayoutService {
         const strategy = this.payoutStrategies.getPayoutStrategy(group[0]);
         await strategy.doPayout(group[1]);
       } catch (e) {
-        console.error(
-          'Error while paying out new payout orders',
-          group[1].map((o) => o.id),
-          e,
-        );
+        this.logger.error(`Error while paying out new payout orders: ${group[1].map((o) => o.id).join(', ')}`, e);
         continue;
       }
     }

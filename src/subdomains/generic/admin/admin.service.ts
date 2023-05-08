@@ -9,6 +9,7 @@ import { PayoutRequest } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { PayoutRequestContext, PayoutRequestDto } from './dto/payout-request.dto';
 import { Config, Process } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class AdminService {
@@ -17,6 +18,7 @@ export class AdminService {
     private readonly dexService: DexService,
     private readonly payoutService: PayoutService,
   ) {}
+  private readonly logger = new DfxLogger(AdminService);
 
   // --- PAYOUT --- //
 
@@ -69,7 +71,7 @@ export class AdminService {
         }
       }
     } catch (e) {
-      console.error('Exception during admin liquidity order completion check:', e);
+      this.logger.error('Exception during admin liquidity order completion check:', e);
     }
   }
 }

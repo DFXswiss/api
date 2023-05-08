@@ -35,6 +35,7 @@ import { AccountType } from './account-type.enum';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { LinkService } from '../link/link.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class UserDataService {
@@ -52,6 +53,7 @@ export class UserDataService {
     private readonly webhookService: WebhookService,
     @Inject(forwardRef(() => LinkService)) private readonly linkService: LinkService,
   ) {}
+  private readonly logger = new DfxLogger(UserDataService);
 
   async getUserDataByUser(userId: number): Promise<UserData> {
     return this.userDataRepo
@@ -294,15 +296,14 @@ export class UserDataService {
       (sba) => !master.bankAccounts.some((mba) => sba.iban === mba.iban),
     );
 
-    console.log(
-      `Merging user ${master.id} (master) and ${slave.id} (slave): reassigning `,
-      [
+    this.logger.info(
+      `Merging user ${master.id} (master) and ${slave.id} (slave): reassigning ${[
         bankAccountsToReassign.length > 0 && `bank accounts ${bankAccountsToReassign.map((ba) => ba.id).join(', ')}`,
         slave.bankDatas.length > 0 && `bank datas ${slave.bankDatas.map((b) => b.id).join(', ')}`,
         slave.users.length > 0 && `users ${slave.users.map((u) => u.id).join(', ')}`,
       ]
         .filter((i) => i)
-        .join(' and '),
+        .join(' and ')}`,
     );
 
     await this.updateBankTxTime(slave.id);

@@ -8,6 +8,7 @@ import { SellRepository } from '../route/sell.repository';
 import { BuyFiat } from './buy-fiat.entity';
 import { BuyFiatRepository } from './buy-fiat.repository';
 import { BuyFiatInitSpecification } from './specifications/buy-fiat-init.specification';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BuyFiatRegistrationService {
@@ -17,6 +18,7 @@ export class BuyFiatRegistrationService {
     private readonly payInService: PayInService,
     private readonly buyFiatInitSpec: BuyFiatInitSpecification,
   ) {}
+  private readonly logger = new DfxLogger(BuyFiatRegistrationService);
 
   async registerSellPayIn(): Promise<void> {
     const newPayIns = await this.payInService.getNewPayIns();
@@ -26,9 +28,10 @@ export class BuyFiatRegistrationService {
     const sellPayIns = await this.filterSellPayIns(newPayIns);
 
     sellPayIns.length > 0 &&
-      console.log(
-        `Registering ${sellPayIns.length} new buy-fiat(s) from crypto pay-in(s) ID(s):`,
-        sellPayIns.map((s) => s[0].id),
+      this.logger.info(
+        `Registering ${sellPayIns.length} new buy-fiat(s) from crypto pay-in(s) ID(s): ${sellPayIns
+          .map((s) => s[0].id)
+          .join(', ')}`,
       );
 
     await this.createBuyFiatsAndAckPayIns(sellPayIns);
@@ -80,7 +83,7 @@ export class BuyFiatRegistrationService {
           continue;
         }
 
-        console.error(`Error occurred during pay-in registration at buy-fiat. Pay-in ID: ${payIn.id}`, e);
+        this.logger.error(`Error occurred during pay-in registration at buy-fiat. Pay-in ID: ${payIn.id}`, e);
       }
     }
   }

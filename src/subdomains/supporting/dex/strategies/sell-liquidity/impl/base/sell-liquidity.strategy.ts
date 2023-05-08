@@ -2,10 +2,12 @@ import { LiquidityOrder } from 'src/subdomains/supporting/dex/entities/liquidity
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { SellLiquidityRequest } from '../../../../interfaces';
 import { SellLiquidityStrategyAlias } from '../../sell-liquidity.facade';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export abstract class SellLiquidityStrategy {
   private _name: SellLiquidityStrategyAlias;
   private _feeAsset: Asset;
+  private readonly logger = new DfxLogger(SellLiquidityStrategy);
 
   constructor(name: SellLiquidityStrategyAlias) {
     this._name = name;
@@ -21,7 +23,7 @@ export abstract class SellLiquidityStrategy {
 
   protected async handleSellLiquidityError(request: SellLiquidityRequest, e: Error): Promise<void> {
     const errorMessage = `Error while trying to sell liquidity of ${request.sellAsset.uniqueName}`;
-    console.error(errorMessage, e);
+    this.logger.error(errorMessage, e);
 
     throw new Error(errorMessage);
   }

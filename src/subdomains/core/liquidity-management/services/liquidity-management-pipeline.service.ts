@@ -15,6 +15,7 @@ import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { OrderFailedException } from '../exceptions/order-failed.exception';
 import { In } from 'typeorm';
 import { Config, Process } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class LiquidityManagementPipelineService {
@@ -25,6 +26,7 @@ export class LiquidityManagementPipelineService {
     private readonly actionIntegrationFactory: LiquidityActionIntegrationFactory,
     private readonly notificationService: NotificationService,
   ) {}
+  private readonly logger = new DfxLogger(LiquidityManagementPipelineService);
 
   //*** JOBS ***//
 
@@ -84,7 +86,7 @@ export class LiquidityManagementPipelineService {
         pipeline.start();
         await this.pipelineRepo.save(pipeline);
       } catch (e) {
-        console.error(`Error in starting new liquidity pipeline. Pipeline ID: ${pipeline.id}`, e);
+        this.logger.error(`Error in starting new liquidity pipeline. Pipeline ID: ${pipeline.id}`, e);
         continue;
       }
     }
@@ -133,12 +135,12 @@ export class LiquidityManagementPipelineService {
             continue;
           }
 
-          console.log(
+          this.logger.info(
             `Continue with next liquidity management pipeline action. Action ID: ${pipeline.currentAction.id}`,
           );
         }
       } catch (e) {
-        console.error(`Error in checking running liquidity pipeline. Pipeline ID: ${pipeline.id}`, e);
+        this.logger.error(`Error in checking running liquidity pipeline. Pipeline ID: ${pipeline.id}`, e);
         continue;
       }
     }
@@ -170,7 +172,7 @@ export class LiquidityManagementPipelineService {
           await this.orderRepo.save(order);
         }
 
-        console.error(`Error in starting new liquidity order. Order ID: ${order.id}`, e);
+        this.logger.error(`Error in starting new liquidity order. Order ID: ${order.id}`, e);
       }
     }
   }
@@ -202,7 +204,7 @@ export class LiquidityManagementPipelineService {
           continue;
         }
 
-        console.error(`Error in checking running liquidity order. Order ID: ${order.id}`, e);
+        this.logger.error(`Error in checking running liquidity order. Order ID: ${order.id}`, e);
       }
     }
   }
@@ -215,7 +217,7 @@ export class LiquidityManagementPipelineService {
       order.complete();
       await this.orderRepo.save(order);
 
-      console.log(`Liquidity management order complete. Order ID: ${order.id}`);
+      this.logger.info(`Liquidity management order complete. Order ID: ${order.id}`);
     }
   }
 
@@ -228,7 +230,7 @@ export class LiquidityManagementPipelineService {
 
     await this.notificationService.sendMail(mailRequest);
 
-    console.log(successMessage);
+    this.logger.info(successMessage);
   }
 
   private async handlePipelineFail(
@@ -241,7 +243,7 @@ export class LiquidityManagementPipelineService {
 
     const [errorMessage, mailRequest] = this.generateFailMessage(pipeline, order);
 
-    console.log(errorMessage);
+    this.logger.error(errorMessage);
 
     await this.notificationService.sendMail(mailRequest);
   }
@@ -281,9 +283,10 @@ export class LiquidityManagementPipelineService {
 
   private logNewPipelines(newPipelines: LiquidityManagementPipeline[]): void {
     newPipelines.length > 0 &&
-      console.log(
-        `Starting ${newPipelines.length} new liquidity management pipeline(s). Rules: `,
-        newPipelines.map((p) => p.rule.id),
+      this.logger.info(
+        `Starting ${newPipelines.length} new liquidity management pipeline(s). Rules: ${newPipelines
+          .map((p) => p.rule.id)
+          .join(', ')}`,
       );
   }
 }

@@ -8,6 +8,7 @@ import { BscStrategy } from './impl/bsc.strategy';
 import { DeFiChainStrategy } from './impl/defichain.strategy';
 import { EthereumStrategy } from './impl/ethereum.strategy';
 import { OptimismStrategy } from './impl/optimism.strategy';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 enum Alias {
   ARBITRUM = 'Arbitrum',
@@ -39,6 +40,7 @@ export class RegisterStrategiesFacade {
     this.strategies.set(Alias.ETHEREUM, ethereum);
     this.strategies.set(Alias.OPTIMISM, optimism);
   }
+  private readonly logger = new DfxLogger(RegisterStrategiesFacade);
 
   getRegisterStrategy(criteria: Asset | Alias): RegisterStrategy {
     return criteria instanceof Asset ? this.getByAsset(criteria) : this.getByAlias(criteria);

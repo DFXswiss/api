@@ -11,6 +11,7 @@ import { Util } from 'src/shared/utils/util';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { WebhookService } from '../../services/webhook/webhook.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class LimitRequestService {
@@ -21,6 +22,7 @@ export class LimitRequestService {
     private readonly webhookService: WebhookService,
     private readonly notificationService: NotificationService,
   ) {}
+  private readonly logger = new DfxLogger(LimitRequestService);
 
   async increaseLimit(dto: LimitRequestDto, kycHash: string, userId?: number): Promise<void> {
     // get user data
@@ -67,7 +69,7 @@ export class LimitRequestService {
           body: `<p>Limit: ${entity.limit} EUR</p>Investment date: ${entity.investmentDate}<p>Fund origin: ${entity.fundOrigin}</p><p>UserData id: ${entity.userData.id}</p>`,
         },
       })
-      .catch((error) => console.error(`Failed to send limitRequest ${entity.id} created mail:`, error));
+      .catch((error) => this.logger.error(`Failed to send limitRequest ${entity.id} created mail:`, error));
   }
 
   async updateLimitRequest(id: number, dto: UpdateLimitRequestDto): Promise<LimitRequest> {

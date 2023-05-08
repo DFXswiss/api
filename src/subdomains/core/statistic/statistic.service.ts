@@ -7,6 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BuyService } from '../buy-crypto/routes/buy/buy.service';
 import { SettingStatus, StatisticDto } from './dto/statistic.dto';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class StatisticService implements OnModuleInit {
@@ -18,6 +19,7 @@ export class StatisticService implements OnModuleInit {
     private settingService: SettingService,
     private userService: UserService,
   ) {}
+  private readonly logger = new DfxLogger(StatisticService);
 
   onModuleInit() {
     void this.doUpdate();
@@ -39,7 +41,7 @@ export class StatisticService implements OnModuleInit {
         status: await this.getStatus(),
       };
     } catch (e) {
-      console.error('Exception during statistic update:', e);
+      this.logger.error('Exception during statistic update:', e);
     }
   }
 

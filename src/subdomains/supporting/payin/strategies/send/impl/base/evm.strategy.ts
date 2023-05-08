@@ -9,6 +9,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/utils/util';
 import { Config } from 'src/config/config';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export abstract class EvmStrategy extends SendStrategy {
   constructor(
@@ -20,6 +21,7 @@ export abstract class EvmStrategy extends SendStrategy {
   ) {
     super();
   }
+  private readonly logger = new DfxLogger(EvmStrategy);
 
   protected abstract dispatchSend(payInGroup: SendGroup, estimatedNativeFee: number): Promise<string>;
   protected abstract prepareSend(payInGroup: SendGroup, estimatedNativeFee: number): Promise<void>;
@@ -66,7 +68,7 @@ export abstract class EvmStrategy extends SendStrategy {
           continue;
         }
       } catch (e) {
-        console.error(
+        this.logger.error(
           `Failed to send ${this.blockchain} input(s) ${this.getPayInsIdentityKey(payInGroup)} of type ${type}`,
           e,
         );
@@ -85,7 +87,7 @@ export abstract class EvmStrategy extends SendStrategy {
         payIn.confirm();
         await this.payInRepo.save(payIn);
       } catch (e) {
-        console.error(`Failed to check confirmations of ${this.blockchain} input ${payIn.id}:`, e);
+        this.logger.error(`Failed to check confirmations of ${this.blockchain} input ${payIn.id}:`, e);
       }
     }
   }
@@ -96,11 +98,10 @@ export abstract class EvmStrategy extends SendStrategy {
     const newPayIns = payIns.filter((p) => p.status !== PayInStatus.PREPARING);
 
     newPayIns.length > 0 &&
-      console.log(
+      this.logger.info(
         `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${newPayIns.length} ${this.blockchain} ${
           payIns[0].asset.type
-        } input(s).`,
-        newPayIns.map((p) => p.id),
+        } input(s): ${newPayIns.map((p) => p.id).join(', ')}`,
       );
   }
 
@@ -164,7 +165,7 @@ export abstract class EvmStrategy extends SendStrategy {
     try {
       return nativeFee.amount ? await this.convertToTargetAsset(nativeFee.asset, nativeFee.amount, asset) : 0;
     } catch (e) {
-      console.error(errorMessage, e);
+      this.logger.error(errorMessage, e);
 
       return null;
     }

@@ -8,6 +8,7 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FeeResult } from '../../../interfaces';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class DeFiChainCoinStrategy extends JellyfishStrategy {
@@ -16,9 +17,12 @@ export class DeFiChainCoinStrategy extends JellyfishStrategy {
     protected readonly deFiChainService: PayoutDeFiChainService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
     protected readonly assetService: AssetService,
+    logger: DfxLogger,
   ) {
-    super(notificationService, payoutOrderRepo, deFiChainService);
+    super(notificationService, payoutOrderRepo, deFiChainService, logger);
+    this.logger = logger;
   }
+  logger = new DfxLogger(DeFiChainCoinStrategy);
 
   async estimateFee(): Promise<FeeResult> {
     return { asset: await this.feeAsset(), amount: 0 };
@@ -37,7 +41,7 @@ export class DeFiChainCoinStrategy extends JellyfishStrategy {
 
         await this.sendDFI(context, group);
       } catch (e) {
-        console.error(
+        this.logger.error(
           `Error in paying out a group of ${group.length} DFI orders(s). Order ID(s): ${group.map((o) => o.id)}`,
           e,
         );

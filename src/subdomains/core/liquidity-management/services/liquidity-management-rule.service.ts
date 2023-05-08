@@ -21,6 +21,7 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { Config, Process } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class LiquidityManagementRuleService {
@@ -32,6 +33,7 @@ export class LiquidityManagementRuleService {
     private readonly actionIntegrationFactory: LiquidityActionIntegrationFactory,
     private readonly notificationService: NotificationService,
   ) {}
+  private readonly logger = new DfxLogger(LiquidityManagementRuleService);
 
   //*** PUBLIC API ***//
 
@@ -123,7 +125,7 @@ export class LiquidityManagementRuleService {
 
         await this.notificationService.sendMail(mailRequest);
 
-        console.log(`Reactivated liquidity management rule ${rule.id}`);
+        this.logger.info(`Reactivated liquidity management rule ${rule.id}`);
       }
     }
   }

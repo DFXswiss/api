@@ -14,6 +14,7 @@ import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class ArbitrumStrategy extends EvmStrategy {
@@ -26,6 +27,7 @@ export class ArbitrumStrategy extends EvmStrategy {
     payInRepository: PayInRepository,
     assetService: AssetService,
     repos: RepositoryFactory,
+    logger: DfxLogger,
   ) {
     super(
       Blockchain.ARBITRUM,
@@ -37,8 +39,11 @@ export class ArbitrumStrategy extends EvmStrategy {
       payInRepository,
       assetService,
       repos,
+      logger,
     );
+    this.logger = logger;
   }
+  readonly logger = new DfxLogger(ArbitrumStrategy);
 
   //*** PUBLIC API ***//
 
@@ -70,7 +75,7 @@ export class ArbitrumStrategy extends EvmStrategy {
 
         await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
       } catch (e) {
-        console.error('Could not set reference amounts for Arbitrum pay-in', e);
+        this.logger.error('Could not set reference amounts for Arbitrum pay-in', e);
         continue;
       }
     }

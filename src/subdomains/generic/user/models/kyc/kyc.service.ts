@@ -36,6 +36,7 @@ import { KycDocumentType, KycFileDto } from './dto/kyc-file.dto';
 import { SpiderApiService } from '../../services/spider/spider-api.service';
 import { User } from '../user/user.entity';
 import { KycDataDto } from './dto/kyc-data.dto';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class KycService {
@@ -53,6 +54,7 @@ export class KycService {
     private readonly http: HttpService,
     private readonly webhookService: WebhookService,
   ) {}
+  private readonly logger = new DfxLogger(KycService);
 
   // --- ADMIN/SUPPORT --- //
   async doNameCheck(userDataId: number): Promise<string> {
@@ -129,7 +131,7 @@ export class KycService {
         params: { address: dfxUser.address },
       });
     } catch (e) {
-      console.error('Failed to transfer KYC data:', e);
+      this.logger.error('Failed to transfer KYC data:', e);
       throw new ServiceUnavailableException(`Failed to transfer KYC data: ${e.message}`);
     }
 

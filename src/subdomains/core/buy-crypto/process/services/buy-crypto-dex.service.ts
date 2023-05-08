@@ -11,6 +11,7 @@ import { PurchaseLiquidityRequest, ReserveLiquidityRequest } from 'src/subdomain
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BuyCryptoDexService {
@@ -21,6 +22,7 @@ export class BuyCryptoDexService {
     private readonly dexService: DexService,
     private readonly buyCryptoPricingService: BuyCryptoPricingService,
   ) {}
+  private readonly logger = new DfxLogger(BuyCryptoDexService);
 
   async secureLiquidity(): Promise<void> {
     try {
@@ -37,7 +39,7 @@ export class BuyCryptoDexService {
       await this.checkPendingBatches(pendingBatches);
       await this.processNewBatches(newBatches);
     } catch (e) {
-      console.error(e);
+      this.logger.error(e);
     }
   }
 
@@ -60,7 +62,7 @@ export class BuyCryptoDexService {
           continue;
         }
 
-        console.error(`Failed to check pending batch. Batch ID: ${batch.id}`, e);
+        this.logger.error(`Failed to check pending batch. Batch ID: ${batch.id}`, e);
       }
     }
   }
@@ -135,7 +137,7 @@ export class BuyCryptoDexService {
     try {
       await this.buyCryptoBatchRepo.save(batch);
     } catch (e) {
-      console.error(
+      this.logger.error(
         `Error in saving PENDING status after purchasing '${batch.outputAsset.dexName}'. Batch ID: ${batch.id}. Purchase ID: ${txId}`,
         e,
       );

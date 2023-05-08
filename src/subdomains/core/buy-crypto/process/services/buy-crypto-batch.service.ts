@@ -23,6 +23,7 @@ import { Util } from 'src/shared/utils/util';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
 import { PriceMismatchException } from 'src/integration/exchange/exceptions/price-mismatch.exception';
 import { LiquidityManagementService } from 'src/subdomains/core/liquidity-management/services/liquidity-management.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BuyCryptoBatchService {
@@ -37,6 +38,7 @@ export class BuyCryptoBatchService {
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly liquidityService: LiquidityManagementService,
   ) {}
+  private readonly logger = new DfxLogger(BuyCryptoBatchService);
 
   async prepareTransactions(): Promise<void> {
     try {
@@ -73,7 +75,7 @@ export class BuyCryptoBatchService {
         await this.buyCryptoRepo.save(tx);
       }
     } catch (e) {
-      console.error(e);
+      this.logger.error(e);
     }
   }
 
@@ -123,7 +125,7 @@ export class BuyCryptoBatchService {
         );
       }
     } catch (e) {
-      console.error(e);
+      this.logger.error(e);
     }
   }
 
@@ -150,7 +152,7 @@ export class BuyCryptoBatchService {
           tx.setOutputReferenceAsset(outputReferenceAsset);
         }
       } catch (e) {
-        console.error('Error while defining asset pair for BuyCrypto', e);
+        this.logger.error('Error while defining asset pair for BuyCrypto', e);
       }
     }
 
@@ -181,7 +183,7 @@ export class BuyCryptoBatchService {
           const priceRequest = this.createPriceRequest(pair, txWithAssets);
 
           return this.pricingService.getPrice(priceRequest).catch((e) => {
-            console.error('Failed to get price:', e);
+            this.logger.error('Failed to get price:', e);
             return undefined;
           });
         }),
@@ -202,7 +204,7 @@ export class BuyCryptoBatchService {
       try {
         tx.calculateOutputReferenceAmount(referencePrices);
       } catch (e) {
-        console.error(`Could not calculate outputReferenceAmount for transaction ${tx.id}}`, e);
+        this.logger.error(`Could not calculate outputReferenceAmount for transaction ${tx.id}}`, e);
       }
     }
 
@@ -383,7 +385,7 @@ export class BuyCryptoBatchService {
       batch.checkByPurchaseFeeEstimation(effectivePurchaseFee);
 
       if (inputBatchLength !== batch.transactions.length) {
-        console.log(
+        this.logger.info(
           `Optimized batch for output asset: ${batch.outputAsset.uniqueName}. ${
             inputBatchLength - batch.transactions.length
           } removed from the batch`,
@@ -411,7 +413,7 @@ export class BuyCryptoBatchService {
 
       await this.buyCryptoNotificationService.sendMissingLiquidityWarning(dexName, blockchain, type);
     } catch (e) {
-      console.error('Error in handling buy crypto batch liquidity warning', e);
+      this.logger.error('Error in handling buy crypto batch liquidity warning', e);
     }
   }
 
@@ -468,7 +470,7 @@ export class BuyCryptoBatchService {
         messages,
       );
     } catch (e) {
-      console.error('Error in handling MissingBuyCryptoLiquidityException', e);
+      this.logger.error('Error in handling MissingBuyCryptoLiquidityException', e);
     }
   }
 

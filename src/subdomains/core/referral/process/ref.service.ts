@@ -4,10 +4,12 @@ import { Util } from 'src/shared/utils/util';
 import { IsNull, LessThan } from 'typeorm';
 import { Ref } from './ref.entity';
 import { RefRepository } from './ref.repository';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class RefService {
   private readonly refExpirationDays = 3;
+  private readonly logger = new DfxLogger(RefService);
 
   constructor(private repo: RefRepository) {}
 
@@ -28,7 +30,7 @@ export class RefService {
 
       return await this.repo.save({ ...entity, ref, origin });
     } catch (e) {
-      console.log('Exception during ref update:', e);
+      this.logger.error('Exception during ref update:', e);
     }
   }
 

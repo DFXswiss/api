@@ -16,6 +16,7 @@ import { PricePath } from '../utils/price-path';
 import { PriceStep } from '../utils/price-step';
 import { PricingUtil } from '../utils/pricing.util';
 import { PricingDeFiChainService } from './integration/pricing-defichain.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export enum PricingPathAlias {
   MATCHING_ASSETS = 'MatchingAssets',
@@ -49,6 +50,7 @@ export class PricingService {
   ) {
     this.configurePaths();
   }
+  private readonly logger = new DfxLogger(PricingService);
 
   //*** PUBLIC API ***//
 
@@ -60,7 +62,7 @@ export class PricingService {
     try {
       path = this.getPath(request);
     } catch (e) {
-      console.error(e);
+      this.logger.error(e);
       throw new PathNotConfiguredException(request.from, request.to);
     }
 

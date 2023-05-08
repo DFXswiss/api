@@ -19,6 +19,7 @@ import {
   L1EthDepositTransactionReceipt,
 } from '@arbitrum/sdk/dist/lib/message/L1Transaction';
 import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
   #l1Provider: ethers.providers.JsonRpcProvider;
@@ -44,6 +45,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
 
     void this.initL2Network();
   }
+  private readonly logger = new DfxLogger(ArbitrumClient);
 
   async depositCoinOnDex(amount: number): Promise<string> {
     const ethBridger = new EthBridger(this.#l2Network);
@@ -223,7 +225,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     try {
       this.#l2Network = await getL2Network(this.provider);
     } catch (e) {
-      console.error('Error while trying to get L2 network for Arbitrum client', e);
+      this.logger.error('Error while trying to get L2 network for Arbitrum client', e);
     }
   }
 

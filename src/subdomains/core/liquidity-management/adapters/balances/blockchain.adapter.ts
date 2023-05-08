@@ -12,6 +12,7 @@ import { AccountResult } from '@defichain/jellyfish-api-core/dist/category/accou
 import { Util } from 'src/shared/utils/util';
 import { BalanceNotCertainException } from '../../exceptions/balance-not-certain.exception';
 import { Config } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 type AssetHash = string;
 interface Balance {
@@ -27,6 +28,8 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
   private defiChainCache: Map<AssetHash, number> | null = null;
   private defiChainCacheTimestamp = 0;
   private defiChainCacheUpdateCall: Promise<void> | null = null;
+
+  private readonly logger = new DfxLogger(BlockchainAdapter);
 
   constructor(private readonly dexService: DexService, readonly nodeService: NodeService) {
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.dexClient = client));
@@ -115,7 +118,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
 
       this.setCache(tokensResult);
     } catch (e) {
-      console.error('Error while updating liquidity management balance cache. Invalidating the cache.', e);
+      this.logger.error('Error while updating liquidity management balance cache. Invalidating the cache.', e);
       this.invalidateCache();
     } finally {
       this.resetCacheUpdateCall();

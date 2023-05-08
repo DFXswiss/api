@@ -10,6 +10,7 @@ import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Config, Process } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 interface NodePoolState {
   type: NodeType;
@@ -38,6 +39,7 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
   ) {
     super(monitoringService, 'node', 'health');
   }
+  private readonly logger = new DfxLogger(NodeHealthObserver);
 
   init(data: NodesState) {
     // map to date objects
@@ -107,12 +109,12 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
     if (!preferredNode) {
       // all available nodes down
       if (!previousPoolState || previousPoolState.nodes.some((n) => !n.isDown)) {
-        console.error(`ALERT! Node '${poolState.type}' is fully down.`);
+        this.logger.error(`ALERT! Node '${poolState.type}' is fully down.`);
       }
     } else if (preferredNode.mode !== connectedNode.mode) {
       // swap required
       this.nodeService.swapNode(poolState.type, preferredNode.mode);
-      console.warn(`WARN. Node '${poolState.type}' switched from ${connectedNode.mode} to ${preferredNode.mode}`);
+      this.logger.warn(`WARN. Node '${poolState.type}' switched from ${connectedNode.mode} to ${preferredNode.mode}`);
 
       // clear the queue if node is down
       const connectedState = this.getNodeStateInPool(poolState, connectedNode.mode);
@@ -133,9 +135,9 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
       }
 
       if (node.errors.length > 0) {
-        node.errors.forEach((error) => console.error(`ERR. ${error}`));
+        node.errors.forEach((error) => this.logger.error(`ERR. ${error}`));
       } else {
-        console.log(`OK. Node '${node.type}' ${node.mode} is up`);
+        this.logger.info(`OK. Node '${node.type}' ${node.mode} is up`);
       }
     }
 
@@ -147,7 +149,7 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
 
       // send notification
       const message = `ALERT! Restarting node ${node.type} ${node.mode} (down since ${node.downSince})`;
-      console.error(message);
+      this.logger.error(message);
 
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,

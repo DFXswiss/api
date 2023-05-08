@@ -1,5 +1,8 @@
+import { DfxLogger } from '../services/dfx-logger';
+
 class LockClass {
   private lockedSince?: number;
+  private readonly logger = new DfxLogger(LockClass);
 
   static create(timeoutSeconds = Infinity): (name: string, task: () => Promise<void>) => Promise<void> {
     const lockObj = new LockClass(timeoutSeconds);
@@ -14,7 +17,7 @@ class LockClass {
     try {
       await task();
     } catch (e) {
-      name && console.error(`Error during ${name}:`, e);
+      name && this.logger.error(`Error during ${name}:`, e);
     } finally {
       this.release();
     }
