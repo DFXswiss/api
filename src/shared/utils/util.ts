@@ -247,6 +247,15 @@ export class Util {
     return result.status === 'fulfilled';
   }
 
+  public static async asyncFilter<T>(list: T[], filter: (i: T) => Promise<boolean>): Promise<T[]> {
+    const filteredList: T[] = [];
+    for (const item of list) {
+      const isTrue = await filter(item);
+      if (isTrue) filteredList.push(item);
+    }
+    return filteredList;
+  }
+
   static async timeout<T>(promise: Promise<T>, timeout: number): Promise<T> {
     const timeoutPromise = new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout));
 
