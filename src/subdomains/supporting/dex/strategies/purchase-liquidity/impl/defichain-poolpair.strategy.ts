@@ -150,7 +150,7 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
     const leftOrder = derivedOrders.find((o) => o.targetAsset.dexName === leftAsset);
     const rightOrder = derivedOrders.find((o) => o.targetAsset.dexName === rightAsset);
 
-    console.info(
+    this.logger.info(
       `Creating poolpair token of ${leftOrder.targetAsset.dexName} ${leftOrder.targetAmount} and ${rightOrder.targetAsset.dexName} ${rightOrder.targetAmount}`,
     );
     try {
@@ -185,7 +185,7 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
 
     order.addBlockchainTransactionMetadata(txId);
 
-    console.info(
+    this.logger.info(
       `Booked poolpair purchase of ${leftAmount} ${leftAssetName} and ${rightAmount} ${rightAssetName} . Context: ${order.context}. CorrelationId: ${order.correlationId}.`,
     );
   }

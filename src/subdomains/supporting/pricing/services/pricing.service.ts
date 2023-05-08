@@ -301,6 +301,6 @@ export class PricingService {
     const pathMessage =
       'Path: ' + path.map((p) => ` ${p.provider} -> ${p.price.source}/${p.price.target} ${p.price.price}`);
 
-    console.info(mainMessage + pathMessage);
+    this.logger.info(mainMessage + pathMessage);
   }
 }

@@ -23,12 +23,10 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
     protected readonly jellyfishService: PayoutDeFiChainService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
     protected readonly assetService: AssetService,
-    logger: DfxLogger,
   ) {
-    super(notificationService, payoutOrderRepo, jellyfishService, logger);
-    this.logger = logger;
+    super(notificationService, payoutOrderRepo, jellyfishService);
   }
-  logger = new DfxLogger(DeFiChainTokenStrategy);
+  private readonly dfxLogger = new DfxLogger(DeFiChainTokenStrategy);
 
   async estimateFee(): Promise<FeeResult> {
     return { asset: await this.feeAsset(), amount: 0 };
@@ -46,12 +44,12 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
             continue;
           }
 
-          console.info(`Paying out ${group.length} token orders(s). Order ID(s): ${group.map((o) => o.id)}`);
+          this.dfxLogger.info(`Paying out ${group.length} token orders(s). Order ID(s): ${group.map((o) => o.id)}`);
 
           await this.checkUtxoForGroup(group);
           await this.sendToken(context, group, tokenName);
         } catch (e) {
-          this.logger.error(
+          this.dfxLogger.error(
             `Error in paying out a group of ${group.length} token orders(s). Order ID(s): ${group.map((o) => o.id)}`,
             e,
           );

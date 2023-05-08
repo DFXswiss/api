@@ -5,6 +5,7 @@ import { MailFactory } from '../factories/mail.factory';
 import { MailRequest } from '../interfaces';
 import { NotificationRepository } from '../repositories/notification.repository';
 import { MailService } from './mail.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class NotificationService {
@@ -13,6 +14,8 @@ export class NotificationService {
     private readonly mailService: MailService,
     private readonly notificationRepo: NotificationRepository,
   ) {}
+
+  private readonly logger = new DfxLogger(NotificationService);
 
   async sendMail(request: MailRequest): Promise<void> {
     try {
@@ -50,7 +53,9 @@ export class NotificationService {
 
   private handleNotificationError(e: Error, metadata: NotificationMetadata): void {
     if (e instanceof NotificationSuppressedException) {
-      console.info(`Suppressed mail request. Context: ${metadata?.context}. CorrelationId: ${metadata?.correlationId}`);
+      this.logger.info(
+        `Suppressed mail request. Context: ${metadata?.context}. CorrelationId: ${metadata?.correlationId}`,
+      );
       return;
     }
 

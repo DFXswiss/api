@@ -5,6 +5,7 @@ import { LiquidityManagementOrder } from '../../../entities/liquidity-management
 import { LiquidityManagementSystem } from '../../../enums';
 import { Command, CorrelationId } from '../../../interfaces';
 import { LiquidityManagementAdapter } from './liquidity-management.adapter';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export interface CcxtExchangeWithdrawParams {
   destinationBlockchain: Blockchain;
@@ -22,7 +23,7 @@ export enum CcxtExchangeAdapterCommands {
 
 export abstract class CcxtExchangeAdapter extends LiquidityManagementAdapter {
   protected commands = new Map<string, Command>();
-
+  private readonly logger = new DfxLogger(CcxtExchangeAdapter);
   constructor(
     system: LiquidityManagementSystem,
     private readonly exchangeService: ExchangeService,
@@ -46,7 +47,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityManagementAdapter {
 
     const withdrawal = await this.exchangeService.getWithdraw(correlationId, asset.dexName);
     if (!withdrawal) {
-      console.info(
+      this.logger.info(
         `No withdrawal for id ${correlationId} and asset ${asset.uniqueName} at ${this.exchangeService.name} found`,
       );
       return false;

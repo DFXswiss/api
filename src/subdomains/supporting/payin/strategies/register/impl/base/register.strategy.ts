@@ -23,11 +23,8 @@ export abstract class RegisterStrategy {
     protected readonly dexService: DexService,
     protected readonly payInFactory: PayInFactory,
     protected readonly payInRepository: PayInRepository,
-    logger: DfxLogger,
-  ) {
-    this.logger = logger;
-  }
-  logger: DfxLogger;
+  ) {}
+  private readonly logger = new DfxLogger(RegisterStrategy);
 
   abstract checkPayInEntries(): Promise<void>;
   abstract addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void>;

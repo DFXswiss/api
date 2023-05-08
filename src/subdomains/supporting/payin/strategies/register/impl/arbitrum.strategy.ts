@@ -27,7 +27,6 @@ export class ArbitrumStrategy extends EvmStrategy {
     payInRepository: PayInRepository,
     assetService: AssetService,
     repos: RepositoryFactory,
-    logger: DfxLogger,
   ) {
     super(
       Blockchain.ARBITRUM,
@@ -39,11 +38,9 @@ export class ArbitrumStrategy extends EvmStrategy {
       payInRepository,
       assetService,
       repos,
-      logger,
     );
-    this.logger = logger;
   }
-  readonly logger = new DfxLogger(ArbitrumStrategy);
+  private readonly dfxLogger = new DfxLogger(ArbitrumStrategy);
 
   //*** PUBLIC API ***//
 
@@ -75,7 +72,7 @@ export class ArbitrumStrategy extends EvmStrategy {
 
         await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
       } catch (e) {
-        this.logger.error('Could not set reference amounts for Arbitrum pay-in', e);
+        this.dfxLogger.error('Could not set reference amounts for Arbitrum pay-in', e);
         continue;
       }
     }

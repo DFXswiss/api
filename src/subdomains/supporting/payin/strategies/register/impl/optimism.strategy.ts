@@ -27,7 +27,6 @@ export class OptimismStrategy extends EvmStrategy {
     payInRepository: PayInRepository,
     assetService: AssetService,
     repos: RepositoryFactory,
-    logger: DfxLogger,
   ) {
     super(
       Blockchain.OPTIMISM,
@@ -39,11 +38,9 @@ export class OptimismStrategy extends EvmStrategy {
       payInRepository,
       assetService,
       repos,
-      logger,
     );
-    this.logger = logger;
   }
-  logger = new DfxLogger(OptimismStrategy);
+  private readonly dfxLogger = new DfxLogger(OptimismStrategy);
 
   //*** PUBLIC API ***//
 
@@ -75,7 +72,7 @@ export class OptimismStrategy extends EvmStrategy {
 
         await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
       } catch (e) {
-        this.logger.error('Could not set reference amounts for Optimism pay-in', e);
+        this.dfxLogger.error('Could not set reference amounts for Optimism pay-in', e);
         continue;
       }
     }

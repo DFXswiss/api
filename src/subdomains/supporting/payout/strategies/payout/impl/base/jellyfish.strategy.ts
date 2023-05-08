@@ -8,6 +8,7 @@ import { PayoutOrderRepository } from '../../../../repositories/payout-order.rep
 import { PayoutStrategy } from './payout.strategy';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export abstract class JellyfishStrategy extends PayoutStrategy {
   constructor(
@@ -17,6 +18,8 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
   ) {
     super();
   }
+
+  readonly logger = new DfxLogger(JellyfishStrategy);
 
   async doPayout(orders: PayoutOrder[]): Promise<void> {
     try {

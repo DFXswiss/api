@@ -27,7 +27,6 @@ export class EthereumStrategy extends EvmStrategy {
     payInRepository: PayInRepository,
     assetService: AssetService,
     repos: RepositoryFactory,
-    logger: DfxLogger,
   ) {
     super(
       Blockchain.ETHEREUM,
@@ -39,11 +38,10 @@ export class EthereumStrategy extends EvmStrategy {
       payInRepository,
       assetService,
       repos,
-      logger,
     );
   }
 
-  logger = new DfxLogger(EthereumStrategy);
+  private readonly dfxLogger = new DfxLogger(EthereumStrategy);
 
   //*** PUBLIC API ***//
 
@@ -69,7 +67,7 @@ export class EthereumStrategy extends EvmStrategy {
 
         await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
       } catch (e) {
-        this.logger.error('Could not set reference amounts for Ethereum pay-in', e);
+        this.dfxLogger.error('Could not set reference amounts for Ethereum pay-in', e);
         continue;
       }
     }

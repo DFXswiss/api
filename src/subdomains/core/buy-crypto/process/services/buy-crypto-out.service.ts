@@ -144,7 +144,7 @@ export class BuyCryptoOutService {
     const isBatchComplete = batch.transactions.every((tx) => tx.isComplete);
 
     if (isBatchComplete) {
-      console.info(`Buy crypto batch payout complete. Batch ID: ${batch.id}`);
+      this.logger.info(`Buy crypto batch payout complete. Batch ID: ${batch.id}`);
       batch.complete();
 
       await this.buyCryptoBatchRepo.save(batch);
@@ -158,6 +158,8 @@ export class BuyCryptoOutService {
     const transactionsLogs = transactions.map((tx) => tx.id);
 
     transactions.length &&
-      console.info(`Paying out ${transactionsLogs.length} transaction(s). Transaction ID(s):`, transactionsLogs);
+      this.logger.info(
+        `Paying out ${transactionsLogs.length} transaction(s). Transaction ID(s): ${transactionsLogs.join(', ')}`,
+      );
   }
 }

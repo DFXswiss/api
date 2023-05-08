@@ -32,11 +32,10 @@ export class DeFiChainStrategy extends RegisterStrategy {
     protected readonly payInService: PayInService,
     protected readonly payInFactory: PayInFactory,
     protected readonly payInRepository: PayInRepository,
-    logger: DfxLogger,
   ) {
-    super(dexService, payInFactory, payInRepository, logger);
+    super(dexService, payInFactory, payInRepository);
   }
-  logger = new DfxLogger(DeFiChainStrategy);
+  private readonly dfxLogger = new DfxLogger(DeFiChainStrategy);
 
   //*** PUBLIC API ***//
 
@@ -68,7 +67,7 @@ export class DeFiChainStrategy extends RegisterStrategy {
 
         await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
       } catch (e) {
-        this.logger.error('Could not set reference amounts for DeFiChain pay-in', e);
+        this.dfxLogger.error('Could not set reference amounts for DeFiChain pay-in', e);
         continue;
       }
     }
@@ -130,7 +129,7 @@ export class DeFiChainStrategy extends RegisterStrategy {
           inputs.push(this.createEntry(history, amount, supportedAssets));
         }
       } catch (e) {
-        this.logger.error(`Failed to create DeFiChain input ${history.txid}:`, e);
+        this.dfxLogger.error(`Failed to create DeFiChain input ${history.txid}:`, e);
       }
     }
 
@@ -150,7 +149,7 @@ export class DeFiChainStrategy extends RegisterStrategy {
     if (p == null) return null;
 
     if (p.asset && p.asset.dexName === 'DFI' && p.amount < Config.payIn.minDeposit.DeFiChain.DFI) {
-      this.logger.info(`Ignoring too small DeFiChain input (${p.amount} ${p.asset.dexName}). PayIn entry: ${p}`);
+      this.dfxLogger.info(`Ignoring too small DeFiChain input (${p.amount} ${p.asset.dexName}). PayIn entry: ${p}`);
       return null;
     }
 

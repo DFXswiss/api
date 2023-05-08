@@ -63,9 +63,10 @@ export class BuyCryptoBatchService {
 
       if (txInput.length === 0) return;
 
-      console.info(
-        `Buy crypto transaction input. Processing ${txInput.length} transaction(s). Transaction ID(s):`,
-        txInput.map((t) => t.id),
+      this.logger.info(
+        `Buy crypto transaction input. Processing ${txInput.length} transaction(s). Transaction ID(s): ${txInput
+          .map((t) => t.id)
+          .join(', ')}`,
       );
 
       const txWithAssets = await this.defineAssetPair(txInput);
@@ -109,9 +110,10 @@ export class BuyCryptoBatchService {
 
       if (txWithAssets.length === 0) return;
 
-      console.info(
-        `Batching ${txWithAssets.length} buy crypto transaction(s). Transaction ID(s):`,
-        txWithAssets.map((t) => t.id),
+      this.logger.info(
+        `Batching ${txWithAssets.length} buy crypto transaction(s). Transaction ID(s): ${txWithAssets
+          .map((t) => t.id)
+          .join(', ')}`,
       );
 
       const referencePrices = await this.getReferencePrices(txWithAssets);
@@ -120,7 +122,7 @@ export class BuyCryptoBatchService {
 
       for (const batch of batches) {
         const savedBatch = await this.buyCryptoBatchRepo.save(batch);
-        console.info(
+        this.logger.info(
           `Created buy crypto batch. Batch ID: ${savedBatch.id}. Asset: ${savedBatch.outputAsset.uniqueName}. Transaction(s) count ${batch.transactions.length}`,
         );
       }
@@ -268,7 +270,7 @@ export class BuyCryptoBatchService {
       if (existingBatch || newBatch) {
         const txIds = batch.transactions.map((t) => t.id);
 
-        console.info(
+        this.logger.info(
           `Halting with creation of a new batch for asset: ${outputAsset.dexName}, existing batch for this asset is not complete yet. Transaction ID(s): ${txIds}`,
         );
 
@@ -294,7 +296,10 @@ export class BuyCryptoBatchService {
 
         optimizedBatches.push(batch);
       } catch (e) {
-        console.info(`Error in optimizing new batch. Batch target asset: ${batch.outputAsset.uniqueName}.`, e.message);
+        this.logger.info(
+          `Error in optimizing new batch. Batch target asset: ${batch.outputAsset.uniqueName}.`,
+          e.message,
+        );
       }
     }
 
@@ -445,7 +450,7 @@ export class BuyCryptoBatchService {
         const orderId = await this.liquidityService.buyLiquidity(oa.id, targetDeficit, true);
         liqOrderMessage = `Liquidity management order created: ${orderId}`;
       } catch (e) {
-        console.info(`Failed to order missing liquidity for asset ${oa}:`, e);
+        this.logger.info(`Failed to order missing liquidity for asset ${oa}:`, e);
         liqOrderMessage = `Liquidity management order failed: ${e.message}`;
       }
 

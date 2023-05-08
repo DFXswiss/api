@@ -23,7 +23,7 @@ export class DeFiChainStrategy extends PrepareStrategy {
     super();
   }
   private readonly logger = new DfxLogger(DeFiChainStrategy);
-
+  
   async preparePayout(orders: PayoutOrder[]): Promise<void> {
     const groups = Util.groupBy<PayoutOrder, PayoutOrderContext>(orders, 'context');
 

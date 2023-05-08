@@ -27,7 +27,6 @@ export class BscStrategy extends EvmStrategy {
     payInRepository: PayInRepository,
     assetService: AssetService,
     repos: RepositoryFactory,
-    logger: DfxLogger,
   ) {
     super(
       Blockchain.BINANCE_SMART_CHAIN,
@@ -39,9 +38,10 @@ export class BscStrategy extends EvmStrategy {
       payInRepository,
       assetService,
       repos,
-      logger,
     );
   }
+
+  private readonly dfxLogger = new DfxLogger(BscStrategy);
 
   //*** PUBLIC API ***//
 
@@ -67,7 +67,7 @@ export class BscStrategy extends EvmStrategy {
 
         await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
       } catch (e) {
-        this.logger.error('Could not set reference amounts for BSC pay-in', e);
+        this.dfxLogger.error('Could not set reference amounts for BSC pay-in', e);
         continue;
       }
     }

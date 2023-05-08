@@ -64,7 +64,9 @@ export class DexService {
     const { context, correlationId, targetAsset } = request;
 
     try {
-      console.info(`Reserving ${targetAsset.dexName} liquidity. Context: ${context}. Correlation ID: ${correlationId}`);
+      this.logger.info(
+        `Reserving ${targetAsset.dexName} liquidity. Context: ${context}. Correlation ID: ${correlationId}`,
+      );
 
       const strategy = this.checkStrategies.getCheckLiquidityStrategy(targetAsset);
 
@@ -104,7 +106,7 @@ export class DexService {
     }
 
     try {
-      console.info(
+      this.logger.info(
         `Purchasing ${targetAsset.dexName} liquidity. Context: ${context}. Correlation ID: ${correlationId}`,
       );
       await strategy.purchaseLiquidity(request);
@@ -129,7 +131,7 @@ export class DexService {
     }
 
     try {
-      console.info(`Selling ${sellAsset.dexName} liquidity. Context: ${context}. Correlation ID: ${correlationId}`);
+      this.logger.info(`Selling ${sellAsset.dexName} liquidity. Context: ${context}. Correlation ID: ${correlationId}`);
       await strategy.sellLiquidity(request);
     } catch (e) {
       // publicly exposed exception
@@ -226,7 +228,7 @@ export class DexService {
     }
 
     try {
-      console.info(`Transferring ${amount} ${asset.uniqueName} liquidity.`);
+      this.logger.info(`Transferring ${amount} ${asset.uniqueName} liquidity.`);
       return await strategy.transferLiquidity(request);
     } catch (e) {
       this.logger.error(e.message);
@@ -246,7 +248,7 @@ export class DexService {
     }
 
     try {
-      console.info(`Transferring minimal coin amount to address: ${address.address} ${address.blockchain}.`);
+      this.logger.info(`Transferring minimal coin amount to address: ${address.address} ${address.blockchain}.`);
       return await strategy.transferMinimalCoin(address.address);
     } catch (e) {
       this.logger.error(e.message);
@@ -349,7 +351,7 @@ export class DexService {
 
       await strategy.addPurchaseData(order);
 
-      console.info(
+      this.logger.info(
         `Liquidity purchase is ready. Order ID: ${order.id}. Context: ${order.context}. Correlation ID: ${order.correlationId}`,
       );
     } catch (e) {
@@ -367,7 +369,7 @@ export class DexService {
 
       await strategy.addSellData(order);
 
-      console.info(
+      this.logger.info(
         `Liquidity sell is ready. Order ID: ${order.id}. Context: ${order.context}. Correlation ID: ${order.correlationId}`,
       );
     } catch (e) {

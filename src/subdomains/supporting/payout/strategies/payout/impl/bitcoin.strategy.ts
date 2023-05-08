@@ -18,12 +18,10 @@ export class BitcoinStrategy extends JellyfishStrategy {
     protected readonly bitcoinService: PayoutBitcoinService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
     protected readonly assetService: AssetService,
-    logger: DfxLogger,
   ) {
-    super(notificationService, payoutOrderRepo, bitcoinService, logger);
-    this.logger = logger;
+    super(notificationService, payoutOrderRepo, bitcoinService);
   }
-  logger = new DfxLogger(BitcoinStrategy);
+  private readonly dfxLogger = new DfxLogger(BitcoinStrategy);
 
   async estimateFee(): Promise<FeeResult> {
     const feeRate = await this.bitcoinService.getCurrentFastestFeeRate();
@@ -42,11 +40,11 @@ export class BitcoinStrategy extends JellyfishStrategy {
           continue;
         }
 
-        console.info(`Paying out ${group.length} BTC orders(s). Order ID(s): ${group.map((o) => o.id)}`);
+        this.dfxLogger.info(`Paying out ${group.length} BTC orders(s). Order ID(s): ${group.map((o) => o.id)}`);
 
         await this.sendBTC(context, group);
       } catch (e) {
-        this.logger.error(
+        this.dfxLogger.error(
           `Error in paying out a group of ${group.length} BTC orders(s). Order ID(s): ${group.map((o) => o.id)}`,
           e,
         );
