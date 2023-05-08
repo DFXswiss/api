@@ -15,20 +15,19 @@ export class LiquidityManagementBalanceService {
   //*** PUBLIC API ***//
 
   async refreshBalances(rules: LiquidityManagementRule[]): Promise<LiquidityBalance[]> {
-    const balanceRequests = rules.map(async (rule) => {
-      try {
-        const integration = this.balanceIntegrationFactory.getIntegration(rule);
-        if (!integration) throw new Error(`Not balance integration found`);
+    const integrations = this.balanceIntegrationFactory.getIntegrations(rules);
 
-        return await integration.getBalance(rule.target);
-      } catch (e) {
-        console.warn(`Error getting liquidity management balance for rule ${rule.id}:`, e);
+    const balanceRequests = integrations.map(({ integration, rules }) =>
+      integration.getBalances(rules.map((r) => r.target)).catch((e) => {
+        console.warn(`Error getting liquidity management balances for rules ${rules.map((r) => r.id)}:`, e);
 
         throw e;
-      }
-    });
+      }),
+    );
 
-    const balances = await Util.doGetFulfilled(balanceRequests);
+    const balances = await Util.doGetFulfilled(balanceRequests).then((balances) =>
+      balances.reduce((prev, curr) => prev.concat(curr), []),
+    );
 
     await this.saveBalanceResults(balances);
 
