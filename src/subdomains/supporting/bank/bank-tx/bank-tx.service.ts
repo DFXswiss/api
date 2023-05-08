@@ -129,12 +129,12 @@ export class BankTxService {
       .findBy({ accountServiceRef: In(txList.map((i) => i.accountServiceRef)) })
       .then((list) => list.map((i) => i.accountServiceRef));
     if (duplicates.length > 0) {
-      const message = `Duplicate SEPA entries found in batch ${batch.identification}: ${duplicates.join(', ')}`;
+      const message = `Duplicate SEPA entries found in batch ${batch.identification}: ${duplicates}`;
       this.logger.error(message);
 
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,
-        input: { subject: 'SEPA Error', errors: [message + ` ${duplicates.join(', ')}`] },
+        input: { subject: 'SEPA Error', errors: [message + ` ${duplicates}`] },
       });
     }
 

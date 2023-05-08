@@ -64,7 +64,7 @@ export class OlkypayService {
 
       return transactions.map((t) => this.parseTransaction(t, bank));
     } catch (e) {
-      this.logger.error(`Failed to get Bank Olky transactions: ${transactions.join(', ')}`, e);
+      this.logger.error(`Failed to get Bank Olky transactions: ${transactions.map((t) => t.idCtp.toString())}`, e);
       return [];
     }
   }

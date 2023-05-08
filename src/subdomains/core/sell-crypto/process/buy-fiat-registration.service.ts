@@ -29,9 +29,9 @@ export class BuyFiatRegistrationService {
 
     sellPayIns.length > 0 &&
       this.logger.info(
-        `Registering ${sellPayIns.length} new buy-fiat(s) from crypto pay-in(s) ID(s): ${sellPayIns
-          .map((s) => s[0].id)
-          .join(', ')}`,
+        `Registering ${sellPayIns.length} new buy-fiat(s) from crypto pay-in(s) ID(s): ${sellPayIns.map(
+          (s) => s[0].id,
+        )}`,
       );
 
     await this.createBuyFiatsAndAckPayIns(sellPayIns);

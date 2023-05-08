@@ -298,9 +298,9 @@ export class UserDataService {
 
     this.logger.info(
       `Merging user ${master.id} (master) and ${slave.id} (slave): reassigning ${[
-        bankAccountsToReassign.length > 0 && `bank accounts ${bankAccountsToReassign.map((ba) => ba.id).join(', ')}`,
-        slave.bankDatas.length > 0 && `bank datas ${slave.bankDatas.map((b) => b.id).join(', ')}`,
-        slave.users.length > 0 && `users ${slave.users.map((u) => u.id).join(', ')}`,
+        bankAccountsToReassign.length > 0 && `bank accounts ${bankAccountsToReassign.map((ba) => ba.id)}`,
+        slave.bankDatas.length > 0 && `bank datas ${slave.bankDatas.map((b) => b.id)}`,
+        slave.users.length > 0 && `users ${slave.users.map((u) => u.id)}`,
       ]
         .filter((i) => i)
         .join(' and ')}`,

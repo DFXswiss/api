@@ -64,9 +64,9 @@ export class BuyCryptoBatchService {
       if (txInput.length === 0) return;
 
       this.logger.info(
-        `Buy crypto transaction input. Processing ${txInput.length} transaction(s). Transaction ID(s): ${txInput
-          .map((t) => t.id)
-          .join(', ')}`,
+        `Buy crypto transaction input. Processing ${txInput.length} transaction(s). Transaction ID(s): ${txInput.map(
+          (t) => t.id,
+        )}`,
       );
 
       const txWithAssets = await this.defineAssetPair(txInput);
@@ -111,9 +111,9 @@ export class BuyCryptoBatchService {
       if (txWithAssets.length === 0) return;
 
       this.logger.info(
-        `Batching ${txWithAssets.length} buy crypto transaction(s). Transaction ID(s): ${txWithAssets
-          .map((t) => t.id)
-          .join(', ')}`,
+        `Batching ${txWithAssets.length} buy crypto transaction(s). Transaction ID(s): ${txWithAssets.map(
+          (t) => t.id,
+        )}`,
       );
 
       const referencePrices = await this.getReferencePrices(txWithAssets);

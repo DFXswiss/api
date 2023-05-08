@@ -46,7 +46,7 @@ export class MonitoringService implements OnModuleInit {
       const latestPersistedState = await this.systemStateSnapshotRepo.findOne({ where: {}, order: { id: 'DESC' } });
 
       if (!latestPersistedState) {
-        console.warn('No monitoring state found in the database.');
+        this.logger.warn('No monitoring state found in the database.');
         return null;
       }
 

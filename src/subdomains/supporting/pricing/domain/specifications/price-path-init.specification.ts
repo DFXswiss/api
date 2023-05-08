@@ -1,8 +1,10 @@
 import { PathMisconfiguredException } from '../exceptions/path-misconfigured.exception';
 import { PricePath } from '../../utils/price-path';
 import { PriceStep } from '../../utils/price-step';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export class PricePathInitSpecification {
+  private static readonly logger = new DfxLogger(PricePathInitSpecification);
   public static isSatisfiedBy(path: PricePath): boolean {
     const { alias, _steps } = path;
 
@@ -20,13 +22,13 @@ export class PricePathInitSpecification {
     }
 
     if (firstStep._from !== 'input') {
-      console.warn(
+      this.logger.warn(
         `First PriceStep 'from' configuration '${firstStep._from}' will be ignored and replaced by PriceRequest 'from' value.`,
       );
     }
 
     if (lastStep._to !== 'output') {
-      console.warn(
+      this.logger.warn(
         `Last PriceStep 'to' configuration '${lastStep._to}' will be ignored and replaced by PriceRequest 'to' value.`,
       );
     }

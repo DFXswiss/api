@@ -23,7 +23,7 @@ export class DeFiChainStrategy extends PrepareStrategy {
     super();
   }
   private readonly logger = new DfxLogger(DeFiChainStrategy);
-  
+
   async preparePayout(orders: PayoutOrder[]): Promise<void> {
     const groups = Util.groupBy<PayoutOrder, PayoutOrderContext>(orders, 'context');
 
@@ -62,9 +62,9 @@ export class DeFiChainStrategy extends PrepareStrategy {
         await this.preparePayoutForAsset(context, group);
       } catch (e) {
         this.logger.error(
-          `Error while preparing new payout orders for context ${context} and assetId ${assetId}: ${group
-            .map((o) => o.id)
-            .join(', ')}`,
+          `Error while preparing new payout orders for context ${context} and assetId ${assetId}: ${group.map(
+            (o) => o.id,
+          )}`,
           e,
         );
         continue;
@@ -83,9 +83,9 @@ export class DeFiChainStrategy extends PrepareStrategy {
         await this.checkPreparationCompletionForTx(context, group, transferTxId);
       } catch (e) {
         this.logger.error(
-          `Error while checking preparation status of payout orders for context ${context} and transferTxId ${transferTxId}: ${group
-            .map((o) => o.id)
-            .join(', ')}`,
+          `Error while checking preparation status of payout orders for context ${context} and transferTxId ${transferTxId}: ${group.map(
+            (o) => o.id,
+          )}`,
           e,
         );
         continue;

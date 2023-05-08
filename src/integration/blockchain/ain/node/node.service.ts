@@ -129,19 +129,19 @@ export class NodeService {
 
     if (active) {
       if (!passive) {
-        console.warn(`Warning. Node ${type} passive is not available in NodeClient pool`);
+        this.logger.warn(`Warning. Node ${type} passive is not available in NodeClient pool`);
       }
 
       return new BehaviorSubject(this.#allNodes.get(type)[NodeMode.ACTIVE]);
     }
 
     if (passive && !active) {
-      console.warn(`Warning. Node ${type} active is not available in NodeClient pool. Falling back to passive`);
+      this.logger.warn(`Warning. Node ${type} active is not available in NodeClient pool. Falling back to passive`);
       return new BehaviorSubject(this.#allNodes.get(type)[NodeMode.PASSIVE]);
     }
 
     if (!active && !passive) {
-      console.warn(`Warning. Node ${type} both active and passive are not available in NodeClient pool`);
+      this.logger.warn(`Warning. Node ${type} both active and passive are not available in NodeClient pool`);
       return new BehaviorSubject(null);
     }
   }

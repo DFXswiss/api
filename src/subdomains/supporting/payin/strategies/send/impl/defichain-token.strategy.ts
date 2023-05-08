@@ -22,9 +22,9 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
     this.logger.info(
-      `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${payIns.length} DeFiChain Token input(s): ${payIns
-        .map((p) => p.id)
-        .join(', ')}`,
+      `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${
+        payIns.length
+      } DeFiChain Token input(s): ${payIns.map((p) => p.id)}`,
     );
 
     await this.deFiChainService.checkHealthOrThrow();

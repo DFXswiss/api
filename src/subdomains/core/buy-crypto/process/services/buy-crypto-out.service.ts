@@ -158,8 +158,6 @@ export class BuyCryptoOutService {
     const transactionsLogs = transactions.map((tx) => tx.id);
 
     transactions.length &&
-      this.logger.info(
-        `Paying out ${transactionsLogs.length} transaction(s). Transaction ID(s): ${transactionsLogs.join(', ')}`,
-      );
+      this.logger.info(`Paying out ${transactionsLogs.length} transaction(s). Transaction ID(s): ${transactionsLogs}`);
   }
 }

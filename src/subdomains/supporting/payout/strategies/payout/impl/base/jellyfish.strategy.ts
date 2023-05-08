@@ -59,9 +59,9 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
         await this.checkPayoutCompletionDataForTx(context, group, payoutTxId);
       } catch (e) {
         this.logger.error(
-          `Error while checking payout completion data of payout orders for context ${context} and payoutTxId ${payoutTxId}: ${group
-            .map((o) => o.id)
-            .join(', ')}`,
+          `Error while checking payout completion data of payout orders for context ${context} and payoutTxId ${payoutTxId}: ${group.map(
+            (o) => o.id,
+          )}`,
 
           e,
         );

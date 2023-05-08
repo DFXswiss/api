@@ -18,9 +18,9 @@ export class BitcoinStrategy extends JellyfishStrategy {
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
     this.logger.info(
-      `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${payIns.length} Bitcoin input(s): ${payIns
-        .map((p) => p.id)
-        .join(', ')}`,
+      `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${payIns.length} Bitcoin input(s): ${payIns.map(
+        (p) => p.id,
+      )}`,
     );
 
     await this.bitcoinService.checkHealthOrThrow();

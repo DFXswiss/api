@@ -29,9 +29,9 @@ export class BuyCryptoRegistrationService {
 
     buyCryptoPayIns.length > 0 &&
       this.logger.info(
-        `Registering ${buyCryptoPayIns.length} new buy-crypto(s) from crypto pay-in(s) ID(s): ${buyCryptoPayIns
-          .map((s) => s[0].id)
-          .join(', ')}`,
+        `Registering ${buyCryptoPayIns.length} new buy-crypto(s) from crypto pay-in(s) ID(s): ${buyCryptoPayIns.map(
+          (s) => s[0].id,
+        )}`,
       );
 
     await this.createBuyCryptosAndAckPayIns(buyCryptoPayIns);

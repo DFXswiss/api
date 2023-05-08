@@ -11,6 +11,7 @@ import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.
 import { PriceSlippageException } from '../exceptions/price-slippage.exception';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
 import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export interface DexDeFiChainLiquidityResult {
   targetAmount: number;
@@ -32,6 +33,8 @@ export class DexDeFiChainService {
   ) {
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.#dexClient = client));
   }
+
+  private readonly logger = new DfxLogger(DexDeFiChainService);
 
   // *** PUBLIC API *** //
 
@@ -248,7 +251,7 @@ export class DexDeFiChainService {
 
       return await this.testSwap(swapAsset, targetAsset, availableAmount);
     } catch (e) {
-      console.warn(
+      this.logger.warn(
         `Could not find purchasable amount for swapAsset: ${swapAsset.dexName}, targetAsset: ${targetAsset.dexName}`,
       );
 

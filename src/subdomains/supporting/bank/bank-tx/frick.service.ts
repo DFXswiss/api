@@ -163,7 +163,10 @@ export class FrickService {
       }
       return transactions.map((t) => this.parseTransaction(t));
     } catch (e) {
-      this.logger.error(`Failed to get Bank Frick transactions: ${transactions.join(', ')}`, e);
+      this.logger.error(
+        `Failed to get Bank Frick transactions: ${transactions.map((t) => (t.orderId ?? t.transactionNr)?.toString())}`,
+        e,
+      );
       return [];
     }
   }

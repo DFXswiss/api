@@ -1,6 +1,7 @@
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CryptoInput, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 
 export type SendGroupKey = string;
@@ -23,6 +24,8 @@ export abstract class SendStrategy {
   abstract doSend(payIns: CryptoInput[], type: SendType): Promise<void>;
   abstract checkConfirmations(payIns: CryptoInput[]): Promise<void>;
 
+  private readonly logger = new DfxLogger(SendStrategy);
+
   protected abstract getForwardAddress(): BlockchainAddress;
 
   protected updatePayInWithSendData(
@@ -39,7 +42,7 @@ export abstract class SendStrategy {
         return payIn.return(outTxId);
 
       default:
-        console.warn('Unsupported SendType for updating with send data for pay-in ID', payIn.id);
+        this.logger.warn(`Unsupported SendType for updating with send data for pay-in ID: ${payIn.id}`);
         return null;
     }
   }
@@ -53,7 +56,7 @@ export abstract class SendStrategy {
         return payIn.designateReturn();
 
       default:
-        console.warn('Unsupported SendType for designating send of pay-in ID', payIn.id);
+        this.logger.warn(`Unsupported SendType for designating send of pay-in ID: ${payIn.id}`);
         return null;
     }
   }

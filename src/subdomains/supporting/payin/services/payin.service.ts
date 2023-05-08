@@ -239,7 +239,7 @@ export class PayInService {
       const alias = getter(payIn.asset);
 
       if (!alias) {
-        console.warn(`No alias found by getter ${getter.name} for payIn ID ${payIn.id}. Ignoring the payIn`);
+        this.logger.warn(`No alias found by getter ${getter.name} for payIn ID ${payIn.id}. Ignoring the payIn`);
         continue;
       }
 

@@ -101,7 +101,7 @@ export abstract class EvmStrategy extends SendStrategy {
       this.logger.info(
         `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${newPayIns.length} ${this.blockchain} ${
           payIns[0].asset.type
-        } input(s): ${newPayIns.map((p) => p.id).join(', ')}`,
+        } input(s): ${newPayIns.map((p) => p.id)}`,
       );
   }
 

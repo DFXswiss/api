@@ -24,7 +24,7 @@ export class LiquidityManagementBalanceService {
 
         return await integration.getBalance(rule.target);
       } catch (e) {
-        console.warn(`Error getting liquidity management balance for rule ${rule.id}:`, e);
+        this.logger.warn(`Error getting liquidity management balance for rule ${rule.id}:`, e);
 
         throw e;
       }

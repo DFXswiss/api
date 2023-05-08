@@ -21,9 +21,9 @@ export class DeFiChainCoinStrategy extends JellyfishStrategy {
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
     this.logger.info(
-      `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${payIns.length} DeFiChain Coin input(s): ${payIns
-        .map((p) => p.id)
-        .join(', ')}`,
+      `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${payIns.length} DeFiChain Coin input(s): ${payIns.map(
+        (p) => p.id,
+      )}`,
     );
 
     const currentHeight = await this.deFiChainService.getCurrentHeight();
