@@ -321,9 +321,7 @@ export class BuyCrypto extends IEntity {
 
   get translationKey(): string {
     if (this.amlCheck === AmlCheck.PASS) {
-      return this.inputReferenceAsset === this.outputReferenceAsset.dexName && this.cryptoRoute
-        ? 'mail.payment.deposit.buyCryptoCrypto'
-        : 'mail.payment.deposit.buyCryptoFiat';
+      return this.cryptoRoute ? 'mail.payment.deposit.buyCryptoCrypto' : 'mail.payment.deposit.buyCryptoFiat';
     } else if (this.amlCheck === AmlCheck.PENDING) {
       switch (this.amlReason) {
         case AmlReason.DAILY_LIMIT:
