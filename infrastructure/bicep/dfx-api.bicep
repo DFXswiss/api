@@ -116,7 +116,8 @@ param binanceSecret string
 
 param binanceEthWalletWithdrawKey string
 param binanceBscWalletWithdrawKey string
-param binanceArbWalletWithdrawKey string
+param binanceArbArbWithdrawKey string
+param binanceArbEthWithdrawKey string
 
 param olkyClient string
 @secure()
@@ -767,8 +768,12 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: binanceBscWalletWithdrawKey
         }
         {
-          name: 'BINANCE_ARB_WALLET_WITHDRAW_KEY'
-          value: binanceArbWalletWithdrawKey
+          name: 'BINANCE_ARB_ARB_WITHDRAW_KEY'
+          value: binanceArbArbWithdrawKey
+        }
+        {
+          name: 'BINANCE_ARB_ETH_WITHDRAW_KEY'
+          value: binanceArbEthWithdrawKey
         }
         {
           name: 'LETTER_URL'
