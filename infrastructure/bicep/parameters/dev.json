@@ -218,6 +218,9 @@
     "binanceBscWalletWithdrawKey": {
       "value": "xxx"
     },
+    "binanceArbWalletWithdrawKey": {
+      "value": "xxx"
+    },
     "olkyClient": {
       "value": "xxx"
     },
