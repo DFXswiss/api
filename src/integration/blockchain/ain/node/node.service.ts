@@ -10,9 +10,6 @@ import { NodeClient, NodeMode } from './node-client';
 export enum NodeType {
   INPUT = 'inp',
   DEX = 'dex',
-  OUTPUT = 'out',
-  INT = 'int',
-  REF = 'ref',
   BTC_INPUT = 'btc-inp',
   BTC_OUTPUT = 'btc-out',
 }
@@ -94,9 +91,6 @@ export class NodeService {
   private initAllNodes(): void {
     this.addNodeClientPair(NodeType.INPUT, Config.blockchain.default.inp);
     this.addNodeClientPair(NodeType.DEX, Config.blockchain.default.dex);
-    this.addNodeClientPair(NodeType.OUTPUT, Config.blockchain.default.out);
-    this.addNodeClientPair(NodeType.INT, Config.blockchain.default.int);
-    this.addNodeClientPair(NodeType.REF, Config.blockchain.default.ref);
     this.addNodeClientPair(NodeType.BTC_INPUT, Config.blockchain.default.btcInput);
     this.addNodeClientPair(NodeType.BTC_OUTPUT, Config.blockchain.default.btcOutput);
   }
