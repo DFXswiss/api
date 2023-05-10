@@ -17,9 +17,12 @@ import { BankTxRepeatService } from '../bank-tx-repeat/bank-tx-repeat.service';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { Config, Process } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
 
 @Injectable()
 export class BankTxService {
+  private readonly logger = new DfxLogger(BankTxService);
+
   constructor(
     private readonly bankTxRepo: BankTxRepository,
     private readonly bankTxBatchRepo: BankTxBatchRepository,
@@ -32,38 +35,35 @@ export class BankTxService {
     private readonly bankTxReturnService: BankTxReturnService,
     private readonly bankTxRepeatService: BankTxRepeatService,
   ) {}
-  private readonly logger = new DfxLogger(BankTxService);
 
   // --- TRANSACTION HANDLING --- //
   @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(3600)
   async checkTransactions(): Promise<void> {
-    try {
-      if (Config.processDisabled(Process.BANK_TX)) return;
-      // Get settings
-      const settingKeyFrick = 'lastBankFrickDate';
-      const settingKeyOlky = 'lastBankOlkyDate';
-      const lastModificationTimeFrick = await this.settingService.get(settingKeyFrick, new Date(0).toISOString());
-      const lastModificationTimeOlky = await this.settingService.get(settingKeyOlky, new Date(0).toISOString());
-      const newModificationTime = new Date().toISOString();
+    if (Config.processDisabled(Process.BANK_TX)) return;
 
-      // Get bank transactions
-      const frickTransactions = await this.frickService.getFrickTransactions(lastModificationTimeFrick);
-      const olkyTransactions = await this.olkyService.getOlkyTransactions(lastModificationTimeOlky);
-      const allTransactions = olkyTransactions.concat(frickTransactions);
+    // Get settings
+    const settingKeyFrick = 'lastBankFrickDate';
+    const settingKeyOlky = 'lastBankOlkyDate';
+    const lastModificationTimeFrick = await this.settingService.get(settingKeyFrick, new Date(0).toISOString());
+    const lastModificationTimeOlky = await this.settingService.get(settingKeyOlky, new Date(0).toISOString());
+    const newModificationTime = new Date().toISOString();
 
-      for (const bankTx of allTransactions) {
-        try {
-          await this.create(bankTx);
-        } catch (e) {
-          if (!(e instanceof ConflictException)) this.logger.error(`Failed to import transaction:`, e);
-        }
+    // Get bank transactions
+    const frickTransactions = await this.frickService.getFrickTransactions(lastModificationTimeFrick);
+    const olkyTransactions = await this.olkyService.getOlkyTransactions(lastModificationTimeOlky);
+    const allTransactions = olkyTransactions.concat(frickTransactions);
+
+    for (const bankTx of allTransactions) {
+      try {
+        await this.create(bankTx);
+      } catch (e) {
+        if (!(e instanceof ConflictException)) this.logger.error(`Failed to import transaction:`, e);
       }
-
-      if (frickTransactions.length > 0) await this.settingService.set(settingKeyFrick, newModificationTime);
-      if (olkyTransactions.length > 0) await this.settingService.set(settingKeyOlky, newModificationTime);
-    } catch (e) {
-      this.logger.error(`Failed to check bank transactions:`, e);
     }
+
+    if (frickTransactions.length > 0) await this.settingService.set(settingKeyFrick, newModificationTime);
+    if (olkyTransactions.length > 0) await this.settingService.set(settingKeyOlky, newModificationTime);
   }
 
   async create(bankTx: Partial<BankTx>): Promise<Partial<BankTx>> {
@@ -134,7 +134,7 @@ export class BankTxService {
 
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,
-        input: { subject: 'SEPA Error', errors: [message + ` ${duplicates}`] },
+        input: { subject: 'SEPA Error', errors: [message] },
       });
     }
 

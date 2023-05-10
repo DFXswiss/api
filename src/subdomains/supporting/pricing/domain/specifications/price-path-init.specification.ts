@@ -5,6 +5,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export class PricePathInitSpecification {
   private static readonly logger = new DfxLogger(PricePathInitSpecification);
+
   public static isSatisfiedBy(path: PricePath): boolean {
     const { alias, _steps } = path;
 

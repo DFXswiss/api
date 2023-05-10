@@ -15,13 +15,14 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class WebhookService {
+  private readonly logger = new DfxLogger(WebhookService);
+
   constructor(
     private readonly http: HttpService,
     private readonly walletService: WalletService,
     private readonly userRepo: UserRepository,
     private readonly notificationService: NotificationService,
   ) {}
-  private readonly logger = new DfxLogger(WebhookService);
 
   async kycChanged(userData: UserData): Promise<void> {
     await this.triggerUserDataWebhook(userData, this.getKycWebhookData(userData), WebhookType.KYC_CHANGED);

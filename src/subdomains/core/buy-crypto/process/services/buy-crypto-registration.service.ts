@@ -12,13 +12,14 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BuyCryptoRegistrationService {
+  private readonly logger = new DfxLogger(BuyCryptoRegistrationService);
+
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly cryptoRouteRepository: CryptoRouteRepository,
     private readonly payInService: PayInService,
     private readonly buyCryptoInitSpec: BuyCryptoInitSpecification,
   ) {}
-  private readonly logger = new DfxLogger(BuyCryptoRegistrationService);
 
   async registerCryptoPayIn(): Promise<void> {
     const newPayIns = await this.payInService.getNewPayIns();
@@ -83,7 +84,7 @@ export class BuyCryptoRegistrationService {
           continue;
         }
 
-        this.logger.error(`Error occurred during pay-in registration at buy-crypto. Pay-in ID: ${payIn.id}`, e);
+        this.logger.error(`Error during buy crypto pay-in registration (pay-in ${payIn.id}):`, e);
       }
     }
   }

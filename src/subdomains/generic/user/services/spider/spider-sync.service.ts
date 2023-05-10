@@ -27,7 +27,9 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class SpiderSyncService {
-  kycStatusTranslation = {
+  private readonly logger = new DfxLogger(SpiderSyncService);
+
+  private readonly kycStatusTranslation = {
     [KycStatus.CHATBOT]: 'Chatbot',
     [KycStatus.ONLINE_ID]: 'Online ID',
     [KycStatus.VIDEO_ID]: 'Video ID',
@@ -42,7 +44,6 @@ export class SpiderSyncService {
     private readonly settingService: SettingService,
     private readonly spiderDataRepo: SpiderDataRepository,
   ) {}
-  private readonly logger = new DfxLogger(SpiderSyncService);
 
   @Cron(CronExpression.EVERY_2_HOURS)
   async checkOngoingKyc() {

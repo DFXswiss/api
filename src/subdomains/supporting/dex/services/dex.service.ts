@@ -30,6 +30,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class DexService {
+  private readonly logger = new DfxLogger(DexService);
+
   constructor(
     private readonly checkStrategies: CheckLiquidityStrategies,
     private readonly purchaseStrategies: PurchaseLiquidityStrategies,
@@ -38,7 +40,6 @@ export class DexService {
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
     private readonly liquidityOrderFactory: LiquidityOrderFactory,
   ) {}
-  private readonly logger = new DfxLogger(DexService);
 
   // *** MAIN PUBLIC API *** //
 
@@ -54,7 +55,7 @@ export class DexService {
 
       return await strategy.checkLiquidity(request);
     } catch (e) {
-      this.logger.error(e.message);
+      this.logger.error('Error while checking liquidity:', e);
 
       throw new Error(`Error while checking liquidity. Context: ${context}. Correlation ID: ${correlationId}. `);
     }
@@ -90,7 +91,7 @@ export class DexService {
       if (e instanceof NotEnoughLiquidityException) throw e;
       if (e instanceof PriceSlippageException) throw e;
 
-      this.logger.error(e.message);
+      this.logger.error('Error while reserving liquidity:', e);
 
       // default public exception
       throw new Error(`Error while reserving liquidity. Context: ${context}. Correlation ID: ${correlationId}.`);
@@ -115,7 +116,7 @@ export class DexService {
       if (e instanceof PriceSlippageException) throw e;
       if (e instanceof NotEnoughLiquidityException) throw e;
 
-      this.logger.error(e.message);
+      this.logger.error('Error while purchasing liquidity:', e);
 
       // default public exception
       throw new Error(`Error while purchasing liquidity. Context: ${context}. Correlation ID: ${correlationId}. `);
@@ -138,7 +139,7 @@ export class DexService {
       if (e instanceof PriceSlippageException) throw e;
       if (e instanceof NotEnoughLiquidityException) throw e;
 
-      this.logger.error(e.message);
+      this.logger.error('Error while selling liquidity:', e);
 
       // default public exception
       throw new Error(`Error while selling liquidity. Context: ${context}. Correlation ID: ${correlationId}. `);
@@ -244,7 +245,7 @@ export class DexService {
       this.logger.info(`Transferring minimal coin amount to address: ${address.address} ${address.blockchain}.`);
       return await strategy.transferMinimalCoin(address.address);
     } catch (e) {
-      this.logger.error(e.message);
+      this.logger.error('Error while transferring liquidity:', e);
 
       // default public exception
       throw new Error(
@@ -265,7 +266,7 @@ export class DexService {
     try {
       return await strategy.checkTransferCompletion(transferTxId);
     } catch (e) {
-      this.logger.error(e.message);
+      this.logger.error('Error while checking transfer completion:', e);
 
       // default public exception
       throw new Error(`Error while checking transfer completion for transferTxId: ${transferTxId}.`);
@@ -283,7 +284,7 @@ export class DexService {
     try {
       return await strategy.findTransaction(query);
     } catch (e) {
-      this.logger.error(e.message);
+      this.logger.error('Error while finding transaction:', e);
 
       // default public exception
       throw new Error(`Error while searching ${amount} ${asset.uniqueName} transaction since ${since.toDateString()}.`);
@@ -348,7 +349,7 @@ export class DexService {
         `Liquidity purchase is ready. Order ID: ${order.id}. Context: ${order.context}. Correlation ID: ${order.correlationId}`,
       );
     } catch (e) {
-      this.logger.error(`Error while trying to add purchase data to liquidity order. Order ID: ${order.id}`, e);
+      this.logger.error(`Error while trying to add purchase data to liquidity order ${order.id}:`, e);
     }
   }
 
@@ -366,7 +367,7 @@ export class DexService {
         `Liquidity sell is ready. Order ID: ${order.id}. Context: ${order.context}. Correlation ID: ${order.correlationId}`,
       );
     } catch (e) {
-      this.logger.error(`Error while trying to add sell data to liquidity order. Order ID: ${order.id}`, e);
+      this.logger.error(`Error while trying to add sell data to liquidity order ${order.id}:`, e);
     }
   }
 }

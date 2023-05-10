@@ -14,6 +14,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class DeFiChainStrategy extends PrepareStrategy {
+  private readonly logger = new DfxLogger(DeFiChainStrategy);
+
   constructor(
     private readonly assetService: AssetService,
     private readonly dexService: DexService,
@@ -22,7 +24,6 @@ export class DeFiChainStrategy extends PrepareStrategy {
   ) {
     super();
   }
-  private readonly logger = new DfxLogger(DeFiChainStrategy);
 
   async preparePayout(orders: PayoutOrder[]): Promise<void> {
     const groups = Util.groupBy<PayoutOrder, PayoutOrderContext>(orders, 'context');
@@ -64,7 +65,7 @@ export class DeFiChainStrategy extends PrepareStrategy {
         this.logger.error(
           `Error while preparing new payout orders for context ${context} and assetId ${assetId}: ${group.map(
             (o) => o.id,
-          )}`,
+          )}:`,
           e,
         );
         continue;
@@ -85,7 +86,7 @@ export class DeFiChainStrategy extends PrepareStrategy {
         this.logger.error(
           `Error while checking preparation status of payout orders for context ${context} and transferTxId ${transferTxId}: ${group.map(
             (o) => o.id,
-          )}`,
+          )}:`,
           e,
         );
         continue;

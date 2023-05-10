@@ -19,6 +19,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class LiquidityManagementPipelineService {
+  private readonly logger = new DfxLogger(LiquidityManagementPipelineService);
+
   constructor(
     private readonly ruleRepo: LiquidityManagementRuleRepository,
     private readonly orderRepo: LiquidityManagementOrderRepository,
@@ -26,7 +28,6 @@ export class LiquidityManagementPipelineService {
     private readonly actionIntegrationFactory: LiquidityActionIntegrationFactory,
     private readonly notificationService: NotificationService,
   ) {}
-  private readonly logger = new DfxLogger(LiquidityManagementPipelineService);
 
   //*** JOBS ***//
 
@@ -86,7 +87,7 @@ export class LiquidityManagementPipelineService {
         pipeline.start();
         await this.pipelineRepo.save(pipeline);
       } catch (e) {
-        this.logger.error(`Error in starting new liquidity pipeline. Pipeline ID: ${pipeline.id}`, e);
+        this.logger.error(`Error in starting new liquidity pipeline ${pipeline.id}:`, e);
         continue;
       }
     }
@@ -140,7 +141,7 @@ export class LiquidityManagementPipelineService {
           );
         }
       } catch (e) {
-        this.logger.error(`Error in checking running liquidity pipeline. Pipeline ID: ${pipeline.id}`, e);
+        this.logger.error(`Error in checking running liquidity pipeline ${pipeline.id}:`, e);
         continue;
       }
     }
@@ -172,7 +173,7 @@ export class LiquidityManagementPipelineService {
           await this.orderRepo.save(order);
         }
 
-        this.logger.error(`Error in starting new liquidity order. Order ID: ${order.id}`, e);
+        this.logger.error(`Error in starting new liquidity order ${order.id}:`, e);
       }
     }
   }
@@ -204,7 +205,7 @@ export class LiquidityManagementPipelineService {
           continue;
         }
 
-        this.logger.error(`Error in checking running liquidity order. Order ID: ${order.id}`, e);
+        this.logger.error(`Error in checking running liquidity order ${order.id}:`, e);
       }
     }
   }
@@ -217,7 +218,7 @@ export class LiquidityManagementPipelineService {
       order.complete();
       await this.orderRepo.save(order);
 
-      this.logger.info(`Liquidity management order complete. Order ID: ${order.id}`);
+      this.logger.info(`Liquidity management order ${order.id} complete`);
     }
   }
 

@@ -30,8 +30,10 @@ export enum CcxtExchangeAdapterCommands {
 }
 
 export abstract class CcxtExchangeAdapter extends LiquidityManagementAdapter {
-  protected commands = new Map<string, Command>();
   private readonly logger = new DfxLogger(CcxtExchangeAdapter);
+
+  protected commands = new Map<string, Command>();
+
   constructor(
     system: LiquidityManagementSystem,
     private readonly exchangeService: ExchangeService,
@@ -99,7 +101,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityManagementAdapter {
 
     try {
       // small cap for price changes
-      return this.exchangeService.buy(tradeAsset, asset, order.amount * 1.05);
+      return await this.exchangeService.buy(tradeAsset, asset, order.amount * 1.05);
     } catch (e) {
       if (e.message?.includes('not enough balance')) {
         throw new OrderNotProcessableException(e.message);
@@ -121,7 +123,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityManagementAdapter {
 
     const withdrawal = await this.exchangeService.getWithdraw(correlationId, asset.dexName);
     if (!withdrawal) {
-      this.logger.info(
+      this.logger.verbose(
         `No withdrawal for id ${correlationId} and asset ${asset.uniqueName} at ${this.exchangeService.name} found`,
       );
       return false;
@@ -138,7 +140,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityManagementAdapter {
     const asset = order.pipeline.rule.targetAsset.dexName;
 
     try {
-      return this.exchangeService.checkTrade(order.correlationId, tradeAsset, asset);
+      return await this.exchangeService.checkTrade(order.correlationId, tradeAsset, asset);
     } catch (e) {
       if (e instanceof TradeChangedException) {
         order.correlationId = e.id;

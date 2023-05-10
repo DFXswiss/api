@@ -36,8 +36,9 @@ export enum DfiTaxInterval {
 
 @Injectable()
 export class DfiTaxService {
-  private readonly baseUrl = 'https://api.dfi.tax';
   private readonly logger = new DfxLogger(DfiTaxService);
+
+  private readonly baseUrl = 'https://api.dfi.tax';
 
   constructor(private readonly http: HttpService) {}
 

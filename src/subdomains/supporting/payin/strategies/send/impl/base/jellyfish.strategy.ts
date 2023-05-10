@@ -3,7 +3,6 @@ import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-inp
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { PayInJellyfishService } from 'src/subdomains/supporting/payin/services/base/payin-jellyfish.service';
 import { SendStrategy } from './send.strategy';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export abstract class JellyfishStrategy extends SendStrategy {
   constructor(
@@ -13,7 +12,6 @@ export abstract class JellyfishStrategy extends SendStrategy {
   ) {
     super();
   }
-  private readonly logger = new DfxLogger();
 
   protected abstract isConfirmed(payIn: CryptoInput): Promise<boolean>;
 

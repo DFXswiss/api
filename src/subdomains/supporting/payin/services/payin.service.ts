@@ -20,12 +20,13 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class PayInService {
+  private readonly logger = new DfxLogger(PayInService);
+
   constructor(
     private readonly payInRepository: PayInRepository,
     private readonly sendStrategies: SendStrategiesFacade,
     private readonly registerStrategies: RegisterStrategiesFacade,
   ) {}
-  private readonly logger = new DfxLogger(PayInService);
 
   //*** PUBLIC API ***//
 
@@ -133,7 +134,7 @@ export class PayInService {
       const strategy = this.registerStrategies.getRegisterStrategy(payIn.asset);
       return await strategy.doAmlCheck(payIn, route);
     } catch (e) {
-      this.logger.error(`Error during AML check for pay-in ID: ${payIn.id}`, e);
+      this.logger.error(`Error during AML check for pay-in ${payIn.id}:`, e);
     }
   }
 
@@ -239,7 +240,7 @@ export class PayInService {
       const alias = getter(payIn.asset);
 
       if (!alias) {
-        this.logger.warn(`No alias found by getter ${getter.name} for payIn ID ${payIn.id}. Ignoring the payIn`);
+        this.logger.warn(`No alias found by getter ${getter.name} for pay-in ${payIn.id}. Ignoring the pay-in`);
         continue;
       }
 

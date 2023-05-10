@@ -16,6 +16,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BuyCryptoOutService {
+  private readonly logger = new DfxLogger(BuyCryptoOutService);
+
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
@@ -24,7 +26,6 @@ export class BuyCryptoOutService {
     private readonly payoutService: PayoutService,
     private readonly webhookService: WebhookService,
   ) {}
-  private readonly logger = new DfxLogger(BuyCryptoOutService);
 
   async payoutTransactions(): Promise<void> {
     try {
@@ -39,7 +40,7 @@ export class BuyCryptoOutService {
           try {
             await this.checkCompletion(batch);
           } catch (e) {
-            this.logger.error(`Error on checking pervious payout for a batch ID: ${batch.id}`, e);
+            this.logger.error(`Error on checking pervious payout for batch ${batch.id}:`, e);
             continue;
           }
         } else {
@@ -62,7 +63,7 @@ export class BuyCryptoOutService {
           await this.doPayout(transaction);
           successfulRequests.push(transaction);
         } catch (e) {
-          this.logger.error(`Failed to initiate buy-crypto payout. Transaction ID: ${transaction.id}`);
+          this.logger.error(`Failed to initiate buy-crypto payout for transaction ${transaction.id}:`, e);
           // continue with next transaction in case payout initiation failed
           continue;
         }
@@ -70,7 +71,7 @@ export class BuyCryptoOutService {
 
       this.logTransactionsPayouts(successfulRequests);
     } catch (e) {
-      this.logger.error(e);
+      this.logger.error('Error during transaction payout:', e);
     }
   }
 
@@ -136,7 +137,7 @@ export class BuyCryptoOutService {
             : await this.webhookService.cryptoCryptoUpdate(tx.user, tx, PaymentWebhookState.COMPLETED);
         }
       } catch (e) {
-        this.logger.error(`Error on validating transaction completion. ID: ${tx.id}.`, e);
+        this.logger.error(`Error on validating completion for transaction ${tx.id}:`, e);
         continue;
       }
     }
@@ -144,7 +145,7 @@ export class BuyCryptoOutService {
     const isBatchComplete = batch.transactions.every((tx) => tx.isComplete);
 
     if (isBatchComplete) {
-      this.logger.info(`Buy crypto batch payout complete. Batch ID: ${batch.id}`);
+      this.logger.info(`Buy crypto payout complete (batch ID: ${batch.id})`);
       batch.complete();
 
       await this.buyCryptoBatchRepo.save(batch);
@@ -155,9 +156,9 @@ export class BuyCryptoOutService {
   //*** LOGS ***//
 
   private logTransactionsPayouts(transactions: BuyCrypto[]): void {
-    const transactionsLogs = transactions.map((tx) => tx.id);
+    const transactionsIds = transactions.map((tx) => tx.id);
 
     transactions.length &&
-      this.logger.info(`Paying out ${transactionsLogs.length} transaction(s). Transaction ID(s): ${transactionsLogs}`);
+      this.logger.info(`Paying out ${transactionsIds.length} transaction(s). Transaction ID(s): ${transactionsIds}`);
   }
 }

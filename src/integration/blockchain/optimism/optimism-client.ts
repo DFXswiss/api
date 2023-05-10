@@ -17,6 +17,7 @@ interface OptimismTransactionReceipt extends ethers.providers.TransactionReceipt
 
 export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
   private readonly logger = new DfxLogger(OptimismClient);
+
   #l1Provider: ethers.providers.JsonRpcProvider;
   #l1Wallet: ethers.Wallet;
 
@@ -127,7 +128,7 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
 
       switch (status) {
         case MessageStatus.READY_TO_PROVE: {
-          this.logger.info(
+          this.logger.verbose(
             `Checking L1 Bridge transaction completion, L2 txId: ${l2TxId}, status: READY_TO_PROVE, running #proveMessage(...)`,
           );
           await this.#crossChainMessenger.proveMessage(l2TxId);
@@ -136,7 +137,7 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
         }
 
         case MessageStatus.READY_FOR_RELAY: {
-          this.logger.info(
+          this.logger.verbose(
             `Checking L1 Bridge transaction completion, L2 txId: ${l2TxId}, status: READY_FOR_RELAY, running #finalizeMessage(...)`,
           );
           await this.#crossChainMessenger.finalizeMessage(l2TxId);

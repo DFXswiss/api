@@ -9,11 +9,12 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class UserDataNotificationService {
+  private readonly logger = new DfxLogger(UserDataNotificationService);
+
   constructor(
     private readonly userDataRepo: UserDataRepository,
     private readonly notificationService: NotificationService,
   ) {}
-  private readonly logger = new DfxLogger(UserDataNotificationService);
 
   @Cron(CronExpression.EVERY_HOUR)
   @Lock(1800)
@@ -32,7 +33,7 @@ export class UserDataNotificationService {
       })
       .getMany();
 
-    entities.length > 0 && this.logger.info(`Sending ${entities.length} 'blackSquad invitation' email(s)`);
+    entities.length > 0 && this.logger.info(`Sending ${entities.length} 'black squad invitation' email(s)`);
 
     for (const entity of entities) {
       try {
@@ -53,12 +54,12 @@ export class UserDataNotificationService {
             },
           });
         } else {
-          this.logger.error(`Failed to send blackSquad invitation mails ${entity.id}: user has no email`);
+          this.logger.warn(`Failed to send black squad invitation mail ${entity.id}: user has no email`);
         }
 
         await this.userDataRepo.update(...entity.sendMail());
       } catch (e) {
-        this.logger.error(`Failed to send blackSquad invitation initiated mail ${entity.id}:`, e);
+        this.logger.error(`Failed to send black squad invitation initiated mail ${entity.id}:`, e);
       }
     }
   }

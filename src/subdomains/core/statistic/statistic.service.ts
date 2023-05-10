@@ -7,7 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BuyService } from '../buy-crypto/routes/buy/buy.service';
 import { SettingStatus, StatisticDto } from './dto/statistic.dto';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
 
 @Injectable()
 export class StatisticService implements OnModuleInit {
@@ -19,30 +19,26 @@ export class StatisticService implements OnModuleInit {
     private settingService: SettingService,
     private userService: UserService,
   ) {}
-  private readonly logger = new DfxLogger(StatisticService);
 
   onModuleInit() {
     void this.doUpdate();
   }
 
   @Cron(CronExpression.EVERY_HOUR)
+  @Lock(7200)
   async doUpdate(): Promise<void> {
-    try {
-      if (Config.processDisabled(Process.UPDATE_STATISTIC)) return;
-      this.statistic = {
-        totalVolume: {
-          buy: Util.round(await this.buyService.getTotalVolume(), Config.defaultVolumeDecimal),
-          sell: Util.round(await this.sellService.getTotalVolume(), Config.defaultVolumeDecimal),
-        },
-        totalRewards: {
-          staking: 1211040.03,
-          ref: Util.round(await this.userService.getTotalRefRewards(), Config.defaultVolumeDecimal),
-        },
-        status: await this.getStatus(),
-      };
-    } catch (e) {
-      this.logger.error('Exception during statistic update:', e);
-    }
+    if (Config.processDisabled(Process.UPDATE_STATISTIC)) return;
+    this.statistic = {
+      totalVolume: {
+        buy: Util.round(await this.buyService.getTotalVolume(), Config.defaultVolumeDecimal),
+        sell: Util.round(await this.sellService.getTotalVolume(), Config.defaultVolumeDecimal),
+      },
+      totalRewards: {
+        staking: 1211040.03,
+        ref: Util.round(await this.userService.getTotalRefRewards(), Config.defaultVolumeDecimal),
+      },
+      status: await this.getStatus(),
+    };
   }
 
   async getStatus(): Promise<SettingStatus> {

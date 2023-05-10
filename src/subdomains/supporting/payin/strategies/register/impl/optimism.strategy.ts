@@ -18,6 +18,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class OptimismStrategy extends EvmStrategy {
+  protected readonly logger = new DfxLogger(OptimismStrategy);
+
   constructor(
     dexService: DexService,
     @Inject(forwardRef(() => PayInService))
@@ -40,7 +42,6 @@ export class OptimismStrategy extends EvmStrategy {
       repos,
     );
   }
-  private readonly dfxLogger = new DfxLogger(OptimismStrategy);
 
   //*** PUBLIC API ***//
 
@@ -72,7 +73,7 @@ export class OptimismStrategy extends EvmStrategy {
 
         await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
       } catch (e) {
-        this.dfxLogger.error('Could not set reference amounts for Optimism pay-in', e);
+        this.logger.error('Could not set reference amounts for Optimism pay-in:', e);
         continue;
       }
     }

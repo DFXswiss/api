@@ -11,16 +11,17 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class DeFiChainCoinStrategy extends JellyfishStrategy {
+  protected readonly logger = new DfxLogger(DeFiChainCoinStrategy);
+
   constructor(
     protected readonly deFiChainService: PayInDeFiChainService,
     protected readonly payInRepo: PayInRepository,
   ) {
     super(deFiChainService, payInRepo, Blockchain.DEFICHAIN);
   }
-  private readonly dfxLogger = new DfxLogger(DeFiChainCoinStrategy);
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
-    this.dfxLogger.info(
+    this.logger.info(
       `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${payIns.length} DeFiChain Coin input(s): ${payIns.map(
         (p) => p.id,
       )}`,
@@ -40,7 +41,7 @@ export class DeFiChainCoinStrategy extends JellyfishStrategy {
 
         await this.payInRepo.save(payIn);
       } catch (e) {
-        this.dfxLogger.error(`Failed to send DeFiChain coin input ${payIn.id} of type ${type}`, e);
+        this.logger.error(`Failed to send DeFiChain coin input ${payIn.id} of type ${type}:`, e);
       }
     }
   }

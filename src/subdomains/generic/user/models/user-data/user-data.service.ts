@@ -296,15 +296,15 @@ export class UserDataService {
       (sba) => !master.bankAccounts.some((mba) => sba.iban === mba.iban),
     );
 
-    this.logger.info(
-      `Merging user ${master.id} (master) and ${slave.id} (slave): reassigning ${[
-        bankAccountsToReassign.length > 0 && `bank accounts ${bankAccountsToReassign.map((ba) => ba.id)}`,
-        slave.bankDatas.length > 0 && `bank datas ${slave.bankDatas.map((b) => b.id)}`,
-        slave.users.length > 0 && `users ${slave.users.map((u) => u.id)}`,
-      ]
-        .filter((i) => i)
-        .join(' and ')}`,
-    );
+    const mergedEntitiesString = [
+      bankAccountsToReassign.length > 0 && `bank accounts ${bankAccountsToReassign.map((ba) => ba.id)}`,
+      slave.bankDatas.length > 0 && `bank datas ${slave.bankDatas.map((b) => b.id)}`,
+      slave.users.length > 0 && `users ${slave.users.map((u) => u.id)}`,
+    ]
+      .filter((i) => i)
+      .join(' and ');
+
+    this.logger.info(`Merging user ${master.id} (master) and ${slave.id} (slave): reassigning ${mergedEntitiesString}`);
 
     await this.updateBankTxTime(slave.id);
 

@@ -7,7 +7,7 @@ import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.
 import { DeFiClient, Proposal, ProposalType, ProposalVote } from 'src/integration/blockchain/ain/node/defi-client';
 import { HttpService } from 'src/shared/services/http.service';
 import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
 
 interface Masternodes {
   [id: string]: { ownerAuthAddress: string };
@@ -17,7 +17,6 @@ interface Masternodes {
 export class CfpService implements OnModuleInit {
   private readonly lockUrl = 'https://api.lock.space/v1/masternode';
   private readonly cakeUrl = 'https://api.cakedefi.com/nodes?order=status&orderBy=DESC';
-  private readonly logger = new DfxLogger(CfpService);
 
   private client: DeFiClient;
   private cfpResults: CfpResult[];
@@ -36,23 +35,20 @@ export class CfpService implements OnModuleInit {
   }
 
   @Cron(CronExpression.EVERY_10_MINUTES)
+  @Lock(7200)
   async doUpdate(): Promise<void> {
-    try {
-      if (Config.processDisabled(Process.UPDATE_CFP)) return;
-      // update masternodes
-      this.allMasternodes = await this.client.listMasternodes();
-      this.lockMasternodes = await this.callApi<any>(this.lockUrl);
-      this.cakeMasternodes = await this.callApi<any>(this.cakeUrl);
+    if (Config.processDisabled(Process.UPDATE_CFP)) return;
+    // update masternodes
+    this.allMasternodes = await this.client.listMasternodes();
+    this.lockMasternodes = await this.callApi<any>(this.lockUrl);
+    this.cakeMasternodes = await this.callApi<any>(this.cakeUrl);
 
-      // update cfp results
-      this.blockInfo = await this.client.getInfo();
-      const currentProposals = await this.client.listProposal();
-      this.masternodeCount = await this.client.getProposal(currentProposals[0].proposalId).then((p) => p.votesPossible);
-      const filterProposal = currentProposals.filter((p) => this.blockInfo.blocks < p.proposalEndHeight + 20160);
-      this.cfpResults = await Promise.all(filterProposal.map((cfp) => this.getCfpResult(cfp)));
-    } catch (e) {
-      this.logger.error('Exception during CFP update:', e);
-    }
+    // update cfp results
+    this.blockInfo = await this.client.getInfo();
+    const currentProposals = await this.client.listProposal();
+    this.masternodeCount = await this.client.getProposal(currentProposals[0].proposalId).then((p) => p.votesPossible);
+    const filterProposal = currentProposals.filter((p) => this.blockInfo.blocks < p.proposalEndHeight + 20160);
+    this.cfpResults = await Promise.all(filterProposal.map((cfp) => this.getCfpResult(cfp)));
   }
 
   async getCfpResults(): Promise<CfpResult[]> {

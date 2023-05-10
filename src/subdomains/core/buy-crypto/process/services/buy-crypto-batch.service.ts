@@ -27,6 +27,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BuyCryptoBatchService {
+  private readonly logger = new DfxLogger(BuyCryptoBatchService);
+
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
@@ -38,7 +40,6 @@ export class BuyCryptoBatchService {
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly liquidityService: LiquidityManagementService,
   ) {}
-  private readonly logger = new DfxLogger(BuyCryptoBatchService);
 
   async prepareTransactions(): Promise<void> {
     try {
@@ -76,7 +77,7 @@ export class BuyCryptoBatchService {
         await this.buyCryptoRepo.save(tx);
       }
     } catch (e) {
-      this.logger.error(e);
+      this.logger.error('Error during buy crypto preparation:', e);
     }
   }
 
@@ -127,7 +128,7 @@ export class BuyCryptoBatchService {
         );
       }
     } catch (e) {
-      this.logger.error(e);
+      this.logger.error('Error during buy crypto batching:', e);
     }
   }
 
@@ -154,7 +155,7 @@ export class BuyCryptoBatchService {
           tx.setOutputReferenceAsset(outputReferenceAsset);
         }
       } catch (e) {
-        this.logger.error('Error while defining asset pair for BuyCrypto', e);
+        this.logger.error('Error while defining buy crypto asset pair:', e);
       }
     }
 
@@ -206,7 +207,7 @@ export class BuyCryptoBatchService {
       try {
         tx.calculateOutputReferenceAmount(referencePrices);
       } catch (e) {
-        this.logger.error(`Could not calculate outputReferenceAmount for transaction ${tx.id}}`, e);
+        this.logger.error(`Could not calculate outputReferenceAmount for transaction ${tx.id}}:`, e);
       }
     }
 
@@ -418,7 +419,7 @@ export class BuyCryptoBatchService {
 
       await this.buyCryptoNotificationService.sendMissingLiquidityWarning(dexName, blockchain, type);
     } catch (e) {
-      this.logger.error('Error in handling buy crypto batch liquidity warning', e);
+      this.logger.error('Error in handling buy crypto batch liquidity warning:', e);
     }
   }
 
@@ -475,7 +476,7 @@ export class BuyCryptoBatchService {
         messages,
       );
     } catch (e) {
-      this.logger.error('Error in handling MissingBuyCryptoLiquidityException', e);
+      this.logger.error('Error in handling MissingBuyCryptoLiquidityException:', e);
     }
   }
 

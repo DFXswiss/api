@@ -22,6 +22,8 @@ import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
+  private readonly logger = new DfxLogger(ArbitrumClient);
+
   #l1Provider: ethers.providers.JsonRpcProvider;
   #l1Wallet: ethers.Wallet;
   #l2Network: L2Network;
@@ -45,7 +47,6 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
 
     void this.initL2Network();
   }
-  private readonly logger = new DfxLogger(ArbitrumClient);
 
   async depositCoinOnDex(amount: number): Promise<string> {
     const ethBridger = new EthBridger(this.#l2Network);

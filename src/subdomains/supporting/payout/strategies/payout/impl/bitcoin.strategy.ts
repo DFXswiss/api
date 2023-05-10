@@ -13,6 +13,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BitcoinStrategy extends JellyfishStrategy {
+  protected readonly logger = new DfxLogger(BitcoinStrategy);
+
   private readonly averageTransactionSize = 180; // vBytes
 
   constructor(
@@ -23,7 +25,6 @@ export class BitcoinStrategy extends JellyfishStrategy {
   ) {
     super(notificationService, payoutOrderRepo, bitcoinService);
   }
-  private readonly dfxLogger = new DfxLogger(BitcoinStrategy);
 
   async estimateFee(): Promise<FeeResult> {
     const feeRate = await this.bitcoinService.getCurrentFastestFeeRate();
@@ -42,11 +43,11 @@ export class BitcoinStrategy extends JellyfishStrategy {
           continue;
         }
 
-        this.dfxLogger.info(`Paying out ${group.length} BTC orders(s). Order ID(s): ${group.map((o) => o.id)}`);
+        this.logger.info(`Paying out ${group.length} BTC orders(s). Order ID(s): ${group.map((o) => o.id)}`);
 
         await this.sendBTC(context, group);
       } catch (e) {
-        this.dfxLogger.error(
+        this.logger.error(
           `Error in paying out a group of ${group.length} BTC orders(s). Order ID(s): ${group.map((o) => o.id)}`,
           e,
         );

@@ -24,6 +24,8 @@ export interface DexDeFiChainLiquidityResult {
 
 @Injectable()
 export class DexDeFiChainService {
+  private readonly logger = new DfxLogger(DexDeFiChainService);
+
   #dexClient: DeFiClient;
 
   constructor(
@@ -33,8 +35,6 @@ export class DexDeFiChainService {
   ) {
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.#dexClient = client));
   }
-
-  private readonly logger = new DfxLogger(DexDeFiChainService);
 
   // *** PUBLIC API *** //
 
@@ -127,7 +127,7 @@ export class DexDeFiChainService {
     const historyEntry = await this.deFiChainUtil.getHistoryEntryForTx(txId, this.#dexClient);
 
     if (!historyEntry) {
-      throw new Error(`Could not find transaction with ID: ${txId} while trying to extract purchased liquidity`);
+      throw new Error(`Could not find transaction ${txId} while trying to extract purchased liquidity`);
     }
 
     const amounts = historyEntry.amounts.map((a) => this.#dexClient.parseAmount(a));
@@ -251,9 +251,7 @@ export class DexDeFiChainService {
 
       return await this.testSwap(swapAsset, targetAsset, availableAmount);
     } catch (e) {
-      this.logger.warn(
-        `Could not find purchasable amount for swapAsset: ${swapAsset.dexName}, targetAsset: ${targetAsset.dexName}`,
-      );
+      this.logger.warn(`Could not find purchasable amount for swap ${swapAsset.dexName} -> ${targetAsset.dexName}:`, e);
 
       return 0;
     }

@@ -7,6 +7,7 @@ import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
 import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { Config, Process } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 interface PaymentData {
   lastOutputDates: LastOutputDates;
@@ -28,6 +29,8 @@ interface IncompleteTransactions {
 
 @Injectable()
 export class PaymentObserver extends MetricObserver<PaymentData> {
+  protected readonly logger = new DfxLogger(PaymentObserver);
+
   constructor(monitoringService: MonitoringService, private readonly repos: RepositoryFactory) {
     super(monitoringService, 'payment', 'combined');
   }

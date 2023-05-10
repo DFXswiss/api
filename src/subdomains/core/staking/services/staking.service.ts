@@ -22,6 +22,8 @@ import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain
 
 @Injectable()
 export class StakingService {
+  private readonly logger = new DfxLogger(StakingService);
+
   constructor(
     private readonly stakingRewardRepo: StakingRewardRepository,
     private readonly stakingRefRewardRepo: StakingRefRewardRepository,
@@ -30,7 +32,6 @@ export class StakingService {
     private readonly payInService: PayInService,
     private readonly notificationService: NotificationService,
   ) {}
-  private readonly logger = new DfxLogger(StakingService);
 
   //*** JOBS ***//
 
@@ -154,7 +155,7 @@ export class StakingService {
           });
         }
       } catch (e) {
-        this.logger.error(`Failed to send staking return mail ${payIn.id}:`, e);
+        this.logger.error(`Failed to send staking return mail for pay-in ${payIn.id}:`, e);
       }
 
       await this.payInService.returnPayIn(

@@ -5,15 +5,18 @@ import { IsNull, LessThan } from 'typeorm';
 import { Ref } from './ref.entity';
 import { RefRepository } from './ref.repository';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
 
 @Injectable()
 export class RefService {
-  private readonly refExpirationDays = 3;
   private readonly logger = new DfxLogger(RefService);
+
+  private readonly refExpirationDays = 3;
 
   constructor(private repo: RefRepository) {}
 
   @Cron(CronExpression.EVERY_HOUR)
+  @Lock(7200)
   async checkRefs(): Promise<void> {
     const expirationDate = Util.daysBefore(this.refExpirationDays);
 

@@ -5,9 +5,10 @@ import { SellLiquidityStrategyAlias } from '../../sell-liquidity.facade';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export abstract class SellLiquidityStrategy {
+  protected readonly logger: DfxLogger;
+
   private _name: SellLiquidityStrategyAlias;
   private _feeAsset: Asset;
-  private readonly logger = new DfxLogger(SellLiquidityStrategy);
 
   constructor(name: SellLiquidityStrategyAlias) {
     this._name = name;
@@ -23,7 +24,7 @@ export abstract class SellLiquidityStrategy {
 
   protected async handleSellLiquidityError(request: SellLiquidityRequest, e: Error): Promise<void> {
     const errorMessage = `Error while trying to sell liquidity of ${request.sellAsset.uniqueName}`;
-    this.logger.error(errorMessage, e);
+    this.logger.error(`${errorMessage}:`, e);
 
     throw new Error(errorMessage);
   }

@@ -40,6 +40,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class KycService {
+  private readonly logger = new DfxLogger(KycService);
+
   constructor(
     private readonly userDataService: UserDataService,
     private readonly userDataRepo: UserDataRepository,
@@ -54,7 +56,6 @@ export class KycService {
     private readonly http: HttpService,
     private readonly webhookService: WebhookService,
   ) {}
-  private readonly logger = new DfxLogger(KycService);
 
   // --- ADMIN/SUPPORT --- //
   async doNameCheck(userDataId: number): Promise<string> {

@@ -6,7 +6,7 @@ import cors from 'cors';
 import * as AppInsights from 'applicationinsights';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
-import { AllExceptionFilter } from './shared/filters/exception.filter';
+import { ApiExceptionFilter } from './shared/filters/exception.filter';
 import { json, text } from 'express';
 import {
   KycChangedWebhookDto,
@@ -33,7 +33,7 @@ async function bootstrap() {
 
   app.setGlobalPrefix('v1', { exclude: [''] });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
-  app.useGlobalFilters(new AllExceptionFilter());
+  app.useGlobalFilters(new ApiExceptionFilter());
 
   const swaggerOptions = new DocumentBuilder()
     .setTitle('DFX API')
@@ -49,7 +49,7 @@ async function bootstrap() {
 
   await app.listen(process.env.PORT || 3000);
 
-  new DfxLogger().info(`Server listening on: ${await app.getUrl()}`);
+  new DfxLogger('Main').info(`Application ready ...`);
 }
 
 void bootstrap();

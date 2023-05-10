@@ -33,9 +33,10 @@ type TypedNodeClient<T> = T extends NodeType.BTC_INPUT | NodeType.BTC_OUTPUT ? B
 
 @Injectable()
 export class NodeService {
+  private readonly logger = new DfxLogger(NodeClient);
+
   readonly #allNodes: Map<NodeType, Record<NodeMode, NodeClient | null>> = new Map();
   readonly #connectedNodes: Map<NodeType, BehaviorSubject<NodeClient | null>> = new Map();
-  private readonly logger = new DfxLogger(NodeClient);
 
   constructor(private readonly http: HttpService) {
     this.initAllNodes();

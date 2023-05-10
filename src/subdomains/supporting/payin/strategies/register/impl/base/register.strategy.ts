@@ -15,16 +15,16 @@ import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export interface PayInInputLog {
-  recoveredRecords: { address: string; txId: string }[];
   newRecords: { address: string; txId: string }[];
 }
 export abstract class RegisterStrategy {
+  protected abstract readonly logger: DfxLogger;
+
   constructor(
     protected readonly dexService: DexService,
     protected readonly payInFactory: PayInFactory,
     protected readonly payInRepository: PayInRepository,
   ) {}
-  private readonly logger = new DfxLogger(RegisterStrategy);
 
   abstract checkPayInEntries(): Promise<void>;
   abstract addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void>;
@@ -40,21 +40,14 @@ export abstract class RegisterStrategy {
 
   protected createNewLogObject(): PayInInputLog {
     return {
-      recoveredRecords: [],
       newRecords: [],
     };
   }
 
   protected printInputLog(log: PayInInputLog, blockHeight: number | string, blockchain: Blockchain): void {
-    if (log.recoveredRecords.length > 0) {
-      this.logger.info(
-        `Recovered ${log.recoveredRecords.length} pay-in entry(ies) from last block ${blockHeight} of blockchain ${blockchain}: ${log.recoveredRecords}`,
-      );
-    }
-
     if (log.newRecords.length > 0) {
       this.logger.info(
-        `Created ${log.newRecords.length} new pay-in entry(ies) after block ${blockHeight} of blockchain ${blockchain}: ${log.newRecords}`,
+        `Created ${log.newRecords.length} new pay-in entry(ies) after block ${blockHeight} of blockchain ${blockchain}`,
       );
     }
   }
@@ -84,7 +77,7 @@ export abstract class RegisterStrategy {
     if (p == null) return null;
 
     if (p.asset && p.asset.category === AssetCategory.POOL_PAIR) {
-      this.logger.info(`Ignoring pool-pair input (${p.amount} ${p.asset.uniqueName}). PayIn entry: ${p}`);
+      this.logger.info(`Ignoring pool-pair input (${p.amount} ${p.asset.uniqueName})`);
       return null;
     }
 

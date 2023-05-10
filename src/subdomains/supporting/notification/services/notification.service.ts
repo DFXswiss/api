@@ -9,13 +9,13 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class NotificationService {
+  private readonly logger = new DfxLogger(NotificationService);
+
   constructor(
     private readonly mailFactory: MailFactory,
     private readonly mailService: MailService,
     private readonly notificationRepo: NotificationRepository,
   ) {}
-
-  private readonly logger = new DfxLogger(NotificationService);
 
   async sendMail(request: MailRequest): Promise<void> {
     try {
@@ -53,7 +53,7 @@ export class NotificationService {
 
   private handleNotificationError(e: Error, metadata: NotificationMetadata): void {
     if (e instanceof NotificationSuppressedException) {
-      this.logger.info(
+      this.logger.verbose(
         `Suppressed mail request. Context: ${metadata?.context}. CorrelationId: ${metadata?.correlationId}`,
       );
       return;

@@ -24,6 +24,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BitcoinStrategy extends JellyfishStrategy {
+  protected readonly logger = new DfxLogger(BitcoinStrategy);
+
   constructor(
     private readonly assetService: AssetService,
     private readonly bitcoinService: PayInBitcoinService,
@@ -36,8 +38,6 @@ export class BitcoinStrategy extends JellyfishStrategy {
   ) {
     super(dexService, payInFactory, payInRepository);
   }
-
-  private readonly dfxLogger = new DfxLogger(BitcoinStrategy);
 
   //*** PUBLIC API ***//
 
@@ -67,7 +67,7 @@ export class BitcoinStrategy extends JellyfishStrategy {
 
         await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
       } catch (e) {
-        this.dfxLogger.error('Could not set reference amounts for Bitcoin pay-in', e);
+        this.logger.error('Could not set reference amounts for Bitcoin pay-in:', e);
         continue;
       }
     }

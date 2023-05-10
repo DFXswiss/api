@@ -9,6 +9,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export class SepaParser {
   private static readonly logger = new DfxLogger(SepaParser);
+
   static parseSepaFile(xmlFile: string): SepaFile {
     return Util.parseXml<{ Document: SepaFile }>(xmlFile).Document;
   }

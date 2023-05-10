@@ -22,6 +22,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class KycProcessService {
+  private readonly logger = new DfxLogger(KycProcessService);
+
   constructor(
     private readonly spiderDataRepo: SpiderDataRepository,
     private readonly spiderService: SpiderService,
@@ -29,7 +31,6 @@ export class KycProcessService {
     private readonly userRepo: UserRepository,
     private readonly webhookService: WebhookService,
   ) {}
-  private readonly logger = new DfxLogger(KycProcessService);
 
   // --- GENERAL METHODS --- //
   async startKycProcess(userData: UserData): Promise<UserData> {
@@ -76,7 +77,7 @@ export class KycProcessService {
           input: { translationKey: 'mail.kyc.success', translationParams: {}, userData },
         });
       } else {
-        this.logger.error(`Failed to send KYC completion mail for user data ${userData.id}: user has no email`);
+        this.logger.warn(`Failed to send KYC completion mail for user data ${userData.id}: user has no email`);
       }
     }
 
@@ -254,7 +255,7 @@ export class KycProcessService {
   ): Promise<{ url: string; secondUrl?: string; identIdentificationId?: string }> {
     const locator = initiateData.locators?.[0];
     if (!locator) {
-      this.logger.error(`Failed to initiate identification. Initiate result: $initiateData`);
+      this.logger.error(`Received invalid initiate result: ${JSON.stringify(initiateData)}`);
       throw new ServiceUnavailableException('Identification initiation failed');
     }
 

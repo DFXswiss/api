@@ -22,6 +22,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
+  private readonly logger = new DfxLogger(DeFiChainPoolPairStrategy);
+
   constructor(
     readonly notificationService: NotificationService,
     private readonly assetService: AssetService,
@@ -33,7 +35,6 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
   ) {
     super(notificationService, PurchaseLiquidityStrategyAlias.DEFICHAIN_POOL_PAIR);
   }
-  private readonly logger = new DfxLogger(DeFiChainPoolPairStrategy);
 
   async purchaseLiquidity(request: PurchaseLiquidityRequest): Promise<void> {
     const newParentOrder = this.liquidityOrderFactory.createPurchaseOrder(request, Blockchain.DEFICHAIN, this.name);
@@ -82,7 +83,7 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
           await this.addPoolPair(parentOrder, derivedOrders);
         }
       } catch (e) {
-        this.logger.error(`Error while verifying derived liquidity order. Parent Order ID: ${parentOrder.id}`, e);
+        this.logger.error(`Error while verifying derived liquidity order (parent order ID: ${parentOrder.id}):`, e);
         continue;
       }
     }
@@ -195,7 +196,7 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
   }
 
   private async cleanupOrders(parentOrder: LiquidityOrder): Promise<void> {
-    this.logger.info(`Pool pair liquidity order failed. Cleaning up parent order ID: ${parentOrder.id}.`);
+    this.logger.warn(`Pool pair liquidity order failed. Cleaning up parent order ${parentOrder.id}`);
 
     await this.liquidityOrderRepo.delete({
       context: LiquidityOrderContext.CREATE_POOL_PAIR,

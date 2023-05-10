@@ -5,6 +5,7 @@ import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.ser
 import { IbanService } from 'src/integration/bank/services/iban.service';
 import { LetterService } from 'src/integration/letter/letter.service';
 import { Config, Process } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 interface ExternalServicesData {
   name: string;
@@ -19,6 +20,8 @@ enum Status {
 
 @Injectable()
 export class ExternalServicesObserver extends MetricObserver<ExternalServicesData[]> {
+  protected readonly logger = new DfxLogger(ExternalServicesObserver);
+
   constructor(
     monitoringService: MonitoringService,
     private readonly ibanService: IbanService,

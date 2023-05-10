@@ -7,13 +7,14 @@ import { PayoutStrategy } from './payout.strategy';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export abstract class EvmStrategy extends PayoutStrategy {
+  private readonly logger = new DfxLogger(EvmStrategy);
+
   constructor(
     protected readonly payoutEvmService: PayoutEvmService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
   ) {
     super();
   }
-  private readonly logger = new DfxLogger(EvmStrategy);
 
   protected abstract dispatchPayout(order: PayoutOrder): Promise<string>;
   protected abstract getCurrentGasForTransaction(token?: Asset): Promise<number>;
@@ -32,7 +33,7 @@ export abstract class EvmStrategy extends PayoutStrategy {
 
         await this.payoutOrderRepo.save(order);
       } catch (e) {
-        this.logger.error(`Error while executing EVM payout order. Order ID: ${order.id}`, e);
+        this.logger.error(`Error while executing EVM payout order ${order.id}:`, e);
       }
     }
   }
@@ -49,7 +50,7 @@ export abstract class EvmStrategy extends PayoutStrategy {
           await this.payoutOrderRepo.save(order);
         }
       } catch (e) {
-        this.logger.error(`Error in checking EVM payout order completion. Order ID: ${order.id}`, e);
+        this.logger.error(`Error in checking completion of EVM payout order ${order.id}:`, e);
       }
     }
   }

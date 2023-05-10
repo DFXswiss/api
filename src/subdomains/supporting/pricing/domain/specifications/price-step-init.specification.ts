@@ -4,6 +4,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export class PriceStepInitSpecification {
   private static readonly logger = new DfxLogger(PriceStepInitSpecification);
+
   public static isSatisfiedBy(step: PriceStep): boolean {
     const { _options } = step;
 

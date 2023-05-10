@@ -11,11 +11,12 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class LimitRequestNotificationService {
+  private readonly logger = new DfxLogger(LimitRequestNotificationService);
+
   constructor(
     private readonly limitRequestRepo: LimitRequestRepository,
     private readonly notificationService: NotificationService,
   ) {}
-  private readonly logger = new DfxLogger(LimitRequestNotificationService);
 
   @Cron(CronExpression.EVERY_5_MINUTES)
   @Lock(1800)
@@ -59,7 +60,7 @@ export class LimitRequestNotificationService {
             },
           });
         } else {
-          this.logger.error(`Failed to send limit request accepted mail ${entity.id}: user has no email`);
+          this.logger.warn(`Failed to send limit request accepted mail ${entity.id}: user has no email`);
         }
 
         await this.limitRequestRepo.update(...entity.sendMail());

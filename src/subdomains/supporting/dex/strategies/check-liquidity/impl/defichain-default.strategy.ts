@@ -12,6 +12,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
+  private readonly logger = new DfxLogger(DeFiChainDefaultStrategy);
+
   constructor(
     protected readonly assetService: AssetService,
     private readonly dexDeFiChainService: DexDeFiChainService,
@@ -19,8 +21,6 @@ export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
   ) {
     super();
   }
-
-  private readonly logger = new DfxLogger(DeFiChainDefaultStrategy);
 
   async checkLiquidity(request: CheckLiquidityRequest): Promise<CheckLiquidityResult> {
     const { referenceAsset, referenceAmount, targetAsset } = request;
@@ -54,9 +54,7 @@ export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
 
       return await purchaseStrategy.getPrioritySwapAssets();
     } catch (e) {
-      this.logger.warn(
-        `Error while getting priority assets from purchase liquidity strategy. Target asset: ${targetAsset.uniqueName}`,
-      );
+      this.logger.warn(`Error while getting priority assets for ${targetAsset.uniqueName}:`, e);
 
       return [];
     }

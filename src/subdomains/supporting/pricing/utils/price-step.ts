@@ -24,8 +24,10 @@ export interface PriceStepProviderOptions {
 export type PriceStepType = 'primary' | 'reference';
 
 export class PriceStep {
-  private readonly options: PriceStepOptions = {};
   private readonly logger = new DfxLogger(PriceStep);
+
+  private readonly options: PriceStepOptions = {};
+
   constructor(options: PriceStepOptions) {
     this.options = {
       from: options.from || 'input',

@@ -5,7 +5,6 @@ import { Util } from 'src/shared/utils/util';
 import { PricingProvider } from 'src/subdomains/supporting/pricing/domain/interfaces';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { TradeChangedException } from '../exceptions/trade-changed.exception';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export enum OrderSide {
   BUY = 'buy',
@@ -20,7 +19,6 @@ enum OrderStatus {
 
 export class ExchangeService implements PricingProvider {
   private markets: Market[];
-  private readonly logger = new DfxLogger(ExchangeService);
 
   constructor(private readonly exchange: Exchange, private readonly queue?: QueueHandler) {
     this.queue ??= new QueueHandler(180000, 60000);

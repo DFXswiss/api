@@ -25,6 +25,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class LiquidityManagementRuleService {
+  private readonly logger = new DfxLogger(LiquidityManagementRuleService);
+
   constructor(
     private readonly ruleRepo: LiquidityManagementRuleRepository,
     private readonly actionRepo: LiquidityManagementActionRepository,
@@ -33,7 +35,6 @@ export class LiquidityManagementRuleService {
     private readonly actionIntegrationFactory: LiquidityActionIntegrationFactory,
     private readonly notificationService: NotificationService,
   ) {}
-  private readonly logger = new DfxLogger(LiquidityManagementRuleService);
 
   //*** PUBLIC API ***//
 
@@ -52,7 +53,7 @@ export class LiquidityManagementRuleService {
   async updateRule(id: number, dto: LiquidityManagementRuleCreationDto): Promise<LiquidityManagementRuleOutputDto> {
     const existingRule = await this.ruleRepo.findOneBy({ id });
 
-    if (!existingRule) throw new NotFoundException(`Rule with ID: ${id} was not found.`);
+    if (!existingRule) throw new NotFoundException(`Rule ${id} was not found.`);
     if (existingRule.status === LiquidityManagementRuleStatus.PROCESSING) {
       throw new BadRequestException('Rule is currently processing and cannot be updated');
     }
@@ -66,7 +67,7 @@ export class LiquidityManagementRuleService {
   async getRule(id: number): Promise<LiquidityManagementRuleOutputDto> {
     const rule = await this.ruleRepo.findOneBy({ id });
 
-    if (!rule) throw new NotFoundException(`Rule with id: ${id} not found.`);
+    if (!rule) throw new NotFoundException(`Rule ${id} not found.`);
 
     return LiquidityManagementRuleOutputDtoMapper.entityToDto(rule);
   }
@@ -74,7 +75,7 @@ export class LiquidityManagementRuleService {
   async deactivateRule(id: number): Promise<LiquidityManagementRuleOutputDto> {
     const rule = await this.ruleRepo.findOneBy({ id });
 
-    if (!rule) throw new NotFoundException(`Rule with id ${id} was not found.`);
+    if (!rule) throw new NotFoundException(`Rule ${id} was not found.`);
 
     rule.deactivate();
 
@@ -84,7 +85,7 @@ export class LiquidityManagementRuleService {
   async reactivateRule(id: number): Promise<LiquidityManagementRuleOutputDto> {
     const rule = await this.ruleRepo.findOneBy({ id });
 
-    if (!rule) throw new NotFoundException(`Rule with id: ${id} not found.`);
+    if (!rule) throw new NotFoundException(`Rule ${id} not found.`);
 
     rule.reactivate();
 
@@ -97,7 +98,7 @@ export class LiquidityManagementRuleService {
   ): Promise<LiquidityManagementRuleOutputDto> {
     const rule = await this.ruleRepo.findOneBy({ id });
 
-    if (!rule) throw new NotFoundException(`Rule with id: ${id} not found.`);
+    if (!rule) throw new NotFoundException(`Rule ${id} not found.`);
 
     const { reactivationTime } = dto;
 

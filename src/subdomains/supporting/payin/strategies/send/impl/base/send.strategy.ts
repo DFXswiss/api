@@ -21,10 +21,10 @@ export enum SendType {
 }
 
 export abstract class SendStrategy {
+  protected abstract readonly logger: DfxLogger;
+
   abstract doSend(payIns: CryptoInput[], type: SendType): Promise<void>;
   abstract checkConfirmations(payIns: CryptoInput[]): Promise<void>;
-
-  private readonly sendLogger = new DfxLogger(SendStrategy);
 
   protected abstract getForwardAddress(): BlockchainAddress;
 
@@ -42,7 +42,7 @@ export abstract class SendStrategy {
         return payIn.return(outTxId);
 
       default:
-        this.sendLogger.warn(`Unsupported SendType for updating with send data for pay-in ID: ${payIn.id}`);
+        this.logger.warn(`Unsupported SendType for updating with send data for pay-in ${payIn.id}`);
         return null;
     }
   }
@@ -56,7 +56,7 @@ export abstract class SendStrategy {
         return payIn.designateReturn();
 
       default:
-        this.sendLogger.warn(`Unsupported SendType for designating send of pay-in ID: ${payIn.id}`);
+        this.logger.warn(`Unsupported SendType for designating send of pay-in ${payIn.id}`);
         return null;
     }
   }

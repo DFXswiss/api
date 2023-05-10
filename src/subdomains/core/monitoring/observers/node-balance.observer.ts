@@ -5,6 +5,7 @@ import { Config, Process } from 'src/config/config';
 import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
 import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 
@@ -28,6 +29,8 @@ interface NodeBalanceData {
 
 @Injectable()
 export class NodeBalanceObserver extends MetricObserver<NodeBalanceData> {
+  protected readonly logger = new DfxLogger(NodeBalanceObserver);
+
   private inpClient: DeFiClient;
   private refClient: DeFiClient;
   private btcInpClient: BtcClient;

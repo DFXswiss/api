@@ -1,23 +1,27 @@
 import { DfxLogger } from '../services/dfx-logger';
 
+export interface Context {
+  target: string;
+  method: string;
+}
+
 class LockClass {
   private lockedSince?: number;
-  private readonly logger = new DfxLogger(LockClass);
 
-  static create(timeoutSeconds = Infinity): (name: string, task: () => Promise<void>) => Promise<void> {
+  static create(timeoutSeconds = Infinity): (task: () => Promise<void>, context?: Context) => Promise<void> {
     const lockObj = new LockClass(timeoutSeconds);
-    return (n, t) => lockObj.lock(n, t);
+    return (t, c) => lockObj.lock(t, c);
   }
 
   constructor(private readonly timeoutSeconds: number = Infinity) {}
 
-  private async lock(name: string | null, task: () => Promise<void>): Promise<void> {
+  private async lock(task: () => Promise<void>, context?: Context): Promise<void> {
     if (!this.acquire()) return;
 
     try {
       await task();
     } catch (e) {
-      name && this.logger.error(`Error during ${name}:`, e);
+      context && new DfxLogger(context.target).error(`Error during ${context.method}:`, e);
     } finally {
       this.release();
     }
@@ -38,12 +42,12 @@ class LockClass {
 export function Lock(timeout?: number, logError = true) {
   return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
     const lock = LockClass.create(timeout);
-    const name = `${target.constructor.name}:${propertyKey}`;
 
     const method = descriptor.value;
+    const context = logError ? { target: target.constructor.name, method: propertyKey } : undefined;
 
     descriptor.value = function (...args: any) {
-      return lock(logError ? name : null, () => method.apply(this, args));
+      return lock(() => method.apply(this, args), context);
     };
   };
 }

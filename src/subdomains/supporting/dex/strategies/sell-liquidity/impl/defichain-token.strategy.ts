@@ -13,6 +13,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class DeFiChainTokenStrategy extends DeFiChainStrategy {
+  protected readonly logger = new DfxLogger(DeFiChainTokenStrategy);
+
   constructor(
     protected readonly assetService: AssetService,
     protected readonly dexDeFiChainService: DexDeFiChainService,
@@ -21,8 +23,6 @@ export class DeFiChainTokenStrategy extends DeFiChainStrategy {
   ) {
     super(dexDeFiChainService, liquidityOrderRepo, SellLiquidityStrategyAlias.DEFICHAIN_TOKEN);
   }
-
-  private readonly dfxLogger = new DfxLogger(DeFiChainTokenStrategy);
 
   async sellLiquidity(request: SellLiquidityRequest): Promise<void> {
     const targetAsset = await this.defineTargetAsset(request);
@@ -80,7 +80,7 @@ export class DeFiChainTokenStrategy extends DeFiChainStrategy {
       maxPriceSlippage,
     );
 
-    this.dfxLogger.info(
+    this.logger.info(
       `Booked sell of ${referenceAmount} ${referenceAsset.dexName} liquidity for ${targetAsset.dexName}. Context: ${order.context}. CorrelationId: ${order.correlationId}.`,
     );
 

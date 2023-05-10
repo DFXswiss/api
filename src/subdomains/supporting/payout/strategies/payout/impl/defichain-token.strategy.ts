@@ -17,6 +17,8 @@ type TokenName = string;
 
 @Injectable()
 export class DeFiChainTokenStrategy extends JellyfishStrategy {
+  protected readonly logger = new DfxLogger(DeFiChainTokenStrategy);
+
   constructor(
     notificationService: NotificationService,
     private readonly dexService: DexService,
@@ -26,7 +28,6 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
   ) {
     super(notificationService, payoutOrderRepo, jellyfishService);
   }
-  private readonly dfxLogger = new DfxLogger(DeFiChainTokenStrategy);
 
   async estimateFee(): Promise<FeeResult> {
     return { asset: await this.feeAsset(), amount: 0 };
@@ -44,13 +45,13 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
             continue;
           }
 
-          this.dfxLogger.info(`Paying out ${group.length} token orders(s). Order ID(s): ${group.map((o) => o.id)}`);
+          this.logger.info(`Paying out ${group.length} token orders(s). Order ID(s): ${group.map((o) => o.id)}`);
 
           await this.checkUtxoForGroup(group);
           await this.sendToken(context, group, tokenName);
         } catch (e) {
-          this.dfxLogger.error(
-            `Error in paying out a group of ${group.length} token orders(s). Order ID(s): ${group.map((o) => o.id)}`,
+          this.logger.error(
+            `Error in paying out a group of ${group.length} token orders(s). Order ID(s): ${group.map((o) => o.id)}:`,
             e,
           );
           // continue with next group in case payout failed

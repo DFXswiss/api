@@ -30,11 +30,11 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 @ApiTags('exchange')
 @Controller('exchange')
 export class ExchangeController {
+  private readonly logger = new DfxLogger(ExchangeController);
+
   private trades: { [key: number]: TradeResult } = {};
 
   constructor(private readonly registryService: ExchangeRegistryService) {}
-
-  private readonly logger = new DfxLogger(ExchangeController);
 
   @Get(':exchange/balances')
   @ApiBearerAuth()

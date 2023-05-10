@@ -9,6 +9,7 @@ import { Util } from 'src/shared/utils/util';
 import { FrickService } from 'src/subdomains/supporting/bank/bank-tx/frick.service';
 import { OlkypayService } from 'src/subdomains/supporting/bank/bank-tx/olkypay.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 interface BankData {
   name: string;
@@ -21,6 +22,8 @@ interface BankData {
 
 @Injectable()
 export class BankObserver extends MetricObserver<BankData[]> {
+  protected readonly logger = new DfxLogger(BankObserver);
+
   constructor(
     monitoringService: MonitoringService,
     private readonly olkypayService: OlkypayService,

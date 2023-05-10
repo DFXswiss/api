@@ -12,6 +12,8 @@ type SubsystemObservers = Map<MetricName, MetricObserver<unknown>>;
 
 @Injectable()
 export class MonitoringService implements OnModuleInit {
+  private readonly logger = new DfxLogger(MonitoringService);
+
   #$state: BehaviorSubject<SystemState> = new BehaviorSubject({});
   #observers: Map<SubsystemName, SubsystemObservers> = new Map();
 
@@ -19,7 +21,6 @@ export class MonitoringService implements OnModuleInit {
     private systemStateSnapshotRepo: SystemStateSnapshotRepository,
     readonly notificationService: NotificationService,
   ) {}
-  private readonly logger = new DfxLogger(MonitoringService);
 
   onModuleInit() {
     void this.initState();
@@ -46,13 +47,13 @@ export class MonitoringService implements OnModuleInit {
       const latestPersistedState = await this.systemStateSnapshotRepo.findOne({ where: {}, order: { id: 'DESC' } });
 
       if (!latestPersistedState) {
-        this.logger.warn('No monitoring state found in the database.');
+        this.logger.warn('No monitoring state found in the database');
         return null;
       }
 
       return JSON.parse(latestPersistedState.data);
     } catch (e) {
-      this.logger.error('Failed to parse loaded system state. Defaulting to empty state', e);
+      this.logger.error('Failed to parse loaded system state, defaulting to empty state:', e);
 
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,
@@ -122,7 +123,7 @@ export class MonitoringService implements OnModuleInit {
         await this.systemStateSnapshotRepo.save({ id: 1, data: JSON.stringify(newState) });
       }
     } catch (e) {
-      this.logger.error('Error persisting the state', e);
+      this.logger.error('Error persisting the state:', e);
 
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,
@@ -204,7 +205,7 @@ export class MonitoringService implements OnModuleInit {
 
       this.#$state.next(newSystemState);
     } catch (e) {
-      this.logger.error('Error updating monitoring state', e);
+      this.logger.error('Error updating monitoring state:', e);
 
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,

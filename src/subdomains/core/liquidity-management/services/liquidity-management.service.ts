@@ -16,8 +16,9 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class LiquidityManagementService {
-  private readonly ruleActivations = new Map<number, Date>();
   private readonly logger = new DfxLogger(LiquidityManagementService);
+
+  private readonly ruleActivations = new Map<number, Date>();
 
   constructor(
     private readonly ruleRepo: LiquidityManagementRuleRepository,
@@ -101,7 +102,7 @@ export class LiquidityManagementService {
     } catch (e) {
       if (e instanceof ConflictException) return;
 
-      this.logger.error(`Error in verifying the liquidity management rule id: ${rule.id}`, e);
+      this.logger.error(`Error in verifying the liquidity management rule ${rule.id}:`, e);
     }
   }
 
@@ -131,6 +132,6 @@ export class LiquidityManagementService {
   private logRuleExecution(rule: LiquidityManagementRule, result: LiquidityState): void {
     const message = result.deficit ? `${result.deficit} deficit` : `${result.redundancy} redundancy`;
 
-    this.logger.info(`Executing liquidity management rule ${rule.id}. Summary -> ${message} of ${rule.targetName}`);
+    this.logger.info(`Executing liquidity management rule ${rule.id} (${message} of ${rule.targetName})`);
   }
 }

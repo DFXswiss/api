@@ -140,8 +140,9 @@ enum TransactionState {
 
 @Injectable()
 export class FrickService {
-  private accessToken = 'access-token-will-be-updated';
   private readonly logger = new DfxLogger(FrickService);
+
+  private accessToken = 'access-token-will-be-updated';
 
   constructor(private readonly http: HttpService) {}
 
@@ -164,7 +165,7 @@ export class FrickService {
       return transactions.map((t) => this.parseTransaction(t));
     } catch (e) {
       this.logger.error(
-        `Failed to get Bank Frick transactions: ${transactions.map((t) => (t.orderId ?? t.transactionNr)?.toString())}`,
+        `Failed to get Bank Frick transactions ${transactions.map((t) => (t.orderId ?? t.transactionNr)?.toString())}:`,
         e,
       );
       return [];

@@ -13,6 +13,8 @@ import { PurchaseLiquidityStrategyAlias } from '../../purchase-liquidity.facade'
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export abstract class DeFiChainNonPoolPairStrategy extends PurchaseLiquidityStrategy {
+  private readonly logger = new DfxLogger(DeFiChainNonPoolPairStrategy);
+
   private prioritySwapAssetDescriptors: { name: string; type: AssetType }[] = [];
   private prioritySwapAssets: Asset[] = [];
 
@@ -28,8 +30,6 @@ export abstract class DeFiChainNonPoolPairStrategy extends PurchaseLiquidityStra
     super(notificationService, name);
     this.prioritySwapAssetDescriptors = prioritySwapAssetDescriptors;
   }
-
-  private readonly logger = new DfxLogger(DeFiChainNonPoolPairStrategy);
 
   //*** PUBLIC API ***//
 

@@ -17,8 +17,9 @@ export interface MailOptions {
 
 @Injectable()
 export class MailService {
-  constructor(private readonly mailerService: MailerService) {}
   private readonly logger = new DfxLogger(MailService);
+
+  constructor(private readonly mailerService: MailerService) {}
 
   async send(mail: Mail): Promise<void> {
     try {
@@ -37,7 +38,7 @@ export class MailService {
         1000,
       );
     } catch (e) {
-      this.logger.error(`Exception during send mail: from:${mail.from}, to:${mail.to}, subject:${mail.subject}:`, e);
+      this.logger.error(`Exception sending mail (from:${mail.from}, to:${mail.to}, subject:${mail.subject}):`, e);
       throw e;
     }
   }

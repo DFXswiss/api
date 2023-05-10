@@ -35,6 +35,8 @@ export enum PricingPathAlias {
  */
 @Injectable()
 export class PricingService {
+  private readonly logger = new DfxLogger(PricingService);
+
   private readonly pricingPaths: Map<PricingPathAlias, PricePath> = new Map();
 
   constructor(
@@ -50,7 +52,6 @@ export class PricingService {
   ) {
     this.configurePaths();
   }
-  private readonly logger = new DfxLogger(PricingService);
 
   //*** PUBLIC API ***//
 
@@ -62,7 +63,7 @@ export class PricingService {
     try {
       path = this.getPath(request);
     } catch (e) {
-      this.logger.error(e);
+      this.logger.error('Failed to get price path:', e);
       throw new PathNotConfiguredException(request.from, request.to);
     }
 

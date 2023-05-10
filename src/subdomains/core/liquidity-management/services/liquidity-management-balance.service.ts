@@ -8,11 +8,12 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class LiquidityManagementBalanceService {
+  private readonly logger = new DfxLogger(LiquidityManagementBalanceService);
+
   constructor(
     private readonly balanceIntegrationFactory: LiquidityBalanceIntegrationFactory,
     private readonly balanceRepo: LiquidityBalanceRepository,
   ) {}
-  private readonly logger = new DfxLogger(LiquidityManagementBalanceService);
 
   //*** PUBLIC API ***//
 
@@ -64,7 +65,7 @@ export class LiquidityManagementBalanceService {
 
         await this.balanceRepo.save(balance);
       } catch (e) {
-        this.logger.error(`Could not save balance of ${balance.targetName}.`, e);
+        this.logger.error(`Could not save balance of ${balance.targetName}:`, e);
       }
     }
   }

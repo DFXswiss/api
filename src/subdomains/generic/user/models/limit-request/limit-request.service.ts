@@ -15,6 +15,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class LimitRequestService {
+  private readonly logger = new DfxLogger(LimitRequestService);
+
   constructor(
     private readonly limitRequestRepo: LimitRequestRepository,
     private readonly userDataService: UserDataService,
@@ -22,7 +24,6 @@ export class LimitRequestService {
     private readonly webhookService: WebhookService,
     private readonly notificationService: NotificationService,
   ) {}
-  private readonly logger = new DfxLogger(LimitRequestService);
 
   async increaseLimit(dto: LimitRequestDto, kycHash: string, userId?: number): Promise<void> {
     // get user data

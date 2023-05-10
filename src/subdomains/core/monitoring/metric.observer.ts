@@ -4,6 +4,8 @@ import { MonitoringService } from './monitoring.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export abstract class MetricObserver<T> {
+  protected abstract readonly logger: DfxLogger;
+
   #subsystemName: string;
   #metricName: string;
 
@@ -16,8 +18,6 @@ export abstract class MetricObserver<T> {
     this.monitoringService.register(this);
   }
 
-  private readonly logger = new DfxLogger(MetricObserver);
-
   // default implementation - override in specific observers to implement custom data init for metric
   init(_data: T) {
     // ignore on default
@@ -25,7 +25,7 @@ export abstract class MetricObserver<T> {
 
   // default implementation - override in specific observers to implement custom fetch mechanism for metric
   fetch(): Promise<T> {
-    const errorMessage = `Fetch method is not supported by subsystem: '${this.subsystem}'', metric: '${this.metric}'`;
+    const errorMessage = `Fetch method is not supported by subsystem '${this.subsystem}', metric '${this.metric}'`;
     this.logger.warn(errorMessage);
 
     throw new NotImplementedException(errorMessage);
@@ -33,7 +33,7 @@ export abstract class MetricObserver<T> {
 
   // default implementation - override in specific observers to implement custom webhook for metric
   async onWebhook(data: unknown): Promise<void> {
-    const errorMessage = `Webhook is not supported by subsystem: '${this.subsystem}'', metric: '${this.metric}'. Ignoring incoming data: ${data}`;
+    const errorMessage = `Webhook is not supported by subsystem '${this.subsystem}', metric '${this.metric}'. Ignoring incoming data: ${data}`;
     this.logger.warn(errorMessage);
 
     throw new NotImplementedException(errorMessage);

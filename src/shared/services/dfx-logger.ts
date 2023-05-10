@@ -3,16 +3,12 @@ import { TelemetryClient } from 'applicationinsights';
 import { SeverityLevel } from 'applicationinsights/out/Declarations/Contracts';
 import * as AppInsights from 'applicationinsights';
 
-interface Context {
-  name: string;
-}
-
 export class DfxLogger {
   private readonly context?: string;
   private readonly logger: Logger;
 
-  constructor(context?: Context) {
-    this.context = context?.name;
+  constructor(context?: { name: string } | string) {
+    this.context = typeof context === 'string' ? context : context?.name;
     this.logger = new Logger(this.context);
   }
 

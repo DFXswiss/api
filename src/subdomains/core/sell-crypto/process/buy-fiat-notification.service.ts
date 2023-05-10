@@ -15,12 +15,13 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BuyFiatNotificationService {
+  private readonly logger = new DfxLogger(BuyFiatNotificationService);
+
   constructor(
     private readonly buyFiatRepo: BuyFiatRepository,
     private readonly notificationService: NotificationService,
     private readonly i18nService: I18nService,
   ) {}
-  private readonly logger = new DfxLogger(BuyFiatNotificationService);
 
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
@@ -60,12 +61,12 @@ export class BuyFiatNotificationService {
             },
           });
         } else {
-          this.logger.error(`Failed to send buy fiat mails ${entity.id}: user has no email`);
+          this.logger.warn(`Failed to send buy fiat mails ${entity.id}: user has no email`);
         }
 
         await this.buyFiatRepo.update(...entity.offRampInitiated(recipientMail));
       } catch (e) {
-        this.logger.error(`Failed to send buyFiat off-ramp initiated mail ${entity.id}:`, e);
+        this.logger.error(`Failed to send off-ramp initiated mail for buy fiat ${entity.id}:`, e);
       }
     }
   }
@@ -109,7 +110,7 @@ export class BuyFiatNotificationService {
 
         await this.buyFiatRepo.update(...entity.cryptoExchangedToFiat());
       } catch (e) {
-        this.logger.error(`Failed to send buyFiat crypto exchanged to fiat mail ${entity.id}:`, e);
+        this.logger.error(`Failed to send crypto exchanged to fiat mail for buy fiat ${entity.id}:`, e);
       }
     }
   }
@@ -147,7 +148,7 @@ export class BuyFiatNotificationService {
 
         await this.buyFiatRepo.update(...entity.fiatToBankTransferInitiated());
       } catch (e) {
-        this.logger.error(`Failed to send buyFiat fiat to bank transfer mail ${entity.id}:`, e);
+        this.logger.error(`Failed to send fiat to bank transfer mail for buy fiat ${entity.id}:`, e);
       }
     }
   }
@@ -193,7 +194,7 @@ export class BuyFiatNotificationService {
 
         await this.buyFiatRepo.update({ id: entity.id }, { mailReturnSendDate: entity.mailReturnSendDate });
       } catch (e) {
-        this.logger.error(`Failed to send buyFiat payback to address mail ${entity.id}:`, e);
+        this.logger.error(`Failed to send payback to address mail for buy fiat ${entity.id}:`, e);
       }
     }
   }
@@ -228,7 +229,7 @@ export class BuyFiatNotificationService {
 
         await this.buyFiatRepo.update(...entity.pendingMail());
       } catch (e) {
-        this.logger.error(e);
+        this.logger.error(`Failed to send pending mail for buy fiat ${entity.id}:`, e);
       }
     }
   }

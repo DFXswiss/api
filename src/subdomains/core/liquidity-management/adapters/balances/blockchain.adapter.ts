@@ -23,13 +23,13 @@ interface Balance {
 
 @Injectable()
 export class BlockchainAdapter implements LiquidityBalanceIntegration {
+  private readonly logger = new DfxLogger(BlockchainAdapter);
+
   private dexClient: DeFiClient;
 
   private defiChainCache: Map<AssetHash, number> | null = null;
   private defiChainCacheTimestamp = 0;
   private defiChainCacheUpdateCall: Promise<void> | null = null;
-
-  private readonly logger = new DfxLogger(BlockchainAdapter);
 
   constructor(private readonly dexService: DexService, readonly nodeService: NodeService) {
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.dexClient = client));

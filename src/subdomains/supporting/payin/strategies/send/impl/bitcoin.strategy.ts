@@ -11,13 +11,14 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BitcoinStrategy extends JellyfishStrategy {
+  protected readonly logger = new DfxLogger(BitcoinStrategy);
+
   constructor(protected readonly bitcoinService: PayInBitcoinService, protected readonly payInRepo: PayInRepository) {
     super(bitcoinService, payInRepo, Blockchain.BITCOIN);
   }
-  private readonly dfxLogger = new DfxLogger(BitcoinStrategy);
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
-    this.dfxLogger.info(
+    this.logger.info(
       `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${payIns.length} Bitcoin input(s): ${payIns.map(
         (p) => p.id,
       )}`,
@@ -33,7 +34,7 @@ export class BitcoinStrategy extends JellyfishStrategy {
 
         await this.payInRepo.save(payIn);
       } catch (e) {
-        this.dfxLogger.error(`Failed to send Bitcoin input ${payIn.id} of type ${type}`, e);
+        this.logger.error(`Failed to send Bitcoin input ${payIn.id} of type ${type}:`, e);
       }
     }
   }

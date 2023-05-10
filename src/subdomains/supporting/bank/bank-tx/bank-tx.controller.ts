@@ -23,8 +23,9 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 @ApiTags('bankTx')
 @Controller('bankTx')
 export class BankTxController {
-  constructor(private readonly bankTxService: BankTxService) {}
   private readonly logger = new DfxLogger(BankTxController);
+
+  constructor(private readonly bankTxService: BankTxService) {}
 
   @Post()
   @ApiBearerAuth()

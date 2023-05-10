@@ -11,6 +11,8 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export abstract class JellyfishStrategy extends PayoutStrategy {
+  protected abstract readonly logger: DfxLogger;
+
   constructor(
     protected readonly notificationService: NotificationService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
@@ -18,8 +20,6 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
   ) {
     super();
   }
-
-  readonly logger = new DfxLogger(JellyfishStrategy);
 
   async doPayout(orders: PayoutOrder[]): Promise<void> {
     try {
@@ -31,7 +31,7 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
         await this.doPayoutForContext(context, group);
       }
     } catch (e) {
-      this.logger.error('Error while executing DeFiChain payout orders', e);
+      this.logger.error('Error while executing DeFiChain payout orders:', e);
     }
   }
 
@@ -45,7 +45,7 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
         await this.checkPayoutCompletionDataForContext(context, group);
       }
     } catch (e) {
-      this.logger.error('Error while checking payout completion of DeFiChain payout orders', e);
+      this.logger.error('Error while checking payout completion of DeFiChain payout orders:', e);
     }
   }
 
@@ -59,10 +59,9 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
         await this.checkPayoutCompletionDataForTx(context, group, payoutTxId);
       } catch (e) {
         this.logger.error(
-          `Error while checking payout completion data of payout orders for context ${context} and payoutTxId ${payoutTxId}: ${group.map(
+          `Error while checking payout completion data of payout orders ${group.map(
             (o) => o.id,
-          )}`,
-
+          )} for context ${context} and payoutTxId ${payoutTxId}:`,
           e,
         );
         continue;
@@ -127,7 +126,7 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
       await this.designatePayout(orders);
       payoutTxId = await this.dispatchPayout(context, payout, outputAssetName);
     } catch (e) {
-      this.logger.error(`Error on sending ${outputAssetName} for payout. Order ID(s): ${orders.map((o) => o.id)}`, e);
+      this.logger.error(`Error on sending ${outputAssetName} for payout. Order ID(s): ${orders.map((o) => o.id)}:`, e);
 
       if (e.message.includes('timeout')) throw e;
 

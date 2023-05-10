@@ -14,12 +14,13 @@ import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain
 
 @Injectable()
 export class BuyCryptoNotificationService {
+  private readonly logger = new DfxLogger(BuyCryptoNotificationService);
+
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly notificationService: NotificationService,
     private readonly i18nService: I18nService,
   ) {}
-  private readonly logger = new DfxLogger(BuyCryptoNotificationService);
 
   async sendNotificationMails(): Promise<void> {
     try {
@@ -28,7 +29,7 @@ export class BuyCryptoNotificationService {
       await this.paybackToAddressInitiated();
       await this.pendingBuyCrypto();
     } catch (e) {
-      this.logger.error(e);
+      this.logger.error('Error during buy crypto notification:', e);
     }
   }
 
