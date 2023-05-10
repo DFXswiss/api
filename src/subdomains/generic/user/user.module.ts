@@ -25,7 +25,7 @@ import { IdentController } from './models/ident/ident.controller';
 import { IdentService } from './models/ident/ident.service';
 import { SpiderService } from './services/spider/spider.service';
 import { KycProcessService } from './models/kyc/kyc-process.service';
-import { KycController } from './models/kyc/kyc.controller';
+import { KycClientController, KycController } from './models/kyc/kyc.controller';
 import { LinkController } from './models/link/link.controller';
 import { LinkService } from './models/link/link.service';
 import { LinkAddressRepository } from './models/link/link-address.repository';
@@ -59,6 +59,7 @@ import { Wallet } from './models/wallet/wallet.entity';
     AuthController,
     IdentController,
     KycController,
+    KycClientController,
     LinkController,
     LimitRequestController,
     WalletController,
