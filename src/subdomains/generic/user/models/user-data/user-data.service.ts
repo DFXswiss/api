@@ -36,9 +36,12 @@ import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { LinkService } from '../link/link.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
 
 @Injectable()
 export class UserDataService {
+  private readonly logger = new DfxLogger(UserDataService);
+
   constructor(
     private readonly repos: RepositoryFactory,
     private readonly userDataRepo: UserDataRepository,
@@ -53,7 +56,6 @@ export class UserDataService {
     private readonly webhookService: WebhookService,
     @Inject(forwardRef(() => LinkService)) private readonly linkService: LinkService,
   ) {}
-  private readonly logger = new DfxLogger(UserDataService);
 
   async getUserDataByUser(userId: number): Promise<UserData> {
     return this.userDataRepo
@@ -231,6 +233,7 @@ export class UserDataService {
 
   // --- VOLUMES --- //
   @Cron(CronExpression.EVERY_YEAR)
+  @Lock()
   async resetAnnualVolumes(): Promise<void> {
     await this.userDataRepo.update({ annualBuyVolume: Not(0) }, { annualBuyVolume: 0 });
     await this.userDataRepo.update({ annualSellVolume: Not(0) }, { annualSellVolume: 0 });

@@ -9,6 +9,7 @@ import { LessThan, IsNull, In } from 'typeorm';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { Config, Process } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
 
 interface UserData {
   kycStatus: {
@@ -33,8 +34,10 @@ export class UserObserver extends MetricObserver<UserData> {
   }
 
   @Cron(CronExpression.EVERY_10_MINUTES)
+  @Lock(1800)
   async fetch(): Promise<UserData> {
     if (Config.processDisabled(Process.MONITORING)) return;
+
     const data = await this.getUser();
 
     this.emit(data);

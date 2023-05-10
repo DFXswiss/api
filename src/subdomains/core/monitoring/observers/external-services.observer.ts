@@ -6,6 +6,7 @@ import { IbanService } from 'src/integration/bank/services/iban.service';
 import { LetterService } from 'src/integration/letter/letter.service';
 import { Config, Process } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
 
 interface ExternalServicesData {
   name: string;
@@ -31,8 +32,10 @@ export class ExternalServicesObserver extends MetricObserver<ExternalServicesDat
   }
 
   @Cron(CronExpression.EVERY_10_MINUTES)
+  @Lock(1800)
   async fetch() {
     if (Config.processDisabled(Process.MONITORING)) return;
+
     const data = await this.getExternalServices();
 
     this.emit(data);

@@ -46,8 +46,10 @@ export class SpiderSyncService {
   ) {}
 
   @Cron(CronExpression.EVERY_2_HOURS)
+  @Lock(3600)
   async checkOngoingKyc() {
     if (Config.processDisabled(Process.KYC)) return;
+
     const userInProgress = await this.userDataRepo.find({
       select: ['id'],
       where: [
@@ -82,6 +84,7 @@ export class SpiderSyncService {
   @Lock(1800)
   async continuousSync() {
     if (Config.processDisabled(Process.KYC)) return;
+
     const settingKey = 'spiderModificationDate';
     const lastModificationTime = await this.settingService.get(settingKey);
     const newModificationTime = Date.now().toString();
@@ -92,8 +95,10 @@ export class SpiderSyncService {
   }
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
+  @Lock(3600)
   async dailySync() {
     if (Config.processDisabled(Process.KYC)) return;
+
     const modificationDate = Util.daysBefore(1);
     await this.syncKycData(modificationDate.getTime());
   }

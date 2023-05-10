@@ -22,6 +22,7 @@ import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { Config, Process } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
 
 @Injectable()
 export class LiquidityManagementRuleService {
@@ -110,8 +111,10 @@ export class LiquidityManagementRuleService {
   //*** JOBS ***//
 
   @Cron(CronExpression.EVERY_5_MINUTES)
+  @Lock(1800)
   async reactivateRules(): Promise<void> {
     if (Config.processDisabled(Process.LIQUIDITY_MANAGEMENT)) return;
+
     const rules = await this.ruleRepo.findBy({
       status: LiquidityManagementRuleStatus.PAUSED,
       reactivationTime: Not(IsNull()),

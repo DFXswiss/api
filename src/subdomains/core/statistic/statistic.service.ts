@@ -28,6 +28,7 @@ export class StatisticService implements OnModuleInit {
   @Lock(7200)
   async doUpdate(): Promise<void> {
     if (Config.processDisabled(Process.UPDATE_STATISTIC)) return;
+
     this.statistic = {
       totalVolume: {
         buy: Util.round(await this.buyService.getTotalVolume(), Config.defaultVolumeDecimal),

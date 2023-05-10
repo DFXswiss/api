@@ -32,6 +32,7 @@ export class LiquidityManagementService {
   @Lock(1800)
   async verifyRules() {
     if (Config.processDisabled(Process.LIQUIDITY_MANAGEMENT)) return;
+
     const rules = await this.ruleRepo.findBy({ status: LiquidityManagementRuleStatus.ACTIVE });
     const balances = await this.balanceService.refreshBalances(rules);
 

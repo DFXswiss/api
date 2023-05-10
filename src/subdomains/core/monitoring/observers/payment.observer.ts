@@ -8,6 +8,7 @@ import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-inp
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { Config, Process } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
 
 interface PaymentData {
   lastOutputDates: LastOutputDates;
@@ -36,8 +37,10 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
   }
 
   @Cron(CronExpression.EVERY_10_MINUTES)
+  @Lock(1800)
   async fetch() {
     if (Config.processDisabled(Process.MONITORING)) return;
+
     const data = await this.getPayment();
 
     this.emit(data);
