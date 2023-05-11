@@ -62,12 +62,6 @@
     "dexWalletAddress": {
       "value": "xxx"
     },
-    "outWalletAddress": {
-      "value": "xxx"
-    },
-    "intWalletAddress": {
-      "value": "xxx"
-    },
     "utxoSpenderAddress": {
       "value": "xxx"
     },
