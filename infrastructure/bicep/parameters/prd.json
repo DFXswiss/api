@@ -62,12 +62,6 @@
     "dexWalletAddress": {
       "value": "xxx"
     },
-    "outWalletAddress": {
-      "value": "xxx"
-    },
-    "intWalletAddress": {
-      "value": "xxx"
-    },
     "utxoSpenderAddress": {
       "value": "xxx"
     },
@@ -216,6 +210,12 @@
       "value": "xxx"
     },
     "binanceBscWalletWithdrawKey": {
+      "value": "xxx"
+    },
+    "binanceArbArbWithdrawKey": {
+      "value": "xxx"
+    },
+    "binanceArbEthWithdrawKey": {
       "value": "xxx"
     },
     "olkyClient": {

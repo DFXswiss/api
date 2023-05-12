@@ -64,7 +64,7 @@ export class DeFiChainTokenStrategy extends DeFiChainStrategy {
   }
 
   private getDefaultTargetAsset(sellAsset: Asset): string {
-    return sellAsset.category === AssetCategory.CRYPTO ? 'DFI' : 'DUSD';
+    return sellAsset.category === AssetCategory.CRYPTO || sellAsset.dexName === 'DUSD' ? 'DFI' : 'DUSD';
   }
 
   private async bookLiquiditySell(order: LiquidityOrder): Promise<void> {
