@@ -2,29 +2,119 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Between, In, IsNull, Not } from 'typeorm';
 import { RefRewardRepository } from './ref-reward.repository';
 import { CreateRefRewardDto } from './dto/create-ref-reward.dto';
-import { RefReward } from './ref-reward.entity';
+import { RefReward, RewardStatus } from './ref-reward.entity';
 import { UpdateRefRewardDto } from './dto/update-ref-reward.dto';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { Util } from 'src/shared/utils/util';
 import { TransactionDetailsDto } from '../../statistic/dto/statistic.dto';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { Lock } from 'src/shared/utils/lock';
+import { Config, Process } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { PriceRequestContext } from 'src/subdomains/supporting/pricing/domain/enums';
+import { RefRewardNotificationService } from './ref-reward-notification.service';
+import { RefRewardDexService } from './ref-reward-dex.service';
+import { RefRewardOutService } from './ref-reward-out.service';
+
+export const PayoutChains: Blockchain[] = [Blockchain.DEFICHAIN];
 
 @Injectable()
 export class RefRewardService {
-  constructor(private readonly rewardRepo: RefRewardRepository, private readonly userService: UserService) {}
+  constructor(
+    private readonly rewardRepo: RefRewardRepository,
+    private readonly userService: UserService,
+    private readonly cryptoService: CryptoService,
+    private readonly priceProviderService: PriceProviderService,
+    private readonly priceService: PricingService,
+    private readonly assetService: AssetService,
+    private readonly fiatService: FiatService,
+    private readonly refRewardNotificationService: RefRewardNotificationService,
+    private readonly refRewardDexService: RefRewardDexService,
+    private readonly refRewardOutService: RefRewardOutService,
+  ) {}
+
+  //*** JOBS ***//
+
+  @Cron(CronExpression.EVERY_DAY_AT_6AM)
+  @Lock(1800)
+  async createPendingRefRewards() {
+    if (Config.processDisabled(Process.REF_PAYOUT)) return;
+
+    const openCreditUser = await this.userService.getOpenRefCreditUser();
+    if (openCreditUser.length == 0) return;
+
+    // CHF/EUR Price
+    const fiatEur = await this.fiatService.getFiatByName('EUR');
+    const fiatChf = await this.fiatService.getFiatByName('CHF');
+    const eurChfPrice = await this.priceProviderService.getPrice(fiatEur, fiatChf);
+
+    for (const blockchain of PayoutChains) {
+      const pendingBlockchainRewards = await this.rewardRepo.findOne({
+        where: { status: Not(RewardStatus.COMPLETE), targetBlockchain: blockchain },
+      });
+      if (pendingBlockchainRewards) continue;
+
+      // PayoutAsset Price
+      const payoutAsset = await this.assetService.getNativeAsset(blockchain);
+
+      const assetPrice = await this.priceService.getPrice({
+        context: PriceRequestContext.REF_REWARD,
+        correlationId: 'Ref reward assetPrice',
+        from: 'EUR',
+        to: payoutAsset.dexName,
+      });
+
+      const groupedUser = Util.groupByAccessor<User, Blockchain>(
+        openCreditUser,
+        (o) => this.cryptoService.getBlockchainsBasedOn(o.address)[0],
+      );
+
+      for (const user of groupedUser.get(blockchain)) {
+        const refCreditEur = user.refCredit - user.paidRefCredit;
+
+        if (refCreditEur <= 1) continue; // TODO v2 => assetPayoutLimit
+
+        await this.create({
+          outputAmount: refCreditEur / assetPrice.price.price,
+          outputAsset: payoutAsset.dexName,
+          userId: user.id,
+          status: RewardStatus.PREPARED,
+          targetAddress: user.address,
+          targetBlockchain: blockchain,
+          amountInChf: refCreditEur / eurChfPrice.price,
+          amountInEur: refCreditEur,
+        });
+      }
+    }
+  }
+
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  @Lock(1800)
+  async processPendingRefRewards() {
+    if (Config.processDisabled(Process.REF_PAYOUT)) return;
+
+    await this.refRewardDexService.secureLiquidity();
+    await this.refRewardOutService.payoutTransactions();
+    await this.refRewardNotificationService.sendNotificationMails();
+  }
 
   async create(dto: CreateRefRewardDto): Promise<RefReward> {
     let entity = await this.rewardRepo.findOne({
-      where: [{ user: { id: dto.userId }, txId: dto.txId }, { internalId: dto.internalId }],
+      where: [{ user: { id: dto.userId }, status: dto.status }],
     });
     if (entity)
       throw new ConflictException(
-        'There is already a ref reward for the specified user and txId or the internal id is already used',
+        `There is already a open ref reward for the specified user with status: ${dto.status}`,
       );
 
     entity = await this.createEntity(dto);
     entity = await this.rewardRepo.save(entity);
-
-    await this.updatePaidRefCredit([entity.user.id]);
 
     return entity;
   }
@@ -32,12 +122,6 @@ export class RefRewardService {
   async update(id: number, dto: UpdateRefRewardDto): Promise<RefReward> {
     let entity = await this.rewardRepo.findOne({ where: { id }, relations: ['user'] });
     if (!entity) throw new NotFoundException('Ref reward not found');
-
-    const internalIdWithOtherReward = dto.internalId
-      ? await this.rewardRepo.findOneBy({ id: Not(id), internalId: dto.internalId })
-      : null;
-    if (internalIdWithOtherReward)
-      throw new ConflictException('There is already a ref reward for the specified internal id');
 
     const userIdBefore = entity.user?.id;
 

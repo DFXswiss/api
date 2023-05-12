@@ -31,6 +31,10 @@ export class AssetService {
     return this.assetRepo.findOneBy(query);
   }
 
+  async getNativeAsset(blockchain: Blockchain): Promise<Asset> {
+    return this.assetRepo.findOneBy({ blockchain, type: AssetType.COIN });
+  }
+
   //*** UTILITY METHODS ***//
 
   getByQuerySync(assets: Asset[], { dexName, blockchain, type, chainId }: AssetQuery): Asset | undefined {

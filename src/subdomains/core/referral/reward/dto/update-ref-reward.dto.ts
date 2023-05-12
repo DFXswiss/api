@@ -1,27 +1,23 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDate, IsInt, IsOptional, IsString } from 'class-validator';
+import { IsDate, IsEnum, IsInt, IsOptional, IsString } from 'class-validator';
 import { RefRewardDto } from './ref-reward.dto';
+import { RewardStatus } from '../ref-reward.entity';
 
 export class UpdateRefRewardDto extends RefRewardDto {
-  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   txId: string;
 
-  @ApiPropertyOptional()
   @IsOptional()
   @IsDate()
   @Type(() => Date)
   outputDate: Date;
 
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  internalId: string;
-
-  @ApiPropertyOptional()
   @IsOptional()
   @IsInt()
   userId: number;
+
+  @IsOptional()
+  @IsEnum(RewardStatus)
+  status: RewardStatus;
 }
