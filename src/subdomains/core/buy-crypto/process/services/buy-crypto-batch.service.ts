@@ -67,10 +67,10 @@ export class BuyCryptoBatchService {
       );
 
       const txWithAssets = await this.defineAssetPair(txInput);
-      const txWithFeeConstraints = this.setFeeConstraints(txWithAssets);
 
-      for (const tx of txWithFeeConstraints) {
-        await this.buyCryptoRepo.save(tx);
+      for (const tx of txWithAssets) {
+        const fee = BuyCryptoFee.create(tx);
+        await this.buyCryptoRepo.update(...tx.setFeeConstraints(fee));
       }
     } catch (e) {
       console.error(e);
@@ -155,15 +155,6 @@ export class BuyCryptoBatchService {
     }
 
     return transactions.filter((tx) => tx.outputReferenceAsset && tx.outputAsset);
-  }
-
-  private setFeeConstraints(transactions: BuyCrypto[]): BuyCrypto[] {
-    for (const tx of transactions) {
-      const fee = BuyCryptoFee.create(tx);
-      tx.setFeeConstraints(fee);
-    }
-
-    return transactions;
   }
 
   private async getReferencePrices(txWithAssets: BuyCrypto[]): Promise<Price[]> {
@@ -483,25 +474,19 @@ export class BuyCryptoBatchService {
 
   private async setWaitingForLowerFeeStatus(transactions: BuyCrypto[]): Promise<void> {
     for (const tx of transactions) {
-      tx.waitingForLowerFee();
-
-      await this.buyCryptoRepo.save(tx);
+      await this.buyCryptoRepo.update(...tx.waitingForLowerFee());
     }
   }
 
   private async setPriceMismatchStatus(transactions: BuyCrypto[]): Promise<void> {
     for (const tx of transactions) {
-      tx.setPriceMismatchStatus();
-
-      await this.buyCryptoRepo.save(tx);
+      await this.buyCryptoRepo.update(...tx.setPriceMismatchStatus());
     }
   }
 
   private async setMissingLiquidityStatus(transactions: BuyCrypto[]): Promise<void> {
     for (const tx of transactions) {
-      tx.setMissingLiquidityStatus();
-
-      await this.buyCryptoRepo.save(tx);
+      await this.buyCryptoRepo.update(...tx.setMissingLiquidityStatus());
     }
   }
 

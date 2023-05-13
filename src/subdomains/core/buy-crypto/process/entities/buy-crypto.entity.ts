@@ -234,37 +234,34 @@ export class BuyCrypto extends IEntity {
     return this;
   }
 
-  setFeeConstraints(fee: BuyCryptoFee): this {
+  setFeeConstraints(fee: BuyCryptoFee): UpdateResult<BuyCrypto> {
     this.fee = fee;
 
-    return this;
+    return [this.id, { fee: this.fee }];
   }
 
-  setPriceMismatchStatus(): this {
-    this.resetTransaction();
+  setPriceMismatchStatus(): UpdateResult<BuyCrypto> {
     this.status = BuyCryptoStatus.PRICE_MISMATCH;
 
-    return this;
+    return [this.id, { status: this.status, ...this.resetTransaction() }];
   }
 
-  setPriceSlippageStatus(): this {
+  setPriceSlippageStatus(): UpdateResult<BuyCrypto> {
     this.status = BuyCryptoStatus.PRICE_SLIPPAGE;
 
-    return this;
+    return [this.id, { status: this.status }];
   }
 
-  setMissingLiquidityStatus(): this {
-    this.resetTransaction();
+  setMissingLiquidityStatus(): UpdateResult<BuyCrypto> {
     this.status = BuyCryptoStatus.MISSING_LIQUIDITY;
 
-    return this;
+    return [this.id, { status: this.status, ...this.resetTransaction() }];
   }
 
-  waitingForLowerFee(): this {
-    this.resetTransaction();
+  waitingForLowerFee(): UpdateResult<BuyCrypto> {
     this.status = BuyCryptoStatus.WAITING_FOR_LOWER_FEE;
 
-    return this;
+    return [this.id, { status: this.status, ...this.resetTransaction() }];
   }
 
   batched(): this {
@@ -296,20 +293,23 @@ export class BuyCrypto extends IEntity {
     return this;
   }
 
-  payingOut(): this {
+  payingOut(): UpdateResult<BuyCrypto> {
     this.status = BuyCryptoStatus.PAYING_OUT;
 
-    return this;
+    return [this.id, { status: this.status }];
   }
 
-  complete(payoutTxId: string, payoutFee: number): this {
+  complete(payoutTxId: string, payoutFee: number): UpdateResult<BuyCrypto> {
     this.txId = payoutTxId;
     this.outputDate = new Date();
     this.isComplete = true;
     this.status = BuyCryptoStatus.COMPLETE;
     this.fee.addActualPayoutFee(payoutFee, this);
 
-    return this;
+    return [
+      this.id,
+      { txId: this.txId, outputDate: this.outputDate, isComplete: this.isComplete, status: this.status, fee: this.fee },
+    ];
   }
 
   confirmSentMail(): UpdateResult<BuyCrypto> {
@@ -368,7 +368,7 @@ export class BuyCrypto extends IEntity {
 
   //*** HELPER METHODS ***//
 
-  private resetTransaction(): this {
+  private resetTransaction(): Partial<BuyCrypto> {
     this.outputReferenceAmount = null;
     this.batch = null;
     this.isComplete = false;
@@ -377,7 +377,15 @@ export class BuyCrypto extends IEntity {
     this.mailSendDate = null;
     this.recipientMail = null;
 
-    return this;
+    return {
+      outputReferenceAmount: this.outputReferenceAmount,
+      batch: this.batch,
+      isComplete: this.isComplete,
+      outputAmount: this.outputAmount,
+      outputDate: this.outputDate,
+      mailSendDate: this.mailSendDate,
+      recipientMail: this.recipientMail,
+    };
   }
 }
 

@@ -51,8 +51,7 @@ export class BuyCryptoDexService {
 
         const finalFee = await this.buyCryptoPricingService.getFeeAmountInBatchAsset(batch, nativeFee);
 
-        batch.secure(liquidity.amount, finalFee);
-        await this.buyCryptoBatchRepo.save(batch);
+        await this.buyCryptoBatchRepo.update(...batch.secure(liquidity.amount, finalFee));
 
         console.info(`Secured liquidity for batch. Batch ID: ${batch.id}`);
       } catch (e) {
@@ -71,8 +70,7 @@ export class BuyCryptoDexService {
         const liquidity = await this.checkLiquidity(batch);
 
         if (liquidity !== 0) {
-          batch.secure(liquidity, 0);
-          await this.buyCryptoBatchRepo.save(batch);
+          await this.buyCryptoBatchRepo.update(...batch.secure(liquidity, 0));
 
           console.info(`Secured liquidity for batch. Batch ID: ${batch.id}.`);
 
@@ -164,9 +162,7 @@ export class BuyCryptoDexService {
 
   private async setPriceSlippageStatus(transactions: BuyCrypto[]): Promise<void> {
     for (const tx of transactions) {
-      tx.setPriceSlippageStatus();
-
-      await this.buyCryptoRepo.save(tx);
+      await this.buyCryptoRepo.update(...tx.setPriceSlippageStatus());
     }
   }
 }
