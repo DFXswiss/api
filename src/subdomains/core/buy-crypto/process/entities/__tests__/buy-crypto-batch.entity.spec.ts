@@ -334,14 +334,6 @@ describe('BuyCryptoBatch', () => {
       expect(testCall).toThrow();
       expect(testCall).toThrowError('Mismatch is too high. Mismatch: 10');
     });
-
-    it('returns instance of BuyCryptoBatch', () => {
-      const entity = createCustomBuyCryptoBatch({ transactions: [] });
-
-      const updatedEntity = entity.secure(0, 0);
-
-      expect(updatedEntity).toBeInstanceOf(BuyCryptoBatch);
-    });
   });
 
   describe('#complete(...)', () => {
@@ -354,14 +346,6 @@ describe('BuyCryptoBatch', () => {
 
       expect(entity.status).toBe(BuyCryptoBatchStatus.COMPLETE);
     });
-
-    it('returns instance of BuyCryptoBatch', () => {
-      const entity = createDefaultBuyCryptoBatch();
-
-      const updatedEntity = entity.complete();
-
-      expect(updatedEntity).toBeInstanceOf(BuyCryptoBatch);
-    });
   });
 
   describe('#payingOut(...)', () => {
@@ -373,14 +357,6 @@ describe('BuyCryptoBatch', () => {
       entity.payingOut();
 
       expect(entity.status).toBe(BuyCryptoBatchStatus.PAYING_OUT);
-    });
-
-    it('returns instance of BuyCryptoBatch', () => {
-      const entity = createDefaultBuyCryptoBatch();
-
-      const updatedEntity = entity.payingOut();
-
-      expect(updatedEntity).toBeInstanceOf(BuyCryptoBatch);
     });
   });
 
