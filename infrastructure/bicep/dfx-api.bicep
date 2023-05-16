@@ -48,8 +48,6 @@ param ethGatewayUrl string
 @secure()
 param ethApiKey string
 param ethChainId string
-param ethSwapContractAddress string
-param ethSwapTokenAddress string
 param ethScanApiUrl string
 @secure()
 param ethScanApiKey string
@@ -61,8 +59,6 @@ param optimismGatewayUrl string
 @secure()
 param optimismApiKey string
 param optimismChainId string
-param optimismSwapContractAddress string
-param optimismSwapTokenAddress string
 param optimismScanApiUrl string
 @secure()
 param optimismScanApiKey string
@@ -73,8 +69,7 @@ param arbitrumWalletPrivateKey string
 param arbitrumGatewayUrl string
 @secure()
 param arbitrumApiKey string
-param arbitrumSwapContractAddress string
-param arbitrumSwapTokenAddress string
+param arbitrumChainId string
 param arbitrumScanApiUrl string
 @secure()
 param arbitrumScanApiKey string
@@ -84,7 +79,7 @@ param bscWalletAddress string
 param bscWalletPrivateKey string
 param bscGatewayUrl string
 param bscSwapContractAddress string
-param bscSwapTokenAddress string
+param bscChainId string
 param bscScanApiUrl string
 @secure()
 param bscScanApiKey string
@@ -545,14 +540,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: ethChainId
         }
         {
-          name: 'ETH_SWAP_CONTRACT_ADDRESS'
-          value: ethSwapContractAddress
-        }
-        {
-          name: 'ETH_SWAP_TOKEN_ADDRESS'
-          value: ethSwapTokenAddress
-        }
-        {
           name: 'ETH_SCAN_API_URL'
           value: ethScanApiUrl
         }
@@ -581,14 +568,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: optimismChainId
         }
         {
-          name: 'OPTIMISM_SWAP_CONTRACT_ADDRESS'
-          value: optimismSwapContractAddress
-        }
-        {
-          name: 'OPTIMISM_SWAP_TOKEN_ADDRESS'
-          value: optimismSwapTokenAddress
-        }
-        {
           name: 'OPTIMISM_SCAN_API_URL'
           value: optimismScanApiUrl
         }
@@ -613,12 +592,8 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: arbitrumApiKey
         }
         {
-          name: 'ARBITRUM_SWAP_CONTRACT_ADDRESS'
-          value: arbitrumSwapContractAddress
-        }
-        {
-          name: 'ARBITRUM_SWAP_TOKEN_ADDRESS'
-          value: arbitrumSwapTokenAddress
+          name: 'ARBITRUM_CHAIN_ID'
+          value: arbitrumChainId
         }
         {
           name: 'ARBITRUM_SCAN_API_URL'
@@ -645,16 +620,16 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: bscSwapContractAddress
         }
         {
-          name: 'BSC_SWAP_TOKEN_ADDRESS'
-          value: bscSwapTokenAddress
-        }
-        {
           name: 'BSC_SCAN_API_URL'
           value: bscScanApiUrl
         }
         {
           name: 'BSC_SCAN_API_KEY'
           value: bscScanApiKey
+        }
+        {
+          name: 'BSC_CHAIN_ID'
+          value: bscChainId
         }
         {
           name: 'BTC_OUT_WALLET_ADDRESS'
