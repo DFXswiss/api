@@ -1,9 +1,7 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Between, In, IsNull, Not } from 'typeorm';
 import { RefRewardRepository } from './ref-reward.repository';
-import { CreateRefRewardDto } from './dto/create-ref-reward.dto';
 import { RefReward, RewardStatus } from './ref-reward.entity';
-import { UpdateRefRewardDto } from './dto/update-ref-reward.dto';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { Util } from 'src/shared/utils/util';
 import { TransactionDetailsDto } from '../../statistic/dto/statistic.dto';
@@ -80,16 +78,18 @@ export class RefRewardService {
 
         if (refCreditEur <= 1) continue; // TODO v2 => assetPayoutLimit
 
-        await this.create({
+        const entity = this.rewardRepo.create({
           outputAmount: refCreditEur / assetPrice.price.price,
           outputAsset: payoutAsset.dexName,
-          userId: user.id,
+          user: user,
           status: RewardStatus.PREPARED,
           targetAddress: user.address,
           targetBlockchain: blockchain,
           amountInChf: refCreditEur / eurChfPrice.price,
           amountInEur: refCreditEur,
         });
+
+        await this.rewardRepo.save(entity);
       }
     }
   }
@@ -102,38 +102,6 @@ export class RefRewardService {
     await this.refRewardDexService.secureLiquidity();
     await this.refRewardOutService.payoutTransactions();
     await this.refRewardNotificationService.sendNotificationMails();
-  }
-
-  async create(dto: CreateRefRewardDto): Promise<RefReward> {
-    let entity = await this.rewardRepo.findOne({
-      where: [{ user: { id: dto.userId }, status: dto.status }],
-    });
-    if (entity)
-      throw new ConflictException(
-        `There is already a open ref reward for the specified user with status: ${dto.status}`,
-      );
-
-    entity = await this.createEntity(dto);
-    entity = await this.rewardRepo.save(entity);
-
-    return entity;
-  }
-
-  async update(id: number, dto: UpdateRefRewardDto): Promise<RefReward> {
-    let entity = await this.rewardRepo.findOne({ where: { id }, relations: ['user'] });
-    if (!entity) throw new NotFoundException('Ref reward not found');
-
-    const userIdBefore = entity.user?.id;
-
-    const update = await this.createEntity(dto);
-
-    Util.removeNullFields(entity);
-
-    entity = await this.rewardRepo.save({ ...update, ...entity });
-
-    await this.updatePaidRefCredit([userIdBefore, entity.user?.id]);
-
-    return entity;
   }
 
   async updateVolumes(): Promise<void> {
@@ -161,18 +129,6 @@ export class RefRewardService {
   }
 
   // --- HELPER METHODS --- //
-  private async createEntity(dto: CreateRefRewardDto | UpdateRefRewardDto): Promise<RefReward> {
-    const reward = this.rewardRepo.create(dto);
-
-    // route
-    if (dto.userId) {
-      reward.user = await this.userService.getUser(dto.userId);
-      if (!reward.user) throw new BadRequestException('User not found');
-    }
-
-    return reward;
-  }
-
   private async updatePaidRefCredit(userIds: number[]): Promise<void> {
     userIds = userIds.filter((u, j) => userIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 

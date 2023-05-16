@@ -96,9 +96,8 @@ export class UserService {
   }
 
   async getOpenRefCreditUser(): Promise<User[]> {
-    return await this.userRepo
+    return this.userRepo
       .createQueryBuilder('user')
-      .select('user', 'user')
       .leftJoin('user.userData', 'userData')
       .where('user.refCredit - user.paidRefCredit > 0')
       .andWhere('user.status != :userStatus', { userStatus: UserStatus.BLOCKED })

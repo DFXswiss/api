@@ -13,7 +13,7 @@ import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/li
 export interface RefLiquidityRequest {
   amount: number;
   asset: Asset;
-  batchId: string;
+  rewardId: string;
 }
 
 @Injectable()
@@ -25,20 +25,13 @@ export class RefRewardDexService {
   ) {}
 
   async secureLiquidity(): Promise<void> {
-    try {
-      const newRefRewards = await this.refRewardRepo.find({
-        where: { status: RewardStatus.PREPARED },
-      });
+    const newRefRewards = await this.refRewardRepo.find({
+      where: { status: RewardStatus.PREPARED },
+    });
 
-      const groupedRewardsByBlockchain = Util.groupByAccessor<RefReward, Blockchain>(
-        newRefRewards,
-        (o) => o.targetBlockchain,
-      );
+    const groupedRewardsByBlockchain = Util.groupBy<RefReward, Blockchain>(newRefRewards, 'targetBlockchain');
 
-      await this.processRefRewards(groupedRewardsByBlockchain);
-    } catch (e) {
-      console.error(e);
-    }
+    await this.processRefRewards(groupedRewardsByBlockchain);
   }
 
   private async processRefRewards(groupedRewards: Map<Blockchain, RefReward[]>): Promise<void> {
@@ -47,21 +40,15 @@ export class RefRewardDexService {
         const asset = await this.assetService.getNativeAsset(blockchain);
 
         for (const reward of groupedRewards.get(blockchain)) {
-          const liquidity = await this.checkLiquidity({
+          await this.checkLiquidity({
             amount: reward.outputAmount,
             asset,
-            batchId: reward.id.toString(),
+            rewardId: reward.id.toString(),
           });
 
-          if (liquidity !== 0) {
-            await this.refRewardRepo.update(reward.id, { status: RewardStatus.READY_FOR_PAYOUT });
+          await this.refRewardRepo.update(reward.id, { status: RewardStatus.READY_FOR_PAYOUT });
 
-            console.info(`Secured liquidity for ref reward. Reward ID: ${reward.id}.`);
-
-            continue;
-          }
-
-          throw new NotEnoughLiquidityException('Not enough liquidity for ref reward');
+          console.info(`Secured liquidity for ref reward. Reward ID: ${reward.id}.`);
         }
       } catch (e) {
         console.info(`Error in processing new ref reward. Blockchain: ${blockchain}.`, e.message);
@@ -70,26 +57,15 @@ export class RefRewardDexService {
   }
 
   private async checkLiquidity(request: RefLiquidityRequest): Promise<number> {
-    try {
-      const reserveRequest = await this.createLiquidityRequest(request);
+    const reserveRequest = this.createLiquidityRequest(request);
 
-      return await this.dexService.reserveLiquidity(reserveRequest);
-    } catch (e) {
-      if (e instanceof NotEnoughLiquidityException) {
-        console.info(e.message);
-        return 0;
-      }
-
-      throw new Error(`Error in checking liquidity for a ref reward, ID: ${request.batchId}. ${e.message}`);
-    }
+    return this.dexService.reserveLiquidity(reserveRequest);
   }
 
-  private async createLiquidityRequest(
-    request: RefLiquidityRequest,
-  ): Promise<PurchaseLiquidityRequest | ReserveLiquidityRequest> {
+  private createLiquidityRequest(request: RefLiquidityRequest): PurchaseLiquidityRequest | ReserveLiquidityRequest {
     return {
       context: LiquidityOrderContext.REF_PAYOUT,
-      correlationId: request.batchId,
+      correlationId: request.rewardId,
       referenceAsset: request.asset,
       referenceAmount: request.amount,
       targetAsset: request.asset,

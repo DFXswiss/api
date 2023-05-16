@@ -40,10 +40,8 @@ export class RefRewardOutService {
         try {
           await this.doPayout(transaction);
           successfulRequests.push(transaction);
-
-          await this.updatePaidRefCredit([transaction.user?.id]);
         } catch (e) {
-          console.error(`Failed to initiate buy-crypto payout. Transaction ID: ${transaction.id}`);
+          console.error(`Failed to initiate ref-reward payout. Transaction ID: ${transaction.id}`);
           // continue with next transaction in case payout initiation failed
           continue;
         }
@@ -104,6 +102,8 @@ export class RefRewardOutService {
           await this.refRewardRepo.update(...tx.complete(payoutTxId));
 
           await this.dexService.completeOrders(LiquidityOrderContext.REF_PAYOUT, tx.id.toString());
+
+          await this.updatePaidRefCredit([tx.user?.id]);
         }
       } catch (e) {
         console.error(`Error on validating transaction completion. ID: ${tx.id}.`, e);

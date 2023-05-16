@@ -5,7 +5,6 @@ import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/pa
 export enum PayoutRequestContext {
   BUY_FIAT_RETURN = 'BuyFiatReturn',
   MANUAL = 'Manual',
-  REF_PAYOUT = 'RefPayout',
 }
 
 export class PayoutRequestDto {

@@ -14,7 +14,6 @@ export enum RewardStatus {
 }
 
 @Entity()
-@Index('oneRewardPerUserCheck', (reward: RefReward) => [reward.txId, reward.user, reward.status], { unique: true })
 export class RefReward extends Reward {
   @ManyToOne(() => User, { nullable: false })
   user: User;
