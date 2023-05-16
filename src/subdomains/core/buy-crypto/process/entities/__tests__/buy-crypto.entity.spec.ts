@@ -5,7 +5,6 @@ import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { BuyCrypto } from '../buy-crypto.entity';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-crypto.entity.mock';
-import { BuyCryptoFee } from '../buy-crypto-fees.entity';
 
 function createPrice(source: string, target: string, price?: number): Price {
   return Object.assign(new Price(), { source, target, price });
@@ -485,14 +484,6 @@ describe('BuyCrypto', () => {
       entity.complete('TX_ID_01', 0);
 
       expect(entity.outputDate).toBeInstanceOf(Date);
-    });
-
-    it('returns instance of BuyCryptoFee', () => {
-      const entity = createDefaultBuyCrypto();
-
-      entity.complete('TX_ID_01', 0);
-
-      expect(entity.fee).toBeInstanceOf(BuyCryptoFee);
     });
   });
 

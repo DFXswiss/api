@@ -197,11 +197,17 @@ export class BuyCrypto extends IEntity {
     }
   }
 
-  setOutputReferenceAsset(asset: Asset): this {
-    this.outputReferenceAsset = asset;
-    this.status = BuyCryptoStatus.PREPARED;
+  setOutputReferenceAsset(asset: Asset): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = asset
+      ? {
+          outputReferenceAsset: asset,
+          status: BuyCryptoStatus.PREPARED,
+        }
+      : {};
 
-    return this;
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   calculateOutputReferenceAmount(prices: Price[]): this {
@@ -300,23 +306,28 @@ export class BuyCrypto extends IEntity {
   }
 
   complete(payoutTxId: string, payoutFee: number): UpdateResult<BuyCrypto> {
-    this.txId = payoutTxId;
-    this.outputDate = new Date();
-    this.isComplete = true;
-    this.status = BuyCryptoStatus.COMPLETE;
-    this.fee.addActualPayoutFee(payoutFee, this);
+    const update: Partial<BuyCrypto> = {
+      txId: payoutTxId,
+      outputDate: new Date(),
+      isComplete: true,
+      status: BuyCryptoStatus.COMPLETE,
+      fee: this.fee.addActualPayoutFee(payoutFee, this),
+    };
 
-    return [
-      this.id,
-      { txId: this.txId, outputDate: this.outputDate, isComplete: this.isComplete, status: this.status, fee: this.fee },
-    ];
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   confirmSentMail(): UpdateResult<BuyCrypto> {
-    this.recipientMail = this.user.userData.mail;
-    this.mailSendDate = new Date();
+    const update: Partial<BuyCrypto> = {
+      recipientMail: this.user.userData.mail,
+      mailSendDate: new Date(),
+    };
 
-    return [this.id, { recipientMail: this.recipientMail, mailSendDate: this.mailSendDate }];
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   get translationKey(): string {
@@ -369,23 +380,19 @@ export class BuyCrypto extends IEntity {
   //*** HELPER METHODS ***//
 
   private resetTransaction(): Partial<BuyCrypto> {
-    this.outputReferenceAmount = null;
-    this.batch = null;
-    this.isComplete = false;
-    this.outputAmount = null;
-    this.outputDate = null;
-    this.mailSendDate = null;
-    this.recipientMail = null;
-
-    return {
-      outputReferenceAmount: this.outputReferenceAmount,
-      batch: this.batch,
-      isComplete: this.isComplete,
-      outputAmount: this.outputAmount,
-      outputDate: this.outputDate,
-      mailSendDate: this.mailSendDate,
-      recipientMail: this.recipientMail,
+    const update: Partial<BuyCrypto> = {
+      outputReferenceAmount: null,
+      batch: null,
+      isComplete: false,
+      outputAmount: null,
+      outputDate: null,
+      mailSendDate: null,
+      recipientMail: null,
     };
+
+    Object.assign(this, update);
+
+    return update;
   }
 }
 

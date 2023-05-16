@@ -147,7 +147,7 @@ export class BuyCryptoBatchService {
             );
           }
 
-          tx.setOutputReferenceAsset(outputReferenceAsset);
+          await this.buyCryptoRepo.update(...tx.setOutputReferenceAsset(outputReferenceAsset));
         }
       } catch (e) {
         console.error('Error while defining asset pair for BuyCrypto', e);

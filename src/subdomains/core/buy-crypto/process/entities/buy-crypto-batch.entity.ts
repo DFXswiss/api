@@ -42,6 +42,8 @@ export class BuyCryptoBatch extends IEntity {
   @Column({ length: 256, nullable: true })
   blockchain: Blockchain;
 
+  //*** FACTORY METHODS ***//
+
   addTransaction(tx: BuyCrypto): this {
     tx.assignCandidateBatch(this);
 
