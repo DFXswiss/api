@@ -10,11 +10,9 @@ module.exports = class refRewardPayout1683930589503 {
         await queryRunner.query(`ALTER TABLE "dbo"."ref_reward" ADD "targetAddress" nvarchar(256)`);
         await queryRunner.query(`ALTER TABLE "dbo"."ref_reward" ADD "targetBlockchain" nvarchar(256)`);
         await queryRunner.query(`ALTER TABLE "dbo"."ref_reward" ADD "status" nvarchar(255)`);
-        await queryRunner.query(`CREATE UNIQUE INDEX "oneRewardPerUserCheck" ON "dbo"."ref_reward" ("txId", "userId", "status") `);
     }
 
     async down(queryRunner) {
-        await queryRunner.query(`DROP INDEX "oneRewardPerUserCheck" ON "dbo"."ref_reward"`);
         await queryRunner.query(`ALTER TABLE "dbo"."ref_reward" DROP COLUMN "status"`);
         await queryRunner.query(`ALTER TABLE "dbo"."ref_reward" DROP COLUMN "targetBlockchain"`);
         await queryRunner.query(`ALTER TABLE "dbo"."ref_reward" DROP COLUMN "targetAddress"`);
