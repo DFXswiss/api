@@ -41,7 +41,8 @@ export class BuyCryptoOutService {
             continue;
           }
         } else {
-          await this.buyCryptoBatchRepo.update(...batch.payingOut());
+          batch.payingOut();
+          await this.buyCryptoBatchRepo.save(batch);
         }
       }
 
@@ -104,7 +105,8 @@ export class BuyCryptoOutService {
 
     await this.payoutService.doPayout(request);
 
-    await this.buyCryptoRepo.update(...transaction.payingOut());
+    transaction.payingOut();
+    await this.buyCryptoRepo.save(transaction);
   }
 
   private async checkCompletion(batch: BuyCryptoBatch) {
@@ -123,7 +125,8 @@ export class BuyCryptoOutService {
         if (isComplete) {
           const payoutFee = await this.buyCryptoPricingService.getFeeAmountInBatchAsset(batch, nativePayoutFee);
 
-          await this.buyCryptoRepo.update(...tx.complete(payoutTxId, payoutFee));
+          tx.complete(payoutTxId, payoutFee);
+          await this.buyCryptoRepo.save(tx);
 
           // payment webhook
           tx.buy
@@ -141,7 +144,8 @@ export class BuyCryptoOutService {
     if (isBatchComplete) {
       console.info(`Buy crypto batch payout complete. Batch ID: ${batch.id}`);
 
-      await this.buyCryptoBatchRepo.update(...batch.complete());
+      batch.complete();
+      await this.buyCryptoBatchRepo.save(batch);
       await this.dexService.completeOrders(LiquidityOrderContext.BUY_CRYPTO, batch.id.toString());
     }
   }

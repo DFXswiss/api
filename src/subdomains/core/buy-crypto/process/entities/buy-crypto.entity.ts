@@ -198,12 +198,10 @@ export class BuyCrypto extends IEntity {
   }
 
   setOutputReferenceAsset(asset: Asset): UpdateResult<BuyCrypto> {
-    const update: Partial<BuyCrypto> = asset
-      ? {
-          outputReferenceAsset: asset,
-          status: BuyCryptoStatus.PREPARED,
-        }
-      : {};
+    const update: Partial<BuyCrypto> = {
+      outputReferenceAsset: asset,
+      status: BuyCryptoStatus.PREPARED,
+    };
 
     Object.assign(this, update);
 
