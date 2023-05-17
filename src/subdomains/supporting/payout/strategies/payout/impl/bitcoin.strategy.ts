@@ -9,9 +9,12 @@ import { PayoutOrderRepository } from '../../../repositories/payout-order.reposi
 import { PayoutGroup } from '../../../services/base/payout-jellyfish.service';
 import { PayoutBitcoinService } from '../../../services/payout-bitcoin.service';
 import { JellyfishStrategy } from './base/jellyfish.strategy';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BitcoinStrategy extends JellyfishStrategy {
+  protected readonly logger = new DfxLogger(BitcoinStrategy);
+
   private readonly averageTransactionSize = 180; // vBytes
 
   constructor(
@@ -40,11 +43,11 @@ export class BitcoinStrategy extends JellyfishStrategy {
           continue;
         }
 
-        console.info(`Paying out ${group.length} BTC orders(s). Order ID(s): ${group.map((o) => o.id)}`);
+        this.logger.info(`Paying out ${group.length} BTC orders(s). Order ID(s): ${group.map((o) => o.id)}`);
 
         await this.sendBTC(context, group);
       } catch (e) {
-        console.error(
+        this.logger.error(
           `Error in paying out a group of ${group.length} BTC orders(s). Order ID(s): ${group.map((o) => o.id)}`,
           e,
         );

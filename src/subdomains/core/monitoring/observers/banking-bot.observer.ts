@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { plainToClass, Type } from 'class-transformer';
 import { IsNotEmpty, IsOptional, IsString, ValidateIf, ValidateNested, validateSync } from 'class-validator';
 import { NodeService } from 'src/integration/blockchain/ain/node/node.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 
@@ -51,6 +52,8 @@ class BankingBotDataDto {
 
 @Injectable()
 export class BankingBotObserver extends MetricObserver<BankingBotData> {
+  protected readonly logger = new DfxLogger(BankingBotObserver);
+
   constructor(monitoringService: MonitoringService, readonly nodeService: NodeService) {
     super(monitoringService, 'bankingBot', 'logs');
   }

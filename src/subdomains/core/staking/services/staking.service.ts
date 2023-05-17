@@ -17,10 +17,13 @@ import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { Util } from 'src/shared/utils/util';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Config, Process } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 
 @Injectable()
 export class StakingService {
+  private readonly logger = new DfxLogger(StakingService);
+
   constructor(
     private readonly stakingRewardRepo: StakingRewardRepository,
     private readonly stakingRefRewardRepo: StakingRefRewardRepository,
@@ -152,7 +155,7 @@ export class StakingService {
           });
         }
       } catch (e) {
-        console.error(`Failed to send staking return mail ${payIn.id}:`, e);
+        this.logger.error(`Failed to send staking return mail for pay-in ${payIn.id}:`, e);
       }
 
       await this.payInService.returnPayIn(

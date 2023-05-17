@@ -11,6 +11,7 @@ import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
 import { JellyfishStrategy } from '../impl/base/jellyfish.strategy';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 describe('PayoutJellyfishStrategy', () => {
   let strategy: PayoutJellyfishStrategyWrapper;
@@ -240,6 +241,8 @@ describe('PayoutJellyfishStrategy', () => {
 });
 
 class PayoutJellyfishStrategyWrapper extends JellyfishStrategy {
+  protected readonly logger = new DfxLogger(PayoutJellyfishStrategyWrapper);
+
   constructor(
     notificationService: NotificationService,
     payoutOrderRepo: PayoutOrderRepository,

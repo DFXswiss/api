@@ -1,5 +1,4 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { IsNull, Not } from 'typeorm';
 import { User, UserStatus } from '../../../../generic/user/models/user/user.entity';
@@ -13,17 +12,15 @@ import { CryptoRoute } from './crypto-route.entity';
 import { DepositService } from '../../../../supporting/address-pool/deposit/deposit.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { KycCompleted } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
+import { Lock } from 'src/shared/utils/lock';
 
 @Injectable()
 export class CryptoRouteService {
   constructor(
     private readonly cryptoRepo: CryptoRouteRepository,
-    private readonly assetService: AssetService,
     private readonly userService: UserService,
     private readonly depositService: DepositService,
     private readonly userDataService: UserDataService,
-    private readonly cryptoService: CryptoService,
   ) {}
 
   async getCryptoRouteByAddress(depositAddress: string): Promise<CryptoRoute> {
@@ -39,6 +36,7 @@ export class CryptoRouteService {
 
   // --- VOLUMES --- //
   @Cron(CronExpression.EVERY_YEAR)
+  @Lock()
   async resetAnnualVolumes(): Promise<void> {
     await this.cryptoRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
   }

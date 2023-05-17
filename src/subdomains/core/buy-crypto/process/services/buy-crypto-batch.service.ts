@@ -23,9 +23,12 @@ import { Util } from 'src/shared/utils/util';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
 import { PriceMismatchException } from 'src/subdomains/supporting/pricing/domain/exceptions/price-mismatch.exception';
 import { LiquidityManagementService } from 'src/subdomains/core/liquidity-management/services/liquidity-management.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BuyCryptoBatchService {
+  private readonly logger = new DfxLogger(BuyCryptoBatchService);
+
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
@@ -61,9 +64,10 @@ export class BuyCryptoBatchService {
 
       if (txInput.length === 0) return;
 
-      console.info(
-        `Buy crypto transaction input. Processing ${txInput.length} transaction(s). Transaction ID(s):`,
-        txInput.map((t) => t.id),
+      this.logger.info(
+        `Buy crypto transaction input. Processing ${txInput.length} transaction(s). Transaction ID(s): ${txInput.map(
+          (t) => t.id,
+        )}`,
       );
 
       const txWithAssets = await this.defineAssetPair(txInput);
@@ -73,7 +77,7 @@ export class BuyCryptoBatchService {
         await this.buyCryptoRepo.save(tx);
       }
     } catch (e) {
-      console.error(e);
+      this.logger.error('Error during buy crypto preparation:', e);
     }
   }
 
@@ -107,9 +111,10 @@ export class BuyCryptoBatchService {
 
       if (txWithAssets.length === 0) return;
 
-      console.info(
-        `Batching ${txWithAssets.length} buy crypto transaction(s). Transaction ID(s):`,
-        txWithAssets.map((t) => t.id),
+      this.logger.info(
+        `Batching ${txWithAssets.length} buy crypto transaction(s). Transaction ID(s): ${txWithAssets.map(
+          (t) => t.id,
+        )}`,
       );
 
       const referencePrices = await this.getReferencePrices(txWithAssets);
@@ -118,12 +123,12 @@ export class BuyCryptoBatchService {
 
       for (const batch of batches) {
         const savedBatch = await this.buyCryptoBatchRepo.save(batch);
-        console.info(
+        this.logger.info(
           `Created buy crypto batch. Batch ID: ${savedBatch.id}. Asset: ${savedBatch.outputAsset.uniqueName}. Transaction(s) count ${batch.transactions.length}`,
         );
       }
     } catch (e) {
-      console.error(e);
+      this.logger.error('Error during buy crypto batching:', e);
     }
   }
 
@@ -150,7 +155,7 @@ export class BuyCryptoBatchService {
           tx.setOutputReferenceAsset(outputReferenceAsset);
         }
       } catch (e) {
-        console.error('Error while defining asset pair for BuyCrypto', e);
+        this.logger.error('Error while defining buy crypto asset pair:', e);
       }
     }
 
@@ -181,7 +186,7 @@ export class BuyCryptoBatchService {
           const priceRequest = this.createPriceRequest(pair, txWithAssets);
 
           return this.pricingService.getPrice(priceRequest).catch((e) => {
-            console.error('Failed to get price:', e);
+            this.logger.error('Failed to get price:', e);
             return undefined;
           });
         }),
@@ -202,7 +207,7 @@ export class BuyCryptoBatchService {
       try {
         tx.calculateOutputReferenceAmount(referencePrices);
       } catch (e) {
-        console.error(`Could not calculate outputReferenceAmount for transaction ${tx.id}}`, e);
+        this.logger.error(`Could not calculate outputReferenceAmount for transaction ${tx.id}}:`, e);
       }
     }
 
@@ -266,7 +271,7 @@ export class BuyCryptoBatchService {
       if (existingBatch || newBatch) {
         const txIds = batch.transactions.map((t) => t.id);
 
-        console.info(
+        this.logger.info(
           `Halting with creation of a new batch for asset: ${outputAsset.dexName}, existing batch for this asset is not complete yet. Transaction ID(s): ${txIds}`,
         );
 
@@ -292,7 +297,10 @@ export class BuyCryptoBatchService {
 
         optimizedBatches.push(batch);
       } catch (e) {
-        console.info(`Error in optimizing new batch. Batch target asset: ${batch.outputAsset.uniqueName}.`, e.message);
+        this.logger.info(
+          `Error in optimizing new batch. Batch target asset: ${batch.outputAsset.uniqueName}.`,
+          e.message,
+        );
       }
     }
 
@@ -383,7 +391,7 @@ export class BuyCryptoBatchService {
       batch.checkByPurchaseFeeEstimation(effectivePurchaseFee);
 
       if (inputBatchLength !== batch.transactions.length) {
-        console.log(
+        this.logger.info(
           `Optimized batch for output asset: ${batch.outputAsset.uniqueName}. ${
             inputBatchLength - batch.transactions.length
           } removed from the batch`,
@@ -411,7 +419,7 @@ export class BuyCryptoBatchService {
 
       await this.buyCryptoNotificationService.sendMissingLiquidityWarning(dexName, blockchain, type);
     } catch (e) {
-      console.error('Error in handling buy crypto batch liquidity warning', e);
+      this.logger.error('Error in handling buy crypto batch liquidity warning:', e);
     }
   }
 
@@ -444,7 +452,7 @@ export class BuyCryptoBatchService {
         const orderId = await this.liquidityService.buyLiquidity(asset.id, targetDeficit, true);
         liqOrderMessage = `Liquidity management order created: ${orderId}`;
       } catch (e) {
-        console.info(`Failed to order missing liquidity for asset ${oa.uniqueName}:`, e);
+        this.logger.info(`Failed to order missing liquidity for asset ${oa.uniqueName}:`, e);
         liqOrderMessage = `Liquidity management order failed: ${e.message}`;
       }
 
@@ -469,7 +477,7 @@ export class BuyCryptoBatchService {
         messages,
       );
     } catch (e) {
-      console.error('Error in handling MissingBuyCryptoLiquidityException', e);
+      this.logger.error('Error in handling MissingBuyCryptoLiquidityException:', e);
     }
   }
 

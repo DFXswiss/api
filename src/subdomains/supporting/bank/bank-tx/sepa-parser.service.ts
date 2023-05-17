@@ -5,8 +5,11 @@ import { BankTxBatch } from './bank-tx-batch.entity';
 import { BankTx } from './bank-tx.entity';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export class SepaParser {
+  private static readonly logger = new DfxLogger(SepaParser);
+
   static parseSepaFile(xmlFile: string): SepaFile {
     return Util.parseXml<{ Document: SepaFile }>(xmlFile).Document;
   }
@@ -40,7 +43,7 @@ export class SepaParser {
         debitAmount: +info?.TxsSummry?.TtlDbtNtries?.Sum,
       };
     } catch (e) {
-      console.error(`Failed to import SEPA batch data for ID ${identification}:`, e);
+      this.logger.error(`Failed to import SEPA batch data for ID ${identification}:`, e);
     }
 
     return {
@@ -86,7 +89,7 @@ export class SepaParser {
           txInfo: this.toString(entry?.NtryDtls?.TxDtls?.AddtlTxInf),
         };
       } catch (e) {
-        console.error(`Failed to import SEPA entry data for ref ${accountServiceRef}:`, e);
+        this.logger.error(`Failed to import SEPA entry data for ref ${accountServiceRef}:`, e);
       }
 
       return {

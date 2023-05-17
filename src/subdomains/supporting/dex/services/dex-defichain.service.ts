@@ -11,6 +11,7 @@ import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.
 import { PriceSlippageException } from '../exceptions/price-slippage.exception';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
 import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export interface DexDeFiChainLiquidityResult {
   targetAmount: number;
@@ -23,6 +24,8 @@ export interface DexDeFiChainLiquidityResult {
 
 @Injectable()
 export class DexDeFiChainService {
+  private readonly logger = new DfxLogger(DexDeFiChainService);
+
   #dexClient: DeFiClient;
 
   constructor(
@@ -124,7 +127,7 @@ export class DexDeFiChainService {
     const historyEntry = await this.deFiChainUtil.getHistoryEntryForTx(txId, this.#dexClient);
 
     if (!historyEntry) {
-      throw new Error(`Could not find transaction with ID: ${txId} while trying to extract purchased liquidity`);
+      throw new Error(`Could not find transaction ${txId} while trying to extract purchased liquidity`);
     }
 
     const amounts = historyEntry.amounts.map((a) => this.#dexClient.parseAmount(a));
@@ -248,10 +251,7 @@ export class DexDeFiChainService {
 
       return await this.testSwap(swapAsset, targetAsset, availableAmount);
     } catch (e) {
-      console.warn(
-        `Could not find purchasable amount for swapAsset: ${swapAsset.dexName}, targetAsset: ${targetAsset.dexName}:`,
-        e,
-      );
+      this.logger.warn(`Could not find purchasable amount for swap ${swapAsset.dexName} -> ${targetAsset.dexName}:`, e);
 
       return 0;
     }

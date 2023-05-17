@@ -8,9 +8,12 @@ import { SellRepository } from '../route/sell.repository';
 import { BuyFiat } from './buy-fiat.entity';
 import { BuyFiatRepository } from './buy-fiat.repository';
 import { BuyFiatInitSpecification } from './specifications/buy-fiat-init.specification';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BuyFiatRegistrationService {
+  private readonly logger = new DfxLogger(BuyFiatRegistrationService);
+
   constructor(
     private readonly buyFiatRepo: BuyFiatRepository,
     private readonly sellRepository: SellRepository,
@@ -26,9 +29,10 @@ export class BuyFiatRegistrationService {
     const sellPayIns = await this.filterSellPayIns(newPayIns);
 
     sellPayIns.length > 0 &&
-      console.log(
-        `Registering ${sellPayIns.length} new buy-fiat(s) from crypto pay-in(s) ID(s):`,
-        sellPayIns.map((s) => s[0].id),
+      this.logger.info(
+        `Registering ${sellPayIns.length} new buy-fiat(s) from crypto pay-in(s) ID(s): ${sellPayIns.map(
+          (s) => s[0].id,
+        )}`,
       );
 
     await this.createBuyFiatsAndAckPayIns(sellPayIns);
@@ -80,7 +84,7 @@ export class BuyFiatRegistrationService {
           continue;
         }
 
-        console.error(`Error occurred during pay-in registration at buy-fiat. Pay-in ID: ${payIn.id}`, e);
+        this.logger.error(`Error during buy fiat pay-in registration (pay-in ${payIn.id}):`, e);
       }
     }
   }

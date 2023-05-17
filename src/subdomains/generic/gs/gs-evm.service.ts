@@ -39,7 +39,7 @@ export class GsEvmService {
     const { fromAddress, toAddress, assetId, amount, feeLimit, blockchain } = dto;
     const token = await this.assetService.getAssetById(assetId);
 
-    if (!token) throw new BadRequestException(`Asset with id ${assetId} not found`);
+    if (!token) throw new BadRequestException(`Asset ${assetId} not found`);
 
     const client = this.evmRegistryService.getClient(blockchain);
 

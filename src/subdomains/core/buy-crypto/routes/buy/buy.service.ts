@@ -9,6 +9,7 @@ import { Config } from 'src/config/config';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { BuyRepository } from './buy.repository';
 import { CreateBuyDto } from './dto/create-buy.dto';
+import { Lock } from 'src/shared/utils/lock';
 
 @Injectable()
 export class BuyService {
@@ -20,6 +21,7 @@ export class BuyService {
 
   // --- VOLUMES --- //
   @Cron(CronExpression.EVERY_YEAR)
+  @Lock()
   async resetAnnualVolumes(): Promise<void> {
     await this.buyRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
   }

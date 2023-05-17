@@ -8,9 +8,12 @@ import { DexDeFiChainLiquidityResult, DexDeFiChainService } from '../../../servi
 import { DeFiChainNonPoolPairStrategy } from '../../purchase-liquidity/impl/base/defichain-non-poolpair.strategy';
 import { PurchaseLiquidityStrategies } from '../../purchase-liquidity/purchase-liquidity.facade';
 import { CheckLiquidityStrategy } from './base/check-liquidity.strategy';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
+  private readonly logger = new DfxLogger(DeFiChainDefaultStrategy);
+
   constructor(
     protected readonly assetService: AssetService,
     private readonly dexDeFiChainService: DexDeFiChainService,
@@ -51,9 +54,7 @@ export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
 
       return await purchaseStrategy.getPrioritySwapAssets();
     } catch (e) {
-      console.warn(
-        `Error while getting priority assets from purchase liquidity strategy. Target asset: ${targetAsset.uniqueName}`,
-      );
+      this.logger.warn(`Error while getting priority assets for ${targetAsset.uniqueName}:`, e);
 
       return [];
     }

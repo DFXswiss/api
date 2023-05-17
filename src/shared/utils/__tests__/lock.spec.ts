@@ -1,8 +1,8 @@
-import { createLock } from 'src/shared/utils/lock';
+import { Context, createLock } from 'src/shared/utils/lock';
 import { Util } from '../util';
 
 describe('UserService', () => {
-  let lock: (name: string, task: () => Promise<void>) => Promise<void>;
+  let lock: (task: () => Promise<void>, context?: Context) => Promise<void>;
 
   beforeEach(async () => {
     lock = createLock();
@@ -15,7 +15,7 @@ describe('UserService', () => {
   it('should initially be unlocked', async () => {
     let hasUpdated = false;
 
-    await lock('updater', async () => {
+    await lock(async () => {
       hasUpdated = true;
     });
 
@@ -28,11 +28,11 @@ describe('UserService', () => {
 
     setTimeout(async () => {
       hasRun = true;
-      await lock('updater', async () => {
+      await lock(async () => {
         hasUpdated = true;
       });
     });
-    await lock('locker', () => Util.delay(2));
+    await lock(() => Util.delay(2));
 
     expect(hasRun).toBeTruthy();
     expect(hasUpdated).toBeFalsy();
@@ -41,9 +41,9 @@ describe('UserService', () => {
   it('should unlock on completion', async () => {
     let hasUpdated = false;
 
-    await lock('locker', () => Util.delay(1));
+    await lock(() => Util.delay(1));
 
-    await lock('updater', async () => {
+    await lock(async () => {
       hasUpdated = true;
     });
 
@@ -53,11 +53,11 @@ describe('UserService', () => {
   it('should unlock on error', async () => {
     let hasUpdated = false;
 
-    await lock('locker', () => {
+    await lock(() => {
       throw new Error('Test');
     });
 
-    await lock('updater', async () => {
+    await lock(async () => {
       hasUpdated = true;
     });
 

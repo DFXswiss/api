@@ -13,8 +13,7 @@ export class ArbitrumService extends EvmService {
       arbitrumGatewayUrl,
       arbitrumApiKey,
       arbitrumWalletPrivateKey,
-      pancakeRouterAddress,
-      swapTokenAddress,
+      arbitrumChainId,
     } = GetConfig().blockchain.arbitrum;
 
     super(
@@ -24,8 +23,7 @@ export class ArbitrumService extends EvmService {
       arbitrumGatewayUrl,
       arbitrumApiKey,
       arbitrumWalletPrivateKey,
-      pancakeRouterAddress,
-      swapTokenAddress,
+      arbitrumChainId,
       ArbitrumClient,
     );
   }

@@ -168,20 +168,22 @@ export class BuyCrypto extends IEntity {
       return null;
     }
 
-    if (['USDC', 'USDT'].includes(this.outputAsset.dexName)) {
-      if (['EUR', 'CHF', 'USD', 'USDC', 'USDT'].includes(this.inputReferenceAsset)) {
-        this.setOutputReferenceAsset(this.outputAsset);
+    switch (this.target.asset.blockchain) {
+      case Blockchain.DEFICHAIN:
+        if (
+          ['USDC', 'USDT'].includes(this.outputAsset.dexName) &&
+          ['EUR', 'CHF', 'USD', 'USDC', 'USDT'].includes(this.inputReferenceAsset)
+        ) {
+          this.setOutputReferenceAsset(this.outputAsset);
 
-        return null;
-      } else {
+          return null;
+        }
+
         return {
           outputReferenceAssetName: 'BTC',
-          type: this.target.asset.blockchain === Blockchain.BITCOIN ? AssetType.COIN : AssetType.TOKEN,
+          type: AssetType.TOKEN,
         };
-      }
-    }
 
-    switch (this.target.asset.blockchain) {
       case Blockchain.ETHEREUM:
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:

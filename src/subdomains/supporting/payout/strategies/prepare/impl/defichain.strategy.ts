@@ -10,9 +10,12 @@ import { PrepareStrategy } from './base/prepare.strategy';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
 import { TransferNotRequiredException } from 'src/subdomains/supporting/dex/exceptions/transfer-not-required.exception';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class DeFiChainStrategy extends PrepareStrategy {
+  private readonly logger = new DfxLogger(DeFiChainStrategy);
+
   constructor(
     private readonly assetService: AssetService,
     private readonly dexService: DexService,
@@ -59,9 +62,10 @@ export class DeFiChainStrategy extends PrepareStrategy {
       try {
         await this.preparePayoutForAsset(context, group);
       } catch (e) {
-        console.error(
-          `Error while preparing new payout orders for context ${context} and assetId ${assetId}`,
-          group.map((o) => o.id),
+        this.logger.error(
+          `Error while preparing new payout orders for context ${context} and assetId ${assetId}: ${group.map(
+            (o) => o.id,
+          )}:`,
           e,
         );
         continue;
@@ -79,9 +83,10 @@ export class DeFiChainStrategy extends PrepareStrategy {
       try {
         await this.checkPreparationCompletionForTx(context, group, transferTxId);
       } catch (e) {
-        console.error(
-          `Error while checking preparation status of payout orders for context ${context} and transferTxId ${transferTxId}`,
-          group.map((o) => o.id),
+        this.logger.error(
+          `Error while checking preparation status of payout orders for context ${context} and transferTxId ${transferTxId}: ${group.map(
+            (o) => o.id,
+          )}:`,
           e,
         );
         continue;

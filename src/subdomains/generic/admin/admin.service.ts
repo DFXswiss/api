@@ -9,6 +9,7 @@ import { PayoutRequest } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { PayoutRequestContext, PayoutRequestDto } from './dto/payout-request.dto';
 import { Config, Process } from 'src/config/config';
+import { Lock } from 'src/shared/utils/lock';
 
 @Injectable()
 export class AdminService {
@@ -55,21 +56,18 @@ export class AdminService {
   }
 
   @Cron(CronExpression.EVERY_5_MINUTES)
+  @Lock(3600)
   async completeLiquidityOrders() {
-    try {
-      if (Config.processDisabled(Process.LIQUIDITY_MANAGEMENT)) return;
-      for (const context of Object.values(PayoutRequestContext)) {
-        const lContext = context as unknown as LiquidityOrderContext;
-        const pContext = context as unknown as PayoutOrderContext;
+    if (Config.processDisabled(Process.LIQUIDITY_MANAGEMENT)) return;
+    for (const context of Object.values(PayoutRequestContext)) {
+      const lContext = context as unknown as LiquidityOrderContext;
+      const pContext = context as unknown as PayoutOrderContext;
 
-        const pendingOrders = await this.dexService.getPendingOrders(lContext);
-        for (const order of pendingOrders) {
-          const { isComplete } = await this.payoutService.checkOrderCompletion(pContext, order);
-          if (isComplete) await this.dexService.completeOrders(lContext, order);
-        }
+      const pendingOrders = await this.dexService.getPendingOrders(lContext);
+      for (const order of pendingOrders) {
+        const { isComplete } = await this.payoutService.checkOrderCompletion(pContext, order);
+        if (isComplete) await this.dexService.completeOrders(lContext, order);
       }
-    } catch (e) {
-      console.error('Exception during admin liquidity order completion check:', e);
     }
   }
 }
