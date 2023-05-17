@@ -6,12 +6,9 @@ import { GetConfig } from 'src/config/config';
 export class WhaleClient {
   private readonly client: WhaleApiClient;
 
-  constructor() {
-    this.client = this.createWhaleClient();
-  }
-
-  private createWhaleClient(): WhaleApiClient {
-    return new WhaleApiClient(GetConfig().whale);
+  constructor(url: string, public readonly index: number, client?: WhaleApiClient) {
+    this.client =
+      client ?? new WhaleApiClient({ network: GetConfig().whale.network, version: GetConfig().whale.version, url });
   }
 
   async getBalance(address: string): Promise<string> {
@@ -28,5 +25,12 @@ export class WhaleClient {
 
   async getSwapPrice(fromTokenId: string, toTokenId: string): Promise<number> {
     return this.client.poolpairs.getBestPath(fromTokenId, toTokenId).then((p) => +p.estimatedReturnLessDexFees);
+  }
+
+  async getHealth(): Promise<string | undefined> {
+    return this.client.stats
+      .get()
+      .then(() => undefined)
+      .catch((e) => e.message);
   }
 }

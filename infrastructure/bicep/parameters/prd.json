@@ -11,6 +11,9 @@
     "network": {
       "value": "mainnet"
     },
+    "oceanUrls": {
+      "value": "https://ocean.mydefichain.com,https://ocean.defichain.com"
+    },
     "dbAllowAllIps": {
       "value": false
     },
