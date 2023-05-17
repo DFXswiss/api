@@ -8,8 +8,11 @@ import { PayoutOrderRepository } from '../../../../repositories/payout-order.rep
 import { PayoutStrategy } from './payout.strategy';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export abstract class JellyfishStrategy extends PayoutStrategy {
+  protected abstract readonly logger: DfxLogger;
+
   constructor(
     protected readonly notificationService: NotificationService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
@@ -28,7 +31,7 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
         await this.doPayoutForContext(context, group);
       }
     } catch (e) {
-      console.error('Error while executing DeFiChain payout orders', e);
+      this.logger.error('Error while executing DeFiChain payout orders:', e);
     }
   }
 
@@ -42,7 +45,7 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
         await this.checkPayoutCompletionDataForContext(context, group);
       }
     } catch (e) {
-      console.error('Error while checking payout completion of DeFiChain payout orders', e);
+      this.logger.error('Error while checking payout completion of DeFiChain payout orders:', e);
     }
   }
 
@@ -55,9 +58,10 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
       try {
         await this.checkPayoutCompletionDataForTx(context, group, payoutTxId);
       } catch (e) {
-        console.error(
-          `Error while checking payout completion data of payout orders for context ${context} and payoutTxId ${payoutTxId}`,
-          group.map((o) => o.id),
+        this.logger.error(
+          `Error while checking payout completion data of payout orders ${group.map(
+            (o) => o.id,
+          )} for context ${context} and payoutTxId ${payoutTxId}:`,
           e,
         );
         continue;
@@ -122,7 +126,7 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
       await this.designatePayout(orders);
       payoutTxId = await this.dispatchPayout(context, payout, outputAssetName);
     } catch (e) {
-      console.error(`Error on sending ${outputAssetName} for payout. Order ID(s): ${orders.map((o) => o.id)}`, e);
+      this.logger.error(`Error on sending ${outputAssetName} for payout. Order ID(s): ${orders.map((o) => o.id)}:`, e);
 
       if (e.message.includes('timeout')) throw e;
 
@@ -138,7 +142,7 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
       } catch (e) {
         const errorMessage = `Error on saving payout payoutTxId to the database. Order ID: ${order.id}. Payout ID: ${payoutTxId}`;
 
-        console.error(errorMessage, e);
+        this.logger.error(errorMessage, e);
         await this.sendNonRecoverableErrorMail(order, errorMessage, e);
       }
     }

@@ -16,6 +16,7 @@ import { PricePath } from '../utils/price-path';
 import { PriceStep } from '../utils/price-step';
 import { PricingUtil } from '../utils/pricing.util';
 import { PricingDeFiChainService } from './integration/pricing-defichain.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export enum PricingPathAlias {
   MATCHING_ASSETS = 'MatchingAssets',
@@ -35,6 +36,8 @@ export enum PricingPathAlias {
  */
 @Injectable()
 export class PricingService {
+  private readonly logger = new DfxLogger(PricingService);
+
   private readonly pricingPaths: Map<PricingPathAlias, PricePath> = new Map();
 
   constructor(
@@ -61,7 +64,7 @@ export class PricingService {
     try {
       path = this.getPath(request);
     } catch (e) {
-      console.error(e);
+      this.logger.error('Failed to get price path:', e);
       throw new PathNotConfiguredException(request.from, request.to);
     }
 
@@ -317,6 +320,6 @@ export class PricingService {
     const pathMessage =
       'Path: ' + path.map((p) => ` ${p.provider} -> ${p.price.source}/${p.price.target} ${p.price.price}`);
 
-    console.info(mainMessage + pathMessage);
+    this.logger.info(mainMessage + pathMessage);
   }
 }

@@ -7,6 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import { EvmClient } from '../shared/evm/evm-client';
 import { L2BridgeEvmClient } from '../shared/evm/interfaces';
 import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { ChainId } from '@uniswap/smart-order-router';
 
 interface OptimismTransactionReceipt extends ethers.providers.TransactionReceipt {
@@ -16,6 +17,8 @@ interface OptimismTransactionReceipt extends ethers.providers.TransactionReceipt
 }
 
 export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
+  private readonly logger = new DfxLogger(OptimismClient);
+
   #l1Provider: ethers.providers.JsonRpcProvider;
   #l1Wallet: ethers.Wallet;
 
@@ -125,7 +128,7 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
 
       switch (status) {
         case MessageStatus.READY_TO_PROVE: {
-          console.log(
+          this.logger.verbose(
             `Checking L1 Bridge transaction completion, L2 txId: ${l2TxId}, status: READY_TO_PROVE, running #proveMessage(...)`,
           );
           await this.#crossChainMessenger.proveMessage(l2TxId);
@@ -134,7 +137,7 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
         }
 
         case MessageStatus.READY_FOR_RELAY: {
-          console.log(
+          this.logger.verbose(
             `Checking L1 Bridge transaction completion, L2 txId: ${l2TxId}, status: READY_FOR_RELAY, running #finalizeMessage(...)`,
           );
           await this.#crossChainMessenger.finalizeMessage(l2TxId);

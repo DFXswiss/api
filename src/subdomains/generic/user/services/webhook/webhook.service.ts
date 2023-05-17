@@ -11,9 +11,12 @@ import { PaymentWebhookState, PaymentWebhookData, PaymentWebhookType } from './d
 import { WebhookType, WebhookDto } from './dto/webhook.dto';
 import { User } from '../../models/user/user.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class WebhookService {
+  private readonly logger = new DfxLogger(WebhookService);
+
   constructor(
     private readonly http: HttpService,
     private readonly walletService: WalletService,
@@ -90,7 +93,7 @@ export class WebhookService {
     } catch (error) {
       const errMessage = `Exception during ${type} webhook for user ${user.id}:`;
 
-      console.error(errMessage, error);
+      this.logger.error(errMessage, error);
 
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,

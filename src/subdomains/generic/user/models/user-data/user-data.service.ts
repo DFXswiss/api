@@ -35,9 +35,13 @@ import { AccountType } from './account-type.enum';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { LinkService } from '../link/link.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
 
 @Injectable()
 export class UserDataService {
+  private readonly logger = new DfxLogger(UserDataService);
+
   constructor(
     private readonly repos: RepositoryFactory,
     private readonly userDataRepo: UserDataRepository,
@@ -229,6 +233,7 @@ export class UserDataService {
 
   // --- VOLUMES --- //
   @Cron(CronExpression.EVERY_YEAR)
+  @Lock()
   async resetAnnualVolumes(): Promise<void> {
     await this.userDataRepo.update({ annualBuyVolume: Not(0) }, { annualBuyVolume: 0 });
     await this.userDataRepo.update({ annualSellVolume: Not(0) }, { annualSellVolume: 0 });
@@ -294,16 +299,15 @@ export class UserDataService {
       (sba) => !master.bankAccounts.some((mba) => sba.iban === mba.iban),
     );
 
-    console.log(
-      `Merging user ${master.id} (master) and ${slave.id} (slave): reassigning `,
-      [
-        bankAccountsToReassign.length > 0 && `bank accounts ${bankAccountsToReassign.map((ba) => ba.id).join(', ')}`,
-        slave.bankDatas.length > 0 && `bank datas ${slave.bankDatas.map((b) => b.id).join(', ')}`,
-        slave.users.length > 0 && `users ${slave.users.map((u) => u.id).join(', ')}`,
-      ]
-        .filter((i) => i)
-        .join(' and '),
-    );
+    const mergedEntitiesString = [
+      bankAccountsToReassign.length > 0 && `bank accounts ${bankAccountsToReassign.map((ba) => ba.id)}`,
+      slave.bankDatas.length > 0 && `bank datas ${slave.bankDatas.map((b) => b.id)}`,
+      slave.users.length > 0 && `users ${slave.users.map((u) => u.id)}`,
+    ]
+      .filter((i) => i)
+      .join(' and ');
+
+    this.logger.info(`Merging user ${master.id} (master) and ${slave.id} (slave): reassigning ${mergedEntitiesString}`);
 
     await this.updateBankTxTime(slave.id);
 

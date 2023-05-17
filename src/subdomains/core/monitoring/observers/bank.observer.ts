@@ -9,6 +9,8 @@ import { Util } from 'src/shared/utils/util';
 import { FrickService } from 'src/subdomains/supporting/bank/bank-tx/frick.service';
 import { OlkypayService } from 'src/subdomains/supporting/bank/bank-tx/olkypay.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
 
 interface BankData {
   name: string;
@@ -21,6 +23,8 @@ interface BankData {
 
 @Injectable()
 export class BankObserver extends MetricObserver<BankData[]> {
+  protected readonly logger = new DfxLogger(BankObserver);
+
   constructor(
     monitoringService: MonitoringService,
     private readonly olkypayService: OlkypayService,
@@ -32,8 +36,10 @@ export class BankObserver extends MetricObserver<BankData[]> {
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(1800)
   async fetch() {
     if (Config.processDisabled(Process.MONITORING)) return;
+
     let data = [];
 
     if (Config.bank.olkypay.credentials.clientId) data = data.concat(await this.getOlkypay());

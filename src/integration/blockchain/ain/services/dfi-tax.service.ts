@@ -1,6 +1,7 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Util } from '../../../../shared/utils/util';
 import { HttpService } from '../../../../shared/services/http.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export interface DfiTaxReward {
   value_open: number;
@@ -35,13 +36,15 @@ export enum DfiTaxInterval {
 
 @Injectable()
 export class DfiTaxService {
+  private readonly logger = new DfxLogger(DfiTaxService);
+
   private readonly baseUrl = 'https://api.dfi.tax';
 
   constructor(private readonly http: HttpService) {}
 
   activateAddress(address: string): void {
     this.getRewards(address, DfiTaxInterval.YEAR, new Date(0), new Date(), 1200000).catch((e) =>
-      console.log(`Failed to activate address ${address} for DFI.tax:`, e),
+      this.logger.warn(`Failed to activate address ${address} for DFI.tax:`, e),
     );
   }
 

@@ -7,9 +7,12 @@ import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInDeFiChainService } from '../../../services/payin-defichain.service';
 import { JellyfishStrategy } from './base/jellyfish.strategy';
 import { SendType } from './base/send.strategy';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class DeFiChainCoinStrategy extends JellyfishStrategy {
+  protected readonly logger = new DfxLogger(DeFiChainCoinStrategy);
+
   constructor(
     protected readonly deFiChainService: PayInDeFiChainService,
     protected readonly payInRepo: PayInRepository,
@@ -18,9 +21,10 @@ export class DeFiChainCoinStrategy extends JellyfishStrategy {
   }
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
-    console.log(
-      `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${payIns.length} DeFiChain Coin input(s).`,
-      payIns.map((p) => p.id),
+    this.logger.info(
+      `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${payIns.length} DeFiChain Coin input(s): ${payIns.map(
+        (p) => p.id,
+      )}`,
     );
 
     const currentHeight = await this.deFiChainService.getCurrentHeight();
@@ -37,7 +41,7 @@ export class DeFiChainCoinStrategy extends JellyfishStrategy {
 
         await this.payInRepo.save(payIn);
       } catch (e) {
-        console.error(`Failed to send DeFiChain coin input ${payIn.id} of type ${type}`, e);
+        this.logger.error(`Failed to send DeFiChain coin input ${payIn.id} of type ${type}:`, e);
       }
     }
   }

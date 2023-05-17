@@ -14,9 +14,12 @@ import { BuyCrypto } from '../buy-crypto/process/entities/buy-crypto.entity';
 import { AmlCheck } from '../buy-crypto/process/enums/aml-check.enum';
 import { BuyCryptoService } from '../buy-crypto/process/services/buy-crypto.service';
 import { StakingService } from '../staking/services/staking.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class HistoryService {
+  private readonly logger = new DfxLogger(HistoryService);
+
   constructor(
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyFiatService: BuyFiatService,
@@ -434,8 +437,8 @@ export class HistoryService {
         buyValueInEur: Util.round(reward.value_open, 8),
         sellValueInEur: null,
       }));
-    } catch (error) {
-      console.error(`Failed to get DFI.tax rewards for ${userAddress}:`, error);
+    } catch (e) {
+      this.logger.error(`Failed to get DFI.tax rewards for ${userAddress}:`, e);
       return [];
     }
   }

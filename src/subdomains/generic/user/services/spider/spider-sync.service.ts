@@ -23,10 +23,13 @@ import { DocumentState, SpiderService } from './spider.service';
 import { KycProcessService } from 'src/subdomains/generic/user/models/kyc/kyc-process.service';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class SpiderSyncService {
-  kycStatusTranslation = {
+  private readonly logger = new DfxLogger(SpiderSyncService);
+
+  private readonly kycStatusTranslation = {
     [KycStatus.CHATBOT]: 'Chatbot',
     [KycStatus.ONLINE_ID]: 'Online ID',
     [KycStatus.VIDEO_ID]: 'Video ID',
@@ -43,8 +46,10 @@ export class SpiderSyncService {
   ) {}
 
   @Cron(CronExpression.EVERY_2_HOURS)
+  @Lock(3600)
   async checkOngoingKyc() {
     if (Config.processDisabled(Process.KYC)) return;
+
     const userInProgress = await this.userDataRepo.find({
       select: ['id'],
       where: [
@@ -65,7 +70,7 @@ export class SpiderSyncService {
       try {
         await this.syncKycUser(user.id);
       } catch (e) {
-        console.error(`Exception during KYC check for user ${user.id}:`, e);
+        this.logger.error(`Exception during KYC check for user ${user.id}:`, e);
 
         await this.notificationService.sendMail({
           type: MailType.ERROR_MONITORING,
@@ -79,6 +84,7 @@ export class SpiderSyncService {
   @Lock(1800)
   async continuousSync() {
     if (Config.processDisabled(Process.KYC)) return;
+
     const settingKey = 'spiderModificationDate';
     const lastModificationTime = await this.settingService.get(settingKey);
     const newModificationTime = Date.now().toString();
@@ -89,8 +95,10 @@ export class SpiderSyncService {
   }
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
+  @Lock(3600)
   async dailySync() {
     if (Config.processDisabled(Process.KYC)) return;
+
     const modificationDate = Util.daysBefore(1);
     await this.syncKycData(modificationDate.getTime());
   }
@@ -105,7 +113,7 @@ export class SpiderSyncService {
       try {
         await this.syncKycUser(userDataId);
       } catch (e) {
-        console.error(`Exception during KYC sync for user ${userDataId}:`, e);
+        this.logger.error(`Exception during KYC sync for user ${userDataId}:`, e);
 
         await this.notificationService.sendMail({
           type: MailType.ERROR_MONITORING,
@@ -147,7 +155,7 @@ export class SpiderSyncService {
         }
       }
 
-      if (!userData.spiderData.identPdf) console.error(`Failed to fetch ident PDF for user ${userDataId}`);
+      if (!userData.spiderData.identPdf) this.logger.error(`Failed to fetch ident PDF for user ${userDataId}`);
 
       await this.spiderDataRepo.save(userData.spiderData);
     }

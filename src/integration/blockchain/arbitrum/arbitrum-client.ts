@@ -19,9 +19,12 @@ import {
   L1EthDepositTransactionReceipt,
 } from '@arbitrum/sdk/dist/lib/message/L1Transaction';
 import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { ChainId } from '@uniswap/smart-order-router';
 
 export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
+  private readonly logger = new DfxLogger(ArbitrumClient);
+
   #l1Provider: ethers.providers.JsonRpcProvider;
   #l1Wallet: ethers.Wallet;
   #l2Network: L2Network;
@@ -215,7 +218,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     try {
       this.#l2Network = await getL2Network(this.provider);
     } catch (e) {
-      console.error('Error while trying to get L2 network for Arbitrum client', e);
+      this.logger.error('Error while trying to get L2 network for Arbitrum client', e);
     }
   }
 

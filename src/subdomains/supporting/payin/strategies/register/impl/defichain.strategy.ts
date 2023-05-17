@@ -20,9 +20,12 @@ import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class DeFiChainStrategy extends RegisterStrategy {
+  protected readonly logger = new DfxLogger(DeFiChainStrategy);
+
   constructor(
     private readonly assetService: AssetService,
     private readonly deFiChainService: PayInDeFiChainService,
@@ -65,7 +68,7 @@ export class DeFiChainStrategy extends RegisterStrategy {
 
         await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
       } catch (e) {
-        console.error('Could not set reference amounts for DeFiChain pay-in', e);
+        this.logger.error('Could not set reference amounts for DeFiChain pay-in:', e);
         continue;
       }
     }
@@ -143,7 +146,7 @@ export class DeFiChainStrategy extends RegisterStrategy {
           inputs.push(this.createEntry(history, amount, supportedAssets));
         }
       } catch (e) {
-        console.error(`Failed to create DeFiChain input ${history.txid}:`, e);
+        this.logger.error(`Failed to create DeFiChain input ${history.txid}:`, e);
       }
     }
 
@@ -163,7 +166,7 @@ export class DeFiChainStrategy extends RegisterStrategy {
     if (p == null) return null;
 
     if (p.asset && p.asset.dexName === 'DFI' && p.amount < Config.payIn.minDeposit.DeFiChain.DFI) {
-      console.log(`Ignoring too small DeFiChain input (${p.amount} ${p.asset.dexName}). PayIn entry:`, p);
+      this.logger.info(`Ignoring too small DeFiChain input (${p.amount} ${p.asset.dexName}). PayIn entry: ${p}`);
       return null;
     }
 
