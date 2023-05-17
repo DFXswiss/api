@@ -5,6 +5,7 @@ import { MetricObserver } from '../metric.observer';
 import { MonitoringService } from '../monitoring.service';
 import { WhaleService } from 'src/integration/blockchain/ain/whale/whale.service';
 import { Lock } from 'src/shared/utils/lock';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 interface WhaleState {
   index: number;
@@ -16,6 +17,8 @@ type WhalesState = WhaleState[];
 
 @Injectable()
 export class WhaleHealthObserver extends MetricObserver<WhalesState> {
+  protected readonly logger = new DfxLogger(WhaleHealthObserver);
+
   constructor(readonly monitoringService: MonitoringService, private readonly whaleService: WhaleService) {
     super(monitoringService, 'whale', 'health');
   }
