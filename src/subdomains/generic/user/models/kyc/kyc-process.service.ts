@@ -18,6 +18,7 @@ import { Config } from 'src/config/config';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { WebhookService } from '../../services/webhook/webhook.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 
 @Injectable()
 export class KycProcessService {
@@ -27,11 +28,13 @@ export class KycProcessService {
     private readonly notificationService: NotificationService,
     private readonly userRepo: UserRepository,
     private readonly webhookService: WebhookService,
+    private readonly settingService: SettingService,
   ) {}
 
   // --- GENERAL METHODS --- //
   async startKycProcess(userData: UserData): Promise<UserData> {
-    return this.goToStatus(userData, userData.kycType === KycType.LOCK ? KycStatus.ONLINE_ID : KycStatus.CHATBOT);
+    const nextStatus = userData.kycType === KycType.LOCK ? await this.getIdentMethod(userData) : KycStatus.CHATBOT;
+    return this.goToStatus(userData, nextStatus);
   }
 
   async checkKycProcess(userData: UserData): Promise<UserData> {
@@ -138,11 +141,8 @@ export class KycProcessService {
 
     userData = await this.storeChatbotResult(userData);
 
-    const isVipUser = await this.hasRole(userData.id, UserRole.VIP);
-
-    return isVipUser
-      ? this.goToStatus(userData, KycStatus.VIDEO_ID)
-      : this.goToStatus(userData, KycStatus.ONLINE_ID);
+    const nextStatus = await this.getIdentMethod(userData);
+    return this.goToStatus(userData, nextStatus);
   }
 
   async storeChatbotResult(userData: UserData): Promise<UserData> {
@@ -224,6 +224,13 @@ export class KycProcessService {
   // --- HELPER METHODS --- //
   private async hasRole(userDataId: number, role: UserRole): Promise<boolean> {
     return this.userRepo.exist({ where: { userData: { id: userDataId }, role } });
+  }
+
+  private async getIdentMethod(userData: UserData): Promise<KycStatus> {
+    const defaultIdent = await this.settingService.get('defaultIdentMethod', KycStatus.ONLINE_ID);
+    const isVipUser = await this.hasRole(userData.id, UserRole.VIP);
+
+    return isVipUser ? KycStatus.VIDEO_ID : (defaultIdent as KycStatus);
   }
 
   private async updateSpiderData(userData: UserData, initiateData: InitiateResponse) {
