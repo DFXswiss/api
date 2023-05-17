@@ -226,7 +226,7 @@ export abstract class EvmClient {
   get swapConfig() {
     return {
       recipient: this.dfxAddress,
-      slippageTolerance: new Percent(50, 10_000),
+      slippageTolerance: new Percent(20, 100),
       deadline: Math.floor(Date.now() / 1000 + 1800),
       type: SwapType.SWAP_ROUTER_02,
     };
