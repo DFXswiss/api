@@ -19,7 +19,7 @@ export class RefRewardOutService {
     private readonly dexService: DexService,
   ) {}
 
-  async payoutTransactions(): Promise<void> {
+  async checkPaidTransaction(): Promise<void> {
     try {
       const transactionsPaidOut = await this.refRewardRepo.find({
         where: { status: RewardStatus.PAYING_OUT },
@@ -27,7 +27,13 @@ export class RefRewardOutService {
       });
 
       await this.checkCompletion(transactionsPaidOut);
+    } catch (e) {
+      console.error('Failed to check paid transactions', e);
+    }
+  }
 
+  async payoutNewTransactions(): Promise<void> {
+    try {
       const transactionsToPayout = await this.refRewardRepo.find({
         where: { status: RewardStatus.READY_FOR_PAYOUT },
         relations: ['user'],
@@ -49,7 +55,7 @@ export class RefRewardOutService {
 
       this.logTransactionsPayouts(successfulRequests);
     } catch (e) {
-      console.error(e);
+      console.error('Failed to payout new transactions', e);
     }
   }
 

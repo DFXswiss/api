@@ -6,9 +6,10 @@ import { Util } from 'src/shared/utils/util';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { NotEnoughLiquidityException } from 'src/subdomains/supporting/dex/exceptions/not-enough-liquidity.exception';
 import { PurchaseLiquidityRequest, ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
+import { PriceRequestContext } from 'src/subdomains/supporting/pricing/domain/enums';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 
 export interface RefLiquidityRequest {
   amount: number;
@@ -22,6 +23,7 @@ export class RefRewardDexService {
     private readonly refRewardRepo: RefRewardRepository,
     private readonly dexService: DexService,
     private readonly assetService: AssetService,
+    private readonly priceService: PricingService,
   ) {}
 
   async secureLiquidity(): Promise<void> {
@@ -39,14 +41,24 @@ export class RefRewardDexService {
       try {
         const asset = await this.assetService.getNativeAsset(blockchain);
 
+        // PayoutAsset Price
+        const assetPrice = await this.priceService.getPrice({
+          context: PriceRequestContext.REF_REWARD,
+          correlationId: `Ref reward ${new Date().toISOString()}`,
+          from: 'EUR',
+          to: asset.dexName,
+        });
+
         for (const reward of groupedRewards.get(blockchain)) {
+          const outputAmount = reward.amountInEur / assetPrice.price.price;
+
           await this.checkLiquidity({
-            amount: reward.outputAmount,
+            amount: outputAmount,
             asset,
             rewardId: reward.id.toString(),
           });
 
-          await this.refRewardRepo.update(reward.id, { status: RewardStatus.READY_FOR_PAYOUT });
+          await this.refRewardRepo.update(...reward.readyToPayout(outputAmount));
 
           console.info(`Secured liquidity for ref reward. Reward ID: ${reward.id}.`);
         }

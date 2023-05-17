@@ -12,10 +12,8 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { PriceRequestContext } from 'src/subdomains/supporting/pricing/domain/enums';
 import { RefRewardNotificationService } from './ref-reward-notification.service';
 import { RefRewardDexService } from './ref-reward-dex.service';
 import { RefRewardOutService } from './ref-reward-out.service';
@@ -29,7 +27,6 @@ export class RefRewardService {
     private readonly userService: UserService,
     private readonly cryptoService: CryptoService,
     private readonly priceProviderService: PriceProviderService,
-    private readonly priceService: PricingService,
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
     private readonly refRewardNotificationService: RefRewardNotificationService,
@@ -61,13 +58,6 @@ export class RefRewardService {
       // PayoutAsset Price
       const payoutAsset = await this.assetService.getNativeAsset(blockchain);
 
-      const assetPrice = await this.priceService.getPrice({
-        context: PriceRequestContext.REF_REWARD,
-        correlationId: 'Ref reward assetPrice',
-        from: 'EUR',
-        to: payoutAsset.dexName,
-      });
-
       const groupedUser = Util.groupByAccessor<User, Blockchain>(
         openCreditUser,
         (o) => this.cryptoService.getBlockchainsBasedOn(o.address)[0],
@@ -79,7 +69,6 @@ export class RefRewardService {
         if (refCreditEur <= 1) continue; // TODO v2 => assetPayoutLimit
 
         const entity = this.rewardRepo.create({
-          outputAmount: refCreditEur / assetPrice.price.price,
           outputAsset: payoutAsset.dexName,
           user: user,
           status: RewardStatus.PREPARED,
@@ -100,7 +89,8 @@ export class RefRewardService {
     if (Config.processDisabled(Process.REF_PAYOUT)) return;
 
     await this.refRewardDexService.secureLiquidity();
-    await this.refRewardOutService.payoutTransactions();
+    await this.refRewardOutService.checkPaidTransaction();
+    await this.refRewardOutService.payoutNewTransactions();
     await this.refRewardNotificationService.sendNotificationMails();
   }
 
