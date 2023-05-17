@@ -20,6 +20,7 @@ import {
 } from '@arbitrum/sdk/dist/lib/message/L1Transaction';
 import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { ChainId } from '@uniswap/smart-order-router';
 
 export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
   private readonly logger = new DfxLogger(ArbitrumClient);
@@ -34,10 +35,9 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     scanApiKey: string,
     gatewayUrl: string,
     privateKey: string,
-    swapContractAddress: string,
-    swapTokenAddress: string,
+    chainId: ChainId,
   ) {
-    super(http, scanApiUrl, scanApiKey, gatewayUrl, privateKey, swapContractAddress, swapTokenAddress);
+    super(http, scanApiUrl, scanApiKey, chainId, gatewayUrl, privateKey);
 
     const { ethGatewayUrl, ethApiKey, ethWalletPrivateKey } = GetConfig().blockchain.ethereum;
     const ethereumGateway = `${ethGatewayUrl}/${ethApiKey ?? ''}`;
@@ -173,14 +173,6 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     const gasPrice = await this.getCurrentGasPrice();
 
     return this.convertToEthLikeDenomination(totalGas.mul(gasPrice));
-  }
-
-  /**
-   * @note
-   * requires UniswapV3 implementation or alternative
-   */
-  async nativeCryptoTestSwap(_nativeCryptoAmount: number, _targetToken: Asset): Promise<number> {
-    throw new Error('nativeCryptoTestSwap is not implemented for Arbitrum blockchain');
   }
 
   //*** HELPER METHODS ***//

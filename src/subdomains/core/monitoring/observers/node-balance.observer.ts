@@ -17,10 +17,6 @@ interface NodeBalanceData {
         utxo: BigNumber;
         token: number;
       };
-      ref: {
-        utxo: BigNumber;
-        token: number;
-      };
     };
     bitcoin: {
       input: BigNumber;
@@ -33,14 +29,12 @@ export class NodeBalanceObserver extends MetricObserver<NodeBalanceData> {
   protected readonly logger = new DfxLogger(NodeBalanceObserver);
 
   private inpClient: DeFiClient;
-  private refClient: DeFiClient;
   private btcInpClient: BtcClient;
 
   constructor(monitoringService: MonitoringService, readonly nodeService: NodeService) {
     super(monitoringService, 'node', 'balance');
 
     nodeService.getConnectedNode<NodeType.INPUT>(NodeType.INPUT).subscribe((client) => (this.inpClient = client));
-    nodeService.getConnectedNode<NodeType.REF>(NodeType.REF).subscribe((client) => (this.refClient = client));
     nodeService
       .getConnectedNode<NodeType.BTC_INPUT>(NodeType.BTC_INPUT)
       .subscribe((client) => (this.btcInpClient = client));
@@ -64,7 +58,6 @@ export class NodeBalanceObserver extends MetricObserver<NodeBalanceData> {
       balance: {
         defichain: {
           input: await this.inpClient.getNodeBalance(),
-          ref: await this.refClient.getNodeBalance(),
         },
         bitcoin: {
           input: (await this.btcInpClient?.getBalance()) ?? new BigNumber(0),

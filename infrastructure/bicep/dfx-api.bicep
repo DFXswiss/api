@@ -36,8 +36,6 @@ param nodePassword string
 @secure()
 param nodeWalletPassword string
 param dexWalletAddress string
-param outWalletAddress string
-param intWalletAddress string
 param utxoSpenderAddress string
 param btcOutWalletAddress string
 
@@ -50,8 +48,6 @@ param ethGatewayUrl string
 @secure()
 param ethApiKey string
 param ethChainId string
-param ethSwapContractAddress string
-param ethSwapTokenAddress string
 param ethScanApiUrl string
 @secure()
 param ethScanApiKey string
@@ -63,8 +59,6 @@ param optimismGatewayUrl string
 @secure()
 param optimismApiKey string
 param optimismChainId string
-param optimismSwapContractAddress string
-param optimismSwapTokenAddress string
 param optimismScanApiUrl string
 @secure()
 param optimismScanApiKey string
@@ -75,8 +69,7 @@ param arbitrumWalletPrivateKey string
 param arbitrumGatewayUrl string
 @secure()
 param arbitrumApiKey string
-param arbitrumSwapContractAddress string
-param arbitrumSwapTokenAddress string
+param arbitrumChainId string
 param arbitrumScanApiUrl string
 @secure()
 param arbitrumScanApiKey string
@@ -86,7 +79,7 @@ param bscWalletAddress string
 param bscWalletPrivateKey string
 param bscGatewayUrl string
 param bscSwapContractAddress string
-param bscSwapTokenAddress string
+param bscChainId string
 param bscScanApiUrl string
 @secure()
 param bscScanApiKey string
@@ -116,6 +109,8 @@ param binanceSecret string
 
 param binanceEthWalletWithdrawKey string
 param binanceBscWalletWithdrawKey string
+param binanceArbArbWithdrawKey string
+param binanceArbEthWithdrawKey string
 
 param olkyClient string
 @secure()
@@ -208,27 +203,6 @@ var nodeProps = [
     appName: 'app-${compName}-${nodeName}-dex-${env}'
     fileShareNameA: 'node-dex-data-a'
     fileShareNameB: 'node-dex-data-b'
-  }
-  {
-    name: 'nodes-output-${env}'
-    servicePlanName: 'plan-${compName}-${nodeName}-out-${env}'
-    appName: 'app-${compName}-${nodeName}-out-${env}'
-    fileShareNameA: 'node-out-data-a'
-    fileShareNameB: 'node-out-data-b'
-  }
-  {
-    name: 'nodes-int-${env}'
-    servicePlanName: 'plan-${compName}-${nodeName}-int-${env}'
-    appName: 'app-${compName}-${nodeName}-int-${env}'
-    fileShareNameA: 'node-int-data-a'
-    fileShareNameB: 'node-int-data-b'
-  }
-  {
-    name: 'nodes-ref-${env}'
-    servicePlanName: 'plan-${compName}-${nodeName}-ref-${env}'
-    appName: 'app-${compName}-${nodeName}-ref-${env}'
-    fileShareNameA: 'node-ref-data-a'
-    fileShareNameB: 'node-ref-data-b'
   }
 ]
 
@@ -526,30 +500,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: nodes[1].outputs.urlStg
         }
         {
-          name: 'NODE_OUT_URL_ACTIVE'
-          value: nodes[2].outputs.url
-        }
-        {
-          name: 'NODE_OUT_URL_PASSIVE'
-          value: nodes[2].outputs.urlStg
-        }
-        {
-          name: 'NODE_INT_URL_ACTIVE'
-          value: nodes[3].outputs.url
-        }
-        {
-          name: 'NODE_INT_URL_PASSIVE'
-          value: nodes[3].outputs.urlStg
-        }
-        {
-          name: 'NODE_REF_URL_ACTIVE'
-          value: nodes[4].outputs.url
-        }
-        {
-          name: 'NODE_REF_URL_PASSIVE'
-          value: nodes[4].outputs.urlStg
-        }
-        {
           name: 'NODE_BTC_INP_URL_ACTIVE'
           value: btcNodes[0].outputs.url
         }
@@ -560,14 +510,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'DEX_WALLET_ADDRESS'
           value: dexWalletAddress
-        }
-        {
-          name: 'OUT_WALLET_ADDRESS'
-          value: outWalletAddress
-        }
-        {
-          name: 'INT_WALLET_ADDRESS'
-          value: intWalletAddress
         }
         {
           name: 'UTXO_SPENDER_ADDRESS'
@@ -598,14 +540,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: ethChainId
         }
         {
-          name: 'ETH_SWAP_CONTRACT_ADDRESS'
-          value: ethSwapContractAddress
-        }
-        {
-          name: 'ETH_SWAP_TOKEN_ADDRESS'
-          value: ethSwapTokenAddress
-        }
-        {
           name: 'ETH_SCAN_API_URL'
           value: ethScanApiUrl
         }
@@ -634,14 +568,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: optimismChainId
         }
         {
-          name: 'OPTIMISM_SWAP_CONTRACT_ADDRESS'
-          value: optimismSwapContractAddress
-        }
-        {
-          name: 'OPTIMISM_SWAP_TOKEN_ADDRESS'
-          value: optimismSwapTokenAddress
-        }
-        {
           name: 'OPTIMISM_SCAN_API_URL'
           value: optimismScanApiUrl
         }
@@ -666,12 +592,8 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: arbitrumApiKey
         }
         {
-          name: 'ARBITRUM_SWAP_CONTRACT_ADDRESS'
-          value: arbitrumSwapContractAddress
-        }
-        {
-          name: 'ARBITRUM_SWAP_TOKEN_ADDRESS'
-          value: arbitrumSwapTokenAddress
+          name: 'ARBITRUM_CHAIN_ID'
+          value: arbitrumChainId
         }
         {
           name: 'ARBITRUM_SCAN_API_URL'
@@ -698,16 +620,16 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: bscSwapContractAddress
         }
         {
-          name: 'BSC_SWAP_TOKEN_ADDRESS'
-          value: bscSwapTokenAddress
-        }
-        {
           name: 'BSC_SCAN_API_URL'
           value: bscScanApiUrl
         }
         {
           name: 'BSC_SCAN_API_KEY'
           value: bscScanApiKey
+        }
+        {
+          name: 'BSC_CHAIN_ID'
+          value: bscChainId
         }
         {
           name: 'BTC_OUT_WALLET_ADDRESS'
@@ -764,6 +686,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'BINANCE_BSC_WALLET_WITHDRAW_KEY'
           value: binanceBscWalletWithdrawKey
+        }
+        {
+          name: 'BINANCE_ARB_ARB_WITHDRAW_KEY'
+          value: binanceArbArbWithdrawKey
+        }
+        {
+          name: 'BINANCE_ARB_ETH_WITHDRAW_KEY'
+          value: binanceArbEthWithdrawKey
         }
         {
           name: 'LETTER_URL'

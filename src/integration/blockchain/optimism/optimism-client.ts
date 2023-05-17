@@ -8,6 +8,7 @@ import { EvmClient } from '../shared/evm/evm-client';
 import { L2BridgeEvmClient } from '../shared/evm/interfaces';
 import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { ChainId } from '@uniswap/smart-order-router';
 
 interface OptimismTransactionReceipt extends ethers.providers.TransactionReceipt {
   l1GasPrice: BigNumber;
@@ -29,10 +30,9 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
     scanApiKey: string,
     gatewayUrl: string,
     privateKey: string,
-    swapContractAddress: string,
-    swapTokenAddress: string,
+    chainId: ChainId,
   ) {
-    super(http, scanApiUrl, scanApiKey, gatewayUrl, privateKey, swapContractAddress, swapTokenAddress);
+    super(http, scanApiUrl, scanApiKey, chainId, gatewayUrl, privateKey);
 
     const { ethGatewayUrl, ethApiKey, ethWalletPrivateKey, ethChainId } = GetConfig().blockchain.ethereum;
     const { optimismChainId } = GetConfig().blockchain.optimism;
@@ -189,14 +189,6 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
     const actualL1Fee = l1GasUsed.mul(l1GasPrice).mul(l1FeeScalar);
 
     return this.convertToEthLikeDenomination(actualL2Fee.add(actualL1Fee));
-  }
-
-  /**
-   * @note
-   * requires UniswapV3 implementation or alternative
-   */
-  async nativeCryptoTestSwap(_nativeCryptoAmount: number, _targetToken: Asset): Promise<number> {
-    throw new Error('nativeCryptoTestSwap is not implemented for Optimism blockchain');
   }
 
   //*** HELPER METHODS ***//

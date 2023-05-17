@@ -448,10 +448,11 @@ export class BuyCryptoBatchService {
       // order liquidity
       let liqOrderMessage = undefined;
       try {
-        const orderId = await this.liquidityService.buyLiquidity(oa.id, targetDeficit, true);
+        const asset = oa.dexName === 'DFI' ? await this.assetService.getDfiToken() : oa;
+        const orderId = await this.liquidityService.buyLiquidity(asset.id, targetDeficit, true);
         liqOrderMessage = `Liquidity management order created: ${orderId}`;
       } catch (e) {
-        this.logger.info(`Failed to order missing liquidity for asset ${oa}:`, e);
+        this.logger.info(`Failed to order missing liquidity for asset ${oa.uniqueName}:`, e);
         liqOrderMessage = `Liquidity management order failed: ${e.message}`;
       }
 
