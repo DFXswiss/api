@@ -5,6 +5,7 @@ import { BankAdapter } from '../adapters/balances/bank.adapter';
 import { BlockchainAdapter } from '../adapters/balances/blockchain.adapter';
 import { LiquidityManagementRule } from '../entities/liquidity-management-rule.entity';
 import { LiquidityBalanceIntegration } from '../interfaces';
+import { Util } from 'src/shared/utils/util';
 
 enum AdapterType {
   BLOCKCHAIN = 'Blockchain',
@@ -20,12 +21,23 @@ export class LiquidityBalanceIntegrationFactory {
   }
 
   getIntegration(rule: LiquidityManagementRule): LiquidityBalanceIntegration {
+    return this.adapters.get(this.getAdapterType(rule));
+  }
+
+  getIntegrations(
+    rules: LiquidityManagementRule[],
+  ): { integration: LiquidityBalanceIntegration; rules: LiquidityManagementRule[] }[] {
+    const adapterMap = Util.groupByAccessor(rules, (r) => this.getAdapterType(r));
+    return Array.from(adapterMap.entries()).map(([type, rules]) => ({ integration: this.adapters.get(type), rules }));
+  }
+
+  private getAdapterType(rule: LiquidityManagementRule): AdapterType {
     if (rule.target instanceof Asset) {
-      return this.adapters.get(AdapterType.BLOCKCHAIN);
+      return AdapterType.BLOCKCHAIN;
     }
 
     if (rule.target instanceof Fiat) {
-      return this.adapters.get(AdapterType.BANK);
+      return AdapterType.BANK;
     }
 
     throw new Error('Could not find integration for liquidity balance check. Supported Asset or Fiat.');

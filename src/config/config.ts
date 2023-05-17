@@ -238,18 +238,7 @@ export class Configuration {
       dex: {
         active: process.env.NODE_DEX_URL_ACTIVE,
         passive: process.env.NODE_DEX_URL_PASSIVE,
-      },
-      out: {
-        active: process.env.NODE_OUT_URL_ACTIVE,
-        passive: process.env.NODE_OUT_URL_PASSIVE,
-      },
-      int: {
-        active: process.env.NODE_INT_URL_ACTIVE,
-        passive: process.env.NODE_INT_URL_PASSIVE,
-      },
-      ref: {
-        active: process.env.NODE_REF_URL_ACTIVE,
-        passive: process.env.NODE_REF_URL_PASSIVE,
+        address: process.env.DEX_WALLET_ADDRESS,
       },
       btcInput: {
         active: process.env.NODE_BTC_INP_URL_ACTIVE,
@@ -258,13 +247,10 @@ export class Configuration {
       btcOutput: {
         active: process.env.NODE_BTC_OUT_URL_ACTIVE,
         passive: process.env.NODE_BTC_OUT_URL_PASSIVE,
+        address: process.env.BTC_OUT_WALLET_ADDRESS,
       },
       walletPassword: process.env.NODE_WALLET_PASSWORD,
       utxoSpenderAddress: process.env.UTXO_SPENDER_ADDRESS,
-      dexWalletAddress: process.env.DEX_WALLET_ADDRESS,
-      outWalletAddress: process.env.OUT_WALLET_ADDRESS,
-      intWalletAddress: process.env.INT_WALLET_ADDRESS,
-      btcOutWalletAddress: process.env.BTC_OUT_WALLET_ADDRESS,
       minTxAmount: 0.00000297,
     },
     evm: {
@@ -283,9 +269,7 @@ export class Configuration {
       ethWalletPrivateKey: process.env.ETH_WALLET_PRIVATE_KEY,
       ethGatewayUrl: process.env.ETH_GATEWAY_URL,
       ethApiKey: process.env.ETH_API_KEY,
-      ethChainId: process.env.ETH_CHAIN_ID,
-      uniswapV2Router02Address: process.env.ETH_SWAP_CONTRACT_ADDRESS,
-      swapTokenAddress: process.env.ETH_SWAP_TOKEN_ADDRESS,
+      ethChainId: +process.env.ETH_CHAIN_ID,
     },
     bsc: {
       bscScanApiUrl: process.env.BSC_SCAN_API_URL,
@@ -293,8 +277,8 @@ export class Configuration {
       bscWalletAddress: process.env.BSC_WALLET_ADDRESS,
       bscWalletPrivateKey: process.env.BSC_WALLET_PRIVATE_KEY,
       bscGatewayUrl: process.env.BSC_GATEWAY_URL,
+      bscChainId: +process.env.BSC_CHAIN_ID,
       pancakeRouterAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
-      swapTokenAddress: process.env.BSC_SWAP_TOKEN_ADDRESS,
     },
     optimism: {
       optimismScanApiUrl: process.env.OPTIMISM_SCAN_API_URL,
@@ -303,9 +287,7 @@ export class Configuration {
       optimismWalletPrivateKey: process.env.OPTIMISM_WALLET_PRIVATE_KEY,
       optimismGatewayUrl: process.env.OPTIMISM_GATEWAY_URL,
       optimismApiKey: process.env.OPTIMISM_API_KEY,
-      optimismChainId: process.env.OPTIMISM_CHAIN_ID,
-      pancakeRouterAddress: process.env.OPTIMISM_SWAP_CONTRACT_ADDRESS,
-      swapTokenAddress: process.env.OPTIMISM_SWAP_TOKEN_ADDRESS,
+      optimismChainId: +process.env.OPTIMISM_CHAIN_ID,
     },
     arbitrum: {
       arbitrumScanApiUrl: process.env.ARBITRUM_SCAN_API_URL,
@@ -314,8 +296,7 @@ export class Configuration {
       arbitrumWalletPrivateKey: process.env.ARBITRUM_WALLET_PRIVATE_KEY,
       arbitrumGatewayUrl: process.env.ARBITRUM_GATEWAY_URL,
       arbitrumApiKey: process.env.ARBITRUM_API_KEY,
-      pancakeRouterAddress: process.env.ARBITRUM_SWAP_CONTRACT_ADDRESS,
-      swapTokenAddress: process.env.ARBITRUM_SWAP_TOKEN_ADDRESS,
+      arbitrumChainId: +process.env.ARBITRUM_CHAIN_ID,
     },
   };
 

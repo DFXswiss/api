@@ -77,9 +77,7 @@ export abstract class DexEvmService {
   private async getTargetAmount(sourceAsset: Asset, sourceAmount: number, targetAsset: Asset): Promise<number> {
     if (sourceAsset.dexName === targetAsset.dexName) return sourceAmount;
 
-    return sourceAsset.dexName === this._nativeCoin
-      ? this.#client.nativeCryptoTestSwap(sourceAmount, targetAsset)
-      : this.#client.tokenTestSwap(sourceAsset, sourceAmount, targetAsset);
+    return this.#client.testSwap(sourceAsset, sourceAmount, targetAsset);
   }
 
   private async getTokenAvailableAmount(asset: Asset): Promise<number> {

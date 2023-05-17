@@ -5,17 +5,14 @@ import { WhaleService } from 'src/integration/blockchain/ain/whale/whale.service
 import { Config } from 'src/config/config';
 import { PayoutOrderContext } from '../entities/payout-order.entity';
 import { PayoutGroup, PayoutJellyfishService } from './base/payout-jellyfish.service';
-import { WhaleClient } from 'src/integration/blockchain/ain/whale/whale-client';
 
 @Injectable()
 export class PayoutDeFiChainService extends PayoutJellyfishService {
-  #outClient: DeFiClient;
-  private client: WhaleClient;
+  #client: DeFiClient;
 
   constructor(readonly nodeService: NodeService, readonly whaleService: WhaleService) {
     super();
-    nodeService.getConnectedNode(NodeType.OUTPUT).subscribe((client) => (this.#outClient = client));
-    whaleService.getClient().subscribe((client) => (this.client = client));
+    nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.#client = client));
   }
 
   async isHealthy(context: PayoutOrderContext): Promise<boolean> {
@@ -44,11 +41,11 @@ export class PayoutDeFiChainService extends PayoutJellyfishService {
   }
 
   async getUtxoForAddress(address: string): Promise<number> {
-    return parseFloat(await this.client.getBalance(address));
+    return parseFloat(await this.whaleService.getCurrentClient().getBalance(address));
   }
 
   getWalletAddress(_context: PayoutOrderContext): string {
-    return Config.blockchain.default.outWalletAddress;
+    return Config.blockchain.default.dex.address;
   }
 
   isLightWalletAddress(address: string): boolean {
@@ -56,6 +53,6 @@ export class PayoutDeFiChainService extends PayoutJellyfishService {
   }
 
   private getClient(_context: PayoutOrderContext): DeFiClient {
-    return this.#outClient;
+    return this.#client;
   }
 }

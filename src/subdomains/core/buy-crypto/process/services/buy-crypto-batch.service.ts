@@ -21,7 +21,7 @@ import { PricingService } from 'src/subdomains/supporting/pricing/services/prici
 import { FeeLimitExceededException } from '../exceptions/fee-limit-exceeded.exception';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
-import { PriceMismatchException } from 'src/integration/exchange/exceptions/price-mismatch.exception';
+import { PriceMismatchException } from 'src/subdomains/supporting/pricing/domain/exceptions/price-mismatch.exception';
 import { LiquidityManagementService } from 'src/subdomains/core/liquidity-management/services/liquidity-management.service';
 
 @Injectable()
@@ -440,10 +440,11 @@ export class BuyCryptoBatchService {
       // order liquidity
       let liqOrderMessage = undefined;
       try {
-        const orderId = await this.liquidityService.buyLiquidity(oa.id, targetDeficit, true);
+        const asset = oa.dexName === 'DFI' ? await this.assetService.getDfiToken() : oa;
+        const orderId = await this.liquidityService.buyLiquidity(asset.id, targetDeficit, true);
         liqOrderMessage = `Liquidity management order created: ${orderId}`;
       } catch (e) {
-        console.info(`Failed to order missing liquidity for asset ${oa}:`, e);
+        console.info(`Failed to order missing liquidity for asset ${oa.uniqueName}:`, e);
         liqOrderMessage = `Liquidity management order failed: ${e.message}`;
       }
 

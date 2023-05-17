@@ -83,7 +83,7 @@ export class EthereumStrategy extends EvmStrategy {
 
   //*** JOBS ***//
 
-  @Cron(CronExpression.EVERY_30_SECONDS)
+  @Cron(CronExpression.EVERY_MINUTE)
   @Lock(7200)
   async checkPayInEntries(): Promise<void> {
     if (Config.processDisabled(Process.PAY_IN)) return;

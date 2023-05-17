@@ -41,35 +41,6 @@ export class KycController {
     await this.kycService.triggerWebhook(dto.userDataId, dto.reason);
   }
 
-  // --- KYC COMPANY Calls --- //
-  @Get('users')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
-  @ApiOkResponse({ type: KycDataDto, isArray: true })
-  async getAllKycData(@GetJwt() jwt: JwtPayload): Promise<KycDataDto[]> {
-    return this.kycService.getAllKycData(jwt.id);
-  }
-
-  @Get(':id/documents')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
-  @ApiOkResponse({ type: KycFileDto, isArray: true })
-  async getKycFiles(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<KycFileDto[]> {
-    return this.kycService.getKycFiles(id, jwt.id);
-  }
-
-  @Get(':id/documents/:type')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
-  @ApiOkResponse({ type: Buffer })
-  async getKycFile(
-    @GetJwt() jwt: JwtPayload,
-    @Param('id') id: string,
-    @Param('type') type: KycDocumentType,
-  ): Promise<Buffer> {
-    return this.kycService.getKycFile(id, jwt.id, type);
-  }
-
   // --- JWT Calls --- //
   @Get()
   @ApiBearerAuth()
@@ -162,5 +133,39 @@ export class KycController {
     @UploadedFiles() files: Express.Multer.File[],
   ): Promise<boolean> {
     return this.kycService.uploadDocument(code, files[0], KycDocument.INCORPORATION_CERTIFICATE);
+  }
+}
+
+@ApiTags('KYC Client')
+@Controller('kyc')
+export class KycClientController {
+  constructor(private readonly kycService: KycService) {}
+
+  @Get('users')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
+  @ApiOkResponse({ type: KycDataDto, isArray: true })
+  async getAllKycData(@GetJwt() jwt: JwtPayload): Promise<KycDataDto[]> {
+    return this.kycService.getAllKycData(jwt.id);
+  }
+
+  @Get(':id/documents')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
+  @ApiOkResponse({ type: KycFileDto, isArray: true })
+  async getKycFiles(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<KycFileDto[]> {
+    return this.kycService.getKycFiles(id, jwt.id);
+  }
+
+  @Get(':id/documents/:type')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
+  @ApiOkResponse({ type: Buffer })
+  async getKycFile(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Param('type') type: KycDocumentType,
+  ): Promise<Buffer> {
+    return this.kycService.getKycFile(id, jwt.id, type);
   }
 }
