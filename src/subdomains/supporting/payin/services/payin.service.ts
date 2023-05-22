@@ -16,9 +16,12 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class PayInService {
+  private readonly logger = new DfxLogger(PayInService);
+
   constructor(
     private readonly payInRepository: PayInRepository,
     private readonly sendStrategies: SendStrategiesFacade,
@@ -131,7 +134,7 @@ export class PayInService {
       const strategy = this.registerStrategies.getRegisterStrategy(payIn.asset);
       return await strategy.doAmlCheck(payIn, route);
     } catch (e) {
-      console.error(`Error during AML check for pay-in ID: ${payIn.id}`, e);
+      this.logger.error(`Error during AML check for pay-in ${payIn.id}:`, e);
     }
   }
 
@@ -237,7 +240,7 @@ export class PayInService {
       const alias = getter(payIn.asset);
 
       if (!alias) {
-        console.warn(`No alias found by getter ${getter.name} for payIn ID ${payIn.id}. Ignoring the payIn`);
+        this.logger.warn(`No alias found by getter ${getter.name} for pay-in ${payIn.id}. Ignoring the pay-in`);
         continue;
       }
 

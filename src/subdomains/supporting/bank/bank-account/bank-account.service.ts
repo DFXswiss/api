@@ -11,6 +11,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { Config, Process } from 'src/config/config';
+import { Lock } from 'src/shared/utils/lock';
 
 @Injectable()
 export class BankAccountService {
@@ -84,8 +85,10 @@ export class BankAccountService {
   // --- INTERNAL METHODS --- //
 
   @Cron(CronExpression.EVERY_WEEK)
+  @Lock(3600)
   async checkFailedBankAccounts(): Promise<void> {
     if (Config.processDisabled(Process.BANK_ACCOUNT)) return;
+
     const failedBankAccounts = await this.bankAccountRepo.findBy({ returnCode: 256 });
     for (const bankAccount of failedBankAccounts) {
       await this.reloadBankAccount(bankAccount);

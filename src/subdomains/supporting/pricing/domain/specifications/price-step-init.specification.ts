@@ -1,7 +1,10 @@
 import { StepMisconfiguredException } from '../exceptions/step-misconfigured.exception';
 import { PriceStep } from '../../utils/price-step';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export class PriceStepInitSpecification {
+  private static readonly logger = new DfxLogger(PriceStepInitSpecification);
+
   public static isSatisfiedBy(step: PriceStep): boolean {
     const { _options } = step;
 
@@ -27,7 +30,7 @@ export class PriceStepInitSpecification {
       _options.fixedPrice !== undefined &&
       (_options.primary.providers.length > 0 || _options.reference.providers.length > 0)
     ) {
-      console.warn(`Ignoring providers for PriceStep, step configured as fixed price`);
+      this.logger.warn(`Ignoring providers for PriceStep, step configured as fixed price`);
     }
 
     return true;

@@ -6,6 +6,7 @@ import { HttpService } from 'src/shared/services/http.service';
 import { BtcClient } from './btc-client';
 import { DeFiClient } from './defi-client';
 import { NodeClient, NodeMode } from './node-client';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export enum NodeType {
   INPUT = 'inp',
@@ -29,6 +30,8 @@ type TypedNodeClient<T> = T extends NodeType.BTC_INPUT | NodeType.BTC_OUTPUT ? B
 
 @Injectable()
 export class NodeService {
+  private readonly logger = new DfxLogger(NodeClient);
+
   readonly #allNodes: Map<NodeType, Record<NodeMode, NodeClient | null>> = new Map();
   readonly #connectedNodes: Map<NodeType, BehaviorSubject<NodeClient | null>> = new Map();
 
@@ -80,7 +83,7 @@ export class NodeService {
   swapNode(type: NodeType, mode: NodeMode): void {
     if (this.isNodeClientAvailable(type, mode)) {
       this.#connectedNodes.get(type)?.next(this.#allNodes.get(type)[mode]);
-      console.log(`Swapped node ${type} to ${mode}`);
+      this.logger.warn(`Swapped node ${type} to ${mode}`);
     } else {
       throw new Error(`Tried to swap to node ${type} to ${mode}, but NodeClient is not available in the pool`);
     }
@@ -121,19 +124,19 @@ export class NodeService {
 
     if (active) {
       if (!passive) {
-        console.warn(`Warning. Node ${type} passive is not available in NodeClient pool`);
+        this.logger.warn(`Warning. Node ${type} passive is not available in NodeClient pool`);
       }
 
       return new BehaviorSubject(this.#allNodes.get(type)[NodeMode.ACTIVE]);
     }
 
     if (passive && !active) {
-      console.warn(`Warning. Node ${type} active is not available in NodeClient pool. Falling back to passive`);
+      this.logger.warn(`Warning. Node ${type} active is not available in NodeClient pool. Falling back to passive`);
       return new BehaviorSubject(this.#allNodes.get(type)[NodeMode.PASSIVE]);
     }
 
     if (!active && !passive) {
-      console.warn(`Warning. Node ${type} both active and passive are not available in NodeClient pool`);
+      this.logger.warn(`Warning. Node ${type} both active and passive are not available in NodeClient pool`);
       return new BehaviorSubject(null);
     }
   }

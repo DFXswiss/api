@@ -12,9 +12,12 @@ import { LiquidityManagementPipeline } from '../entities/liquidity-management-pi
 import { In } from 'typeorm';
 import { Util } from 'src/shared/utils/util';
 import { Config, Process } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class LiquidityManagementService {
+  private readonly logger = new DfxLogger(LiquidityManagementService);
+
   private readonly ruleActivations = new Map<number, Date>();
 
   constructor(
@@ -29,6 +32,7 @@ export class LiquidityManagementService {
   @Lock(1800)
   async verifyRules() {
     if (Config.processDisabled(Process.LIQUIDITY_MANAGEMENT)) return;
+
     const rules = await this.ruleRepo.findBy({ status: LiquidityManagementRuleStatus.ACTIVE });
     const balances = await this.balanceService.refreshBalances(rules);
 
@@ -99,7 +103,7 @@ export class LiquidityManagementService {
     } catch (e) {
       if (e instanceof ConflictException) return;
 
-      console.error(`Error in verifying the liquidity management rule id: ${rule.id}`, e);
+      this.logger.error(`Error in verifying the liquidity management rule ${rule.id}:`, e);
     }
   }
 
@@ -129,6 +133,6 @@ export class LiquidityManagementService {
   private logRuleExecution(rule: LiquidityManagementRule, result: LiquidityState): void {
     const message = result.deficit ? `${result.deficit} deficit` : `${result.redundancy} redundancy`;
 
-    console.log(`Executing liquidity management rule ${rule.id}. Summary -> ${message} of ${rule.targetName}`);
+    this.logger.info(`Executing liquidity management rule ${rule.id} (${message} of ${rule.targetName})`);
   }
 }

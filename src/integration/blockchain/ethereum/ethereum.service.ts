@@ -7,15 +7,8 @@ import { HttpService } from 'src/shared/services/http.service';
 @Injectable()
 export class EthereumService extends EvmService {
   constructor(http: HttpService) {
-    const {
-      ethScanApiUrl,
-      ethScanApiKey,
-      ethGatewayUrl,
-      ethApiKey,
-      ethWalletPrivateKey,
-      uniswapV2Router02Address,
-      swapTokenAddress,
-    } = GetConfig().blockchain.ethereum;
+    const { ethScanApiUrl, ethScanApiKey, ethGatewayUrl, ethApiKey, ethWalletPrivateKey, ethChainId } =
+      GetConfig().blockchain.ethereum;
 
     super(
       http,
@@ -24,8 +17,7 @@ export class EthereumService extends EvmService {
       ethGatewayUrl,
       ethApiKey,
       ethWalletPrivateKey,
-      uniswapV2Router02Address,
-      swapTokenAddress,
+      ethChainId,
       EthereumClient,
     );
   }

@@ -10,6 +10,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { CryptoInput } from '../entities/crypto-input.entity';
 import { PayInRepository } from '../repositories/payin.repository';
 import { PayInJellyfishService } from './base/payin-jellyfish.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export interface HistoryAmount {
   amount: number;
@@ -19,6 +20,8 @@ export interface HistoryAmount {
 
 @Injectable()
 export class PayInDeFiChainService extends PayInJellyfishService {
+  private readonly logger = new DfxLogger(PayInDeFiChainService);
+
   private client: DeFiClient;
 
   private readonly utxoTxTypes = ['receive', 'blockReward'];
@@ -118,7 +121,7 @@ export class PayInDeFiChainService extends PayInJellyfishService {
       // do TX
       await tx(feeUtxo);
     } catch (e) {
-      console.error('Failed to do token TX:', e);
+      this.logger.error('Failed to do token TX:', e);
     }
   }
 
@@ -150,7 +153,7 @@ export class PayInDeFiChainService extends PayInJellyfishService {
         });
 
         if (assetEntity?.category === AssetCategory.POOL_PAIR) {
-          console.log('Removing pool liquidity:', token);
+          this.logger.info(`Removing pool liquidity on ${token.owner}`);
 
           // remove pool liquidity
           await this.doTokenTx(token.owner, (utxo) =>
@@ -164,7 +167,7 @@ export class PayInDeFiChainService extends PayInJellyfishService {
           }
         }
       } catch (e) {
-        console.error(`Failed to split liquidity pool (${token.amount} on ${token.owner}):`, e);
+        this.logger.error(`Failed to split liquidity pool (${token.amount} on ${token.owner}):`, e);
       }
     }
   }
@@ -183,14 +186,14 @@ export class PayInDeFiChainService extends PayInJellyfishService {
           amount >= Config.blockchain.default.minTxAmount &&
           amount < Config.payIn.minDeposit.DeFiChain.DFI
         ) {
-          console.log('Retrieving small token:', token);
+          this.logger.info(`Retrieving small token on ${token.owner}`);
 
           await this.doTokenTx(token.owner, async (utxo) =>
             this.client.sendToken(token.owner, Config.blockchain.default.dex.address, asset, amount, [utxo]),
           );
         }
       } catch (e) {
-        console.error(`Failed to retrieve small token (${token.amount} on ${token.owner}):`, e);
+        this.logger.error(`Failed to retrieve small token (${token.amount} on ${token.owner}):`, e);
       }
     }
   }
@@ -213,7 +216,7 @@ export class PayInDeFiChainService extends PayInJellyfishService {
           );
         }
       } catch (e) {
-        console.log('Failed to retrieve fee UTXO:', e);
+        this.logger.error('Failed to retrieve fee UTXO:', e);
       }
     }
   }
