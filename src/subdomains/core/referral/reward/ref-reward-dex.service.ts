@@ -10,6 +10,7 @@ import { PurchaseLiquidityRequest, ReserveLiquidityRequest } from 'src/subdomain
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { PriceRequestContext } from 'src/subdomains/supporting/pricing/domain/enums';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export interface RefLiquidityRequest {
   amount: number;
@@ -19,6 +20,8 @@ export interface RefLiquidityRequest {
 
 @Injectable()
 export class RefRewardDexService {
+  private readonly logger = new DfxLogger(RefRewardDexService);
+
   constructor(
     private readonly refRewardRepo: RefRewardRepository,
     private readonly dexService: DexService,
@@ -44,7 +47,7 @@ export class RefRewardDexService {
         // PayoutAsset Price
         const assetPrice = await this.priceService.getPrice({
           context: PriceRequestContext.REF_REWARD,
-          correlationId: `Ref reward ${new Date().toISOString()}`,
+          correlationId: `${blockchain}&${Util.isoDate(new Date())}`,
           from: 'EUR',
           to: asset.dexName,
         });
@@ -60,10 +63,10 @@ export class RefRewardDexService {
 
           await this.refRewardRepo.update(...reward.readyToPayout(outputAmount));
 
-          console.info(`Secured liquidity for ref reward. Reward ID: ${reward.id}.`);
+          this.logger.info(`Secured liquidity for ref reward. Reward ID: ${reward.id}.`);
         }
       } catch (e) {
-        console.info(`Error in processing new ref reward. Blockchain: ${blockchain}.`, e.message);
+        this.logger.info(`Error in processing new ref reward. Blockchain: ${blockchain}.`, e.message);
       }
     }
   }

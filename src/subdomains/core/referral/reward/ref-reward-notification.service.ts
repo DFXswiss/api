@@ -7,9 +7,12 @@ import { RefRewardRepository } from './ref-reward.repository';
 import { RewardStatus } from './ref-reward.entity';
 import { Util } from 'src/shared/utils/util';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class RefRewardNotificationService {
+  private readonly logger = new DfxLogger(RefRewardNotificationService);
+
   constructor(
     private readonly refRewardRepo: RefRewardRepository,
     private readonly notificationService: NotificationService,
@@ -34,7 +37,7 @@ export class RefRewardNotificationService {
       relations: ['user', 'user.userData'],
     });
 
-    entities.length > 0 && console.log(`Sending ${entities.length} 'ref reward' email(s)`);
+    entities.length > 0 && this.logger.info(`Sending ${entities.length} 'ref reward' email(s)`);
 
     for (const entity of entities) {
       try {
@@ -55,12 +58,12 @@ export class RefRewardNotificationService {
             },
           });
         } else {
-          console.error(`Failed to send ref reward mails ${entity.id}: user has no email`);
+          this.logger.error(`Failed to send ref reward mails ${entity.id}: user has no email`);
         }
 
         await this.refRewardRepo.update(...entity.sendMail());
       } catch (e) {
-        console.error(`Failed to send ref reward mail ${entity.id}:`, e);
+        this.logger.error(`Failed to send ref reward mail ${entity.id}:`, e);
       }
     }
   }

@@ -8,9 +8,12 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class RefRewardOutService {
+  private readonly logger = new DfxLogger(RefRewardOutService);
+
   constructor(
     private readonly refRewardRepo: RefRewardRepository,
     private readonly payoutService: PayoutService,
@@ -28,7 +31,7 @@ export class RefRewardOutService {
 
       await this.checkCompletion(transactionsPaidOut);
     } catch (e) {
-      console.error('Failed to check paid transactions', e);
+      this.logger.error('Failed to check paid transactions:', e);
     }
   }
 
@@ -47,7 +50,7 @@ export class RefRewardOutService {
           await this.doPayout(transaction);
           successfulRequests.push(transaction);
         } catch (e) {
-          console.error(`Failed to initiate ref-reward payout. Transaction ID: ${transaction.id}`);
+          this.logger.error(`Failed to initiate ref-reward payout. Transaction ID: ${transaction.id}`);
           // continue with next transaction in case payout initiation failed
           continue;
         }
@@ -55,7 +58,7 @@ export class RefRewardOutService {
 
       this.logTransactionsPayouts(successfulRequests);
     } catch (e) {
-      console.error('Failed to payout new transactions', e);
+      this.logger.error('Failed to payout new transactions:', e);
     }
   }
 
@@ -112,7 +115,7 @@ export class RefRewardOutService {
           await this.updatePaidRefCredit([tx.user?.id]);
         }
       } catch (e) {
-        console.error(`Error on validating transaction completion. ID: ${tx.id}.`, e);
+        this.logger.error(`Error on validating transaction completion. ID: ${tx.id}.`, e);
         continue;
       }
     }
@@ -124,6 +127,8 @@ export class RefRewardOutService {
     const transactionsLogs = transactions.map((tx) => tx.id);
 
     transactions.length &&
-      console.info(`Paying out ${transactionsLogs.length} reward transaction(s). Transaction ID(s):`, transactionsLogs);
+      this.logger.info(
+        `Paying out ${transactionsLogs.length} reward transaction(s). Transaction ID(s): ${transactionsLogs}`,
+      );
   }
 }
