@@ -29,6 +29,8 @@ import { KycInfo } from './dto/kyc-info.dto';
 import { KycUserDataDto } from './dto/kyc-user-data.dto';
 import { KycProcessService } from './kyc-process.service';
 import { KycService } from './kyc.service';
+import { createDefaultLanguage } from 'src/shared/models/language/__mocks__/language.entity.mock';
+import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 
 describe('KycService', () => {
   let service: KycService;
@@ -128,6 +130,7 @@ describe('KycService', () => {
       tradingLimit,
       setupUrl,
       sessionUrl,
+      language: LanguageDtoMapper.entityToDto(createDefaultLanguage()),
     };
   }
 
