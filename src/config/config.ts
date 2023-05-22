@@ -27,6 +27,7 @@ export enum Process {
   BANK_ACCOUNT = 'BankAccount',
   BANK_TX = 'BankTx',
   STAKING = 'Staking',
+  PRICING = 'Pricing',
 }
 
 export function GetConfig(): Configuration {
