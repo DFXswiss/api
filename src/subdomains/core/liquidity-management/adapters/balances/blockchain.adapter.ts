@@ -131,7 +131,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
         const balance = await this.btcClient.getBalance();
         this.balanceCache.set(asset.id, +balance);
       } catch (e) {
-        console.error(`Failed to update liquidity management balance for ${asset.uniqueName}:`, e);
+        this.logger.error(`Failed to update liquidity management balance for ${asset.uniqueName}:`, e);
         this.invalidateCacheFor([asset]);
       }
     }
@@ -161,7 +161,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
 
         this.balanceCache.set(asset.id, balance);
       } catch (e) {
-        console.error(`Failed to update liquidity management balance for ${asset.uniqueName}:`, e);
+        this.logger.error(`Failed to update liquidity management balance for ${asset.uniqueName}:`, e);
         this.invalidateCacheFor([asset]);
       }
     }
@@ -176,7 +176,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     const ongoingOrders = await this.dexService.getPendingOrdersCount(asset);
 
     if (ongoingOrders) {
-      console.warn(`Cannot safely get balance of ${asset.uniqueName} (${ongoingOrders} DEX order(s) ongoing)`);
+      this.logger.warn(`Cannot safely get balance of ${asset.uniqueName} (${ongoingOrders} DEX order(s) ongoing)`);
     }
 
     return ongoingOrders === 0;

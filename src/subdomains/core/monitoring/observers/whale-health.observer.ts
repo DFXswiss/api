@@ -56,11 +56,11 @@ export class WhaleHealthObserver extends MetricObserver<WhalesState> {
 
     if (!preferredWhale) {
       // all available whales down
-      console.error(`ALERT! Whale is fully down.`);
+      this.logger.critical(`Whale is fully down.`);
     } else if (this.whaleService.getCurrentClient().index != preferredWhale.index) {
       // swap required
       this.whaleService.switchWhale(preferredWhale.index);
-      console.warn(`WARN. Whale switched to index ${preferredWhale.index}`);
+      this.logger.warn(`Whale switched to index ${preferredWhale.index}`);
     }
 
     return state;
