@@ -5,7 +5,7 @@ import { SellLiquidityStrategyAlias } from '../../sell-liquidity.facade';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export abstract class SellLiquidityStrategy {
-  protected readonly logger: DfxLogger;
+  protected abstract readonly logger: DfxLogger;
 
   private _name: SellLiquidityStrategyAlias;
   private _feeAsset: Asset;
