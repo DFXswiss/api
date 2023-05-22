@@ -168,7 +168,6 @@ export class BuyCryptoDexService {
   private async setPriceSlippageStatus(transactions: BuyCrypto[]): Promise<void> {
     for (const tx of transactions) {
       tx.setPriceSlippageStatus();
-
       await this.buyCryptoRepo.save(tx);
     }
   }

@@ -146,8 +146,8 @@ export class BuyCryptoOutService {
 
     if (isBatchComplete) {
       this.logger.info(`Buy crypto payout complete (batch ID: ${batch.id})`);
-      batch.complete();
 
+      batch.complete();
       await this.buyCryptoBatchRepo.save(batch);
       await this.dexService.completeOrders(LiquidityOrderContext.BUY_CRYPTO, batch.id.toString());
     }
