@@ -1,9 +1,12 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { HttpService } from 'src/shared/services/http.service';
 import { LightningClient } from './lightning-client';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class LightningService implements OnModuleInit {
+  private readonly logger = new DfxLogger(LightningService);
+
   private readonly client: LightningClient;
 
   constructor(http: HttpService) {
@@ -25,50 +28,51 @@ export class LightningService implements OnModuleInit {
 
   async testGetBalance() {
     const balance = await this.client.getBalance();
-    console.log('Wallet Balance: ' + balance);
-    console.log('');
+    this.logger.info('Wallet Balance: ' + balance);
+    this.logger.info('');
   }
 
   async testGetPayments() {
+    // Example 1: f934dba08924ecff33300edff6323dae479b404044d3a6b014fe2f7e4bcca630
+    // Example 2: 3b2fdf4de02f14531ea305ae76c56d79a552a63a3f77daf44f6ec47b3ce08c79
     const payments = await this.client.getPayments('f934dba08924ecff33300edff6323dae479b404044d3a6b014fe2f7e4bcca630');
-    //const payments = await this.client.getPayments('3b2fdf4de02f14531ea305ae76c56d79a552a63a3f77daf44f6ec47b3ce08c79');
 
-    console.log('Number of Payments: ' + payments.length);
-    console.log('');
+    this.logger.info('Number of Payments: ' + payments.length);
+    this.logger.info('');
 
     for (const payment of payments) {
-      console.log('Id:            ' + payment.checking_id);
-      console.log('Pending:       ' + payment.pending);
-      console.log('Amount:        ' + payment.amount);
-      console.log('Memo:          ' + payment.memo);
-      console.log('Time / Expiry: ' + payment.time + ' / ' + payment.expiry);
-      console.log('Bolt11:        ' + payment.bolt11);
-      console.log('');
+      this.logger.info('Id:            ' + payment.checking_id);
+      this.logger.info('Pending:       ' + payment.pending);
+      this.logger.info('Amount:        ' + payment.amount);
+      this.logger.info('Memo:          ' + payment.memo);
+      this.logger.info('Time / Expiry: ' + payment.time + ' / ' + payment.expiry);
+      this.logger.info('Bolt11:        ' + payment.bolt11);
+      this.logger.info('');
     }
   }
 
   async testGetLnUrlPLinks() {
     const lnUrlPLinks = await this.client.getLnUrlPLinks();
-    console.log('Number of LNURLp Links: ' + lnUrlPLinks.length);
-    console.log('');
+    this.logger.info('Number of LNURLp Links: ' + lnUrlPLinks.length);
+    this.logger.info('');
 
     for (const lnUrlPLink of lnUrlPLinks) {
-      console.log('Id:          ' + lnUrlPLink.id);
-      console.log('Description: ' + lnUrlPLink.description);
-      console.log('Min / Max:   ' + lnUrlPLink.min + ' / ' + lnUrlPLink.max);
-      console.log('LNURL:       ' + lnUrlPLink.lnurl);
-      console.log('');
+      this.logger.info('Id:          ' + lnUrlPLink.id);
+      this.logger.info('Description: ' + lnUrlPLink.description);
+      this.logger.info('Min / Max:   ' + lnUrlPLink.min + ' / ' + lnUrlPLink.max);
+      this.logger.info('LNURL:       ' + lnUrlPLink.lnurl);
+      this.logger.info('');
     }
   }
 
   async testAddLnUrlPLink() {
     const addedLnUrlPLink = await this.client.addLnUrlPLink('Test 1');
 
-    console.log('Id:          ' + addedLnUrlPLink.id);
-    console.log('Description: ' + addedLnUrlPLink.description);
-    console.log('Min / Max:   ' + addedLnUrlPLink.min + ' / ' + addedLnUrlPLink.max);
-    console.log('LNURL:       ' + addedLnUrlPLink.lnurl);
-    console.log('');
+    this.logger.info('Id:          ' + addedLnUrlPLink.id);
+    this.logger.info('Description: ' + addedLnUrlPLink.description);
+    this.logger.info('Min / Max:   ' + addedLnUrlPLink.min + ' / ' + addedLnUrlPLink.max);
+    this.logger.info('LNURL:       ' + addedLnUrlPLink.lnurl);
+    this.logger.info('');
   }
 
   async testRemoveLnUrlPLink() {
@@ -83,8 +87,8 @@ export class LightningService implements OnModuleInit {
 
       const success = await this.client.removeLnUrlPLink(foundLnUrlPLinkId);
 
-      console.log('Remove LNURLp success: ' + success);
-      console.log('');
+      this.logger.info('Remove LNURLp success: ' + success);
+      this.logger.info('');
     }
   }
 
@@ -96,7 +100,7 @@ export class LightningService implements OnModuleInit {
 
     const isValid = await this.client.verifySignature(message, signature);
 
-    console.log('Is valid signature: ' + isValid);
-    console.log('');
+    this.logger.info('Is valid signature: ' + isValid);
+    this.logger.info('');
   }
 }
