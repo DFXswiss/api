@@ -4,14 +4,19 @@ import { Util } from 'src/shared/utils/util';
 import { IsNull, LessThan } from 'typeorm';
 import { Ref } from './ref.entity';
 import { RefRepository } from './ref.repository';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
 
 @Injectable()
 export class RefService {
+  private readonly logger = new DfxLogger(RefService);
+
   private readonly refExpirationDays = 3;
 
   constructor(private repo: RefRepository) {}
 
   @Cron(CronExpression.EVERY_HOUR)
+  @Lock(7200)
   async checkRefs(): Promise<void> {
     const expirationDate = Util.daysBefore(this.refExpirationDays);
 
@@ -28,7 +33,7 @@ export class RefService {
 
       return await this.repo.save({ ...entity, ref, origin });
     } catch (e) {
-      console.log('Exception during ref update:', e);
+      this.logger.error('Exception during ref update:', e);
     }
   }
 

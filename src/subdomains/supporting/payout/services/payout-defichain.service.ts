@@ -10,7 +10,7 @@ import { PayoutGroup, PayoutJellyfishService } from './base/payout-jellyfish.ser
 export class PayoutDeFiChainService extends PayoutJellyfishService {
   #client: DeFiClient;
 
-  constructor(readonly nodeService: NodeService, private readonly whaleService: WhaleService) {
+  constructor(readonly nodeService: NodeService, readonly whaleService: WhaleService) {
     super();
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.#client = client));
   }
@@ -41,7 +41,7 @@ export class PayoutDeFiChainService extends PayoutJellyfishService {
   }
 
   async getUtxoForAddress(address: string): Promise<number> {
-    return parseFloat(await this.whaleService.getClient().getBalance(address));
+    return parseFloat(await this.whaleService.getCurrentClient().getBalance(address));
   }
 
   getWalletAddress(_context: PayoutOrderContext): string {

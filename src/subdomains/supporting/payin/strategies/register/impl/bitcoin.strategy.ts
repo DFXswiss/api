@@ -20,9 +20,12 @@ import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { ChainalysisService } from 'src/integration/chainalysis/services/chainalysis.service';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BitcoinStrategy extends JellyfishStrategy {
+  protected readonly logger = new DfxLogger(BitcoinStrategy);
+
   constructor(
     private readonly assetService: AssetService,
     private readonly bitcoinService: PayInBitcoinService,
@@ -64,7 +67,7 @@ export class BitcoinStrategy extends JellyfishStrategy {
 
         await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
       } catch (e) {
-        console.error('Could not set reference amounts for Bitcoin pay-in', e);
+        this.logger.error('Could not set reference amounts for Bitcoin pay-in:', e);
         continue;
       }
     }

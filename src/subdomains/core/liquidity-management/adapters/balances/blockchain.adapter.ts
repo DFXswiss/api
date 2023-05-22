@@ -7,11 +7,14 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { Util } from 'src/shared/utils/util';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 
 @Injectable()
 export class BlockchainAdapter implements LiquidityBalanceIntegration {
+  private readonly logger = new DfxLogger(BlockchainAdapter);
+
   private readonly refreshInterval = 45; // seconds
 
   private readonly balanceCache = new Map<number, number>();
@@ -115,7 +118,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
         this.balanceCache.set(asset.id, balance);
       }
     } catch (e) {
-      console.error(`Failed to update liquidity management balance for ${Blockchain.DEFICHAIN}:`, e);
+      this.logger.error(`Failed to update liquidity management balance for ${Blockchain.DEFICHAIN}:`, e);
       this.invalidateCacheFor(assets);
     }
   }

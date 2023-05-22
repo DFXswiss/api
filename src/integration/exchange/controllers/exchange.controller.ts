@@ -25,10 +25,13 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { TradeChangedException } from '../exceptions/trade-changed.exception';
 import { PartialTradeResponse, TradeResponse } from '../dto/trade-response.dto';
 import { Lock } from 'src/shared/utils/lock';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @ApiTags('exchange')
 @Controller('exchange')
 export class ExchangeController {
+  private readonly logger = new DfxLogger(ExchangeController);
+
   private trades: { [key: number]: TradeResult } = {};
 
   constructor(private readonly registryService: ExchangeRegistryService) {}
@@ -164,7 +167,7 @@ export class ExchangeController {
           continue;
         }
 
-        console.warn(`Trade on ${exchange} failed:`, e);
+        this.logger.warn(`Trade on ${exchange} failed:`, e);
 
         trade.status = TradeStatus.FAILED;
         trade.trade = await this.getTradeResponse(exchange, from, to, orders);
@@ -208,7 +211,7 @@ export class ExchangeController {
         },
       };
     } catch (e) {
-      console.error(`Failed to get trade result on ${exchange}:`, e);
+      this.logger.error(`Failed to get trade result on ${exchange}:`, e);
       return undefined;
     }
   }

@@ -11,11 +11,14 @@ import { PayoutDeFiChainService } from '../../../services/payout-defichain.servi
 import { JellyfishStrategy } from './base/jellyfish.strategy';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 type TokenName = string;
 
 @Injectable()
 export class DeFiChainTokenStrategy extends JellyfishStrategy {
+  protected readonly logger = new DfxLogger(DeFiChainTokenStrategy);
+
   constructor(
     notificationService: NotificationService,
     private readonly dexService: DexService,
@@ -42,13 +45,13 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
             continue;
           }
 
-          console.info(`Paying out ${group.length} token orders(s). Order ID(s): ${group.map((o) => o.id)}`);
+          this.logger.info(`Paying out ${group.length} token orders(s). Order ID(s): ${group.map((o) => o.id)}`);
 
           await this.checkUtxoForGroup(group);
           await this.sendToken(context, group, tokenName);
         } catch (e) {
-          console.error(
-            `Error in paying out a group of ${group.length} token orders(s). Order ID(s): ${group.map((o) => o.id)}`,
+          this.logger.error(
+            `Error in paying out a group of ${group.length} token orders(s). Order ID(s): ${group.map((o) => o.id)}:`,
             e,
           );
           // continue with next group in case payout failed

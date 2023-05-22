@@ -33,6 +33,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
+import { Lock } from 'src/shared/utils/lock';
 
 @Injectable()
 export class UserService {
@@ -168,6 +169,7 @@ export class UserService {
 
   // --- VOLUMES --- //
   @Cron(CronExpression.EVERY_YEAR)
+  @Lock()
   async resetAnnualVolumes(): Promise<void> {
     await this.userRepo.update({ annualBuyVolume: Not(0) }, { annualBuyVolume: 0 });
     await this.userRepo.update({ annualSellVolume: Not(0) }, { annualSellVolume: 0 });

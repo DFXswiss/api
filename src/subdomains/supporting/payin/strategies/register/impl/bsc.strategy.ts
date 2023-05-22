@@ -14,9 +14,12 @@ import { PayInEntry } from '../../../interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BscStrategy extends EvmStrategy {
+  protected readonly logger = new DfxLogger(BscStrategy);
+
   constructor(
     dexService: DexService,
     @Inject(forwardRef(() => PayInService))
@@ -64,7 +67,7 @@ export class BscStrategy extends EvmStrategy {
 
         await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
       } catch (e) {
-        console.error('Could not set reference amounts for BSC pay-in', e);
+        this.logger.error('Could not set reference amounts for BSC pay-in:', e);
         continue;
       }
     }

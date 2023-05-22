@@ -4,6 +4,7 @@ import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { BankTx, BankTxIndicator, BankTxType } from './bank-tx.entity';
 import { Injectable } from '@nestjs/common';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 interface Transactions {
   moreResults: boolean;
@@ -139,6 +140,8 @@ enum TransactionState {
 
 @Injectable()
 export class FrickService {
+  private readonly logger = new DfxLogger(FrickService);
+
   private accessToken = 'access-token-will-be-updated';
 
   constructor(private readonly http: HttpService) {}
@@ -161,7 +164,10 @@ export class FrickService {
       }
       return transactions.map((t) => this.parseTransaction(t));
     } catch (e) {
-      console.error('Failed to get Bank Frick transactions:', e, transactions);
+      this.logger.error(
+        `Failed to get Bank Frick transactions ${transactions.map((t) => (t.orderId ?? t.transactionNr)?.toString())}:`,
+        e,
+      );
       return [];
     }
   }

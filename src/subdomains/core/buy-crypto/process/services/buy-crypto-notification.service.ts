@@ -9,10 +9,13 @@ import { AmlCheck } from '../enums/aml-check.enum';
 import { I18nService } from 'nestjs-i18n';
 import { Config, Process } from 'src/config/config';
 import { BuyCryptoAmlReasonPendingStates } from '../entities/buy-crypto.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 
 @Injectable()
 export class BuyCryptoNotificationService {
+  private readonly logger = new DfxLogger(BuyCryptoNotificationService);
+
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly notificationService: NotificationService,
@@ -26,7 +29,7 @@ export class BuyCryptoNotificationService {
       await this.paybackToAddressInitiated();
       await this.pendingBuyCrypto();
     } catch (e) {
-      console.error(e);
+      this.logger.error('Error during buy crypto notification:', e);
     }
   }
 
@@ -54,7 +57,7 @@ export class BuyCryptoNotificationService {
       });
 
       txOutput.length &&
-        console.info(
+        this.logger.info(
           `Sending notifications for ${txOutput.length} buy crypto transaction(s). Transaction ID(s): ${txOutput.map(
             (t) => t.id,
           )}`,
@@ -93,11 +96,11 @@ export class BuyCryptoNotificationService {
 
           await this.buyCryptoRepo.update(...tx.confirmSentMail());
         } catch (e) {
-          console.error(`Failed to send buyCrypto confirmed mail ${tx.id}:`, e);
+          this.logger.error(`Failed to send buyCrypto confirmed mail ${tx.id}:`, e);
         }
       }
     } catch (e) {
-      console.error(`Failed to send buyCrypto confirmed mails:`, e);
+      this.logger.error(`Failed to send buyCrypto confirmed mails:`, e);
     }
   }
 
@@ -171,7 +174,7 @@ export class BuyCryptoNotificationService {
       ],
     });
 
-    entities.length > 0 && console.log(`Sending ${entities.length} 'payback to address' email(s)`);
+    entities.length > 0 && this.logger.info(`Sending ${entities.length} 'payback to address' email(s)`);
 
     for (const entity of entities) {
       try {
@@ -196,7 +199,7 @@ export class BuyCryptoNotificationService {
 
         await this.buyCryptoRepo.update(...entity.confirmSentMail());
       } catch (e) {
-        console.error(`Failed to send buyCrypto payback to address mail ${entity.id}:`, e);
+        this.logger.error(`Failed to send buyCrypto payback to address mail ${entity.id}:`, e);
       }
     }
   }
@@ -222,7 +225,7 @@ export class BuyCryptoNotificationService {
       ],
     });
 
-    entities.length > 0 && console.log(`Sending ${entities.length} 'pending' email(s)`);
+    entities.length > 0 && this.logger.info(`Sending ${entities.length} 'pending' email(s)`);
 
     for (const entity of entities) {
       try {
@@ -241,7 +244,7 @@ export class BuyCryptoNotificationService {
 
         await this.buyCryptoRepo.update(...entity.confirmSentMail());
       } catch (e) {
-        console.error(`Failed to send buyCrypto pending mail ${entity.id}:`, e);
+        this.logger.error(`Failed to send buyCrypto pending mail ${entity.id}:`, e);
       }
     }
   }

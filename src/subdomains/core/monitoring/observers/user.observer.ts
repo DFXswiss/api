@@ -8,6 +8,8 @@ import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.e
 import { LessThan, IsNull, In } from 'typeorm';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { Config, Process } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
 
 interface UserData {
   kycStatus: {
@@ -25,13 +27,17 @@ interface UserWithout {
 
 @Injectable()
 export class UserObserver extends MetricObserver<UserData> {
+  protected readonly logger = new DfxLogger(UserObserver);
+
   constructor(monitoringService: MonitoringService, private readonly repos: RepositoryFactory) {
     super(monitoringService, 'user', 'kyc');
   }
 
   @Cron(CronExpression.EVERY_10_MINUTES)
+  @Lock(1800)
   async fetch(): Promise<UserData> {
     if (Config.processDisabled(Process.MONITORING)) return;
+
     const data = await this.getUser();
 
     this.emit(data);
