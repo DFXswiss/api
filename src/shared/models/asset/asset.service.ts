@@ -31,6 +31,10 @@ export class AssetService {
     return this.assetRepo.findOneBy(query);
   }
 
+  async updatePrice(assetId: number, usdPrice: number) {
+    await this.assetRepo.update(assetId, { approxPriceUsd: usdPrice });
+  }
+
   //*** UTILITY METHODS ***//
 
   getByQuerySync(assets: Asset[], { dexName, blockchain, type, chainId }: AssetQuery): Asset | undefined {
