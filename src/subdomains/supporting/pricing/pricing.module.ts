@@ -15,6 +15,7 @@ import { PriceProviderDeFiChainService } from './services/integration/price-prov
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { FixerService } from './services/integration/fixer.service';
 import { CurrencyService } from './services/integration/currency.service';
+import { AssetPricesService } from './services/asset-prices.service';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { CurrencyService } from './services/integration/currency.service';
   controllers: [PricingController],
   providers: [
     AssetPricingMetadataRepository,
+    AssetPricesService,
     CoinGeckoService,
     FixerService,
     CurrencyService,
