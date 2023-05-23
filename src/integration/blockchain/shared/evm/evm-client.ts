@@ -46,7 +46,13 @@ export abstract class EvmClient {
       action: 'txlist',
     };
 
-    return this.http.get<{ result: EvmCoinHistoryEntry[] }>(this.scanApiUrl, { params }).then((r) => r.result);
+    const result = await this.http
+      .get<{ result: EvmCoinHistoryEntry[] | string }>(this.scanApiUrl, { params })
+      .then((r) => r.result);
+
+    if (!Array.isArray(result)) throw new Error(`Failed to get coin transactions: ${result}`);
+
+    return result;
   }
 
   async getERC20Transactions(walletAddress: string, fromBlock: number): Promise<EvmTokenHistoryEntry[]> {
@@ -55,7 +61,13 @@ export abstract class EvmClient {
       action: 'tokentx',
     };
 
-    return this.http.get<{ result: EvmTokenHistoryEntry[] }>(this.scanApiUrl, { params }).then((r) => r.result);
+    const result = await this.http
+      .get<{ result: EvmTokenHistoryEntry[] | string }>(this.scanApiUrl, { params })
+      .then((r) => r.result);
+
+    if (!Array.isArray(result)) throw new Error(`Failed to get token transactions: ${result}`);
+
+    return result;
   }
 
   async getNativeCoinBalance(): Promise<number> {
