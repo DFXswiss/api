@@ -53,7 +53,7 @@ export class RefRewardDexService {
         });
 
         for (const reward of groupedRewards.get(blockchain)) {
-          const outputAmount = reward.amountInEur / assetPrice.price.price;
+          const outputAmount = Util.round(reward.amountInEur / assetPrice.price.price, 8);
 
           await this.checkLiquidity({
             amount: outputAmount,
