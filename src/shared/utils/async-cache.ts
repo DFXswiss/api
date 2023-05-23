@@ -11,7 +11,7 @@ export class AsyncCache<T> {
         const data = await update();
         this.cache.set(id, { updated: new Date(), data });
       } catch (e) {
-        if (!fallbackToCache) throw e;
+        if (!fallbackToCache || !this.cache.has(id)) throw e;
       }
     }
 
