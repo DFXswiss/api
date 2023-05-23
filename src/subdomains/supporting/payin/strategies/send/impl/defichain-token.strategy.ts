@@ -80,6 +80,8 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
   }
 
   protected async isConfirmed(payIn: CryptoInput): Promise<boolean> {
+    if (!payIn.outTxId) return false;
+
     const { confirmations } = await this.jellyfishService.getTx(payIn.outTxId);
     return confirmations >= 60;
   }

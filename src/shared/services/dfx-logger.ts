@@ -28,12 +28,12 @@ export class DfxLogger {
   }
 
   info(message: string, error?: Error) {
-    this.trace(SeverityLevel.Information, message);
+    this.trace(SeverityLevel.Information, message, error);
     this.logger.log(this.format(message, error));
   }
 
   verbose(message: string, error?: Error) {
-    this.trace(SeverityLevel.Verbose, message);
+    this.trace(SeverityLevel.Verbose, message, error);
     this.logger.verbose(this.format(message, error));
   }
 

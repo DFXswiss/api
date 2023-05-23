@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AccountType } from '../../user-data/account-type.enum';
 import { KycStatus, KycState } from '../../user-data/user-data.entity';
 import { TradingLimit } from '../../user/dto/user.dto';
+import { LanguageDto } from 'src/shared/models/language/dto/language.dto';
 
 export class KycInfo {
   @ApiProperty({ enum: KycStatus })
@@ -33,4 +34,7 @@ export class KycInfo {
 
   @ApiPropertyOptional()
   blankedMail?: string;
+
+  @ApiProperty()
+  language: LanguageDto;
 }

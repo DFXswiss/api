@@ -1,4 +1,4 @@
-import { asL2Provider, estimateTotalGasCost, CrossChainMessenger, MessageStatus } from '@eth-optimism/sdk';
+import { asL2Provider, estimateTotalGasCost, CrossChainMessenger, MessageStatus, L2Provider } from '@eth-optimism/sdk';
 import { BigNumber, Contract, ethers } from 'ethers';
 import { GetConfig } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -158,7 +158,7 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
   }
 
   async getCurrentGasCostForCoinTransaction(): Promise<number> {
-    const totalGasCost = await estimateTotalGasCost(asL2Provider(this.provider), {
+    const totalGasCost = await estimateTotalGasCost(this.l2Provider, {
       from: this.dfxAddress,
       to: this.randomReceiverAddress,
       value: 1,
@@ -168,7 +168,7 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
   }
 
   async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
-    const totalGasCost = await estimateTotalGasCost(asL2Provider(this.provider), {
+    const totalGasCost = await estimateTotalGasCost(this.l2Provider, {
       from: this.dfxAddress,
       to: token.chainId,
       data: this.dummyTokenPayload,
@@ -181,11 +181,13 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
    * @overwrite
    */
   async getTxActualFee(txHash: string): Promise<number> {
-    const { gasUsed, effectiveGasPrice, l1GasPrice, l1GasUsed, l1FeeScalar } = (await asL2Provider(
-      this.provider,
-    ).getTransactionReceipt(txHash)) as OptimismTransactionReceipt;
+    const gasPrice = await this.provider.getGasPrice();
 
-    const actualL2Fee = gasUsed.mul(effectiveGasPrice);
+    const receipt = await this.l2Provider.getTransactionReceipt(txHash);
+
+    const { gasUsed, l1GasPrice, l1GasUsed, l1FeeScalar } = receipt as OptimismTransactionReceipt;
+
+    const actualL2Fee = gasUsed.mul(gasPrice);
     const actualL1Fee = l1GasUsed.mul(l1GasPrice).mul(l1FeeScalar);
 
     return this.convertToEthLikeDenomination(actualL2Fee.add(actualL1Fee));
@@ -195,5 +197,9 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
 
   private getERC20ContractForDexL1(chainId: string): Contract {
     return new ethers.Contract(chainId, ERC20_ABI, this.#l1Wallet);
+  }
+
+  private get l2Provider(): L2Provider<ethers.providers.JsonRpcProvider> {
+    return asL2Provider(this.provider);
   }
 }

@@ -37,6 +37,7 @@ import { SpiderApiService } from '../../services/spider/spider-api.service';
 import { User } from '../user/user.entity';
 import { KycDataDto } from './dto/kyc-data.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 
 @Injectable()
 export class KycService {
@@ -266,6 +267,7 @@ export class KycService {
       tradingLimit: userData.tradingLimit,
       blankedPhone: Blank(userData.phone, BlankType.PHONE),
       blankedMail: Blank(userData.mail, BlankType.MAIL),
+      language: LanguageDtoMapper.entityToDto(userData.language),
       sessionUrl: hasSecondUrl ? userData.spiderData?.secondUrl : userData.spiderData?.url,
       setupUrl: hasSecondUrl ? userData.spiderData?.url : undefined,
     };

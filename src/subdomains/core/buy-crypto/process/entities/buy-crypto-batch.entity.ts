@@ -1,7 +1,7 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { IEntity } from 'src/shared/models/entity';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { MissingBuyCryptoLiquidityException } from '../exceptions/abort-batch-creation.exception';
@@ -41,6 +41,8 @@ export class BuyCryptoBatch extends IEntity {
 
   @Column({ length: 256, nullable: true })
   blockchain: Blockchain;
+
+  //*** FACTORY METHODS ***//
 
   addTransaction(tx: BuyCrypto): this {
     tx.assignCandidateBatch(this);
@@ -123,7 +125,7 @@ export class BuyCryptoBatch extends IEntity {
     return this;
   }
 
-  secure(liquidity: number, purchaseFee: number): this {
+  secure(liquidity: number, purchaseFee: number): UpdateResult<BuyCryptoBatch> {
     this.outputAmount = liquidity;
     this.status = BuyCryptoBatchStatus.SECURED;
 
@@ -137,13 +139,13 @@ export class BuyCryptoBatch extends IEntity {
 
     this.transactions = updatedTransactions;
 
-    return this;
+    return [this.id, { outputAmount: this.outputAmount, status: this.status, transactions: this.transactions }];
   }
 
-  complete(): this {
+  complete(): UpdateResult<BuyCryptoBatch> {
     this.status = BuyCryptoBatchStatus.COMPLETE;
 
-    return this;
+    return [this.id, { status: this.status }];
   }
 
   pending(): this {
@@ -153,10 +155,10 @@ export class BuyCryptoBatch extends IEntity {
     return this;
   }
 
-  payingOut(): this {
+  payingOut(): UpdateResult<BuyCryptoBatch> {
     this.status = BuyCryptoBatchStatus.PAYING_OUT;
 
-    return this;
+    return [this.id, { status: this.status }];
   }
 
   //*** GETTERS ***//
