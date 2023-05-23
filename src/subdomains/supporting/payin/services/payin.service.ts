@@ -212,10 +212,7 @@ export class PayInService {
 
   private async checkConfirmations(): Promise<void> {
     const payIns = await this.payInRepository.find({
-      where: {
-        status: In([PayInStatus.FORWARDED]),
-        isConfirmed: false,
-      },
+      where: { isConfirmed: false },
       relations: ['route', 'asset'],
     });
 
