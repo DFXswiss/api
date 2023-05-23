@@ -1,55 +1,97 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Between, In, IsNull, Not } from 'typeorm';
 import { RefRewardRepository } from './ref-reward.repository';
-import { CreateRefRewardDto } from './dto/create-ref-reward.dto';
-import { RefReward } from './ref-reward.entity';
-import { UpdateRefRewardDto } from './dto/update-ref-reward.dto';
+import { RefReward, RewardStatus } from './ref-reward.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { Util } from 'src/shared/utils/util';
 import { TransactionDetailsDto } from '../../statistic/dto/statistic.dto';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { Lock } from 'src/shared/utils/lock';
+import { Config, Process } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { RefRewardNotificationService } from './ref-reward-notification.service';
+import { RefRewardDexService } from './ref-reward-dex.service';
+import { RefRewardOutService } from './ref-reward-out.service';
+
+export const PayoutChains: Blockchain[] = [Blockchain.DEFICHAIN];
 
 @Injectable()
 export class RefRewardService {
-  constructor(private readonly rewardRepo: RefRewardRepository, private readonly userService: UserService) {}
+  constructor(
+    private readonly rewardRepo: RefRewardRepository,
+    private readonly userService: UserService,
+    private readonly cryptoService: CryptoService,
+    private readonly priceProviderService: PriceProviderService,
+    private readonly assetService: AssetService,
+    private readonly fiatService: FiatService,
+    private readonly refRewardNotificationService: RefRewardNotificationService,
+    private readonly refRewardDexService: RefRewardDexService,
+    private readonly refRewardOutService: RefRewardOutService,
+  ) {}
 
-  async create(dto: CreateRefRewardDto): Promise<RefReward> {
-    let entity = await this.rewardRepo.findOne({
-      where: [{ user: { id: dto.userId }, txId: dto.txId }, { internalId: dto.internalId }],
-    });
-    if (entity)
-      throw new ConflictException(
-        'There is already a ref reward for the specified user and txId or the internal id is already used',
+  //*** JOBS ***//
+
+  @Cron(CronExpression.EVERY_DAY_AT_6AM)
+  @Lock(1800)
+  async createPendingRefRewards() {
+    if (Config.processDisabled(Process.REF_PAYOUT)) return;
+
+    const openCreditUser = await this.userService.getOpenRefCreditUser();
+    if (openCreditUser.length == 0) return;
+
+    // CHF/EUR Price
+    const fiatEur = await this.fiatService.getFiatByName('EUR');
+    const fiatChf = await this.fiatService.getFiatByName('CHF');
+    const eurChfPrice = await this.priceProviderService.getPrice(fiatEur, fiatChf);
+
+    for (const blockchain of PayoutChains) {
+      const pendingBlockchainRewards = await this.rewardRepo.findOne({
+        where: { status: Not(RewardStatus.COMPLETE), targetBlockchain: blockchain },
+      });
+      if (pendingBlockchainRewards) continue;
+
+      // PayoutAsset Price
+      const payoutAsset = await this.assetService.getNativeAsset(blockchain);
+
+      const groupedUser = Util.groupByAccessor<User, Blockchain>(
+        openCreditUser,
+        (o) => this.cryptoService.getBlockchainsBasedOn(o.address)[0],
       );
 
-    entity = await this.createEntity(dto);
-    entity = await this.rewardRepo.save(entity);
+      for (const user of groupedUser.get(blockchain)) {
+        const refCreditEur = user.refCredit - user.paidRefCredit;
 
-    await this.updatePaidRefCredit([entity.user.id]);
+        if (refCreditEur <= 1) continue; // TODO v2 => assetPayoutLimit
 
-    return entity;
+        const entity = this.rewardRepo.create({
+          outputAsset: payoutAsset.dexName,
+          user: user,
+          status: RewardStatus.PREPARED,
+          targetAddress: user.address,
+          targetBlockchain: blockchain,
+          amountInChf: refCreditEur / eurChfPrice.price,
+          amountInEur: refCreditEur,
+        });
+
+        await this.rewardRepo.save(entity);
+      }
+    }
   }
 
-  async update(id: number, dto: UpdateRefRewardDto): Promise<RefReward> {
-    let entity = await this.rewardRepo.findOne({ where: { id }, relations: ['user'] });
-    if (!entity) throw new NotFoundException('Ref reward not found');
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  @Lock(1800)
+  async processPendingRefRewards() {
+    if (Config.processDisabled(Process.REF_PAYOUT)) return;
 
-    const internalIdWithOtherReward = dto.internalId
-      ? await this.rewardRepo.findOneBy({ id: Not(id), internalId: dto.internalId })
-      : null;
-    if (internalIdWithOtherReward)
-      throw new ConflictException('There is already a ref reward for the specified internal id');
-
-    const userIdBefore = entity.user?.id;
-
-    const update = await this.createEntity(dto);
-
-    Util.removeNullFields(entity);
-
-    entity = await this.rewardRepo.save({ ...update, ...entity });
-
-    await this.updatePaidRefCredit([userIdBefore, entity.user?.id]);
-
-    return entity;
+    await this.refRewardDexService.secureLiquidity();
+    await this.refRewardOutService.checkPaidTransaction();
+    await this.refRewardOutService.payoutNewTransactions();
+    await this.refRewardNotificationService.sendNotificationMails();
   }
 
   async updateVolumes(): Promise<void> {
@@ -77,18 +119,6 @@ export class RefRewardService {
   }
 
   // --- HELPER METHODS --- //
-  private async createEntity(dto: CreateRefRewardDto | UpdateRefRewardDto): Promise<RefReward> {
-    const reward = this.rewardRepo.create(dto);
-
-    // route
-    if (dto.userId) {
-      reward.user = await this.userService.getUser(dto.userId);
-      if (!reward.user) throw new BadRequestException('User not found');
-    }
-
-    return reward;
-  }
-
   private async updatePaidRefCredit(userIds: number[]): Promise<void> {
     userIds = userIds.filter((u, j) => userIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 
