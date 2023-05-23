@@ -5,10 +5,14 @@ export class AsyncCache<T> {
 
   constructor(private readonly itemValiditySeconds?: number) {}
 
-  async get(id: string, update: () => Promise<T>): Promise<T> {
+  async get(id: string, update: () => Promise<T>, fallbackToCache = false): Promise<T> {
     if (!(this.cache.get(id)?.updated > this.expiration)) {
-      const data = await update();
-      this.cache.set(id, { updated: new Date(), data });
+      try {
+        const data = await update();
+        this.cache.set(id, { updated: new Date(), data });
+      } catch (e) {
+        if (!fallbackToCache) throw e;
+      }
     }
 
     return this.cache.get(id).data;

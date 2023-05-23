@@ -227,6 +227,7 @@ export class Configuration {
   transaction = {
     pricing: {
       refreshRate: 15, // minutes
+      coinGeckoApiKey: process.env.COIN_GECKO_API_KEY,
     },
   };
 
