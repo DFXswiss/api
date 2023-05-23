@@ -297,10 +297,7 @@ export class BuyCryptoBatchService {
 
         optimizedBatches.push(batch);
       } catch (e) {
-        this.logger.info(
-          `Error in optimizing new batch. Batch target asset: ${batch.outputAsset.uniqueName}.`,
-          e.message,
-        );
+        this.logger.info(`Error in optimizing new batch for ${batch.outputAsset.uniqueName}:`, e);
       }
     }
 
