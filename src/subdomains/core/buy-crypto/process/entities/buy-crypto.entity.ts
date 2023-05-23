@@ -199,11 +199,15 @@ export class BuyCrypto extends IEntity {
     }
   }
 
-  setOutputReferenceAsset(asset: Asset): this {
-    this.outputReferenceAsset = asset;
-    this.status = BuyCryptoStatus.PREPARED;
+  setOutputReferenceAsset(asset: Asset): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
+      outputReferenceAsset: asset,
+      status: BuyCryptoStatus.PREPARED,
+    };
 
-    return this;
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   calculateOutputReferenceAmount(prices: Price[]): this {
@@ -236,37 +240,34 @@ export class BuyCrypto extends IEntity {
     return this;
   }
 
-  setFeeConstraints(fee: BuyCryptoFee): this {
+  setFeeConstraints(fee: BuyCryptoFee): UpdateResult<BuyCrypto> {
     this.fee = fee;
 
-    return this;
+    return [this.id, { fee: this.fee }];
   }
 
-  setPriceMismatchStatus(): this {
-    this.resetTransaction();
+  setPriceMismatchStatus(): UpdateResult<BuyCrypto> {
     this.status = BuyCryptoStatus.PRICE_MISMATCH;
 
-    return this;
+    return [this.id, { status: this.status, ...this.resetTransaction() }];
   }
 
-  setPriceSlippageStatus(): this {
+  setPriceSlippageStatus(): UpdateResult<BuyCrypto> {
     this.status = BuyCryptoStatus.PRICE_SLIPPAGE;
 
-    return this;
+    return [this.id, { status: this.status }];
   }
 
-  setMissingLiquidityStatus(): this {
-    this.resetTransaction();
+  setMissingLiquidityStatus(): UpdateResult<BuyCrypto> {
     this.status = BuyCryptoStatus.MISSING_LIQUIDITY;
 
-    return this;
+    return [this.id, { status: this.status, ...this.resetTransaction() }];
   }
 
-  waitingForLowerFee(): this {
-    this.resetTransaction();
+  waitingForLowerFee(): UpdateResult<BuyCrypto> {
     this.status = BuyCryptoStatus.WAITING_FOR_LOWER_FEE;
 
-    return this;
+    return [this.id, { status: this.status, ...this.resetTransaction() }];
   }
 
   batched(): this {
@@ -298,27 +299,35 @@ export class BuyCrypto extends IEntity {
     return this;
   }
 
-  payingOut(): this {
+  payingOut(): UpdateResult<BuyCrypto> {
     this.status = BuyCryptoStatus.PAYING_OUT;
 
-    return this;
+    return [this.id, { status: this.status }];
   }
 
-  complete(payoutTxId: string, payoutFee: number): this {
-    this.txId = payoutTxId;
-    this.outputDate = new Date();
-    this.isComplete = true;
-    this.status = BuyCryptoStatus.COMPLETE;
-    this.fee.addActualPayoutFee(payoutFee, this);
+  complete(payoutTxId: string, payoutFee: number): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
+      txId: payoutTxId,
+      outputDate: new Date(),
+      isComplete: true,
+      status: BuyCryptoStatus.COMPLETE,
+      fee: this.fee.addActualPayoutFee(payoutFee, this),
+    };
 
-    return this;
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   confirmSentMail(): UpdateResult<BuyCrypto> {
-    this.recipientMail = this.user.userData.mail;
-    this.mailSendDate = new Date();
+    const update: Partial<BuyCrypto> = {
+      recipientMail: this.user.userData.mail,
+      mailSendDate: new Date(),
+    };
 
-    return [this.id, { recipientMail: this.recipientMail, mailSendDate: this.mailSendDate }];
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   get translationKey(): string {
@@ -370,16 +379,20 @@ export class BuyCrypto extends IEntity {
 
   //*** HELPER METHODS ***//
 
-  private resetTransaction(): this {
-    this.outputReferenceAmount = null;
-    this.batch = null;
-    this.isComplete = false;
-    this.outputAmount = null;
-    this.outputDate = null;
-    this.mailSendDate = null;
-    this.recipientMail = null;
+  private resetTransaction(): Partial<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
+      outputReferenceAmount: null,
+      batch: null,
+      isComplete: false,
+      outputAmount: null,
+      outputDate: null,
+      mailSendDate: null,
+      recipientMail: null,
+    };
 
-    return this;
+    Object.assign(this, update);
+
+    return update;
   }
 }
 

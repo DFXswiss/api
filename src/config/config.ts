@@ -18,6 +18,7 @@ export enum Process {
   BLACK_SQUAD_MAIL = 'BlackSquadMail',
   BUY_CRYPTO_MAIL = 'BuyCryptoMail',
   BUY_FIAT_MAIL = 'BuyFiatMail',
+  REF_REWARD_MAIL = 'RefRewardMail',
   EXCHANGE_TX_SYNC = 'ExchangeTxSync',
   LIQUIDITY_MANAGEMENT = 'LiquidityManagement',
   MONITORING = 'Monitoring',
@@ -27,6 +28,7 @@ export enum Process {
   BANK_ACCOUNT = 'BankAccount',
   BANK_TX = 'BankTx',
   STAKING = 'Staking',
+  REF_PAYOUT = 'RefPayout',
   PRICING = 'Pricing',
 }
 
@@ -225,6 +227,7 @@ export class Configuration {
   transaction = {
     pricing: {
       refreshRate: 15, // minutes
+      coinGeckoApiKey: process.env.COIN_GECKO_API_KEY,
     },
   };
 

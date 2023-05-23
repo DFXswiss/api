@@ -166,7 +166,7 @@ export class DeFiChainStrategy extends RegisterStrategy {
     if (p == null) return null;
 
     if (p.asset && p.asset.dexName === 'DFI' && p.amount < Config.payIn.minDeposit.DeFiChain.DFI) {
-      this.logger.info(`Ignoring too small DeFiChain input (${p.amount} ${p.asset.dexName}). PayIn entry: ${p}`);
+      this.logger.info(`Ignoring too small DeFiChain input: ${p.amount} ${p.asset.dexName} on ${p.address.address}`);
       return null;
     }
 

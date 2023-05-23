@@ -1,5 +1,6 @@
 export enum PriceRequestContext {
   BUY_CRYPTO = 'BuyCrypto',
+  REF_REWARD = 'RefReward',
   PAY_IN = 'PayIn',
 }
 

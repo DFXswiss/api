@@ -8,6 +8,7 @@ export enum PayoutOrderContext {
   BUY_CRYPTO = 'BuyCrypto',
   BUY_FIAT_RETURN = 'BuyFiatReturn',
   MANUAL = 'Manual',
+  REF_PAYOUT = 'RefPayout',
 }
 
 export enum PayoutOrderStatus {

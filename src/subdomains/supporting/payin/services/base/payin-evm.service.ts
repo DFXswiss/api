@@ -35,8 +35,8 @@ export abstract class PayInEvmService {
   }
 
   async getHistory(address: string, fromBlock: number): Promise<[EvmCoinHistoryEntry[], EvmTokenHistoryEntry[]]> {
-    const allCoinTransactions = (await this.#client.getNativeCoinTransactions(address, fromBlock)) ?? [];
-    const allTokenTransactions = (await this.#client.getERC20Transactions(address, fromBlock)) ?? [];
+    const allCoinTransactions = await this.#client.getNativeCoinTransactions(address, fromBlock);
+    const allTokenTransactions = await this.#client.getERC20Transactions(address, fromBlock);
 
     return [allCoinTransactions, allTokenTransactions];
   }

@@ -31,6 +31,10 @@ export class AssetService {
     return this.assetRepo.findOneBy(query);
   }
 
+  async getNativeAsset(blockchain: Blockchain): Promise<Asset> {
+    return this.assetRepo.findOneBy({ blockchain, type: AssetType.COIN });
+  }
+  
   async updatePrice(assetId: number, usdPrice: number) {
     await this.assetRepo.update(assetId, { approxPriceUsd: usdPrice });
   }

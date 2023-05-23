@@ -19,7 +19,7 @@ export class AssetPricesService {
   ) {}
 
   // --- JOBS --- //
-  @Cron(CronExpression.EVERY_30_MINUTES)
+  @Cron(CronExpression.EVERY_HOUR)
   @Lock(3600)
   async updateUsdValues() {
     if (Config.processDisabled(Process.PRICING)) return;

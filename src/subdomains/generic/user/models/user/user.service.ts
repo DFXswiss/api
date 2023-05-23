@@ -24,7 +24,7 @@ import { GeoLocationService } from 'src/integration/geolocation/geo-location.ser
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { VolumeQuery } from './dto/volume-query.dto';
-import { KycType, UserData } from '../user-data/user-data.entity';
+import { KycStatus, KycType, UserData, UserDataStatus } from '../user-data/user-data.entity';
 import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
@@ -94,6 +94,17 @@ export class UserService {
       address: u.address,
       blockchains: this.cryptoService.getBlockchainsBasedOn(u.address),
     }));
+  }
+
+  async getOpenRefCreditUser(): Promise<User[]> {
+    return this.userRepo
+      .createQueryBuilder('user')
+      .leftJoin('user.userData', 'userData')
+      .where('user.refCredit - user.paidRefCredit > 0')
+      .andWhere('user.status != :userStatus', { userStatus: UserStatus.BLOCKED })
+      .andWhere('userData.status != :userDataStatus', { userDataStatus: UserDataStatus.BLOCKED })
+      .andWhere('userData.kycStatus != :kycStatus', { kycStatus: KycStatus.REJECTED })
+      .getMany();
   }
 
   async getRefUser(ref: string): Promise<User> {

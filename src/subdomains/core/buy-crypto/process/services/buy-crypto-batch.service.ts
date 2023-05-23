@@ -297,10 +297,7 @@ export class BuyCryptoBatchService {
 
         optimizedBatches.push(batch);
       } catch (e) {
-        this.logger.info(
-          `Error in optimizing new batch. Batch target asset: ${batch.outputAsset.uniqueName}.`,
-          e.message,
-        );
+        this.logger.info(`Error in optimizing new batch for ${batch.outputAsset.uniqueName}:`, e);
       }
     }
 
@@ -491,25 +488,19 @@ export class BuyCryptoBatchService {
 
   private async setWaitingForLowerFeeStatus(transactions: BuyCrypto[]): Promise<void> {
     for (const tx of transactions) {
-      tx.waitingForLowerFee();
-
-      await this.buyCryptoRepo.save(tx);
+      await this.buyCryptoRepo.update(...tx.waitingForLowerFee());
     }
   }
 
   private async setPriceMismatchStatus(transactions: BuyCrypto[]): Promise<void> {
     for (const tx of transactions) {
-      tx.setPriceMismatchStatus();
-
-      await this.buyCryptoRepo.save(tx);
+      await this.buyCryptoRepo.update(...tx.setPriceMismatchStatus());
     }
   }
 
   private async setMissingLiquidityStatus(transactions: BuyCrypto[]): Promise<void> {
     for (const tx of transactions) {
-      tx.setMissingLiquidityStatus();
-
-      await this.buyCryptoRepo.save(tx);
+      await this.buyCryptoRepo.update(...tx.setMissingLiquidityStatus());
     }
   }
 

@@ -101,6 +101,11 @@
       }
     }
   },
+  "referral": {
+    "salutation": "Le tue ricompense dai referral sono state pagate",
+    "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td align=\"right\">Importo</td><td style=\"width:2%;\"></td><td align=\"left\">{outputAmount} {outputAsset}</td></tr><tr><td align=\"right\">Indirizzo del wallet</td><td style=\"width:2%;\"></td><td align=\"left\">***{userAddressTrimmed}</td></tr><tr><td colspan=\"3\" align=\"center\">Qui puoi trovare l'ID della transazione per il pagamento delle ricompense dai tuoi referral: <a style=\"color:white\" href=\"{transactionLink}\">Link</a></td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Sei un vero Ambasciatore DFX - grazie per promuovere DFX!</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Tuo DFX team</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
+    "title": "Pagamento delle Ricompense dai Referral"
+  },
   "limitRequest": {
     "manualApproved": {
       "salutation": "Your transaction volume has been approved",
