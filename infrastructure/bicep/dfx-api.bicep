@@ -148,6 +148,9 @@ param btcVmPassword string
 @secure()
 param chainalysisApiKey string
 
+@secure()
+param coinGeckoApiKey string
+
 param myDeFiChainUser string
 @secure()
 param myDeFiChainPassword string
@@ -763,6 +766,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'CHAINALYSIS_API_KEY'
           value: chainalysisApiKey
+        }
+        {
+          name: 'COIN_GECKO_API_KEY'
+          value: coinGeckoApiKey
         }
         {
           name: 'MYDEFICHAIN_USER'

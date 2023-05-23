@@ -260,6 +260,9 @@
     "chainalysisApiKey": {
       "value": "xxx"
     },
+    "coinGeckoApiKey": {
+      "value": "xxx"
+    },
     "myDeFiChainUser": {
       "value": "xxx"
     },
