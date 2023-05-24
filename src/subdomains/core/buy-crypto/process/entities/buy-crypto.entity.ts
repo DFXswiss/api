@@ -1,4 +1,4 @@
-import { Entity, Column, ManyToOne, OneToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, OneToOne, JoinColumn, DeepPartial } from 'typeorm';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { BuyCryptoBatch } from './buy-crypto-batch.entity';
 import { Util } from 'src/shared/utils/util';
@@ -241,33 +241,57 @@ export class BuyCrypto extends IEntity {
   }
 
   setFeeConstraints(fee: BuyCryptoFee): UpdateResult<BuyCrypto> {
-    this.fee = fee;
+    const update: Partial<BuyCrypto> = {
+      fee,
+    };
 
-    return [this.id, { fee: this.fee }];
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   setPriceMismatchStatus(): UpdateResult<BuyCrypto> {
-    this.status = BuyCryptoStatus.PRICE_MISMATCH;
+    const update: Partial<BuyCrypto> = {
+      status: BuyCryptoStatus.PRICE_MISMATCH,
+      ...this.resetTransaction(),
+    };
 
-    return [this.id, { status: this.status, ...this.resetTransaction() }];
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   setPriceSlippageStatus(): UpdateResult<BuyCrypto> {
-    this.status = BuyCryptoStatus.PRICE_SLIPPAGE;
+    const update: Partial<BuyCrypto> = {
+      status: BuyCryptoStatus.PRICE_SLIPPAGE,
+    };
 
-    return [this.id, { status: this.status }];
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   setMissingLiquidityStatus(): UpdateResult<BuyCrypto> {
-    this.status = BuyCryptoStatus.MISSING_LIQUIDITY;
+    const update: Partial<BuyCrypto> = {
+      status: BuyCryptoStatus.MISSING_LIQUIDITY,
+      ...this.resetTransaction(),
+    };
 
-    return [this.id, { status: this.status, ...this.resetTransaction() }];
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   waitingForLowerFee(): UpdateResult<BuyCrypto> {
-    this.status = BuyCryptoStatus.WAITING_FOR_LOWER_FEE;
+    const update: DeepPartial<BuyCrypto> = {
+      status: BuyCryptoStatus.WAITING_FOR_LOWER_FEE,
+      fee: { estimatePayoutFeeAmount: this.fee.estimatePayoutFeeAmount },
+      ...this.resetTransaction(),
+    };
 
-    return [this.id, { status: this.status, ...this.resetTransaction() }];
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   batched(): this {
@@ -300,9 +324,13 @@ export class BuyCrypto extends IEntity {
   }
 
   payingOut(): UpdateResult<BuyCrypto> {
-    this.status = BuyCryptoStatus.PAYING_OUT;
+    const update: Partial<BuyCrypto> = {
+      status: BuyCryptoStatus.PAYING_OUT,
+    };
 
-    return [this.id, { status: this.status }];
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   complete(payoutTxId: string, payoutFee: number): UpdateResult<BuyCrypto> {

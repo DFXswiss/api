@@ -1,4 +1,4 @@
-import { PrimaryGeneratedColumn, UpdateDateColumn, CreateDateColumn } from 'typeorm';
+import { PrimaryGeneratedColumn, UpdateDateColumn, CreateDateColumn, DeepPartial } from 'typeorm';
 
 export class IEntity {
   @PrimaryGeneratedColumn()
@@ -20,4 +20,4 @@ export class IEntity {
   }
 }
 
-export type UpdateResult<T extends IEntity> = [number, Partial<T>];
+export type UpdateResult<T extends IEntity> = [number, DeepPartial<T>];
