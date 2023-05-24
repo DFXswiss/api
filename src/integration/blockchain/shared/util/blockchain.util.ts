@@ -16,16 +16,16 @@ export function assetExplorerUrl(asset: Asset): string | undefined {
 
 // --- HELPERS --- //
 
-export const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
-  [Blockchain.DEFICHAIN]: 'https://defiscan.live/transactions',
-  [Blockchain.BITCOIN]: 'https://blockstream.info/tx',
+const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
+  [Blockchain.DEFICHAIN]: 'https://defiscan.live',
+  [Blockchain.BITCOIN]: 'https://blockstream.info',
   [Blockchain.LIGHTNING]: undefined,
-  [Blockchain.ETHEREUM]: 'https://etherscan.io/tx',
-  [Blockchain.BINANCE_SMART_CHAIN]: 'https://bscscan.com/tx',
-  [Blockchain.OPTIMISM]: 'https://optimistic.etherscan.io/tx',
-  [Blockchain.ARBITRUM]: 'https://arbiscan.io/tx',
-  [Blockchain.POLYGON]: 'https://polygonscan.com/tx',
-  [Blockchain.CARDANO]: 'https://cardanoscan.io/transaction',
+  [Blockchain.ETHEREUM]: 'https://etherscan.io',
+  [Blockchain.BINANCE_SMART_CHAIN]: 'https://bscscan.com',
+  [Blockchain.OPTIMISM]: 'https://optimistic.etherscan.io',
+  [Blockchain.ARBITRUM]: 'https://arbiscan.io',
+  [Blockchain.POLYGON]: 'https://polygonscan.com',
+  [Blockchain.CARDANO]: 'https://cardanoscan.io',
 };
 
 const TxPaths: { [b in Blockchain]: string } = {
