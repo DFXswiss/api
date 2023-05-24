@@ -12,6 +12,7 @@ export class BinanceAdapter extends CcxtExchangeAdapter {
     Arbitrum: 'ARBITRUM',
     BinanceSmartChain: 'BSC',
     Bitcoin: 'BTC',
+    Lightning: undefined,
     Cardano: undefined,
     DeFiChain: undefined,
     Ethereum: 'ETH',
