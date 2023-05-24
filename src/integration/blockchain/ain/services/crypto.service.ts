@@ -34,7 +34,7 @@ export class CryptoService {
   }
 
   private isLightningAddress(address: string): boolean {
-    return /^(LN[A-Z0-9]{100}|ln[a-z0-9]{105})$/.test(address);
+    return /^(LNURL[A-Z0-9]{25,250})$/.test(address);
   }
 
   public static isCardanoAddress(address: string): boolean {

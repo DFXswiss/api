@@ -1,8 +1,10 @@
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { Blockchain } from '../enums/blockchain.enum';
 
-export function txExplorerUrl(blockchain: Blockchain, txId: string): string {
-  return `${BlockchainExplorerUrls[blockchain]}/${TxPaths[blockchain]}/${txId}`;
+export function txExplorerUrl(blockchain: Blockchain, txId: string): string | undefined {
+  const baseUrl = BlockchainExplorerUrls[blockchain];
+  const txPath = TxPaths[blockchain];
+  return baseUrl && txPath ? `${baseUrl}/${txPath}/${txId}` : undefined;
 }
 
 export function assetExplorerUrl(asset: Asset): string | undefined {
@@ -17,7 +19,7 @@ export function assetExplorerUrl(asset: Asset): string | undefined {
 export const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.DEFICHAIN]: 'https://defiscan.live/transactions',
   [Blockchain.BITCOIN]: 'https://blockstream.info/tx',
-  [Blockchain.LIGHTNING]: 'https://blockstream.info/tx',
+  [Blockchain.LIGHTNING]: undefined,
   [Blockchain.ETHEREUM]: 'https://etherscan.io/tx',
   [Blockchain.BINANCE_SMART_CHAIN]: 'https://bscscan.com/tx',
   [Blockchain.OPTIMISM]: 'https://optimistic.etherscan.io/tx',
@@ -29,7 +31,7 @@ export const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
 const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.DEFICHAIN]: 'transactions',
   [Blockchain.BITCOIN]: 'tx',
-  [Blockchain.LIGHTNING]: 'tx',
+  [Blockchain.LIGHTNING]: undefined,
   [Blockchain.ETHEREUM]: 'tx',
   [Blockchain.BINANCE_SMART_CHAIN]: 'tx',
   [Blockchain.OPTIMISM]: 'tx',
@@ -44,6 +46,7 @@ function assetPaths(asset: Asset): string | undefined {
       return `tokens/${asset.name}`;
 
     case Blockchain.BITCOIN:
+    case Blockchain.LIGHTNING:
       return undefined;
 
     case Blockchain.ETHEREUM:
