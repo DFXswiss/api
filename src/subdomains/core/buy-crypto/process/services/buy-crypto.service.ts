@@ -57,7 +57,7 @@ export class BuyCryptoService {
 
   async createFromFiat(bankTxId: number, buyId: number): Promise<BuyCrypto> {
     let entity = await this.buyCryptoRepo.findOneBy({ bankTx: { id: bankTxId } });
-    if (entity) throw new ConflictException('There is already a buy crypto for the specified bank TX');
+    if (entity) throw new ConflictException('There is already a buy-crypto for the specified bank TX');
 
     entity = this.buyCryptoRepo.create();
 
@@ -85,7 +85,7 @@ export class BuyCryptoService {
         'bankTx',
       ],
     });
-    if (!entity) throw new NotFoundException('Buy crypto not found');
+    if (!entity) throw new NotFoundException('Buy-crypto not found');
 
     const buyIdBefore = entity.buy?.id;
     const cryptoRouteIdBefore = entity.cryptoRoute?.id;
@@ -101,14 +101,14 @@ export class BuyCryptoService {
 
     // buy
     if (dto.buyId) {
-      if (!entity.buy) throw new BadRequestException(`Cannot assign BuyCrypto ${id} to a buy route`);
+      if (!entity.buy) throw new BadRequestException(`Cannot assign buy-crypto ${id} to a buy route`);
       update.buy = await this.getBuy(dto.buyId);
       if (entity.bankTx) await this.bankTxService.getBankTxRepo().setNewUpdateTime(entity.bankTx.id);
     }
 
     // crypto route
     if (dto.cryptoRouteId) {
-      if (!entity.cryptoRoute) throw new BadRequestException(`Cannot assign BuyCrypto ${id} to a crypto route`);
+      if (!entity.cryptoRoute) throw new BadRequestException(`Cannot assign buy-crypto ${id} to a crypto route`);
       update.cryptoRoute = await this.getCryptoRoute(dto.cryptoRouteId);
       if (entity.bankTx) await this.bankTxService.getBankTxRepo().setNewUpdateTime(entity.bankTx.id);
     }

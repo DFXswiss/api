@@ -22,10 +22,10 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
   }
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
-    this.logger.info(
+    this.logger.verbose(
       `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${
         payIns.length
-      } DeFiChain Token input(s): ${payIns.map((p) => p.id)}`,
+      } DeFiChain token input(s): ${payIns.map((p) => p.id)}`,
     );
 
     await this.deFiChainService.checkHealthOrThrow();
@@ -97,7 +97,7 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
     this.updatePayInWithSendData(payIn, type, outTxId);
 
     await this.payInRepo.save(payIn);
-    this.logger.info(`Token pay-in ${payIn.id} sent`);
+    this.logger.verbose(`Token pay-in ${payIn.id} sent`);
   }
 
   private async getFeeUtxo(payIn: CryptoInput): Promise<UTXO> {

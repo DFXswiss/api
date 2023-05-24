@@ -218,7 +218,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     try {
       this.#l2Network = await getL2Network(this.provider);
     } catch (e) {
-      this.logger.error('Error while trying to get L2 network for Arbitrum client', e);
+      this.logger.error('Error while trying to get L2 network for Arbitrum client:', e);
     }
   }
 

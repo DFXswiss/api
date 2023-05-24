@@ -63,10 +63,10 @@ export class RefRewardDexService {
 
           await this.refRewardRepo.update(...reward.readyToPayout(outputAmount));
 
-          this.logger.info(`Secured liquidity for ref reward. Reward ID: ${reward.id}.`);
+          this.logger.verbose(`Secured liquidity for ref reward. Reward ID: ${reward.id}.`);
         }
       } catch (e) {
-        this.logger.info(`Error in processing new ref reward. Blockchain: ${blockchain}.`, e.message);
+        this.logger.error(`Error in processing ref rewards for ${blockchain}:`, e);
       }
     }
   }

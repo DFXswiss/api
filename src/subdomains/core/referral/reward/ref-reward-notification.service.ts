@@ -37,7 +37,7 @@ export class RefRewardNotificationService {
       relations: ['user', 'user.userData'],
     });
 
-    entities.length > 0 && this.logger.info(`Sending ${entities.length} 'ref reward' email(s)`);
+    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'ref reward' email(s)`);
 
     for (const entity of entities) {
       try {
@@ -58,7 +58,7 @@ export class RefRewardNotificationService {
             },
           });
         } else {
-          this.logger.error(`Failed to send ref reward mails ${entity.id}: user has no email`);
+          this.logger.warn(`Failed to send ref reward mails ${entity.id}: user has no email`);
         }
 
         await this.refRewardRepo.update(...entity.sendMail());

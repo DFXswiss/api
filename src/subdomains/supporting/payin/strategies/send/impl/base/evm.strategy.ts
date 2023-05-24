@@ -9,7 +9,8 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/utils/util';
 import { Config } from 'src/config/config';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
+import { FeeLimitExceededException } from 'src/shared/payment/exceptions/fee-limit-exceeded.exception';
 
 export abstract class EvmStrategy extends SendStrategy {
   protected readonly logger = new DfxLogger(EvmStrategy);
@@ -69,7 +70,10 @@ export abstract class EvmStrategy extends SendStrategy {
           continue;
         }
       } catch (e) {
-        this.logger.error(
+        const logLevel = e instanceof FeeLimitExceededException ? LogLevel.INFO : LogLevel.ERROR;
+
+        this.logger.log(
+          logLevel,
           `Failed to send ${this.blockchain} input(s) ${this.getPayInsIdentityKey(payInGroup)} of type ${type}:`,
           e,
         );
@@ -99,7 +103,7 @@ export abstract class EvmStrategy extends SendStrategy {
     const newPayIns = payIns.filter((p) => p.status !== PayInStatus.PREPARING);
 
     newPayIns.length > 0 &&
-      this.logger.info(
+      this.logger.verbose(
         `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${newPayIns.length} ${this.blockchain} ${
           payIns[0].asset.type
         } input(s): ${newPayIns.map((p) => p.id)}`,

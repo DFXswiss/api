@@ -46,7 +46,7 @@ export abstract class RegisterStrategy {
 
   protected printInputLog(log: PayInInputLog, blockHeight: number | string, blockchain: Blockchain): void {
     if (log.newRecords.length > 0) {
-      this.logger.info(
+      this.logger.verbose(
         `Created ${log.newRecords.length} new pay-in entry(ies) after block ${blockHeight} of blockchain ${blockchain}`,
       );
     }
@@ -77,7 +77,7 @@ export abstract class RegisterStrategy {
     if (p == null) return null;
 
     if (p.asset && p.asset.category === AssetCategory.POOL_PAIR) {
-      this.logger.info(`Ignoring pool-pair input (${p.amount} ${p.asset.uniqueName})`);
+      this.logger.verbose(`Ignoring pool-pair input (${p.amount} ${p.asset.uniqueName})`);
       return null;
     }
 

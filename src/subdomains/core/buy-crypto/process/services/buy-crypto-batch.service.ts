@@ -18,7 +18,7 @@ import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.
 import { PriceRequestContext } from 'src/subdomains/supporting/pricing/domain/enums';
 import { PriceResult, PriceRequest } from 'src/subdomains/supporting/pricing/domain/interfaces';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { FeeLimitExceededException } from '../exceptions/fee-limit-exceeded.exception';
+import { FeeLimitExceededException } from 'src/shared/payment/exceptions/fee-limit-exceeded.exception';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
 import { PriceMismatchException } from 'src/subdomains/supporting/pricing/domain/exceptions/price-mismatch.exception';
@@ -64,8 +64,8 @@ export class BuyCryptoBatchService {
 
       if (txInput.length === 0) return;
 
-      this.logger.info(
-        `Buy crypto transaction input. Processing ${txInput.length} transaction(s). Transaction ID(s): ${txInput.map(
+      this.logger.verbose(
+        `Buy-crypto transaction input. Processing ${txInput.length} transaction(s). Transaction ID(s): ${txInput.map(
           (t) => t.id,
         )}`,
       );
@@ -77,7 +77,7 @@ export class BuyCryptoBatchService {
         await this.buyCryptoRepo.save(tx);
       }
     } catch (e) {
-      this.logger.error('Error during buy crypto preparation:', e);
+      this.logger.error('Error during buy-crypto preparation:', e);
     }
   }
 
@@ -111,8 +111,8 @@ export class BuyCryptoBatchService {
 
       if (txWithAssets.length === 0) return;
 
-      this.logger.info(
-        `Batching ${txWithAssets.length} buy crypto transaction(s). Transaction ID(s): ${txWithAssets.map(
+      this.logger.verbose(
+        `Batching ${txWithAssets.length} buy-crypto transaction(s). Transaction ID(s): ${txWithAssets.map(
           (t) => t.id,
         )}`,
       );
@@ -123,12 +123,12 @@ export class BuyCryptoBatchService {
 
       for (const batch of batches) {
         const savedBatch = await this.buyCryptoBatchRepo.save(batch);
-        this.logger.info(
-          `Created buy crypto batch. Batch ID: ${savedBatch.id}. Asset: ${savedBatch.outputAsset.uniqueName}. Transaction(s) count ${batch.transactions.length}`,
+        this.logger.verbose(
+          `Created buy-crypto batch. Batch ID: ${savedBatch.id}. Asset: ${savedBatch.outputAsset.uniqueName}. Transaction(s) count ${batch.transactions.length}`,
         );
       }
     } catch (e) {
-      this.logger.error('Error during buy crypto batching:', e);
+      this.logger.error('Error during buy-crypto batching:', e);
     }
   }
 
@@ -155,7 +155,7 @@ export class BuyCryptoBatchService {
           tx.setOutputReferenceAsset(outputReferenceAsset);
         }
       } catch (e) {
-        this.logger.error('Error while defining buy crypto asset pair:', e);
+        this.logger.error('Error while defining buy-crypto asset pair:', e);
       }
     }
 
@@ -207,7 +207,7 @@ export class BuyCryptoBatchService {
       try {
         tx.calculateOutputReferenceAmount(referencePrices);
       } catch (e) {
-        this.logger.error(`Could not calculate outputReferenceAmount for transaction ${tx.id}}:`, e);
+        this.logger.error(`Could not calculate outputReferenceAmount for transaction ${tx.id}:`, e);
       }
     }
 
@@ -271,7 +271,7 @@ export class BuyCryptoBatchService {
       if (existingBatch || newBatch) {
         const txIds = batch.transactions.map((t) => t.id);
 
-        this.logger.info(
+        this.logger.verbose(
           `Halting with creation of a new batch for asset: ${outputAsset.dexName}, existing batch for this asset is not complete yet. Transaction ID(s): ${txIds}`,
         );
 
@@ -297,7 +297,7 @@ export class BuyCryptoBatchService {
 
         optimizedBatches.push(batch);
       } catch (e) {
-        this.logger.info(`Error in optimizing new batch for ${batch.outputAsset.uniqueName}:`, e);
+        this.logger.warn(`Error in optimizing new batch for ${batch.outputAsset.uniqueName}:`, e);
       }
     }
 
@@ -388,7 +388,7 @@ export class BuyCryptoBatchService {
       batch.checkByPurchaseFeeEstimation(effectivePurchaseFee);
 
       if (inputBatchLength !== batch.transactions.length) {
-        this.logger.info(
+        this.logger.verbose(
           `Optimized batch for output asset: ${batch.outputAsset.uniqueName}. ${
             inputBatchLength - batch.transactions.length
           } removed from the batch`,
@@ -416,7 +416,7 @@ export class BuyCryptoBatchService {
 
       await this.buyCryptoNotificationService.sendMissingLiquidityWarning(dexName, blockchain, type);
     } catch (e) {
-      this.logger.error('Error in handling buy crypto batch liquidity warning:', e);
+      this.logger.error('Error in handling buy-crypto batch liquidity warning:', e);
     }
   }
 

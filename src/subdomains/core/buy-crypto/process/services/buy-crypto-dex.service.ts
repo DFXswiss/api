@@ -57,7 +57,7 @@ export class BuyCryptoDexService {
         batch.secure(liquidity.amount, finalFee);
         await this.buyCryptoBatchRepo.save(batch);
 
-        this.logger.info(`Secured liquidity for batch. Batch ID: ${batch.id}`);
+        this.logger.verbose(`Secured liquidity for batch. Batch ID: ${batch.id}`);
       } catch (e) {
         if (e instanceof LiquidityOrderNotReadyException) {
           continue;
@@ -77,7 +77,7 @@ export class BuyCryptoDexService {
           batch.secure(liquidity, 0);
           await this.buyCryptoBatchRepo.save(batch);
 
-          this.logger.info(`Secured liquidity for batch. Batch ID: ${batch.id}.`);
+          this.logger.verbose(`Secured liquidity for batch. Batch ID: ${batch.id}.`);
 
           continue;
         }

@@ -43,7 +43,7 @@ export class BitcoinStrategy extends JellyfishStrategy {
           continue;
         }
 
-        this.logger.info(`Paying out ${group.length} BTC orders(s). Order ID(s): ${group.map((o) => o.id)}`);
+        this.logger.verbose(`Paying out ${group.length} BTC orders(s). Order ID(s): ${group.map((o) => o.id)}`);
 
         await this.sendBTC(context, group);
       } catch (e) {

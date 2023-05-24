@@ -29,7 +29,7 @@ export class BuyCryptoRegistrationService {
     const buyCryptoPayIns = await this.filterBuyCryptoPayIns(newPayIns);
 
     buyCryptoPayIns.length > 0 &&
-      this.logger.info(
+      this.logger.verbose(
         `Registering ${buyCryptoPayIns.length} new buy-crypto(s) from crypto pay-in(s) ID(s): ${buyCryptoPayIns.map(
           (s) => s[0].id,
         )}`,
@@ -84,7 +84,7 @@ export class BuyCryptoRegistrationService {
           continue;
         }
 
-        this.logger.error(`Error during buy crypto pay-in registration (pay-in ${payIn.id}):`, e);
+        this.logger.error(`Error during buy-crypto pay-in registration (pay-in ${payIn.id}):`, e);
       }
     }
   }

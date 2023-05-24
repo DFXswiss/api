@@ -234,7 +234,7 @@ export class BuyFiat extends IEntity {
       return 'mail.payment.withdrawal.paybackToAddressInitiated';
     }
 
-    throw new Error(`Tried to send a mail for BuyFiat ${this.id} in invalid state`);
+    throw new Error(`Tried to send a mail for buy-fiat ${this.id} in invalid state`);
   }
 }
 

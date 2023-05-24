@@ -21,8 +21,8 @@ export class DeFiChainCoinStrategy extends JellyfishStrategy {
   }
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
-    this.logger.info(
-      `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${payIns.length} DeFiChain Coin input(s): ${payIns.map(
+    this.logger.verbose(
+      `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${payIns.length} DeFiChain coin input(s): ${payIns.map(
         (p) => p.id,
       )}`,
     );

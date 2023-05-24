@@ -3,6 +3,14 @@ import { TelemetryClient } from 'applicationinsights';
 import { SeverityLevel } from 'applicationinsights/out/Declarations/Contracts';
 import * as AppInsights from 'applicationinsights';
 
+export enum LogLevel {
+  CRITICAL = 'Critical',
+  ERROR = 'Error',
+  WARN = 'Warn',
+  INFO = 'Info',
+  VERBOSE = 'Verbose',
+}
+
 export class DfxLogger {
   private readonly context?: string;
   private readonly logger: Logger;
@@ -10,6 +18,30 @@ export class DfxLogger {
   constructor(context?: { name: string } | string) {
     this.context = typeof context === 'string' ? context : context?.name;
     this.logger = new Logger(this.context);
+  }
+
+  log(level: LogLevel, message: string, error?: Error) {
+    switch (level) {
+      case LogLevel.CRITICAL:
+        this.critical(message, error);
+        break;
+
+      case LogLevel.ERROR:
+        this.error(message, error);
+        break;
+
+      case LogLevel.WARN:
+        this.warn(message, error);
+        break;
+
+      case LogLevel.INFO:
+        this.info(message, error);
+        break;
+
+      case LogLevel.VERBOSE:
+        this.verbose(message, error);
+        break;
+    }
   }
 
   critical(message: string, error?: Error) {

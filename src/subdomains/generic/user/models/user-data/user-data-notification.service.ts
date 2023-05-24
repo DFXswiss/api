@@ -33,7 +33,7 @@ export class UserDataNotificationService {
       })
       .getMany();
 
-    entities.length > 0 && this.logger.info(`Sending ${entities.length} 'black squad invitation' email(s)`);
+    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'black squad invitation' email(s)`);
 
     for (const entity of entities) {
       try {

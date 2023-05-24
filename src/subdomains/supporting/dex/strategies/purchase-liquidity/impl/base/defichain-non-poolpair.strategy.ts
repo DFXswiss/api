@@ -80,7 +80,7 @@ export abstract class DeFiChainNonPoolPairStrategy extends PurchaseLiquidityStra
 
     const txId = await this.dexDeFiChainService.swapLiquidity(swapAsset, swapAmount, targetAsset, maxPriceSlippage);
 
-    this.logger.info(
+    this.logger.verbose(
       `Booked purchase of ${swapAmount} ${swapAsset.dexName} worth liquidity for asset ${order.targetAsset.dexName}. Context: ${order.context}. CorrelationId: ${order.correlationId}.`,
     );
 

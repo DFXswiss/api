@@ -40,7 +40,7 @@ export class BuyFiatNotificationService {
       relations: ['cryptoInput', 'sell', 'sell.user', 'sell.user.userData'],
     });
 
-    entities.length > 0 && this.logger.info(`Sending ${entities.length} 'off-ramp initiated' email(s)`);
+    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'off-ramp initiated' email(s)`);
 
     for (const entity of entities) {
       try {
@@ -61,12 +61,12 @@ export class BuyFiatNotificationService {
             },
           });
         } else {
-          this.logger.warn(`Failed to send buy fiat mails ${entity.id}: user has no email`);
+          this.logger.warn(`Failed to send buy-fiat mails ${entity.id}: user has no email`);
         }
 
         await this.buyFiatRepo.update(...entity.offRampInitiated(recipientMail));
       } catch (e) {
-        this.logger.error(`Failed to send off-ramp initiated mail for buy fiat ${entity.id}:`, e);
+        this.logger.error(`Failed to send off-ramp initiated mail for buy-fiat ${entity.id}:`, e);
       }
     }
   }
@@ -82,7 +82,7 @@ export class BuyFiatNotificationService {
       relations: ['cryptoInput', 'sell', 'sell.user', 'sell.user.userData'],
     });
 
-    entities.length > 0 && this.logger.info(`Sending ${entities.length} 'crypto exchanged to fiat' email(s)`);
+    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'crypto exchanged to fiat' email(s)`);
 
     for (const entity of entities) {
       try {
@@ -110,7 +110,7 @@ export class BuyFiatNotificationService {
 
         await this.buyFiatRepo.update(...entity.cryptoExchangedToFiat());
       } catch (e) {
-        this.logger.error(`Failed to send crypto exchanged to fiat mail for buy fiat ${entity.id}:`, e);
+        this.logger.error(`Failed to send crypto exchanged to fiat mail for buy-fiat ${entity.id}:`, e);
       }
     }
   }
@@ -126,7 +126,7 @@ export class BuyFiatNotificationService {
       relations: ['sell', 'sell.user', 'sell.user.userData', 'fiatOutput', 'fiatOutput.bankTx'],
     });
 
-    entities.length > 0 && this.logger.info(`Sending ${entities.length} 'fiat to bank transfer' email(s)`);
+    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'fiat to bank transfer' email(s)`);
 
     for (const entity of entities) {
       try {
@@ -148,7 +148,7 @@ export class BuyFiatNotificationService {
 
         await this.buyFiatRepo.update(...entity.fiatToBankTransferInitiated());
       } catch (e) {
-        this.logger.error(`Failed to send fiat to bank transfer mail for buy fiat ${entity.id}:`, e);
+        this.logger.error(`Failed to send fiat to bank transfer mail for buy-fiat ${entity.id}:`, e);
       }
     }
   }
@@ -166,7 +166,7 @@ export class BuyFiatNotificationService {
       relations: ['sell', 'sell.user', 'sell.user.userData', 'cryptoInput'],
     });
 
-    entities.length > 0 && this.logger.info(`Sending ${entities.length} 'payback to address' email(s)`);
+    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'payback to address' email(s)`);
 
     for (const entity of entities) {
       try {
@@ -194,7 +194,7 @@ export class BuyFiatNotificationService {
 
         await this.buyFiatRepo.update({ id: entity.id }, { mailReturnSendDate: entity.mailReturnSendDate });
       } catch (e) {
-        this.logger.error(`Failed to send payback to address mail for buy fiat ${entity.id}:`, e);
+        this.logger.error(`Failed to send payback to address mail for buy-fiat ${entity.id}:`, e);
       }
     }
   }
@@ -210,7 +210,7 @@ export class BuyFiatNotificationService {
       relations: ['sell', 'sell.user', 'sell.user.userData'],
     });
 
-    entities.length > 0 && this.logger.info(`Sending ${entities.length} 'pending' email(s)`);
+    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'pending' email(s)`);
 
     for (const entity of entities) {
       try {
@@ -229,7 +229,7 @@ export class BuyFiatNotificationService {
 
         await this.buyFiatRepo.update(...entity.pendingMail());
       } catch (e) {
-        this.logger.error(`Failed to send pending mail for buy fiat ${entity.id}:`, e);
+        this.logger.error(`Failed to send pending mail for buy-fiat ${entity.id}:`, e);
       }
     }
   }

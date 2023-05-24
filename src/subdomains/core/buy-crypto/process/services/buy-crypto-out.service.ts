@@ -40,7 +40,7 @@ export class BuyCryptoOutService {
           try {
             await this.checkCompletion(batch);
           } catch (e) {
-            this.logger.error(`Error on checking pervious payout for batch ${batch.id}:`, e);
+            this.logger.error(`Error on checking previous payout for batch ${batch.id}:`, e);
             continue;
           }
         } else {
@@ -71,7 +71,7 @@ export class BuyCryptoOutService {
 
       this.logTransactionsPayouts(successfulRequests);
     } catch (e) {
-      this.logger.error('Error during transaction payout:', e);
+      this.logger.error('Error buy-crypto transaction payout:', e);
     }
   }
 
@@ -145,7 +145,7 @@ export class BuyCryptoOutService {
     const isBatchComplete = batch.transactions.every((tx) => tx.isComplete);
 
     if (isBatchComplete) {
-      this.logger.info(`Buy crypto payout complete (batch ID: ${batch.id})`);
+      this.logger.verbose(`Buy-crypto payout complete (batch ID: ${batch.id})`);
 
       batch.complete();
       await this.buyCryptoBatchRepo.save(batch);
@@ -159,6 +159,6 @@ export class BuyCryptoOutService {
     const transactionsIds = transactions.map((tx) => tx.id);
 
     transactions.length &&
-      this.logger.info(`Paying out ${transactionsIds.length} transaction(s). Transaction ID(s): ${transactionsIds}`);
+      this.logger.verbose(`Paying out ${transactionsIds.length} transaction(s). Transaction ID(s): ${transactionsIds}`);
   }
 }

@@ -354,7 +354,7 @@ export class BuyCrypto extends IEntity {
       return 'mail.payment.deposit.paybackInitiated';
     }
 
-    throw new Error(`Tried to send a mail for BuyCrypto ${this.id} in invalid state`);
+    throw new Error(`Tried to send a mail for buy-crypto ${this.id} in invalid state`);
   }
 
   get user(): User {
