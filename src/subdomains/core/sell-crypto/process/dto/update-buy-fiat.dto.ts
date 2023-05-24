@@ -77,6 +77,22 @@ export class UpdateBuyFiatDto {
 
   @IsOptional()
   @IsNumber()
+  minFeeAmount: number;
+
+  @IsOptional()
+  @IsNumber()
+  minFeeAmountFiat: number;
+
+  @IsOptional()
+  @IsNumber()
+  totalFeeAmount: number;
+
+  @IsOptional()
+  @IsNumber()
+  totalFeeAmountChf: number;
+
+  @IsOptional()
+  @IsNumber()
   inputReferenceAmountMinusFee: number;
 
   @IsOptional()
