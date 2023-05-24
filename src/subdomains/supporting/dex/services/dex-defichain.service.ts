@@ -11,6 +11,7 @@ import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.
 import { PriceSlippageException } from '../exceptions/price-slippage.exception';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
 import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export interface DexDeFiChainLiquidityResult {
   targetAmount: number;
@@ -23,6 +24,8 @@ export interface DexDeFiChainLiquidityResult {
 
 @Injectable()
 export class DexDeFiChainService {
+  private readonly logger = new DfxLogger(DexDeFiChainService);
+
   #dexClient: DeFiClient;
 
   constructor(
@@ -74,9 +77,9 @@ export class DexDeFiChainService {
 
     try {
       return await this.#dexClient.compositeSwap(
-        Config.blockchain.default.dexWalletAddress,
+        Config.blockchain.default.dex.address,
         swapAsset.dexName,
-        Config.blockchain.default.dexWalletAddress,
+        Config.blockchain.default.dex.address,
         targetAsset.dexName,
         swapAmount,
         [],
@@ -94,11 +97,11 @@ export class DexDeFiChainService {
   }
 
   async sellDfiCoin(amount: number): Promise<string> {
-    return this.#dexClient.toToken(Config.blockchain.default.dexWalletAddress, amount);
+    return this.#dexClient.toToken(Config.blockchain.default.dex.address, amount);
   }
 
   async addPoolLiquidity(poolPair: [string, string]): Promise<string> {
-    return this.#dexClient.addPoolLiquidity(Config.blockchain.default.dexWalletAddress, poolPair);
+    return this.#dexClient.addPoolLiquidity(Config.blockchain.default.dex.address, poolPair);
   }
 
   async transferLiquidity(addressTo: string, asset: string, amount: number): Promise<string> {
@@ -107,7 +110,7 @@ export class DexDeFiChainService {
 
   async transferMinimalUtxo(address: string): Promise<string> {
     return this.#dexClient.sendToken(
-      Config.blockchain.default.dexWalletAddress,
+      Config.blockchain.default.dex.address,
       address,
       'DFI',
       Config.payIn.minDeposit.DeFiChain.DFI / 2,
@@ -124,7 +127,7 @@ export class DexDeFiChainService {
     const historyEntry = await this.deFiChainUtil.getHistoryEntryForTx(txId, this.#dexClient);
 
     if (!historyEntry) {
-      throw new Error(`Could not find transaction with ID: ${txId} while trying to extract purchased liquidity`);
+      throw new Error(`Could not find transaction ${txId} while trying to extract purchased liquidity`);
     }
 
     const amounts = historyEntry.amounts.map((a) => this.#dexClient.parseAmount(a));
@@ -197,7 +200,7 @@ export class DexDeFiChainService {
   }
 
   async getRecentHistory(depth: number): Promise<AccountHistory[]> {
-    return this.#dexClient.getRecentHistory(depth, Config.blockchain.default.dexWalletAddress);
+    return this.#dexClient.getRecentHistory(depth, Config.blockchain.default.dex.address);
   }
 
   parseAmounts(amounts: string[]): { asset: string; amount: number }[] {
@@ -207,7 +210,7 @@ export class DexDeFiChainService {
   //*** GETTERS ***//
 
   get dexWalletAddress(): string {
-    return Config.blockchain.default.dexWalletAddress;
+    return Config.blockchain.default.dex.address;
   }
 
   // *** HELPER METHODS *** //
@@ -248,9 +251,7 @@ export class DexDeFiChainService {
 
       return await this.testSwap(swapAsset, targetAsset, availableAmount);
     } catch (e) {
-      console.warn(
-        `Could not find purchasable amount for swapAsset: ${swapAsset.dexName}, targetAsset: ${targetAsset.dexName}`,
-      );
+      this.logger.warn(`Could not find purchasable amount for swap ${swapAsset.dexName} -> ${targetAsset.dexName}:`, e);
 
       return 0;
     }

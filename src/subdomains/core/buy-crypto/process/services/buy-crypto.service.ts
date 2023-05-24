@@ -32,8 +32,8 @@ import { BuyService } from '../../routes/buy/buy.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
-import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Config, Process } from 'src/config/config';
+import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 
 @Injectable()
 export class BuyCryptoService {
@@ -57,7 +57,7 @@ export class BuyCryptoService {
 
   async createFromFiat(bankTxId: number, buyId: number): Promise<BuyCrypto> {
     let entity = await this.buyCryptoRepo.findOneBy({ bankTx: { id: bankTxId } });
-    if (entity) throw new ConflictException('There is already a buy crypto for the specified bank TX');
+    if (entity) throw new ConflictException('There is already a buy-crypto for the specified bank TX');
 
     entity = this.buyCryptoRepo.create();
 
@@ -85,7 +85,7 @@ export class BuyCryptoService {
         'bankTx',
       ],
     });
-    if (!entity) throw new NotFoundException('Buy crypto not found');
+    if (!entity) throw new NotFoundException('Buy-crypto not found');
 
     const buyIdBefore = entity.buy?.id;
     const cryptoRouteIdBefore = entity.cryptoRoute?.id;
@@ -101,14 +101,14 @@ export class BuyCryptoService {
 
     // buy
     if (dto.buyId) {
-      if (!entity.buy) throw new BadRequestException(`Cannot assign BuyCrypto ${id} to a buy route`);
+      if (!entity.buy) throw new BadRequestException(`Cannot assign buy-crypto ${id} to a buy route`);
       update.buy = await this.getBuy(dto.buyId);
       if (entity.bankTx) await this.bankTxService.getBankTxRepo().setNewUpdateTime(entity.bankTx.id);
     }
 
     // crypto route
     if (dto.cryptoRouteId) {
-      if (!entity.cryptoRoute) throw new BadRequestException(`Cannot assign BuyCrypto ${id} to a crypto route`);
+      if (!entity.cryptoRoute) throw new BadRequestException(`Cannot assign buy-crypto ${id} to a crypto route`);
       update.cryptoRoute = await this.getCryptoRoute(dto.cryptoRouteId);
       if (entity.bankTx) await this.bankTxService.getBankTxRepo().setNewUpdateTime(entity.bankTx.id);
     }
@@ -117,15 +117,17 @@ export class BuyCryptoService {
     const fee = entity.fee;
     if (dto.allowedTotalFeePercent && entity.fee) fee.allowedTotalFeePercent = dto.allowedTotalFeePercent;
 
-    const amlUpdate =
-      entity.amlCheck === AmlCheck.PENDING && update.amlCheck && update.amlCheck !== AmlCheck.PENDING
+    const forceUpdate = {
+      ...(entity.amlCheck === AmlCheck.PENDING && update.amlCheck && update.amlCheck !== AmlCheck.PENDING
         ? { amlCheck: update.amlCheck, mailSendDate: null }
-        : undefined;
+        : undefined),
+      isComplete: dto.isComplete,
+    };
     entity = await this.buyCryptoRepo.save(
       Object.assign(new BuyCrypto(), {
         ...update,
         ...entity,
-        ...amlUpdate,
+        ...forceUpdate,
         fee,
       }),
     );
@@ -258,7 +260,7 @@ export class BuyCryptoService {
       txId: buyCrypto.txId,
       txUrl:
         buyCrypto.outputAsset && buyCrypto.txId
-          ? `${BlockchainExplorerUrls[buyCrypto.outputAsset.blockchain]}/${buyCrypto.txId}`
+          ? txExplorerUrl(buyCrypto.outputAsset.blockchain, buyCrypto.txId)
           : undefined,
       isComplete: buyCrypto.isComplete,
       date: buyCrypto.outputDate,

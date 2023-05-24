@@ -8,11 +8,11 @@ import { PayoutGroup, PayoutJellyfishService } from './base/payout-jellyfish.ser
 
 @Injectable()
 export class PayoutDeFiChainService extends PayoutJellyfishService {
-  #outClient: DeFiClient;
+  #client: DeFiClient;
 
-  constructor(readonly nodeService: NodeService, private readonly whaleService: WhaleService) {
+  constructor(readonly nodeService: NodeService, readonly whaleService: WhaleService) {
     super();
-    nodeService.getConnectedNode(NodeType.OUTPUT).subscribe((client) => (this.#outClient = client));
+    nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.#client = client));
   }
 
   async isHealthy(context: PayoutOrderContext): Promise<boolean> {
@@ -41,11 +41,11 @@ export class PayoutDeFiChainService extends PayoutJellyfishService {
   }
 
   async getUtxoForAddress(address: string): Promise<number> {
-    return parseFloat(await this.whaleService.getClient().getBalance(address));
+    return parseFloat(await this.whaleService.getCurrentClient().getBalance(address));
   }
 
   getWalletAddress(_context: PayoutOrderContext): string {
-    return Config.blockchain.default.outWalletAddress;
+    return Config.blockchain.default.dex.address;
   }
 
   isLightWalletAddress(address: string): boolean {
@@ -53,6 +53,6 @@ export class PayoutDeFiChainService extends PayoutJellyfishService {
   }
 
   private getClient(_context: PayoutOrderContext): DeFiClient {
-    return this.#outClient;
+    return this.#client;
   }
 }

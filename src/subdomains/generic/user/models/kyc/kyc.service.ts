@@ -36,9 +36,13 @@ import { KycDocumentType, KycFileDto } from './dto/kyc-file.dto';
 import { SpiderApiService } from '../../services/spider/spider-api.service';
 import { User } from '../user/user.entity';
 import { KycDataDto } from './dto/kyc-data.dto';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 
 @Injectable()
 export class KycService {
+  private readonly logger = new DfxLogger(KycService);
+
   constructor(
     private readonly userDataService: UserDataService,
     private readonly userDataRepo: UserDataRepository,
@@ -129,7 +133,7 @@ export class KycService {
         params: { address: dfxUser.address },
       });
     } catch (e) {
-      console.error('Failed to transfer KYC data:', e);
+      this.logger.error('Failed to transfer KYC data:', e);
       throw new ServiceUnavailableException(`Failed to transfer KYC data: ${e.message}`);
     }
 
@@ -263,6 +267,7 @@ export class KycService {
       tradingLimit: userData.tradingLimit,
       blankedPhone: Blank(userData.phone, BlankType.PHONE),
       blankedMail: Blank(userData.mail, BlankType.MAIL),
+      language: LanguageDtoMapper.entityToDto(userData.language),
       sessionUrl: hasSecondUrl ? userData.spiderData?.secondUrl : userData.spiderData?.url,
       setupUrl: hasSecondUrl ? userData.spiderData?.url : undefined,
     };

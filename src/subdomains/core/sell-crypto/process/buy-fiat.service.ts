@@ -19,9 +19,9 @@ import { BuyFiatRegistrationService } from './buy-fiat-registration.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 import { TransactionDetailsDto } from '../../statistic/dto/statistic.dto';
-import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { PaymentStatus } from '../../history/dto/history.dto';
 import { Config, Process } from 'src/config/config';
+import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 
 @Injectable()
 export class BuyFiatService {
@@ -69,7 +69,7 @@ export class BuyFiatService {
       where: { id },
       relations: ['sell', 'sell.user', 'sell.user.wallet', 'sell.user.userData'],
     });
-    if (!entity) throw new NotFoundException('Buy fiat not found');
+    if (!entity) throw new NotFoundException('Buy-fiat not found');
 
     const sellIdBefore = entity.sell?.id;
     const usedRefBefore = entity.usedRef;
@@ -88,11 +88,13 @@ export class BuyFiatService {
 
     Util.removeNullFields(entity);
 
-    const amlUpdate =
-      entity.amlCheck === AmlCheck.PENDING && update.amlCheck && update.amlCheck !== AmlCheck.PENDING
-        ? { amlCheck: update.amlCheck, mail2SendDate: null, mailReturnSendDate: null }
-        : undefined;
-    entity = await this.buyFiatRepo.save({ ...update, ...entity, ...amlUpdate });
+    const forceUpdate = {
+      ...(entity.amlCheck === AmlCheck.PENDING && update.amlCheck && update.amlCheck !== AmlCheck.PENDING
+        ? { amlCheck: update.amlCheck, mailSendDate: null }
+        : undefined),
+      isComplete: dto.isComplete,
+    };
+    entity = await this.buyFiatRepo.save({ ...update, ...entity, ...forceUpdate });
 
     // activate user
     if (entity.amlCheck === AmlCheck.PASS && entity.sell?.user) {
@@ -182,7 +184,7 @@ export class BuyFiatService {
       outputAmount: buyFiat.outputAmount,
       outputAsset: buyFiat.outputAsset,
       txId: buyFiat.cryptoInput.inTxId,
-      txUrl: `${BlockchainExplorerUrls[buyFiat.cryptoInput.asset.blockchain]}/${buyFiat.cryptoInput.inTxId}`,
+      txUrl: txExplorerUrl(buyFiat.cryptoInput.asset.blockchain, buyFiat.cryptoInput.inTxId),
       date: buyFiat.fiatOutput?.outputDate,
       amlCheck: buyFiat.amlCheck,
       isComplete: buyFiat.isComplete,

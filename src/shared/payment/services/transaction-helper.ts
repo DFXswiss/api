@@ -9,6 +9,7 @@ import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
 import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
+import { Lock } from 'src/shared/utils/lock';
 
 @Injectable()
 export class TransactionHelper implements OnModuleInit {
@@ -27,14 +28,15 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   @Cron(CronExpression.EVERY_HOUR)
+  @Lock()
   async updateCache() {
     this.transactionSpecifications = await this.transactionSpecificationRepo.find();
   }
 
   // --- SPECIFICATIONS --- //
   async isValid(from: Asset | Fiat, to: Asset | Fiat, amount: number): Promise<boolean> {
-    // check buyable/sellable
-    if (!from.sellable || !to.buyable) return false;
+    // check sellable
+    if (!from.sellable) return false;
 
     // check min. volume
     const { minVolume } = await this.getSpecs(from, to);

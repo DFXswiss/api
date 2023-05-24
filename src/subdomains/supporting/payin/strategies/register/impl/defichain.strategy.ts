@@ -20,9 +20,12 @@ import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class DeFiChainStrategy extends RegisterStrategy {
+  protected readonly logger = new DfxLogger(DeFiChainStrategy);
+
   constructor(
     private readonly assetService: AssetService,
     private readonly deFiChainService: PayInDeFiChainService,
@@ -65,7 +68,7 @@ export class DeFiChainStrategy extends RegisterStrategy {
 
         await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
       } catch (e) {
-        console.error('Could not set reference amounts for DeFiChain pay-in', e);
+        this.logger.error('Could not set reference amounts for DeFiChain pay-in:', e);
         continue;
       }
     }
@@ -81,12 +84,28 @@ export class DeFiChainStrategy extends RegisterStrategy {
     await this.processNewPayInEntries();
   }
 
-  @Cron(CronExpression.EVERY_10_MINUTES)
+  @Cron(CronExpression.EVERY_5_MINUTES)
   @Lock(7200)
-  async convertTokens(): Promise<void> {
+  async splitPools(): Promise<void> {
     if (Config.processDisabled(Process.PAY_IN)) return;
 
-    await this.deFiChainService.convertTokens();
+    await this.deFiChainService.splitPools();
+  }
+
+  @Cron(CronExpression.EVERY_HOUR)
+  @Lock(7200)
+  async retrieveSmallDfiTokens(): Promise<void> {
+    if (Config.processDisabled(Process.PAY_IN)) return;
+
+    await this.deFiChainService.retrieveSmallDfiTokens();
+  }
+
+  @Cron(CronExpression.EVERY_DAY_AT_4AM)
+  @Lock(7200)
+  async retrieveFeeUtxos(): Promise<void> {
+    if (Config.processDisabled(Process.PAY_IN)) return;
+
+    await this.deFiChainService.retrieveFeeUtxos();
   }
 
   //*** HELPER METHODS ***//
@@ -127,7 +146,7 @@ export class DeFiChainStrategy extends RegisterStrategy {
           inputs.push(this.createEntry(history, amount, supportedAssets));
         }
       } catch (e) {
-        console.error(`Failed to create DeFiChain input ${history.txid}:`, e);
+        this.logger.error(`Failed to create DeFiChain input ${history.txid}:`, e);
       }
     }
 
@@ -147,7 +166,7 @@ export class DeFiChainStrategy extends RegisterStrategy {
     if (p == null) return null;
 
     if (p.asset && p.asset.dexName === 'DFI' && p.amount < Config.payIn.minDeposit.DeFiChain.DFI) {
-      console.log(`Ignoring too small DeFiChain input (${p.amount} ${p.asset.dexName}). PayIn entry:`, p);
+      this.logger.verbose(`Ignoring too small DeFiChain input: ${p.amount} ${p.asset.dexName} on ${p.address.address}`);
       return null;
     }
 

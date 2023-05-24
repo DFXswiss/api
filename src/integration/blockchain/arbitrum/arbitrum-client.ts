@@ -19,8 +19,12 @@ import {
   L1EthDepositTransactionReceipt,
 } from '@arbitrum/sdk/dist/lib/message/L1Transaction';
 import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { ChainId } from '@uniswap/smart-order-router';
 
 export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
+  private readonly logger = new DfxLogger(ArbitrumClient);
+
   #l1Provider: ethers.providers.JsonRpcProvider;
   #l1Wallet: ethers.Wallet;
   #l2Network: L2Network;
@@ -31,10 +35,9 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     scanApiKey: string,
     gatewayUrl: string,
     privateKey: string,
-    swapContractAddress: string,
-    swapTokenAddress: string,
+    chainId: ChainId,
   ) {
-    super(http, scanApiUrl, scanApiKey, gatewayUrl, privateKey, swapContractAddress, swapTokenAddress);
+    super(http, scanApiUrl, scanApiKey, chainId, gatewayUrl, privateKey);
 
     const { ethGatewayUrl, ethApiKey, ethWalletPrivateKey } = GetConfig().blockchain.ethereum;
     const ethereumGateway = `${ethGatewayUrl}/${ethApiKey ?? ''}`;
@@ -172,14 +175,6 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     return this.convertToEthLikeDenomination(totalGas.mul(gasPrice));
   }
 
-  /**
-   * @note
-   * requires UniswapV3 implementation or alternative
-   */
-  async nativeCryptoTestSwap(_nativeCryptoAmount: number, _targetToken: Asset): Promise<number> {
-    throw new Error('nativeCryptoTestSwap is not implemented for Arbitrum blockchain');
-  }
-
   //*** HELPER METHODS ***//
 
   protected async sendNativeCoin(
@@ -223,7 +218,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     try {
       this.#l2Network = await getL2Network(this.provider);
     } catch (e) {
-      console.error('Error while trying to get L2 network for Arbitrum client', e);
+      this.logger.error('Error while trying to get L2 network for Arbitrum client:', e);
     }
   }
 

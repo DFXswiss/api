@@ -21,6 +21,14 @@ export class LiquidityManagementAction extends IEntity {
   @JoinColumn()
   onFail: LiquidityManagementAction | null;
 
+  get paramMap(): Record<string, unknown> | null {
+    try {
+      return JSON.parse(this.params);
+    } catch {
+      return null;
+    }
+  }
+
   //*** FACTORY METHODS ***//
 
   static create(

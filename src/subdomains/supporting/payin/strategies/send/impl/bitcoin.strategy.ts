@@ -7,17 +7,22 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { JellyfishStrategy } from './base/jellyfish.strategy';
+import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
+import { FeeLimitExceededException } from 'src/shared/payment/exceptions/fee-limit-exceeded.exception';
 
 @Injectable()
 export class BitcoinStrategy extends JellyfishStrategy {
+  protected readonly logger = new DfxLogger(BitcoinStrategy);
+
   constructor(protected readonly bitcoinService: PayInBitcoinService, protected readonly payInRepo: PayInRepository) {
     super(bitcoinService, payInRepo, Blockchain.BITCOIN);
   }
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
-    console.log(
-      `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${payIns.length} Bitcoin input(s).`,
-      payIns.map((p) => p.id),
+    this.logger.verbose(
+      `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${payIns.length} Bitcoin input(s): ${payIns.map(
+        (p) => p.id,
+      )}`,
     );
 
     await this.bitcoinService.checkHealthOrThrow();
@@ -30,13 +35,15 @@ export class BitcoinStrategy extends JellyfishStrategy {
 
         await this.payInRepo.save(payIn);
       } catch (e) {
-        console.error(`Failed to send Bitcoin input ${payIn.id} of type ${type}`, e);
+        const logLevel = e instanceof FeeLimitExceededException ? LogLevel.INFO : LogLevel.ERROR;
+
+        this.logger.log(logLevel, `Failed to send Bitcoin input ${payIn.id} of type ${type}:`, e);
       }
     }
   }
 
   protected getForwardAddress(): BlockchainAddress {
-    return BlockchainAddress.create(Config.blockchain.default.btcOutWalletAddress, Blockchain.BITCOIN);
+    return BlockchainAddress.create(Config.blockchain.default.btcOutput.address, Blockchain.BITCOIN);
   }
 
   protected async isConfirmed(payIn: CryptoInput): Promise<boolean> {

@@ -1,10 +1,11 @@
 import { cloneDeep } from 'lodash';
 import { Price } from '../domain/entities/price';
-import { PriceMismatchException } from '../../../../integration/exchange/exceptions/price-mismatch.exception';
+import { PriceMismatchException } from '../domain/exceptions/price-mismatch.exception';
 import { Fiat } from '../domain/enums';
 import { PriceStepResult, PricingProvider, PricingProviderName } from '../domain/interfaces';
 import { PriceStepInitSpecification } from '../domain/specifications/price-step-init.specification';
 import { PricingUtil } from './pricing.util';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export interface PriceStepOptions {
   from?: string | 'input';
@@ -23,6 +24,8 @@ export interface PriceStepProviderOptions {
 export type PriceStepType = 'primary' | 'reference';
 
 export class PriceStep {
+  private readonly logger = new DfxLogger(PriceStep);
+
   private readonly options: PriceStepOptions = {};
 
   constructor(options: PriceStepOptions) {
@@ -106,10 +109,10 @@ export class PriceStep {
     } catch (e) {
       if (e instanceof PriceMismatchException) throw e;
 
-      console.warn(
-        `Proceeding without reference check (${fromCurrency} => ${toCurrency}) at ${this.options.reference.providers
-          .map((p) => p.name)
-          .join(', ')}`,
+      this.logger.warn(
+        `Proceeding without reference check (${fromCurrency} => ${toCurrency}) at ${this.options.reference.providers.map(
+          (p) => p.name,
+        )}`,
       );
     }
 
@@ -174,9 +177,9 @@ export class PriceStep {
     toCurrency: string,
     options: PriceStepProviderOptions,
   ): string {
-    const mainMessage = `Could not find ${type} price (${fromCurrency} => ${toCurrency}) at ${options.providers
-      .map((p) => p.name)
-      .join(', ')}`;
+    const mainMessage = `Could not find ${type} price (${fromCurrency} => ${toCurrency}) at ${options.providers.map(
+      (p) => p.name,
+    )}`;
 
     const fallbackMessage = options.fallback ? `Fallback to currency: ${options.fallback}` : '';
 

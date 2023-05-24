@@ -14,7 +14,7 @@ export class DeFiChainUtil {
       const { height } = await client.getBlock(transaction.blockhash);
 
       return client
-        .getHistory(height, height + 1, Config.blockchain.default.dexWalletAddress)
+        .getHistory(height, height + 1, Config.blockchain.default.dex.address)
         .then((histories) =>
           histories
             .map((h) => ({ txId: h.txid, blockHeight: h.blockHeight, amounts: h.amounts }))
@@ -26,7 +26,7 @@ export class DeFiChainUtil {
   async getAvailableTokenAmount(assetName: string, client: DeFiClient): Promise<number> {
     const tokens = await client.getToken();
     const token = tokens
-      .filter((t) => t.owner === Config.blockchain.default.dexWalletAddress)
+      .filter((t) => t.owner === Config.blockchain.default.dex.address)
       .map((t) => client.parseAmount(t.amount))
       .find((pt) => pt.asset === assetName);
 

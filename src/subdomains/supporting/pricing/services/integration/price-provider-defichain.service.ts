@@ -16,7 +16,7 @@ export class PriceProviderDeFiChainService {
   private priceCache: AsyncCache<number>;
 
   constructor(readonly whaleService: WhaleService, private readonly assetService: AssetService) {
-    this.client = whaleService.getClient();
+    whaleService.getClient().subscribe((client) => (this.client = client));
     this.priceCache = new AsyncCache(Config.transaction.pricing.refreshRate * 60);
   }
 

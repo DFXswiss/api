@@ -24,7 +24,7 @@ import { GeoLocationService } from 'src/integration/geolocation/geo-location.ser
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { VolumeQuery } from './dto/volume-query.dto';
-import { KycType, UserData } from '../user-data/user-data.entity';
+import { KycStatus, KycType, UserData, UserDataStatus } from '../user-data/user-data.entity';
 import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
@@ -33,6 +33,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
+import { Lock } from 'src/shared/utils/lock';
 
 @Injectable()
 export class UserService {
@@ -93,6 +94,17 @@ export class UserService {
       address: u.address,
       blockchains: this.cryptoService.getBlockchainsBasedOn(u.address),
     }));
+  }
+
+  async getOpenRefCreditUser(): Promise<User[]> {
+    return this.userRepo
+      .createQueryBuilder('user')
+      .leftJoin('user.userData', 'userData')
+      .where('user.refCredit - user.paidRefCredit > 0')
+      .andWhere('user.status != :userStatus', { userStatus: UserStatus.BLOCKED })
+      .andWhere('userData.status != :userDataStatus', { userDataStatus: UserDataStatus.BLOCKED })
+      .andWhere('userData.kycStatus != :kycStatus', { kycStatus: KycStatus.REJECTED })
+      .getMany();
   }
 
   async getRefUser(ref: string): Promise<User> {
@@ -157,6 +169,7 @@ export class UserService {
 
   // --- VOLUMES --- //
   @Cron(CronExpression.EVERY_YEAR)
+  @Lock()
   async resetAnnualVolumes(): Promise<void> {
     await this.userRepo.update({ annualBuyVolume: Not(0) }, { annualBuyVolume: 0 });
     await this.userRepo.update({ annualSellVolume: Not(0) }, { annualSellVolume: 0 });

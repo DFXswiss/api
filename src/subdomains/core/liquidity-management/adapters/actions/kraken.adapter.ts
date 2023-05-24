@@ -4,6 +4,7 @@ import { KrakenService } from 'src/integration/exchange/services/kraken.service'
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { LiquidityManagementSystem } from '../../enums';
 import { CcxtExchangeAdapter } from './base/ccxt-exchange.adapter';
+import { LiquidityManagementOrderRepository } from '../../repositories/liquidity-management-order.repository';
 
 @Injectable()
 export class KrakenAdapter extends CcxtExchangeAdapter {
@@ -19,8 +20,12 @@ export class KrakenAdapter extends CcxtExchangeAdapter {
     Polygon: 'polygon',
   };
 
-  constructor(krakenService: KrakenService, dexService: DexService) {
-    super(LiquidityManagementSystem.KRAKEN, krakenService, dexService);
+  constructor(
+    krakenService: KrakenService,
+    dexService: DexService,
+    liquidityOrderRepo: LiquidityManagementOrderRepository,
+  ) {
+    super(LiquidityManagementSystem.KRAKEN, krakenService, dexService, liquidityOrderRepo);
   }
 
   protected mapBlockchainToCcxtNetwork(blockchain: Blockchain): string {

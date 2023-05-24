@@ -15,9 +15,12 @@ import { Util } from 'src/shared/utils/util';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IsNull, Not } from 'typeorm';
 import { Config, Process } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class PayoutService {
+  private readonly logger = new DfxLogger(PayoutService);
+
   constructor(
     private readonly payoutStrategies: PayoutStrategiesFacade,
     private readonly prepareStrategies: PrepareStrategiesFacade,
@@ -35,7 +38,7 @@ export class PayoutService {
 
       await this.payoutOrderRepo.save(order);
     } catch (e) {
-      console.error(e);
+      this.logger.error('Error during payout creation:', e);
 
       throw new Error(
         `Error while trying to create PayoutOrder for context ${request.context} and correlationId: ${request.correlationId}`,
@@ -79,6 +82,20 @@ export class PayoutService {
 
   //*** HELPER METHODS ***//
 
+  private async waitForStableInput(): Promise<boolean> {
+    const latestDate = await this.getLatestOrderDate();
+
+    return this.verifyDebounceTime(latestDate);
+  }
+
+  private async getLatestOrderDate(): Promise<Date> {
+    return this.payoutOrderRepo.findOne({ where: {}, order: { created: 'DESC' } }).then((o) => o?.created);
+  }
+
+  private verifyDebounceTime(date: Date): boolean {
+    return Util.secondsDiff(date, new Date()) > 5;
+  }
+
   private async checkExistingOrders(): Promise<void> {
     await this.checkPreparationCompletion();
     await this.checkPayoutCompletion();
@@ -96,11 +113,7 @@ export class PayoutService {
         const strategy = this.prepareStrategies.getPrepareStrategy(group[0]);
         await strategy.checkPreparationCompletion(group[1]);
       } catch (e) {
-        console.error(
-          'Error while checking payout preparation status',
-          group[1].map((o) => o.id),
-          e,
-        );
+        this.logger.error(`Error while checking payout preparation status of payouts ${group[1].map((o) => o.id)}:`, e);
         continue;
       }
     }
@@ -120,11 +133,7 @@ export class PayoutService {
         const strategy = this.payoutStrategies.getPayoutStrategy(group[0]);
         await strategy.checkPayoutCompletionData(group[1]);
       } catch (e) {
-        console.error(
-          'Error while checking payout completion status',
-          group[1].map((o) => o.id),
-          e,
-        );
+        this.logger.error(`Error while checking payout completion status of payouts ${group[1].map((o) => o.id)}:`, e);
         continue;
       }
     }
@@ -133,6 +142,9 @@ export class PayoutService {
   }
 
   private async prepareNewOrders(): Promise<void> {
+    const stable = await this.waitForStableInput();
+    if (!stable) return;
+
     const orders = await this.payoutOrderRepo.findBy({ status: PayoutOrderStatus.CREATED });
     const groups = this.groupByStrategies(orders, this.prepareStrategies.getPrepareStrategyAlias);
 
@@ -141,11 +153,7 @@ export class PayoutService {
         const strategy = this.prepareStrategies.getPrepareStrategy(group[0]);
         await strategy.preparePayout(group[1]);
       } catch (e) {
-        console.error(
-          'Error while preparing new payout orders',
-          group[1].map((o) => o.id),
-          e,
-        );
+        this.logger.error(`Error while preparing new payout orders ${group[1].map((o) => o.id)}:`, e);
         continue;
       }
     }
@@ -162,11 +170,7 @@ export class PayoutService {
         const strategy = this.payoutStrategies.getPayoutStrategy(group[0]);
         await strategy.doPayout(group[1]);
       } catch (e) {
-        console.error(
-          'Error while paying out new payout orders',
-          group[1].map((o) => o.id),
-          e,
-        );
+        this.logger.error(`Error while paying out new payout orders ${group[1].map((o) => o.id)}:`, e);
         continue;
       }
     }
@@ -195,7 +199,9 @@ export class PayoutService {
       const alias = getter(order.asset);
 
       if (!alias) {
-        console.warn(`No alias found by getter ${getter.name} for payout order ID ${order.id}. Ignoring the payout`);
+        this.logger.warn(
+          `No alias found by getter ${getter.name} for payout order ID ${order.id}. Ignoring the payout`,
+        );
         continue;
       }
 

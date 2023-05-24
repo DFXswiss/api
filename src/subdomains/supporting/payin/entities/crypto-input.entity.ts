@@ -7,6 +7,7 @@ import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
 import { Config } from 'src/config/config';
+import { FeeLimitExceededException } from 'src/shared/payment/exceptions/fee-limit-exceeded.exception';
 
 export enum PayInPurpose {
   STAKING = 'Staking',
@@ -133,7 +134,7 @@ export class CryptoInput extends IEntity {
 
     if (estimatedFeeInPayInAsset / totalAmount > Config.payIn.forwardFeeLimit) {
       const feePercent = Util.round((estimatedFeeInPayInAsset / totalAmount) * 100, 1);
-      throw new Error(`Forward fee is too high (${estimatedFeeInPayInAsset}, ${feePercent}%)`);
+      throw new FeeLimitExceededException(`Forward fee is too high (${estimatedFeeInPayInAsset}, ${feePercent}%)`);
     }
   }
 

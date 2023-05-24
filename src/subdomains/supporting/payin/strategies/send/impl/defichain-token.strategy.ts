@@ -8,9 +8,12 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { JellyfishStrategy } from './base/jellyfish.strategy';
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class DeFiChainTokenStrategy extends JellyfishStrategy {
+  protected readonly logger = new DfxLogger(DeFiChainTokenStrategy);
+
   constructor(
     protected readonly deFiChainService: PayInDeFiChainService,
     protected readonly payInRepo: PayInRepository,
@@ -19,9 +22,10 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
   }
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
-    console.log(
-      `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${payIns.length} DeFiChain Token input(s).`,
-      payIns.map((p) => p.id),
+    this.logger.verbose(
+      `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${
+        payIns.length
+      } DeFiChain token input(s): ${payIns.map((p) => p.id)}`,
     );
 
     await this.deFiChainService.checkHealthOrThrow();
@@ -46,7 +50,7 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
           await this.dispatch(payIn, type);
         }
       } catch (e) {
-        console.error(`Failed to send DeFiChain token input ${payIn.id} of type ${type}`, e);
+        this.logger.error(`Failed to send DeFiChain token input ${payIn.id} of type ${type}:`, e);
       }
     }
   }
@@ -72,10 +76,12 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
   }
 
   protected getForwardAddress(): BlockchainAddress {
-    return BlockchainAddress.create(Config.blockchain.default.dexWalletAddress, Blockchain.DEFICHAIN);
+    return BlockchainAddress.create(Config.blockchain.default.dex.address, Blockchain.DEFICHAIN);
   }
 
   protected async isConfirmed(payIn: CryptoInput): Promise<boolean> {
+    if (!payIn.outTxId) return false;
+
     const { confirmations } = await this.jellyfishService.getTx(payIn.outTxId);
     return confirmations >= 60;
   }
@@ -91,7 +97,7 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
     this.updatePayInWithSendData(payIn, type, outTxId);
 
     await this.payInRepo.save(payIn);
-    console.log(`Token pay-in ${payIn.id} sent:`, payIn);
+    this.logger.verbose(`Token pay-in ${payIn.id} sent`);
   }
 
   private async getFeeUtxo(payIn: CryptoInput): Promise<UTXO> {

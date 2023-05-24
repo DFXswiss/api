@@ -12,9 +12,12 @@ import { LiquidityManagementPipeline } from '../entities/liquidity-management-pi
 import { In } from 'typeorm';
 import { Util } from 'src/shared/utils/util';
 import { Config, Process } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class LiquidityManagementService {
+  private readonly logger = new DfxLogger(LiquidityManagementService);
+
   private readonly ruleActivations = new Map<number, Date>();
 
   constructor(
@@ -29,6 +32,7 @@ export class LiquidityManagementService {
   @Lock(1800)
   async verifyRules() {
     if (Config.processDisabled(Process.LIQUIDITY_MANAGEMENT)) return;
+
     const rules = await this.ruleRepo.findBy({ status: LiquidityManagementRuleStatus.ACTIVE });
     const balances = await this.balanceService.refreshBalances(rules);
 
@@ -46,7 +50,7 @@ export class LiquidityManagementService {
       throw new BadRequestException(`Rule ${rule.id} does not support liquidity deficit path`);
     }
 
-    if (targetOptimal) amount = Util.round(amount + rule.optimal, 8);
+    if (targetOptimal) amount = Util.round(amount + rule.optimal, 6);
 
     const liquidityState = { deficit: amount, redundancy: 0 };
 
@@ -60,7 +64,7 @@ export class LiquidityManagementService {
       throw new BadRequestException(`Rule ${rule.id} does not support liquidity redundancy path`);
     }
 
-    if (targetOptimal) amount = Util.round(amount - rule.optimal, 8);
+    if (targetOptimal) amount = Util.round(amount - rule.optimal, 6);
 
     const liquidityState = { deficit: 0, redundancy: amount };
 
@@ -80,7 +84,10 @@ export class LiquidityManagementService {
   private async verifyRule(rule: LiquidityManagementRule, balances: LiquidityBalance[]): Promise<void> {
     try {
       const balance = this.balanceService.findRelevantBalance(rule, balances);
-      if (!balance) throw new Error('Could not proceed with rule verification, balance not found');
+      if (!balance) {
+        this.logger.info(`Could not verify rule ${rule.id}: balance not found`);
+        return;
+      }
 
       const result = rule.verify(balance);
 
@@ -99,7 +106,7 @@ export class LiquidityManagementService {
     } catch (e) {
       if (e instanceof ConflictException) return;
 
-      console.error(`Error in verifying the liquidity management rule id: ${rule.id}`, e);
+      this.logger.error(`Error in verifying the liquidity management rule ${rule.id}:`, e);
     }
   }
 
@@ -129,6 +136,6 @@ export class LiquidityManagementService {
   private logRuleExecution(rule: LiquidityManagementRule, result: LiquidityState): void {
     const message = result.deficit ? `${result.deficit} deficit` : `${result.redundancy} redundancy`;
 
-    console.log(`Executing liquidity management rule ${rule.id}. Summary -> ${message} of ${rule.targetName}`);
+    this.logger.verbose(`Executing liquidity management rule ${rule.id} (${message} of ${rule.targetName})`);
   }
 }

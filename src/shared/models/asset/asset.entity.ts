@@ -67,4 +67,7 @@ export class Asset extends IEntity {
 
   @Column({ nullable: true })
   sortOrder: number;
+
+  @Column({ type: 'float', nullable: true })
+  approxPriceUsd: number;
 }

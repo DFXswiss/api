@@ -5,9 +5,12 @@ import { MailFactory } from '../factories/mail.factory';
 import { MailRequest } from '../interfaces';
 import { NotificationRepository } from '../repositories/notification.repository';
 import { MailService } from './mail.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class NotificationService {
+  private readonly logger = new DfxLogger(NotificationService);
+
   constructor(
     private readonly mailFactory: MailFactory,
     private readonly mailService: MailService,
@@ -50,7 +53,9 @@ export class NotificationService {
 
   private handleNotificationError(e: Error, metadata: NotificationMetadata): void {
     if (e instanceof NotificationSuppressedException) {
-      console.info(`Suppressed mail request. Context: ${metadata?.context}. CorrelationId: ${metadata?.correlationId}`);
+      this.logger.verbose(
+        `Suppressed mail request. Context: ${metadata?.context}. CorrelationId: ${metadata?.correlationId}`,
+      );
       return;
     }
 

@@ -12,6 +12,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankAccountService } from '../../../supporting/bank/bank-account/bank-account.service';
 import { Config } from 'src/config/config';
+import { Lock } from 'src/shared/utils/lock';
 
 @Injectable()
 export class SellService {
@@ -96,6 +97,7 @@ export class SellService {
 
   // --- VOLUMES --- //
   @Cron(CronExpression.EVERY_YEAR)
+  @Lock()
   async resetAnnualVolumes(): Promise<void> {
     await this.sellRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
   }

@@ -4,9 +4,12 @@ import { LiquidityManagementRule } from '../entities/liquidity-management-rule.e
 import { LiquidityBalanceIntegrationFactory } from '../factories/liquidity-balance-integration.factory';
 import { LiquidityBalanceRepository } from '../repositories/liquidity-balance.repository';
 import { Util } from 'src/shared/utils/util';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class LiquidityManagementBalanceService {
+  private readonly logger = new DfxLogger(LiquidityManagementBalanceService);
+
   constructor(
     private readonly balanceIntegrationFactory: LiquidityBalanceIntegrationFactory,
     private readonly balanceRepo: LiquidityBalanceRepository,
@@ -15,20 +18,18 @@ export class LiquidityManagementBalanceService {
   //*** PUBLIC API ***//
 
   async refreshBalances(rules: LiquidityManagementRule[]): Promise<LiquidityBalance[]> {
-    const balanceRequests = rules.map(async (rule) => {
-      try {
-        const integration = this.balanceIntegrationFactory.getIntegration(rule);
-        if (!integration) throw new Error(`Not balance integration found`);
+    const integrations = this.balanceIntegrationFactory.getIntegrations(rules);
 
-        return await integration.getBalance(rule.target);
-      } catch (e) {
-        console.warn(`Error getting liquidity management balance for rule ${rule.id}:`, e);
-
+    const balanceRequests = integrations.map(({ integration, rules }) =>
+      integration.getBalances(rules.map((r) => r.target)).catch((e) => {
+        this.logger.warn(`Error getting liquidity management balances for rules ${rules.map((r) => r.id)}:`, e);
         throw e;
-      }
-    });
+      }),
+    );
 
-    const balances = await Util.doGetFulfilled(balanceRequests);
+    const balances = await Util.doGetFulfilled(balanceRequests).then((balances) =>
+      balances.reduce((prev, curr) => prev.concat(curr), []),
+    );
 
     await this.saveBalanceResults(balances);
 
@@ -62,7 +63,7 @@ export class LiquidityManagementBalanceService {
 
         await this.balanceRepo.save(balance);
       } catch (e) {
-        console.error(`Could not save balance of ${balance.targetName}.`, e);
+        this.logger.error(`Could not save balance of ${balance.targetName}:`, e);
       }
     }
   }

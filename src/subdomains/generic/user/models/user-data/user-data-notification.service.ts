@@ -5,9 +5,12 @@ import { Lock } from 'src/shared/utils/lock';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { Config, Process } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class UserDataNotificationService {
+  private readonly logger = new DfxLogger(UserDataNotificationService);
+
   constructor(
     private readonly userDataRepo: UserDataRepository,
     private readonly notificationService: NotificationService,
@@ -30,7 +33,7 @@ export class UserDataNotificationService {
       })
       .getMany();
 
-    entities.length > 0 && console.log(`Sending ${entities.length} 'blackSquad invitation' email(s)`);
+    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'black squad invitation' email(s)`);
 
     for (const entity of entities) {
       try {
@@ -51,12 +54,12 @@ export class UserDataNotificationService {
             },
           });
         } else {
-          console.error(`Failed to send blackSquad invitation mails ${entity.id}: user has no email`);
+          this.logger.warn(`Failed to send black squad invitation mail ${entity.id}: user has no email`);
         }
 
         await this.userDataRepo.update(...entity.sendMail());
       } catch (e) {
-        console.error(`Failed to send blackSquad invitation initiated mail ${entity.id}:`, e);
+        this.logger.error(`Failed to send black squad invitation initiated mail ${entity.id}:`, e);
       }
     }
   }

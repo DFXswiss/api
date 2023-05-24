@@ -13,8 +13,7 @@ export class OptimismService extends EvmService {
       optimismGatewayUrl,
       optimismApiKey,
       optimismWalletPrivateKey,
-      pancakeRouterAddress,
-      swapTokenAddress,
+      optimismChainId,
     } = GetConfig().blockchain.optimism;
 
     super(
@@ -24,8 +23,7 @@ export class OptimismService extends EvmService {
       optimismGatewayUrl,
       optimismApiKey,
       optimismWalletPrivateKey,
-      pancakeRouterAddress,
-      swapTokenAddress,
+      optimismChainId,
       OptimismClient,
     );
   }

@@ -9,9 +9,12 @@ import { LiquidityOrderRepository } from '../../../repositories/liquidity-order.
 import { DexDeFiChainService } from '../../../services/dex-defichain.service';
 import { SellLiquidityStrategyAlias } from '../sell-liquidity.facade';
 import { DeFiChainStrategy } from './base/defichain.strategy';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class DeFiChainTokenStrategy extends DeFiChainStrategy {
+  protected readonly logger = new DfxLogger(DeFiChainTokenStrategy);
+
   constructor(
     protected readonly assetService: AssetService,
     protected readonly dexDeFiChainService: DexDeFiChainService,
@@ -64,7 +67,7 @@ export class DeFiChainTokenStrategy extends DeFiChainStrategy {
   }
 
   private getDefaultTargetAsset(sellAsset: Asset): string {
-    return sellAsset.category === AssetCategory.CRYPTO ? 'DFI' : 'DUSD';
+    return sellAsset.category === AssetCategory.CRYPTO || sellAsset.dexName === 'DUSD' ? 'DFI' : 'DUSD';
   }
 
   private async bookLiquiditySell(order: LiquidityOrder): Promise<void> {
@@ -77,7 +80,7 @@ export class DeFiChainTokenStrategy extends DeFiChainStrategy {
       maxPriceSlippage,
     );
 
-    console.info(
+    this.logger.verbose(
       `Booked sell of ${referenceAmount} ${referenceAsset.dexName} liquidity for ${targetAsset.dexName}. Context: ${order.context}. CorrelationId: ${order.correlationId}.`,
     );
 

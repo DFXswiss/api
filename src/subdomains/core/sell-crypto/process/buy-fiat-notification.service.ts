@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { I18nService } from 'nestjs-i18n';
-import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Config, Process } from 'src/config/config';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -11,9 +10,13 @@ import { IsNull, Not, In } from 'typeorm';
 import { BuyFiatRepository } from './buy-fiat.repository';
 import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
 import { BuyFiatAmlReasonPendingStates } from './buy-fiat.entity';
+import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BuyFiatNotificationService {
+  private readonly logger = new DfxLogger(BuyFiatNotificationService);
+
   constructor(
     private readonly buyFiatRepo: BuyFiatRepository,
     private readonly notificationService: NotificationService,
@@ -37,7 +40,7 @@ export class BuyFiatNotificationService {
       relations: ['cryptoInput', 'sell', 'sell.user', 'sell.user.userData'],
     });
 
-    entities.length > 0 && console.log(`Sending ${entities.length} 'off-ramp initiated' email(s)`);
+    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'off-ramp initiated' email(s)`);
 
     for (const entity of entities) {
       try {
@@ -53,19 +56,17 @@ export class BuyFiatNotificationService {
                 inputAmount: entity.cryptoInput.amount,
                 inputAsset: entity.cryptoInput.asset.dexName,
                 blockchain: entity.cryptoInput.asset.blockchain,
-                inputTransactionLink: `${BlockchainExplorerUrls[entity.cryptoInput.asset.blockchain]}/${
-                  entity.cryptoInput.inTxId
-                }`,
+                inputTransactionLink: txExplorerUrl(entity.cryptoInput.asset.blockchain, entity.cryptoInput.inTxId),
               },
             },
           });
         } else {
-          console.error(`Failed to send buy fiat mails ${entity.id}: user has no email`);
+          this.logger.warn(`Failed to send buy-fiat mails ${entity.id}: user has no email`);
         }
 
         await this.buyFiatRepo.update(...entity.offRampInitiated(recipientMail));
       } catch (e) {
-        console.error(`Failed to send buyFiat off-ramp initiated mail ${entity.id}:`, e);
+        this.logger.error(`Failed to send off-ramp initiated mail for buy-fiat ${entity.id}:`, e);
       }
     }
   }
@@ -81,7 +82,7 @@ export class BuyFiatNotificationService {
       relations: ['cryptoInput', 'sell', 'sell.user', 'sell.user.userData'],
     });
 
-    entities.length > 0 && console.log(`Sending ${entities.length} 'crypto exchanged to fiat' email(s)`);
+    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'crypto exchanged to fiat' email(s)`);
 
     for (const entity of entities) {
       try {
@@ -109,7 +110,7 @@ export class BuyFiatNotificationService {
 
         await this.buyFiatRepo.update(...entity.cryptoExchangedToFiat());
       } catch (e) {
-        console.error(`Failed to send buyFiat crypto exchanged to fiat mail ${entity.id}:`, e);
+        this.logger.error(`Failed to send crypto exchanged to fiat mail for buy-fiat ${entity.id}:`, e);
       }
     }
   }
@@ -125,7 +126,7 @@ export class BuyFiatNotificationService {
       relations: ['sell', 'sell.user', 'sell.user.userData', 'fiatOutput', 'fiatOutput.bankTx'],
     });
 
-    entities.length > 0 && console.log(`Sending ${entities.length} 'fiat to bank transfer' email(s)`);
+    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'fiat to bank transfer' email(s)`);
 
     for (const entity of entities) {
       try {
@@ -147,7 +148,7 @@ export class BuyFiatNotificationService {
 
         await this.buyFiatRepo.update(...entity.fiatToBankTransferInitiated());
       } catch (e) {
-        console.error(`Failed to send buyFiat fiat to bank transfer mail ${entity.id}:`, e);
+        this.logger.error(`Failed to send fiat to bank transfer mail for buy-fiat ${entity.id}:`, e);
       }
     }
   }
@@ -165,7 +166,7 @@ export class BuyFiatNotificationService {
       relations: ['sell', 'sell.user', 'sell.user.userData', 'cryptoInput'],
     });
 
-    entities.length > 0 && console.log(`Sending ${entities.length} 'payback to address' email(s)`);
+    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'payback to address' email(s)`);
 
     for (const entity of entities) {
       try {
@@ -181,9 +182,7 @@ export class BuyFiatNotificationService {
                 inputAmount: entity.inputAmount,
                 inputAsset: entity.inputAsset,
                 blockchain: entity.cryptoInput.asset.blockchain,
-                returnTransactionLink: `${BlockchainExplorerUrls[entity.cryptoInput.asset.blockchain]}/${
-                  entity.cryptoReturnTxId
-                }`,
+                returnTransactionLink: txExplorerUrl(entity.cryptoInput.asset.blockchain, entity.cryptoReturnTxId),
                 returnReason: this.i18nService.translate(`mail.amlReasonMailText.${entity.amlReason}`, {
                   lang: entity.sell.user.userData.language?.symbol.toLowerCase(),
                 }),
@@ -195,7 +194,7 @@ export class BuyFiatNotificationService {
 
         await this.buyFiatRepo.update({ id: entity.id }, { mailReturnSendDate: entity.mailReturnSendDate });
       } catch (e) {
-        console.error(`Failed to send buyFiat payback to address mail ${entity.id}:`, e);
+        this.logger.error(`Failed to send payback to address mail for buy-fiat ${entity.id}:`, e);
       }
     }
   }
@@ -211,7 +210,7 @@ export class BuyFiatNotificationService {
       relations: ['sell', 'sell.user', 'sell.user.userData'],
     });
 
-    entities.length > 0 && console.log(`Sending ${entities.length} 'pending' email(s)`);
+    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'pending' email(s)`);
 
     for (const entity of entities) {
       try {
@@ -230,7 +229,7 @@ export class BuyFiatNotificationService {
 
         await this.buyFiatRepo.update(...entity.pendingMail());
       } catch (e) {
-        console.error(e);
+        this.logger.error(`Failed to send pending mail for buy-fiat ${entity.id}:`, e);
       }
     }
   }

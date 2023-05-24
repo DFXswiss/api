@@ -7,6 +7,7 @@ import { BankTx, BankTxIndicator, BankTxType } from './bank-tx.entity';
 import { stringify } from 'qs';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { Bank, BankName } from 'src/subdomains/supporting/bank/bank/bank.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 interface Transaction {
   idCtp: number;
@@ -44,8 +45,11 @@ enum TransactionType {
 
 @Injectable()
 export class OlkypayService {
+  private readonly logger = new DfxLogger(OlkypayService);
+
   private readonly baseUrl = 'https://ws.olkypay.com/reporting';
   private readonly loginUrl = 'https://stp.olkypay.com/auth/realms/b2b/protocol/openid-connect/token';
+
   private accessToken = 'access-token-will-be-updated';
 
   constructor(private readonly http: HttpService, private readonly bankService: BankService) {}
@@ -62,7 +66,7 @@ export class OlkypayService {
 
       return transactions.map((t) => this.parseTransaction(t, bank));
     } catch (e) {
-      console.error('Failed to get Bank Olky transactions:', e, transactions);
+      this.logger.error(`Failed to get Bank Olky transactions ${transactions.map((t) => t.idCtp.toString())}:`, e);
       return [];
     }
   }

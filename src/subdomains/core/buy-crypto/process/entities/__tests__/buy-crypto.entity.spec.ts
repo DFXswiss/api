@@ -485,14 +485,6 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputDate).toBeInstanceOf(Date);
     });
-
-    it('returns instance of BuyCrypto', () => {
-      const entity = createDefaultBuyCrypto();
-
-      const updatedEntity = entity.complete('TX_ID_01', 0);
-
-      expect(updatedEntity).toBeInstanceOf(BuyCrypto);
-    });
   });
 
   describe('#confirmSentMail(...)', () => {

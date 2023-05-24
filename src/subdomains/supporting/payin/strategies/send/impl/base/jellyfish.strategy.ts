@@ -27,7 +27,7 @@ export abstract class JellyfishStrategy extends SendStrategy {
           await this.payInRepo.save(payIn);
         }
       } catch (e) {
-        console.error(`Failed to check confirmations of ${this.blockchain} input ${payIn.id}:`, e);
+        this.logger.error(`Failed to check confirmations of ${this.blockchain} input ${payIn.id}:`, e);
       }
     }
   }

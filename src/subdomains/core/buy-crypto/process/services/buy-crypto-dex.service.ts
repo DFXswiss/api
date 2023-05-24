@@ -11,9 +11,12 @@ import { PurchaseLiquidityRequest, ReserveLiquidityRequest } from 'src/subdomain
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BuyCryptoDexService {
+  private readonly logger = new DfxLogger(BuyCryptoDexService);
+
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
@@ -37,7 +40,7 @@ export class BuyCryptoDexService {
       await this.checkPendingBatches(pendingBatches);
       await this.processNewBatches(newBatches);
     } catch (e) {
-      console.error(e);
+      this.logger.error('Failed to secure liquidity:', e);
     }
   }
 
@@ -54,13 +57,13 @@ export class BuyCryptoDexService {
         batch.secure(liquidity.amount, finalFee);
         await this.buyCryptoBatchRepo.save(batch);
 
-        console.info(`Secured liquidity for batch. Batch ID: ${batch.id}`);
+        this.logger.verbose(`Secured liquidity for batch. Batch ID: ${batch.id}`);
       } catch (e) {
         if (e instanceof LiquidityOrderNotReadyException) {
           continue;
         }
 
-        console.error(`Failed to check pending batch. Batch ID: ${batch.id}`, e);
+        this.logger.error(`Failed to check pending batch. Batch ID: ${batch.id}:`, e);
       }
     }
   }
@@ -74,14 +77,14 @@ export class BuyCryptoDexService {
           batch.secure(liquidity, 0);
           await this.buyCryptoBatchRepo.save(batch);
 
-          console.info(`Secured liquidity for batch. Batch ID: ${batch.id}.`);
+          this.logger.verbose(`Secured liquidity for batch. Batch ID: ${batch.id}.`);
 
           continue;
         }
 
         await this.purchaseLiquidity(batch);
       } catch (e) {
-        console.info(`Error in processing new batch. Batch ID: ${batch.id}.`, e.message);
+        this.logger.error(`Error in processing new batch. Batch ID: ${batch.id}:`, e);
       }
     }
   }
@@ -93,19 +96,19 @@ export class BuyCryptoDexService {
       return await this.dexService.reserveLiquidity(request);
     } catch (e) {
       if (e instanceof NotEnoughLiquidityException) {
-        console.info(e.message);
+        this.logger.info('Not enough liquidity:', e);
         return 0;
       }
 
       if (e instanceof PriceSlippageException) {
         await this.handleSlippageException(
           batch,
-          `Slippage error while checking liquidity for asset '${batch.outputAsset.dexName}. Batch ID: ${batch.id}`,
+          `Slippage error while checking liquidity for asset '${batch.outputAsset.dexName} (batch ID: ${batch.id}):`,
           e,
         );
       }
 
-      throw new Error(`Error in checking liquidity for a batch, ID: ${batch.id}. ${e.message}`);
+      throw new Error(`Error in checking liquidity for batch ${batch.id}: ${e.message}`);
     }
   }
 
@@ -128,15 +131,15 @@ export class BuyCryptoDexService {
       }
 
       throw new Error(
-        `Error in purchasing liquidity of asset '${batch.outputAsset.dexName}'. Batch ID: ${batch.id}. ${e.message}`,
+        `Error in purchasing liquidity of asset '${batch.outputAsset.dexName}' (batch ID: ${batch.id}): ${e.message}`,
       );
     }
 
     try {
       await this.buyCryptoBatchRepo.save(batch);
     } catch (e) {
-      console.error(
-        `Error in saving PENDING status after purchasing '${batch.outputAsset.dexName}'. Batch ID: ${batch.id}. Purchase ID: ${txId}`,
+      this.logger.error(
+        `Error in saving PENDING status after purchasing '${batch.outputAsset.dexName}' (batch ID: ${batch.id}, purchase ID: ${txId}):`,
         e,
       );
       throw e;
@@ -165,7 +168,6 @@ export class BuyCryptoDexService {
   private async setPriceSlippageStatus(transactions: BuyCrypto[]): Promise<void> {
     for (const tx of transactions) {
       tx.setPriceSlippageStatus();
-
       await this.buyCryptoRepo.save(tx);
     }
   }

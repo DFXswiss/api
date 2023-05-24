@@ -18,20 +18,26 @@ import { Config } from 'src/config/config';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { WebhookService } from '../../services/webhook/webhook.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 
 @Injectable()
 export class KycProcessService {
+  private readonly logger = new DfxLogger(KycProcessService);
+
   constructor(
     private readonly spiderDataRepo: SpiderDataRepository,
     private readonly spiderService: SpiderService,
     private readonly notificationService: NotificationService,
     private readonly userRepo: UserRepository,
     private readonly webhookService: WebhookService,
+    private readonly settingService: SettingService,
   ) {}
 
   // --- GENERAL METHODS --- //
   async startKycProcess(userData: UserData): Promise<UserData> {
-    return this.goToStatus(userData, userData.kycType === KycType.LOCK ? KycStatus.ONLINE_ID : KycStatus.CHATBOT);
+    const nextStatus = userData.kycType === KycType.LOCK ? await this.getIdentMethod(userData) : KycStatus.CHATBOT;
+    return this.goToStatus(userData, nextStatus);
   }
 
   async checkKycProcess(userData: UserData): Promise<UserData> {
@@ -48,7 +54,7 @@ export class KycProcessService {
       try {
         return await this.goToStatus(userData, userData.kycStatus);
       } catch (e) {
-        console.error(`KYC retry for user ${userData.id} (${userData.kycStatus}) failed:`, e);
+        this.logger.error(`KYC retry for user ${userData.id} (${userData.kycStatus}) failed:`, e);
       }
     }
 
@@ -74,7 +80,7 @@ export class KycProcessService {
           input: { translationKey: 'mail.kyc.success', translationParams: {}, userData },
         });
       } else {
-        console.error(`Failed to send KYC completion mail for user data ${userData.id}: user has no email`);
+        this.logger.warn(`Failed to send KYC completion mail for user data ${userData.id}: user has no email`);
       }
     }
 
@@ -86,7 +92,7 @@ export class KycProcessService {
   }
 
   private updateKycStatus(userData: UserData, status: KycStatus): UserData {
-    console.log(`KYC change: status of user ${userData.id}: ${userData.kycStatus} -> ${status}`);
+    this.logger.info(`KYC change: status of user ${userData.id}: ${userData.kycStatus} -> ${status}`);
 
     userData.kycStatus = status;
     userData.kycState = KycState.NA;
@@ -95,7 +101,9 @@ export class KycProcessService {
   }
 
   updateKycState(userData: UserData, state: KycState): UserData {
-    console.log(`KYC change: state of user ${userData.id} (${userData.kycStatus}): ${userData.kycState} -> ${state}`);
+    this.logger.info(
+      `KYC change: state of user ${userData.id} (${userData.kycStatus}): ${userData.kycState} -> ${state}`,
+    );
 
     userData.kycState = state;
     return userData;
@@ -138,16 +146,14 @@ export class KycProcessService {
 
     userData = await this.storeChatbotResult(userData);
 
-    const isVipUser = await this.hasRole(userData.id, UserRole.VIP);
-
-    return isVipUser
-      ? this.goToStatus(userData, KycStatus.VIDEO_ID)
-      : this.goToStatus(userData, KycStatus.ONLINE_ID);
+    const nextStatus = await this.getIdentMethod(userData);
+    return this.goToStatus(userData, nextStatus);
   }
 
   async storeChatbotResult(userData: UserData): Promise<UserData> {
     try {
-      const spiderData = userData.spiderData ?? (await this.spiderDataRepo.findOneBy({ userData: { id: userData.id } }));
+      const spiderData =
+        userData.spiderData ?? (await this.spiderDataRepo.findOneBy({ userData: { id: userData.id } }));
       if (spiderData) {
         // get and store the result
         const chatbotResult = {
@@ -173,7 +179,7 @@ export class KycProcessService {
         userData.plannedContribution = result.plannedDevelopmentOfAssets;
       }
     } catch (e) {
-      console.error(`Failed to store chatbot result for user ${userData.id}:`, e);
+      this.logger.error(`Failed to store chatbot result for user ${userData.id}:`, e);
     }
 
     return userData;
@@ -209,13 +215,14 @@ export class KycProcessService {
 
   async storeIdentResult(userData: UserData, result: IdentResultDto): Promise<UserData> {
     try {
-      const spiderData = userData.spiderData ?? (await this.spiderDataRepo.findOneBy({ userData: { id: userData.id } }));
+      const spiderData =
+        userData.spiderData ?? (await this.spiderDataRepo.findOneBy({ userData: { id: userData.id } }));
       if (spiderData) {
         spiderData.identResult = JSON.stringify(result);
         userData.spiderData = await this.spiderDataRepo.save(spiderData);
       }
     } catch (e) {
-      console.error(`Failed to store ident result for user ${userData.id}:`, e);
+      this.logger.error(`Failed to store ident result for user ${userData.id}:`, e);
     }
 
     return userData;
@@ -224,6 +231,13 @@ export class KycProcessService {
   // --- HELPER METHODS --- //
   private async hasRole(userDataId: number, role: UserRole): Promise<boolean> {
     return this.userRepo.exist({ where: { userData: { id: userDataId }, role } });
+  }
+
+  private async getIdentMethod(userData: UserData): Promise<KycStatus> {
+    const defaultIdent = await this.settingService.get('defaultIdentMethod', KycStatus.ONLINE_ID);
+    const isVipUser = await this.hasRole(userData.id, UserRole.VIP);
+
+    return isVipUser ? KycStatus.VIDEO_ID : (defaultIdent as KycStatus);
   }
 
   private async updateSpiderData(userData: UserData, initiateData: InitiateResponse) {
@@ -250,7 +264,7 @@ export class KycProcessService {
   ): Promise<{ url: string; secondUrl?: string; identIdentificationId?: string }> {
     const locator = initiateData.locators?.[0];
     if (!locator) {
-      console.error(`Failed to initiate identification. Initiate result:`, initiateData);
+      this.logger.error(`Received invalid initiate result: ${JSON.stringify(initiateData)}`);
       throw new ServiceUnavailableException('Identification initiation failed');
     }
 
