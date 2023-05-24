@@ -4,31 +4,30 @@ import { SendGroup, SendGroupKey, SendStrategy, SendType } from './send.strategy
 import { CryptoInput, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
-import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
-import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/utils/util';
 import { Config } from 'src/config/config';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { FeeLimitExceededException } from 'src/shared/payment/exceptions/fee-limit-exceeded.exception';
+import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
 
 export abstract class EvmStrategy extends SendStrategy {
   protected readonly logger = new DfxLogger(EvmStrategy);
 
   constructor(
-    protected readonly priceProvider: PriceProviderService,
-    protected readonly payoutService: PayoutService,
     protected readonly payInEvmService: PayInEvmService,
     protected readonly payInRepo: PayInRepository,
     protected readonly blockchain: Blockchain,
+    priceProvider: PriceProviderService,
+    payoutService: PayoutService,
+    transactionHelper: TransactionHelper,
   ) {
-    super();
+    super(priceProvider, payoutService, transactionHelper);
   }
 
   protected abstract dispatchSend(payInGroup: SendGroup, estimatedNativeFee: number): Promise<string>;
   protected abstract prepareSend(payInGroup: SendGroup, estimatedNativeFee: number): Promise<void>;
   protected abstract checkPreparation(payInGroup: SendGroup): Promise<boolean>;
-  protected abstract getAssetRepresentationForFee(asset: Asset): Promise<Asset>;
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
     this.logInput(payIns, type);
@@ -48,16 +47,16 @@ export abstract class EvmStrategy extends SendStrategy {
         }
 
         if ([PayInStatus.ACKNOWLEDGED, PayInStatus.TO_RETURN].includes(payInGroup.status)) {
-          const { nativeFee, targetFee } = await this.getEstimatedFee(payInGroup);
+          const { nativeFee, targetFee } = await this.getEstimatedFee(payInGroup.asset);
+          const minInputFee = await this.getMinInputFee(payInGroup.asset);
+
+          CryptoInput.verifyEstimatedFee(targetFee, minInputFee, this.getTotalGroupAmount(payInGroup));
 
           /**
            * @note
            * setting to some default minimal amount in case estimated fees go very low.
            */
-
           const effectivePreparationFee = Math.max(nativeFee, Config.blockchain.evm.minimalPreparationFee);
-
-          CryptoInput.verifyEstimatedFee(targetFee, this.getTotalGroupAmount(payInGroup));
 
           await this.prepareSend(payInGroup, effectivePreparationFee);
 
@@ -143,59 +142,8 @@ export abstract class EvmStrategy extends SendStrategy {
     return `${payIn.address.address}&${payIn.destinationAddress.address}&&${payIn.asset.dexName}&${payIn.asset.type}&${payIn.status}`;
   }
 
-  private async getEstimatedFee(payInGroup: SendGroup): Promise<{ nativeFee: number; targetFee: number }> {
-    const feeRequest = { asset: payInGroup.asset };
-
-    const nativeFee = await this.payoutService.estimateFee(feeRequest);
-    const targetFee = await this.getFeeAmountForInPayInGroup(payInGroup, nativeFee);
-
-    return { nativeFee: nativeFee.amount, targetFee };
-  }
-
-  private async getFeeAmountForInPayInGroup(payInGroup: SendGroup, nativeFee: FeeResult): Promise<number> {
-    const errorMessage = `Could not get fee in target asset. Ignoring fee estimate. Native fee asset: ${nativeFee.asset.dexName}, pay-in asset: ${payInGroup.asset.dexName}`;
-
-    return this.getFeeAmountInPayInAsset(payInGroup.asset, nativeFee, errorMessage);
-  }
-
   private getPayInsIdentityKey(payInGroup: SendGroup): string {
     return payInGroup.payIns.reduce((acc, t) => acc + `|${t.id}|`, '');
-  }
-
-  private async getFeeAmountInPayInAsset(
-    asset: Asset,
-    nativeFee: FeeResult,
-    errorMessage: string,
-  ): Promise<number | null> {
-    try {
-      return nativeFee.amount ? await this.convertToTargetAsset(nativeFee.asset, nativeFee.amount, asset) : 0;
-    } catch (e) {
-      this.logger.error(`${errorMessage}:`, e);
-
-      return null;
-    }
-  }
-
-  private async convertToTargetAsset(sourceAsset: Asset, sourceAmount: number, targetAsset: Asset): Promise<number> {
-    const sourceAssetRepresentation = await this.getAssetRepresentationForFee(sourceAsset);
-    const targetAssetRepresentation = await this.getAssetRepresentationForFee(targetAsset);
-
-    if (!sourceAssetRepresentation)
-      throw new Error(
-        `Cannot proceed with fee conversion, could not find source asset representation for asset ${sourceAsset.dexName} ${sourceAsset.blockchain}`,
-      );
-
-    if (!targetAssetRepresentation)
-      throw new Error(
-        `Cannot proceed with fee conversion, could not find target asset representation for asset ${targetAsset.dexName} ${targetAsset.blockchain}`,
-      );
-
-    return this.getFeeReferenceAmount(sourceAsset, sourceAmount, targetAssetRepresentation);
-  }
-
-  private async getFeeReferenceAmount(fromAsset: Asset, fromAmount: number, toAsset: Asset): Promise<number> {
-    const result = await this.priceProvider.getPrice(fromAsset, toAsset);
-    return result.price ? Util.round(fromAmount / result.price, 8) : 0;
   }
 
   protected getTotalGroupAmount(payInGroup: SendGroup): number {

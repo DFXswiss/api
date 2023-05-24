@@ -10,6 +10,7 @@ import { PriceProviderService } from 'src/subdomains/supporting/pricing/services
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
 import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
 import { Lock } from 'src/shared/utils/lock';
+import { TxSpec } from '../entities/tx-spec';
 
 @Injectable()
 export class TransactionHelper implements OnModuleInit {
@@ -43,16 +44,20 @@ export class TransactionHelper implements OnModuleInit {
     return amount > minVolume * 0.5;
   }
 
-  async getSpecs(from: Asset | Fiat, to: Asset | Fiat): Promise<{ minFee: number; minVolume: number }> {
+  async getInSpecs(from: Asset | Fiat): Promise<TxSpec> {
+    const { system, asset } = this.getProps(from);
+    const spec = this.getSpec(system, asset, TransactionDirection.IN);
+
+    return this.convertToSource(from, spec);
+  }
+
+  async getSpecs(from: Asset | Fiat, to: Asset | Fiat): Promise<TxSpec> {
     const { system: fromSystem, asset: fromAsset } = this.getProps(from);
     const { system: toSystem, asset: toAsset } = this.getProps(to);
-    const { minFee, minDeposit } = this.getDefaultSpecs(fromSystem, fromAsset, toSystem, toAsset);
-    const price = await this.priceProviderService.getPrice(this.eur, from);
 
-    return {
-      minFee: this.convert(minFee.amount, price, from instanceof Fiat),
-      minVolume: this.convert(minDeposit.amount, price, from instanceof Fiat),
-    };
+    const { minFee, minDeposit } = this.getDefaultSpecs(fromSystem, fromAsset, toSystem, toAsset);
+
+    return this.convertToSource(from, { minFee: minFee.amount, minVolume: minDeposit.amount });
   }
 
   getDefaultSpecs(
@@ -108,6 +113,15 @@ export class TransactionHelper implements OnModuleInit {
     return param instanceof Fiat
       ? { system: 'Fiat', asset: param.name }
       : { system: param.blockchain, asset: param.dexName };
+  }
+
+  private async convertToSource(from: Asset | Fiat, { minFee, minVolume }: TxSpec): Promise<TxSpec> {
+    const price = await this.priceProviderService.getPrice(from, this.eur).then((p) => p.invert());
+
+    return {
+      minFee: this.convert(minFee, price, from instanceof Fiat),
+      minVolume: this.convert(minVolume, price, from instanceof Fiat),
+    };
   }
 
   private convert(amount: number, price: Price, isFiat: boolean): number {

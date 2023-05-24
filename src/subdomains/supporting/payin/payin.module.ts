@@ -36,6 +36,7 @@ import { EthereumTokenStrategy as EthereumTokenStrategyS } from './strategies/se
 import { OptimismCoinStrategy as OptimismCoinStrategyS } from './strategies/send/impl/optimism-coin.strategy';
 import { OptimismTokenStrategy as OptimismTokenStrategyS } from './strategies/send/impl/optimism-token.strategy';
 import { SendStrategiesFacade } from './strategies/send/send.facade';
+import { PaymentModule } from 'src/shared/payment/payment.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { SendStrategiesFacade } from './strategies/send/send.facade';
     DexModule,
     ChainalysisModule,
     SellCryptoModule,
+    PaymentModule,
   ],
   controllers: [],
   providers: [

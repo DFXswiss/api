@@ -6,16 +6,18 @@ import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.
 import { EvmStrategy } from './evm.strategy';
 import { SendGroup } from './send.strategy';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
+import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
 
 export abstract class EvmTokenStrategy extends EvmStrategy {
   constructor(
-    protected readonly priceProvider: PriceProviderService,
-    protected readonly payoutService: PayoutService,
     protected readonly payInEvmService: PayInEvmService,
     protected readonly payInRepo: PayInRepository,
     protected readonly blockchain: Blockchain,
+    priceProvider: PriceProviderService,
+    payoutService: PayoutService,
+    transactionHelper: TransactionHelper,
   ) {
-    super(priceProvider, payoutService, payInEvmService, payInRepo, blockchain);
+    super(payInEvmService, payInRepo, blockchain, priceProvider, payoutService, transactionHelper);
   }
 
   protected async checkPreparation(payInGroup: SendGroup): Promise<boolean> {
