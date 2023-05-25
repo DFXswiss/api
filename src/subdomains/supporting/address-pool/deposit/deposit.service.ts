@@ -6,10 +6,17 @@ import { Deposit } from './deposit.entity';
 import { CreateDepositDto } from './dto/create-deposit.dto';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Config } from 'src/config/config';
+import { LightningClient } from 'src/integration/lightning/lightning-client';
+import { LightningHelper } from 'src/integration/lightning/lightning-helper';
+import { LightningService } from 'src/integration/lightning/lightning.service';
 
 @Injectable()
 export class DepositService {
-  constructor(private depositRepo: DepositRepository) {}
+  private readonly lightningClient: LightningClient;
+
+  constructor(private depositRepo: DepositRepository, lightningService: LightningService) {
+    this.lightningClient = lightningService.getDefaultClient();
+  }
 
   async getDeposit(id: number): Promise<Deposit> {
     return this.depositRepo.findOneBy({ id });
@@ -36,23 +43,50 @@ export class DepositService {
   }
 
   async createDeposits({ blockchain, count }: CreateDepositDto): Promise<void> {
-    const { ARBITRUM, OPTIMISM, ETHEREUM, BINANCE_SMART_CHAIN } = Blockchain;
+    switch (blockchain) {
+      case Blockchain.ARBITRUM:
+      case Blockchain.OPTIMISM:
+      case Blockchain.ETHEREUM:
+      case Blockchain.BINANCE_SMART_CHAIN:
+        return this.createEvmDeposits(blockchain, count);
 
-    if (![ARBITRUM, OPTIMISM, ETHEREUM, BINANCE_SMART_CHAIN].includes(blockchain)) {
-      throw new BadRequestException(
-        'Creating random address is supported only for ARBITRUM, OPTIMISM, ETHEREUM and BINANCE_SMART_CHAIN.',
-      );
+      case Blockchain.LIGHTNING:
+        return this.createLightningDeposits(blockchain, count);
+
+      default:
+        throw new BadRequestException(`Deposit creation for ${blockchain} not possible.`);
     }
+  }
 
-    const lastDeposit = await this.depositRepo.findOne({ where: { blockchain }, order: { accountIndex: 'DESC' } });
-    const nextAccountIndex = (lastDeposit?.accountIndex ?? -1) + 1;
+  private async createEvmDeposits(blockchain: Blockchain, count: number) {
+    const nextDepositIndex = await this.getNextDepositIndex(blockchain);
 
     for (let i = 0; i < count; i++) {
-      const accountIndex = nextAccountIndex + i;
+      const accountIndex = nextDepositIndex + i;
 
       const wallet = EvmUtil.createWallet(Config.blockchain.evm.walletAccount(accountIndex));
       const deposit = Deposit.create(wallet.address, blockchain, accountIndex);
       await this.depositRepo.save(deposit);
     }
+  }
+
+  private async createLightningDeposits(blockchain: Blockchain, count: number) {
+    const nextDepositIndex = await this.getNextDepositIndex(blockchain);
+
+    for (let i = 0; i < count; i++) {
+      const accountIndex = nextDepositIndex + i;
+
+      const lnUrlPLinkDto = await this.lightningClient.addLnUrlPLink(accountIndex.toString());
+      const id = lnUrlPLinkDto.id;
+      const lnurlp = LightningHelper.createLnUrlP(id);
+
+      const deposit = Deposit.create(lnurlp, blockchain, accountIndex);
+      await this.depositRepo.save(deposit);
+    }
+  }
+
+  private async getNextDepositIndex(blockchain: Blockchain): Promise<number> {
+    const lastDeposit = await this.depositRepo.findOne({ where: { blockchain }, order: { accountIndex: 'DESC' } });
+    return (lastDeposit?.accountIndex ?? -1) + 1;
   }
 }
