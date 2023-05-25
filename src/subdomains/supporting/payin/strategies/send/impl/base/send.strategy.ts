@@ -89,7 +89,7 @@ export abstract class SendStrategy {
   }
 
   private async getFeeReferenceAmount(fromAsset: Asset, fromAmount: number, toAsset: Asset): Promise<number> {
-    const result = await this.priceProvider.getPrice(fromAsset, toAsset);
-    return result.price ? Util.round(fromAmount / result.price, 8) : 0;
+    const price = await this.priceProvider.getPrice(fromAsset, toAsset);
+    return price.convert(fromAmount, 8);
   }
 }

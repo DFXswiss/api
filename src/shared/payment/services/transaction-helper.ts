@@ -125,6 +125,7 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   private convert(amount: number, price: Price, isFiat: boolean): number {
-    return isFiat ? Util.round(amount / price.price, 2) : Util.roundByPrecision(amount / price.price, 5);
+    const targetAmount = price.convert(amount);
+    return isFiat ? Util.round(targetAmount, 2) : Util.roundByPrecision(targetAmount, 5);
   }
 }

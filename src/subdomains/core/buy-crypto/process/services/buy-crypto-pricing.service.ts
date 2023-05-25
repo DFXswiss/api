@@ -20,8 +20,8 @@ export class BuyCryptoPricingService {
   //*** HELPER METHODS ***//
 
   private async convertToTargetAsset(sourceAsset: Asset, sourceAmount: number, targetAsset: Asset): Promise<number> {
-    const result = await this.priceProvider.getPrice(sourceAsset, targetAsset);
+    const price = await this.priceProvider.getPrice(sourceAsset, targetAsset);
 
-    return result.price ? Util.round(sourceAmount / result.price, 8) : 0;
+    return price.convert(sourceAmount, 8);
   }
 }
