@@ -423,6 +423,10 @@ export class Configuration {
   };
 
   // --- GETTERS --- //
+  get url(): string {
+    return `https://${this.environment === 'prd' ? '' : this.environment + '.'}api.dfx.swiss/v1`;
+  }
+
   get kraken(): Partial<Exchange> {
     return {
       apiKey: process.env.KRAKEN_KEY,

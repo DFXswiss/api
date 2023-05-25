@@ -39,7 +39,7 @@
   {
     "_id": "1f2cc1f8-90ed-439a-9753-1f609ddf7ac5",
     "name": "loc (Admin)",
-    "default": false,
+    "default": true,
     "sortNum": 23750,
     "created": "2022-12-20T10:52:17.609Z",
     "modified": "2022-12-20T10:52:17.609Z",
@@ -47,6 +47,10 @@
       {
         "name": "url",
         "value": "http://localhost:3000"
+      },
+      {
+        "name": "token",
+        "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTc1LCJhZGRyZXNzIjoidGYxcXlqbDZwbjJ4ODJoanNqcWM2MjYwN2d5ejV0cWw3ajA5NnBnZWE4Iiwicm9sZSI6IkFkbWluIiwiYmxvY2tjaGFpbnMiOlsiRGVGaUNoYWluIl0sImlhdCI6MTY4NTAwOTI5NywiZXhwIjoxNjg2MjE4ODk3fQ.dcaw_Nbvqlzfgya3MVnxYQLuEMz-6wugOz-zWHGBRBg"
       }
     ],
     "envFile": "env/loc.admin.env"
@@ -69,7 +73,7 @@
   {
     "_id": "fcc53e18-bf68-472a-92ae-cbf20f6e66a1",
     "name": "dev (Admin)",
-    "default": true,
+    "default": false,
     "sortNum": 27500,
     "created": "2022-12-20T10:57:51.081Z",
     "modified": "2022-12-20T10:57:51.081Z",
