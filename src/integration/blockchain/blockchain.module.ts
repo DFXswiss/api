@@ -6,10 +6,20 @@ import { EthereumModule } from './ethereum/ethereum.module';
 import { OptimismModule } from './optimism/optimism.module';
 import { EvmRegistryService } from './shared/evm/evm-registry.service';
 import { LightningModule } from '../lightning/lightning.module';
+import { CryptoService } from './shared/services/crypto.service';
 
 @Module({
-  providers: [EvmRegistryService],
+  providers: [EvmRegistryService, CryptoService],
   imports: [AinModule, BscModule, EthereumModule, OptimismModule, ArbitrumModule, LightningModule],
-  exports: [AinModule, BscModule, EthereumModule, OptimismModule, ArbitrumModule, EvmRegistryService, LightningModule],
+  exports: [
+    AinModule,
+    BscModule,
+    EthereumModule,
+    OptimismModule,
+    ArbitrumModule,
+    EvmRegistryService,
+    LightningModule,
+    CryptoService,
+  ],
 })
 export class BlockchainModule {}

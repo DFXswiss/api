@@ -9,7 +9,7 @@ import { CreateUserDto } from 'src/subdomains/generic/user/models/user/dto/creat
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { JwtPayloadBase, JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { JwtService } from '@nestjs/jwt';
-import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
+import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { Config } from 'src/config/config';
 import { UserService } from '../user/user.service';
 import { UserRepository } from '../user/user.repository';
@@ -59,7 +59,8 @@ export class AuthService {
     const existingUser = await this.userRepo.getByAddress(dto.address, true);
     if (existingUser) throw new ConflictException('User already exists');
 
-    if (!this.verifySignature(dto.address, dto.signature, dto.key)) throw new BadRequestException('Invalid signature');
+    if (!(await this.verifySignature(dto.address, dto.signature, dto.key)))
+      throw new BadRequestException('Invalid signature');
 
     const ref = await this.refService.get(userIp);
     if (ref) {
@@ -78,7 +79,7 @@ export class AuthService {
 
     const user = await this.userRepo.getByAddress(dto.address, true);
     if (!user || user.status == UserStatus.BLOCKED) throw new NotFoundException('User not found');
-    if (!this.verifySignature(dto.address, dto.signature, dto.key))
+    if (!(await this.verifySignature(dto.address, dto.signature, dto.key)))
       throw new UnauthorizedException('Invalid credentials');
 
     // TODO: temporary code to update old wallet signatures
@@ -91,9 +92,9 @@ export class AuthService {
 
   private async companySignIn(dto: AuthCredentialsDto): Promise<{ accessToken: string }> {
     const wallet = await this.walletRepo.findOneBy({ address: dto.address });
-    if (!wallet || !wallet.isKycClient) throw new NotFoundException('Wallet not found');
+    if (!wallet?.isKycClient) throw new NotFoundException('Wallet not found');
 
-    if (!this.verifyCompanySignature(dto.address, dto.signature, dto.key))
+    if (!(await this.verifyCompanySignature(dto.address, dto.signature, dto.key)))
       throw new UnauthorizedException('Invalid credentials');
 
     return { accessToken: this.generateCompanyToken(wallet) };
@@ -101,7 +102,7 @@ export class AuthService {
 
   async getCompanyChallenge(address: string): Promise<ChallengeDto> {
     const wallet = await this.walletRepo.findOneBy({ address });
-    if (!wallet || !wallet.isKycClient) throw new BadRequestException('Wallet not found/invalid');
+    if (!wallet?.isKycClient) throw new BadRequestException('Wallet not found/invalid');
 
     const challenge = randomUUID();
 
@@ -147,16 +148,16 @@ export class AuthService {
     return user?.userData?.users.find((u) => u.address === address);
   }
 
-  private verifySignature(address: string, signature: string, key?: string): boolean {
+  private async verifySignature(address: string, signature: string, key?: string): Promise<boolean> {
     const { defaultMessage, fallbackMessage } = this.getSignMessages(address);
 
-    let isValid = this.cryptoService.verifySignature(defaultMessage, address, signature, key);
-    if (!isValid) isValid = this.cryptoService.verifySignature(fallbackMessage, address, signature, key);
+    let isValid = await this.cryptoService.verifySignature(defaultMessage, address, signature, key);
+    if (!isValid) isValid = await this.cryptoService.verifySignature(fallbackMessage, address, signature, key);
 
     return isValid;
   }
 
-  private verifyCompanySignature(address: string, signature: string, key?: string): boolean {
+  private async verifyCompanySignature(address: string, signature: string, key?: string): Promise<boolean> {
     const challengeData = this.challengeList.get(address);
     if (!this.isChallengeValid(challengeData)) throw new UnauthorizedException('Challenge invalid');
     this.challengeList.delete(address);

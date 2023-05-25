@@ -9,7 +9,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Lock } from 'src/shared/utils/lock';
 import { Config, Process } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
+import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
