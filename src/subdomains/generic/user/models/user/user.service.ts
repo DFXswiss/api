@@ -25,7 +25,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { VolumeQuery } from './dto/volume-query.dto';
 import { KycStatus, KycType, UserData, UserDataStatus } from '../user-data/user-data.entity';
-import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
+import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';

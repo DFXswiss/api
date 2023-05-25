@@ -13,7 +13,7 @@ import { DfiTaxService } from 'src/integration/blockchain/ain/services/dfi-tax.s
 import { TestUtil } from 'src/shared/utils/test.util';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
+import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { Asset, FeeTier } from 'src/shared/models/asset/asset.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';

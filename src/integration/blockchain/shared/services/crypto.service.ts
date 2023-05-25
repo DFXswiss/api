@@ -5,6 +5,8 @@ import { isEthereumAddress } from 'class-validator';
 import { verifyMessage } from 'ethers/lib/utils';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import verifyCardanoSignature from '@cardano-foundation/cardano-verify-datasignature';
+import { LightningService } from 'src/integration/lightning/lightning.service';
+import { LightningClient } from 'src/integration/lightning/lightning-client';
 
 @Injectable()
 export class CryptoService {
@@ -15,6 +17,12 @@ export class CryptoService {
     Blockchain.OPTIMISM,
     Blockchain.POLYGON,
   ];
+
+  private readonly lightningClient: LightningClient;
+
+  constructor(lightningService: LightningService) {
+    this.lightningClient = lightningService.getDefaultClient();
+  }
 
   // --- ADDRESSES --- //
   public getBlockchainsBasedOn(address: string): Blockchain[] {
@@ -42,13 +50,13 @@ export class CryptoService {
   }
 
   // --- SIGNATURE VERIFICATION --- //
-  public verifySignature(message: string, address: string, signature: string, key?: string): boolean {
+  public async verifySignature(message: string, address: string, signature: string, key?: string): Promise<boolean> {
     const blockchain = this.getDefaultBlockchainBasedOn(address);
 
     try {
       if (this.EthereumBasedChains.includes(blockchain)) return this.verifyEthereumBased(message, address, signature);
       if (blockchain === Blockchain.BITCOIN) return this.verifyBitcoinBased(message, address, signature, null);
-      if (blockchain === Blockchain.LIGHTNING) return this.verifyLightningBased(message, address, signature, null);
+      if (blockchain === Blockchain.LIGHTNING) return await this.verifyLightningBased(message, signature);
       if (blockchain === Blockchain.DEFICHAIN)
         return this.verifyBitcoinBased(message, address, signature, MainNet.messagePrefix);
       if (blockchain === Blockchain.CARDANO) return this.verifyCardano(message, address, signature, key);
@@ -74,14 +82,8 @@ export class CryptoService {
     return isValid;
   }
 
-  private verifyLightningBased(
-    _message: string,
-    _address: string,
-    _signature: string,
-    _prefix: string | null,
-  ): boolean {
-    // TODO: correctly validate lightning signatures
-    return true;
+  private async verifyLightningBased(message: string, signature: string): Promise<boolean> {
+    return this.lightningClient.verifySignature(message, signature);
   }
 
   private verifyCardano(message: string, address: string, signature: string, key?: string): boolean {

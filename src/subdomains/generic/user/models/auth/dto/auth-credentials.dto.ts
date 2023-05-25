@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, Matches, ValidateIf } from 'class-validator';
 import { GetConfig } from 'src/config/config';
-import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
+import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 
 export class AuthCredentialsDto {
   @ApiProperty()

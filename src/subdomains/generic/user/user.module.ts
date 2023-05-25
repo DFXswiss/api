@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AinModule } from 'src/integration/blockchain/ain/ain.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserDataController } from 'src/subdomains/generic/user/models/user-data/user-data.controller';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
@@ -43,13 +42,14 @@ import { SpiderData } from './models/spider-data/spider-data.entity';
 import { UserData } from './models/user-data/user-data.entity';
 import { User } from './models/user/user.entity';
 import { Wallet } from './models/wallet/wallet.entity';
+import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, UserData, SpiderData, Wallet, BankData, LimitRequest, LinkAddress]),
     SharedModule,
     NotificationModule,
-    AinModule,
+    BlockchainModule,
     ReferralModule,
   ],
   controllers: [
