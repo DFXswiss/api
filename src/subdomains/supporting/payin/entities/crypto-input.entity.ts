@@ -128,13 +128,15 @@ export class CryptoInput extends IEntity {
 
   //*** UTILITY METHODS ***//
 
-  static verifyEstimatedFee(estimatedFeeInPayInAsset: number, totalAmount: number): void {
-    if (estimatedFeeInPayInAsset == null) throw new Error('No fee estimation provided');
+  static verifyEstimatedFee(estimatedFee: number, minInputFee: number, totalAmount: number): void {
+    if (estimatedFee == null) throw new Error('No fee estimation provided');
     if (totalAmount === 0) throw new Error('Total forward amount cannot be zero');
 
-    if (estimatedFeeInPayInAsset / totalAmount > Config.payIn.forwardFeeLimit) {
-      const feePercent = Util.round((estimatedFeeInPayInAsset / totalAmount) * 100, 1);
-      throw new FeeLimitExceededException(`Forward fee is too high (${estimatedFeeInPayInAsset}, ${feePercent}%)`);
+    const maxFee = Math.max(totalAmount * Config.payIn.forwardFeeLimit, minInputFee * 0.5);
+
+    if (estimatedFee > maxFee) {
+      const feePercent = Util.round((estimatedFee / totalAmount) * 100, 1);
+      throw new FeeLimitExceededException(`Forward fee is too high (${estimatedFee}, ${feePercent}%)`);
     }
   }
 
