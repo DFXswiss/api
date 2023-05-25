@@ -38,6 +38,7 @@ export function GetConfig(): Configuration {
 
 export class Configuration {
   environment = process.env.ENVIRONMENT;
+  version = 'v1';
   network = process.env.NETWORK as NetworkName;
   githubToken = process.env.GH_TOKEN;
   defaultLanguage = 'en';
@@ -424,7 +425,7 @@ export class Configuration {
 
   // --- GETTERS --- //
   get url(): string {
-    return `https://${this.environment === 'prd' ? '' : this.environment + '.'}api.dfx.swiss/v1`;
+    return `https://${this.environment === 'prd' ? '' : this.environment + '.'}api.dfx.swiss/${this.version}`;
   }
 
   get kraken(): Partial<Exchange> {
