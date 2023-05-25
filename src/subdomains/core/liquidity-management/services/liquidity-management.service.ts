@@ -136,6 +136,6 @@ export class LiquidityManagementService {
   private logRuleExecution(rule: LiquidityManagementRule, result: LiquidityState): void {
     const message = result.deficit ? `${result.deficit} deficit` : `${result.redundancy} redundancy`;
 
-    this.logger.info(`Executing liquidity management rule ${rule.id} (${message} of ${rule.targetName})`);
+    this.logger.verbose(`Executing liquidity management rule ${rule.id} (${message} of ${rule.targetName})`);
   }
 }

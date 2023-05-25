@@ -36,7 +36,7 @@ export class LimitRequestNotificationService {
       relations: ['userData'],
     });
 
-    entities.length > 0 && this.logger.info(`Sending ${entities.length} 'limit-request accepted' email(s)`);
+    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'limit-request accepted' email(s)`);
 
     for (const entity of entities) {
       try {

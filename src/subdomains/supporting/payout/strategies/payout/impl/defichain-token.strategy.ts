@@ -45,7 +45,7 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
             continue;
           }
 
-          this.logger.info(`Paying out ${group.length} token orders(s). Order ID(s): ${group.map((o) => o.id)}`);
+          this.logger.verbose(`Paying out ${group.length} token orders(s). Order ID(s): ${group.map((o) => o.id)}`);
 
           await this.checkUtxoForGroup(group);
           await this.sendToken(context, group, tokenName);

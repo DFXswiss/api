@@ -31,7 +31,7 @@ export class RefRewardOutService {
 
       await this.checkCompletion(transactionsPaidOut);
     } catch (e) {
-      this.logger.error('Failed to check paid transactions:', e);
+      this.logger.error('Failed to check paid ref-rewards:', e);
     }
   }
 
@@ -58,7 +58,7 @@ export class RefRewardOutService {
 
       this.logTransactionsPayouts(successfulRequests);
     } catch (e) {
-      this.logger.error('Failed to payout new transactions:', e);
+      this.logger.error('Failed to payout new ref-rewards:', e);
     }
   }
 
@@ -115,7 +115,7 @@ export class RefRewardOutService {
           await this.updatePaidRefCredit([tx.user?.id]);
         }
       } catch (e) {
-        this.logger.error(`Error on validating transaction completion. ID: ${tx.id}.`, e);
+        this.logger.error(`Error on checking completion of ref-reward ${tx.id}:`, e);
         continue;
       }
     }

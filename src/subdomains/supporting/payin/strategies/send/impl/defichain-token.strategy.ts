@@ -9,6 +9,9 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { JellyfishStrategy } from './base/jellyfish.strategy';
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
+import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
+import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 
 @Injectable()
 export class DeFiChainTokenStrategy extends JellyfishStrategy {
@@ -17,15 +20,18 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
   constructor(
     protected readonly deFiChainService: PayInDeFiChainService,
     protected readonly payInRepo: PayInRepository,
+    priceProvider: PriceProviderService,
+    payoutService: PayoutService,
+    transactionHelper: TransactionHelper,
   ) {
-    super(deFiChainService, payInRepo, Blockchain.DEFICHAIN);
+    super(deFiChainService, payInRepo, Blockchain.DEFICHAIN, priceProvider, payoutService, transactionHelper);
   }
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
-    this.logger.info(
+    this.logger.verbose(
       `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${
         payIns.length
-      } DeFiChain Token input(s): ${payIns.map((p) => p.id)}`,
+      } DeFiChain token input(s): ${payIns.map((p) => p.id)}`,
     );
 
     await this.deFiChainService.checkHealthOrThrow();
@@ -97,7 +103,7 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
     this.updatePayInWithSendData(payIn, type, outTxId);
 
     await this.payInRepo.save(payIn);
-    this.logger.info(`Token pay-in ${payIn.id} sent`);
+    this.logger.verbose(`Token pay-in ${payIn.id} sent`);
   }
 
   private async getFeeUtxo(payIn: CryptoInput): Promise<UTXO> {

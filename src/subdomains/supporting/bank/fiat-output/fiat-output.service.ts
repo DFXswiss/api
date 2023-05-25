@@ -20,7 +20,7 @@ export class FiatOutputService {
 
     if (dto.buyFiatId) {
       entity.buyFiat = await this.buyFiatRepo.findOneBy({ id: dto.buyFiatId });
-      if (!entity.buyFiat) throw new NotFoundException('Buy fiat not found');
+      if (!entity.buyFiat) throw new NotFoundException('Buy-fiat not found');
     }
 
     return this.fiatOutputRepo.save(entity);

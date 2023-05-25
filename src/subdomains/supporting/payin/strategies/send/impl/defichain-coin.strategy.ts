@@ -8,6 +8,9 @@ import { PayInDeFiChainService } from '../../../services/payin-defichain.service
 import { JellyfishStrategy } from './base/jellyfish.strategy';
 import { SendType } from './base/send.strategy';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
+import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
+import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 
 @Injectable()
 export class DeFiChainCoinStrategy extends JellyfishStrategy {
@@ -16,13 +19,16 @@ export class DeFiChainCoinStrategy extends JellyfishStrategy {
   constructor(
     protected readonly deFiChainService: PayInDeFiChainService,
     protected readonly payInRepo: PayInRepository,
+    priceProvider: PriceProviderService,
+    payoutService: PayoutService,
+    transactionHelper: TransactionHelper,
   ) {
-    super(deFiChainService, payInRepo, Blockchain.DEFICHAIN);
+    super(deFiChainService, payInRepo, Blockchain.DEFICHAIN, priceProvider, payoutService, transactionHelper);
   }
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
-    this.logger.info(
-      `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${payIns.length} DeFiChain Coin input(s): ${payIns.map(
+    this.logger.verbose(
+      `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${payIns.length} DeFiChain coin input(s): ${payIns.map(
         (p) => p.id,
       )}`,
     );

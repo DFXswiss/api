@@ -55,7 +55,7 @@ export class DeFiChainCoinStrategy extends DeFiChainStrategy {
 
     const txId = await this.dexDeFiChainService.sellDfiCoin(referenceAmount);
 
-    this.logger.info(
+    this.logger.verbose(
       `Booked sell of ${referenceAmount} ${referenceAsset.dexName} coin liquidity. Context: ${order.context}. CorrelationId: ${order.correlationId}.`,
     );
 

@@ -6,7 +6,7 @@ import { Util } from 'src/shared/utils/util';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { MissingBuyCryptoLiquidityException } from '../exceptions/abort-batch-creation.exception';
 import { BuyCrypto } from './buy-crypto.entity';
-import { FeeLimitExceededException } from '../exceptions/fee-limit-exceeded.exception';
+import { FeeLimitExceededException } from 'src/shared/payment/exceptions/fee-limit-exceeded.exception';
 
 export enum BuyCryptoBatchStatus {
   CREATED = 'Created',

@@ -29,7 +29,7 @@ export class BuyCryptoNotificationService {
       await this.paybackToAddressInitiated();
       await this.pendingBuyCrypto();
     } catch (e) {
-      this.logger.error('Error during buy crypto notification:', e);
+      this.logger.error('Error during buy-crypto notification:', e);
     }
   }
 
@@ -57,8 +57,8 @@ export class BuyCryptoNotificationService {
       });
 
       txOutput.length &&
-        this.logger.info(
-          `Sending notifications for ${txOutput.length} buy crypto transaction(s). Transaction ID(s): ${txOutput.map(
+        this.logger.verbose(
+          `Sending notifications for ${txOutput.length} buy-crypto transaction(s). Transaction ID(s): ${txOutput.map(
             (t) => t.id,
           )}`,
         );
@@ -96,11 +96,11 @@ export class BuyCryptoNotificationService {
 
           await this.buyCryptoRepo.update(...tx.confirmSentMail());
         } catch (e) {
-          this.logger.error(`Failed to send buyCrypto confirmed mail ${tx.id}:`, e);
+          this.logger.error(`Failed to send buy-crypto confirmed mail ${tx.id}:`, e);
         }
       }
     } catch (e) {
-      this.logger.error(`Failed to send buyCrypto confirmed mails:`, e);
+      this.logger.error(`Failed to send buy-crypto confirmed mails:`, e);
     }
   }
 
@@ -174,7 +174,7 @@ export class BuyCryptoNotificationService {
       ],
     });
 
-    entities.length > 0 && this.logger.info(`Sending ${entities.length} 'payback to address' email(s)`);
+    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'payback to address' email(s)`);
 
     for (const entity of entities) {
       try {
@@ -199,7 +199,7 @@ export class BuyCryptoNotificationService {
 
         await this.buyCryptoRepo.update(...entity.confirmSentMail());
       } catch (e) {
-        this.logger.error(`Failed to send buyCrypto payback to address mail ${entity.id}:`, e);
+        this.logger.error(`Failed to send buy-crypto payback to address mail ${entity.id}:`, e);
       }
     }
   }
@@ -225,7 +225,7 @@ export class BuyCryptoNotificationService {
       ],
     });
 
-    entities.length > 0 && this.logger.info(`Sending ${entities.length} 'pending' email(s)`);
+    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'pending' email(s)`);
 
     for (const entity of entities) {
       try {
@@ -244,7 +244,7 @@ export class BuyCryptoNotificationService {
 
         await this.buyCryptoRepo.update(...entity.confirmSentMail());
       } catch (e) {
-        this.logger.error(`Failed to send buyCrypto pending mail ${entity.id}:`, e);
+        this.logger.error(`Failed to send buy-crypto pending mail ${entity.id}:`, e);
       }
     }
   }

@@ -153,7 +153,7 @@ export class PayInDeFiChainService extends PayInJellyfishService {
         });
 
         if (assetEntity?.category === AssetCategory.POOL_PAIR) {
-          this.logger.info(`Removing pool liquidity on ${token.owner}`);
+          this.logger.verbose(`Removing pool liquidity on ${token.owner}`);
 
           // remove pool liquidity
           await this.doTokenTx(token.owner, (utxo) =>
@@ -186,7 +186,7 @@ export class PayInDeFiChainService extends PayInJellyfishService {
           amount >= Config.blockchain.default.minTxAmount &&
           amount < Config.payIn.minDeposit.DeFiChain.DFI
         ) {
-          this.logger.info(`Retrieving small token on ${token.owner}`);
+          this.logger.verbose(`Retrieving small token on ${token.owner}`);
 
           await this.doTokenTx(token.owner, async (utxo) =>
             this.client.sendToken(token.owner, Config.blockchain.default.dex.address, asset, amount, [utxo]),

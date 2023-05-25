@@ -36,7 +36,7 @@ export class DeFiChainCoinStrategy extends JellyfishStrategy {
           continue;
         }
 
-        this.logger.info(`Paying out ${group.length} DFI orders(s). Order ID(s): ${group.map((o) => o.id)}`);
+        this.logger.verbose(`Paying out ${group.length} DFI orders(s). Order ID(s): ${group.map((o) => o.id)}`);
 
         await this.sendDFI(context, group);
       } catch (e) {

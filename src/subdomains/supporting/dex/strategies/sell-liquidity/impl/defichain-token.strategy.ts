@@ -80,7 +80,7 @@ export class DeFiChainTokenStrategy extends DeFiChainStrategy {
       maxPriceSlippage,
     );
 
-    this.logger.info(
+    this.logger.verbose(
       `Booked sell of ${referenceAmount} ${referenceAsset.dexName} liquidity for ${targetAsset.dexName}. Context: ${order.context}. CorrelationId: ${order.correlationId}.`,
     );
 

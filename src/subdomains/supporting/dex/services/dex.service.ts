@@ -26,7 +26,8 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { SupplementaryStrategies } from '../strategies/supplementary/supplementary.facade';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
+import { TransactionNotFoundException } from '../exceptions/transaction-not-found.exception';
 
 @Injectable()
 export class DexService {
@@ -65,7 +66,7 @@ export class DexService {
     const { context, correlationId, targetAsset } = request;
 
     try {
-      this.logger.info(
+      this.logger.verbose(
         `Reserving ${targetAsset.dexName} liquidity. Context: ${context}. Correlation ID: ${correlationId}`,
       );
 
@@ -107,7 +108,7 @@ export class DexService {
     }
 
     try {
-      this.logger.info(
+      this.logger.verbose(
         `Purchasing ${targetAsset.dexName} liquidity. Context: ${context}. Correlation ID: ${correlationId}`,
       );
       await strategy.purchaseLiquidity(request);
@@ -132,7 +133,9 @@ export class DexService {
     }
 
     try {
-      this.logger.info(`Selling ${sellAsset.dexName} liquidity. Context: ${context}. Correlation ID: ${correlationId}`);
+      this.logger.verbose(
+        `Selling ${sellAsset.dexName} liquidity. Context: ${context}. Correlation ID: ${correlationId}`,
+      );
       await strategy.sellLiquidity(request);
     } catch (e) {
       // publicly exposed exception
@@ -228,7 +231,7 @@ export class DexService {
       throw new Error(`No supplementary strategy found for asset ${asset.uniqueName} during #transferLiquidity(...)`);
     }
 
-    this.logger.info(`Transferring ${amount} ${asset.uniqueName} liquidity.`);
+    this.logger.verbose(`Transferring ${amount} ${asset.uniqueName} liquidity.`);
     return strategy.transferLiquidity(request);
   }
 
@@ -242,7 +245,7 @@ export class DexService {
     }
 
     try {
-      this.logger.info(`Transferring minimal coin amount to address: ${address.address} ${address.blockchain}.`);
+      this.logger.verbose(`Transferring minimal coin amount to address: ${address.address} ${address.blockchain}.`);
       return await strategy.transferMinimalCoin(address.address);
     } catch (e) {
       this.logger.error('Error while transferring liquidity:', e);
@@ -345,11 +348,12 @@ export class DexService {
 
       await strategy.addPurchaseData(order);
 
-      this.logger.info(
+      this.logger.verbose(
         `Liquidity purchase is ready. Order ID: ${order.id}. Context: ${order.context}. Correlation ID: ${order.correlationId}`,
       );
     } catch (e) {
-      this.logger.error(`Error while trying to add purchase data to liquidity order ${order.id}:`, e);
+      const logLevel = e instanceof TransactionNotFoundException ? LogLevel.INFO : LogLevel.ERROR;
+      this.logger.log(logLevel, `Error while trying to add purchase data to liquidity order ${order.id}:`, e);
     }
   }
 
@@ -363,11 +367,12 @@ export class DexService {
 
       await strategy.addSellData(order);
 
-      this.logger.info(
+      this.logger.verbose(
         `Liquidity sell is ready. Order ID: ${order.id}. Context: ${order.context}. Correlation ID: ${order.correlationId}`,
       );
     } catch (e) {
-      this.logger.error(`Error while trying to add sell data to liquidity order ${order.id}:`, e);
+      const logLevel = e instanceof TransactionNotFoundException ? LogLevel.INFO : LogLevel.ERROR;
+      this.logger.log(logLevel, `Error while trying to add sell data to liquidity order ${order.id}:`, e);
     }
   }
 }

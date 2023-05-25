@@ -367,7 +367,7 @@ describe('BuyCrypto', () => {
       const testCall = () => entity.calculateOutputReferenceAmount([wrongPrice]);
 
       expect(testCall).toThrow();
-      expect(testCall).toThrowError('Cannot calculate outputReferenceAmount, price value is 0');
+      expect(testCall).toThrowError('Cannot calculate target amount, price value is 0');
     });
 
     it('calculates outputReferenceAmount given a valid price', () => {

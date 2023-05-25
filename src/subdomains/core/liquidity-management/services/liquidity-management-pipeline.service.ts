@@ -136,7 +136,7 @@ export class LiquidityManagementPipelineService {
             continue;
           }
 
-          this.logger.info(
+          this.logger.verbose(
             `Continue with next liquidity management pipeline action. Action ID: ${pipeline.currentAction.id}`,
           );
         }
@@ -218,7 +218,7 @@ export class LiquidityManagementPipelineService {
       order.complete();
       await this.orderRepo.save(order);
 
-      this.logger.info(`Liquidity management order ${order.id} complete`);
+      this.logger.verbose(`Liquidity management order ${order.id} complete`);
     }
   }
 
@@ -231,7 +231,7 @@ export class LiquidityManagementPipelineService {
 
     await this.notificationService.sendMail(mailRequest);
 
-    this.logger.info(successMessage);
+    this.logger.verbose(successMessage);
   }
 
   private async handlePipelineFail(
@@ -284,7 +284,7 @@ export class LiquidityManagementPipelineService {
 
   private logNewPipelines(newPipelines: LiquidityManagementPipeline[]): void {
     newPipelines.length > 0 &&
-      this.logger.info(
+      this.logger.verbose(
         `Starting ${newPipelines.length} new liquidity management pipeline(s). Rules: ${newPipelines.map(
           (p) => p.rule.id,
         )}`,
