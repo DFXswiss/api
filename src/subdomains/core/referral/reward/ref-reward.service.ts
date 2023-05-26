@@ -74,7 +74,7 @@ export class RefRewardService {
           status: RewardStatus.PREPARED,
           targetAddress: user.address,
           targetBlockchain: blockchain,
-          amountInChf: Util.round(refCreditEur / eurChfPrice.price, 8),
+          amountInChf: eurChfPrice.convert(refCreditEur, 8),
           amountInEur: refCreditEur,
         });
 

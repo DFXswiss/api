@@ -224,11 +224,7 @@ export class BuyCrypto extends IEntity {
         );
       }
 
-      if (!price.price) {
-        throw new Error('Cannot calculate outputReferenceAmount, price value is 0');
-      }
-
-      this.outputReferenceAmount = Util.round(this.inputReferenceAmountMinusFee / price.price, 8);
+      this.outputReferenceAmount = price.convert(this.inputReferenceAmountMinusFee, 8);
     }
 
     return this;

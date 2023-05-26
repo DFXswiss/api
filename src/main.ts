@@ -14,6 +14,7 @@ import {
 } from './subdomains/generic/user/services/webhook/dto/kyc-webhook.dto';
 import { PaymentWebhookDto } from './subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 import { DfxLogger } from './shared/services/dfx-logger';
+import { Config } from './config/config';
 
 async function bootstrap() {
   if (process.env.APPINSIGHTS_INSTRUMENTATIONKEY) {
@@ -31,14 +32,14 @@ async function bootstrap() {
   app.use('*', json({ type: 'application/json', limit: '10mb' }));
   app.use('/v1/node/*/rpc', text({ type: 'text/plain' }));
 
-  app.setGlobalPrefix('v1', { exclude: [''] });
+  app.setGlobalPrefix(Config.version, { exclude: [''] });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
   app.useGlobalFilters(new ApiExceptionFilter());
 
   const swaggerOptions = new DocumentBuilder()
     .setTitle('DFX API')
     .setDescription(`DFX API (updated on ${new Date().toLocaleString()})`)
-    .setVersion('v1')
+    .setVersion(Config.version)
     .addBearerAuth()
     .build();
 

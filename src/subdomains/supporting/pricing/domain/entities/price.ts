@@ -1,3 +1,5 @@
+import { Util } from 'src/shared/utils/util';
+
 export class Price {
   source: string;
   target: string;
@@ -5,6 +7,15 @@ export class Price {
 
   invert(): Price {
     return Price.create(this.target, this.source, 1 / this.price);
+  }
+
+  convert(fromAmount: number, decimals?: number): number {
+    if (!this.price) {
+      throw new Error('Cannot calculate target amount, price value is 0');
+    }
+
+    const targetAmount = fromAmount / this.price;
+    return decimals != null ? Util.round(targetAmount, decimals) : targetAmount;
   }
 
   static create(source: string, target: string, _price: number): Price {
