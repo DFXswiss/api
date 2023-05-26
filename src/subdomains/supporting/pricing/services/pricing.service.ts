@@ -26,8 +26,9 @@ export enum PricingPathAlias {
   ALTCOIN_TO_ALTCOIN = 'AltcoinToAltcoin',
   BTC_TO_ALTCOIN = 'BTCToAltcoin',
   BTC_TO_USD_STABLE_COIN = 'BTCToUSDStableCoin',
-  MATCHING_FIAT_TO_USD_STABLE_COIN = 'MatchingFiatToUSDStableCoin',
+  MATCHING_FIAT_TO_STABLE_COIN = 'MatchingFiatToStableCoin',
   NON_MATCHING_FIAT_TO_USD_STABLE_COIN = 'NonMatchingFiatToUSDStableCoin',
+  NON_MATCHING_FIAT_TO_CHF_STABLE_COIN = 'NonMatchingFiatToChfStableCoin',
   FIAT_TO_DFI = 'FiatToDfi',
 }
 
@@ -207,7 +208,7 @@ export class PricingService {
     );
 
     this.addPath(
-      new PricePath(PricingPathAlias.MATCHING_FIAT_TO_USD_STABLE_COIN, [
+      new PricePath(PricingPathAlias.MATCHING_FIAT_TO_STABLE_COIN, [
         new PriceStep({
           fixedPrice: 1,
         }),
@@ -225,6 +226,18 @@ export class PricingService {
             overwrite: 'USD',
             providers: [this.fixerService, this.currencyService],
           },
+        }),
+      ]),
+    );
+
+    this.addPath(
+      new PricePath(PricingPathAlias.NON_MATCHING_FIAT_TO_CHF_STABLE_COIN, [
+        new PriceStep({
+          primary: {
+            overwrite: 'CHF',
+            providers: [this.fixerService, this.currencyService],
+          },
+          factor: 1 / 0.995,
         }),
       ]),
     );
@@ -293,14 +306,17 @@ export class PricingService {
 
     if (PricingUtil.isBTC(from) && PricingUtil.isBTC(to)) return PricingPathAlias.BTC_TO_ALTCOIN;
 
-    if (PricingUtil.isBTC(from) && PricingUtil.isUSDStablecoin(to)) return PricingPathAlias.BTC_TO_USD_STABLE_COIN;
+    if (PricingUtil.isBTC(from) && PricingUtil.isUsdStablecoin(to)) return PricingPathAlias.BTC_TO_USD_STABLE_COIN;
 
-    if (from === 'USD' && PricingUtil.isUSDStablecoin(to)) return PricingPathAlias.MATCHING_FIAT_TO_USD_STABLE_COIN;
+    if (from === 'USD' && PricingUtil.isUsdStablecoin(to)) return PricingPathAlias.MATCHING_FIAT_TO_STABLE_COIN;
+    if (from === 'CHF' && PricingUtil.isChfStablecoin(to)) return PricingPathAlias.MATCHING_FIAT_TO_STABLE_COIN;
 
-    if (PricingUtil.isFiat(from) && PricingUtil.isUSDStablecoin(to))
+    if (PricingUtil.isFiat(from) && PricingUtil.isUsdStablecoin(to))
       return PricingPathAlias.NON_MATCHING_FIAT_TO_USD_STABLE_COIN;
+    if (PricingUtil.isFiat(from) && PricingUtil.isChfStablecoin(to))
+      return PricingPathAlias.NON_MATCHING_FIAT_TO_CHF_STABLE_COIN;
 
-    if (PricingUtil.isUSDStablecoin(from) && PricingUtil.isUSDStablecoin(to)) {
+    if (PricingUtil.isUsdStablecoin(from) && PricingUtil.isUsdStablecoin(to)) {
       return PricingPathAlias.MATCHING_ASSETS;
     }
 

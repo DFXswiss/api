@@ -81,6 +81,10 @@ export abstract class CcxtExchangeAdapter extends LiquidityManagementAdapter {
 
     const token = order.pipeline.rule.targetAsset.dexName;
 
+    const balance = await this.exchangeService.getBalance(token);
+    if (order.amount > balance)
+      throw new OrderNotProcessableException(`Not enough balance of ${token} (${order.amount} > ${balance})`);
+
     try {
       const response = await this.exchangeService.withdrawFunds(token, order.amount, address, key, network);
 

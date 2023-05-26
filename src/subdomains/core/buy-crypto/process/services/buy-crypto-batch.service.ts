@@ -13,7 +13,7 @@ import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { CheckLiquidityRequest, CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
-import { FeeResult, FeeRequest } from 'src/subdomains/supporting/payout/interfaces';
+import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { PriceRequestContext } from 'src/subdomains/supporting/pricing/domain/enums';
 import { PriceResult, PriceRequest } from 'src/subdomains/supporting/pricing/domain/interfaces';
@@ -289,11 +289,19 @@ export class BuyCryptoBatchService {
 
     for (const batch of batches) {
       try {
-        const liquidity = await this.checkLiquidity(batch);
-        const nativePayoutFee = await this.checkPayoutFee(batch);
-        const [purchaseFee, payoutFee] = await this.getFeeAmountsInBatchAsset(batch, liquidity, nativePayoutFee);
+        const inputBatchLength = batch.transactions.length;
 
-        await this.optimizeBatch(batch, liquidity, purchaseFee, payoutFee);
+        await this.optimizeByPayoutFee(batch);
+        const purchaseFee = await this.optimizeByLiquidity(batch);
+        await this.optimizeByPurchaseFee(batch, purchaseFee);
+
+        if (inputBatchLength !== batch.transactions.length) {
+          this.logger.verbose(
+            `Optimized batch for output asset ${batch.outputAsset.uniqueName}. ${
+              inputBatchLength - batch.transactions.length
+            } removed from the batch`,
+          );
+        }
 
         optimizedBatches.push(batch);
       } catch (e) {
@@ -302,6 +310,59 @@ export class BuyCryptoBatchService {
     }
 
     return optimizedBatches;
+  }
+
+  // --- PAYOUT FEE OPTIMIZING --- //
+  private async optimizeByPayoutFee(batch: BuyCryptoBatch) {
+    // add fee estimation
+    const nativePayoutFee = await this.getPayoutFee(batch);
+    const payoutFee = await this.buyCryptoPricingService.getFeeAmountInBatchAsset(batch, nativePayoutFee);
+
+    for (const tx of batch.transactions) {
+      await this.buyCryptoRepo.updateFee(...tx.fee.addPayoutFeeEstimation(payoutFee, tx));
+    }
+
+    // optimize
+    const filteredOutTransactions = batch.optimizeByPayoutFeeEstimation();
+    await this.setWaitingForLowerFeeStatus(filteredOutTransactions);
+
+    if (batch.transactions.length === 0) {
+      throw new FeeLimitExceededException(
+        `Cannot re-batch transactions by payout fee, no transaction exceeds the fee limit. Out asset: ${batch.outputAsset.uniqueName}`,
+      );
+    }
+  }
+
+  private async getPayoutFee(batch: BuyCryptoBatch): Promise<FeeResult> {
+    try {
+      return await this.payoutService.estimateFee(batch.outputAsset);
+    } catch (e) {
+      throw new Error(`Error in getting payout fees for a batch ${batch.id}: ${e.message}`);
+    }
+  }
+
+  // ---- LIQUIDITY OPTIMIZING --- //
+
+  private async optimizeByLiquidity(batch: BuyCryptoBatch): Promise<FeeResult> {
+    const liquidity = await this.checkLiquidity(batch);
+
+    try {
+      const {
+        purchaseFee,
+        reference: { availableAmount, maxPurchasableAmount },
+      } = liquidity;
+
+      const isPurchaseRequired = batch.optimizeByLiquidity(availableAmount, maxPurchasableAmount);
+
+      return isPurchaseRequired ? purchaseFee : { amount: 0, asset: purchaseFee.asset };
+    } catch (e) {
+      if (e instanceof MissingBuyCryptoLiquidityException) {
+        await this.handleMissingBuyCryptoLiquidityException(batch, liquidity, e);
+      }
+
+      // re-throw by default to abort proceeding with batch
+      throw e;
+    }
   }
 
   private async checkLiquidity(batch: BuyCryptoBatch): Promise<CheckLiquidityResult> {
@@ -326,98 +387,6 @@ export class BuyCryptoBatchService {
       referenceAmount: batch.outputReferenceAmount,
       targetAsset,
     };
-  }
-
-  private async checkPayoutFee(batch: BuyCryptoBatch): Promise<FeeResult> {
-    try {
-      const request = await this.createPayoutFeeRequest(batch);
-
-      return await this.payoutService.estimateFee(request);
-    } catch (e) {
-      throw new Error(`Error in checking payout fees for a batch, ID: ${batch.id}. ${e.message}`);
-    }
-  }
-
-  private async createPayoutFeeRequest(batch: BuyCryptoBatch): Promise<FeeRequest> {
-    return {
-      asset: batch.outputAsset,
-    };
-  }
-
-  private async getFeeAmountsInBatchAsset(
-    batch: BuyCryptoBatch,
-    liquidity: CheckLiquidityResult,
-    nativePayoutFee: FeeResult,
-  ): Promise<[number, number]> {
-    const { purchaseFee: nativePurchaseFee } = liquidity;
-
-    const purchaseFeeInBatchCurrency = await this.buyCryptoPricingService.getFeeAmountInBatchAsset(
-      batch,
-      nativePurchaseFee,
-    );
-    const payoutFeeInBatchCurrency = await this.buyCryptoPricingService.getFeeAmountInBatchAsset(
-      batch,
-      nativePayoutFee,
-    );
-
-    return [purchaseFeeInBatchCurrency, payoutFeeInBatchCurrency];
-  }
-
-  private async optimizeBatch(
-    batch: BuyCryptoBatch,
-    liquidity: CheckLiquidityResult,
-    purchaseFee: number,
-    payoutFee: number,
-  ): Promise<void> {
-    try {
-      const inputBatchLength = batch.transactions.length;
-
-      const {
-        reference: { availableAmount, maxPurchasableAmount },
-      } = liquidity;
-
-      const filteredOutTransactions = batch.optimizeByPayoutFeeEstimation(payoutFee);
-
-      await this.handleFilteredOutTransactions(filteredOutTransactions);
-
-      const [isPurchaseRequired, liquidityWarning] = batch.optimizeByLiquidity(availableAmount, maxPurchasableAmount);
-
-      liquidityWarning && (await this.handleLiquidityWarning(batch));
-      const effectivePurchaseFee = isPurchaseRequired ? purchaseFee : 0;
-
-      batch.checkByPurchaseFeeEstimation(effectivePurchaseFee);
-
-      if (inputBatchLength !== batch.transactions.length) {
-        this.logger.verbose(
-          `Optimized batch for output asset: ${batch.outputAsset.uniqueName}. ${
-            inputBatchLength - batch.transactions.length
-          } removed from the batch`,
-        );
-      }
-    } catch (e) {
-      if (e instanceof MissingBuyCryptoLiquidityException) {
-        await this.handleMissingBuyCryptoLiquidityException(batch, liquidity, e);
-      }
-
-      if (e instanceof FeeLimitExceededException) {
-        await this.handleFeeLimitExceededException(batch);
-      }
-
-      // re-throw by default to abort proceeding with batch
-      throw e;
-    }
-  }
-
-  private async handleLiquidityWarning(batch: BuyCryptoBatch): Promise<void> {
-    try {
-      const {
-        outputAsset: { dexName, blockchain, type },
-      } = batch;
-
-      await this.buyCryptoNotificationService.sendMissingLiquidityWarning(dexName, blockchain, type);
-    } catch (e) {
-      this.logger.error('Error in handling buy-crypto batch liquidity warning:', e);
-    }
   }
 
   private async handleMissingBuyCryptoLiquidityException(
@@ -478,14 +447,23 @@ export class BuyCryptoBatchService {
     }
   }
 
-  private async handleFilteredOutTransactions(transactions: BuyCrypto[]): Promise<void> {
-    await this.setWaitingForLowerFeeStatus(transactions);
+  // --- PURCHASE FEE OPTIMIZATION -- ///
+  private async optimizeByPurchaseFee(batch: BuyCryptoBatch, nativePurchaseFee: FeeResult) {
+    try {
+      const purchaseFee = await this.buyCryptoPricingService.getFeeAmountInBatchAsset(batch, nativePurchaseFee);
+
+      batch.checkByPurchaseFeeEstimation(purchaseFee);
+    } catch (e) {
+      if (e instanceof FeeLimitExceededException) {
+        await this.setWaitingForLowerFeeStatus(batch.transactions);
+      }
+
+      // re-throw by default to abort proceeding with batch
+      throw e;
+    }
   }
 
-  private async handleFeeLimitExceededException(batch: BuyCryptoBatch): Promise<void> {
-    await this.setWaitingForLowerFeeStatus(batch.transactions);
-  }
-
+  // --- HELPER METHODS --- //
   private async setWaitingForLowerFeeStatus(transactions: BuyCrypto[]): Promise<void> {
     for (const tx of transactions) {
       await this.buyCryptoRepo.update(...tx.waitingForLowerFee());

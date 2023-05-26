@@ -26,7 +26,7 @@ export class AssetPricesService {
     const usd = await this.fiatService.getFiatByName('USD');
     const assets = await this.assetService.getAllAsset([]);
 
-    const assetsToUpdate = assets.filter((a) => a.dexName.includes('BURN'));
+    const assetsToUpdate = assets.filter((a) => !a.dexName.includes('BURN'));
 
     for (const asset of assetsToUpdate) {
       try {
