@@ -105,4 +105,12 @@ export class AssetService {
       type: AssetType.COIN,
     });
   }
+
+  async getLightningCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      dexName: 'BTC',
+      blockchain: Blockchain.LIGHTNING,
+      type: AssetType.COIN,
+    });
+  }
 }

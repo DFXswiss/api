@@ -78,7 +78,7 @@ export class DepositService {
 
       const lnUrlPLinkDto = await this.lightningClient.addLnUrlPLink(accountIndex.toString());
       const id = lnUrlPLinkDto.id;
-      const lnurlp = LightningHelper.createLnUrlP(id);
+      const lnurlp = LightningHelper.createEncodedLnUrlP(id);
 
       const deposit = Deposit.create(lnurlp, blockchain, accountIndex);
       await this.depositRepo.save(deposit);

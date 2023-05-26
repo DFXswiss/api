@@ -26,6 +26,7 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.ARBITRUM]: 'https://arbiscan.io',
   [Blockchain.POLYGON]: 'https://polygonscan.com',
   [Blockchain.CARDANO]: 'https://cardanoscan.io',
+  [Blockchain.LIGHTNING]: 'https://mempool.space/de/lightning',
 };
 
 const TxPaths: { [b in Blockchain]: string } = {
@@ -38,6 +39,7 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.ARBITRUM]: 'tx',
   [Blockchain.POLYGON]: 'tx',
   [Blockchain.CARDANO]: 'transaction',
+  [Blockchain.LIGHTNING]: 'tx',
 };
 
 function assetPaths(asset: Asset): string | undefined {

@@ -35,18 +35,20 @@ export class LightningService implements OnModuleInit {
   async testGetPayments() {
     // Example 1: f934dba08924ecff33300edff6323dae479b404044d3a6b014fe2f7e4bcca630
     // Example 2: 3b2fdf4de02f14531ea305ae76c56d79a552a63a3f77daf44f6ec47b3ce08c79
-    const payments = await this.client.getPayments('f934dba08924ecff33300edff6323dae479b404044d3a6b014fe2f7e4bcca630');
+    const payments = await this.client.getLnUrlPPayments(
+      'f934dba08924ecff33300edff6323dae479b404044d3a6b014fe2f7e4bcca630',
+    );
 
     this.logger.info('Number of Payments: ' + payments.length);
     this.logger.info('');
 
     for (const payment of payments) {
-      this.logger.info('Id:            ' + payment.checking_id);
-      this.logger.info('Pending:       ' + payment.pending);
-      this.logger.info('Amount:        ' + payment.amount);
-      this.logger.info('Memo:          ' + payment.memo);
-      this.logger.info('Time / Expiry: ' + payment.time + ' / ' + payment.expiry);
-      this.logger.info('Bolt11:        ' + payment.bolt11);
+      this.logger.info('Id:            ' + payment.paymentDto.checking_id);
+      this.logger.info('Pending:       ' + payment.paymentDto.pending);
+      this.logger.info('Amount:        ' + payment.paymentDto.amount);
+      this.logger.info('Memo:          ' + payment.paymentDto.memo);
+      this.logger.info('Time / Expiry: ' + payment.paymentDto.time + ' / ' + payment.paymentDto.expiry);
+      this.logger.info('Bolt11:        ' + payment.paymentDto.bolt11);
       this.logger.info('');
     }
   }

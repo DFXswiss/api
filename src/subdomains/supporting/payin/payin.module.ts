@@ -23,6 +23,7 @@ import { BscStrategy as BscStrategyR } from './strategies/register/impl/bsc.stra
 import { DeFiChainStrategy as DeFiChainStrategyR } from './strategies/register/impl/defichain.strategy';
 import { EthereumStrategy as EthereumStrategyR } from './strategies/register/impl/ethereum.strategy';
 import { OptimismStrategy as OptimismStrategyR } from './strategies/register/impl/optimism.strategy';
+import { LightningStrategy as LightningStrategyR } from './strategies/register/impl/lightning.strategy';
 import { RegisterStrategiesFacade } from './strategies/register/register.facade';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyS } from './strategies/send/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategyS } from './strategies/send/impl/arbitrum-token.strategy';
@@ -35,6 +36,7 @@ import { EthereumCoinStrategy as EthereumCoinStrategyS } from './strategies/send
 import { EthereumTokenStrategy as EthereumTokenStrategyS } from './strategies/send/impl/ethereum-token.strategy';
 import { OptimismCoinStrategy as OptimismCoinStrategyS } from './strategies/send/impl/optimism-coin.strategy';
 import { OptimismTokenStrategy as OptimismTokenStrategyS } from './strategies/send/impl/optimism-token.strategy';
+import { LightningStrategy as LightningStrategyS } from './strategies/send/impl/lightning.strategy';
 import { SendStrategiesFacade } from './strategies/send/send.facade';
 
 @Module({
@@ -67,6 +69,7 @@ import { SendStrategiesFacade } from './strategies/send/send.facade';
     DeFiChainStrategyR,
     EthereumStrategyR,
     OptimismStrategyR,
+    LightningStrategyR,
     ArbitrumCoinStrategyS,
     ArbitrumTokenStrategyS,
     BitcoinStrategyS,
@@ -78,6 +81,7 @@ import { SendStrategiesFacade } from './strategies/send/send.facade';
     EthereumTokenStrategyS,
     OptimismCoinStrategyS,
     OptimismTokenStrategyS,
+    LightningStrategyS,
   ],
   exports: [PayInService],
 })

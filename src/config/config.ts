@@ -303,12 +303,17 @@ export class Configuration {
       arbitrumChainId: +process.env.ARBITRUM_CHAIN_ID,
     },
     lightning: {
-      lnBitsApiUrl: process.env.LIGHTNING_LNBITS_API_URL,
-      lnBitsLnUrlPApiUrl: process.env.LIGHTNING_LNBITS_LNURLP_API_URL,
-      lnBitsApiKey: process.env.LIGHTNING_LNBITS_API_KEY,
-      lndApiUrl: process.env.LIGHTNING_LND_API_URL,
-      lndCertificate: process.env.LIGHTNING_LND_CERTIFICATE?.split('<br>').join('\n'),
-      lndAdminMacaroon: process.env.LIGHTNING_LND_ADMIN_MACAROON,
+      lnbits: {
+        apiUrl: process.env.LIGHTNING_LNBITS_API_URL,
+        lnUrlPApiUrl: process.env.LIGHTNING_LNBITS_LNURLP_API_URL,
+        apiKey: process.env.LIGHTNING_LNBITS_API_KEY,
+        lnUrlPUrl: process.env.LIGHTNING_LNBITS_LNURLP_URL,
+      },
+      lnd: {
+        apiUrl: process.env.LIGHTNING_LND_API_URL,
+        certificate: process.env.LIGHTNING_LND_CERTIFICATE?.split('<br>').join('\n'),
+        adminMacaroon: process.env.LIGHTNING_LND_ADMIN_MACAROON,
+      },
     },
   };
 
