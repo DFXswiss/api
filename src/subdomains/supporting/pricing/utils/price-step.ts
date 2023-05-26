@@ -6,6 +6,7 @@ import { PriceStepResult, PricingProvider, PricingProviderName } from '../domain
 import { PriceStepInitSpecification } from '../domain/specifications/price-step-init.specification';
 import { PricingUtil } from './pricing.util';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 
 export interface PriceStepOptions {
   from?: string | 'input';
@@ -13,6 +14,7 @@ export interface PriceStepOptions {
   primary?: PriceStepProviderOptions;
   reference?: PriceStepProviderOptions;
   fixedPrice?: number;
+  factor?: number;
 }
 
 export interface PriceStepProviderOptions {
@@ -35,6 +37,7 @@ export class PriceStep {
       primary: this.initProviderOptions(options.primary),
       reference: this.initProviderOptions(options.reference),
       fixedPrice: options.fixedPrice,
+      factor: options.factor,
     };
 
     PriceStepInitSpecification.isSatisfiedBy(this);
@@ -62,6 +65,9 @@ export class PriceStep {
 
     const [price, vendor] =
       this.options.fixedPrice !== undefined ? this.getFixedPrice(_from, _to) : await this.getMatchingPrice(_from, _to);
+
+    // apply factor
+    if (this.options.factor) price.price = Util.roundByPrecision(price.price * this.options.factor, 5);
 
     return { price, provider: vendor, timestamp: new Date() };
   }
@@ -121,8 +127,8 @@ export class PriceStep {
 
   private defineMatchThreshold(fromCurrency: string, toCurrency: string): number {
     if (
-      PricingUtil.isUSDStablecoin(fromCurrency) ||
-      PricingUtil.isUSDStablecoin(toCurrency) ||
+      PricingUtil.isUsdStablecoin(fromCurrency) ||
+      PricingUtil.isUsdStablecoin(toCurrency) ||
       fromCurrency === Fiat.USD ||
       toCurrency === Fiat.USD
     ) {
