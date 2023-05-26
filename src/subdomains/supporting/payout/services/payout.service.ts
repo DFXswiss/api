@@ -5,7 +5,7 @@ import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../entities/
 import { PayoutOrderFactory } from '../factories/payout-order.factory';
 import { PayoutOrderRepository } from '../repositories/payout-order.repository';
 import { PayoutLogService } from './payout-log.service';
-import { FeeRequest, FeeResult, PayoutRequest } from '../interfaces';
+import { FeeResult, PayoutRequest } from '../interfaces';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
@@ -57,12 +57,12 @@ export class PayoutService {
     return { isComplete: order && order.status === PayoutOrderStatus.COMPLETE, payoutTxId, payoutFee };
   }
 
-  async estimateFee(request: FeeRequest): Promise<FeeResult> {
-    const prepareStrategy = this.prepareStrategies.getPrepareStrategy(request.asset);
-    const payoutStrategy = this.payoutStrategies.getPayoutStrategy(request.asset);
+  async estimateFee(asset: Asset): Promise<FeeResult> {
+    const prepareStrategy = this.prepareStrategies.getPrepareStrategy(asset);
+    const payoutStrategy = this.payoutStrategies.getPayoutStrategy(asset);
 
-    const prepareFee = await prepareStrategy.estimateFee(request.asset);
-    const payoutFee = await payoutStrategy.estimateFee(request.asset);
+    const prepareFee = await prepareStrategy.estimateFee(asset);
+    const payoutFee = await payoutStrategy.estimateFee(asset);
 
     const totalFeeAmount = Util.round(prepareFee.amount + payoutFee.amount, 16);
 

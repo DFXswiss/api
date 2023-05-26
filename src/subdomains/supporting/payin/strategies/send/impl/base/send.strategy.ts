@@ -77,7 +77,7 @@ export abstract class SendStrategy {
   }
 
   protected async getEstimatedFee(asset: Asset): Promise<{ nativeFee: number; targetFee: number }> {
-    const nativeFee = await this.payoutService.estimateFee({ asset });
+    const nativeFee = await this.payoutService.estimateFee(asset);
     const targetFee = await this.getFeeAmountInPayInAsset(asset, nativeFee);
 
     return { nativeFee: nativeFee.amount, targetFee };
