@@ -206,6 +206,9 @@
     "binanceArbEthWithdrawKey": {
       "value": "xxx"
     },
+    "binanceOptEthWithdrawKey": {
+      "value": "xxx"
+    },
     "olkyClient": {
       "value": "xxx"
     },
