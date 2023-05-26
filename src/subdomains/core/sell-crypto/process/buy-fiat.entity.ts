@@ -7,6 +7,7 @@ import { AmlReason } from '../../buy-crypto/process/enums/aml-reason.enum';
 import { FiatOutput } from '../../../supporting/bank/fiat-output/fiat-output.entity';
 import { Sell } from '../route/sell.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 @Entity()
 export class BuyFiat extends IEntity {
@@ -211,7 +212,12 @@ export class BuyFiat extends IEntity {
   }
 
   get translationKey(): string {
-    if (!this.mail1SendDate) return 'mail.payment.withdrawal.offRampInitiated';
+    if (!this.mail1SendDate) {
+      if (this.cryptoInput.asset.blockchain === Blockchain.LIGHTNING)
+        return 'mail.payment.withdrawal.offRampInitiatedLightning';
+
+      return 'mail.payment.withdrawal.offRampInitiated';
+    }
 
     if (this.amlCheck === AmlCheck.PASS) {
       if (!this.mail2SendDate) return 'mail.payment.withdrawal.cryptoExchangedToFiat';
