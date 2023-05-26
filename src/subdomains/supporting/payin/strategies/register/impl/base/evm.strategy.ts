@@ -17,6 +17,7 @@ import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
+import { Util } from 'src/shared/utils/util';
 
 export abstract class EvmStrategy extends RegisterStrategy {
   constructor(
@@ -77,7 +78,11 @@ export abstract class EvmStrategy extends RegisterStrategy {
 
       const entries = this.mapHistoryToPayInEntries(address, coinHistory, tokenHistory, supportedAssets);
 
-      if (entries.length === 0) continue;
+      if (entries.length === 0) {
+        // rate limiting
+        await Util.delay(200);
+        continue;
+      }
 
       await this.processNewEntries(entries, lastCheckedBlockHeight, log);
     }
