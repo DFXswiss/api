@@ -9,10 +9,6 @@ export interface PayoutRequest {
   destinationAddress: string;
 }
 
-export interface FeeRequest {
-  asset: Asset;
-}
-
 export interface FeeResult {
   asset: Asset;
   amount: number;
