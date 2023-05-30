@@ -35,16 +35,43 @@ export abstract class EvmStrategy extends RegisterStrategy {
   }
 
   protected abstract getOwnAddresses(): string[];
-
-  doAmlCheck(_: CryptoInput, route: Staking | Sell | CryptoRoute): AmlCheck {
-    return route.user.userData.kycStatus === KycStatus.REJECTED ? AmlCheck.FAIL : AmlCheck.PASS;
-  }
+  protected abstract getReferenceAssets(): Promise<{ btc: Asset; usdt: Asset }>;
+  protected abstract getSourceAssetRepresentation(asset: Asset): Promise<Asset>;
 
   protected async processNewPayInEntries(): Promise<void> {
     const addresses: string[] = await this.getPayInAddresses();
     const lastCheckedBlockHeight = await this.getLastCheckedBlockHeight();
 
     await this.getTransactionsAndCreatePayIns(addresses, lastCheckedBlockHeight);
+  }
+
+  doAmlCheck(_: CryptoInput, route: Staking | Sell | CryptoRoute): AmlCheck {
+    return route.user.userData.kycStatus === KycStatus.REJECTED ? AmlCheck.FAIL : AmlCheck.PASS;
+  }
+
+  async addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void> {
+    const { btc, usdt } = await this.getReferenceAssets();
+
+    for (const entry of entries) {
+      try {
+        if (!entry.asset) {
+          this.logger.warn(
+            `No asset identified for ${entry.address.blockchain} pay-in ${'txId' in entry ? entry.txId : entry.inTxId}`,
+          );
+          continue;
+        }
+
+        const asset = await this.getSourceAssetRepresentation(entry.asset);
+
+        const btcAmount = await this.getReferenceAmount(asset, entry.amount, btc);
+        const usdtAmount = await this.getReferenceAmount(asset, entry.amount, usdt);
+
+        await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
+      } catch (e) {
+        this.logger.error(`Could not set reference amounts for ${entry.address.blockchain} pay-in:`, e);
+        continue;
+      }
+    }
   }
 
   //*** HELPER METHODS ***//
