@@ -123,7 +123,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
       txId: tx.hash,
       txType: null,
       blockHeight: parseInt(tx.blockNumber),
-      amount: this.payInEvmService.convertToEthLikeDenomination(parseFloat(tx.value)),
+      amount: this.payInEvmService.convertToEthLikeDenomination(tx.value),
       asset:
         this.assetService.getByQuerySync(supportedAssets, {
           dexName: this.nativeCoin,
@@ -139,7 +139,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
       txId: tx.hash,
       txType: null,
       blockHeight: parseInt(tx.blockNumber),
-      amount: this.payInEvmService.convertToEthLikeDenomination(parseFloat(tx.value), parseInt(tx.tokenDecimal)),
+      amount: this.payInEvmService.convertToEthLikeDenomination(tx.value, parseInt(tx.tokenDecimal)),
       asset:
         this.assetService.getByQuerySync(supportedAssets, {
           dexName: tx.tokenSymbol,
