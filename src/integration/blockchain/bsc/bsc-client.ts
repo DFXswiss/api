@@ -38,6 +38,6 @@ export class BscClient extends EvmClient {
     const inputAmount = this.convertToWeiLikeDenomination(sourceAmount, sourceTokenDecimals);
     const outputAmounts = await this.routerV2.getAmountsOut(inputAmount, [sourceToken.chainId, targetToken.chainId]);
 
-    return this.convertToEthLikeDenomination(outputAmounts[2], targetTokenDecimals);
+    return this.convertToEthLikeDenomination(outputAmounts[1], targetTokenDecimals);
   }
 }
