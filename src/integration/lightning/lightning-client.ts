@@ -135,7 +135,7 @@ export class LightningClient {
   private get httpLndConfig(): HttpRequestConfig {
     return {
       httpsAgent: new Agent({
-        ca: `${Config.blockchain.lightning.lnd.certificate}`,
+        ca: `${Config.blockchain.lightning.certificate}`,
       }),
       headers: { 'Grpc-Metadata-macaroon': `${Config.blockchain.lightning.lnd.adminMacaroon}` },
     };

@@ -85,6 +85,12 @@ param bscScanApiUrl string
 @secure()
 param bscScanApiKey string
 
+param lightningApiCertificate string
+@secure()
+param lightningLnbitsApiKey string
+@secure()
+param lightningLndAdminMacaroon string
+
 param buyCryptoFeeLimit string
 
 param nodeServicePlanSkuName string
@@ -193,6 +199,8 @@ var sqlDbName = 'sqldb-${compName}-${apiName}-${env}'
 var apiServicePlanName = 'plan-${compName}-${apiName}-${env}'
 var apiAppName = 'app-${compName}-${apiName}-${env}'
 var appInsightsName = 'appi-${compName}-${apiName}-${env}'
+
+var btcPort = '8332'
 
 var nodeProps = [
   {
@@ -510,11 +518,11 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         }
         {
           name: 'NODE_BTC_INP_URL_ACTIVE'
-          value: btcNodes[0].outputs.url
+          value: 'http://${btcNodes[0].outputs.url}:${btcPort}'
         }
         {
           name: 'NODE_BTC_OUT_URL_ACTIVE'
-          value: btcNodes[1].outputs.url
+          value: 'http://${btcNodes[1].outputs.url}:${btcPort}'
         }
         {
           name: 'DEX_WALLET_ADDRESS'
@@ -639,6 +647,34 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'BSC_CHAIN_ID'
           value: bscChainId
+        }
+        {
+          name: 'LIGHTNING_API_CERTIFICATE'
+          value: lightningApiCertificate
+        }
+        {
+          name: 'LIGHTNING_LNBITS_API_URL'
+          value: 'https://${btcNodes[0].outputs.url}:5000/api/v1'
+        }
+        {
+          name: 'LIGHTNING_LNBITS_LNURLP_API_URL'
+          value: 'https://${btcNodes[0].outputs.url}:5000/lnurlp/api/v1'
+        }
+        {
+          name: 'LIGHTNING_LNBITS_API_KEY'
+          value: lightningLnbitsApiKey
+        }
+        {
+          name: 'LIGHTNING_LNBITS_LNURLP_URL'
+          value: 'https://${btcNodes[0].outputs.url}:5000/lnurlp'
+        }
+        {
+          name: 'LIGHTNING_LND_API_URL'
+          value: 'https://${btcNodes[0].outputs.url}:8080/v1'
+        }
+        {
+          name: 'LIGHTNING_LND_ADMIN_MACAROON'
+          value: lightningLndAdminMacaroon
         }
         {
           name: 'BTC_OUT_WALLET_ADDRESS'
@@ -891,6 +927,32 @@ resource vmNsg 'Microsoft.Network/networkSecurityGroups@2020-11-01' = {
           direction: 'Inbound'
         }
       }
+      {
+        name: 'ThunderHub'
+        properties: {
+          protocol: 'TCP'
+          sourcePortRange: '*'
+          destinationPortRange: '4000'
+          sourceAddressPrefix: allowedIpRange
+          destinationAddressPrefix: '*'
+          access: 'Allow'
+          priority: 310
+          direction: 'Inbound'
+        }
+      }
+      {
+        name: 'LNbits'
+        properties: {
+          protocol: 'TCP'
+          sourcePortRange: '*'
+          destinationPortRange: '5000'
+          sourceAddressPrefix: allowedIpRange
+          destinationAddressPrefix: '*'
+          access: 'Allow'
+          priority: 320
+          direction: 'Inbound'
+        }
+      }
     ]
   }
 }
@@ -901,7 +963,7 @@ resource rpcRule 'Microsoft.Network/networkSecurityGroups/securityRules@2020-11-
   properties: {
     protocol: 'TCP'
     sourcePortRange: '*'
-    destinationPortRange: '8332'
+    destinationPortRange: btcPort
     sourceAddressPrefix: allowedIpRange
     destinationAddressPrefix: '*'
     access: 'Allow'

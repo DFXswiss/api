@@ -312,9 +312,9 @@ export class Configuration {
       },
       lnd: {
         apiUrl: process.env.LIGHTNING_LND_API_URL,
-        certificate: process.env.LIGHTNING_LND_CERTIFICATE?.split('<br>').join('\n'),
         adminMacaroon: process.env.LIGHTNING_LND_ADMIN_MACAROON,
       },
+      certificate: process.env.LIGHTNING_API_CERTIFICATE?.split('<br>').join('\n'),
     },
   };
 
