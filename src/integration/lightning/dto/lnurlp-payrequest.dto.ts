@@ -1,4 +1,4 @@
-export interface LnUrlPayRequestDto {
+export interface LnurlPayRequestDto {
   tag: string;
   callback: string;
   minSendable: number;

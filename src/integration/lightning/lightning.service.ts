@@ -14,12 +14,14 @@ export class LightningService implements OnModuleInit {
   }
 
   onModuleInit() {
-    //void this.testGetBalance();
-    //void this.testGetPayments();
-    //void this.testGetLnUrlPLinks();
-    //void this.testAddLnUrlPLink();
-    //void this.testRemoveLnUrlPLink();
-    //void this.testVerifySignature();
+    /**
+    void this.testGetBalance();
+    void this.testGetPayments();
+    void this.testGetLnurlpLinks();
+    void this.testAddLnurlpLink();
+    void this.testRemoveLnurlpLink();
+    void this.testVerifySignature();
+    */
   }
 
   getDefaultClient(): LightningClient {
@@ -35,7 +37,7 @@ export class LightningService implements OnModuleInit {
   async testGetPayments() {
     // Example 1: f934dba08924ecff33300edff6323dae479b404044d3a6b014fe2f7e4bcca630
     // Example 2: 3b2fdf4de02f14531ea305ae76c56d79a552a63a3f77daf44f6ec47b3ce08c79
-    const payments = await this.client.getLnUrlPPayments(
+    const payments = await this.client.getLnurlpPayments(
       'f934dba08924ecff33300edff6323dae479b404044d3a6b014fe2f7e4bcca630',
     );
 
@@ -53,41 +55,41 @@ export class LightningService implements OnModuleInit {
     }
   }
 
-  async testGetLnUrlPLinks() {
-    const lnUrlPLinks = await this.client.getLnUrlPLinks();
-    this.logger.info('Number of LNURLp Links: ' + lnUrlPLinks.length);
+  async testGetLnurlpLinks() {
+    const lnurlpLinks = await this.client.getLnurlpLinks();
+    this.logger.info('Number of LNURLp Links: ' + lnurlpLinks.length);
     this.logger.info('');
 
-    for (const lnUrlPLink of lnUrlPLinks) {
-      this.logger.info('Id:          ' + lnUrlPLink.id);
-      this.logger.info('Description: ' + lnUrlPLink.description);
-      this.logger.info('Min / Max:   ' + lnUrlPLink.min + ' / ' + lnUrlPLink.max);
-      this.logger.info('LNURL:       ' + lnUrlPLink.lnurl);
+    for (const lnurlpLink of lnurlpLinks) {
+      this.logger.info('Id:          ' + lnurlpLink.id);
+      this.logger.info('Description: ' + lnurlpLink.description);
+      this.logger.info('Min / Max:   ' + lnurlpLink.min + ' / ' + lnurlpLink.max);
+      this.logger.info('LNURL:       ' + lnurlpLink.lnurl);
       this.logger.info('');
     }
   }
 
-  async testAddLnUrlPLink() {
-    const addedLnUrlPLink = await this.client.addLnUrlPLink('Test 1');
+  async testAddLnurlpLink() {
+    const addedLnurlpLink = await this.client.addLnurlpLink('Test 1');
 
-    this.logger.info('Id:          ' + addedLnUrlPLink.id);
-    this.logger.info('Description: ' + addedLnUrlPLink.description);
-    this.logger.info('Min / Max:   ' + addedLnUrlPLink.min + ' / ' + addedLnUrlPLink.max);
-    this.logger.info('LNURL:       ' + addedLnUrlPLink.lnurl);
+    this.logger.info('Id:          ' + addedLnurlpLink.id);
+    this.logger.info('Description: ' + addedLnurlpLink.description);
+    this.logger.info('Min / Max:   ' + addedLnurlpLink.min + ' / ' + addedLnurlpLink.max);
+    this.logger.info('LNURL:       ' + addedLnurlpLink.lnurl);
     this.logger.info('');
   }
 
-  async testRemoveLnUrlPLink() {
-    const lnUrlPLinks = await this.client.getLnUrlPLinks();
+  async testRemoveLnurlpLink() {
+    const lnUrlPLinks = await this.client.getLnurlpLinks();
 
-    const foundLnUrlPLink = lnUrlPLinks.find((obj) => {
+    const foundLnurlpLink = lnUrlPLinks.find((obj) => {
       return obj.description === 'Test 1';
     });
 
-    if (foundLnUrlPLink) {
-      const foundLnUrlPLinkId = foundLnUrlPLink.id;
+    if (foundLnurlpLink) {
+      const foundLnurlpLinkId = foundLnurlpLink.id;
 
-      const success = await this.client.removeLnUrlPLink(foundLnUrlPLinkId);
+      const success = await this.client.removeLnurlpLink(foundLnurlpLinkId);
 
       this.logger.info('Remove LNURLp success: ' + success);
       this.logger.info('');

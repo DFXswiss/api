@@ -19,27 +19,25 @@ export function assetExplorerUrl(asset: Asset): string | undefined {
 const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.DEFICHAIN]: 'https://defiscan.live',
   [Blockchain.BITCOIN]: 'https://blockstream.info',
-  [Blockchain.LIGHTNING]: undefined,
+  [Blockchain.LIGHTNING]: 'https://mempool.space/de/lightning',
   [Blockchain.ETHEREUM]: 'https://etherscan.io',
   [Blockchain.BINANCE_SMART_CHAIN]: 'https://bscscan.com',
   [Blockchain.OPTIMISM]: 'https://optimistic.etherscan.io',
   [Blockchain.ARBITRUM]: 'https://arbiscan.io',
   [Blockchain.POLYGON]: 'https://polygonscan.com',
   [Blockchain.CARDANO]: 'https://cardanoscan.io',
-  [Blockchain.LIGHTNING]: 'https://mempool.space/de/lightning',
 };
 
 const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.DEFICHAIN]: 'transactions',
   [Blockchain.BITCOIN]: 'tx',
-  [Blockchain.LIGHTNING]: undefined,
+  [Blockchain.LIGHTNING]: 'tx',
   [Blockchain.ETHEREUM]: 'tx',
   [Blockchain.BINANCE_SMART_CHAIN]: 'tx',
   [Blockchain.OPTIMISM]: 'tx',
   [Blockchain.ARBITRUM]: 'tx',
   [Blockchain.POLYGON]: 'tx',
   [Blockchain.CARDANO]: 'transaction',
-  [Blockchain.LIGHTNING]: 'tx',
 };
 
 function assetPaths(asset: Asset): string | undefined {

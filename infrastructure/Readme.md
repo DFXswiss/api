@@ -38,6 +38,10 @@ If lnd is being run for the first time:
 1. Create a new wallet with: `lncli create`. Add a new wallet password, write the displayed 24 word seed down and keep it in a safe place
 1. Store the wallet password in the `pass` tool: `pass insert lnd/my-wallet-password`
 
+Self-Signed Certificate:
+
+During first-time startup, LND is creating a self-signed TLS certificate in its root directory (`tls.key`, `tls.cert`). This self-signed certificate is also used for LNbits and ThunderHub.
+
 ## LNbits
 
 - https://github.com/lnbits/lnbits/blob/main/docs/guide/installation.md
@@ -48,6 +52,8 @@ If lnd is being run for the first time:
 1. Copy content of config file (`infrastructure/config/lightning/lnbits/{env}.conf`) to virtual machine (`lnbits/.env`)
 1. Start LNbits: `./startLNbits.sh`
 
+The self-signed certificate of the LND is used to provide HTTPS access via the given port number.
+
 ## ThunderHub
 
 - https://docs.thunderhub.io/setup
@@ -57,3 +63,5 @@ If lnd is being run for the first time:
 1. Create scripts (`setupThunderHub.sh` and `startThunderHub.sh` from `infrastructure/scripts/lightning/thunderhub`) and make them executable (`chmod +x {file}`)
 1. Copy content of config file (`infrastructure/config/lightning/thunderhub/{env}.conf`) to virtual machine (`thunderhub/.env`)
 1. Start ThunderHub: `./startThunderHub.sh`
+
+The `main.ts` file of the ThunderHub server must be adapted before starting to use the self-signed certificate of the LND.

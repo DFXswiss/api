@@ -17,8 +17,7 @@ import { PayInRepository } from '../../../repositories/payin.repository';
 import { LightningService } from 'src/integration/lightning/lightning.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
-import { LnUrlPPaymentData } from 'src/integration/lightning/data/lnurlp-payment.data';
+import { LnurlpPaymentData } from 'src/integration/lightning/data/lnurlp-payment.data';
 import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 
 @Injectable()
@@ -80,8 +79,6 @@ export class LightningStrategy extends RegisterStrategy {
       })
       .then((input) => input?.inTxId ?? '');
 
-    this.logger.info('lastCheckedTxId=' + lastCheckedTxId);
-
     const newEntries = await this.getNewEntries(lastCheckedTxId);
 
     await this.addReferenceAmounts(newEntries);
@@ -92,18 +89,12 @@ export class LightningStrategy extends RegisterStrategy {
   }
 
   private async getNewEntries(lastCheckedTxId: string): Promise<PayInEntry[]> {
-    const payments = await this.lightningService.getDefaultClient().getLnUrlPPayments(lastCheckedTxId);
-    const supportedAssets = await this.assetService.getAllAsset([Blockchain.LIGHTNING]);
-    return this.mapToPayInEntries(payments, supportedAssets);
+    const payments = await this.lightningService.getDefaultClient().getLnurlpPayments(lastCheckedTxId);
+    return this.mapToPayInEntries(payments);
   }
 
-  private async mapToPayInEntries(payments: LnUrlPPaymentData[], supportedAssets: Asset[]): Promise<PayInEntry[]> {
-    const asset =
-      this.assetService.getByQuerySync(supportedAssets, {
-        dexName: this.coin,
-        blockchain: this.blockchain,
-        type: AssetType.COIN,
-      }) ?? null;
+  private async mapToPayInEntries(payments: LnurlpPaymentData[]): Promise<PayInEntry[]> {
+    const asset = await this.assetService.getLightningCoin();
 
     return [...payments].reverse().map((p) => ({
       address: BlockchainAddress.create(this.getAddress(p), this.blockchain),
@@ -115,7 +106,7 @@ export class LightningStrategy extends RegisterStrategy {
     }));
   }
 
-  private getAddress(paymentData: LnUrlPPaymentData): string {
+  private getAddress(paymentData: LnurlpPaymentData): string {
     return paymentData.lnurl ? paymentData.lnurl : null;
   }
 }

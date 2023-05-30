@@ -1,6 +1,6 @@
 import { PaymentDto } from '../dto/payment.dto';
 
-export interface LnUrlPPaymentData {
+export interface LnurlpPaymentData {
   paymentDto: PaymentDto;
   lnurl: string;
 }
