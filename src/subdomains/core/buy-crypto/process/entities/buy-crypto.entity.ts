@@ -355,6 +355,11 @@ export class BuyCrypto extends IEntity {
 
   get translationKey(): string {
     if (this.amlCheck === AmlCheck.PASS) {
+      if (this.target.asset.blockchain === Blockchain.LIGHTNING)
+        return this.cryptoRoute
+          ? 'mail.payment.deposit.buyCryptoCryptoLightning'
+          : 'mail.payment.deposit.buyCryptoFiatLightning';
+
       return this.cryptoRoute ? 'mail.payment.deposit.buyCryptoCrypto' : 'mail.payment.deposit.buyCryptoFiat';
     } else if (this.amlCheck === AmlCheck.PENDING) {
       switch (this.amlReason) {
