@@ -200,7 +200,8 @@ var apiServicePlanName = 'plan-${compName}-${apiName}-${env}'
 var apiAppName = 'app-${compName}-${apiName}-${env}'
 var appInsightsName = 'appi-${compName}-${apiName}-${env}'
 
-var btcPort = '8332'
+var btcNodePort = '8332'
+var lnBitsPort = '5000'
 
 var nodeProps = [
   {
@@ -518,11 +519,11 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         }
         {
           name: 'NODE_BTC_INP_URL_ACTIVE'
-          value: 'http://${btcNodes[0].outputs.url}:${btcPort}'
+          value: 'http://${btcNodes[0].outputs.ip}:${btcNodePort}'
         }
         {
           name: 'NODE_BTC_OUT_URL_ACTIVE'
-          value: 'http://${btcNodes[1].outputs.url}:${btcPort}'
+          value: 'http://${btcNodes[1].outputs.ip}:${btcNodePort}'
         }
         {
           name: 'DEX_WALLET_ADDRESS'
@@ -654,11 +655,11 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         }
         {
           name: 'LIGHTNING_LNBITS_API_URL'
-          value: 'https://${btcNodes[0].outputs.url}:5000/api/v1'
+          value: 'https://${btcNodes[0].outputs.ip}:${lnBitsPort}/api/v1'
         }
         {
           name: 'LIGHTNING_LNBITS_LNURLP_API_URL'
-          value: 'https://${btcNodes[0].outputs.url}:5000/lnurlp/api/v1'
+          value: 'https://${btcNodes[0].outputs.ip}:${lnBitsPort}/lnurlp/api/v1'
         }
         {
           name: 'LIGHTNING_LNBITS_API_KEY'
@@ -666,11 +667,11 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         }
         {
           name: 'LIGHTNING_LNBITS_LNURLP_URL'
-          value: 'https://${btcNodes[0].outputs.url}:5000/lnurlp'
+          value: 'https://${btcNodes[0].outputs.ip}:${lnBitsPort}/lnurlp'
         }
         {
           name: 'LIGHTNING_LND_API_URL'
-          value: 'https://${btcNodes[0].outputs.url}:8080/v1'
+          value: 'https://${btcNodes[0].outputs.ip}:8080/v1'
         }
         {
           name: 'LIGHTNING_LND_ADMIN_MACAROON'
@@ -945,7 +946,7 @@ resource vmNsg 'Microsoft.Network/networkSecurityGroups@2020-11-01' = {
         properties: {
           protocol: 'TCP'
           sourcePortRange: '*'
-          destinationPortRange: '5000'
+          destinationPortRange: lnBitsPort
           sourceAddressPrefix: allowedIpRange
           destinationAddressPrefix: '*'
           access: 'Allow'
@@ -963,7 +964,7 @@ resource rpcRule 'Microsoft.Network/networkSecurityGroups/securityRules@2020-11-
   properties: {
     protocol: 'TCP'
     sourcePortRange: '*'
-    destinationPortRange: btcPort
+    destinationPortRange: btcNodePort
     sourceAddressPrefix: allowedIpRange
     destinationAddressPrefix: '*'
     access: 'Allow'

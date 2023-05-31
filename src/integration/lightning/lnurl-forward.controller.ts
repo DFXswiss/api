@@ -1,7 +1,7 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { LnUrlForwardService } from './lnurl-forward.service';
-import { LnurlPayRequestDto } from './dto/lnurlp-payrequest.dto';
+import { LnurlPayRequestDto } from './dto/lnurlp-pay-request.dto';
 
 @ApiTags('LNURLp')
 @Controller('lnurlp')
@@ -13,8 +13,8 @@ export class LnUrlForwardController {
     return this.forwardService.lnurlpForward(id);
   }
 
-  @Get('cb/:id/:amount')
-  async lnUrlPCallbackForward(@Param('id') id: string, @Param('amount') amount: number): Promise<any> {
-    return this.forwardService.lnurlpCallbackForward(id, amount);
+  @Get('cb/:id')
+  async lnUrlPCallbackForward(@Param('id') id: string, @Query() params: any): Promise<any> {
+    return this.forwardService.lnurlpCallbackForward(id, params);
   }
 }

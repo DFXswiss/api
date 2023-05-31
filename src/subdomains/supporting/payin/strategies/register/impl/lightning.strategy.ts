@@ -25,7 +25,6 @@ export class LightningStrategy extends RegisterStrategy {
   protected logger: DfxLogger = new DfxLogger(LightningStrategy);
 
   private blockchain = Blockchain.LIGHTNING;
-  private coin = 'BTC';
 
   constructor(
     private readonly lightningService: LightningService,
