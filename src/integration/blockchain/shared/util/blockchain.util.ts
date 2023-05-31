@@ -19,7 +19,7 @@ export function assetExplorerUrl(asset: Asset): string | undefined {
 const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.DEFICHAIN]: 'https://defiscan.live',
   [Blockchain.BITCOIN]: 'https://blockstream.info',
-  [Blockchain.LIGHTNING]: 'https://mempool.space/de/lightning',
+  [Blockchain.LIGHTNING]: undefined,
   [Blockchain.ETHEREUM]: 'https://etherscan.io',
   [Blockchain.BINANCE_SMART_CHAIN]: 'https://bscscan.com',
   [Blockchain.OPTIMISM]: 'https://optimistic.etherscan.io',
@@ -31,7 +31,7 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
 const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.DEFICHAIN]: 'transactions',
   [Blockchain.BITCOIN]: 'tx',
-  [Blockchain.LIGHTNING]: 'tx',
+  [Blockchain.LIGHTNING]: undefined,
   [Blockchain.ETHEREUM]: 'tx',
   [Blockchain.BINANCE_SMART_CHAIN]: 'tx',
   [Blockchain.OPTIMISM]: 'tx',

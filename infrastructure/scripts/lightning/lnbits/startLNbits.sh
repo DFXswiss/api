@@ -1,5 +1,7 @@
 #!/bin/bash
 
+export PATH="/home/dfx/.local/bin:$PATH"
+
 cd /home/dfx/lnbits
 
 # only accessible on localhost, extern accessible via apache proxy webserver with "official" ssl certificate

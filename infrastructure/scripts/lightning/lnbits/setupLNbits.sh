@@ -13,7 +13,7 @@ sudo apt install python3.9 python3.9-distutils
 
 curl -sSL https://install.python-poetry.org | python3 -
 
-export PATH="/home/user/.local/bin:$PATH"
+export PATH="/home/dfx/.local/bin:$PATH"
 
 poetry env use python3.9
 poetry install --only main
