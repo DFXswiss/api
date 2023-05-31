@@ -9,10 +9,8 @@ import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInEthereumService } from '../../../services/payin-ethereum.service';
 import { EvmStrategy } from './base/evm.strategy';
 import { PayInService } from '../../../services/payin.service';
-import { CryptoInput } from '../../../entities/crypto-input.entity';
-import { PayInEntry } from '../../../interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
-import { AssetType } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 
@@ -45,32 +43,23 @@ export class EthereumStrategy extends EvmStrategy {
 
   //*** PUBLIC API ***//
 
-  async addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void> {
-    const btc = await this.assetService.getAssetByQuery({
-      dexName: 'WBTC',
-      blockchain: Blockchain.ETHEREUM,
-      type: AssetType.TOKEN,
-    });
+  async getReferenceAssets(): Promise<{ btc: Asset; usdt: Asset }> {
+    return Promise.all([
+      this.assetService.getAssetByQuery({
+        dexName: 'WBTC',
+        blockchain: Blockchain.ETHEREUM,
+        type: AssetType.TOKEN,
+      }),
+      this.assetService.getAssetByQuery({
+        dexName: 'USDT',
+        blockchain: Blockchain.ETHEREUM,
+        type: AssetType.TOKEN,
+      }),
+    ]).then(([btc, usdt]) => ({ btc, usdt }));
+  }
 
-    const usdt = await this.assetService.getAssetByQuery({
-      dexName: 'USDT',
-      blockchain: Blockchain.ETHEREUM,
-      type: AssetType.TOKEN,
-    });
-
-    for (const entry of entries) {
-      try {
-        if (!entry.asset) throw new Error('No asset identified for Ethereum pay-in');
-
-        const btcAmount = await this.getReferenceAmount(entry.asset, entry.amount, btc);
-        const usdtAmount = await this.getReferenceAmount(entry.asset, entry.amount, usdt);
-
-        await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
-      } catch (e) {
-        this.logger.error('Could not set reference amounts for Ethereum pay-in:', e);
-        continue;
-      }
-    }
+  async getSourceAssetRepresentation(asset: Asset): Promise<Asset> {
+    return asset;
   }
 
   //*** HELPER METHODS ***//

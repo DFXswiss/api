@@ -123,6 +123,8 @@ export class CryptoInput extends IEntity {
 
     payIn.addReferenceAmounts(btcAmount, usdtAmount);
 
+    if (!payIn.asset) payIn.status = PayInStatus.FAILED;
+
     return payIn;
   }
 

@@ -1,4 +1,4 @@
-import { Entity, Column, ManyToOne, OneToOne, JoinColumn, DeepPartial } from 'typeorm';
+import { Entity, Column, ManyToOne, OneToOne, JoinColumn } from 'typeorm';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { BuyCryptoBatch } from './buy-crypto-batch.entity';
 import { Util } from 'src/shared/utils/util';
@@ -279,9 +279,8 @@ export class BuyCrypto extends IEntity {
   }
 
   waitingForLowerFee(): UpdateResult<BuyCrypto> {
-    const update: DeepPartial<BuyCrypto> = {
+    const update: Partial<BuyCrypto> = {
       status: BuyCryptoStatus.WAITING_FOR_LOWER_FEE,
-      fee: { estimatePayoutFeeAmount: this.fee.estimatePayoutFeeAmount },
       ...this.resetTransaction(),
     };
 

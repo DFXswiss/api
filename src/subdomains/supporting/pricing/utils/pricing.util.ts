@@ -1,4 +1,4 @@
-import { Altcoin, Bitcoin, Fiat, USDStableCoin } from '../domain/enums';
+import { Altcoin, Bitcoin, ChfStableCoin, Fiat, UsdStableCoin } from '../domain/enums';
 
 export class PricingUtil {
   static isFiat(asset: string): boolean {
@@ -13,13 +13,22 @@ export class PricingUtil {
     return Object.values(Altcoin).includes(asset as unknown as Altcoin);
   }
 
-  static isUSDStablecoin(asset: string): boolean {
-    return Object.values(USDStableCoin).includes(asset as unknown as USDStableCoin);
+  static isUsdStablecoin(asset: string): boolean {
+    return Object.values(UsdStableCoin).includes(asset as unknown as UsdStableCoin);
+  }
+
+  static isChfStablecoin(asset: string): boolean {
+    return Object.values(ChfStableCoin).includes(asset as unknown as ChfStableCoin);
   }
 
   static isKnownAsset(asset: string): boolean {
     return (
-      this.isFiat(asset) || this.isBTC(asset) || this.isAltcoin(asset) || this.isUSDStablecoin(asset) || asset === 'DFI'
+      this.isFiat(asset) ||
+      this.isBTC(asset) ||
+      this.isAltcoin(asset) ||
+      this.isUsdStablecoin(asset) ||
+      this.isChfStablecoin(asset) ||
+      asset === 'DFI'
     );
   }
 }

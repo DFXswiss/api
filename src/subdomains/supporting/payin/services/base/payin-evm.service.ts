@@ -41,7 +41,7 @@ export abstract class PayInEvmService {
     return [allCoinTransactions, allTokenTransactions];
   }
 
-  convertToEthLikeDenomination(value: number, decimals?: number): number {
-    return this.#client.convertToEthLikeDenomination(BigNumber.from(value.toString()), decimals);
+  convertToEthLikeDenomination(value: string, decimals?: number): number {
+    return this.#client.convertToEthLikeDenomination(BigNumber.from(value), decimals);
   }
 }
