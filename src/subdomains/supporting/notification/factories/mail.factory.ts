@@ -5,7 +5,7 @@ import { KycSupportMailInput, KycSupportMail } from '../entities/mail/kyc-suppor
 import { Mail, MailParams } from '../entities/mail/base/mail';
 import { UserMail, UserMailInput } from '../entities/mail/user-mail';
 import { MailType } from '../enums';
-import { MailRequest, MailRequestGenericInput } from '../interfaces';
+import { MailRequest, MailRequestGenericInput, MailRequestInput, MailRequestNew } from '../interfaces';
 import { PersonalMail, PersonalMailInput } from '../entities/mail/personal-mail';
 import { Config } from 'src/config/config';
 
@@ -37,6 +37,18 @@ export class MailFactory {
 
       case MailType.INTERNAL: {
         return this.createInternalMail(request);
+      }
+
+      default: {
+        throw new Error(`Unsupported mail type: ${request.type}`);
+      }
+    }
+  }
+
+  createMailNew(request: MailRequestNew) {
+    switch (request.type) {
+      case MailType.USER: {
+        return this.createUserMailNew(request);
       }
 
       default: {
@@ -106,6 +118,25 @@ export class MailFactory {
 
   private async createUserMail(request: MailRequest): Promise<UserMail> {
     const { userData, translationKey, translationParams } = request.input as UserMailInput;
+    const { metadata, options } = request;
+
+    const { subject, salutation, body } = await this.t(
+      translationKey,
+      userData.language?.symbol.toLowerCase(),
+      translationParams,
+    );
+
+    return new UserMail({
+      to: userData.mail,
+      subject,
+      salutation,
+      body,
+      metadata,
+      options,
+    });
+  }
+  private async createUserMailNew(request: MailRequestNew): Promise<any> {
+    const { userData } = request.input as MailRequestInput;
     const { metadata, options } = request;
 
     const { subject, salutation, body } = await this.t(

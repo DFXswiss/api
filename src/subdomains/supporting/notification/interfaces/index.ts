@@ -1,3 +1,4 @@
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
 import { KycSupportMailInput } from '../entities/mail/kyc-support-mail';
 import { UserMailInput } from '../entities/mail/user-mail';
@@ -9,6 +10,26 @@ export interface MailRequest {
   input: MailRequestGenericInput | UserMailInput | KycSupportMailInput | ErrorMonitoringMailInput;
   metadata?: NotificationMetadata;
   options?: NotificationOptions;
+}
+
+export interface MailRequestNew {
+  type: MailType;
+  input: MailRequestGenericInput | ErrorMonitoringMailInput | MailRequestInput;
+  metadata?: NotificationMetadata;
+  options?: NotificationOptions;
+}
+
+export interface MailRequestInput {
+  userData: UserData;
+  title: string;
+  prefix: TranslationItem[];
+  table: Record<string, string>;
+  suffix: TranslationItem[];
+}
+
+export interface TranslationItem {
+  key: string;
+  params?: Record<string, string>;
 }
 
 export interface MailRequestGenericInput {

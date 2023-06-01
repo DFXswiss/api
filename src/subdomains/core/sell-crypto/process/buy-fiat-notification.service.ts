@@ -106,6 +106,20 @@ export class BuyFiatNotificationService {
               },
             },
           });
+
+          await this.notificationService.sendMailNew({
+            type: MailType.USER,
+            input: {
+              userData: entity.sell.user.userData,
+              title: 'deposit.processed',
+              prefix: [],
+              table: {
+                'buy_fiat.input_amount': `${entity.inputAmount} ${entity.inputAsset}`,
+                'buy_fiat.output_amount': 'buy_fiat.test',
+              },
+              suffix: [{ key: 'buy_fiat.payment_link', params: { url: '' } }, { key: 'buy_fiat.thanks' }],
+            },
+          });
         }
 
         await this.buyFiatRepo.update(...entity.cryptoExchangedToFiat());

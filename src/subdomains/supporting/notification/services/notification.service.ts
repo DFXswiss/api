@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Notification, NotificationMetadata } from '../entities/notification.entity';
 import { NotificationSuppressedException } from '../exceptions/notification-suppressed.exception';
 import { MailFactory } from '../factories/mail.factory';
-import { MailRequest } from '../interfaces';
+import { MailRequest, MailRequestNew } from '../interfaces';
 import { NotificationRepository } from '../repositories/notification.repository';
 import { MailService } from './mail.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -20,6 +20,19 @@ export class NotificationService {
   async sendMail(request: MailRequest): Promise<void> {
     try {
       const mail = await this.mailFactory.createMail(request);
+
+      await this.verify(mail);
+      await this.persist(mail);
+
+      await this.mailService.send(mail);
+    } catch (e) {
+      this.handleNotificationError(e, request.metadata);
+    }
+  }
+
+  async sendMailNew(request: MailRequestNew): Promise<void> {
+    try {
+      const mail = await this.mailFactory.createMailNew(request);
 
       await this.verify(mail);
       await this.persist(mail);
