@@ -167,13 +167,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
       txType: null,
       blockHeight: parseInt(tx.blockNumber),
       amount: this.payInEvmService.convertToEthLikeDenomination(tx.value, parseInt(tx.tokenDecimal)),
-      asset:
-        this.assetService.getByQuerySync(supportedAssets, {
-          dexName: tx.tokenSymbol,
-          blockchain: this.blockchain,
-          type: AssetType.TOKEN,
-          chainId: tx.contractAddress,
-        }) ?? null,
+      asset: this.assetService.getByChainIdSync(supportedAssets, this.blockchain, tx.contractAddress) ?? null,
     }));
   }
 
