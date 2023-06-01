@@ -121,7 +121,7 @@ export class PayInService {
 
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(7200)
-  async checkSendConfirmations(): Promise<void> {
+  async checkInputConfirmations(): Promise<void> {
     if (Config.processDisabled(Process.PAY_IN)) return;
 
     await this.checkConfirmations();
@@ -212,7 +212,7 @@ export class PayInService {
 
   private async checkConfirmations(): Promise<void> {
     const payIns = await this.payInRepository.find({
-      where: { isConfirmed: false },
+      where: { isConfirmed: false, status: Not(PayInStatus.FAILED) },
       relations: ['route', 'asset'],
     });
 
