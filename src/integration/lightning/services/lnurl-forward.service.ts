@@ -17,7 +17,6 @@ export class LnUrlForwardService {
     const payRequest = await this.client.getPaymentRequest(id);
 
     payRequest.callback = LightningHelper.createLnurlpCallbackUrl(id);
-    payRequest.metadata = '[["text/plain", "DFX Deposit Address"]]';
 
     return payRequest;
   }

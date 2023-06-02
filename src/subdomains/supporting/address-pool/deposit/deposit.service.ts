@@ -76,7 +76,7 @@ export class DepositService {
     for (let i = 0; i < count; i++) {
       const accountIndex = nextDepositIndex + i;
 
-      const { id } = await this.lightningClient.addLnurlpLink(accountIndex.toString());
+      const { id } = await this.lightningClient.addLnurlpLink(`DFX Deposit Address ${accountIndex}`);
       const lnurlp = LightningHelper.createEncodedLnurlp(id);
 
       const deposit = Deposit.create(lnurlp, blockchain, accountIndex);
