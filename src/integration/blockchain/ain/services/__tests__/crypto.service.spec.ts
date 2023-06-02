@@ -1,8 +1,8 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { LightningService } from 'src/integration/lightning/lightning.service';
 import { createMock } from '@golevelup/ts-jest';
+import { Test, TestingModule } from '@nestjs/testing';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
+import { LightningService } from 'src/integration/lightning/services/lightning.service';
 
 describe('CryptoService', () => {
   let service: CryptoService;
