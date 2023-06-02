@@ -1,0 +1,6 @@
+accounts:
+  - name: DFX
+    serverUrl: 127.0.0.1:10009
+    macaroonPath: /home/dfx/.lnd/data/chain/bitcoin/mainnet/admin.macaroon
+    certificatePath: /home/dfx/.lnd/tls.cert
+    password: [PASSWORD]

@@ -7,9 +7,9 @@ git clone https://github.com/lnbits/lnbits.git
 cd lnbits
 
 sudo apt update
-sudo apt install software-properties-common
+sudo apt install software-properties-common -y
 sudo add-apt-repository ppa:deadsnakes/ppa
-sudo apt install python3.9 python3.9-distutils
+sudo apt install python3.9 python3.9-distutils -y
 
 curl -sSL https://install.python-poetry.org | python3 -
 

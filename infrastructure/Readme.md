@@ -18,10 +18,11 @@
 
 Connect to Lightning node: `ssh dfx@vm-dfx-btc-{type}-{env}.westeurope.cloudapp.azure.com`
 
-1. Install tools: `sudo apt install net-tools pass gnupg`
+1. Install tools: `sudo apt install net-tools pass gnupg -y`
 1. Setup pass
    1. Create GPG key: `gpg --full-generate-key` (use default values)
-   2. Init pass: `pass init [GPG ID]`
+   1. Get the key ID with: `gpg --list-secret-keys --keyid-format=long`
+   1. Init pass: `pass init [GPG ID]`
 
 ## Lightning Node (LND)
 
