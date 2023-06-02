@@ -96,6 +96,7 @@ export class Util {
   }
 
   // --- DATES --- //
+
   static secondsDiff(from?: Date, to?: Date): number {
     return ((to?.getTime() ?? 0) - (from?.getTime() ?? 0)) / 1000;
   }
@@ -173,7 +174,18 @@ export class Util {
     return decrypted.toString();
   }
 
+  // --- CONVERT --- //
+
+  static uint8ToString(array: Uint8Array, encoding: BufferEncoding): string {
+    return Buffer.from(array).toString(encoding);
+  }
+
+  static stringToUint8(value: string, encoding: BufferEncoding): Uint8Array {
+    return Uint8Array.from(Buffer.from(value, encoding));
+  }
+
   // --- MISC --- //
+
   static async readFileFromDisk(fileName: string): Promise<string> {
     return new Promise((resolve, reject) =>
       readFile(fileName, (err, data) => {

@@ -30,6 +30,7 @@ export enum PayInStatus {
   FORWARDED = 'Forwarded',
   PREPARING = 'Preparing',
   PREPARED = 'Prepared',
+  COMPLETED = 'Completed',
   WAITING_FOR_PRICE_REFERENCE = 'WaitingForPriceReference',
 }
 
@@ -211,6 +212,13 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
+  completed() {
+    this.status = PayInStatus.COMPLETED;
+    this.sendType = null;
+
+    return this;
+  }
+
   confirm(): this {
     this.isConfirmed = true;
 
@@ -231,7 +239,10 @@ export class CryptoInput extends IEntity {
   }
 
   addReferenceAmounts(btcAmount: number, usdtAmount: number): this {
-    if (btcAmount == null || (usdtAmount == null && this.address.blockchain !== Blockchain.BITCOIN)) {
+    if (
+      btcAmount == null ||
+      (usdtAmount == null && ![Blockchain.BITCOIN, Blockchain.LIGHTNING].includes(this.address.blockchain))
+    ) {
       this.status = PayInStatus.WAITING_FOR_PRICE_REFERENCE;
       return this;
     }

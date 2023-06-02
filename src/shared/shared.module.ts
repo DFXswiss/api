@@ -28,6 +28,8 @@ import { ApiKeyService } from './services/api-key.service';
 import { PaymentInfoService } from './services/payment-info.service';
 import { IpLogRepository } from './models/ip-log/ip-log.repository';
 import { IpLogService } from './models/ip-log/ip-log.service';
+import { LnUrlForwardController } from 'src/integration/lightning/lnurl-forward.controller';
+import { LnUrlForwardService } from 'src/integration/lightning/lnurl-forward.service';
 import { GeoLocationModule } from 'src/integration/geolocation/geo-location.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { Asset } from './models/asset/asset.entity';
@@ -50,7 +52,14 @@ import { RepositoryFactory } from './repositories/repository.factory';
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot(),
   ],
-  controllers: [AssetController, FiatController, CountryController, LanguageController, SettingController],
+  controllers: [
+    AssetController,
+    FiatController,
+    CountryController,
+    LanguageController,
+    SettingController,
+    LnUrlForwardController,
+  ],
   providers: [
     RepositoryFactory,
     AssetRepository,
@@ -69,6 +78,7 @@ import { RepositoryFactory } from './repositories/repository.factory';
     ApiKeyService,
     PaymentInfoService,
     IpLogService,
+    LnUrlForwardService,
   ],
   exports: [
     RepositoryFactory,
@@ -85,6 +95,7 @@ import { RepositoryFactory } from './repositories/repository.factory';
     ApiKeyService,
     PaymentInfoService,
     IpLogService,
+    LnUrlForwardService,
   ],
 })
 export class SharedModule {}

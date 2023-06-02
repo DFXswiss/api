@@ -81,6 +81,8 @@ export class PriceProviderService implements OnModuleInit {
     // metadata not found -> use reference asset
     const refAsset = await this.getFiatReferenceAssetFor(to.blockchain);
 
+    if (!refAsset) throw new Error(`No fiat reference asset found for ${to.blockchain}`);
+
     const toRef = await this.coinGeckoService.fromFiat(from, refAsset);
     const fromRef = await this.getSwapPrice(refAsset, to);
 

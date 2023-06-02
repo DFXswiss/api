@@ -1,4 +1,4 @@
-export interface LnUrlPLinkDto {
+export interface LnurlpLinkDto {
   id?: string;
   wallet?: string;
   description: string;
