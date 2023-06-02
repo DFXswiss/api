@@ -25,6 +25,7 @@ import { RefService } from 'src/subdomains/core/referral/process/ref.service';
 import { ChallengeDto } from './dto/challenge.dto';
 import { SignMessageDto } from './dto/sign-message.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { LightningService } from 'src/integration/lightning/lightning.service';
 
 export interface ChallengeData {
   created: Date;
@@ -41,6 +42,7 @@ export class AuthService {
     private readonly walletRepo: WalletRepository,
     private readonly jwtService: JwtService,
     private readonly cryptoService: CryptoService,
+    private readonly lightningService: LightningService,
     private readonly refService: RefService,
   ) {}
 
@@ -81,11 +83,6 @@ export class AuthService {
     if (!user || user.status == UserStatus.BLOCKED) throw new NotFoundException('User not found');
     if (!(await this.verifySignature(dto.address, dto.signature, dto.key)))
       throw new UnauthorizedException('Invalid credentials');
-
-    // TODO: temporary code to update old wallet signatures
-    if (user.signature.length !== 88 && dto.key === undefined) {
-      await this.userRepo.update({ id: user.id }, { signature: dto.signature });
-    }
 
     return { accessToken: this.generateUserToken(user) };
   }
@@ -151,8 +148,14 @@ export class AuthService {
   private async verifySignature(address: string, signature: string, key?: string): Promise<boolean> {
     const { defaultMessage, fallbackMessage } = this.getSignMessages(address);
 
-    let isValid = await this.cryptoService.verifySignature(defaultMessage, address, signature, key);
-    if (!isValid) isValid = await this.cryptoService.verifySignature(fallbackMessage, address, signature, key);
+    const blockchains = this.cryptoService.getBlockchainsBasedOn(address);
+
+    if (blockchains.includes(Blockchain.LIGHTNING)) {
+      key = await this.lightningService.getPublicKeyOfInvoice(address);
+    }
+
+    let isValid = this.cryptoService.verifySignature(defaultMessage, address, signature, key);
+    if (!isValid) isValid = this.cryptoService.verifySignature(fallbackMessage, address, signature, key);
 
     return isValid;
   }

@@ -46,6 +46,8 @@ Connect to Lightning node: `ssh dfx@vm-dfx-btc-{type}-{env}.westeurope.cloudapp.
 
 During first-time startup, LND is creating a self-signed TLS certificate in its root directory (`tls.key`, `tls.cert`). This self-signed certificate is also used for LNbits and ThunderHub.
 
+If a new self-signed certificate is to be created, the Lightning Node must be stopped and the existing certificate deleted. After restarting the node, a new self-signed certificate will be created automatically by the node.
+
 ## LNbits
 
 - https://github.com/lnbits/lnbits/blob/main/docs/guide/installation.md
@@ -77,3 +79,5 @@ The self-signed certificate of the LND is used to provide HTTPS access via the g
 1. Start ThunderHub: `./startThunderHub.sh`
 
 The `main.ts` file of the ThunderHub server must be adapted before starting to use the self-signed certificate of the LND.
+
+To change the passwords in the `accounts-{env}.yaml` file, ThunderHub must be stopped. Then the new passwords can be written in plain text to the yaml file. After restarting ThunderHub, the passwords will be encrypted automatically.

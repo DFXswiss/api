@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { HttpService } from 'src/shared/services/http.service';
 import { LnurlPayRequestDto } from './dto/lnurlp-pay-request.dto';
 import { LightningHelper } from './lightning-helper';
+import { LnurlPayCallbackDto } from './dto/lnurlp-pay-callback.dto';
 
 @Injectable()
 export class LnUrlForwardService {
@@ -17,8 +18,8 @@ export class LnUrlForwardService {
     return payRequest;
   }
 
-  async lnurlpCallbackForward(id: string, params: any): Promise<any> {
+  async lnurlpCallbackForward(id: string, params: any): Promise<LnurlPayCallbackDto> {
     const lnBitsCallbackUrl = `${LightningHelper.lnurlpCallbackLnBitsBasePath}/${id}`;
-    return this.http.get<any>(lnBitsCallbackUrl, { params });
+    return this.http.get<LnurlPayCallbackDto>(lnBitsCallbackUrl, { params });
   }
 }

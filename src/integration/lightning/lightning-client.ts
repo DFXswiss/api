@@ -3,10 +3,7 @@ import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service
 import { WalletDto } from './dto/wallet.dto';
 import { PaymentDto } from './dto/payment.dto';
 import { LnurlpLinkDto } from './dto/lnurlp-link.dto';
-import { VerifyMessageDto } from './dto/verifymessage.dto';
-import { VerifyMessageResponseDto } from './dto/verifymessage-response.dto';
 import { LnurlpLinkRemoveDto } from './dto/lnurlp-link-remove.dto';
-import { Agent } from 'https';
 import { LnurlpPaymentData } from './data/lnurlp-payment.data';
 import { LightningHelper } from './lightning-helper';
 
@@ -105,37 +102,9 @@ export class LightningClient {
     );
   }
 
-  async verifySignature(message: string, signature: string): Promise<boolean> {
-    return this.doVerifySignature(message, signature).then((v) => v.valid);
-  }
-
-  private async doVerifySignature(message: string, signature: string): Promise<VerifyMessageResponseDto> {
-    const messageHash = Buffer.from(message).toString('base64');
-
-    const verifyMessageDto: VerifyMessageDto = {
-      msg: messageHash,
-      signature: signature,
-    };
-
-    return this.http.post(
-      `${Config.blockchain.lightning.lnd.apiUrl}/verifymessage`,
-      verifyMessageDto,
-      this.httpLndConfig,
-    );
-  }
-
   private get httpLnBitsConfig(): HttpRequestConfig {
     return {
       params: { 'api-key': `${Config.blockchain.lightning.lnbits.apiKey}` },
-    };
-  }
-
-  private get httpLndConfig(): HttpRequestConfig {
-    return {
-      httpsAgent: new Agent({
-        ca: `${Config.blockchain.lightning.certificate}`,
-      }),
-      headers: { 'Grpc-Metadata-macaroon': `${Config.blockchain.lightning.lnd.adminMacaroon}` },
     };
   }
 }
