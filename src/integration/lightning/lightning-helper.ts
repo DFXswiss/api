@@ -28,6 +28,7 @@ export class LightningHelper {
 
   // --- LNURLP ENCODING --- //
   static createEncodedLnurlp(id: string): string {
+    // create an encoded LNURLp with the HTTPS address of DFX API and the LNbits ID
     const url = `${this.lnurlpDfxApiBasePath}/${id}`;
     return lnurlEncode(url).toUpperCase();
   }
