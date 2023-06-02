@@ -9,6 +9,7 @@ import { Util } from 'src/shared/utils/util';
 export class LightningHelper {
   static MSG_SIGNATURE_PREFIX = 'Lightning Signed Message:';
 
+  // --- LNURLP PATHS --- //
   static get lnurlpDfxApiBasePath(): string {
     return `${Config.url}/lnurlp`;
   }
@@ -25,31 +26,21 @@ export class LightningHelper {
     return `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/lnurl/cb`;
   }
 
-  /**
-   * Create a encoded LNURLp Link with the HTTPS Address of our DFX API
-   * and the ID of the LNbits Server
-   */
+  // --- LNURLP ENCODING --- //
   static createEncodedLnurlp(id: string): string {
     const url = `${this.lnurlpDfxApiBasePath}/${id}`;
     return lnurlEncode(url).toUpperCase();
   }
 
-  /**
-   * Get the URL of the given LNURLp
-   */
   static decodeLnurlp(lnurlp: string): string {
     return lnurlDecode(lnurlp);
   }
 
-  /**
-   * Detect the public key of the given signature
-   */
+  // --- SIGNATURE VERIFICATION --- //
   static getPublicKeyOfSignature(message: string, signature: string): string {
-    const messageHash = LightningHelper.doubleSha256(LightningHelper.MSG_SIGNATURE_PREFIX + message);
-    const decodedSignature = zbase32Decode(signature);
+    const messageHash = this.getMessageHash(message);
 
-    const recoverId = decodedSignature[0] - 31;
-    const checkSignature = decodedSignature.subarray(1);
+    const { checkSignature, recoverId } = this.decodeSignature(signature);
 
     const publicKey = ecdsaRecover(checkSignature, recoverId, messageHash);
 
@@ -57,27 +48,31 @@ export class LightningHelper {
   }
 
   static verifySignature(message: string, signature: string, publicKey: string): boolean {
-    const messageHash = LightningHelper.doubleSha256(LightningHelper.MSG_SIGNATURE_PREFIX + message);
-    const decodedSignature = zbase32Decode(signature);
+    const messageHash = this.getMessageHash(message);
 
-    const checkSignature = decodedSignature.subarray(1);
+    const { checkSignature } = this.decodeSignature(signature);
 
     return ecdsaVerify(checkSignature, messageHash, Util.stringToUint8(publicKey, 'hex'));
   }
 
-  /**
-   * Detect the public key of the given invoice
-   */
+  // --- INVOICES --- //
   static getPublicKeyOfInvoice(invoice: string): string {
     const decodedInvoice = bolt11Decode(invoice);
     return decodedInvoice.payeeNodeKey;
   }
 
-  /**
-   * Helper Functions
-   */
-  private static doubleSha256(message: string) {
-    return LightningHelper.sha256(LightningHelper.sha256(message));
+  // --- HELPER FUNCTIONS --- //
+  private static getMessageHash(message: string) {
+    return this.sha256(this.sha256(this.MSG_SIGNATURE_PREFIX + message));
+  }
+
+  private static decodeSignature(signature: string): { checkSignature: Uint8Array; recoverId: number } {
+    const decodedSignature = zbase32Decode(signature);
+
+    return {
+      checkSignature: decodedSignature.subarray(1),
+      recoverId: decodedSignature[0] - 31,
+    };
   }
 
   private static sha256(message: string | Buffer): Buffer {

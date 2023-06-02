@@ -24,9 +24,9 @@ export class LightningService {
     return LightningHelper.verifySignature(message, signature, publicKey);
   }
 
-  async getPublicKeyOfInvoice(address: string): Promise<string> {
+  async getPublicKeyOfLnurlp(lnurlp: string): Promise<string> {
     try {
-      const url = LightningHelper.decodeLnurlp(address);
+      const url = LightningHelper.decodeLnurlp(lnurlp);
 
       const payRequest = await this.http.get<LnurlPayRequestDto>(url);
 

@@ -151,7 +151,7 @@ export class AuthService {
     const blockchains = this.cryptoService.getBlockchainsBasedOn(address);
 
     if (blockchains.includes(Blockchain.LIGHTNING)) {
-      key = await this.lightningService.getPublicKeyOfInvoice(address);
+      key = await this.lightningService.getPublicKeyOfLnurlp(address);
     }
 
     let isValid = this.cryptoService.verifySignature(defaultMessage, address, signature, key);
