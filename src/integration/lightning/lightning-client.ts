@@ -1,10 +1,11 @@
+import { Agent } from 'https';
 import { Config } from 'src/config/config';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
-import { WalletDto } from './dto/wallet.dto';
-import { PaymentDto } from './dto/payment.dto';
-import { LnurlpLinkDto } from './dto/lnurlp-link.dto';
-import { LnurlpLinkRemoveDto } from './dto/lnurlp-link-remove.dto';
 import { LnurlpPaymentData } from './data/lnurlp-payment.data';
+import { LnurlpLinkRemoveDto } from './dto/lnurlp-link-remove.dto';
+import { LnurlpLinkDto } from './dto/lnurlp-link.dto';
+import { PaymentDto } from './dto/payment.dto';
+import { WalletDto } from './dto/wallet.dto';
 import { LightningHelper } from './lightning-helper';
 
 export class LightningClient {
@@ -104,7 +105,11 @@ export class LightningClient {
 
   private get httpLnBitsConfig(): HttpRequestConfig {
     return {
-      params: { 'api-key': `${Config.blockchain.lightning.lnbits.apiKey}` },
+      httpsAgent: new Agent({
+        ca: Config.blockchain.lightning.certificate,
+      }),
+
+      params: { 'api-key': Config.blockchain.lightning.lnbits.apiKey },
     };
   }
 }
