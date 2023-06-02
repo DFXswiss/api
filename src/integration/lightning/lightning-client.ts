@@ -11,7 +11,7 @@ export class LightningClient {
   constructor(private readonly http: HttpService) {}
 
   async getBalance(): Promise<number> {
-    return this.getWallet().then((w) => w.balance / 10 ** 8);
+    return this.getWallet().then((w) => w.balance / 10 ** 3 / 10 ** 8);
   }
 
   private async getWallet(): Promise<WalletDto> {
