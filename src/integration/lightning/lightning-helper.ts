@@ -1,40 +1,27 @@
-import { Config } from 'src/config/config';
-import { encode as lnurlEncode, decode as lnurlDecode } from 'lnurl';
-import { ecdsaRecover, ecdsaVerify } from 'secp256k1';
-import { decode as zbase32Decode } from 'zbase32';
-import { createHash } from 'crypto';
 import { decode as bolt11Decode } from 'bolt11';
+import { createHash } from 'crypto';
+import { decode as lnurlDecode, encode as lnurlEncode } from 'lnurl';
+import { ecdsaRecover, ecdsaVerify } from 'secp256k1';
+import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
+import { decode as zbase32Decode } from 'zbase32';
 
 export class LightningHelper {
   static MSG_SIGNATURE_PREFIX = 'Lightning Signed Message:';
 
-  // --- LNURLP PATHS --- //
-  static get lnurlpDfxApiBasePath(): string {
-    return `${Config.url}/lnurlp`;
-  }
-
-  static get lnurlpCallbackDfxApiBasePath(): string {
-    return `${Config.url}/lnurlp/cb`;
-  }
-
-  static get lnurlpLnBitsBasePath(): string {
-    return `${Config.blockchain.lightning.lnbits.lnurlpUrl}`;
-  }
-
-  static get lnurlpCallbackLnBitsBasePath(): string {
-    return `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/lnurl/cb`;
-  }
-
-  // --- LNURLP ENCODING --- //
+  // --- LNURLP --- //
   static createEncodedLnurlp(id: string): string {
     // create an encoded LNURLp with the HTTPS address of DFX API and the LNbits ID
-    const url = `${this.lnurlpDfxApiBasePath}/${id}`;
+    const url = `${Config.url}/lnurlp/${id}`;
     return lnurlEncode(url).toUpperCase();
   }
 
   static decodeLnurlp(lnurlp: string): string {
     return lnurlDecode(lnurlp);
+  }
+
+  static createLnurlpCallbackUrl(id: string): string {
+    return `${Config.url}/lnurlp/cb/${id}`;
   }
 
   // --- SIGNATURE VERIFICATION --- //

@@ -1,11 +1,11 @@
+import verifyCardanoSignature from '@cardano-foundation/cardano-verify-datasignature';
+import { MainNet } from '@defichain/jellyfish-network';
 import { Injectable } from '@nestjs/common';
 import { verify } from 'bitcoinjs-message';
-import { MainNet } from '@defichain/jellyfish-network';
 import { isEthereumAddress } from 'class-validator';
 import { verifyMessage } from 'ethers/lib/utils';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import verifyCardanoSignature from '@cardano-foundation/cardano-verify-datasignature';
-import { LightningService } from 'src/integration/lightning/lightning.service';
+import { LightningService } from 'src/integration/lightning/services/lightning.service';
 
 @Injectable()
 export class CryptoService {

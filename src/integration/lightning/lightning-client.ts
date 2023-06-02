@@ -2,8 +2,10 @@ import { Agent } from 'https';
 import { Config } from 'src/config/config';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
 import { LnurlpPaymentData } from './data/lnurlp-payment.data';
+import { LnurlpInvoiceDto } from './dto/lnurlp-invoice.dto';
 import { LnurlpLinkRemoveDto } from './dto/lnurlp-link-remove.dto';
 import { LnurlpLinkDto } from './dto/lnurlp-link.dto';
+import { LnurlPayRequestDto } from './dto/lnurlp-pay-request.dto';
 import { PaymentDto } from './dto/payment.dto';
 import { WalletDto } from './dto/wallet.dto';
 import { LightningHelper } from './lightning-helper';
@@ -11,14 +13,16 @@ import { LightningHelper } from './lightning-helper';
 export class LightningClient {
   constructor(private readonly http: HttpService) {}
 
+  // --- Wallet --- //
   async getBalance(): Promise<number> {
     return this.getWallet().then((w) => w.balance / 10 ** 3 / 10 ** 8);
   }
 
   private async getWallet(): Promise<WalletDto> {
-    return this.http.get<WalletDto>(`${Config.blockchain.lightning.lnbits.apiUrl}/wallet`, this.httpLnBitsConfig);
+    return this.http.get<WalletDto>(`${Config.blockchain.lightning.lnbits.apiUrl}/wallet`, this.httpLnBitsConfig());
   }
 
+  // --- PAYMENTS --- //
   async getLnurlpPayments(checkingId: string): Promise<LnurlpPaymentData[]> {
     const batchSize = 5;
     let offset = 0;
@@ -28,7 +32,7 @@ export class LightningClient {
     // get max. batchSize * 100 payments to avoid performance risks (getPayments() will be called every minute)
     for (let i = 0; i < 100; i++) {
       const url = `${Config.blockchain.lightning.lnbits.apiUrl}/payments?limit=${batchSize}&offset=${offset}&sortby=time&direction=desc`;
-      const payments = await this.http.get<PaymentDto[]>(url, this.httpLnBitsConfig);
+      const payments = await this.http.get<PaymentDto[]>(url, this.httpLnBitsConfig());
 
       // finish loop if there are no more payments available (offset is at the end of the payment list)
       if (!payments.length) break;
@@ -60,18 +64,29 @@ export class LightningClient {
     }));
   }
 
+  // --- PAYMENT LINKS --- //
   async getLnurlpLinks(): Promise<LnurlpLinkDto[]> {
     return this.http.get<LnurlpLinkDto[]>(
       `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/links?all_wallets=false`,
-      this.httpLnBitsConfig,
+      this.httpLnBitsConfig(),
     );
   }
 
   async getLnurlpLink(linkId: string): Promise<LnurlpLinkDto> {
     return this.http.get<LnurlpLinkDto>(
       `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/links/${linkId}`,
-      this.httpLnBitsConfig,
+      this.httpLnBitsConfig(),
     );
+  }
+
+  async getPaymentRequest(linkId: string): Promise<LnurlPayRequestDto> {
+    const lnBitsUrl = `${Config.blockchain.lightning.lnbits.lnurlpUrl}/${linkId}`;
+    return this.http.get(lnBitsUrl, this.httpLnBitsConfig());
+  }
+
+  async createInvoice(linkId: string, params: any): Promise<LnurlpInvoiceDto> {
+    const lnBitsCallbackUrl = `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/lnurl/cb/${linkId}`;
+    return this.http.get<LnurlpInvoiceDto>(lnBitsCallbackUrl, this.httpLnBitsConfig(params));
   }
 
   async addLnurlpLink(description: string): Promise<LnurlpLinkDto> {
@@ -88,7 +103,7 @@ export class LightningClient {
     return this.http.post<LnurlpLinkDto>(
       `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/links`,
       newLnurlpLinkDto,
-      this.httpLnBitsConfig,
+      this.httpLnBitsConfig(),
     );
   }
 
@@ -99,17 +114,17 @@ export class LightningClient {
   private async doRemoveLnurlpLink(linkId: string): Promise<LnurlpLinkRemoveDto> {
     return this.http.delete<LnurlpLinkRemoveDto>(
       `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/links/${linkId}`,
-      this.httpLnBitsConfig,
+      this.httpLnBitsConfig(),
     );
   }
 
-  private get httpLnBitsConfig(): HttpRequestConfig {
+  // --- HELPER METHODS --- //
+  private httpLnBitsConfig(params?: any): HttpRequestConfig {
     return {
       httpsAgent: new Agent({
         ca: Config.blockchain.lightning.certificate,
       }),
-
-      params: { 'api-key': Config.blockchain.lightning.lnbits.apiKey },
+      params: { 'api-key': Config.blockchain.lightning.lnbits.apiKey, ...params },
     };
   }
 }

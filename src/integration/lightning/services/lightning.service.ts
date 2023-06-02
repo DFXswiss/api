@@ -1,10 +1,10 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { HttpService } from 'src/shared/services/http.service';
-import { LightningClient } from './lightning-client';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { LightningHelper } from './lightning-helper';
-import { LnurlPayRequestDto } from './dto/lnurlp-pay-request.dto';
-import { LnurlPayCallbackDto } from './dto/lnurlp-pay-callback.dto';
+import { HttpService } from 'src/shared/services/http.service';
+import { LnurlpInvoiceDto } from '../dto/lnurlp-invoice.dto';
+import { LnurlPayRequestDto } from '../dto/lnurlp-pay-request.dto';
+import { LightningClient } from '../lightning-client';
+import { LightningHelper } from '../lightning-helper';
 
 @Injectable()
 export class LightningService {
@@ -30,7 +30,7 @@ export class LightningService {
 
       const payRequest = await this.http.get<LnurlPayRequestDto>(url);
 
-      const { pr: invoice } = await this.http.get<LnurlPayCallbackDto>(payRequest.callback, {
+      const { pr: invoice } = await this.http.get<LnurlpInvoiceDto>(payRequest.callback, {
         params: { amount: payRequest.minSendable },
       });
 

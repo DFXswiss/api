@@ -5,27 +5,27 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { CreateUserDto } from 'src/subdomains/generic/user/models/user/dto/create-user.dto';
-import { AuthCredentialsDto } from './dto/auth-credentials.dto';
-import { JwtPayloadBase, JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { JwtService } from '@nestjs/jwt';
-import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
-import { Config } from 'src/config/config';
-import { UserService } from '../user/user.service';
-import { UserRepository } from '../user/user.repository';
-import { User, UserStatus } from '../user/user.entity';
-import { LinkedUserInDto } from '../user/dto/linked-user.dto';
-import { WalletRepository } from '../wallet/wallet.repository';
-import { Wallet } from '../wallet/wallet.entity';
-import { UserRole } from 'src/shared/auth/user-role.enum';
-import { Util } from 'src/shared/utils/util';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
+import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
+import { LightningService } from 'src/integration/lightning/services/lightning.service';
+import { JwtPayload, JwtPayloadBase } from 'src/shared/auth/jwt-payload.interface';
+import { UserRole } from 'src/shared/auth/user-role.enum';
+import { Util } from 'src/shared/utils/util';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
+import { CreateUserDto } from 'src/subdomains/generic/user/models/user/dto/create-user.dto';
+import { LinkedUserInDto } from '../user/dto/linked-user.dto';
+import { User, UserStatus } from '../user/user.entity';
+import { UserRepository } from '../user/user.repository';
+import { UserService } from '../user/user.service';
+import { Wallet } from '../wallet/wallet.entity';
+import { WalletRepository } from '../wallet/wallet.repository';
+import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { ChallengeDto } from './dto/challenge.dto';
 import { SignMessageDto } from './dto/sign-message.dto';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { LightningService } from 'src/integration/lightning/lightning.service';
 
 export interface ChallengeData {
   created: Date;
