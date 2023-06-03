@@ -18,7 +18,19 @@ import { RefRewardNotificationService } from './ref-reward-notification.service'
 import { RefRewardDexService } from './ref-reward-dex.service';
 import { RefRewardOutService } from './ref-reward-out.service';
 
-export const PayoutChains: Blockchain[] = [Blockchain.DEFICHAIN];
+const PayoutChains: Blockchain[] = [Blockchain.DEFICHAIN, Blockchain.BITCOIN, Blockchain.ARBITRUM];
+
+const PayoutLimits: { [k in Blockchain]: number } = {
+  [Blockchain.DEFICHAIN]: 1,
+  [Blockchain.BITCOIN]: 100,
+  [Blockchain.ETHEREUM]: 10,
+  [Blockchain.CARDANO]: undefined,
+  [Blockchain.LIGHTNING]: undefined,
+  [Blockchain.BINANCE_SMART_CHAIN]: undefined,
+  [Blockchain.OPTIMISM]: undefined,
+  [Blockchain.ARBITRUM]: undefined,
+  [Blockchain.POLYGON]: undefined,
+};
 
 @Injectable()
 export class RefRewardService {
@@ -55,18 +67,19 @@ export class RefRewardService {
       });
       if (pendingBlockchainRewards) continue;
 
-      // PayoutAsset Price
+      // PayoutAsset
       const payoutAsset = await this.assetService.getNativeAsset(blockchain);
 
-      const groupedUser = Util.groupByAccessor<User, Blockchain>(
-        openCreditUser,
-        (o) => this.cryptoService.getBlockchainsBasedOn(o.address)[0],
+      const groupedUser = Util.groupByAccessor<User, Blockchain>(openCreditUser, (o) =>
+        this.cryptoService.getBlockchainsBasedOn(o.address)[0] === Blockchain.ETHEREUM
+          ? Blockchain.ARBITRUM
+          : this.cryptoService.getBlockchainsBasedOn(o.address)[0],
       );
 
       for (const user of groupedUser.get(blockchain)) {
         const refCreditEur = user.refCredit - user.paidRefCredit;
 
-        if (refCreditEur <= 1) continue; // TODO v2 => assetPayoutLimit
+        if (refCreditEur <= PayoutLimits[blockchain]) continue;
 
         const entity = this.rewardRepo.create({
           outputAsset: payoutAsset.dexName,
