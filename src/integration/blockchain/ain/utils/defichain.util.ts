@@ -7,7 +7,7 @@ export class DeFiChainUtil {
   async getHistoryEntryForTx(
     txId: string,
     client: DeFiClient,
-  ): Promise<{ txId: string; blockHeight: number; amounts: string[] }> {
+  ): Promise<{ txId: string; blockHeight: number; amounts: string[] } | null> {
     const transaction = await client.getTx(txId);
 
     if (transaction && transaction.blockhash && transaction.confirmations > 0) {
@@ -21,6 +21,8 @@ export class DeFiChainUtil {
             .find((t) => t.txId === txId),
         );
     }
+
+    return null;
   }
 
   async getAvailableTokenAmount(assetName: string, client: DeFiClient): Promise<number> {

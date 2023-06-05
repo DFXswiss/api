@@ -12,6 +12,7 @@ import { PriceSlippageException } from '../exceptions/price-slippage.exception';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
 import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { TransactionNotFoundException } from '../exceptions/transaction-not-found.exception';
 
 export interface DexDeFiChainLiquidityResult {
   targetAmount: number;
@@ -125,10 +126,7 @@ export class DexDeFiChainService {
 
   async getSwapAmount(txId: string, asset: string): Promise<number> {
     const historyEntry = await this.deFiChainUtil.getHistoryEntryForTx(txId, this.#dexClient);
-
-    if (!historyEntry) {
-      throw new Error(`Could not find transaction ${txId} while trying to extract purchased liquidity`);
-    }
+    if (!historyEntry) throw new TransactionNotFoundException(`Transaction ${txId} not found on blockchain`);
 
     const amounts = historyEntry.amounts.map((a) => this.#dexClient.parseAmount(a));
 

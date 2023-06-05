@@ -8,7 +8,6 @@ export interface AssetQuery {
   dexName: string;
   blockchain: Blockchain;
   type: AssetType;
-  chainId?: string | null;
 }
 
 @Injectable()
@@ -34,20 +33,19 @@ export class AssetService {
   async getNativeAsset(blockchain: Blockchain): Promise<Asset> {
     return this.assetRepo.findOneBy({ blockchain, type: AssetType.COIN });
   }
-  
+
   async updatePrice(assetId: number, usdPrice: number) {
     await this.assetRepo.update(assetId, { approxPriceUsd: usdPrice });
   }
 
   //*** UTILITY METHODS ***//
 
-  getByQuerySync(assets: Asset[], { dexName, blockchain, type, chainId }: AssetQuery): Asset | undefined {
-    return assets.find((a) => {
-      const queryMatch = a.dexName === dexName && a.blockchain === blockchain && a.type === type;
-      const chainIdMatch = a.chainId && chainId ? a.chainId.toLowerCase() === chainId.toLowerCase() : true;
+  getByQuerySync(assets: Asset[], { dexName, blockchain, type }: AssetQuery): Asset | undefined {
+    return assets.find((a) => a.dexName === dexName && a.blockchain === blockchain && a.type === type);
+  }
 
-      return queryMatch && chainIdMatch;
-    });
+  getByChainIdSync(assets: Asset[], blockchain: Blockchain, chainId: string): Asset | undefined {
+    return assets.find((a) => a.blockchain === blockchain && a.type === AssetType.TOKEN && a.chainId === chainId);
   }
 
   async getDfiCoin(): Promise<Asset> {
@@ -102,6 +100,14 @@ export class AssetService {
     return this.getAssetByQuery({
       dexName: 'BTC',
       blockchain: Blockchain.BITCOIN,
+      type: AssetType.COIN,
+    });
+  }
+
+  async getLightningCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      dexName: 'BTC',
+      blockchain: Blockchain.LIGHTNING,
       type: AssetType.COIN,
     });
   }

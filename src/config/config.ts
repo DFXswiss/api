@@ -1,13 +1,13 @@
+import { NetworkName } from '@defichain/jellyfish-network';
+import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { Injectable, Optional } from '@nestjs/common';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { Exchange } from 'ccxt';
 import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
-import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
-import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
-import { FeeTier } from 'src/shared/models/asset/asset.entity';
-import { NetworkName } from '@defichain/jellyfish-network';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
+import { FeeTier } from 'src/shared/models/asset/asset.entity';
+import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
 
 export enum Process {
   PAY_OUT = 'PayOut',
@@ -38,6 +38,7 @@ export function GetConfig(): Configuration {
 
 export class Configuration {
   environment = process.env.ENVIRONMENT;
+  version = 'v1';
   network = process.env.NETWORK as NetworkName;
   githubToken = process.env.GH_TOKEN;
   defaultLanguage = 'en';
@@ -52,6 +53,7 @@ export class Configuration {
   defaultDailyTradingLimit = 990; // EUR
   apiKeyVersionCT = '0'; // single digit hex number
   azureIpSubstring = '169.254';
+  exchangeTxSyncLimit = +(process.env.EXCHANGE_TX_SYNC_LIMIT ?? 720);
 
   colors = {
     white: '#FFFFFF',
@@ -303,12 +305,17 @@ export class Configuration {
       arbitrumChainId: +process.env.ARBITRUM_CHAIN_ID,
     },
     lightning: {
-      lnBitsApiUrl: process.env.LIGHTNING_LNBITS_API_URL,
-      lnBitsLnUrlPApiUrl: process.env.LIGHTNING_LNBITS_LNURLP_API_URL,
-      lnBitsApiKey: process.env.LIGHTNING_LNBITS_API_KEY,
-      lndApiUrl: process.env.LIGHTNING_LND_API_URL,
-      lndCertificate: process.env.LIGHTNING_LND_CERTIFICATE?.split('<br>').join('\n'),
-      lndAdminMacaroon: process.env.LIGHTNING_LND_ADMIN_MACAROON,
+      lnbits: {
+        apiUrl: process.env.LIGHTNING_LNBITS_API_URL,
+        lnurlpApiUrl: process.env.LIGHTNING_LNBITS_LNURLP_API_URL,
+        apiKey: process.env.LIGHTNING_LNBITS_API_KEY,
+        lnurlpUrl: process.env.LIGHTNING_LNBITS_LNURLP_URL,
+      },
+      lnd: {
+        apiUrl: process.env.LIGHTNING_LND_API_URL,
+        adminMacaroon: process.env.LIGHTNING_LND_ADMIN_MACAROON,
+      },
+      certificate: process.env.LIGHTNING_API_CERTIFICATE?.split('<br>').join('\n'),
     },
   };
 
@@ -423,6 +430,10 @@ export class Configuration {
   };
 
   // --- GETTERS --- //
+  get url(): string {
+    return `https://${this.environment === 'prd' ? '' : this.environment + '.'}api.dfx.swiss/${this.version}`;
+  }
+
   get kraken(): Partial<Exchange> {
     return {
       apiKey: process.env.KRAKEN_KEY,

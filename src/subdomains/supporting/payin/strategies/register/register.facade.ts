@@ -8,6 +8,7 @@ import { BscStrategy } from './impl/bsc.strategy';
 import { DeFiChainStrategy } from './impl/defichain.strategy';
 import { EthereumStrategy } from './impl/ethereum.strategy';
 import { OptimismStrategy } from './impl/optimism.strategy';
+import { LightningStrategy } from './impl/lightning.strategy';
 
 enum Alias {
   ARBITRUM = 'Arbitrum',
@@ -16,6 +17,7 @@ enum Alias {
   DEFICHAIN = 'DeFiChain',
   ETHEREUM = 'Ethereum',
   OPTIMISM = 'Optimism',
+  LIGHTNING = 'Lightning',
 }
 
 export { Alias as RegisterStrategyAlias };
@@ -31,6 +33,7 @@ export class RegisterStrategiesFacade {
     deFiChain: DeFiChainStrategy,
     ethereum: EthereumStrategy,
     optimism: OptimismStrategy,
+    lightning: LightningStrategy,
   ) {
     this.strategies.set(Alias.ARBITRUM, arbitrum);
     this.strategies.set(Alias.BITCOIN, bitcoin);
@@ -38,6 +41,7 @@ export class RegisterStrategiesFacade {
     this.strategies.set(Alias.DEFICHAIN, deFiChain);
     this.strategies.set(Alias.ETHEREUM, ethereum);
     this.strategies.set(Alias.OPTIMISM, optimism);
+    this.strategies.set(Alias.LIGHTNING, lightning);
   }
 
   getRegisterStrategy(criteria: Asset | Alias): RegisterStrategy {
@@ -53,6 +57,7 @@ export class RegisterStrategiesFacade {
     if (blockchain === Blockchain.DEFICHAIN) return Alias.DEFICHAIN;
     if (blockchain === Blockchain.ETHEREUM) return Alias.ETHEREUM;
     if (blockchain === Blockchain.OPTIMISM) return Alias.OPTIMISM;
+    if (blockchain === Blockchain.LIGHTNING) return Alias.LIGHTNING;
   }
 
   //*** HELPER METHODS ***//

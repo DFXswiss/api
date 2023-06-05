@@ -1,6 +1,6 @@
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { IEntity } from 'src/shared/models/entity';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { BuyCrypto } from './buy-crypto.entity';
@@ -56,11 +56,15 @@ export class BuyCryptoFee extends IEntity {
 
   //*** PUBLIC API ***//
 
-  addPayoutFeeEstimation(estimatedPayoutFeeAmount: number, transaction: BuyCrypto): this {
-    this.estimatePayoutFeeAmount = estimatedPayoutFeeAmount;
-    this.estimatePayoutFeePercent = Util.round(estimatedPayoutFeeAmount / transaction.outputReferenceAmount, 8);
+  addPayoutFeeEstimation(estimatedPayoutFeeAmount: number, transaction: BuyCrypto): UpdateResult<BuyCryptoFee> {
+    const update: Partial<BuyCryptoFee> = {
+      estimatePayoutFeeAmount: estimatedPayoutFeeAmount,
+      estimatePayoutFeePercent: Util.round(estimatedPayoutFeeAmount / transaction.outputReferenceAmount, 8),
+    };
 
-    return this;
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   addPurchaseFeeEstimation(estimatedPurchaseFeeAmount: number, transaction: BuyCrypto): this {

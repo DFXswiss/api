@@ -85,6 +85,12 @@ param bscScanApiUrl string
 @secure()
 param bscScanApiKey string
 
+param lightningApiCertificate string
+@secure()
+param lightningLnbitsApiKey string
+@secure()
+param lightningLndAdminMacaroon string
+
 param buyCryptoFeeLimit string
 
 param nodeServicePlanSkuName string
@@ -112,6 +118,7 @@ param binanceEthWalletWithdrawKey string
 param binanceBscWalletWithdrawKey string
 param binanceArbArbWithdrawKey string
 param binanceArbEthWithdrawKey string
+param binanceOptEthWithdrawKey string
 
 param olkyClient string
 @secure()
@@ -192,6 +199,9 @@ var sqlDbName = 'sqldb-${compName}-${apiName}-${env}'
 var apiServicePlanName = 'plan-${compName}-${apiName}-${env}'
 var apiAppName = 'app-${compName}-${apiName}-${env}'
 var appInsightsName = 'appi-${compName}-${apiName}-${env}'
+
+var btcNodePort = '8332'
+var lnBitsPort = '5000'
 
 var nodeProps = [
   {
@@ -509,11 +519,11 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         }
         {
           name: 'NODE_BTC_INP_URL_ACTIVE'
-          value: btcNodes[0].outputs.url
+          value: 'http://${btcNodes[0].outputs.ip}:${btcNodePort}'
         }
         {
           name: 'NODE_BTC_OUT_URL_ACTIVE'
-          value: btcNodes[1].outputs.url
+          value: 'http://${btcNodes[1].outputs.ip}:${btcNodePort}'
         }
         {
           name: 'DEX_WALLET_ADDRESS'
@@ -640,6 +650,34 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: bscChainId
         }
         {
+          name: 'LIGHTNING_API_CERTIFICATE'
+          value: lightningApiCertificate
+        }
+        {
+          name: 'LIGHTNING_LNBITS_API_URL'
+          value: 'https://${btcNodes[0].outputs.ip}:${lnBitsPort}/api/v1'
+        }
+        {
+          name: 'LIGHTNING_LNBITS_LNURLP_API_URL'
+          value: 'https://${btcNodes[0].outputs.ip}:${lnBitsPort}/lnurlp/api/v1'
+        }
+        {
+          name: 'LIGHTNING_LNBITS_API_KEY'
+          value: lightningLnbitsApiKey
+        }
+        {
+          name: 'LIGHTNING_LNBITS_LNURLP_URL'
+          value: 'https://${btcNodes[0].outputs.ip}:${lnBitsPort}/lnurlp'
+        }
+        {
+          name: 'LIGHTNING_LND_API_URL'
+          value: 'https://${btcNodes[0].outputs.ip}:8080/v1'
+        }
+        {
+          name: 'LIGHTNING_LND_ADMIN_MACAROON'
+          value: lightningLndAdminMacaroon
+        }
+        {
           name: 'BTC_OUT_WALLET_ADDRESS'
           value: btcOutWalletAddress
         }
@@ -702,6 +740,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'BINANCE_ARB_ETH_WITHDRAW_KEY'
           value: binanceArbEthWithdrawKey
+        }
+        {
+          name: 'BINANCE_OPT_ETH_WITHDRAW_KEY'
+          value: binanceOptEthWithdrawKey
         }
         {
           name: 'LETTER_URL'
@@ -886,6 +928,32 @@ resource vmNsg 'Microsoft.Network/networkSecurityGroups@2020-11-01' = {
           direction: 'Inbound'
         }
       }
+      {
+        name: 'ThunderHub'
+        properties: {
+          protocol: 'TCP'
+          sourcePortRange: '*'
+          destinationPortRange: '4000'
+          sourceAddressPrefix: allowedIpRange
+          destinationAddressPrefix: '*'
+          access: 'Allow'
+          priority: 310
+          direction: 'Inbound'
+        }
+      }
+      {
+        name: 'LNbits'
+        properties: {
+          protocol: 'TCP'
+          sourcePortRange: '*'
+          destinationPortRange: lnBitsPort
+          sourceAddressPrefix: allowedIpRange
+          destinationAddressPrefix: '*'
+          access: 'Allow'
+          priority: 320
+          direction: 'Inbound'
+        }
+      }
     ]
   }
 }
@@ -896,7 +964,7 @@ resource rpcRule 'Microsoft.Network/networkSecurityGroups/securityRules@2020-11-
   properties: {
     protocol: 'TCP'
     sourcePortRange: '*'
-    destinationPortRange: '8332'
+    destinationPortRange: btcNodePort
     sourceAddressPrefix: allowedIpRange
     destinationAddressPrefix: '*'
     access: 'Allow'

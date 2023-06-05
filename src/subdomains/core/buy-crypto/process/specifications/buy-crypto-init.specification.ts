@@ -7,13 +7,13 @@ import { BuyCrypto } from '../entities/buy-crypto.entity';
 export class BuyCryptoInitSpecification {
   constructor(private readonly transactionHelper: TransactionHelper) {}
 
-  async isSatisfiedBy({ cryptoInput, target }: BuyCrypto): Promise<void> {
+  async isSatisfiedBy({ cryptoInput }: BuyCrypto): Promise<void> {
     if (!cryptoInput) return;
 
-    const isValid = await this.transactionHelper.isValid(cryptoInput.asset, target.asset, cryptoInput.amount);
+    const isValid = await this.transactionHelper.isValidInput(cryptoInput.asset, cryptoInput.amount);
     if (!isValid)
       throw new PayInIgnoredException(
-        `Ignoring invalid ${cryptoInput.asset.blockchain} input for BuyCrypto. Pay-in: ${cryptoInput}`,
+        `Ignoring invalid ${cryptoInput.asset.blockchain} input for buy-crypto. Pay-in: ${cryptoInput}`,
       );
   }
 }

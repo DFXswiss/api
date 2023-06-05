@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { Util } from 'src/shared/utils/util';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
@@ -20,8 +19,8 @@ export class BuyCryptoPricingService {
   //*** HELPER METHODS ***//
 
   private async convertToTargetAsset(sourceAsset: Asset, sourceAmount: number, targetAsset: Asset): Promise<number> {
-    const result = await this.priceProvider.getPrice(sourceAsset, targetAsset);
+    const price = await this.priceProvider.getPrice(sourceAsset, targetAsset);
 
-    return result.price ? Util.round(sourceAmount / result.price, 8) : 0;
+    return price.convert(sourceAmount, 8);
   }
 }

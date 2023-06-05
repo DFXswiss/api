@@ -43,12 +43,12 @@ describe('BuyCryptoBatch', () => {
       const entity = createDefaultBuyCryptoBatch();
 
       expect(Array.isArray(entity.transactions)).toBe(true);
-      expect(entity.transactions.length).toBe(1);
+      expect(entity.transactions.length).toBe(0);
 
       entity.addTransaction(createDefaultBuyCrypto());
 
       expect(Array.isArray(entity.transactions)).toBe(true);
-      expect(entity.transactions.length).toBe(2);
+      expect(entity.transactions.length).toBe(1);
     });
 
     it('defaults outputReferenceAmount to 0 if its undefined', () => {
@@ -99,10 +99,9 @@ describe('BuyCryptoBatch', () => {
     it('returns no purchase requirement and no warning if available liquidity is enough', () => {
       const batch = createDiverseBuyCryptoBatch();
 
-      const [isPurchaseRequired, liquidityWarning] = batch.optimizeByLiquidity(112, 0);
+      const isPurchaseRequired = batch.optimizeByLiquidity(112, 0);
 
       expect(isPurchaseRequired).toBe(false);
-      expect(liquidityWarning).toBe(false);
     });
 
     it('re-slices the batch if available liquidity is enough at least for one tx, but not for entire batch', () => {
@@ -127,10 +126,9 @@ describe('BuyCryptoBatch', () => {
     it('returns no purchase requirement and no warning if available liquidity is enough at least for one tx, but not for entire batch', () => {
       const batch = createDiverseBuyCryptoBatch();
 
-      const [isPurchaseRequired, liquidityWarning] = batch.optimizeByLiquidity(5, 0);
+      const isPurchaseRequired = batch.optimizeByLiquidity(5, 0);
 
       expect(isPurchaseRequired).toBe(false);
-      expect(liquidityWarning).toBe(false);
     });
 
     it('re-slices the batch if purchasable liquidity is enough at least for one tx, but not for entire batch', () => {
@@ -155,10 +153,9 @@ describe('BuyCryptoBatch', () => {
     it('returns purchase requirement and a warning if purchasable liquidity is enough at least for one tx, but not for entire batch', () => {
       const batch = createDiverseBuyCryptoBatch();
 
-      const [isPurchaseRequired, liquidityWarning] = batch.optimizeByLiquidity(0.5, 11 * 1.05);
+      const isPurchaseRequired = batch.optimizeByLiquidity(0.5, 11 * 1.05);
 
       expect(isPurchaseRequired).toBe(true);
-      expect(liquidityWarning).toBe(true);
     });
 
     it('aborts the batch if purchasable liquidity is not enough even for one tx', () => {
@@ -185,10 +182,9 @@ describe('BuyCryptoBatch', () => {
     it('returns purchase requirement for entire batch and no warning if no upper conditions met', () => {
       const batch = createDiverseBuyCryptoBatch();
 
-      const [isPurchaseRequired, liquidityWarning] = batch.optimizeByLiquidity(0.5, 10000);
+      const isPurchaseRequired = batch.optimizeByLiquidity(0.5, 10000);
 
       expect(isPurchaseRequired).toBe(true);
-      expect(liquidityWarning).toBe(false);
     });
   });
 
@@ -196,9 +192,11 @@ describe('BuyCryptoBatch', () => {
     it('kicks out transactions if fee is too high', () => {
       const batch = createDiverseBuyCryptoBatch();
 
+      batch.transactions.forEach((tx) => tx.fee.addPayoutFeeEstimation(0.1, tx));
+
       expect(batch.transactions.length).toBe(3);
 
-      batch.optimizeByPayoutFeeEstimation(0.01);
+      batch.optimizeByPayoutFeeEstimation();
 
       expect(batch.transactions.length).toBe(2);
     });

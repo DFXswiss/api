@@ -21,6 +21,8 @@
     "instrumentationkey",
     "kauf",
     "kucoin",
+    "lnurl",
+    "lnurlp",
     "masternode",
     "masternodes",
     "meshsdk",
@@ -47,6 +49,10 @@
   ],
   "prettier.printWidth": 120,
   "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": true,
+    "source.sortMembers": true
+  },
   "files.exclude": {
     "node_modules": true
   }

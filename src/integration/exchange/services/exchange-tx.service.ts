@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { Config, Process } from 'src/config/config';
+import { Lock } from 'src/shared/utils/lock';
+import { Util } from 'src/shared/utils/util';
 import { ExchangeSyncs, ExchangeTokens, ExchangeTxDto } from '../entities/exchange-tx.entity';
 import { ExchangeTxKrakenMapper } from '../mappers/exchange-tx-kraken.mapper';
 import { ExchangeTxRepository } from '../repositories/exchange-tx.repository';
 import { ExchangeRegistryService } from './exchange-registry.service';
-import { Lock } from 'src/shared/utils/lock';
-import { Util } from 'src/shared/utils/util';
-import { Config, Process } from 'src/config/config';
 
 @Injectable()
 export class ExchangeTxService {
@@ -22,7 +22,7 @@ export class ExchangeTxService {
   async syncExchanges() {
     if (Config.processDisabled(Process.EXCHANGE_TX_SYNC)) return;
 
-    const since = Util.minutesBefore(720);
+    const since = Util.minutesBefore(Config.exchangeTxSyncLimit);
 
     for (const exchange of ExchangeSyncs) {
       const exchangeService = this.registryService.getExchange(exchange);

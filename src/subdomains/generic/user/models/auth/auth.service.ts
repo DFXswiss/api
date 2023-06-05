@@ -5,26 +5,27 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { CreateUserDto } from 'src/subdomains/generic/user/models/user/dto/create-user.dto';
-import { AuthCredentialsDto } from './dto/auth-credentials.dto';
-import { JwtPayloadBase, JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { JwtService } from '@nestjs/jwt';
-import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
-import { Config } from 'src/config/config';
-import { UserService } from '../user/user.service';
-import { UserRepository } from '../user/user.repository';
-import { User, UserStatus } from '../user/user.entity';
-import { LinkedUserInDto } from '../user/dto/linked-user.dto';
-import { WalletRepository } from '../wallet/wallet.repository';
-import { Wallet } from '../wallet/wallet.entity';
-import { UserRole } from 'src/shared/auth/user-role.enum';
-import { Util } from 'src/shared/utils/util';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
+import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
+import { LightningService } from 'src/integration/lightning/services/lightning.service';
+import { JwtPayload, JwtPayloadBase } from 'src/shared/auth/jwt-payload.interface';
+import { UserRole } from 'src/shared/auth/user-role.enum';
+import { Util } from 'src/shared/utils/util';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
+import { CreateUserDto } from 'src/subdomains/generic/user/models/user/dto/create-user.dto';
+import { LinkedUserInDto } from '../user/dto/linked-user.dto';
+import { User, UserStatus } from '../user/user.entity';
+import { UserRepository } from '../user/user.repository';
+import { UserService } from '../user/user.service';
+import { Wallet } from '../wallet/wallet.entity';
+import { WalletRepository } from '../wallet/wallet.repository';
+import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { ChallengeDto } from './dto/challenge.dto';
 import { SignMessageDto } from './dto/sign-message.dto';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 export interface ChallengeData {
   created: Date;
@@ -41,6 +42,7 @@ export class AuthService {
     private readonly walletRepo: WalletRepository,
     private readonly jwtService: JwtService,
     private readonly cryptoService: CryptoService,
+    private readonly lightningService: LightningService,
     private readonly refService: RefService,
   ) {}
 
@@ -59,7 +61,8 @@ export class AuthService {
     const existingUser = await this.userRepo.getByAddress(dto.address, true);
     if (existingUser) throw new ConflictException('User already exists');
 
-    if (!this.verifySignature(dto.address, dto.signature, dto.key)) throw new BadRequestException('Invalid signature');
+    if (!(await this.verifySignature(dto.address, dto.signature, dto.key)))
+      throw new BadRequestException('Invalid signature');
 
     const ref = await this.refService.get(userIp);
     if (ref) {
@@ -78,22 +81,17 @@ export class AuthService {
 
     const user = await this.userRepo.getByAddress(dto.address, true);
     if (!user || user.status == UserStatus.BLOCKED) throw new NotFoundException('User not found');
-    if (!this.verifySignature(dto.address, dto.signature, dto.key))
+    if (!(await this.verifySignature(dto.address, dto.signature, dto.key)))
       throw new UnauthorizedException('Invalid credentials');
-
-    // TODO: temporary code to update old wallet signatures
-    if (user.signature.length !== 88 && dto.key === undefined) {
-      await this.userRepo.update({ id: user.id }, { signature: dto.signature });
-    }
 
     return { accessToken: this.generateUserToken(user) };
   }
 
   private async companySignIn(dto: AuthCredentialsDto): Promise<{ accessToken: string }> {
     const wallet = await this.walletRepo.findOneBy({ address: dto.address });
-    if (!wallet || !wallet.isKycClient) throw new NotFoundException('Wallet not found');
+    if (!wallet?.isKycClient) throw new NotFoundException('Wallet not found');
 
-    if (!this.verifyCompanySignature(dto.address, dto.signature, dto.key))
+    if (!(await this.verifyCompanySignature(dto.address, dto.signature, dto.key)))
       throw new UnauthorizedException('Invalid credentials');
 
     return { accessToken: this.generateCompanyToken(wallet) };
@@ -101,7 +99,7 @@ export class AuthService {
 
   async getCompanyChallenge(address: string): Promise<ChallengeDto> {
     const wallet = await this.walletRepo.findOneBy({ address });
-    if (!wallet || !wallet.isKycClient) throw new BadRequestException('Wallet not found/invalid');
+    if (!wallet?.isKycClient) throw new BadRequestException('Wallet not found/invalid');
 
     const challenge = randomUUID();
 
@@ -147,8 +145,14 @@ export class AuthService {
     return user?.userData?.users.find((u) => u.address === address);
   }
 
-  private verifySignature(address: string, signature: string, key?: string): boolean {
+  private async verifySignature(address: string, signature: string, key?: string): Promise<boolean> {
     const { defaultMessage, fallbackMessage } = this.getSignMessages(address);
+
+    const blockchains = this.cryptoService.getBlockchainsBasedOn(address);
+
+    if (blockchains.includes(Blockchain.LIGHTNING)) {
+      key = await this.lightningService.getPublicKeyOfLnurlp(address);
+    }
 
     let isValid = this.cryptoService.verifySignature(defaultMessage, address, signature, key);
     if (!isValid) isValid = this.cryptoService.verifySignature(fallbackMessage, address, signature, key);
@@ -156,7 +160,7 @@ export class AuthService {
     return isValid;
   }
 
-  private verifyCompanySignature(address: string, signature: string, key?: string): boolean {
+  private async verifyCompanySignature(address: string, signature: string, key?: string): Promise<boolean> {
     const challengeData = this.challengeList.get(address);
     if (!this.isChallengeValid(challengeData)) throw new UnauthorizedException('Challenge invalid');
     this.challengeList.delete(address);

@@ -224,11 +224,7 @@ export class BuyCrypto extends IEntity {
         );
       }
 
-      if (!price.price) {
-        throw new Error('Cannot calculate outputReferenceAmount, price value is 0');
-      }
-
-      this.outputReferenceAmount = Util.round(this.inputReferenceAmountMinusFee / price.price, 8);
+      this.outputReferenceAmount = price.convert(this.inputReferenceAmountMinusFee, 8);
     }
 
     return this;
@@ -241,33 +237,56 @@ export class BuyCrypto extends IEntity {
   }
 
   setFeeConstraints(fee: BuyCryptoFee): UpdateResult<BuyCrypto> {
-    this.fee = fee;
+    const update: Partial<BuyCrypto> = {
+      fee,
+    };
 
-    return [this.id, { fee: this.fee }];
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   setPriceMismatchStatus(): UpdateResult<BuyCrypto> {
-    this.status = BuyCryptoStatus.PRICE_MISMATCH;
+    const update: Partial<BuyCrypto> = {
+      status: BuyCryptoStatus.PRICE_MISMATCH,
+      ...this.resetTransaction(),
+    };
 
-    return [this.id, { status: this.status, ...this.resetTransaction() }];
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   setPriceSlippageStatus(): UpdateResult<BuyCrypto> {
-    this.status = BuyCryptoStatus.PRICE_SLIPPAGE;
+    const update: Partial<BuyCrypto> = {
+      status: BuyCryptoStatus.PRICE_SLIPPAGE,
+    };
 
-    return [this.id, { status: this.status }];
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   setMissingLiquidityStatus(): UpdateResult<BuyCrypto> {
-    this.status = BuyCryptoStatus.MISSING_LIQUIDITY;
+    const update: Partial<BuyCrypto> = {
+      status: BuyCryptoStatus.MISSING_LIQUIDITY,
+      ...this.resetTransaction(),
+    };
 
-    return [this.id, { status: this.status, ...this.resetTransaction() }];
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   waitingForLowerFee(): UpdateResult<BuyCrypto> {
-    this.status = BuyCryptoStatus.WAITING_FOR_LOWER_FEE;
+    const update: Partial<BuyCrypto> = {
+      status: BuyCryptoStatus.WAITING_FOR_LOWER_FEE,
+      ...this.resetTransaction(),
+    };
 
-    return [this.id, { status: this.status, ...this.resetTransaction() }];
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   batched(): this {
@@ -300,9 +319,13 @@ export class BuyCrypto extends IEntity {
   }
 
   payingOut(): UpdateResult<BuyCrypto> {
-    this.status = BuyCryptoStatus.PAYING_OUT;
+    const update: Partial<BuyCrypto> = {
+      status: BuyCryptoStatus.PAYING_OUT,
+    };
 
-    return [this.id, { status: this.status }];
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   complete(payoutTxId: string, payoutFee: number): UpdateResult<BuyCrypto> {
@@ -332,6 +355,11 @@ export class BuyCrypto extends IEntity {
 
   get translationKey(): string {
     if (this.amlCheck === AmlCheck.PASS) {
+      if (this.target.asset.blockchain === Blockchain.LIGHTNING)
+        return this.cryptoRoute
+          ? 'mail.payment.deposit.buyCryptoCryptoLightning'
+          : 'mail.payment.deposit.buyCryptoFiatLightning';
+
       return this.cryptoRoute ? 'mail.payment.deposit.buyCryptoCrypto' : 'mail.payment.deposit.buyCryptoFiat';
     } else if (this.amlCheck === AmlCheck.PENDING) {
       switch (this.amlReason) {

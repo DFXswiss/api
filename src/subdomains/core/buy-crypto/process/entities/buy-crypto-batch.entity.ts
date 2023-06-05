@@ -17,7 +17,6 @@ export enum BuyCryptoBatchStatus {
 }
 
 type IsPurchaseRequired = boolean;
-type LiquidityWarning = boolean;
 
 @Entity()
 export class BuyCryptoBatch extends IEntity {
@@ -55,17 +54,17 @@ export class BuyCryptoBatch extends IEntity {
   }
 
   // amounts to be provided in reference asset
-  optimizeByLiquidity(availableAmount: number, maxPurchasableAmount: number): [IsPurchaseRequired, LiquidityWarning] {
+  optimizeByLiquidity(availableAmount: number, maxPurchasableAmount: number): IsPurchaseRequired {
     if (this.isEnoughToSecureBatch(availableAmount)) {
       // no changes to batch required, no purchase required
-      return [false, false];
+      return false;
     }
 
     if (this.isEnoughToSecureAtLeastOneTransaction(availableAmount)) {
       this.reBatchToMaxReferenceAmount(availableAmount);
 
       // no purchase required yet, proceeding with transactions for all available liquidity
-      return [false, false];
+      return false;
     }
 
     if (
@@ -74,11 +73,8 @@ export class BuyCryptoBatch extends IEntity {
     ) {
       this.reBatchToMaxReferenceAmount(maxPurchasableAmount, 0.05);
 
-      /**
-       * purchase is required, though liquidity is not enough to purchase for entire batch -> re-batching to smaller amount *
-       * warning is returned because on high load of small transactions, big transaction might be sliced out over and over again, without any notice
-       */
-      return [true, true];
+      // purchase is required, though liquidity is not enough to purchase for entire batch -> re-batching to smaller amount
+      return true;
     }
 
     if (!this.isEnoughToSecureAtLeastOneTransaction(maxPurchasableAmount)) {
@@ -87,30 +83,21 @@ export class BuyCryptoBatch extends IEntity {
       );
     }
 
-    return [true, false];
+    return true;
   }
 
-  optimizeByPayoutFeeEstimation(estimatePayoutFeeAmount: number): BuyCrypto[] {
+  optimizeByPayoutFeeEstimation(): BuyCrypto[] {
     const reBatchTransactions = [];
     const filteredOutTransactions = [];
 
     for (const tx of this.transactions) {
-      tx.fee.addPayoutFeeEstimation(estimatePayoutFeeAmount, tx);
-      const feeRatio = Util.round(estimatePayoutFeeAmount / tx.outputReferenceAmount, 8);
-
-      if (feeRatio > tx.fee.allowedTotalFeePercent) {
+      if (tx.fee.estimatePayoutFeePercent > tx.fee.allowedTotalFeePercent) {
         filteredOutTransactions.push(tx);
 
         continue;
       }
 
       reBatchTransactions.push(tx);
-    }
-
-    if (reBatchTransactions.length === 0) {
-      throw new FeeLimitExceededException(
-        `Cannot re-batch transactions by payout fee, no transaction exceeds the fee limit. Out asset: ${this.outputAsset.uniqueName}`,
-      );
     }
 
     this.overwriteTransactions(reBatchTransactions);

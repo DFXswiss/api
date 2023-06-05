@@ -30,6 +30,7 @@ export enum PayInStatus {
   FORWARDED = 'Forwarded',
   PREPARING = 'Preparing',
   PREPARED = 'Prepared',
+  COMPLETED = 'Completed',
   WAITING_FOR_PRICE_REFERENCE = 'WaitingForPriceReference',
 }
 
@@ -123,18 +124,22 @@ export class CryptoInput extends IEntity {
 
     payIn.addReferenceAmounts(btcAmount, usdtAmount);
 
+    if (!payIn.asset) payIn.status = PayInStatus.FAILED;
+
     return payIn;
   }
 
   //*** UTILITY METHODS ***//
 
-  static verifyEstimatedFee(estimatedFeeInPayInAsset: number, totalAmount: number): void {
-    if (estimatedFeeInPayInAsset == null) throw new Error('No fee estimation provided');
+  static verifyEstimatedFee(estimatedFee: number, minInputFee: number, totalAmount: number): void {
+    if (estimatedFee == null) throw new Error('No fee estimation provided');
     if (totalAmount === 0) throw new Error('Total forward amount cannot be zero');
 
-    if (estimatedFeeInPayInAsset / totalAmount > Config.payIn.forwardFeeLimit) {
-      const feePercent = Util.round((estimatedFeeInPayInAsset / totalAmount) * 100, 1);
-      throw new FeeLimitExceededException(`Forward fee is too high (${estimatedFeeInPayInAsset}, ${feePercent}%)`);
+    const maxFee = Math.max(totalAmount * Config.payIn.forwardFeeLimit, minInputFee * 0.5);
+
+    if (estimatedFee > maxFee) {
+      const feePercent = Util.round((estimatedFee / totalAmount) * 100, 1);
+      throw new FeeLimitExceededException(`Forward fee is too high (${estimatedFee}, ${feePercent}%)`);
     }
   }
 
@@ -207,6 +212,13 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
+  completed() {
+    this.status = PayInStatus.COMPLETED;
+    this.sendType = null;
+
+    return this;
+  }
+
   confirm(): this {
     this.isConfirmed = true;
 
@@ -227,7 +239,10 @@ export class CryptoInput extends IEntity {
   }
 
   addReferenceAmounts(btcAmount: number, usdtAmount: number): this {
-    if (btcAmount == null || (usdtAmount == null && this.address.blockchain !== Blockchain.BITCOIN)) {
+    if (
+      btcAmount == null ||
+      (usdtAmount == null && ![Blockchain.BITCOIN, Blockchain.LIGHTNING].includes(this.address.blockchain))
+    ) {
       this.status = PayInStatus.WAITING_FOR_PRICE_REFERENCE;
       return this;
     }

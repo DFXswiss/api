@@ -11,10 +11,14 @@ export enum Fiat {
   GBP = 'GBP',
 }
 
-export enum USDStableCoin {
+export enum UsdStableCoin {
   USDC = 'USDC',
   USDT = 'USDT',
   BUSD = 'BUSD',
+}
+
+export enum ChfStableCoin {
+  XCHF = 'XCHF',
 }
 
 export enum Bitcoin {

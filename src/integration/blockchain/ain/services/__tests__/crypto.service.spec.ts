@@ -1,13 +1,19 @@
+import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
+import { LightningService } from 'src/integration/lightning/services/lightning.service';
 
 describe('CryptoService', () => {
   let service: CryptoService;
 
+  let lightningService: LightningService;
+
   beforeEach(async () => {
+    lightningService = createMock<LightningService>();
+
     const module: TestingModule = await Test.createTestingModule({
-      providers: [CryptoService],
+      providers: [CryptoService, { provide: LightningService, useValue: lightningService }],
     }).compile();
 
     service = module.get<CryptoService>(CryptoService);
@@ -41,5 +47,13 @@ describe('CryptoService', () => {
 
   it('should return Blockchain.DEFICHAIN for address tf1qpfe7qandmtsspgwyxlzcer66ajrzgy5n7e1234', () => {
     expect(service.getBlockchainsBasedOn('tf1qpfe7qandmtsspgwyxlzcer66ajrzgy5n7e1234')).toEqual([Blockchain.DEFICHAIN]);
+  });
+
+  it('should return Blockchain.LIGHTNING for address LNURL1DP68GURN8GHJ7VF3XSEKXC3JX3SK2TNY9EMX7MR5V9NK2CTSWQHXJME0D3H82UNVWQHKZURF9AMRZTMVDE6HYMP0X5LU9EJM', () => {
+    expect(
+      service.getBlockchainsBasedOn(
+        'LNURL1DP68GURN8GHJ7VF3XSEKXC3JX3SK2TNY9EMX7MR5V9NK2CTSWQHXJME0D3H82UNVWQHKZURF9AMRZTMVDE6HYMP0X5LU9EJM',
+      ),
+    ).toEqual([Blockchain.LIGHTNING]);
   });
 });

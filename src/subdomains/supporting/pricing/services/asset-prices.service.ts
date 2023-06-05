@@ -26,12 +26,12 @@ export class AssetPricesService {
     const usd = await this.fiatService.getFiatByName('USD');
     const assets = await this.assetService.getAllAsset([]);
 
-    const assetsToUpdate = assets.filter((a) => a.dexName.includes('BURN'));
+    const assetsToUpdate = assets.filter((a) => !a.dexName.includes('BURN'));
 
     for (const asset of assetsToUpdate) {
       try {
         const usdPrice = await this.priceProvider.getPrice(asset, usd);
-        await this.assetService.updatePrice(asset.id, 1 / usdPrice.price);
+        await this.assetService.updatePrice(asset.id, usdPrice.convert(1));
       } catch (e) {
         this.logger.error(`Failed to update price of asset ${asset.uniqueName}:`, e);
       }

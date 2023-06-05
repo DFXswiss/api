@@ -3,14 +3,20 @@ import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-inp
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { PayInJellyfishService } from 'src/subdomains/supporting/payin/services/base/payin-jellyfish.service';
 import { SendStrategy } from './send.strategy';
+import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
+import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
+import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 
 export abstract class JellyfishStrategy extends SendStrategy {
   constructor(
     protected readonly jellyfishService: PayInJellyfishService,
     protected readonly payInRepo: PayInRepository,
     protected readonly blockchain: Blockchain,
+    priceProvider: PriceProviderService,
+    payoutService: PayoutService,
+    transactionHelper: TransactionHelper,
   ) {
-    super();
+    super(priceProvider, payoutService, transactionHelper);
   }
 
   protected abstract isConfirmed(payIn: CryptoInput): Promise<boolean>;
