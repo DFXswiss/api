@@ -18,15 +18,16 @@ import { RefRewardNotificationService } from './ref-reward-notification.service'
 import { RefRewardDexService } from './ref-reward-dex.service';
 import { RefRewardOutService } from './ref-reward-out.service';
 
+// Blockchains with undefined PayoutLimits wont paid out
 const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.DEFICHAIN]: 1,
+  [Blockchain.ARBITRUM]: 10,
   [Blockchain.BITCOIN]: 100,
-  [Blockchain.ETHEREUM]: undefined,
-  [Blockchain.CARDANO]: undefined,
   [Blockchain.LIGHTNING]: undefined,
+  [Blockchain.CARDANO]: undefined,
+  [Blockchain.ETHEREUM]: undefined,
   [Blockchain.BINANCE_SMART_CHAIN]: undefined,
   [Blockchain.OPTIMISM]: undefined,
-  [Blockchain.ARBITRUM]: 10,
   [Blockchain.POLYGON]: undefined,
 };
 
