@@ -1,3 +1,3 @@
-export interface LnUrlPLinkRemoveDto {
+export interface LnurlpLinkRemoveDto {
   success: boolean;
 }

@@ -1,71 +1,98 @@
+import { Agent } from 'https';
 import { Config } from 'src/config/config';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
-import { WalletDto } from './dto/wallet.dto';
+import { LnurlpPaymentData } from './data/lnurlp-payment.data';
+import { LnurlpInvoiceDto } from './dto/lnurlp-invoice.dto';
+import { LnurlpLinkRemoveDto } from './dto/lnurlp-link-remove.dto';
+import { LnurlpLinkDto } from './dto/lnurlp-link.dto';
+import { LnurlPayRequestDto } from './dto/lnurlp-pay-request.dto';
 import { PaymentDto } from './dto/payment.dto';
-import { LnUrlPLinkDto } from './dto/lnurlp-link.dto';
-import { VerifyMessageDto } from './dto/verifymessage.dto';
-import { VerifyMessageResponseDto } from './dto/verifymessage-response.dto';
-import { LnUrlPLinkRemoveDto } from './dto/lnurlp-link-remove.dto';
-import { Agent } from 'https';
+import { WalletDto } from './dto/wallet.dto';
+import { LightningHelper } from './lightning-helper';
 
 export class LightningClient {
   constructor(private readonly http: HttpService) {}
 
+  // --- Wallet --- //
   async getBalance(): Promise<number> {
-    return this.getWallet().then((w) => w.balance);
+    return this.getWallet().then((w) => w.balance / 10 ** 3 / 10 ** 8);
   }
 
   private async getWallet(): Promise<WalletDto> {
-    return this.http.get<WalletDto>(`${Config.blockchain.lightning.lnBitsApiUrl}/wallet`, this.httpLnBitsConfig);
+    return this.http.get<WalletDto>(`${Config.blockchain.lightning.lnbits.apiUrl}/wallet`, this.httpLnBitsConfig());
   }
 
-  async getPayments(checkingId: string): Promise<PaymentDto[]> {
-    const limit = 5;
+  // --- PAYMENTS --- //
+  async getLnurlpPayments(checkingId: string): Promise<LnurlpPaymentData[]> {
+    const batchSize = 5;
     let offset = 0;
 
-    const result: PaymentDto[] = [];
+    const result: LnurlpPaymentData[] = [];
 
-    let running = true;
+    // get max. batchSize * 100 payments to avoid performance risks (getPayments() will be called every minute)
+    for (let i = 0; i < 100; i++) {
+      const url = `${Config.blockchain.lightning.lnbits.apiUrl}/payments?limit=${batchSize}&offset=${offset}&sortby=time&direction=desc`;
+      const payments = await this.http.get<PaymentDto[]>(url, this.httpLnBitsConfig());
 
-    while (running) {
-      const paymentDtoArray = await this.http.get<PaymentDto[]>(
-        `${Config.blockchain.lightning.lnBitsApiUrl}/payments?limit=${limit}&offset=${offset}&sortby=time&direction=desc`,
-        this.httpLnBitsConfig,
-      );
+      // finish loop if there are no more payments available (offset is at the end of the payment list)
+      if (!payments.length) break;
 
-      running = 0 !== paymentDtoArray.length && this.fillPaymentArray(checkingId, paymentDtoArray, result);
+      const notPendingLnurlpPayments = payments.filter((p) => !p.pending).filter((p) => 'lnurlp' === p.extra.tag);
 
-      offset += limit;
+      // finish loop if there are no more not pending 'lnurlp' payments available
+      if (!notPendingLnurlpPayments.length) break;
+
+      const checkItemIndex = notPendingLnurlpPayments.findIndex((p) => p.checking_id === checkingId);
+
+      if (checkItemIndex >= 0) {
+        result.push(...this.createLnurlpPayments(notPendingLnurlpPayments.slice(0, checkItemIndex)));
+        break;
+      }
+
+      result.push(...this.createLnurlpPayments(notPendingLnurlpPayments));
+
+      offset += batchSize;
     }
 
     return result;
   }
 
-  private fillPaymentArray(
-    checkingId: string,
-    searchPaymentArray: PaymentDto[],
-    foundPaymentArray: PaymentDto[],
-  ): boolean {
-    for (const searchPayment of searchPaymentArray) {
-      if (searchPayment.checking_id === checkingId) {
-        return false;
-      }
-
-      foundPaymentArray.push(searchPayment);
-    }
-
-    return true;
+  private createLnurlpPayments(paymentDtoArray: PaymentDto[]): LnurlpPaymentData[] {
+    return paymentDtoArray.map((p) => ({
+      paymentDto: p,
+      lnurl: LightningHelper.createEncodedLnurlp(p.extra.link),
+    }));
   }
 
-  async getLnUrlPLinks(): Promise<LnUrlPLinkDto[]> {
-    return this.http.get<LnUrlPLinkDto[]>(
-      `${Config.blockchain.lightning.lnBitsLnUrlPApiUrl}/links?all_wallets=false`,
-      this.httpLnBitsConfig,
+  // --- PAYMENT LINKS --- //
+  async getLnurlpLinks(): Promise<LnurlpLinkDto[]> {
+    return this.http.get<LnurlpLinkDto[]>(
+      `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/links?all_wallets=false`,
+      this.httpLnBitsConfig(),
     );
   }
 
-  async addLnUrlPLink(description: string): Promise<LnUrlPLinkDto> {
-    const newLnUrlPLinkDto: LnUrlPLinkDto = {
+  async getLnurlpLink(linkId: string): Promise<LnurlpLinkDto> {
+    return this.http.get<LnurlpLinkDto>(
+      `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/links/${linkId}`,
+      this.httpLnBitsConfig(),
+    );
+  }
+
+  async getPaymentRequest(linkId: string): Promise<LnurlPayRequestDto> {
+    const lnBitsUrl = `${Config.blockchain.lightning.lnbits.lnurlpUrl}/${linkId}`;
+    return this.http.get(lnBitsUrl, this.httpLnBitsConfig());
+  }
+
+  async createInvoice(linkId: string, params: any): Promise<LnurlpInvoiceDto> {
+    const lnBitsCallbackUrl = `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/lnurl/cb/${linkId}`;
+    return this.http.get<LnurlpInvoiceDto>(lnBitsCallbackUrl, this.httpLnBitsConfig(params));
+  }
+
+  async addLnurlpLink(description: string): Promise<LnurlpLinkDto> {
+    if (!description) throw new Error('Description is undefined');
+
+    const newLnurlpLinkDto: LnurlpLinkDto = {
       description: description,
       min: 1,
       max: 100000000,
@@ -73,55 +100,31 @@ export class LightningClient {
       fiat_base_multiplier: 100,
     };
 
-    return this.http.post<LnUrlPLinkDto>(
-      `${Config.blockchain.lightning.lnBitsLnUrlPApiUrl}/links`,
-      newLnUrlPLinkDto,
-      this.httpLnBitsConfig,
+    return this.http.post<LnurlpLinkDto>(
+      `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/links`,
+      newLnurlpLinkDto,
+      this.httpLnBitsConfig(),
     );
   }
 
-  async removeLnUrlPLink(linkId: string): Promise<boolean> {
-    return this.doRemoveLnUrlPLink(linkId).then((r) => r.success);
+  async removeLnurlpLink(linkId: string): Promise<boolean> {
+    return this.doRemoveLnurlpLink(linkId).then((r) => r.success);
   }
 
-  private async doRemoveLnUrlPLink(linkId: string): Promise<LnUrlPLinkRemoveDto> {
-    return this.http.delete<LnUrlPLinkRemoveDto>(
-      `${Config.blockchain.lightning.lnBitsLnUrlPApiUrl}/links/${linkId}`,
-      this.httpLnBitsConfig,
+  private async doRemoveLnurlpLink(linkId: string): Promise<LnurlpLinkRemoveDto> {
+    return this.http.delete<LnurlpLinkRemoveDto>(
+      `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/links/${linkId}`,
+      this.httpLnBitsConfig(),
     );
   }
 
-  async verifySignature(message: string, signature: string): Promise<boolean> {
-    return this.doVerifySignature(message, signature).then((v) => v.valid);
-  }
-
-  private async doVerifySignature(message: string, signature: string): Promise<VerifyMessageResponseDto> {
-    const messageHash = Buffer.from(message).toString('base64');
-
-    const verifyMessageDto: VerifyMessageDto = {
-      msg: messageHash,
-      signature: signature,
-    };
-
-    return this.http.post(
-      `${Config.blockchain.lightning.lndApiUrl}/verifymessage`,
-      verifyMessageDto,
-      this.httpLndConfig,
-    );
-  }
-
-  private get httpLnBitsConfig(): HttpRequestConfig {
-    return {
-      params: { 'api-key': `${Config.blockchain.lightning.lnBitsApiKey}` },
-    };
-  }
-
-  private get httpLndConfig(): HttpRequestConfig {
+  // --- HELPER METHODS --- //
+  private httpLnBitsConfig(params?: any): HttpRequestConfig {
     return {
       httpsAgent: new Agent({
-        ca: `${Config.blockchain.lightning.lndCertificate}`,
+        ca: Config.blockchain.lightning.certificate,
       }),
-      headers: { 'Grpc-Metadata-macaroon': `${Config.blockchain.lightning.lndAdminMacaroon}` },
+      params: { 'api-key': Config.blockchain.lightning.lnbits.apiKey, ...params },
     };
   }
 }

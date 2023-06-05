@@ -13,11 +13,13 @@ import { EthereumCoinStrategy } from './impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy } from './impl/ethereum-token.strategy';
 import { OptimismCoinStrategy } from './impl/optimism-coin.strategy';
 import { OptimismTokenStrategy } from './impl/optimism-token.strategy';
+import { LightningStrategy } from './impl/lightning.strategy';
 
 enum Alias {
   ARBITRUM_COIN = 'ArbitrumCoin',
   ARBITRUM_TOKEN = 'ArbitrumToken',
   BITCOIN = 'Bitcoin',
+  LIGHTNING = 'Lightning',
   BSC_COIN = 'BscCoin',
   BSC_TOKEN = 'BscToken',
   DEFICHAIN_COIN = 'DeFiChainCoin',
@@ -38,6 +40,7 @@ export class SendStrategiesFacade {
     arbitrumCoin: ArbitrumCoinStrategy,
     arbitrumToken: ArbitrumTokenStrategy,
     bitcoin: BitcoinStrategy,
+    lightning: LightningStrategy,
     bscCoin: BscCoinStrategy,
     bscToken: BscTokenStrategy,
     deFiChainCoin: DeFiChainCoinStrategy,
@@ -50,6 +53,7 @@ export class SendStrategiesFacade {
     this.strategies.set(Alias.ARBITRUM_COIN, arbitrumCoin);
     this.strategies.set(Alias.ARBITRUM_TOKEN, arbitrumToken);
     this.strategies.set(Alias.BITCOIN, bitcoin);
+    this.strategies.set(Alias.LIGHTNING, lightning);
     this.strategies.set(Alias.BSC_COIN, bscCoin);
     this.strategies.set(Alias.BSC_TOKEN, bscToken);
     this.strategies.set(Alias.DEFICHAIN_COIN, deFiChainCoin);
@@ -68,6 +72,8 @@ export class SendStrategiesFacade {
     const { blockchain, type: assetType } = asset;
 
     if (blockchain === Blockchain.BITCOIN) return Alias.BITCOIN;
+
+    if (blockchain === Blockchain.LIGHTNING) return Alias.LIGHTNING;
 
     if (blockchain === Blockchain.BINANCE_SMART_CHAIN) {
       return assetType === AssetType.COIN ? Alias.BSC_COIN : Alias.BSC_TOKEN;

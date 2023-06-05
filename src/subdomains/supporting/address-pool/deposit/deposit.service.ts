@@ -1,14 +1,14 @@
 import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
+import { LightningClient } from 'src/integration/lightning/lightning-client';
+import { LightningHelper } from 'src/integration/lightning/lightning-helper';
+import { LightningService } from 'src/integration/lightning/services/lightning.service';
+import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DepositRepository } from 'src/subdomains/supporting/address-pool/deposit/deposit.repository';
 import { Deposit } from './deposit.entity';
 import { CreateDepositDto } from './dto/create-deposit.dto';
-import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { Config } from 'src/config/config';
-import { LightningClient } from 'src/integration/lightning/lightning-client';
-import { LightningHelper } from 'src/integration/lightning/lightning-helper';
-import { LightningService } from 'src/integration/lightning/lightning.service';
 
 @Injectable()
 export class DepositService {
@@ -76,9 +76,8 @@ export class DepositService {
     for (let i = 0; i < count; i++) {
       const accountIndex = nextDepositIndex + i;
 
-      const lnUrlPLinkDto = await this.lightningClient.addLnUrlPLink(accountIndex.toString());
-      const id = lnUrlPLinkDto.id;
-      const lnurlp = LightningHelper.createLnUrlP(id);
+      const { id } = await this.lightningClient.addLnurlpLink(`DFX Deposit Address ${accountIndex}`);
+      const lnurlp = LightningHelper.createEncodedLnurlp(id);
 
       const deposit = Deposit.create(lnurlp, blockchain, accountIndex);
       await this.depositRepo.save(deposit);

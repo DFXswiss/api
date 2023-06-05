@@ -33,7 +33,7 @@ export class DeFiChainPoolPairStrategy extends CheckLiquidityStrategy {
 
     return CheckLiquidityUtil.createNonPurchasableCheckLiquidityResult(
       request,
-      0,
+      0.001, // some random value > 0 (target amount is unknown)
       0,
       await this.feeAsset(),
       referenceMaxPurchasableAmount > 0 ? referenceMaxPurchasableAmount : 0,

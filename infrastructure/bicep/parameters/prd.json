@@ -155,6 +155,15 @@
     "bscScanApiKey": {
       "value": "xxx"
     },
+    "lightningApiCertificate": {
+      "value": "xxx"
+    },
+    "lightningLnbitsApiKey": {
+      "value": "xxx"
+    },
+    "lightningLndAdminMacaroon": {
+      "value": "xxx"
+    },
     "btcOutWalletAddress": {
       "value": "xxx"
     },

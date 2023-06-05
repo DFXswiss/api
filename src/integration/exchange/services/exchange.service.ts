@@ -1,9 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
 import { Exchange, Market, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
-import { Price } from '../../../subdomains/supporting/pricing/domain/entities/price';
+import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
 import { PricingProvider } from 'src/subdomains/supporting/pricing/domain/interfaces';
-import { QueueHandler } from 'src/shared/utils/queue-handler';
+import { Price } from '../../../subdomains/supporting/pricing/domain/entities/price';
 import { TradeChangedException } from '../exceptions/trade-changed.exception';
 
 export enum OrderSide {
@@ -69,38 +69,33 @@ export class ExchangeService implements PricingProvider {
   async checkTrade(id: string, from: string, to: string): Promise<boolean> {
     const pair = await this.getPair(from, to);
 
-    // loop in case we have to cancel the order
-    for (let i = 0; i < 5; i++) {
-      const order = await this.callApi((e) => e.fetchOrder(id, pair));
+    const order = await this.callApi((e) => e.fetchOrder(id, pair));
 
-      switch (order.status) {
-        case OrderStatus.OPEN:
-          const price = await this.fetchCurrentOrderPrice(order.symbol, order.side);
-          if (price === order.price) return false;
+    switch (order.status) {
+      case OrderStatus.OPEN:
+        const price = await this.fetchCurrentOrderPrice(order.symbol, order.side);
 
-          // price changed -> abort and re-fetch
-          await this.cancelOrder(order).catch(() => undefined);
-          break;
+        // price changed -> update price
+        if (price !== order.price) await this.updateOrderPrice(order, price).catch(() => undefined);
 
-        case OrderStatus.CANCELED:
-          // check for min. amount
-          const minAmount = await this.getMinTradeAmount(order.symbol);
-          if (order.remaining < minAmount) {
-            return true;
-          }
+        return false;
 
-          const id = await this.placeOrder(order.symbol, order.side as OrderSide, order.remaining);
-          throw new TradeChangedException(id);
-
-        case OrderStatus.CLOSED:
+      case OrderStatus.CANCELED:
+        // check for min. amount
+        const minAmount = await this.getMinTradeAmount(order.symbol);
+        if (order.remaining < minAmount) {
           return true;
+        }
 
-        default:
-          return false;
-      }
+        const id = await this.placeOrder(order.symbol, order.side as OrderSide, order.remaining);
+        throw new TradeChangedException(id);
+
+      case OrderStatus.CLOSED:
+        return true;
+
+      default:
+        return false;
     }
-
-    throw new Error(`${this.name}: failed to cancel order ${id}`);
   }
 
   async withdrawFunds(
@@ -211,8 +206,8 @@ export class ExchangeService implements PricingProvider {
     return this.callApi((e) => e.createOrder(pair, 'limit', direction, amount, price));
   }
 
-  private async cancelOrder(order: Order): Promise<void> {
-    await this.callApi((e) => e.cancelOrder(order.id, order.symbol));
+  protected async updateOrderPrice(order: Order, price: number): Promise<Order> {
+    return this.callApi((e) => e.editOrder(order.id, order.symbol, order.type, order.side, order.amount, price));
   }
 
   // other

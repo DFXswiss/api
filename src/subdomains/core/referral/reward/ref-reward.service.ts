@@ -1,24 +1,35 @@
 import { Injectable } from '@nestjs/common';
-import { Between, In, IsNull, Not } from 'typeorm';
-import { RefRewardRepository } from './ref-reward.repository';
-import { RefReward, RewardStatus } from './ref-reward.entity';
-import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { Util } from 'src/shared/utils/util';
-import { TransactionDetailsDto } from '../../statistic/dto/statistic.dto';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Lock } from 'src/shared/utils/lock';
 import { Config, Process } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
-import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { RefRewardNotificationService } from './ref-reward-notification.service';
+import { Lock } from 'src/shared/utils/lock';
+import { Util } from 'src/shared/utils/util';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
+import { Between, In, IsNull, Not } from 'typeorm';
+import { TransactionDetailsDto } from '../../statistic/dto/statistic.dto';
 import { RefRewardDexService } from './ref-reward-dex.service';
+import { RefRewardNotificationService } from './ref-reward-notification.service';
 import { RefRewardOutService } from './ref-reward-out.service';
+import { RefReward, RewardStatus } from './ref-reward.entity';
+import { RefRewardRepository } from './ref-reward.repository';
 
-export const PayoutChains: Blockchain[] = [Blockchain.DEFICHAIN];
+// min. payout limits (EUR), undefined -> payout disabled
+const PayoutLimits: { [k in Blockchain]: number } = {
+  [Blockchain.DEFICHAIN]: 1,
+  [Blockchain.ARBITRUM]: 10,
+  [Blockchain.BITCOIN]: 100,
+  [Blockchain.LIGHTNING]: undefined,
+  [Blockchain.CARDANO]: undefined,
+  [Blockchain.ETHEREUM]: undefined,
+  [Blockchain.BINANCE_SMART_CHAIN]: undefined,
+  [Blockchain.OPTIMISM]: undefined,
+  [Blockchain.POLYGON]: undefined,
+};
 
 @Injectable()
 export class RefRewardService {
@@ -49,24 +60,23 @@ export class RefRewardService {
     const fiatChf = await this.fiatService.getFiatByName('CHF');
     const eurChfPrice = await this.priceProviderService.getPrice(fiatEur, fiatChf);
 
-    for (const blockchain of PayoutChains) {
+    const groupedUser = Util.groupByAccessor<User, Blockchain>(openCreditUser, (o) =>
+      this.cryptoService.getDefaultBlockchainBasedOn(o.address),
+    );
+
+    for (const [blockchain, users] of groupedUser.entries()) {
       const pendingBlockchainRewards = await this.rewardRepo.findOne({
         where: { status: Not(RewardStatus.COMPLETE), targetBlockchain: blockchain },
       });
       if (pendingBlockchainRewards) continue;
 
-      // PayoutAsset Price
       const payoutAsset = await this.assetService.getNativeAsset(blockchain);
 
-      const groupedUser = Util.groupByAccessor<User, Blockchain>(
-        openCreditUser,
-        (o) => this.cryptoService.getBlockchainsBasedOn(o.address)[0],
-      );
-
-      for (const user of groupedUser.get(blockchain)) {
+      for (const user of users) {
         const refCreditEur = user.refCredit - user.paidRefCredit;
+        const minCredit = PayoutLimits[blockchain];
 
-        if (refCreditEur <= 1) continue; // TODO v2 => assetPayoutLimit
+        if (!(refCreditEur >= minCredit)) continue;
 
         const entity = this.rewardRepo.create({
           outputAsset: payoutAsset.dexName,
