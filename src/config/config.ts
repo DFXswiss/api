@@ -53,7 +53,6 @@ export class Configuration {
   defaultDailyTradingLimit = 990; // EUR
   apiKeyVersionCT = '0'; // single digit hex number
   azureIpSubstring = '169.254';
-  exchangeTxSyncLimit = +(process.env.EXCHANGE_TX_SYNC_LIMIT ?? 720);
 
   colors = {
     white: '#FFFFFF',
@@ -378,6 +377,7 @@ export class Configuration {
     enableRateLimit: true,
     timeout: 30000,
   };
+  exchangeTxSyncLimit = +(process.env.EXCHANGE_TX_SYNC_LIMIT ?? 720); // minutes
 
   sepaTools = {
     auth: {

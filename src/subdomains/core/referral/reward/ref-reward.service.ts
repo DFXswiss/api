@@ -1,24 +1,24 @@
 import { Injectable } from '@nestjs/common';
-import { Between, In, IsNull, Not } from 'typeorm';
-import { RefRewardRepository } from './ref-reward.repository';
-import { RefReward, RewardStatus } from './ref-reward.entity';
-import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { Util } from 'src/shared/utils/util';
-import { TransactionDetailsDto } from '../../statistic/dto/statistic.dto';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Lock } from 'src/shared/utils/lock';
 import { Config, Process } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
-import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { RefRewardNotificationService } from './ref-reward-notification.service';
+import { Lock } from 'src/shared/utils/lock';
+import { Util } from 'src/shared/utils/util';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
+import { Between, In, IsNull, Not } from 'typeorm';
+import { TransactionDetailsDto } from '../../statistic/dto/statistic.dto';
 import { RefRewardDexService } from './ref-reward-dex.service';
+import { RefRewardNotificationService } from './ref-reward-notification.service';
 import { RefRewardOutService } from './ref-reward-out.service';
+import { RefReward, RewardStatus } from './ref-reward.entity';
+import { RefRewardRepository } from './ref-reward.repository';
 
-// Blockchains with undefined PayoutLimits wont paid out
+// min. payout limits (EUR), undefined -> payout disabled
 const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.DEFICHAIN]: 1,
   [Blockchain.ARBITRUM]: 10,
@@ -70,7 +70,6 @@ export class RefRewardService {
       });
       if (pendingBlockchainRewards) continue;
 
-      // PayoutAsset
       const payoutAsset = await this.assetService.getNativeAsset(blockchain);
 
       for (const user of users) {
