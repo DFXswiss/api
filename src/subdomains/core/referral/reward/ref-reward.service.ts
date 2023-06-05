@@ -18,7 +18,18 @@ import { RefRewardNotificationService } from './ref-reward-notification.service'
 import { RefRewardDexService } from './ref-reward-dex.service';
 import { RefRewardOutService } from './ref-reward-out.service';
 
-export const PayoutChains: Blockchain[] = [Blockchain.DEFICHAIN];
+// Blockchains with undefined PayoutLimits wont paid out
+const PayoutLimits: { [k in Blockchain]: number } = {
+  [Blockchain.DEFICHAIN]: 1,
+  [Blockchain.ARBITRUM]: 10,
+  [Blockchain.BITCOIN]: 100,
+  [Blockchain.LIGHTNING]: undefined,
+  [Blockchain.CARDANO]: undefined,
+  [Blockchain.ETHEREUM]: undefined,
+  [Blockchain.BINANCE_SMART_CHAIN]: undefined,
+  [Blockchain.OPTIMISM]: undefined,
+  [Blockchain.POLYGON]: undefined,
+};
 
 @Injectable()
 export class RefRewardService {
@@ -49,24 +60,24 @@ export class RefRewardService {
     const fiatChf = await this.fiatService.getFiatByName('CHF');
     const eurChfPrice = await this.priceProviderService.getPrice(fiatEur, fiatChf);
 
-    for (const blockchain of PayoutChains) {
+    const groupedUser = Util.groupByAccessor<User, Blockchain>(openCreditUser, (o) =>
+      this.cryptoService.getDefaultBlockchainBasedOn(o.address),
+    );
+
+    for (const [blockchain, users] of groupedUser.entries()) {
       const pendingBlockchainRewards = await this.rewardRepo.findOne({
         where: { status: Not(RewardStatus.COMPLETE), targetBlockchain: blockchain },
       });
       if (pendingBlockchainRewards) continue;
 
-      // PayoutAsset Price
+      // PayoutAsset
       const payoutAsset = await this.assetService.getNativeAsset(blockchain);
 
-      const groupedUser = Util.groupByAccessor<User, Blockchain>(
-        openCreditUser,
-        (o) => this.cryptoService.getBlockchainsBasedOn(o.address)[0],
-      );
-
-      for (const user of groupedUser.get(blockchain)) {
+      for (const user of users) {
         const refCreditEur = user.refCredit - user.paidRefCredit;
+        const minCredit = PayoutLimits[blockchain];
 
-        if (refCreditEur <= 1) continue; // TODO v2 => assetPayoutLimit
+        if (!(refCreditEur >= minCredit)) continue;
 
         const entity = this.rewardRepo.create({
           outputAsset: payoutAsset.dexName,

@@ -9,6 +9,7 @@ import { LightningService } from 'src/integration/lightning/services/lightning.s
 
 @Injectable()
 export class CryptoService {
+  private readonly defaultEthereumChain = Blockchain.ARBITRUM;
   private readonly EthereumBasedChains = [
     Blockchain.ETHEREUM,
     Blockchain.BINANCE_SMART_CHAIN,
@@ -28,8 +29,11 @@ export class CryptoService {
     return [Blockchain.DEFICHAIN];
   }
 
-  private getDefaultBlockchainBasedOn(address: string): Blockchain {
-    return this.getBlockchainsBasedOn(address)[0];
+  public getDefaultBlockchainBasedOn(address: string): Blockchain {
+    const chains = this.getBlockchainsBasedOn(address);
+    return chains.includes(this.defaultEthereumChain)
+      ? this.defaultEthereumChain
+      : this.getBlockchainsBasedOn(address)[0];
   }
 
   private isBitcoinAddress(address: string): boolean {
