@@ -92,8 +92,9 @@ describe('BuyController', () => {
     jest.spyOn(buyService, 'createBuy').mockResolvedValue(createDefaultBuy());
     jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(createDefaultCountry());
     jest.spyOn(userService, 'getUserBuyFee').mockResolvedValue(0.01);
-    jest.spyOn(transactionHelper, 'getSpecs').mockResolvedValue({ minVolume: 0, minFee: 0 });
-    jest.spyOn(transactionHelper, 'getTargetEstimation').mockResolvedValue({ price: 10, fee: 3, amount: 100 });
+    jest
+      .spyOn(transactionHelper, 'getTxDetails')
+      .mockResolvedValue({ minVolume: 0, minFee: 0, price: 10, fee: 3, amount: 100 });
 
     const dto = createBuyPaymentInfoDto();
 

@@ -8,7 +8,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
-import { TargetEstimation } from '../entities/target-estimation';
+import { TargetEstimation, TransactionDetails } from '../entities/transaction-details';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
 import { TxSpec } from '../entities/tx-spec';
 import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
@@ -97,7 +97,18 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   // --- TARGET ESTIMATION --- //
-  async getTargetEstimation(
+  async getTxDetails(amount: number, fee: number, from: Asset | Fiat, to: Asset | Fiat): Promise<TransactionDetails> {
+    const { minVolume, minFee } = await this.getSpecs(from, to);
+    const target = await this.getTargetEstimation(amount, fee, minFee, from, to);
+
+    return {
+      ...target,
+      minFee,
+      minVolume,
+    };
+  }
+
+  private async getTargetEstimation(
     amount: number,
     fee: number,
     minFee: number,

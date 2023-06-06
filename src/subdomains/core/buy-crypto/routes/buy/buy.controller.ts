@@ -68,11 +68,10 @@ export class BuyController {
     dto = await this.paymentInfoService.buyCheck(dto);
 
     const feePercent = Config.buy.fee.get(dto.asset.feeTier, AccountType.PERSONAL);
-    const { minFee } = await this.transactionHelper.getSpecs(dto.currency, dto.asset);
-    const { price, fee, amount } = await this.transactionHelper.getTargetEstimation(
+
+    const { price, fee, amount } = await this.transactionHelper.getTxDetails(
       dto.amount,
       feePercent,
-      minFee,
       dto.currency,
       dto.asset,
     );
@@ -145,14 +144,13 @@ export class BuyController {
   private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
     const bankInfo = await this.getBankInfo(buy, dto);
     const fee = await this.userService.getUserBuyFee(userId, buy.asset);
-    const { minVolume, minFee } = await this.transactionHelper.getSpecs(dto.currency, dto.asset);
-    const { amount: estimatedAmount } = await this.transactionHelper.getTargetEstimation(
-      dto.amount,
-      fee,
+
+    const {
+      minVolume,
       minFee,
-      dto.currency,
-      dto.asset,
-    );
+      amount: estimatedAmount,
+    } = await this.transactionHelper.getTxDetails(dto.amount, fee, dto.currency, dto.asset);
+
     return {
       routeId: buy.id,
       ...bankInfo,

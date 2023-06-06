@@ -127,14 +127,13 @@ export class CryptoRouteController {
     dto: GetCryptoPaymentInfoDto,
   ): Promise<CryptoPaymentInfoDto> {
     const fee = await this.userService.getUserCryptoFee(userId);
-    const { minVolume, minFee } = await this.transactionHelper.getSpecs(dto.sourceAsset, dto.asset);
-    const { amount: estimatedAmount } = await this.transactionHelper.getTargetEstimation(
-      dto.amount,
-      fee,
+
+    const {
+      minVolume,
       minFee,
-      dto.sourceAsset,
-      dto.asset,
-    );
+      amount: estimatedAmount,
+    } = await this.transactionHelper.getTxDetails(dto.amount, fee, dto.sourceAsset, dto.asset);
+
     return {
       routeId: cryptoRoute.id,
       fee: Util.round(fee * 100, Config.defaultPercentageDecimal),

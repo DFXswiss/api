@@ -120,14 +120,12 @@ export class SellController {
 
   private async toPaymentInfoDto(userId: number, sell: Sell, dto: GetSellPaymentInfoDto): Promise<SellPaymentInfoDto> {
     const fee = await this.userService.getUserSellFee(userId, dto.asset);
-    const { minVolume, minFee } = await this.transactionHelper.getSpecs(dto.asset, dto.currency);
-    const { amount: estimatedAmount } = await this.transactionHelper.getTargetEstimation(
-      dto.amount,
-      fee,
+    const {
+      minVolume,
       minFee,
-      dto.asset,
-      dto.currency,
-    );
+      amount: estimatedAmount,
+    } = await this.transactionHelper.getTxDetails(dto.amount, fee, dto.asset, dto.currency);
+
     return {
       routeId: sell.id,
       fee: Util.round(fee * 100, Config.defaultPercentageDecimal),
