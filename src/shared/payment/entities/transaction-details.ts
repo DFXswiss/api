@@ -1,7 +1,7 @@
 export interface TargetEstimation {
-  price: number;
-  fee: number;
-  amount: number;
+  exchangeRate: number;
+  feeAmount: number;
+  estimatedAmount: number;
 }
 
 export interface TransactionDetails extends TargetEstimation {

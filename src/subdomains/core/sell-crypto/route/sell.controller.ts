@@ -66,21 +66,21 @@ export class SellController {
   @Put('/quote')
   @ApiOkResponse({ type: SellQuoteDto })
   async getSellQuote(@Body() dto: GetSellQuoteDto): Promise<SellQuoteDto> {
-    dto = await this.paymentInfoService.sellCheck(dto);
+    const { amount, asset, currency } = await this.paymentInfoService.sellCheck(dto);
 
-    const feePercent = Config.sell.fee.get(dto.asset.feeTier, AccountType.PERSONAL);
+    const fee = Config.sell.fee.get(asset.feeTier, AccountType.PERSONAL);
 
-    const { price, fee, amount } = await this.transactionHelper.getTxDetails(
-      dto.amount,
-      feePercent,
-      dto.asset,
-      dto.currency,
+    const { exchangeRate, feeAmount, estimatedAmount } = await this.transactionHelper.getTxDetails(
+      amount,
+      fee,
+      asset,
+      currency,
     );
 
     return {
-      feeAmount: fee,
-      exchangeRate: price,
-      estimatedAmount: amount,
+      feeAmount,
+      exchangeRate,
+      estimatedAmount,
     };
   }
 
@@ -147,7 +147,7 @@ export class SellController {
     const {
       minVolume,
       minFee,
-      amount: estimatedAmount,
+      estimatedAmount: estimatedAmount,
     } = await this.transactionHelper.getTxDetails(dto.amount, fee, dto.asset, dto.currency);
 
     return {

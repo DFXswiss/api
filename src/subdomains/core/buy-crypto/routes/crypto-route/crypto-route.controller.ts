@@ -131,7 +131,7 @@ export class CryptoRouteController {
     const {
       minVolume,
       minFee,
-      amount: estimatedAmount,
+      estimatedAmount: estimatedAmount,
     } = await this.transactionHelper.getTxDetails(dto.amount, fee, dto.sourceAsset, dto.asset);
 
     return {

@@ -65,21 +65,21 @@ export class BuyController {
   @Put('/quote')
   @ApiOkResponse({ type: BuyQuoteDto })
   async getBuyQuote(@Body() dto: GetBuyQuoteDto): Promise<BuyQuoteDto> {
-    dto = await this.paymentInfoService.buyCheck(dto);
+    const { amount, currency, asset } = await this.paymentInfoService.buyCheck(dto);
 
-    const feePercent = Config.buy.fee.get(dto.asset.feeTier, AccountType.PERSONAL);
+    const fee = Config.buy.fee.get(asset.feeTier, AccountType.PERSONAL);
 
-    const { price, fee, amount } = await this.transactionHelper.getTxDetails(
-      dto.amount,
-      feePercent,
-      dto.currency,
-      dto.asset,
+    const { exchangeRate, feeAmount, estimatedAmount } = await this.transactionHelper.getTxDetails(
+      amount,
+      fee,
+      currency,
+      asset,
     );
 
     return {
-      feeAmount: fee,
-      exchangeRate: price,
-      estimatedAmount: amount,
+      feeAmount,
+      exchangeRate,
+      estimatedAmount,
     };
   }
 
@@ -148,7 +148,7 @@ export class BuyController {
     const {
       minVolume,
       minFee,
-      amount: estimatedAmount,
+      estimatedAmount: estimatedAmount,
     } = await this.transactionHelper.getTxDetails(dto.amount, fee, dto.currency, dto.asset);
 
     return {
