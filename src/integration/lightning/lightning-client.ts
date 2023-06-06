@@ -2,24 +2,58 @@ import { Agent } from 'https';
 import { Config } from 'src/config/config';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
 import { LnurlpPaymentData } from './data/lnurlp-payment.data';
+import { LnBitsWalletDto } from './dto/lnbits-wallet.dto';
+import { LndChannelBalanceDto } from './dto/lnd-channel-balance.dto';
+import { LndWalletBalanceDto } from './dto/lnd-wallet-balance.dto';
 import { LnurlpInvoiceDto } from './dto/lnurlp-invoice.dto';
 import { LnurlpLinkRemoveDto } from './dto/lnurlp-link-remove.dto';
 import { LnurlpLinkDto } from './dto/lnurlp-link.dto';
 import { LnurlPayRequestDto } from './dto/lnurlp-pay-request.dto';
 import { PaymentDto } from './dto/payment.dto';
-import { WalletDto } from './dto/wallet.dto';
 import { LightningHelper } from './lightning-helper';
 
 export class LightningClient {
+  private static SAT_BTC_FACTOR: number = 10 ** 8;
+
   constructor(private readonly http: HttpService) {}
 
-  // --- Wallet --- //
-  async getBalance(): Promise<number> {
-    return this.getWallet().then((w) => w.balance / 10 ** 3 / 10 ** 8);
+  // --- LND --- //
+  async getLndConfirmedWalletBalance(): Promise<number> {
+    return this.getLndWalletBalance().then((b) => b.confirmed_balance / LightningClient.SAT_BTC_FACTOR);
   }
 
-  private async getWallet(): Promise<WalletDto> {
-    return this.http.get<WalletDto>(`${Config.blockchain.lightning.lnbits.apiUrl}/wallet`, this.httpLnBitsConfig());
+  private async getLndWalletBalance(): Promise<LndWalletBalanceDto> {
+    return this.http.get<LndWalletBalanceDto>(
+      `${Config.blockchain.lightning.lnd.apiUrl}/balance/blockchain`,
+      this.httpLndConfig(),
+    );
+  }
+
+  async getLndLocalChannelBalance(): Promise<number> {
+    return this.getLndChannelBalance().then((b) => b.local_balance.sat / LightningClient.SAT_BTC_FACTOR);
+  }
+
+  async getLndRemoteChannelBalance(): Promise<number> {
+    return this.getLndChannelBalance().then((b) => b.remote_balance.sat / LightningClient.SAT_BTC_FACTOR);
+  }
+
+  private async getLndChannelBalance(): Promise<LndChannelBalanceDto> {
+    return this.http.get<LndChannelBalanceDto>(
+      `${Config.blockchain.lightning.lnd.apiUrl}/balance/channels`,
+      this.httpLndConfig(),
+    );
+  }
+
+  // --- LnBits --- //
+  async getLnBitsBalance(): Promise<number> {
+    return this.getLnBitsWallet().then((w) => w.balance / 10 ** 3 / LightningClient.SAT_BTC_FACTOR);
+  }
+
+  private async getLnBitsWallet(): Promise<LnBitsWalletDto> {
+    return this.http.get<LnBitsWalletDto>(
+      `${Config.blockchain.lightning.lnbits.apiUrl}/wallet`,
+      this.httpLnBitsConfig(),
+    );
   }
 
   // --- PAYMENTS --- //
@@ -125,6 +159,16 @@ export class LightningClient {
         ca: Config.blockchain.lightning.certificate,
       }),
       params: { 'api-key': Config.blockchain.lightning.lnbits.apiKey, ...params },
+    };
+  }
+
+  private httpLndConfig(): HttpRequestConfig {
+    return {
+      httpsAgent: new Agent({
+        ca: Config.blockchain.lightning.certificate,
+      }),
+
+      headers: { 'Grpc-Metadata-macaroon': Config.blockchain.lightning.lnd.adminMacaroon },
     };
   }
 }
