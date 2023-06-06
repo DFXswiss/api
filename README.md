@@ -54,6 +54,17 @@ KYC is not required for a daily transaction volume up to 1000 EUR/CHF. To increa
 
 #### Buy Crypto
 
+_Get a quote_
+
+1. Get all available assets with the [asset endpoint](https://api.dfx.swiss/swagger/#/Asset/AssetController_getAllAsset)
+   - This endpoint will return all assets compatible with the user's address, which might be assets on multiple blockchains. The query parameter (optional) can be used to filter for specific blockchains.
+   - Only assets with the `buyable` field set to `true` can be bought
+1. Get all available currencies with the [fiat endpoint](https://api.dfx.swiss/swagger/#/Fiat/FiatController_getAllFiat)
+   - Only fiats with the `sellable` field set to `true` can be used to buy crypto
+1. Get a quote with the [buy quote endpoint](https://api.dfx.swiss/swagger/#/Buy/BuyController_getBuyQuote)
+
+_Get payment infos_
+
 1. Get all available assets with the [asset endpoint](https://api.dfx.swiss/swagger/#/Asset/AssetController_getAllAsset)
    - This endpoint will return all assets compatible with the user's address, which might be assets on multiple blockchains. The query parameter (optional) can be used to filter for specific blockchains.
    - Only assets with the `buyable` field set to `true` can be bought

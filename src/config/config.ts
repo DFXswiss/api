@@ -7,6 +7,7 @@ import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 import { FeeTier } from 'src/shared/models/asset/asset.entity';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
 
 export enum Process {
@@ -347,6 +348,9 @@ export class Configuration {
         [FeeTier.TIER4]: 0.0299,
       },
       limit: +(process.env.BUY_CRYPTO_FEE_LIMIT ?? 0.005),
+
+      get: (tier: FeeTier, accountType: AccountType) =>
+        accountType === AccountType.PERSONAL ? this.buy.fee.private[tier] : this.buy.fee.organization[tier],
     },
   };
 
@@ -366,6 +370,9 @@ export class Configuration {
         [FeeTier.TIER3]: 0.0275,
         [FeeTier.TIER4]: 0.0349,
       },
+
+      get: (tier: FeeTier, accountType: AccountType) =>
+        accountType === AccountType.PERSONAL ? this.sell.fee.private[tier] : this.sell.fee.organization[tier],
     },
   };
 

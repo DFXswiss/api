@@ -55,5 +55,6 @@
   },
   "files.exclude": {
     "node_modules": true
-  }
+  },
+  "thunder-client.saveToWorkspace": true
 }
