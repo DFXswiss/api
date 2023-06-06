@@ -119,7 +119,11 @@ export class TransactionHelper implements OnModuleInit {
     const feeAmount = Math.max(amount * fee, minFee);
     const targetAmount = this.convert(Math.max(amount - feeAmount, 0), price, to instanceof Fiat);
 
-    return { price: this.round(price.price, from instanceof Fiat), fee: feeAmount, amount: targetAmount };
+    return {
+      price: this.round(price.price, from instanceof Fiat),
+      fee: this.round(feeAmount, from instanceof Fiat),
+      amount: targetAmount,
+    };
   }
 
   // --- HELPER METHODS --- //

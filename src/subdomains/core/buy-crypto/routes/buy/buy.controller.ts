@@ -77,7 +77,7 @@ export class BuyController {
     );
 
     return {
-      fee: fee,
+      feeAmount: fee,
       exchangeRate: price,
       estimatedAmount: amount,
     };

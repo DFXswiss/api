@@ -10,13 +10,16 @@ import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
 import { BuyFiatService } from '../process/buy-fiat.service';
 import { CreateSellDto } from './dto/create-sell.dto';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
+import { GetSellQuoteDto } from './dto/get-sell-quote.dto';
 import { SellHistoryDto } from './dto/sell-history.dto';
 import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
+import { SellQuoteDto } from './dto/sell-quote.dto';
 import { SellDto } from './dto/sell.dto';
 import { UpdateSellDto } from './dto/update-sell.dto';
 import { Sell } from './sell.entity';
@@ -58,6 +61,27 @@ export class SellController {
 
     dto = await this.paymentInfoService.sellCheck(dto, jwt);
     return this.sellService.createSell(jwt.id, dto).then((s) => this.toDto(s));
+  }
+
+  @Put('/quote')
+  @ApiOkResponse({ type: SellQuoteDto })
+  async getSellQuote(@Body() dto: GetSellQuoteDto): Promise<SellQuoteDto> {
+    dto = await this.paymentInfoService.sellCheck(dto);
+
+    const feePercent = Config.sell.fee.get(dto.asset.feeTier, AccountType.PERSONAL);
+
+    const { price, fee, amount } = await this.transactionHelper.getTxDetails(
+      dto.amount,
+      feePercent,
+      dto.asset,
+      dto.currency,
+    );
+
+    return {
+      feeAmount: fee,
+      exchangeRate: price,
+      estimatedAmount: amount,
+    };
   }
 
   @Put('/paymentInfos')

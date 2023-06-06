@@ -6,6 +6,7 @@ import { CreateCryptoRouteDto } from 'src/subdomains/core/buy-crypto/routes/cryp
 import { GetCryptoPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/crypto-route/dto/get-crypto-payment-info.dto';
 import { CreateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/create-sell.dto';
 import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-payment-info.dto';
+import { GetSellQuoteDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-quote.dto';
 import { JwtPayload } from '../auth/jwt-payload.interface';
 import { AssetService } from '../models/asset/asset.service';
 import { FiatService } from '../models/fiat/fiat.service';
@@ -30,7 +31,10 @@ export class PaymentInfoService {
     return dto;
   }
 
-  async sellCheck<T extends GetSellPaymentInfoDto | CreateSellDto>(dto: T, jwt?: JwtPayload): Promise<T> {
+  async sellCheck<T extends GetSellPaymentInfoDto | GetSellQuoteDto | CreateSellDto>(
+    dto: T,
+    jwt?: JwtPayload,
+  ): Promise<T> {
     if ('asset' in dto) {
       dto.asset = await this.assetService.getAssetById(dto.asset.id);
       if (!dto.asset) throw new NotFoundException('Asset not found');
