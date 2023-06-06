@@ -33,14 +33,7 @@ export class PayInBitcoinService extends PayInJellyfishService {
       input.inTxId,
       input.amount,
       input.txSequence,
-      await this.getFeeRate(input.amount),
+      await this.feeService.getRecommendedFeeRate(),
     );
-  }
-
-  //*** HELPER METHODS ***//
-
-  private async getFeeRate(amount: number): Promise<number> {
-    const feeRate = await this.feeService.getRecommendedFeeRate();
-    return Math.floor(Math.max(Math.min(feeRate, 500 * amount), 1));
   }
 }
