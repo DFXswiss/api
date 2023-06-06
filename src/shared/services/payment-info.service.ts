@@ -4,6 +4,7 @@ import { GetBuyPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/
 import { GetBuyQuoteDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/get-buy-quote.dto';
 import { CreateCryptoRouteDto } from 'src/subdomains/core/buy-crypto/routes/crypto-route/dto/create-crypto-route.dto';
 import { GetCryptoPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/crypto-route/dto/get-crypto-payment-info.dto';
+import { GetCryptoQuoteDto } from 'src/subdomains/core/buy-crypto/routes/crypto-route/dto/get-crypto-quote.dto';
 import { CreateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/create-sell.dto';
 import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-payment-info.dto';
 import { GetSellQuoteDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-quote.dto';
@@ -54,7 +55,10 @@ export class PaymentInfoService {
     return dto;
   }
 
-  async cryptoCheck<T extends GetCryptoPaymentInfoDto | CreateCryptoRouteDto>(dto: T, jwt?: JwtPayload): Promise<T> {
+  async cryptoCheck<T extends GetCryptoPaymentInfoDto | GetCryptoQuoteDto | CreateCryptoRouteDto>(
+    dto: T,
+    jwt?: JwtPayload,
+  ): Promise<T> {
     if ('sourceAsset' in dto) {
       dto.sourceAsset = await this.assetService.getAssetById(dto.sourceAsset.id);
       if (!dto.sourceAsset) throw new NotFoundException('Source asset not found');

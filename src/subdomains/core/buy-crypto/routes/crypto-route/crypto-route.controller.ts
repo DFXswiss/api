@@ -18,8 +18,10 @@ import { CryptoRoute } from './crypto-route.entity';
 import { CryptoRouteService } from './crypto-route.service';
 import { CreateCryptoRouteDto } from './dto/create-crypto-route.dto';
 import { CryptoPaymentInfoDto } from './dto/crypto-payment-info.dto';
+import { CryptoQuoteDto } from './dto/crypto-quote.dto';
 import { CryptoRouteDto } from './dto/crypto-route.dto';
 import { GetCryptoPaymentInfoDto } from './dto/get-crypto-payment-info.dto';
+import { GetCryptoQuoteDto } from './dto/get-crypto-quote.dto';
 import { UpdateCryptoRouteDto } from './dto/update-crypto-route.dto';
 
 @ApiTags('CryptoRoute')
@@ -56,6 +58,27 @@ export class CryptoRouteController {
   async createCrypto(@GetJwt() jwt: JwtPayload, @Body() dto: CreateCryptoRouteDto): Promise<CryptoRouteDto> {
     dto = await this.paymentInfoService.cryptoCheck(dto, jwt);
     return this.cryptoRouteService.createCrypto(jwt.id, dto).then((b) => this.toDto(jwt.id, b));
+  }
+
+  @Put('/quote')
+  @ApiOkResponse({ type: CryptoQuoteDto })
+  async getCryptoQuote(@Body() dto: GetCryptoQuoteDto): Promise<CryptoQuoteDto> {
+    const { amount, sourceAsset, asset } = await this.paymentInfoService.cryptoCheck(dto);
+
+    const fee = Config.crypto.fee;
+
+    const { exchangeRate, feeAmount, estimatedAmount } = await this.transactionHelper.getTxDetails(
+      amount,
+      fee,
+      sourceAsset,
+      asset,
+    );
+
+    return {
+      feeAmount,
+      exchangeRate,
+      estimatedAmount,
+    };
   }
 
   @Put('/paymentInfos')
