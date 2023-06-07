@@ -4,6 +4,7 @@ import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/pa
 
 export enum PayoutRequestContext {
   BUY_FIAT_RETURN = 'BuyFiatReturn',
+  BUY_CRYPTO_RETURN = 'BuyCryptoReturn',
   MANUAL = 'Manual',
 }
 

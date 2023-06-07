@@ -1,33 +1,33 @@
 import { Injectable } from '@nestjs/common';
-import { LiquidityOrder, LiquidityOrderContext, LiquidityOrderType } from '../entities/liquidity-order.entity';
-import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
-import { PriceSlippageException } from '../exceptions/price-slippage.exception';
-import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
-import { LiquidityOrderNotReadyException } from '../exceptions/liquidity-order-not-ready.exception';
-import { CronExpression, Cron } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
-import { Not, IsNull } from 'typeorm';
+import { IsNull, Not } from 'typeorm';
+import { LiquidityOrder, LiquidityOrderContext, LiquidityOrderType } from '../entities/liquidity-order.entity';
+import { LiquidityOrderNotReadyException } from '../exceptions/liquidity-order-not-ready.exception';
+import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
+import { PriceSlippageException } from '../exceptions/price-slippage.exception';
+import { TransactionNotFoundException } from '../exceptions/transaction-not-found.exception';
 import { LiquidityOrderFactory } from '../factories/liquidity-order.factory';
-import { CheckLiquidityStrategies } from '../strategies/check-liquidity/check-liquidity.facade';
 import {
+  CheckLiquidityRequest,
   CheckLiquidityResult,
-  TransferRequest,
   LiquidityTransactionResult,
   PurchaseLiquidityRequest,
   ReserveLiquidityRequest,
-  CheckLiquidityRequest,
   SellLiquidityRequest,
   TransactionQuery,
   TransactionResult,
+  TransferRequest,
 } from '../interfaces';
+import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
+import { CheckLiquidityStrategies } from '../strategies/check-liquidity/check-liquidity.facade';
 import { PurchaseLiquidityStrategies } from '../strategies/purchase-liquidity/purchase-liquidity.facade';
 import { SellLiquidityStrategies } from '../strategies/sell-liquidity/sell-liquidity.facade';
-import { Asset } from 'src/shared/models/asset/asset.entity';
 import { SupplementaryStrategies } from '../strategies/supplementary/supplementary.facade';
-import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
-import { TransactionNotFoundException } from '../exceptions/transaction-not-found.exception';
 
 @Injectable()
 export class DexService {
@@ -312,7 +312,7 @@ export class DexService {
     const { metadata, target } = liquidity;
     if (!metadata.isEnoughAvailableLiquidity) {
       throw new NotEnoughLiquidityException(
-        `Not enough liquidity of asset ${target.asset.dexName}. Available amount: ${target.availableAmount}.`,
+        `Not enough liquidity of asset ${target.asset.dexName} (requested: ${target.amount}, available: ${target.availableAmount})`,
       );
     }
 

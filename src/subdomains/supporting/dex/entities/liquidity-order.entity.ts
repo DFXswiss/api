@@ -11,6 +11,7 @@ export enum LiquidityOrderContext {
   LIQUIDITY_MANAGEMENT = 'LiquidityManagement',
   PAY_IN = 'PayIn',
   BUY_FIAT_RETURN = 'BuyFiatReturn',
+  BUY_CRYPTO_RETURN = 'BuyCryptoReturn',
   MANUAL = 'Manual',
   REF_PAYOUT = 'RefPayout',
 }

@@ -1,4 +1,4 @@
-export interface WalletDto {
+export interface LnBitsWalletDto {
   id: string;
   name: string;
   balance: number;

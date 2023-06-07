@@ -1,14 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
-import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
-import { In, IsNull, Not } from 'typeorm';
-import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
-import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { Config, Process } from 'src/config/config';
+import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
+import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
+import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
+import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { In, IsNull, Not } from 'typeorm';
+import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
 
 interface PaymentData {
   lastOutputDates: LastOutputDates;
@@ -62,7 +62,15 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
         .getCount(),
       unhandledCryptoInputs: await this.repos.payIn.countBy({
         amlCheck: Not(AmlCheck.FAIL),
-        status: Not(In([PayInStatus.FAILED, PayInStatus.IGNORED, PayInStatus.RETURNED, PayInStatus.FORWARDED])),
+        status: Not(
+          In([
+            PayInStatus.FAILED,
+            PayInStatus.IGNORED,
+            PayInStatus.RETURNED,
+            PayInStatus.FORWARDED,
+            PayInStatus.COMPLETED,
+          ]),
+        ),
       }),
     };
   }

@@ -1,5 +1,5 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Entity, Column, Index } from 'typeorm';
+import { Column, Entity, Index } from 'typeorm';
 import { IEntity } from '../entity';
 
 export enum AssetType {
@@ -22,9 +22,7 @@ export enum FeeTier {
 }
 
 @Entity()
-@Index('nameTypeBlockchain', (asset: Asset) => [asset.name, asset.type, asset.blockchain], {
-  unique: true,
-})
+@Index((asset: Asset) => [asset.dexName, asset.type, asset.blockchain], { unique: true })
 export class Asset extends IEntity {
   @Column({ nullable: true })
   chainId: string;

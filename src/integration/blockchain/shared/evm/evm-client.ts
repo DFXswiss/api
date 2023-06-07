@@ -1,15 +1,15 @@
-import { BigNumber, Contract, ethers } from 'ethers';
-import { Asset } from 'src/shared/models/asset/asset.entity';
-import { HttpService } from 'src/shared/services/http.service';
-import { Util } from 'src/shared/utils/util';
-import ERC20_ABI from './abi/erc20.abi.json';
-import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
-import { WalletAccount } from './domain/wallet-account';
-import { EvmUtil } from './evm.util';
 import { CurrencyAmount, Percent, Token, TradeType } from '@uniswap/sdk-core';
 import { AlphaRouter, ChainId, SwapType } from '@uniswap/smart-order-router';
-import JSBI from 'jsbi';
+import BigNumber from 'bignumber.js';
+import { Contract, BigNumber as EthersNumber, ethers } from 'ethers';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
+import { Util } from 'src/shared/utils/util';
+import ERC20_ABI from './abi/erc20.abi.json';
+import { WalletAccount } from './domain/wallet-account';
+import { EvmUtil } from './evm.util';
+import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
 
 export abstract class EvmClient {
   protected provider: ethers.providers.JsonRpcProvider;
@@ -92,7 +92,7 @@ export abstract class EvmClient {
     return this.convertToEthLikeDenomination(balance, decimals);
   }
 
-  async getCurrentGasPrice(): Promise<BigNumber> {
+  async getCurrentGasPrice(): Promise<EthersNumber> {
     return this.provider.getGasPrice();
   }
 
@@ -100,13 +100,13 @@ export abstract class EvmClient {
     return this.provider.getBlockNumber();
   }
 
-  async getTokenGasLimitForAsset(token: Asset): Promise<BigNumber> {
+  async getTokenGasLimitForAsset(token: Asset): Promise<EthersNumber> {
     const contract = this.getERC20ContractForDex(token.chainId);
 
     return this.getTokenGasLimitForContact(contract);
   }
 
-  async getTokenGasLimitForContact(contract: Contract): Promise<BigNumber> {
+  async getTokenGasLimitForContact(contract: Contract): Promise<EthersNumber> {
     return contract.estimateGas.transfer(this.randomReceiverAddress, 1);
   }
 
@@ -246,16 +246,22 @@ export abstract class EvmClient {
 
   // --- PUBLIC HELPER METHODS --- //
 
-  convertToEthLikeDenomination(amountWeiLike: BigNumber, decimals?: number): number {
+  convertToEthLikeDenomination(amountWeiLike: EthersNumber, decimals?: number): number {
     return decimals
       ? parseFloat(ethers.utils.formatUnits(amountWeiLike, decimals))
       : parseFloat(ethers.utils.formatEther(amountWeiLike));
   }
 
-  convertToWeiLikeDenomination(amountEthLike: number, decimals: number | 'ether'): BigNumber {
-    const amount = decimals === 'ether' ? amountEthLike.toFixed(16) : amountEthLike.toFixed(decimals);
+  convertToWeiLikeDenomination(amountEthLike: number, decimals: number | 'ether'): EthersNumber {
+    const amount = new BigNumber(amountEthLike).toFixed(decimals === 'ether' ? 16 : decimals);
 
     return ethers.utils.parseUnits(amount, decimals);
+  }
+
+  private toCurrencyAmount(amount: number, token: Token): CurrencyAmount<Token> {
+    const targetAmount = this.convertToWeiLikeDenomination(amount, token.decimals).toString();
+
+    return CurrencyAmount.fromRawAmount(token, targetAmount);
   }
 
   getERC20ContractForDex(tokenAddress: string): Contract {
@@ -350,23 +356,5 @@ export abstract class EvmClient {
       apikey: this.scanApiKey,
       sort: 'asc',
     };
-  }
-
-  private toCurrencyAmount(amount: number, token: Token): CurrencyAmount<Token> {
-    const extraDigits = Math.pow(10, this.countDecimals(amount));
-    const adjustedAmount = amount * extraDigits;
-    const jsbi = JSBI.divide(
-      JSBI.multiply(JSBI.BigInt(adjustedAmount), JSBI.exponentiate(JSBI.BigInt(10), JSBI.BigInt(token.decimals))),
-      JSBI.BigInt(extraDigits),
-    );
-
-    return CurrencyAmount.fromRawAmount(token, jsbi);
-  }
-
-  private countDecimals(x: number) {
-    if (Math.floor(x) === x) {
-      return 0;
-    }
-    return x.toString().split('.')[1].length || 0;
   }
 }
