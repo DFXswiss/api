@@ -177,6 +177,10 @@ param azureClientId string
 @secure()
 param azureClientSecret string
 
+param albyClientId string
+@secure()
+param albyClientSecret string
+
 @secure()
 param taliumApiKey string
 
@@ -856,6 +860,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'AZURE_CLIENT_SECRET'
           value: azureClientSecret
+        }
+        {
+          name: 'ALBY_CLIENT_ID'
+          value: albyClientId
+        }
+        {
+          name: 'ALBY_CLIENT_SECRET'
+          value: albyClientSecret
         }
         {
           name: 'TALIUM_API_KEY'

@@ -308,6 +308,12 @@
     "azureClientSecret": {
       "value": "xxx"
     },
+    "albyClientId": {
+      "value": "xxx"
+    },
+    "albyClientSecret": {
+      "value": "xxx"
+    },
     "taliumApiKey": {
       "value": "xxx"
     },

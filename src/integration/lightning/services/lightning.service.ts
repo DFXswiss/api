@@ -10,6 +10,8 @@ import { LightningHelper } from '../lightning-helper';
 export class LightningService {
   private readonly logger = new DfxLogger(LightningService);
 
+  private readonly pubKeyPrefix = 'LNNID';
+
   private readonly client: LightningClient;
 
   constructor(private readonly http: HttpService) {
@@ -24,9 +26,15 @@ export class LightningService {
     return LightningHelper.verifySignature(message, signature, publicKey);
   }
 
-  async getPublicKeyOfLnurlp(lnurlp: string): Promise<string> {
+  async getPublicKeyOfAddress(address: string): Promise<string> {
+    if (address.startsWith(this.pubKeyPrefix)) {
+      // address is node pub key
+      return address.replace(this.pubKeyPrefix, '');
+    }
+
     try {
-      const url = LightningHelper.decodeLnurlp(lnurlp);
+      // address is LNURLp
+      const url = LightningHelper.decodeLnurlp(address);
 
       const payRequest = await this.http.get<LnurlPayRequestDto>(url);
 
