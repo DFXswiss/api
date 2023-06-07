@@ -1,23 +1,12 @@
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { PayInEvmService } from 'src/subdomains/supporting/payin/services/base/payin-evm.service';
-import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { EvmStrategy } from './evm.strategy';
 import { SendGroup } from './send.strategy';
-import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
-import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
 
 export abstract class EvmCoinStrategy extends EvmStrategy {
-  constructor(
-    protected readonly payInEvmService: PayInEvmService,
-    protected readonly payInRepo: PayInRepository,
-    protected readonly blockchain: Blockchain,
-    priceProvider: PriceProviderService,
-    payoutService: PayoutService,
-    transactionHelper: TransactionHelper,
-  ) {
-    super(payInEvmService, payInRepo, blockchain, priceProvider, payoutService, transactionHelper);
+  constructor(protected readonly payInEvmService: PayInEvmService, protected readonly payInRepo: PayInRepository) {
+    super(payInEvmService, payInRepo);
   }
 
   protected async checkPreparation(_: SendGroup): Promise<boolean> {

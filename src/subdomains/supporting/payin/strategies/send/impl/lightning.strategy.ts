@@ -1,24 +1,21 @@
 import { Injectable } from '@nestjs/common';
-import { SendStrategy, SendType } from './base/send.strategy';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { PayInRepository } from '../../../repositories/payin.repository';
-import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
-import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
-import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
+import { SendStrategy, SendType } from './base/send.strategy';
 
 @Injectable()
 export class LightningStrategy extends SendStrategy {
   protected readonly logger = new DfxLogger(LightningStrategy);
 
-  constructor(
-    private readonly payInRepo: PayInRepository,
-    priceProvider: PriceProviderService,
-    payoutService: PayoutService,
-    transactionHelper: TransactionHelper,
-  ) {
-    super(priceProvider, payoutService, transactionHelper);
+  blockchain = Blockchain.LIGHTNING;
+  assetType = AssetType.COIN;
+
+  constructor(private readonly payInRepo: PayInRepository) {
+    super();
   }
 
   async doSend(payIns: CryptoInput[], _: SendType): Promise<void> {

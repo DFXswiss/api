@@ -1,44 +1,29 @@
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
-import { Lock } from 'src/shared/utils/lock';
-import { Config, Process } from 'src/config/config';
+import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { Config, Process } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { PayInFactory } from '../../../factories/payin.factory';
+import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInEthereumService } from '../../../services/payin-ethereum.service';
 import { EvmStrategy } from './base/evm.strategy';
-import { PayInService } from '../../../services/payin.service';
-import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
-import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
-import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class EthereumStrategy extends EvmStrategy {
   protected readonly logger = new DfxLogger(EthereumStrategy);
 
+  blockchain = Blockchain.ETHEREUM;
+
   constructor(
-    dexService: DexService,
-    @Inject(forwardRef(() => PayInService))
-    payInService: PayInService,
     ethereumService: PayInEthereumService,
-    payInFactory: PayInFactory,
     payInRepository: PayInRepository,
     assetService: AssetService,
     repos: RepositoryFactory,
   ) {
-    super(
-      Blockchain.ETHEREUM,
-      'ETH',
-      dexService,
-      payInService,
-      ethereumService,
-      payInFactory,
-      payInRepository,
-      assetService,
-      repos,
-    );
+    super('ETH', ethereumService, payInRepository, assetService, repos);
   }
 
   //*** PUBLIC API ***//

@@ -1,44 +1,31 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
-import { Lock } from 'src/shared/utils/lock';
-import { Config, Process } from 'src/config/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { Config, Process } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { AssetService } from 'src/shared/models/asset/asset.service';
-import { PayInFactory } from '../../../factories/payin.factory';
-import { PayInRepository } from '../../../repositories/payin.repository';
-import { PayInOptimismService } from '../../../services/payin-optimism.service';
-import { EvmStrategy } from './base/evm.strategy';
-import { PayInService } from '../../../services/payin.service';
-import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
+import { PayInRepository } from '../../../repositories/payin.repository';
+import { PayInOptimismService } from '../../../services/payin-optimism.service';
+import { PayInService } from '../../../services/payin.service';
+import { EvmStrategy } from './base/evm.strategy';
 
 @Injectable()
 export class OptimismStrategy extends EvmStrategy {
   protected readonly logger = new DfxLogger(OptimismStrategy);
 
+  blockchain = Blockchain.OPTIMISM;
+
   constructor(
-    dexService: DexService,
     @Inject(forwardRef(() => PayInService))
-    payInService: PayInService,
     optimismService: PayInOptimismService,
-    payInFactory: PayInFactory,
     payInRepository: PayInRepository,
     assetService: AssetService,
     repos: RepositoryFactory,
   ) {
-    super(
-      Blockchain.OPTIMISM,
-      'ETH',
-      dexService,
-      payInService,
-      optimismService,
-      payInFactory,
-      payInRepository,
-      assetService,
-      repos,
-    );
+    super('ETH', optimismService, payInRepository, assetService, repos);
   }
 
   //*** PUBLIC API ***//
