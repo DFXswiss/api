@@ -1,22 +1,22 @@
 import { Injectable } from '@nestjs/common';
-import { Lock } from 'src/shared/utils/lock';
-import { PayInRepository } from '../repositories/payin.repository';
-import { CryptoInput, PayInPurpose, PayInSendType, PayInStatus } from '../entities/crypto-input.entity';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { SendStrategiesFacade } from '../strategies/send/send.facade';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Process } from 'src/config/config';
-import { In, IsNull, Not } from 'typeorm';
-import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
-import { SendType } from '../strategies/send/impl/base/send.strategy';
-import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
-import { RegisterStrategiesFacade } from '../strategies/register/register.facade';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
+import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
+import { In, IsNull, Not } from 'typeorm';
+import { CryptoInput, PayInPurpose, PayInSendType, PayInStatus } from '../entities/crypto-input.entity';
+import { PayInRepository } from '../repositories/payin.repository';
+import { RegisterStrategyRegistry } from '../strategies/register/impl/base/register.strategy-registry';
+import { SendType } from '../strategies/send/impl/base/send.strategy';
+import { SendStrategyRegistry } from '../strategies/send/impl/base/send.strategy-registry';
 
 @Injectable()
 export class PayInService {
@@ -24,8 +24,8 @@ export class PayInService {
 
   constructor(
     private readonly payInRepository: PayInRepository,
-    private readonly sendStrategies: SendStrategiesFacade,
-    private readonly registerStrategies: RegisterStrategiesFacade,
+    private readonly sendStrategyRegistry: SendStrategyRegistry,
+    private readonly registerStrategyRegistry: RegisterStrategyRegistry,
   ) {}
 
   //*** PUBLIC API ***//
@@ -131,7 +131,7 @@ export class PayInService {
 
   async doAmlCheck(payIn: CryptoInput, route: Staking | Sell | CryptoRoute): Promise<AmlCheck> {
     try {
-      const strategy = this.registerStrategies.getRegisterStrategy(payIn.asset);
+      const strategy = this.registerStrategyRegistry.getRegisterStrategy(payIn.asset);
       return await strategy.doAmlCheck(payIn, route);
     } catch (e) {
       this.logger.error(`Error during AML check for pay-in ${payIn.id}:`, e);
@@ -152,11 +152,11 @@ export class PayInService {
 
     if (payIns.length === 0) return;
 
-    const groups = this.groupByStrategies(payIns, this.sendStrategies.getSendStrategyAlias);
+    const groups = this.groupByStrategies(payIns, (a) => this.sendStrategyRegistry.getSendStrategy(a));
 
     for (const group of groups.entries()) {
       try {
-        const strategy = this.sendStrategies.getSendStrategy(group[0]);
+        const strategy = group[0];
         await strategy.doSend(group[1], SendType.FORWARD);
       } catch {
         continue;
@@ -178,11 +178,11 @@ export class PayInService {
 
     if (payIns.length === 0) return;
 
-    const groups = this.groupByStrategies(payIns, this.sendStrategies.getSendStrategyAlias);
+    const groups = this.groupByStrategies(payIns, (a) => this.sendStrategyRegistry.getSendStrategy(a));
 
     for (const group of groups.entries()) {
       try {
-        const strategy = this.sendStrategies.getSendStrategy(group[0]);
+        const strategy = group[0];
         await strategy.doSend(group[1], SendType.RETURN);
       } catch {
         continue;
@@ -192,17 +192,20 @@ export class PayInService {
 
   private async retryPayIns(): Promise<void> {
     const payIns = await this.payInRepository.find({
-      where: { status: PayInStatus.WAITING_FOR_PRICE_REFERENCE, asset: Not(IsNull()) },
+      where: {
+        status: PayInStatus.WAITING_FOR_PRICE_REFERENCE,
+        asset: Not(IsNull()),
+      },
       relations: ['route', 'asset'],
     });
 
     if (payIns.length === 0) return;
 
-    const groups = this.groupByStrategies(payIns, this.registerStrategies.getRegisterStrategyAlias);
+    const groups = this.groupByStrategies(payIns, (a) => this.registerStrategyRegistry.getRegisterStrategy(a));
 
     for (const group of groups.entries()) {
       try {
-        const strategy = this.registerStrategies.getRegisterStrategy(group[0]);
+        const strategy = group[0];
         await strategy.addReferenceAmounts(group[1]);
       } catch {
         continue;
@@ -212,17 +215,20 @@ export class PayInService {
 
   private async checkConfirmations(): Promise<void> {
     const payIns = await this.payInRepository.find({
-      where: { isConfirmed: false, status: Not(PayInStatus.FAILED) },
+      where: {
+        isConfirmed: false,
+        status: Not(PayInStatus.FAILED),
+      },
       relations: ['route', 'asset'],
     });
 
     if (payIns.length === 0) return;
 
-    const groups = this.groupByStrategies(payIns, this.sendStrategies.getSendStrategyAlias);
+    const groups = this.groupByStrategies(payIns, (a) => this.sendStrategyRegistry.getSendStrategy(a));
 
     for (const group of groups.entries()) {
       try {
-        const strategy = this.sendStrategies.getSendStrategy(group[0]);
+        const strategy = group[0];
         await strategy.checkConfirmations(group[1]);
       } catch {
         continue;
@@ -234,17 +240,17 @@ export class PayInService {
     const groups = new Map<T, CryptoInput[]>();
 
     for (const payIn of payIns) {
-      const alias = getter(payIn.asset);
+      const sendStrategy = getter(payIn.asset);
 
-      if (!alias) {
-        this.logger.warn(`No alias found by getter ${getter.name} for pay-in ${payIn.id}. Ignoring the pay-in`);
+      if (!sendStrategy) {
+        this.logger.warn(`No SendStrategy found by getter ${getter.name} for pay-in ${payIn.id}. Ignoring the pay-in`);
         continue;
       }
 
-      const group = groups.get(alias) ?? [];
+      const group = groups.get(sendStrategy) ?? [];
       group.push(payIn);
 
-      groups.set(alias, group);
+      groups.set(sendStrategy, group);
     }
 
     return groups;

@@ -1,42 +1,37 @@
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
-import { Lock } from 'src/shared/utils/lock';
-import { Config, Process } from 'src/config/config';
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
+import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Config, Process } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { ChainalysisService } from 'src/integration/chainalysis/services/chainalysis.service';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
+import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
+import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
+import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
+import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
+import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { PayInEntry } from '../../../interfaces';
 import { PayInRepository } from '../../../repositories/payin.repository';
-import { JellyfishStrategy } from './base/jellyfish.strategy';
-import { PayInFactory } from '../../../factories/payin.factory';
 import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
-import { PayInService } from '../../../services/payin.service';
-import { CryptoInput } from '../../../entities/crypto-input.entity';
-import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
-import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
-import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
-import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
-import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { ChainalysisService } from 'src/integration/chainalysis/services/chainalysis.service';
-import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { JellyfishStrategy } from './base/jellyfish.strategy';
 
 @Injectable()
 export class BitcoinStrategy extends JellyfishStrategy {
   protected readonly logger = new DfxLogger(BitcoinStrategy);
 
+  blockchain = Blockchain.BITCOIN;
+
   constructor(
     private readonly assetService: AssetService,
     private readonly bitcoinService: PayInBitcoinService,
     private readonly chainalysisService: ChainalysisService,
-    protected readonly dexService: DexService,
-    @Inject(forwardRef(() => PayInService))
-    protected readonly payInService: PayInService,
-    protected readonly payInFactory: PayInFactory,
     protected readonly payInRepository: PayInRepository,
   ) {
-    super(dexService, payInFactory, payInRepository);
+    super(payInRepository);
   }
 
   //*** PUBLIC API ***//

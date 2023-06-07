@@ -1,28 +1,17 @@
-import { PayInEvmService } from 'src/subdomains/supporting/payin/services/base/payin-evm.service';
-import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
-import { SendGroup, SendGroupKey, SendStrategy, SendType } from './send.strategy';
-import { CryptoInput, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
-import { Util } from 'src/shared/utils/util';
 import { Config } from 'src/config/config';
-import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
-import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { FeeLimitExceededException } from 'src/shared/payment/exceptions/fee-limit-exceeded.exception';
-import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
+import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
+import { CryptoInput, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
+import { PayInEvmService } from 'src/subdomains/supporting/payin/services/base/payin-evm.service';
+import { SendGroup, SendGroupKey, SendStrategy, SendType } from './send.strategy';
 
 export abstract class EvmStrategy extends SendStrategy {
   protected readonly logger = new DfxLogger(EvmStrategy);
 
-  constructor(
-    protected readonly payInEvmService: PayInEvmService,
-    protected readonly payInRepo: PayInRepository,
-    protected readonly blockchain: Blockchain,
-    priceProvider: PriceProviderService,
-    payoutService: PayoutService,
-    transactionHelper: TransactionHelper,
-  ) {
-    super(priceProvider, payoutService, transactionHelper);
+  constructor(protected readonly payInEvmService: PayInEvmService, protected readonly payInRepo: PayInRepository) {
+    super();
   }
 
   protected abstract dispatchSend(payInGroup: SendGroup, estimatedNativeFee: number): Promise<string>;
