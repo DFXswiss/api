@@ -9,11 +9,23 @@ import { decode as zbase32Decode } from 'zbase32';
 export class LightningHelper {
   static MSG_SIGNATURE_PREFIX = 'Lightning Signed Message:';
 
+  // --- ADDRESSES --- //
+  static addressToLnurlp(address: string): string {
+    const [id, domain] = address.split('@');
+
+    const url = `https://${domain}/.well-known/lnurlp/${id}`;
+    return LightningHelper.encodeLnurlp(url);
+  }
+
   // --- LNURLP --- //
   static createEncodedLnurlp(id: string): string {
     // create an encoded LNURLp with the HTTPS address of DFX API and the LNbits ID
     const url = `${Config.url}/lnurlp/${id}`;
-    return lnurlEncode(url).toUpperCase();
+    return this.encodeLnurlp(url);
+  }
+
+  static encodeLnurlp(str: string): string {
+    return lnurlEncode(str).toUpperCase();
   }
 
   static decodeLnurlp(lnurlp: string): string {
