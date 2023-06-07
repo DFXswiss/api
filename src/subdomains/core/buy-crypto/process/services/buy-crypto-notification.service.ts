@@ -1,16 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { In, IsNull, Not } from 'typeorm';
-import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
-import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
-import { Util } from 'src/shared/utils/util';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
-import { AmlCheck } from '../enums/aml-check.enum';
 import { I18nService } from 'nestjs-i18n';
 import { Config, Process } from 'src/config/config';
-import { BuyCryptoAmlReasonPendingStates } from '../entities/buy-crypto.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { In, IsNull, Not } from 'typeorm';
+import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
+import { BuyCryptoAmlReasonPendingStates } from '../entities/buy-crypto.entity';
+import { AmlCheck } from '../enums/aml-check.enum';
+import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 
 @Injectable()
 export class BuyCryptoNotificationService {
@@ -141,8 +141,6 @@ export class BuyCryptoNotificationService {
         mailSendDate: IsNull(),
         outputAmount: IsNull(),
         chargebackDate: Not(IsNull()),
-        chargebackBankTx: Not(IsNull()),
-        chargebackRemittanceInfo: Not(IsNull()),
         amlReason: Not(IsNull()),
         amlCheck: AmlCheck.FAIL,
       },
@@ -170,11 +168,14 @@ export class BuyCryptoNotificationService {
               translationParams: {
                 inputAmount: entity.inputAmount,
                 inputAsset: entity.inputAsset,
-                returnTransactionLink: entity.chargebackRemittanceInfo?.split(' Zahlung')[0],
+                returnTransactionLink: entity.cryptoInput
+                  ? txExplorerUrl(entity.cryptoInput.asset.blockchain, entity.chargebackCryptoTxId)
+                  : entity.chargebackRemittanceInfo?.split(' Zahlung')[0],
                 returnReason: this.i18nService.translate(`mail.amlReasonMailText.${entity.amlReason}`, {
                   lang: entity.user.userData.language?.symbol.toLowerCase(),
                 }),
                 userAddressTrimmed: entity.target.trimmedReturnAddress,
+                blockchain: entity.cryptoInput.asset.blockchain,
               },
             },
           });
