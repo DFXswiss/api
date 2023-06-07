@@ -1,29 +1,27 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInDeFiChainService } from '../../../services/payin-defichain.service';
 import { JellyfishStrategy } from './base/jellyfish.strategy';
 import { SendType } from './base/send.strategy';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
-import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
-import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 
 @Injectable()
 export class DeFiChainCoinStrategy extends JellyfishStrategy {
   protected readonly logger = new DfxLogger(DeFiChainCoinStrategy);
 
+  blockchain = Blockchain.DEFICHAIN;
+  assetType = AssetType.COIN;
+
   constructor(
     protected readonly deFiChainService: PayInDeFiChainService,
     protected readonly payInRepo: PayInRepository,
-    priceProvider: PriceProviderService,
-    payoutService: PayoutService,
-    transactionHelper: TransactionHelper,
   ) {
-    super(deFiChainService, payInRepo, Blockchain.DEFICHAIN, priceProvider, payoutService, transactionHelper);
+    super(deFiChainService, payInRepo);
   }
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {

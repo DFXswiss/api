@@ -1,44 +1,29 @@
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
-import { Lock } from 'src/shared/utils/lock';
+import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Process } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { PayInFactory } from '../../../factories/payin.factory';
+import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInBscService } from '../../../services/payin-bsc.service';
 import { EvmStrategy } from './base/evm.strategy';
-import { PayInService } from '../../../services/payin.service';
-import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
-import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
-import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BscStrategy extends EvmStrategy {
   protected readonly logger = new DfxLogger(BscStrategy);
 
+  blockchain = Blockchain.BINANCE_SMART_CHAIN;
+
   constructor(
-    dexService: DexService,
-    @Inject(forwardRef(() => PayInService))
-    payInService: PayInService,
     bscService: PayInBscService,
-    payInFactory: PayInFactory,
     payInRepository: PayInRepository,
     assetService: AssetService,
     repos: RepositoryFactory,
   ) {
-    super(
-      Blockchain.BINANCE_SMART_CHAIN,
-      'BNB',
-      dexService,
-      payInService,
-      bscService,
-      payInFactory,
-      payInRepository,
-      assetService,
-      repos,
-    );
+    super('BNB', bscService, payInRepository, assetService, repos);
   }
 
   //*** PUBLIC API ***//
