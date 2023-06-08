@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsDate, IsString, IsNumber, IsEnum, IsBoolean } from 'class-validator';
+import { IsBoolean, IsDate, IsEnum, IsInt, IsNumber, IsOptional, IsString } from 'class-validator';
 import { AmlCheck } from '../enums/aml-check.enum';
 import { AmlReason } from '../enums/aml-reason.enum';
 
@@ -130,6 +130,10 @@ export class UpdateBuyCryptoDto {
   @IsOptional()
   @IsString()
   chargebackRemittanceInfo: string;
+
+  @IsOptional()
+  @IsString()
+  chargebackCryptoTxId: string;
 
   @IsOptional()
   @IsInt()
