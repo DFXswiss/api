@@ -1,14 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { StrategyRegistry } from 'src/subdomains/supporting/common/strategy-registry';
-import { RegisterStrategy } from './register.strategy';
+import { PrepareStrategy } from './prepare.strategy';
 
 @Injectable()
-export class RegisterStrategyRegistry extends StrategyRegistry<RegisterStrategy> {
-  getRegisterStrategy(asset: Asset): RegisterStrategy {
+export class PrepareStrategyRegistry extends StrategyRegistry<PrepareStrategy> {
+  getPrepareStrategy(asset: Asset): PrepareStrategy {
     const strategy = super.getStrategy(asset.blockchain);
 
-    if (!strategy) throw new Error(`No RegisterStrategy found. Blockchain: ${asset.blockchain}`);
+    if (!strategy) throw new Error(`No PrepareStrategy found. Blockchain: ${asset.blockchain}`);
 
     return strategy;
   }
