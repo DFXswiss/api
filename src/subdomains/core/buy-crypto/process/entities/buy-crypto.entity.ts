@@ -1,18 +1,18 @@
-import { Entity, Column, ManyToOne, OneToOne, JoinColumn } from 'typeorm';
-import { IEntity, UpdateResult } from 'src/shared/models/entity';
-import { BuyCryptoBatch } from './buy-crypto-batch.entity';
-import { Util } from 'src/shared/utils/util';
-import { AmlCheck } from '../enums/aml-check.enum';
-import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
-import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { AmlReason } from '../enums/aml-reason.enum';
-import { BuyCryptoFee } from './buy-crypto-fees.entity';
-import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
+import { Util } from 'src/shared/utils/util';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { Buy } from '../../routes/buy/buy.entity';
+import { AmlCheck } from '../enums/aml-check.enum';
+import { AmlReason } from '../enums/aml-reason.enum';
+import { BuyCryptoBatch } from './buy-crypto-batch.entity';
+import { BuyCryptoFee } from './buy-crypto-fees.entity';
 
 export enum BuyCryptoStatus {
   CREATED = 'Created',
@@ -136,6 +136,9 @@ export class BuyCrypto extends IEntity {
 
   @Column({ length: 256, nullable: true })
   chargebackRemittanceInfo: string;
+
+  @Column({ length: 256, nullable: true })
+  chargebackCryptoTxId: string;
 
   @OneToOne(() => BankTx, { nullable: true })
   @JoinColumn()
@@ -379,7 +382,9 @@ export class BuyCrypto extends IEntity {
           return 'mail.payment.pending.nameCheckWithoutKyc';
       }
     } else if (this.amlCheck === AmlCheck.FAIL) {
-      return 'mail.payment.deposit.paybackInitiated';
+      return this.cryptoRoute
+        ? 'mail.payment.withdrawal.paybackToAddressInitiated'
+        : 'mail.payment.deposit.paybackInitiated';
     }
 
     throw new Error(`Tried to send a mail for buy-crypto ${this.id} in invalid state`);
