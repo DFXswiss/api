@@ -1,25 +1,29 @@
-import { Body, Controller, Get, Put, UseGuards, Post, Param } from '@nestjs/common';
-import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
-import { RoleGuard } from 'src/shared/auth/role.guard';
-import { SellService } from './sell.service';
-import { CreateSellDto } from './dto/create-sell.dto';
-import { UpdateSellDto } from './dto/update-sell.dto';
+import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { Config } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
-import { UserRole } from 'src/shared/auth/user-role.enum';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
-import { SellDto } from './dto/sell.dto';
-import { Sell } from './sell.entity';
-import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { BuyFiatService } from '../process/buy-fiat.service';
-import { SellHistoryDto } from './dto/sell-history.dto';
-import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
-import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
-import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
-import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
+import { PaymentInfoService } from 'src/shared/services/payment-info.service';
+import { Util } from 'src/shared/utils/util';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
+import { BuyFiatService } from '../process/buy-fiat.service';
+import { CreateSellDto } from './dto/create-sell.dto';
+import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
+import { GetSellQuoteDto } from './dto/get-sell-quote.dto';
+import { SellHistoryDto } from './dto/sell-history.dto';
+import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
+import { SellQuoteDto } from './dto/sell-quote.dto';
+import { SellDto } from './dto/sell.dto';
+import { UpdateSellDto } from './dto/update-sell.dto';
+import { Sell } from './sell.entity';
+import { SellService } from './sell.service';
 
 @ApiTags('Sell')
 @Controller('sell')
@@ -55,8 +59,29 @@ export class SellController {
   async createSell(@GetJwt() jwt: JwtPayload, @Body() dto: CreateSellDto): Promise<SellDto> {
     dto.currency ??= dto.fiat;
 
-    dto = await this.paymentInfoService.sellCheck(jwt, dto);
+    dto = await this.paymentInfoService.sellCheck(dto, jwt);
     return this.sellService.createSell(jwt.id, dto).then((s) => this.toDto(s));
+  }
+
+  @Put('/quote')
+  @ApiOkResponse({ type: SellQuoteDto })
+  async getSellQuote(@Body() dto: GetSellQuoteDto): Promise<SellQuoteDto> {
+    const { amount, asset, currency } = await this.paymentInfoService.sellCheck(dto);
+
+    const fee = Config.sell.fee.get(asset.feeTier, AccountType.PERSONAL);
+
+    const { exchangeRate, feeAmount, estimatedAmount } = await this.transactionHelper.getTxDetails(
+      amount,
+      fee,
+      asset,
+      currency,
+    );
+
+    return {
+      feeAmount,
+      exchangeRate,
+      estimatedAmount,
+    };
   }
 
   @Put('/paymentInfos')
@@ -67,7 +92,7 @@ export class SellController {
     @GetJwt() jwt: JwtPayload,
     @Body() dto: GetSellPaymentInfoDto,
   ): Promise<SellPaymentInfoDto> {
-    dto = await this.paymentInfoService.sellCheck(jwt, dto);
+    dto = await this.paymentInfoService.sellCheck(dto, jwt);
     return this.sellService
       .createSell(jwt.id, { ...dto, blockchain: dto.asset.blockchain }, true)
       .then((sell) => this.toPaymentInfoDto(jwt.id, sell, dto));
@@ -118,18 +143,16 @@ export class SellController {
   }
 
   private async toPaymentInfoDto(userId: number, sell: Sell, dto: GetSellPaymentInfoDto): Promise<SellPaymentInfoDto> {
-    const fee = await this.getFee(userId, dto.asset);
-    const { minVolume, minFee } = await this.transactionHelper.getSpecs(dto.asset, dto.currency);
-    const estimatedAmount = await this.transactionHelper.getTargetEstimation(
-      dto.amount,
-      fee,
+    const fee = await this.userService.getUserSellFee(userId, dto.asset);
+    const {
+      minVolume,
       minFee,
-      dto.asset,
-      dto.currency,
-    );
+      estimatedAmount: estimatedAmount,
+    } = await this.transactionHelper.getTxDetails(dto.amount, fee, dto.asset, dto.currency);
+
     return {
       routeId: sell.id,
-      fee,
+      fee: Util.round(fee * 100, Config.defaultPercentageDecimal),
       depositAddress: sell.deposit.address,
       blockchain: sell.deposit.blockchain,
       minDeposit: { amount: minVolume, asset: dto.asset.dexName },
@@ -137,10 +160,5 @@ export class SellController {
       minFee,
       estimatedAmount,
     };
-  }
-
-  // --- HELPER-METHODS --- //
-  async getFee(userId: number, asset: Asset): Promise<number> {
-    return this.userService.getUserSellFee(userId, asset);
   }
 }

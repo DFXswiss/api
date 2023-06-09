@@ -1,25 +1,25 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { createMock } from '@golevelup/ts-jest';
-import { BuyService } from '../buy.service';
-import { BuyController } from '../buy.controller';
-import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { TestSharedModule } from 'src/shared/utils/test.shared.module';
-import { createDefaultBuy } from '../__mocks__/buy.entity.mock';
-import { UserRole } from 'src/shared/auth/user-role.enum';
-import { TestUtil } from 'src/shared/utils/test.util';
-import { GetBuyPaymentInfoDto } from '../dto/get-buy-payment-info.dto';
-import { Asset } from 'src/shared/models/asset/asset.entity';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
-import { CountryService } from 'src/shared/models/country/country.service';
-import { createDefaultCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
+import { Test, TestingModule } from '@nestjs/testing';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
-import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
-import { BuyCryptoService } from '../../../process/services/buy-crypto.service';
-import { PaymentInfoService } from 'src/shared/services/payment-info.service';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { UserRole } from 'src/shared/auth/user-role.enum';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { createDefaultCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
+import { CountryService } from 'src/shared/models/country/country.service';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
+import { PaymentInfoService } from 'src/shared/services/payment-info.service';
+import { TestSharedModule } from 'src/shared/utils/test.shared.module';
+import { TestUtil } from 'src/shared/utils/test.util';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
+import { BuyCryptoService } from '../../../process/services/buy-crypto.service';
+import { createDefaultBuy } from '../__mocks__/buy.entity.mock';
+import { BuyController } from '../buy.controller';
+import { BuyService } from '../buy.service';
+import { GetBuyPaymentInfoDto } from '../dto/get-buy-payment-info.dto';
 
 function createBuyPaymentInfoDto(amount = 1, currency: Fiat = { id: 1 } as Fiat): GetBuyPaymentInfoDto {
   return {
@@ -91,6 +91,10 @@ describe('BuyController', () => {
   it('should return DFX address info', async () => {
     jest.spyOn(buyService, 'createBuy').mockResolvedValue(createDefaultBuy());
     jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(createDefaultCountry());
+    jest.spyOn(userService, 'getUserBuyFee').mockResolvedValue(0.01);
+    jest
+      .spyOn(transactionHelper, 'getTxDetails')
+      .mockResolvedValue({ minVolume: 0, minFee: 0, exchangeRate: 10, feeAmount: 3, estimatedAmount: 100 });
 
     const dto = createBuyPaymentInfoDto();
 
