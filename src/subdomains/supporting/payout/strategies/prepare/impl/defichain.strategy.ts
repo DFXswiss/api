@@ -16,8 +16,6 @@ import { PrepareStrategy } from './base/prepare.strategy';
 export class DeFiChainStrategy extends PrepareStrategy {
   private readonly logger = new DfxLogger(DeFiChainStrategy);
 
-  blockchain = Blockchain.DEFICHAIN;
-
   constructor(
     private readonly assetService: AssetService,
     private readonly dexService: DexService,
@@ -25,6 +23,10 @@ export class DeFiChainStrategy extends PrepareStrategy {
     private readonly payoutOrderRepo: PayoutOrderRepository,
   ) {
     super();
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.DEFICHAIN;
   }
 
   async preparePayout(orders: PayoutOrder[]): Promise<void> {

@@ -12,11 +12,11 @@ export abstract class PayoutStrategy implements OnModuleInit, OnModuleDestroy {
   private readonly registry: PayoutStrategyRegistry;
 
   onModuleInit() {
-    this.registry.addStrategy(this, this.blockchain, this.assetType);
+    this.registry.addStrategy({ blockchain: this.blockchain, assetType: this.assetType }, this);
   }
 
   onModuleDestroy() {
-    this.registry.removeStrategy(this.blockchain, this.assetType);
+    this.registry.removeStrategy({ blockchain: this.blockchain, assetType: this.assetType });
   }
 
   async feeAsset(): Promise<Asset> {

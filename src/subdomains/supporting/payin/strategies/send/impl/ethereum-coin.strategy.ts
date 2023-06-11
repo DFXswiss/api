@@ -9,11 +9,16 @@ import { EvmCoinStrategy } from './base/evm-coin.strategy';
 
 @Injectable()
 export class EthereumCoinStrategy extends EvmCoinStrategy {
-  blockchain = Blockchain.ETHEREUM;
-  assetType = AssetType.COIN;
-
   constructor(ethereumService: PayInEthereumService, payInRepo: PayInRepository) {
     super(ethereumService, payInRepo);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.ETHEREUM;
+  }
+
+  get assetType(): AssetType {
+    return AssetType.COIN;
   }
 
   protected getForwardAddress(): BlockchainAddress {

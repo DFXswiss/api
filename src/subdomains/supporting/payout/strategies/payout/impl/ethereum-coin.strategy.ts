@@ -9,15 +9,20 @@ import { EvmStrategy } from './base/evm.strategy';
 
 @Injectable()
 export class EthereumCoinStrategy extends EvmStrategy {
-  blockchain = Blockchain.ETHEREUM;
-  assetType = AssetType.COIN;
-
   constructor(
     protected readonly ethereumService: PayoutEthereumService,
     protected readonly assetService: AssetService,
     payoutOrderRepo: PayoutOrderRepository,
   ) {
     super(ethereumService, payoutOrderRepo);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.ETHEREUM;
+  }
+
+  get assetType(): AssetType {
+    return AssetType.COIN;
   }
 
   protected dispatchPayout(order: PayoutOrder): Promise<string> {

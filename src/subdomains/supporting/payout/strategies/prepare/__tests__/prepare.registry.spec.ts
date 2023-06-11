@@ -106,15 +106,11 @@ class PrepareStrategyRegistryWrapper extends PrepareStrategyRegistry {
   ) {
     super();
 
-    this.addStrategy(bitcoinStrategy, Blockchain.BITCOIN);
-    this.addStrategy(defichainStrategy, Blockchain.DEFICHAIN);
-    this.addStrategy(ethereumStrategy, Blockchain.ETHEREUM);
-    this.addStrategy(bscStrategy, Blockchain.BINANCE_SMART_CHAIN);
-    this.addStrategy(arbitrumStrategy, Blockchain.ARBITRUM);
-    this.addStrategy(optimismStrategy, Blockchain.OPTIMISM);
-  }
-
-  getStrategy(blockchain: Blockchain) {
-    return super.getStrategy(blockchain);
+    this.addStrategy(Blockchain.BITCOIN, bitcoinStrategy);
+    this.addStrategy(Blockchain.DEFICHAIN, defichainStrategy);
+    this.addStrategy(Blockchain.ETHEREUM, ethereumStrategy);
+    this.addStrategy(Blockchain.BINANCE_SMART_CHAIN, bscStrategy);
+    this.addStrategy(Blockchain.ARBITRUM, arbitrumStrategy);
+    this.addStrategy(Blockchain.OPTIMISM, optimismStrategy);
   }
 }

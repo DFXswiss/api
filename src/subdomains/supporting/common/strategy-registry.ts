@@ -1,22 +1,19 @@
-import { Blockchain as BlockchainType } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { AssetType } from 'src/shared/models/asset/asset.entity';
+export abstract class StrategyRegistry<K, S> {
+  private registry: Map<string, S> = new Map();
 
-export abstract class StrategyRegistry<T> {
-  private registry: Map<string, T> = new Map();
-
-  addStrategy(strategy: T, blockchainType: BlockchainType, assetType?: AssetType) {
-    this.registry.set(this.getKey(blockchainType, assetType), strategy);
+  addStrategy(key: K, strategy: S) {
+    this.registry.set(this.getKey(key), strategy);
   }
 
-  removeStrategy(blockchainType: BlockchainType, assetType?: AssetType) {
-    this.registry.delete(this.getKey(blockchainType, assetType));
+  removeStrategy(key: K) {
+    this.registry.delete(this.getKey(key));
   }
 
-  getStrategy(blockchainType: BlockchainType, assetType?: AssetType): T {
-    return this.registry.get(this.getKey(blockchainType, assetType));
+  getStrategy(key: K): S {
+    return this.registry.get(this.getKey(key));
   }
 
-  private getKey(blockchainType: BlockchainType, assetType?: AssetType): string {
-    return JSON.stringify({ blockchainType: blockchainType, assetType: assetType });
+  private getKey(key: K): string {
+    return JSON.stringify(key);
   }
 }

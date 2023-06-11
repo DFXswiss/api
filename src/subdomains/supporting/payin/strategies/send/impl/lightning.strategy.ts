@@ -11,11 +11,16 @@ import { SendStrategy, SendType } from './base/send.strategy';
 export class LightningStrategy extends SendStrategy {
   protected readonly logger = new DfxLogger(LightningStrategy);
 
-  blockchain = Blockchain.LIGHTNING;
-  assetType = AssetType.COIN;
-
   constructor(private readonly payInRepo: PayInRepository) {
     super();
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.LIGHTNING;
+  }
+
+  get assetType(): AssetType {
+    return undefined;
   }
 
   async doSend(payIns: CryptoInput[], _: SendType): Promise<void> {

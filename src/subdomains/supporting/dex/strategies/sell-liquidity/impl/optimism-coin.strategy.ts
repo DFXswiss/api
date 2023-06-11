@@ -1,16 +1,24 @@
 import { Injectable } from '@nestjs/common';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { SellLiquidityStrategyAlias } from '../sell-liquidity.facade';
-import { EvmCoinStrategy } from './base/evm-coin.strategy';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { EvmCoinStrategy } from './base/evm-coin.strategy';
 
 @Injectable()
 export class OptimismCoinStrategy extends EvmCoinStrategy {
   protected readonly logger = new DfxLogger(OptimismCoinStrategy);
 
   constructor(protected readonly assetService: AssetService) {
-    super(SellLiquidityStrategyAlias.OPTIMISM_COIN);
+    super('OptimismCoin');
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.OPTIMISM;
+  }
+
+  get assetType(): AssetType {
+    return AssetType.COIN;
   }
 
   sellLiquidity(): Promise<void> {

@@ -15,8 +15,6 @@ import { EvmStrategy } from './base/evm.strategy';
 export class EthereumStrategy extends EvmStrategy {
   protected readonly logger = new DfxLogger(EthereumStrategy);
 
-  blockchain = Blockchain.ETHEREUM;
-
   constructor(
     ethereumService: PayInEthereumService,
     payInRepository: PayInRepository,
@@ -24,6 +22,10 @@ export class EthereumStrategy extends EvmStrategy {
     repos: RepositoryFactory,
   ) {
     super('ETH', ethereumService, payInRepository, assetService, repos);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.ETHEREUM;
   }
 
   //*** PUBLIC API ***//

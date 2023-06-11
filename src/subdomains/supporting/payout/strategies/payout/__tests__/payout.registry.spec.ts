@@ -227,20 +227,16 @@ class PayoutStrategyRegistryWrapper extends PayoutStrategyRegistry {
   ) {
     super();
 
-    this.addStrategy(arbitrumCoin, Blockchain.ARBITRUM, AssetType.COIN);
-    this.addStrategy(arbitrumToken, Blockchain.ARBITRUM, AssetType.TOKEN);
-    this.addStrategy(bitcoin, Blockchain.BITCOIN, AssetType.COIN);
-    this.addStrategy(bscCoin, Blockchain.BINANCE_SMART_CHAIN, AssetType.COIN);
-    this.addStrategy(bscToken, Blockchain.BINANCE_SMART_CHAIN, AssetType.TOKEN);
-    this.addStrategy(deFiChainCoin, Blockchain.DEFICHAIN, AssetType.COIN);
-    this.addStrategy(deFiChainToken, Blockchain.DEFICHAIN, AssetType.TOKEN);
-    this.addStrategy(ethereumCoin, Blockchain.ETHEREUM, AssetType.COIN);
-    this.addStrategy(ethereumToken, Blockchain.ETHEREUM, AssetType.TOKEN);
-    this.addStrategy(optimismCoin, Blockchain.OPTIMISM, AssetType.COIN);
-    this.addStrategy(optimismToken, Blockchain.OPTIMISM, AssetType.TOKEN);
-  }
-
-  getStrategy(blockchain: Blockchain, assetType: AssetType) {
-    return super.getStrategy(blockchain, assetType);
+    this.addStrategy({ blockchain: Blockchain.ARBITRUM, assetType: AssetType.COIN }, arbitrumCoin);
+    this.addStrategy({ blockchain: Blockchain.ARBITRUM, assetType: AssetType.TOKEN }, arbitrumToken);
+    this.addStrategy({ blockchain: Blockchain.BITCOIN, assetType: AssetType.COIN }, bitcoin);
+    this.addStrategy({ blockchain: Blockchain.BINANCE_SMART_CHAIN, assetType: AssetType.COIN }, bscCoin);
+    this.addStrategy({ blockchain: Blockchain.BINANCE_SMART_CHAIN, assetType: AssetType.TOKEN }, bscToken);
+    this.addStrategy({ blockchain: Blockchain.DEFICHAIN, assetType: AssetType.COIN }, deFiChainCoin);
+    this.addStrategy({ blockchain: Blockchain.DEFICHAIN, assetType: AssetType.TOKEN }, deFiChainToken);
+    this.addStrategy({ blockchain: Blockchain.ETHEREUM, assetType: AssetType.COIN }, ethereumCoin);
+    this.addStrategy({ blockchain: Blockchain.ETHEREUM, assetType: AssetType.TOKEN }, ethereumToken);
+    this.addStrategy({ blockchain: Blockchain.OPTIMISM, assetType: AssetType.COIN }, optimismCoin);
+    this.addStrategy({ blockchain: Blockchain.OPTIMISM, assetType: AssetType.TOKEN }, optimismToken);
   }
 }

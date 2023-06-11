@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { DexEthereumService } from '../../../services/dex-ethereum.service';
 import { EvmCoinStrategy } from './base/evm-coin.strategy';
-import { PurchaseLiquidityStrategyAlias } from '../purchase-liquidity.facade';
 
 @Injectable()
 export class EthereumCoinStrategy extends EvmCoinStrategy {
@@ -13,7 +13,23 @@ export class EthereumCoinStrategy extends EvmCoinStrategy {
     notificationService: NotificationService,
     dexEthereumService: DexEthereumService,
   ) {
-    super(notificationService, dexEthereumService, PurchaseLiquidityStrategyAlias.ETHEREUM_COIN);
+    super(notificationService, dexEthereumService, 'EthereumCoin');
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.ETHEREUM;
+  }
+
+  get assetType(): AssetType {
+    return AssetType.COIN;
+  }
+
+  get assetCategory(): AssetCategory {
+    return undefined;
+  }
+
+  get dexName(): string {
+    return undefined;
   }
 
   protected getFeeAsset(): Promise<Asset> {

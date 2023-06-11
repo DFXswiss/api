@@ -15,9 +15,6 @@ import { JellyfishStrategy } from './base/jellyfish.strategy';
 export class DeFiChainCoinStrategy extends JellyfishStrategy {
   protected readonly logger = new DfxLogger(DeFiChainCoinStrategy);
 
-  blockchain = Blockchain.DEFICHAIN;
-  assetType = AssetType.COIN;
-
   constructor(
     notificationService: NotificationService,
     protected readonly deFiChainService: PayoutDeFiChainService,
@@ -25,6 +22,14 @@ export class DeFiChainCoinStrategy extends JellyfishStrategy {
     protected readonly assetService: AssetService,
   ) {
     super(notificationService, payoutOrderRepo, deFiChainService);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.DEFICHAIN;
+  }
+
+  get assetType(): AssetType {
+    return AssetType.COIN;
   }
 
   async estimateFee(): Promise<FeeResult> {

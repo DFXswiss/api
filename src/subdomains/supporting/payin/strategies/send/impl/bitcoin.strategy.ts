@@ -15,11 +15,16 @@ import { SendType } from './base/send.strategy';
 export class BitcoinStrategy extends JellyfishStrategy {
   protected readonly logger = new DfxLogger(BitcoinStrategy);
 
-  blockchain = Blockchain.BITCOIN;
-  assetType = AssetType.COIN;
-
   constructor(protected readonly bitcoinService: PayInBitcoinService, protected readonly payInRepo: PayInRepository) {
     super(bitcoinService, payInRepo);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.BITCOIN;
+  }
+
+  get assetType(): AssetType {
+    return undefined;
   }
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
