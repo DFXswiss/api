@@ -1,13 +1,21 @@
 import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
 import { Injectable } from '@nestjs/common';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
+import { TransferNotRequiredException } from '../../../exceptions/transfer-not-required.exception';
 import { TransactionQuery, TransactionResult, TransferRequest } from '../../../interfaces';
 import { DexDeFiChainService } from '../../../services/dex-defichain.service';
-import { TransferNotRequiredException } from '../../../exceptions/transfer-not-required.exception';
+import { SupplementaryStrategy } from './base/supplementary.strategy';
 
 @Injectable()
-export class DeFiChainStrategy {
-  constructor(protected readonly dexDeFiChainService: DexDeFiChainService) {}
+export class DeFiChainStrategy extends SupplementaryStrategy {
+  constructor(protected readonly dexDeFiChainService: DexDeFiChainService) {
+    super();
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.DEFICHAIN;
+  }
 
   async transferLiquidity(request: TransferRequest): Promise<string> {
     const { destinationAddress, asset, amount } = request;

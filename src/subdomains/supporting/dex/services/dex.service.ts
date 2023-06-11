@@ -24,20 +24,21 @@ import {
   TransferRequest,
 } from '../interfaces';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
-import { CheckLiquidityStrategies } from '../strategies/check-liquidity/check-liquidity.facade';
-import { PurchaseLiquidityStrategies } from '../strategies/purchase-liquidity/purchase-liquidity.facade';
-import { SellLiquidityStrategies } from '../strategies/sell-liquidity/sell-liquidity.facade';
-import { SupplementaryStrategies } from '../strategies/supplementary/supplementary.facade';
+import { CheckLiquidityStrategyRegistry } from '../strategies/check-liquidity/impl/base/check-liquidity.strategy-registry';
+import { PurchaseLiquidityStrategyRegistry } from '../strategies/purchase-liquidity/impl/base/purchase-liquidity.strategy-registry';
+import { SellLiquidityStrategyRegistry } from '../strategies/sell-liquidity/impl/base/sell-liquidity.strategy-registry';
+import { SupplementaryStrategyRegistry } from '../strategies/supplementary/impl/base/supplementary.strategy-registry';
 
 @Injectable()
 export class DexService {
   private readonly logger = new DfxLogger(DexService);
 
   constructor(
-    private readonly checkStrategies: CheckLiquidityStrategies,
-    private readonly purchaseStrategies: PurchaseLiquidityStrategies,
-    private readonly sellStrategies: SellLiquidityStrategies,
-    private readonly supplementaryStrategies: SupplementaryStrategies,
+    private readonly checkLiquidityStrategyRegistry: CheckLiquidityStrategyRegistry,
+    private readonly purchaseLiquidityStrategyRegistry: PurchaseLiquidityStrategyRegistry,
+    private readonly sellLiquidityStrategyRegistry: SellLiquidityStrategyRegistry,
+    private readonly supplementaryStrategyRegistry: SupplementaryStrategyRegistry,
+
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
     private readonly liquidityOrderFactory: LiquidityOrderFactory,
   ) {}
@@ -48,7 +49,7 @@ export class DexService {
     const { context, correlationId, targetAsset } = request;
 
     try {
-      const strategy = this.checkStrategies.getCheckLiquidityStrategy(targetAsset);
+      const strategy = this.checkLiquidityStrategyRegistry.getCheckLiquidityStrategy(targetAsset);
 
       if (!strategy) {
         throw new Error(`No check liquidity strategy for asset ${targetAsset.uniqueName}`);
@@ -70,7 +71,7 @@ export class DexService {
         `Reserving ${targetAsset.dexName} liquidity. Context: ${context}. Correlation ID: ${correlationId}`,
       );
 
-      const strategy = this.checkStrategies.getCheckLiquidityStrategy(targetAsset);
+      const strategy = this.checkLiquidityStrategyRegistry.getCheckLiquidityStrategy(targetAsset);
 
       if (!strategy) {
         throw new Error(`No check liquidity strategy for asset ${targetAsset.uniqueName}`);
@@ -101,7 +102,7 @@ export class DexService {
 
   async purchaseLiquidity(request: PurchaseLiquidityRequest): Promise<void> {
     const { context, correlationId, targetAsset } = request;
-    const strategy = this.purchaseStrategies.getPurchaseLiquidityStrategy(targetAsset);
+    const strategy = this.purchaseLiquidityStrategyRegistry.getPurchaseLiquidityStrategy(targetAsset);
 
     if (!strategy) {
       throw new Error(`No purchase liquidity strategy for asset ${targetAsset.uniqueName}`);
@@ -126,7 +127,7 @@ export class DexService {
 
   async sellLiquidity(request: SellLiquidityRequest): Promise<void> {
     const { context, correlationId, sellAsset } = request;
-    const strategy = this.sellStrategies.getSellLiquidityStrategy(sellAsset);
+    const strategy = this.sellLiquidityStrategyRegistry.getSellLiquidityStrategy(sellAsset);
 
     if (!strategy) {
       throw new Error(`No sell liquidity strategy for asset ${sellAsset.uniqueName}`);
@@ -225,7 +226,7 @@ export class DexService {
 
   async transferLiquidity(request: TransferRequest): Promise<string> {
     const { asset, amount } = request;
-    const strategy = this.supplementaryStrategies.getSupplementaryStrategy(asset);
+    const strategy = this.supplementaryStrategyRegistry.getSupplementaryStrategyByAsset(asset);
 
     if (!strategy) {
       throw new Error(`No supplementary strategy found for asset ${asset.uniqueName} during #transferLiquidity(...)`);
@@ -236,7 +237,7 @@ export class DexService {
   }
 
   async transferMinimalCoin(address: BlockchainAddress): Promise<string> {
-    const strategy = this.supplementaryStrategies.getSupplementaryStrategy(address.blockchain);
+    const strategy = this.supplementaryStrategyRegistry.getSupplementaryStrategyByBlockchain(address.blockchain);
 
     if (!strategy) {
       throw new Error(
@@ -258,7 +259,7 @@ export class DexService {
   }
 
   async checkTransferCompletion(transferTxId: string, blockchain: Blockchain): Promise<boolean> {
-    const strategy = this.supplementaryStrategies.getSupplementaryStrategy(blockchain);
+    const strategy = this.supplementaryStrategyRegistry.getSupplementaryStrategyByBlockchain(blockchain);
 
     if (!strategy) {
       throw new Error(
@@ -278,7 +279,7 @@ export class DexService {
 
   async findTransaction(query: TransactionQuery): Promise<TransactionResult> {
     const { asset, amount, since } = query;
-    const strategy = this.supplementaryStrategies.getSupplementaryStrategy(asset);
+    const strategy = this.supplementaryStrategyRegistry.getSupplementaryStrategyByAsset(asset);
 
     if (!strategy) {
       throw new Error(`No supplementary strategy found for asset ${asset.uniqueName} during #findTransaction(...)`);
@@ -340,7 +341,7 @@ export class DexService {
 
   private async addPurchaseDataToOrder(order: LiquidityOrder): Promise<void> {
     try {
-      const strategy = this.purchaseStrategies.getPurchaseLiquidityStrategy(order.targetAsset);
+      const strategy = this.purchaseLiquidityStrategyRegistry.getPurchaseLiquidityStrategy(order.targetAsset);
 
       if (!strategy) {
         throw new Error(`No purchase liquidity strategy for asset ${order.targetAsset.uniqueName}`);
@@ -359,7 +360,7 @@ export class DexService {
 
   private async addSellDataToOrder(order: LiquidityOrder): Promise<void> {
     try {
-      const strategy = this.sellStrategies.getSellLiquidityStrategy(order.targetAsset);
+      const strategy = this.sellLiquidityStrategyRegistry.getSellLiquidityStrategy(order.targetAsset);
 
       if (!strategy) {
         throw new Error(`No sell liquidity strategy for asset ${order.targetAsset.uniqueName}`);

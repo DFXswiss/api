@@ -12,7 +12,7 @@ export abstract class PrepareStrategy implements OnModuleInit, OnModuleDestroy {
   private readonly registry: PrepareStrategyRegistry;
 
   onModuleInit() {
-    this.registry.addStrategy(this, this.blockchain);
+    this.registry.addStrategy(this.blockchain, this);
   }
 
   onModuleDestroy() {

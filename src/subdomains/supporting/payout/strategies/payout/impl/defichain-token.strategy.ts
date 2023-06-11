@@ -19,9 +19,6 @@ type TokenName = string;
 export class DeFiChainTokenStrategy extends JellyfishStrategy {
   protected readonly logger = new DfxLogger(DeFiChainTokenStrategy);
 
-  blockchain = Blockchain.DEFICHAIN;
-  assetType = AssetType.TOKEN;
-
   constructor(
     notificationService: NotificationService,
     private readonly dexService: DexService,
@@ -30,6 +27,14 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
     protected readonly assetService: AssetService,
   ) {
     super(notificationService, payoutOrderRepo, jellyfishService);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.DEFICHAIN;
+  }
+
+  get assetType(): AssetType {
+    return AssetType.TOKEN;
   }
 
   async estimateFee(): Promise<FeeResult> {

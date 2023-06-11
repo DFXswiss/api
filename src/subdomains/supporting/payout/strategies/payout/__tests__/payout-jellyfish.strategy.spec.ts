@@ -244,15 +244,20 @@ describe('PayoutJellyfishStrategy', () => {
 class PayoutJellyfishStrategyWrapper extends JellyfishStrategy {
   protected readonly logger = new DfxLogger(PayoutJellyfishStrategyWrapper);
 
-  blockchain = Blockchain.DEFICHAIN;
-  assetType = AssetType.COIN;
-
   constructor(
     notificationService: NotificationService,
     payoutOrderRepo: PayoutOrderRepository,
     defichainService: PayoutDeFiChainService,
   ) {
     super(notificationService, payoutOrderRepo, defichainService);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.DEFICHAIN;
+  }
+
+  get assetType(): AssetType {
+    return AssetType.COIN;
   }
 
   protected doPayoutForContext(): Promise<void> {

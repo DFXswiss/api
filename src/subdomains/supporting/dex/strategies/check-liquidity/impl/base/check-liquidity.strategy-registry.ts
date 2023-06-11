@@ -1,0 +1,33 @@
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
+import { StrategyRegistry } from 'src/subdomains/supporting/common/strategy-registry';
+import { CheckLiquidityStrategy } from './check-liquidity.strategy';
+
+interface StrategyRegistryKey {
+  blockchain: Blockchain;
+  assetType?: AssetType;
+  assetCategory?: AssetCategory;
+}
+
+export class CheckLiquidityStrategyRegistry extends StrategyRegistry<StrategyRegistryKey, CheckLiquidityStrategy> {
+  getCheckLiquidityStrategy(asset: Asset): CheckLiquidityStrategy {
+    let strategy = super.getStrategy({ blockchain: asset.blockchain, assetType: asset.type });
+
+    if (!strategy) {
+      // Check for 'DeFiChainPoolPairStrategy'
+      strategy = super.getStrategy({ blockchain: asset.blockchain, assetCategory: asset.category });
+    }
+
+    if (!strategy) {
+      // Check for 'BitcoinStrategy'
+      // Check for 'DeFiChainDefaultStrategy'
+      strategy = super.getStrategy({ blockchain: asset.blockchain });
+    }
+
+    if (!strategy) {
+      throw new Error(`No CheckLiquidityStrategy found. Blockchain: ${asset.blockchain}, AssetType: ${asset.type}`);
+    }
+
+    return strategy;
+  }
+}

@@ -22,14 +22,16 @@ import { RegisterStrategy } from './base/register.strategy';
 export class LightningStrategy extends RegisterStrategy {
   protected logger: DfxLogger = new DfxLogger(LightningStrategy);
 
-  blockchain = Blockchain.LIGHTNING;
-
   constructor(
     private readonly lightningService: LightningService,
     private readonly assetService: AssetService,
     protected readonly payInRepository: PayInRepository,
   ) {
     super(payInRepository);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.LIGHTNING;
   }
 
   async addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void> {

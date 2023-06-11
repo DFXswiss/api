@@ -9,11 +9,16 @@ import { EvmTokenStrategy } from './base/evm.token.strategy';
 
 @Injectable()
 export class ArbitrumTokenStrategy extends EvmTokenStrategy {
-  blockchain = Blockchain.ARBITRUM;
-  assetType = AssetType.TOKEN;
-
   constructor(arbitrumService: PayInArbitrumService, payInRepo: PayInRepository) {
     super(arbitrumService, payInRepo);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.ARBITRUM;
+  }
+
+  get assetType(): AssetType {
+    return AssetType.TOKEN;
   }
 
   protected getForwardAddress(): BlockchainAddress {

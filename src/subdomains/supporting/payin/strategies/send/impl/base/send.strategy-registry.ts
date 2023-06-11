@@ -1,14 +1,28 @@
 import { Injectable } from '@nestjs/common';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { StrategyRegistry } from 'src/subdomains/supporting/common/strategy-registry';
 import { SendStrategy } from './send.strategy';
 
-@Injectable()
-export class SendStrategyRegistry extends StrategyRegistry<SendStrategy> {
-  getSendStrategy(asset: Asset): SendStrategy {
-    const strategy = super.getStrategy(asset.blockchain, asset.type);
+interface StrategyRegistryKey {
+  blockchain: Blockchain;
+  assetType?: AssetType;
+}
 
-    if (!strategy) throw new Error(`No SendStrategy found. Blockchain: ${asset.blockchain}, AssetType: ${asset.type}`);
+@Injectable()
+export class SendStrategyRegistry extends StrategyRegistry<StrategyRegistryKey, SendStrategy> {
+  getSendStrategy(asset: Asset): SendStrategy {
+    let strategy = super.getStrategy({ blockchain: asset.blockchain, assetType: asset.type });
+
+    if (!strategy) {
+      // Check for 'BitcoinStrategy'
+      // Check for 'LightningStrategy'
+      strategy = super.getStrategy({ blockchain: asset.blockchain });
+    }
+
+    if (!strategy) {
+      throw new Error(`No SendStrategy found. Blockchain: ${asset.blockchain}, AssetType: ${asset.type}`);
+    }
 
     return strategy;
   }

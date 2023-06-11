@@ -23,14 +23,16 @@ import { RegisterStrategy } from './base/register.strategy';
 export class DeFiChainStrategy extends RegisterStrategy {
   protected readonly logger = new DfxLogger(DeFiChainStrategy);
 
-  blockchain = Blockchain.DEFICHAIN;
-
   constructor(
     private readonly assetService: AssetService,
     private readonly deFiChainService: PayInDeFiChainService,
     protected readonly payInRepository: PayInRepository,
   ) {
     super(payInRepository);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.DEFICHAIN;
   }
 
   //*** PUBLIC API ***//

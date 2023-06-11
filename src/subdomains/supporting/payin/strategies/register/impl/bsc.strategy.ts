@@ -15,8 +15,6 @@ import { EvmStrategy } from './base/evm.strategy';
 export class BscStrategy extends EvmStrategy {
   protected readonly logger = new DfxLogger(BscStrategy);
 
-  blockchain = Blockchain.BINANCE_SMART_CHAIN;
-
   constructor(
     bscService: PayInBscService,
     payInRepository: PayInRepository,
@@ -24,6 +22,10 @@ export class BscStrategy extends EvmStrategy {
     repos: RepositoryFactory,
   ) {
     super('BNB', bscService, payInRepository, assetService, repos);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.BINANCE_SMART_CHAIN;
   }
 
   //*** PUBLIC API ***//

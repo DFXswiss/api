@@ -7,10 +7,12 @@ import { EvmStrategy } from './base/evm.strategy';
 
 @Injectable()
 export class BscStrategy extends EvmStrategy {
-  blockchain = Blockchain.BINANCE_SMART_CHAIN;
-
   constructor(private readonly assetService: AssetService, payoutOrderRepo: PayoutOrderRepository) {
     super(payoutOrderRepo);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.BINANCE_SMART_CHAIN;
   }
 
   protected getFeeAsset(): Promise<Asset> {

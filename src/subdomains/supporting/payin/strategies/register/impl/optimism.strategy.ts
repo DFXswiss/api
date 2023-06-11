@@ -16,8 +16,6 @@ import { EvmStrategy } from './base/evm.strategy';
 export class OptimismStrategy extends EvmStrategy {
   protected readonly logger = new DfxLogger(OptimismStrategy);
 
-  blockchain = Blockchain.OPTIMISM;
-
   constructor(
     @Inject(forwardRef(() => PayInService))
     optimismService: PayInOptimismService,
@@ -26,6 +24,10 @@ export class OptimismStrategy extends EvmStrategy {
     repos: RepositoryFactory,
   ) {
     super('ETH', optimismService, payInRepository, assetService, repos);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.OPTIMISM;
   }
 
   //*** PUBLIC API ***//

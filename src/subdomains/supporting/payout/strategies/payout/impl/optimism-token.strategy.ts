@@ -9,15 +9,20 @@ import { EvmStrategy } from './base/evm.strategy';
 
 @Injectable()
 export class OptimismTokenStrategy extends EvmStrategy {
-  blockchain = Blockchain.OPTIMISM;
-  assetType = AssetType.TOKEN;
-
   constructor(
     protected readonly optimismService: PayoutOptimismService,
     protected readonly assetService: AssetService,
     payoutOrderRepo: PayoutOrderRepository,
   ) {
     super(optimismService, payoutOrderRepo);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.OPTIMISM;
+  }
+
+  get assetType(): AssetType {
+    return AssetType.TOKEN;
   }
 
   protected dispatchPayout(order: PayoutOrder): Promise<string> {

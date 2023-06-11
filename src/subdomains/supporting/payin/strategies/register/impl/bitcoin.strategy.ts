@@ -23,8 +23,6 @@ import { JellyfishStrategy } from './base/jellyfish.strategy';
 export class BitcoinStrategy extends JellyfishStrategy {
   protected readonly logger = new DfxLogger(BitcoinStrategy);
 
-  blockchain = Blockchain.BITCOIN;
-
   constructor(
     private readonly assetService: AssetService,
     private readonly bitcoinService: PayInBitcoinService,
@@ -32,6 +30,10 @@ export class BitcoinStrategy extends JellyfishStrategy {
     protected readonly payInRepository: PayInRepository,
   ) {
     super(payInRepository);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.BITCOIN;
   }
 
   //*** PUBLIC API ***//

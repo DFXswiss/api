@@ -14,14 +14,19 @@ import { SendType } from './base/send.strategy';
 export class DeFiChainCoinStrategy extends JellyfishStrategy {
   protected readonly logger = new DfxLogger(DeFiChainCoinStrategy);
 
-  blockchain = Blockchain.DEFICHAIN;
-  assetType = AssetType.COIN;
-
   constructor(
     protected readonly deFiChainService: PayInDeFiChainService,
     protected readonly payInRepo: PayInRepository,
   ) {
     super(deFiChainService, payInRepo);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.DEFICHAIN;
+  }
+
+  get assetType(): AssetType {
+    return AssetType.COIN;
   }
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {

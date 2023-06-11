@@ -18,9 +18,6 @@ export class BitcoinStrategy extends JellyfishStrategy {
 
   private readonly averageTransactionSize = 180; // vBytes
 
-  blockchain = Blockchain.BITCOIN;
-  assetType = AssetType.COIN;
-
   constructor(
     notificationService: NotificationService,
     protected readonly bitcoinService: PayoutBitcoinService,
@@ -28,6 +25,14 @@ export class BitcoinStrategy extends JellyfishStrategy {
     protected readonly assetService: AssetService,
   ) {
     super(notificationService, payoutOrderRepo, bitcoinService);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.BITCOIN;
+  }
+
+  get assetType(): AssetType {
+    return undefined;
   }
 
   async estimateFee(): Promise<FeeResult> {

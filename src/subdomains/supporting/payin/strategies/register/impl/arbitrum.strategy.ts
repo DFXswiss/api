@@ -15,8 +15,6 @@ import { EvmStrategy } from './base/evm.strategy';
 export class ArbitrumStrategy extends EvmStrategy {
   protected readonly logger = new DfxLogger(ArbitrumStrategy);
 
-  blockchain = Blockchain.ARBITRUM;
-
   constructor(
     arbitrumService: PayInArbitrumService,
     payInRepository: PayInRepository,
@@ -24,6 +22,10 @@ export class ArbitrumStrategy extends EvmStrategy {
     repos: RepositoryFactory,
   ) {
     super('ETH', arbitrumService, payInRepository, assetService, repos);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.ARBITRUM;
   }
 
   //*** PUBLIC API ***//

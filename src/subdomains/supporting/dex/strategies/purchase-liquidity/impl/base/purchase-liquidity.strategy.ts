@@ -1,24 +1,55 @@
+import { Inject, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
+import { LiquidityOrder } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { LiquidityOrder } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
-import { Asset } from 'src/shared/models/asset/asset.entity';
 import { NotEnoughLiquidityException } from '../../../../exceptions/not-enough-liquidity.exception';
 import { PriceSlippageException } from '../../../../exceptions/price-slippage.exception';
 import { PurchaseLiquidityRequest } from '../../../../interfaces';
-import { PurchaseLiquidityStrategyAlias } from '../../purchase-liquidity.facade';
+import { PurchaseLiquidityStrategyRegistry } from './purchase-liquidity.strategy-registry';
 
-export abstract class PurchaseLiquidityStrategy {
-  private _name: PurchaseLiquidityStrategyAlias;
+export abstract class PurchaseLiquidityStrategy implements OnModuleInit, OnModuleDestroy {
+  private _name: string;
   private _feeAsset: Asset;
 
-  constructor(protected readonly notificationService: NotificationService, name: PurchaseLiquidityStrategyAlias) {
+  @Inject()
+  private readonly registry: PurchaseLiquidityStrategyRegistry;
+
+  constructor(protected readonly notificationService: NotificationService, name: string) {
     this._name = name;
+  }
+
+  onModuleInit() {
+    this.registry.addStrategy(
+      {
+        blockchain: this.blockchain,
+        assetType: this.assetType,
+        assetCategory: this.assetCategory,
+        dexName: this.dexName,
+      },
+      this,
+    );
+  }
+
+  onModuleDestroy() {
+    this.registry.removeStrategy({
+      blockchain: this.blockchain,
+      assetType: this.assetType,
+      assetCategory: this.assetCategory,
+      dexName: this.dexName,
+    });
   }
 
   async feeAsset(): Promise<Asset> {
     return (this._feeAsset ??= await this.getFeeAsset());
   }
+
+  abstract get blockchain(): Blockchain;
+  abstract get assetType(): AssetType;
+  abstract get assetCategory(): AssetCategory;
+  abstract get dexName(): string;
 
   abstract purchaseLiquidity(request: PurchaseLiquidityRequest): Promise<void>;
   abstract addPurchaseData(order: LiquidityOrder): Promise<void>;

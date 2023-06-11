@@ -7,10 +7,12 @@ import { AutoConfirmStrategy } from './base/auto-confirm.strategy';
 
 @Injectable()
 export class BitcoinStrategy extends AutoConfirmStrategy {
-  blockchain = Blockchain.BITCOIN;
-
   constructor(private readonly assetService: AssetService, payoutOrderRepo: PayoutOrderRepository) {
     super(payoutOrderRepo);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.BITCOIN;
   }
 
   protected getFeeAsset(): Promise<Asset> {

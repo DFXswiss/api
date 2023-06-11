@@ -2,14 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { LiquidityOrder } from '../../../entities/liquidity-order.entity';
 import { LiquidityOrderFactory } from '../../../factories/liquidity-order.factory';
 import { SellLiquidityRequest } from '../../../interfaces';
 import { LiquidityOrderRepository } from '../../../repositories/liquidity-order.repository';
 import { DexDeFiChainService } from '../../../services/dex-defichain.service';
-import { SellLiquidityStrategyAlias } from '../sell-liquidity.facade';
 import { DeFiChainStrategy } from './base/defichain.strategy';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class DeFiChainTokenStrategy extends DeFiChainStrategy {
@@ -21,7 +20,15 @@ export class DeFiChainTokenStrategy extends DeFiChainStrategy {
     protected readonly liquidityOrderRepo: LiquidityOrderRepository,
     protected readonly liquidityOrderFactory: LiquidityOrderFactory,
   ) {
-    super(dexDeFiChainService, liquidityOrderRepo, SellLiquidityStrategyAlias.DEFICHAIN_TOKEN);
+    super(dexDeFiChainService, liquidityOrderRepo, 'DeFiChainToken');
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.DEFICHAIN;
+  }
+
+  get assetType(): AssetType {
+    return AssetType.TOKEN;
   }
 
   async sellLiquidity(request: SellLiquidityRequest): Promise<void> {
