@@ -156,7 +156,7 @@ export class AuthService {
     const blockchains = this.cryptoService.getBlockchainsBasedOn(address);
 
     if (blockchains.includes(Blockchain.LIGHTNING)) {
-      if (signature.length === 142) {
+      if (/^[a-z0-9]{140,146}$/.test(signature)) {
         // custodial Lightning wallet, only comparison check
         return !dbSignature || signature === dbSignature;
       }
