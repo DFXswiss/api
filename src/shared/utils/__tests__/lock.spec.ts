@@ -1,7 +1,7 @@
 import { Context, createLock } from 'src/shared/utils/lock';
 import { Util } from '../util';
 
-describe('UserService', () => {
+describe('Lock', () => {
   let lock: (task: () => Promise<void>, context?: Context) => Promise<void>;
 
   beforeEach(async () => {

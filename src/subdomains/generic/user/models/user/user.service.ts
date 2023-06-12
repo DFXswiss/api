@@ -5,35 +5,34 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { Config } from 'src/config/config';
+import { DfiTaxService } from 'src/integration/blockchain/ain/services/dfi-tax.service';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
+import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { CountryService } from 'src/shared/models/country/country.service';
+import { ApiKeyService } from 'src/shared/services/api-key.service';
+import { Lock } from 'src/shared/utils/lock';
+import { Util } from 'src/shared/utils/util';
+import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
+import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { Between, Not } from 'typeorm';
+import { KycService } from '../kyc/kyc.service';
+import { KycStatus, KycType, UserData, UserDataStatus } from '../user-data/user-data.entity';
+import { UserDataRepository } from '../user-data/user-data.repository';
+import { WalletService } from '../wallet/wallet.service';
+import { ApiKeyDto } from './dto/api-key.dto';
+import { CreateUserDto } from './dto/create-user.dto';
+import { LinkedUserOutDto } from './dto/linked-user.dto';
+import { RefInfoQuery } from './dto/ref-info-query.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { UserDetailDto, UserDetails } from './dto/user.dto';
+import { VolumeQuery } from './dto/volume-query.dto';
 import { User, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
-import { UpdateUserDto } from './dto/update-user.dto';
-import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { Util } from 'src/shared/utils/util';
-import { UserDetailDto, UserDetails } from './dto/user.dto';
-import { CreateUserDto } from './dto/create-user.dto';
-import { WalletService } from '../wallet/wallet.service';
-import { Between, Not } from 'typeorm';
-import { AccountType } from '../user-data/account-type.enum';
-import { DfiTaxService } from 'src/integration/blockchain/ain/services/dfi-tax.service';
-import { Config } from 'src/config/config';
-import { ApiKeyDto } from './dto/api-key.dto';
-import { KycService } from '../kyc/kyc.service';
-import { RefInfoQuery } from './dto/ref-info-query.dto';
-import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import { CountryService } from 'src/shared/models/country/country.service';
-import { VolumeQuery } from './dto/volume-query.dto';
-import { KycStatus, KycType, UserData, UserDataStatus } from '../user-data/user-data.entity';
-import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
-import { LinkedUserOutDto } from './dto/linked-user.dto';
-import { ApiKeyService } from 'src/shared/services/api-key.service';
-import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
-import { Asset } from 'src/shared/models/asset/asset.entity';
-import { UserDataRepository } from '../user-data/user-data.repository';
-import { Lock } from 'src/shared/utils/lock';
 
 @Injectable()
 export class UserService {
@@ -242,12 +241,9 @@ export class UserService {
       where: { id: userId },
       relations: ['userData'],
     });
-    const defaultFee =
-      userData.accountType === AccountType.PERSONAL
-        ? Config.buy.fee.private[asset.feeTier]
-        : Config.buy.fee.organization[asset.feeTier];
+    const defaultFee = Config.buy.fee.get(asset.feeTier, userData.accountType);
 
-    return Util.round((buyFee ? Math.min(buyFee, defaultFee) : defaultFee) * 100, Config.defaultPercentageDecimal);
+    return buyFee ? Math.min(buyFee, defaultFee) : defaultFee;
   }
 
   async getUserSellFee(userId: number, asset: Asset): Promise<number> {
@@ -256,12 +252,9 @@ export class UserService {
       where: { id: userId },
       relations: ['userData'],
     });
-    const defaultFee =
-      userData.accountType === AccountType.PERSONAL
-        ? Config.sell.fee.private[asset.feeTier]
-        : Config.sell.fee.organization[asset.feeTier];
+    const defaultFee = Config.sell.fee.get(asset.feeTier, userData.accountType);
 
-    return Util.round((sellFee ? Math.min(sellFee, defaultFee) : defaultFee) * 100, Config.defaultPercentageDecimal);
+    return sellFee ? Math.min(sellFee, defaultFee) : defaultFee;
   }
 
   async getUserCryptoFee(userId: number): Promise<number> {
@@ -271,9 +264,7 @@ export class UserService {
       where: { id: userId },
     });
 
-    const baseFee = cryptoFee ? Math.min(cryptoFee, Config.crypto.fee) : Config.crypto.fee;
-
-    return Util.round(baseFee * 100, Config.defaultPercentageDecimal);
+    return cryptoFee ? Math.min(cryptoFee, Config.crypto.fee) : Config.crypto.fee;
   }
 
   // --- REF --- //

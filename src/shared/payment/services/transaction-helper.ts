@@ -4,13 +4,14 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { MinAmount } from 'src/shared/payment/dto/min-amount.dto';
+import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
+import { TargetEstimation, TransactionDetails } from '../entities/transaction-details';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
-import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
-import { Lock } from 'src/shared/utils/lock';
 import { TxSpec } from '../entities/tx-spec';
+import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
 
 @Injectable()
 export class TransactionHelper implements OnModuleInit {
@@ -96,16 +97,33 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   // --- TARGET ESTIMATION --- //
-  async getTargetEstimation(
+  async getTxDetails(amount: number, fee: number, from: Asset | Fiat, to: Asset | Fiat): Promise<TransactionDetails> {
+    const { minVolume, minFee } = await this.getSpecs(from, to);
+    const target = await this.getTargetEstimation(amount, fee, minFee, from, to);
+
+    return {
+      ...target,
+      minFee,
+      minVolume,
+    };
+  }
+
+  private async getTargetEstimation(
     amount: number,
     fee: number,
     minFee: number,
     from: Asset | Fiat,
     to: Asset | Fiat,
-  ): Promise<number> {
+  ): Promise<TargetEstimation> {
     const price = await this.priceProviderService.getPrice(from, to);
-    const feeAmount = Math.max(amount * (fee / 100), minFee);
-    return this.convert(Math.max(amount - feeAmount, 0), price, to instanceof Fiat);
+    const feeAmount = Math.max(amount * fee, minFee);
+    const targetAmount = this.convert(Math.max(amount - feeAmount, 0), price, to instanceof Fiat);
+
+    return {
+      exchangeRate: this.round(price.price, from instanceof Fiat),
+      feeAmount: this.round(feeAmount, from instanceof Fiat),
+      estimatedAmount: targetAmount,
+    };
   }
 
   // --- HELPER METHODS --- //
@@ -126,6 +144,10 @@ export class TransactionHelper implements OnModuleInit {
 
   private convert(amount: number, price: Price, isFiat: boolean): number {
     const targetAmount = price.convert(amount);
-    return isFiat ? Util.round(targetAmount, 2) : Util.roundByPrecision(targetAmount, 5);
+    return this.round(targetAmount, isFiat);
+  }
+
+  private round(amount: number, isFiat: boolean): number {
+    return isFiat ? Util.round(amount, 2) : Util.roundByPrecision(amount, 5);
   }
 }

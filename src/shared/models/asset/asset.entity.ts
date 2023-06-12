@@ -5,6 +5,7 @@ import { IEntity } from '../entity';
 export enum AssetType {
   COIN = 'Coin',
   TOKEN = 'Token',
+  CUSTOM = 'Custom',
 }
 
 export enum AssetCategory {

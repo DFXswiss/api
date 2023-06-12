@@ -175,7 +175,7 @@ export class BuyCryptoNotificationService {
                   lang: entity.user.userData.language?.symbol.toLowerCase(),
                 }),
                 userAddressTrimmed: entity.target.trimmedReturnAddress,
-                blockchain: entity.cryptoInput.asset.blockchain,
+                blockchain: entity.cryptoInput?.asset.blockchain,
               },
             },
           });

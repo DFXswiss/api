@@ -1,22 +1,22 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { createMock } from '@golevelup/ts-jest';
+import { Test, TestingModule } from '@nestjs/testing';
+import { DfiTaxService } from 'src/integration/blockchain/ain/services/dfi-tax.service';
+import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
+import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
+import { Asset, FeeTier } from 'src/shared/models/asset/asset.entity';
+import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
+import { ApiKeyService } from 'src/shared/services/api-key.service';
+import { TestUtil } from 'src/shared/utils/test.util';
+import { KycService } from '../kyc/kyc.service';
+import { AccountType } from '../user-data/account-type.enum';
+import { UserDataRepository } from '../user-data/user-data.repository';
 import { UserDataService } from '../user-data/user-data.service';
+import { WalletService } from '../wallet/wallet.service';
+import { User } from './user.entity';
 import { UserRepository } from './user.repository';
 import { UserService } from './user.service';
-import { KycService } from '../kyc/kyc.service';
-import { WalletService } from '../wallet/wallet.service';
-import { SettingService } from 'src/shared/models/setting/setting.service';
-import { AccountType } from '../user-data/account-type.enum';
-import { User } from './user.entity';
-import { DfiTaxService } from 'src/integration/blockchain/ain/services/dfi-tax.service';
-import { TestUtil } from 'src/shared/utils/test.util';
-import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
-import { CountryService } from 'src/shared/models/country/country.service';
-import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
-import { ApiKeyService } from 'src/shared/services/api-key.service';
-import { Asset, FeeTier } from 'src/shared/models/asset/asset.entity';
-import { UserDataRepository } from '../user-data/user-data.repository';
 
 describe('UserService', () => {
   let service: UserService;
@@ -98,177 +98,177 @@ describe('UserService', () => {
   it('should return personal tier1 buy fee', async () => {
     setup(AccountType.PERSONAL);
 
-    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER1 } as Asset)).resolves.toStrictEqual(0.99);
+    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER1 } as Asset)).resolves.toStrictEqual(0.0099);
   });
 
   it('should return business tier1 buy fee', async () => {
     setup(AccountType.BUSINESS);
 
-    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER1 } as Asset)).resolves.toStrictEqual(1.49);
+    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER1 } as Asset)).resolves.toStrictEqual(0.0149);
   });
 
   it('should return business tier1 buy fee', async () => {
     setup(AccountType.SOLE_PROPRIETORSHIP);
 
-    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER1 } as Asset)).resolves.toStrictEqual(1.49);
+    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER1 } as Asset)).resolves.toStrictEqual(0.0149);
   });
 
   // tier 1 sell
   it('should return personal tier1 sell fee', async () => {
     setup(AccountType.PERSONAL);
 
-    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER1 } as Asset)).resolves.toStrictEqual(1.49);
+    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER1 } as Asset)).resolves.toStrictEqual(0.0149);
   });
 
   it('should return business tier1 sell fee', async () => {
     setup(AccountType.BUSINESS);
 
-    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER1 } as Asset)).resolves.toStrictEqual(1.99);
+    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER1 } as Asset)).resolves.toStrictEqual(0.0199);
   });
 
   it('should return business tier1 sell fee', async () => {
     setup(AccountType.SOLE_PROPRIETORSHIP);
 
-    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER1 } as Asset)).resolves.toStrictEqual(1.99);
+    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER1 } as Asset)).resolves.toStrictEqual(0.0199);
   });
 
   // tier 2 buy
   it('should return personal tier2 buy fee', async () => {
     setup(AccountType.PERSONAL);
 
-    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER2 } as Asset)).resolves.toStrictEqual(1.49);
+    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER2 } as Asset)).resolves.toStrictEqual(0.0149);
   });
 
   it('should return business tier2 buy fee', async () => {
     setup(AccountType.BUSINESS);
 
-    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER2 } as Asset)).resolves.toStrictEqual(1.99);
+    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER2 } as Asset)).resolves.toStrictEqual(0.0199);
   });
 
   it('should return business tier2 buy fee', async () => {
     setup(AccountType.SOLE_PROPRIETORSHIP);
 
-    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER2 } as Asset)).resolves.toStrictEqual(1.99);
+    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER2 } as Asset)).resolves.toStrictEqual(0.0199);
   });
 
   // tier 2 sell
   it('should return personal tier2 sell fee', async () => {
     setup(AccountType.PERSONAL);
 
-    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER2 } as Asset)).resolves.toStrictEqual(1.99);
+    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER2 } as Asset)).resolves.toStrictEqual(0.0199);
   });
 
   it('should return business tier2 sell fee', async () => {
     setup(AccountType.BUSINESS);
 
-    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER2 } as Asset)).resolves.toStrictEqual(2.49);
+    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER2 } as Asset)).resolves.toStrictEqual(0.0249);
   });
 
   it('should return business tier2 sell fee', async () => {
     setup(AccountType.SOLE_PROPRIETORSHIP);
 
-    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER2 } as Asset)).resolves.toStrictEqual(2.49);
+    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER2 } as Asset)).resolves.toStrictEqual(0.0249);
   });
 
   // tier 3 buy
   it('should return personal tier3 buy fee', async () => {
     setup(AccountType.PERSONAL);
 
-    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER3 } as Asset)).resolves.toStrictEqual(2.25);
+    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER3 } as Asset)).resolves.toStrictEqual(0.0225);
   });
 
   it('should return business tier3 buy fee', async () => {
     setup(AccountType.BUSINESS);
 
-    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER3 } as Asset)).resolves.toStrictEqual(2.75);
+    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER3 } as Asset)).resolves.toStrictEqual(0.0275);
   });
 
   it('should return business tier3 buy fee', async () => {
     setup(AccountType.SOLE_PROPRIETORSHIP);
 
-    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER3 } as Asset)).resolves.toStrictEqual(2.75);
+    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER3 } as Asset)).resolves.toStrictEqual(0.0275);
   });
 
   // tier 3 sell
   it('should return personal tier3 sell fee', async () => {
     setup(AccountType.PERSONAL);
 
-    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER3 } as Asset)).resolves.toStrictEqual(2.75);
+    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER3 } as Asset)).resolves.toStrictEqual(0.0275);
   });
 
   it('should return business tier3 sell fee', async () => {
     setup(AccountType.BUSINESS);
 
-    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER3 } as Asset)).resolves.toStrictEqual(3.25);
+    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER3 } as Asset)).resolves.toStrictEqual(0.0325);
   });
 
   it('should return business tier3 sell fee', async () => {
     setup(AccountType.SOLE_PROPRIETORSHIP);
 
-    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER3 } as Asset)).resolves.toStrictEqual(3.25);
+    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER3 } as Asset)).resolves.toStrictEqual(0.0325);
   });
 
   // tier 4 buy
   it('should return personal tier4 buy fee', async () => {
     setup(AccountType.PERSONAL);
 
-    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER4 } as Asset)).resolves.toStrictEqual(2.99);
+    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER4 } as Asset)).resolves.toStrictEqual(0.0299);
   });
 
   it('should return business tier4 buy fee', async () => {
     setup(AccountType.BUSINESS);
 
-    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER4 } as Asset)).resolves.toStrictEqual(3.49);
+    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER4 } as Asset)).resolves.toStrictEqual(0.0349);
   });
 
   it('should return business tier4 buy fee', async () => {
     setup(AccountType.SOLE_PROPRIETORSHIP);
 
-    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER4 } as Asset)).resolves.toStrictEqual(3.49);
+    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER4 } as Asset)).resolves.toStrictEqual(0.0349);
   });
 
   // tier 4 sell
   it('should return personal tier4 sell fee', async () => {
     setup(AccountType.PERSONAL);
 
-    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER4 } as Asset)).resolves.toStrictEqual(3.49);
+    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER4 } as Asset)).resolves.toStrictEqual(0.0349);
   });
 
   it('should return business tier4 sell fee', async () => {
     setup(AccountType.BUSINESS);
 
-    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER4 } as Asset)).resolves.toStrictEqual(3.99);
+    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER4 } as Asset)).resolves.toStrictEqual(0.0399);
   });
 
   it('should return business tier4 sell fee', async () => {
     setup(AccountType.SOLE_PROPRIETORSHIP);
 
-    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER4 } as Asset)).resolves.toStrictEqual(3.99);
+    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER4 } as Asset)).resolves.toStrictEqual(0.0399);
   });
 
   // individual fee
-  it('should return 0.5 when individual fee 0.005', async () => {
+  it('should return 0.005 when individual fee 0.005', async () => {
     setup(AccountType.PERSONAL, 0.005);
 
-    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER1 } as Asset)).resolves.toStrictEqual(0.5);
+    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER1 } as Asset)).resolves.toStrictEqual(0.005);
   });
 
-  it('should return 0.5 when individual fee 0.005', async () => {
+  it('should return 0.005 when individual fee 0.005', async () => {
     setup(AccountType.PERSONAL, undefined, undefined, undefined, 0.005);
 
-    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER1 } as Asset)).resolves.toStrictEqual(0.5);
+    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER1 } as Asset)).resolves.toStrictEqual(0.005);
   });
 
   // crypto fee
-  it('should return a fee of 0.99 for crypto routes, if cryptoFee is not defined', async () => {
+  it('should return a fee of 0.0099 for crypto routes, if cryptoFee is not defined', async () => {
     setup(AccountType.PERSONAL, undefined, undefined);
 
-    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual(0.99);
+    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual(0.0099);
   });
 
   it('should return custom fee for crypto routes, if cryptoFee is defined', async () => {
     setup(AccountType.PERSONAL, undefined, undefined, 0.005);
 
-    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual(0.5);
+    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual(0.005);
   });
 });

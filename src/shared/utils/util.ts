@@ -1,9 +1,9 @@
-import * as crypto from 'crypto';
-import { TransformFnParams } from 'class-transformer';
-import { BinaryLike, createHash, createSign, KeyLike } from 'crypto';
-import { XMLValidator, XMLParser } from 'fast-xml-parser';
-import { readFile } from 'fs';
 import BigNumber from 'bignumber.js';
+import { TransformFnParams } from 'class-transformer';
+import * as crypto from 'crypto';
+import { BinaryLike, createHash, createSign, KeyLike } from 'crypto';
+import { XMLParser, XMLValidator } from 'fast-xml-parser';
+import { readFile } from 'fs';
 
 export type KeyType<T, U> = {
   [K in keyof T]: T[K] extends U ? K : never;
@@ -14,7 +14,11 @@ type CryptoAlgorithm = 'md5' | 'sha256' | 'sha512';
 export class Util {
   // --- MATH --- //
   static round(amount: number, decimals: number): number {
-    return Math.round(amount * Math.pow(10, decimals)) / Math.pow(10, decimals);
+    return this.roundToValue(amount, Math.pow(10, -decimals));
+  }
+
+  static roundToValue(amount: number, value: number): number {
+    return new BigNumber(Math.round(amount / value)).multipliedBy(value).toNumber();
   }
 
   static roundByPrecision(amount: number, precision: number): number {

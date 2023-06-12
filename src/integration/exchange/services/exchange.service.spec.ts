@@ -20,9 +20,11 @@ describe('ExchangeService', () => {
 
   const Setup = {
     Markets: () => {
-      jest
-        .spyOn(exchange, 'fetchMarkets')
-        .mockResolvedValue([{ symbol: 'BTC/EUR' }, { symbol: 'BTC/CHF' }, { symbol: 'ETH/EUR' }] as Market[]);
+      jest.spyOn(exchange, 'fetchMarkets').mockResolvedValue([
+        { symbol: 'BTC/EUR', active: true },
+        { symbol: 'BTC/CHF', active: true },
+        { symbol: 'ETH/EUR', active: true },
+      ] as Market[]);
     },
   };
 
