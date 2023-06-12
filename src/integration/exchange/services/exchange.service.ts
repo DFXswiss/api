@@ -135,7 +135,7 @@ export class ExchangeService implements PricingProvider {
   // currency pairs
   private async getMarkets(): Promise<Market[]> {
     if (!this.markets) {
-      this.markets = await this.callApi((e) => e.fetchMarkets());
+      this.markets = await this.callApi((e) => e.fetchMarkets()).then((markets) => markets.filter((m) => m.active));
     }
 
     return this.markets;
