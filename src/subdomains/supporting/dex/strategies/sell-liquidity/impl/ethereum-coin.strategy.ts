@@ -10,7 +10,7 @@ export class EthereumCoinStrategy extends EvmCoinStrategy {
   protected readonly logger = new DfxLogger(EthereumCoinStrategy);
 
   constructor(protected readonly assetService: AssetService) {
-    super('EthereumCoin');
+    super();
   }
 
   get blockchain(): Blockchain {

@@ -4,8 +4,8 @@ import { DexEvmService } from '../../../../services/base/dex-evm.service';
 import { PurchaseLiquidityStrategy } from './purchase-liquidity.strategy';
 
 export abstract class EvmTokenStrategy extends PurchaseLiquidityStrategy {
-  constructor(notificationService: NotificationService, protected readonly dexEvmService: DexEvmService, name: string) {
-    super(notificationService, name);
+  constructor(notificationService: NotificationService, protected readonly dexEvmService: DexEvmService) {
+    super(notificationService);
   }
 
   async purchaseLiquidity(request: PurchaseLiquidityRequest): Promise<void> {

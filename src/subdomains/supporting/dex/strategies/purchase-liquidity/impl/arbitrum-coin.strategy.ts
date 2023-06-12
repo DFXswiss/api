@@ -13,7 +13,7 @@ export class ArbitrumCoinStrategy extends EvmCoinStrategy {
     notificationService: NotificationService,
     dexArbitrumService: DexArbitrumService,
   ) {
-    super(notificationService, dexArbitrumService, 'ArbitrumCoin');
+    super(notificationService, dexArbitrumService);
   }
 
   get blockchain(): Blockchain {

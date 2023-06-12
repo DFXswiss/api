@@ -10,7 +10,7 @@ export class EthereumTokenStrategy extends EvmTokenStrategy {
   protected readonly logger = new DfxLogger(EthereumTokenStrategy);
 
   constructor(protected readonly assetService: AssetService) {
-    super('EthereumToken');
+    super();
   }
 
   get blockchain(): Blockchain {

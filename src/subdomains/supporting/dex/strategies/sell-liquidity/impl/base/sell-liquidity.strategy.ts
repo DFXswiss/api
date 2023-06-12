@@ -9,15 +9,10 @@ import { SellLiquidityStrategyRegistry } from './sell-liquidity.strategy-registr
 export abstract class SellLiquidityStrategy implements OnModuleInit, OnModuleDestroy {
   protected abstract readonly logger: DfxLogger;
 
-  private _name: string;
   private _feeAsset: Asset;
 
   @Inject()
   private readonly registry: SellLiquidityStrategyRegistry;
-
-  constructor(name: string) {
-    this._name = name;
-  }
 
   onModuleInit() {
     this.registry.addStrategy({ blockchain: this.blockchain, assetType: this.assetType }, this);
@@ -43,11 +38,5 @@ export abstract class SellLiquidityStrategy implements OnModuleInit, OnModuleDes
     this.logger.error(`${errorMessage}:`, e);
 
     throw new Error(errorMessage);
-  }
-
-  //*** GETTERS ***//
-
-  get name(): string {
-    return this._name;
   }
 }

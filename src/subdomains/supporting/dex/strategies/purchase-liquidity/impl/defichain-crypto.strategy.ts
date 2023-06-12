@@ -17,15 +17,9 @@ export class DeFiChainCryptoStrategy extends DeFiChainNonPoolPairStrategy {
     readonly liquidityOrderRepo: LiquidityOrderRepository,
     readonly liquidityOrderFactory: LiquidityOrderFactory,
   ) {
-    super(
-      notificationService,
-      assetService,
-      dexDeFiChainService,
-      liquidityOrderRepo,
-      liquidityOrderFactory,
-      [{ name: 'DFI', type: AssetType.TOKEN }],
-      'DeFiChainCrypto',
-    );
+    super(notificationService, assetService, dexDeFiChainService, liquidityOrderRepo, liquidityOrderFactory, [
+      { name: 'DFI', type: AssetType.TOKEN },
+    ]);
   }
 
   get blockchain(): Blockchain {

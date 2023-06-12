@@ -24,16 +24,15 @@ export abstract class DeFiChainNonPoolPairStrategy extends PurchaseLiquidityStra
     protected readonly liquidityOrderRepo: LiquidityOrderRepository,
     protected readonly liquidityOrderFactory: LiquidityOrderFactory,
     prioritySwapAssetDescriptors: { name: string; type: AssetType }[],
-    name: string,
   ) {
-    super(notificationService, name);
+    super(notificationService);
     this.prioritySwapAssetDescriptors = prioritySwapAssetDescriptors;
   }
 
   //*** PUBLIC API ***//
 
   async purchaseLiquidity(request: PurchaseLiquidityRequest): Promise<void> {
-    const order = this.liquidityOrderFactory.createPurchaseOrder(request, Blockchain.DEFICHAIN, this.name);
+    const order = this.liquidityOrderFactory.createPurchaseOrder(request, Blockchain.DEFICHAIN, this.constructor.name);
 
     try {
       await this.bookLiquiditySwap(order);

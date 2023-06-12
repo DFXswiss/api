@@ -32,7 +32,7 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
     private readonly dexService: DexService,
     private readonly dexDeFiChainService: DexDeFiChainService,
   ) {
-    super(notificationService, 'DeFiChainPoolPair');
+    super(notificationService);
   }
 
   get blockchain(): Blockchain {
@@ -52,7 +52,11 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
   }
 
   async purchaseLiquidity(request: PurchaseLiquidityRequest): Promise<void> {
-    const newParentOrder = this.liquidityOrderFactory.createPurchaseOrder(request, Blockchain.DEFICHAIN, this.name);
+    const newParentOrder = this.liquidityOrderFactory.createPurchaseOrder(
+      request,
+      Blockchain.DEFICHAIN,
+      this.constructor.name,
+    );
     const savedParentOrder = await this.liquidityOrderRepo.save(newParentOrder);
 
     try {

@@ -10,7 +10,7 @@ export class ArbitrumTokenStrategy extends EvmTokenStrategy {
   protected readonly logger = new DfxLogger(ArbitrumTokenStrategy);
 
   constructor(protected readonly assetService: AssetService) {
-    super('ArbitrumToken');
+    super();
   }
 
   get blockchain(): Blockchain {

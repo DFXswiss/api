@@ -14,7 +14,7 @@ export class BitcoinStrategy extends PurchaseLiquidityStrategy {
     notificationService: NotificationService,
     private readonly dexBtcService: DexBitcoinService,
   ) {
-    super(notificationService, 'Bitcoin');
+    super(notificationService);
   }
 
   get blockchain(): Blockchain {

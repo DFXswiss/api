@@ -10,7 +10,7 @@ export class OptimismCoinStrategy extends EvmCoinStrategy {
   protected readonly logger = new DfxLogger(OptimismCoinStrategy);
 
   constructor(protected readonly assetService: AssetService) {
-    super('OptimismCoin');
+    super();
   }
 
   get blockchain(): Blockchain {

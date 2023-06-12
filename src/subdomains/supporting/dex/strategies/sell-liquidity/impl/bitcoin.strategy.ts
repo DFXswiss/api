@@ -10,7 +10,7 @@ export class BitcoinStrategy extends SellLiquidityStrategy {
   protected readonly logger = new DfxLogger(BitcoinStrategy);
 
   constructor(protected readonly assetService: AssetService) {
-    super('Bitcoin');
+    super();
   }
 
   get blockchain(): Blockchain {

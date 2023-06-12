@@ -13,7 +13,7 @@ export class OptimismTokenStrategy extends EvmTokenStrategy {
     notificationService: NotificationService,
     dexOptimismService: DexOptimismService,
   ) {
-    super(notificationService, dexOptimismService, 'OptimismToken');
+    super(notificationService, dexOptimismService);
   }
 
   get blockchain(): Blockchain {

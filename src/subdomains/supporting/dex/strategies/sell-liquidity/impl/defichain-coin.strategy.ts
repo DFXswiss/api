@@ -20,7 +20,7 @@ export class DeFiChainCoinStrategy extends DeFiChainStrategy {
     protected readonly liquidityOrderRepo: LiquidityOrderRepository,
     protected readonly liquidityOrderFactory: LiquidityOrderFactory,
   ) {
-    super(dexDeFiChainService, liquidityOrderRepo, 'DeFiChainCoin');
+    super(dexDeFiChainService, liquidityOrderRepo);
   }
 
   get blockchain(): Blockchain {
@@ -33,7 +33,12 @@ export class DeFiChainCoinStrategy extends DeFiChainStrategy {
 
   async sellLiquidity(request: SellLiquidityRequest): Promise<void> {
     const dfiToken = await this.getDfiToken();
-    const order = this.liquidityOrderFactory.createSellOrder(request, Blockchain.DEFICHAIN, this.name, dfiToken);
+    const order = this.liquidityOrderFactory.createSellOrder(
+      request,
+      Blockchain.DEFICHAIN,
+      this.constructor.name,
+      dfiToken,
+    );
 
     try {
       await this.bookLiquiditySell(order);

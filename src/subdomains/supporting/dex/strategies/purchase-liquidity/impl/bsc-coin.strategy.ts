@@ -13,7 +13,7 @@ export class BscCoinStrategy extends EvmCoinStrategy {
     notificationService: NotificationService,
     dexBscService: DexBscService,
   ) {
-    super(notificationService, dexBscService, 'BscCoin');
+    super(notificationService, dexBscService);
   }
 
   get blockchain(): Blockchain {

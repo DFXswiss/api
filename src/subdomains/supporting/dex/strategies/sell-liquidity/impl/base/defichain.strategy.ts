@@ -7,9 +7,8 @@ export abstract class DeFiChainStrategy extends SellLiquidityStrategy {
   constructor(
     protected readonly dexDeFiChainService: DexDeFiChainService,
     protected readonly liquidityOrderRepo: LiquidityOrderRepository,
-    name: string,
   ) {
-    super(name);
+    super();
   }
 
   async addSellData(order: LiquidityOrder): Promise<void> {

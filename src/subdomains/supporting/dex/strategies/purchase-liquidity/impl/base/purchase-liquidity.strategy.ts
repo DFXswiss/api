@@ -11,15 +11,12 @@ import { PurchaseLiquidityRequest } from '../../../../interfaces';
 import { PurchaseLiquidityStrategyRegistry } from './purchase-liquidity.strategy-registry';
 
 export abstract class PurchaseLiquidityStrategy implements OnModuleInit, OnModuleDestroy {
-  private _name: string;
   private _feeAsset: Asset;
 
   @Inject()
   private readonly registry: PurchaseLiquidityStrategyRegistry;
 
-  constructor(protected readonly notificationService: NotificationService, name: string) {
-    this._name = name;
-  }
+  constructor(protected readonly notificationService: NotificationService) {}
 
   onModuleInit() {
     this.registry.addStrategy(
@@ -86,11 +83,5 @@ export abstract class PurchaseLiquidityStrategy implements OnModuleInit, OnModul
       },
       options: { suppressRecurring: true },
     };
-  }
-
-  //*** GETTERS ***//
-
-  get name(): string {
-    return this._name;
   }
 }

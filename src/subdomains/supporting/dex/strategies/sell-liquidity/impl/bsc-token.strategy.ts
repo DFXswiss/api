@@ -10,7 +10,7 @@ export class BscTokenStrategy extends EvmTokenStrategy {
   protected readonly logger = new DfxLogger(BscTokenStrategy);
 
   constructor(protected readonly assetService: AssetService) {
-    super('BscToken');
+    super();
   }
 
   get blockchain(): Blockchain {

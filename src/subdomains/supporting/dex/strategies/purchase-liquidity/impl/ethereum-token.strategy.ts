@@ -13,7 +13,7 @@ export class EthereumTokenStrategy extends EvmTokenStrategy {
     notificationService: NotificationService,
     dexEthereumService: DexEthereumService,
   ) {
-    super(notificationService, dexEthereumService, 'EthereumToken');
+    super(notificationService, dexEthereumService);
   }
 
   get blockchain(): Blockchain {
