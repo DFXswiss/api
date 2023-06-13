@@ -34,6 +34,12 @@ export enum KycType {
   LOCK = 'LOCK',
 }
 
+export enum KycIdentificationType {
+  ONLINE_ID = 'OnlineId',
+  VIDEO_ID = 'VideoId',
+  MANUAL = 'Manual',
+}
+
 export enum RiskState {
   A = 'a',
   B = 'b',
@@ -172,6 +178,9 @@ export class UserData extends IEntity {
 
   @Column({ type: 'datetime2', nullable: true })
   amlListAddedDate: Date;
+
+  @Column({ length: 256, nullable: true })
+  identificationType: KycIdentificationType;
 
   //Mail
   @Column({ length: 256, nullable: true })
