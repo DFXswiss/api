@@ -154,6 +154,8 @@ export class CryptoRouteController {
     const {
       minVolume,
       minFee,
+      minVolumeTarget,
+      minFeeTarget,
       estimatedAmount: estimatedAmount,
     } = await this.transactionHelper.getTxDetails(dto.amount, fee, dto.sourceAsset, dto.asset);
 
@@ -165,6 +167,8 @@ export class CryptoRouteController {
       minDeposit: { amount: minVolume, asset: dto.sourceAsset.dexName },
       minVolume,
       minFee,
+      minVolumeTarget,
+      minFeeTarget,
       estimatedAmount,
     };
   }

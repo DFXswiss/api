@@ -147,6 +147,8 @@ export class SellController {
     const {
       minVolume,
       minFee,
+      minVolumeTarget,
+      minFeeTarget,
       estimatedAmount: estimatedAmount,
     } = await this.transactionHelper.getTxDetails(dto.amount, fee, dto.asset, dto.currency);
 
@@ -158,6 +160,8 @@ export class SellController {
       minDeposit: { amount: minVolume, asset: dto.asset.dexName },
       minVolume,
       minFee,
+      minVolumeTarget,
+      minFeeTarget,
       estimatedAmount,
     };
   }
