@@ -6,7 +6,7 @@ import { Language } from 'src/shared/models/language/language.entity';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
-import { Entity, Column, OneToMany, OneToOne, JoinColumn, ManyToOne, Index, Generated } from 'typeorm';
+import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { SpiderData } from '../spider-data/spider-data.entity';
 import { TradingLimit } from '../user/dto/user.dto';
 import { AccountType } from './account-type.enum';
@@ -19,6 +19,7 @@ export enum KycStatus {
   CHECK = 'Check',
   COMPLETED = 'Completed',
   REJECTED = 'Rejected',
+  TERMINATED = 'Terminated',
 }
 
 export enum KycState {
