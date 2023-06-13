@@ -94,7 +94,15 @@ describe('BuyController', () => {
     jest.spyOn(userService, 'getUserBuyFee').mockResolvedValue(0.01);
     jest
       .spyOn(transactionHelper, 'getTxDetails')
-      .mockResolvedValue({ minVolume: 0, minFee: 0, exchangeRate: 10, feeAmount: 3, estimatedAmount: 100 });
+      .mockResolvedValue({
+        minVolume: 0,
+        minFee: 0,
+        minVolumeTarget: 0,
+        minFeeTarget: 0,
+        exchangeRate: 10,
+        feeAmount: 3,
+        estimatedAmount: 100,
+      });
 
     const dto = createBuyPaymentInfoDto();
 

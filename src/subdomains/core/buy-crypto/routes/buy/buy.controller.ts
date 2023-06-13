@@ -148,6 +148,8 @@ export class BuyController {
     const {
       minVolume,
       minFee,
+      minVolumeTarget,
+      minFeeTarget,
       estimatedAmount: estimatedAmount,
     } = await this.transactionHelper.getTxDetails(dto.amount, fee, dto.currency, dto.asset);
 
@@ -160,6 +162,8 @@ export class BuyController {
       minDeposit: { amount: minVolume, asset: dto.currency.name }, // TODO: remove
       minVolume,
       minFee,
+      minVolumeTarget,
+      minFeeTarget,
       estimatedAmount,
     };
   }
