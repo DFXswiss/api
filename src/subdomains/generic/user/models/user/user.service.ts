@@ -140,7 +140,7 @@ export class UserService {
   }
 
   async updateUserInternal(id: number, update: Partial<User>): Promise<User> {
-    const user = await this.userRepo.findOneBy({ id });
+    const user = await this.userRepo.findOne({ where: { id }, relations: ['userData'] });
     if (!user) throw new NotFoundException('User not found');
 
     if (update.status && update.status == UserStatus.ACTIVE && user.status == UserStatus.NA)
