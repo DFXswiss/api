@@ -11,18 +11,10 @@ interface StrategyRegistryKey {
 
 export class CheckLiquidityStrategyRegistry extends StrategyRegistry<StrategyRegistryKey, CheckLiquidityStrategy> {
   getCheckLiquidityStrategy(asset: Asset): CheckLiquidityStrategy {
-    let strategy = super.getStrategy({ blockchain: asset.blockchain, assetType: asset.type });
-
-    if (!strategy) {
-      // Check for 'DeFiChainPoolPairStrategy'
-      strategy = super.getStrategy({ blockchain: asset.blockchain, assetCategory: asset.category });
-    }
-
-    if (!strategy) {
-      // Check for 'BitcoinStrategy'
-      // Check for 'DeFiChainDefaultStrategy'
-      strategy = super.getStrategy({ blockchain: asset.blockchain });
-    }
+    const strategy =
+      super.getStrategy({ blockchain: asset.blockchain, assetType: asset.type }) ??
+      super.getStrategy({ blockchain: asset.blockchain, assetCategory: asset.category }) ??
+      super.getStrategy({ blockchain: asset.blockchain });
 
     if (!strategy) {
       throw new Error(`No CheckLiquidityStrategy found. Blockchain: ${asset.blockchain}, AssetType: ${asset.type}`);

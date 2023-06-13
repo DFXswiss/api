@@ -15,28 +15,15 @@ export class PurchaseLiquidityStrategyRegistry extends StrategyRegistry<
   PurchaseLiquidityStrategy
 > {
   getPurchaseLiquidityStrategy(asset: Asset): PurchaseLiquidityStrategy {
-    let strategy = super.getStrategy({ blockchain: asset.blockchain, assetType: asset.type });
-
-    if (!strategy) {
-      // Check for 'DeFiChainDfiStrategy'
-      strategy = super.getStrategy({
+    const strategy =
+      super.getStrategy({ blockchain: asset.blockchain, assetType: asset.type }) ??
+      super.getStrategy({
         blockchain: asset.blockchain,
         assetCategory: asset.category,
         dexName: asset.dexName,
-      });
-    }
-
-    if (!strategy) {
-      // Check for 'DeFiChainCryptoStrategy'
-      // Check for 'DeFiChainPoolPairStrategy'
-      // Check for 'DeFiChainStockStrategy'
-      strategy = super.getStrategy({ blockchain: asset.blockchain, assetCategory: asset.category });
-    }
-
-    if (!strategy) {
-      // Check for 'BitcoinStrategy'
-      strategy = super.getStrategy({ blockchain: asset.blockchain });
-    }
+      }) ??
+      super.getStrategy({ blockchain: asset.blockchain, assetCategory: asset.category }) ??
+      super.getStrategy({ blockchain: asset.blockchain });
 
     if (!strategy) {
       throw new Error(`No PurchaseLiquidityStrategy found. Blockchain: ${asset.blockchain}, AssetType: ${asset.type}`);

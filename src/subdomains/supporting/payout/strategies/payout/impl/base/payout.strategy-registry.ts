@@ -12,12 +12,9 @@ interface StrategyRegistryKey {
 @Injectable()
 export class PayoutStrategyRegistry extends StrategyRegistry<StrategyRegistryKey, PayoutStrategy> {
   getPayoutStrategy(asset: Asset): PayoutStrategy {
-    let strategy = super.getStrategy({ blockchain: asset.blockchain, assetType: asset.type });
-
-    if (!strategy) {
-      // Check for 'BitcoinStrategy'
-      strategy = super.getStrategy({ blockchain: asset.blockchain });
-    }
+    const strategy =
+      super.getStrategy({ blockchain: asset.blockchain, assetType: asset.type }) ??
+      super.getStrategy({ blockchain: asset.blockchain });
 
     if (!strategy) {
       throw new Error(`No PayoutStrategy found. Blockchain: ${asset.blockchain}, AssetType: ${asset.type}`);
