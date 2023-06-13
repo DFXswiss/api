@@ -6,8 +6,27 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { Config } from 'src/config/config';
+import { CountryService } from 'src/shared/models/country/country.service';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { LanguageService } from 'src/shared/models/language/language.service';
+import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
+import { Util } from 'src/shared/utils/util';
+import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
+import { SpiderApiService } from 'src/subdomains/generic/user/services/spider/spider-api.service';
+import { ReferenceType, SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
+import { In, MoreThan, Not } from 'typeorm';
+import { WebhookService } from '../../services/webhook/webhook.service';
+import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
+import { KycProcessService } from '../kyc/kyc-process.service';
+import { LinkService } from '../link/link.service';
+import { UpdateUserDto } from '../user/dto/update-user.dto';
+import { UserRepository } from '../user/user.repository';
+import { AccountType } from './account-type.enum';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
-import { UserDataRepository } from './user-data.repository';
 import {
   KycCompleted,
   KycInProgress,
@@ -17,26 +36,7 @@ import {
   UserData,
   UserDataStatus,
 } from './user-data.entity';
-import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
-import { CountryService } from 'src/shared/models/country/country.service';
-import { In, MoreThan, Not } from 'typeorm';
-import { UpdateUserDto } from '../user/dto/update-user.dto';
-import { LanguageService } from 'src/shared/models/language/language.service';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { Config } from 'src/config/config';
-import { ReferenceType, SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
-import { UserRepository } from '../user/user.repository';
-import { SpiderApiService } from 'src/subdomains/generic/user/services/spider/spider-api.service';
-import { Util } from 'src/shared/utils/util';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import { KycProcessService } from '../kyc/kyc-process.service';
-import { WebhookService } from '../../services/webhook/webhook.service';
-import { AccountType } from './account-type.enum';
-import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
-import { LinkService } from '../link/link.service';
-import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Lock } from 'src/shared/utils/lock';
+import { UserDataRepository } from './user-data.repository';
 
 @Injectable()
 export class UserDataService {
@@ -155,6 +155,7 @@ export class UserDataService {
     // Columns are not updatable
     if (userData.letterSentDate) dto.letterSentDate = userData.letterSentDate;
     if (userData.amlListAddedDate) dto.amlListAddedDate = userData.amlListAddedDate;
+    if (userData.identificationType) dto.identificationType = userData.identificationType;
 
     return this.userDataRepo.save({ ...userData, ...dto });
   }
