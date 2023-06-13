@@ -1,30 +1,47 @@
-import { v4 as uuid } from 'uuid';
+import { Inject, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
-import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
-import { CheckLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
-import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { PayInFactory } from 'src/subdomains/supporting/payin/factories/payin.factory';
-import { PayInEntry } from 'src/subdomains/supporting/payin/interfaces';
-import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
-import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
+import { CheckLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
+import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
+import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { PayInFactory } from 'src/subdomains/supporting/payin/factories/payin.factory';
+import { PayInEntry } from 'src/subdomains/supporting/payin/interfaces';
+import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
+import { v4 as uuid } from 'uuid';
+import { RegisterStrategyRegistry } from './register.strategy-registry';
 
 export interface PayInInputLog {
   newRecords: { address: string; txId: string }[];
 }
-export abstract class RegisterStrategy {
+export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy {
   protected abstract readonly logger: DfxLogger;
 
-  constructor(
-    protected readonly dexService: DexService,
-    protected readonly payInFactory: PayInFactory,
-    protected readonly payInRepository: PayInRepository,
-  ) {}
+  @Inject()
+  private readonly dexService: DexService;
+
+  @Inject()
+  private readonly payInFactory: PayInFactory;
+
+  @Inject()
+  private readonly registry: RegisterStrategyRegistry;
+
+  constructor(protected readonly payInRepository: PayInRepository) {}
+
+  onModuleInit() {
+    this.registry.addStrategy(this.blockchain, this);
+  }
+
+  onModuleDestroy() {
+    this.registry.removeStrategy(this.blockchain);
+  }
+
+  abstract get blockchain(): Blockchain;
 
   abstract checkPayInEntries(): Promise<void>;
   abstract addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void>;

@@ -1,17 +1,18 @@
 import { mock } from 'jest-mock-extended';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
-import { PayoutOrder, PayoutOrderStatus } from '../../../entities/payout-order.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import {
   createCustomPayoutOrder,
   createDefaultPayoutOrder,
 } from '../../../entities/__mocks__/payout-order.entity.mock';
+import { PayoutOrder, PayoutOrderStatus } from '../../../entities/payout-order.entity';
 import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
 import { JellyfishStrategy } from '../impl/base/jellyfish.strategy';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 describe('PayoutJellyfishStrategy', () => {
   let strategy: PayoutJellyfishStrategyWrapper;
@@ -249,6 +250,14 @@ class PayoutJellyfishStrategyWrapper extends JellyfishStrategy {
     defichainService: PayoutDeFiChainService,
   ) {
     super(notificationService, payoutOrderRepo, defichainService);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.DEFICHAIN;
+  }
+
+  get assetType(): AssetType {
+    return AssetType.COIN;
   }
 
   protected doPayoutForContext(): Promise<void> {

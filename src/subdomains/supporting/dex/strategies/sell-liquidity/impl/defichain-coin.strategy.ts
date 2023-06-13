@@ -1,15 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { LiquidityOrder } from '../../../entities/liquidity-order.entity';
 import { LiquidityOrderFactory } from '../../../factories/liquidity-order.factory';
 import { SellLiquidityRequest } from '../../../interfaces';
 import { LiquidityOrderRepository } from '../../../repositories/liquidity-order.repository';
 import { DexDeFiChainService } from '../../../services/dex-defichain.service';
-import { SellLiquidityStrategyAlias } from '../sell-liquidity.facade';
 import { DeFiChainStrategy } from './base/defichain.strategy';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class DeFiChainCoinStrategy extends DeFiChainStrategy {
@@ -21,12 +20,25 @@ export class DeFiChainCoinStrategy extends DeFiChainStrategy {
     protected readonly liquidityOrderRepo: LiquidityOrderRepository,
     protected readonly liquidityOrderFactory: LiquidityOrderFactory,
   ) {
-    super(dexDeFiChainService, liquidityOrderRepo, SellLiquidityStrategyAlias.DEFICHAIN_COIN);
+    super(dexDeFiChainService, liquidityOrderRepo);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.DEFICHAIN;
+  }
+
+  get assetType(): AssetType {
+    return AssetType.COIN;
   }
 
   async sellLiquidity(request: SellLiquidityRequest): Promise<void> {
     const dfiToken = await this.getDfiToken();
-    const order = this.liquidityOrderFactory.createSellOrder(request, Blockchain.DEFICHAIN, this.name, dfiToken);
+    const order = this.liquidityOrderFactory.createSellOrder(
+      request,
+      Blockchain.DEFICHAIN,
+      this.constructor.name,
+      dfiToken,
+    );
 
     try {
       await this.bookLiquiditySell(order);

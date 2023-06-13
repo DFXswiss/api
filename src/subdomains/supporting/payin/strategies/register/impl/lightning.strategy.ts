@@ -13,9 +13,7 @@ import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { CryptoInput } from '../../../entities/crypto-input.entity';
-import { PayInFactory } from '../../../factories/payin.factory';
 import { PayInEntry } from '../../../interfaces';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { RegisterStrategy } from './base/register.strategy';
@@ -24,16 +22,16 @@ import { RegisterStrategy } from './base/register.strategy';
 export class LightningStrategy extends RegisterStrategy {
   protected logger: DfxLogger = new DfxLogger(LightningStrategy);
 
-  private blockchain = Blockchain.LIGHTNING;
-
   constructor(
     private readonly lightningService: LightningService,
-    protected readonly dexService: DexService,
-    protected readonly payInFactory: PayInFactory,
+    private readonly assetService: AssetService,
     protected readonly payInRepository: PayInRepository,
-    protected readonly assetService: AssetService,
   ) {
-    super(dexService, payInFactory, payInRepository);
+    super(payInRepository);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.LIGHTNING;
   }
 
   async addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void> {

@@ -1,7 +1,8 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { LiquidityOrder } from '../../../../entities/liquidity-order.entity';
 import { NotEnoughLiquidityException } from '../../../../exceptions/not-enough-liquidity.exception';
 import { LiquidityOrderFactory } from '../../../../factories/liquidity-order.factory';
@@ -9,8 +10,6 @@ import { PurchaseLiquidityRequest } from '../../../../interfaces';
 import { LiquidityOrderRepository } from '../../../../repositories/liquidity-order.repository';
 import { DexDeFiChainService } from '../../../../services/dex-defichain.service';
 import { PurchaseLiquidityStrategy } from './purchase-liquidity.strategy';
-import { PurchaseLiquidityStrategyAlias } from '../../purchase-liquidity.facade';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export abstract class DeFiChainNonPoolPairStrategy extends PurchaseLiquidityStrategy {
   private readonly logger = new DfxLogger(DeFiChainNonPoolPairStrategy);
@@ -25,16 +24,15 @@ export abstract class DeFiChainNonPoolPairStrategy extends PurchaseLiquidityStra
     protected readonly liquidityOrderRepo: LiquidityOrderRepository,
     protected readonly liquidityOrderFactory: LiquidityOrderFactory,
     prioritySwapAssetDescriptors: { name: string; type: AssetType }[],
-    name: PurchaseLiquidityStrategyAlias,
   ) {
-    super(notificationService, name);
+    super(notificationService);
     this.prioritySwapAssetDescriptors = prioritySwapAssetDescriptors;
   }
 
   //*** PUBLIC API ***//
 
   async purchaseLiquidity(request: PurchaseLiquidityRequest): Promise<void> {
-    const order = this.liquidityOrderFactory.createPurchaseOrder(request, Blockchain.DEFICHAIN, this.name);
+    const order = this.liquidityOrderFactory.createPurchaseOrder(request, Blockchain.DEFICHAIN, this.constructor.name);
 
     try {
       await this.bookLiquiditySwap(order);

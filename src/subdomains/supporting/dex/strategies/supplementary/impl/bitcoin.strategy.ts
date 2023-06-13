@@ -1,12 +1,20 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionHistory } from 'src/integration/blockchain/ain/node/btc-client';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
-import { TransferRequest, TransactionQuery, TransactionResult } from '../../../interfaces';
+import { TransactionQuery, TransactionResult, TransferRequest } from '../../../interfaces';
 import { DexBitcoinService } from '../../../services/dex-bitcoin.service';
+import { SupplementaryStrategy } from './base/supplementary.strategy';
 
 @Injectable()
-export class BitcoinStrategy {
-  constructor(protected readonly dexBitcoinService: DexBitcoinService) {}
+export class BitcoinStrategy extends SupplementaryStrategy {
+  constructor(protected readonly dexBitcoinService: DexBitcoinService) {
+    super();
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.BITCOIN;
+  }
 
   async transferLiquidity(request: TransferRequest): Promise<string> {
     const { destinationAddress, amount } = request;
