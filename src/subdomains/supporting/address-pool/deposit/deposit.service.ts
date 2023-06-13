@@ -2,11 +2,13 @@ import { BadRequestException, Injectable, InternalServerErrorException } from '@
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
+import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DepositRepository } from 'src/subdomains/supporting/address-pool/deposit/deposit.repository';
+import { In } from 'typeorm';
 import { Deposit } from './deposit.entity';
 import { CreateDepositDto } from './dto/create-deposit.dto';
 
@@ -14,7 +16,11 @@ import { CreateDepositDto } from './dto/create-deposit.dto';
 export class DepositService {
   private readonly lightningClient: LightningClient;
 
-  constructor(private depositRepo: DepositRepository, lightningService: LightningService) {
+  constructor(
+    private readonly depositRepo: DepositRepository,
+    private readonly cryptoService: CryptoService,
+    lightningService: LightningService,
+  ) {
     this.lightningClient = lightningService.getDefaultClient();
   }
 
@@ -43,23 +49,17 @@ export class DepositService {
   }
 
   async createDeposits({ blockchain, count }: CreateDepositDto): Promise<void> {
-    switch (blockchain) {
-      case Blockchain.ARBITRUM:
-      case Blockchain.OPTIMISM:
-      case Blockchain.ETHEREUM:
-      case Blockchain.BINANCE_SMART_CHAIN:
-        return this.createEvmDeposits(blockchain, count);
-
-      case Blockchain.LIGHTNING:
-        return this.createLightningDeposits(blockchain, count);
-
-      default:
-        throw new BadRequestException(`Deposit creation for ${blockchain} not possible.`);
+    if (this.cryptoService.EthereumBasedChains.includes(blockchain)) {
+      return this.createEvmDeposits(blockchain, count);
+    } else if (blockchain === Blockchain.LIGHTNING) {
+      return this.createLightningDeposits(blockchain, count);
     }
+
+    throw new BadRequestException(`Deposit creation for ${blockchain} not possible.`);
   }
 
   private async createEvmDeposits(blockchain: Blockchain, count: number) {
-    const nextDepositIndex = await this.getNextDepositIndex(blockchain);
+    const nextDepositIndex = await this.getNextDepositIndex(this.cryptoService.EthereumBasedChains);
 
     for (let i = 0; i < count; i++) {
       const accountIndex = nextDepositIndex + i;
@@ -71,7 +71,7 @@ export class DepositService {
   }
 
   private async createLightningDeposits(blockchain: Blockchain, count: number) {
-    const nextDepositIndex = await this.getNextDepositIndex(blockchain);
+    const nextDepositIndex = await this.getNextDepositIndex([blockchain]);
 
     for (let i = 0; i < count; i++) {
       const accountIndex = nextDepositIndex + i;
@@ -84,8 +84,11 @@ export class DepositService {
     }
   }
 
-  private async getNextDepositIndex(blockchain: Blockchain): Promise<number> {
-    const lastDeposit = await this.depositRepo.findOne({ where: { blockchain }, order: { accountIndex: 'DESC' } });
+  private async getNextDepositIndex(blockchains: Blockchain[]): Promise<number> {
+    const lastDeposit = await this.depositRepo.findOne({
+      where: { blockchain: In(blockchains) },
+      order: { accountIndex: 'DESC' },
+    });
     return (lastDeposit?.accountIndex ?? -1) + 1;
   }
 }
