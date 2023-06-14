@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Process } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -9,7 +9,6 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInOptimismService } from '../../../services/payin-optimism.service';
-import { PayInService } from '../../../services/payin.service';
 import { EvmStrategy } from './base/evm.strategy';
 
 @Injectable()
@@ -17,7 +16,6 @@ export class OptimismStrategy extends EvmStrategy {
   protected readonly logger = new DfxLogger(OptimismStrategy);
 
   constructor(
-    @Inject(forwardRef(() => PayInService))
     optimismService: PayInOptimismService,
     payInRepository: PayInRepository,
     assetService: AssetService,
