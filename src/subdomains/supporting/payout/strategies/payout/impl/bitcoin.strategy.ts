@@ -36,7 +36,7 @@ export class BitcoinStrategy extends JellyfishStrategy {
   }
 
   async estimateFee(): Promise<FeeResult> {
-    const feeRate = await this.bitcoinService.getCurrentFastestFeeRate();
+    const feeRate = await this.bitcoinService.getCurrentFeeRate();
     const satoshiFeeAmount = this.averageTransactionSize * feeRate;
     const btcFeeAmount = Util.round(satoshiFeeAmount / 100000000, 8);
 
