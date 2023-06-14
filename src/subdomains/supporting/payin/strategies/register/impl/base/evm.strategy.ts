@@ -99,7 +99,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
 
       if (entries.length === 0) {
         // rate limiting
-        await Util.delay(200);
+        await Util.delay(250);
         continue;
       }
 

@@ -61,11 +61,10 @@ export abstract class EvmClient {
       action: 'tokentx',
     };
 
-    const result = await this.http
-      .get<{ result: EvmTokenHistoryEntry[] | string }>(this.scanApiUrl, { params })
-      .then((r) => r.result);
+    const response = await this.http.get<{ result: EvmTokenHistoryEntry[] | string }>(this.scanApiUrl, { params });
+    const result = response.result;
 
-    if (!Array.isArray(result)) throw new Error(`Failed to get token transactions: ${result}`);
+    if (!Array.isArray(result)) throw new Error(`Failed to get token transactions: ${result ?? response}`);
 
     return result;
   }
