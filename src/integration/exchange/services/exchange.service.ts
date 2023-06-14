@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import BigNumber from 'bignumber.js';
 import { Exchange, Market, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
 import { PricingProvider } from 'src/subdomains/supporting/pricing/domain/interfaces';
@@ -24,7 +25,9 @@ enum PrecisionMode {
   TICK_SIZE = 2,
 }
 
-export class ExchangeService implements PricingProvider {
+export abstract class ExchangeService implements PricingProvider {
+  protected abstract readonly logger: DfxLogger;
+
   private markets: Market[];
 
   constructor(private readonly exchange: Exchange, private readonly queue?: QueueHandler) {
@@ -84,7 +87,9 @@ export class ExchangeService implements PricingProvider {
 
         // price changed -> update price
         if (price !== order.price) {
-          const id = await this.updateOrderPrice(order, price).catch(() => undefined);
+          const id = await this.updateOrderPrice(order, price).catch((e) =>
+            this.logger.error(`Failed to update price of order ${order.id}:`, e),
+          );
           if (id) throw new TradeChangedException(id);
         }
 
