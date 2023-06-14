@@ -41,32 +41,11 @@ export abstract class EvmClient {
   // --- PUBLIC API - GETTERS --- //
 
   async getNativeCoinTransactions(walletAddress: string, fromBlock: number): Promise<EvmCoinHistoryEntry[]> {
-    const params = {
-      ...this.getTransactionHistoryCommonParams(walletAddress, fromBlock),
-      action: 'txlist',
-    };
-
-    const result = await this.http
-      .get<{ result: EvmCoinHistoryEntry[] | string }>(this.scanApiUrl, { params })
-      .then((r) => r.result);
-
-    if (!Array.isArray(result)) throw new Error(`Failed to get coin transactions: ${result}`);
-
-    return result;
+    return this.getHistory(walletAddress, fromBlock, 'txlist');
   }
 
   async getERC20Transactions(walletAddress: string, fromBlock: number): Promise<EvmTokenHistoryEntry[]> {
-    const params = {
-      ...this.getTransactionHistoryCommonParams(walletAddress, fromBlock),
-      action: 'tokentx',
-    };
-
-    const response = await this.http.get<{ result: EvmTokenHistoryEntry[] | string }>(this.scanApiUrl, { params });
-    const result = response.result;
-
-    if (!Array.isArray(result)) throw new Error(`Failed to get token transactions: ${result ?? response}`);
-
-    return result;
+    return this.getHistory(walletAddress, fromBlock, 'tokentx');
   }
 
   async getNativeCoinBalance(): Promise<number> {
@@ -347,13 +326,22 @@ export abstract class EvmClient {
     return currentNonce;
   }
 
-  private getTransactionHistoryCommonParams(walletAddress: string, fromBlock: number) {
-    return {
+  private async getHistory<T>(walletAddress: string, fromBlock: number, type: string): Promise<T[]> {
+    const params = {
       module: 'account',
       address: walletAddress,
       startblock: fromBlock,
       apikey: this.scanApiKey,
       sort: 'asc',
+      action: type,
     };
+
+    const response = await this.http.get<{ result: T[] | string }>(this.scanApiUrl, { params });
+    const result = response.result;
+
+    if (!Array.isArray(result))
+      throw new Error(`Failed to get ${type} transactions: ${result ?? JSON.stringify(response)}`);
+
+    return result;
   }
 }

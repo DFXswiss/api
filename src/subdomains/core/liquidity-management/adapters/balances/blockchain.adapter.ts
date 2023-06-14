@@ -1,15 +1,15 @@
 import { Injectable } from '@nestjs/common';
+import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
+import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
+import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { LiquidityBalance } from '../../entities/liquidity-balance.entity';
 import { LiquidityBalanceIntegration } from '../../interfaces';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
-import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
-import { Util } from 'src/shared/utils/util';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 
 @Injectable()
 export class BlockchainAdapter implements LiquidityBalanceIntegration {
@@ -145,13 +145,15 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
 
     const tokenTransactions = await client.getERC20Transactions(client.dfxAddress, 0);
     const recentTransactions = tokenTransactions.filter(
-      (tx) => new Date(+tx.timeStamp * 1000) > this.updateTimestamps.get(blockchain),
+      (tx) => !(new Date(+tx.timeStamp * 1000) < this.updateTimestamps.get(blockchain)),
     );
 
     // update all assets with missing cache or with recent transactions
     const assetsToUpdate = assets.filter(
       (a) =>
-        a.type === AssetType.COIN || !this.balanceCache.has(a.id) || recentTransactions.some((tx) => tx.tokenSymbol),
+        a.type === AssetType.COIN ||
+        !this.balanceCache.has(a.id) ||
+        recentTransactions.some((tx) => tx.contractAddress === a.chainId),
     );
 
     for (const asset of assetsToUpdate) {

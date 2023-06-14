@@ -1,5 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Exchange, Market } from 'ccxt';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { ExchangeService, OrderSide } from './exchange.service';
 
@@ -11,7 +12,7 @@ describe('ExchangeService', () => {
   beforeEach(() => {
     exchange = createMock<Exchange>();
 
-    service = new ExchangeService(exchange, new QueueHandler(undefined, undefined));
+    service = new TestExchangeService(exchange, new QueueHandler(undefined, undefined));
   });
 
   afterEach(() => {
@@ -47,3 +48,7 @@ describe('ExchangeService', () => {
     });
   });
 });
+
+class TestExchangeService extends ExchangeService {
+  protected logger = new DfxLogger(TestExchangeService);
+}
