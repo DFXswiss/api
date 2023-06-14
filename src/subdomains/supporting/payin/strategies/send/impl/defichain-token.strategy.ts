@@ -1,17 +1,15 @@
+import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { Injectable } from '@nestjs/common';
-import { PayInDeFiChainService } from '../../../services/payin-defichain.service';
-import { PayInRepository } from '../../../repositories/payin.repository';
-import { SendType } from './base/send.strategy';
-import { CryptoInput, PayInStatus } from '../../../entities/crypto-input.entity';
-import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { JellyfishStrategy } from './base/jellyfish.strategy';
-import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
+import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
-import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
-import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
+import { CryptoInput, PayInStatus } from '../../../entities/crypto-input.entity';
+import { PayInRepository } from '../../../repositories/payin.repository';
+import { PayInDeFiChainService } from '../../../services/payin-defichain.service';
+import { JellyfishStrategy } from './base/jellyfish.strategy';
+import { SendType } from './base/send.strategy';
 
 @Injectable()
 export class DeFiChainTokenStrategy extends JellyfishStrategy {
@@ -20,11 +18,16 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
   constructor(
     protected readonly deFiChainService: PayInDeFiChainService,
     protected readonly payInRepo: PayInRepository,
-    priceProvider: PriceProviderService,
-    payoutService: PayoutService,
-    transactionHelper: TransactionHelper,
   ) {
-    super(deFiChainService, payInRepo, Blockchain.DEFICHAIN, priceProvider, payoutService, transactionHelper);
+    super(deFiChainService, payInRepo);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.DEFICHAIN;
+  }
+
+  get assetType(): AssetType {
+    return AssetType.TOKEN;
   }
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {

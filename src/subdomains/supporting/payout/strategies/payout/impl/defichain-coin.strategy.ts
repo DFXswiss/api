@@ -1,14 +1,15 @@
 import { Injectable } from '@nestjs/common';
-import { PayoutOrderContext, PayoutOrder } from '../../../entities/payout-order.entity';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { PayoutOrder, PayoutOrderContext } from '../../../entities/payout-order.entity';
+import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutGroup } from '../../../services/base/payout-jellyfish.service';
 import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
 import { JellyfishStrategy } from './base/jellyfish.strategy';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { AssetService } from 'src/shared/models/asset/asset.service';
-import { FeeResult } from '../../../interfaces';
-import { Asset } from 'src/shared/models/asset/asset.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class DeFiChainCoinStrategy extends JellyfishStrategy {
@@ -21,6 +22,14 @@ export class DeFiChainCoinStrategy extends JellyfishStrategy {
     protected readonly assetService: AssetService,
   ) {
     super(notificationService, payoutOrderRepo, deFiChainService);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.DEFICHAIN;
+  }
+
+  get assetType(): AssetType {
+    return AssetType.COIN;
   }
 
   async estimateFee(): Promise<FeeResult> {

@@ -1,14 +1,14 @@
 import { ApiClient, BigNumber } from '@defichain/jellyfish-api-core';
 import { Block, BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
-import { InWalletTransaction, UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
+import { MasternodeInfo, MasternodeResult } from '@defichain/jellyfish-api-core/dist/category/masternode';
+import { AddressType, InWalletTransaction, UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { JsonRpcClient } from '@defichain/jellyfish-api-jsonrpc';
 import { ServiceUnavailableException } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { QueueHandler } from 'src/shared/utils/queue-handler';
-import { HttpService } from 'src/shared/services/http.service';
-import { Util } from 'src/shared/utils/util';
-import { MasternodeInfo, MasternodeResult } from '@defichain/jellyfish-api-core/dist/category/masternode';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { HttpService } from 'src/shared/services/http.service';
+import { QueueHandler } from 'src/shared/utils/queue-handler';
+import { Util } from 'src/shared/utils/util';
 
 export enum NodeCommand {
   UNLOCK = 'walletpassphrase',
@@ -76,6 +76,10 @@ export class NodeClient {
 
   async getTx(txId: string): Promise<InWalletTransaction> {
     return this.callNode((c) => c.wallet.getTransaction(txId));
+  }
+
+  async createAddress(label: string, type: AddressType): Promise<string> {
+    return this.callNode((c) => c.wallet.getNewAddress(label, type));
   }
 
   // UTXO

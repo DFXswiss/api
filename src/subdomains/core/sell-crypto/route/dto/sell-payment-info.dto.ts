@@ -24,6 +24,12 @@ export class SellPaymentInfoDto {
   @ApiProperty({ description: 'Minimum volume in source asset' })
   minVolume: number;
 
+  @ApiProperty({ description: 'Minimum fee in target currency' })
+  minFeeTarget: number;
+
+  @ApiProperty({ description: 'Minimum volume in target currency' })
+  minVolumeTarget: number;
+
   @ApiProperty({ description: 'Estimated amount in target currency' })
   estimatedAmount: number;
 }

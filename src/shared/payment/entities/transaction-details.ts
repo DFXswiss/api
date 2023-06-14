@@ -7,4 +7,6 @@ export interface TargetEstimation {
 export interface TransactionDetails extends TargetEstimation {
   minFee: number;
   minVolume: number;
+  minFeeTarget: number;
+  minVolumeTarget: number;
 }

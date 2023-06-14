@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { PayoutOrder } from '../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
@@ -14,6 +15,14 @@ export class ArbitrumCoinStrategy extends EvmStrategy {
     payoutOrderRepo: PayoutOrderRepository,
   ) {
     super(arbitrumService, payoutOrderRepo);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.ARBITRUM;
+  }
+
+  get assetType(): AssetType {
+    return AssetType.COIN;
   }
 
   protected dispatchPayout(order: PayoutOrder): Promise<string> {

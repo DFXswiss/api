@@ -52,13 +52,13 @@ export class TransactionHelper implements OnModuleInit {
     return this.convertToSource(from, spec);
   }
 
-  async getSpecs(from: Asset | Fiat, to: Asset | Fiat): Promise<TxSpec> {
+  getSpecs(from: Asset | Fiat, to: Asset | Fiat): TxSpec {
     const { system: fromSystem, asset: fromAsset } = this.getProps(from);
     const { system: toSystem, asset: toAsset } = this.getProps(to);
 
     const { minFee, minDeposit } = this.getDefaultSpecs(fromSystem, fromAsset, toSystem, toAsset);
 
-    return this.convertToSource(from, { minFee: minFee.amount, minVolume: minDeposit.amount });
+    return { minFee: minFee.amount, minVolume: minDeposit.amount };
   }
 
   getDefaultSpecs(
@@ -98,13 +98,19 @@ export class TransactionHelper implements OnModuleInit {
 
   // --- TARGET ESTIMATION --- //
   async getTxDetails(amount: number, fee: number, from: Asset | Fiat, to: Asset | Fiat): Promise<TransactionDetails> {
-    const { minVolume, minFee } = await this.getSpecs(from, to);
+    const specs = this.getSpecs(from, to);
+
+    const { minVolume, minFee } = await this.convertToSource(from, specs);
+    const { minVolume: minVolumeTarget, minFee: minFeeTarget } = await this.convertToTarget(to, specs);
+
     const target = await this.getTargetEstimation(amount, fee, minFee, from, to);
 
     return {
       ...target,
       minFee,
       minVolume,
+      minFeeTarget,
+      minVolumeTarget,
     };
   }
 
@@ -139,6 +145,15 @@ export class TransactionHelper implements OnModuleInit {
     return {
       minFee: this.convert(minFee, price, from instanceof Fiat),
       minVolume: this.convert(minVolume, price, from instanceof Fiat),
+    };
+  }
+
+  private async convertToTarget(to: Asset | Fiat, { minFee, minVolume }: TxSpec): Promise<TxSpec> {
+    const price = await this.priceProviderService.getPrice(this.eur, to);
+
+    return {
+      minFee: this.convert(minFee, price, to instanceof Fiat),
+      minVolume: this.convert(minVolume, price, to instanceof Fiat),
     };
   }
 

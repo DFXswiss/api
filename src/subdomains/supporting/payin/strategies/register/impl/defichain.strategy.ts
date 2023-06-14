@@ -1,26 +1,23 @@
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
-import { Config, Process } from 'src/config/config';
-import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
+import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Lock } from 'src/shared/utils/lock';
+import { Config, Process } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
+import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
+import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
+import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
+import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
+import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { PayInEntry } from '../../../interfaces';
 import { PayInRepository } from '../../../repositories/payin.repository';
-import { RegisterStrategy } from './base/register.strategy';
-import { PayInFactory } from '../../../factories/payin.factory';
 import { HistoryAmount, PayInDeFiChainService } from '../../../services/payin-defichain.service';
-import { PayInService } from '../../../services/payin.service';
-import { CryptoInput } from '../../../entities/crypto-input.entity';
-import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
-import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
-import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
-import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
-import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
-import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { RegisterStrategy } from './base/register.strategy';
 
 @Injectable()
 export class DeFiChainStrategy extends RegisterStrategy {
@@ -29,13 +26,13 @@ export class DeFiChainStrategy extends RegisterStrategy {
   constructor(
     private readonly assetService: AssetService,
     private readonly deFiChainService: PayInDeFiChainService,
-    protected readonly dexService: DexService,
-    @Inject(forwardRef(() => PayInService))
-    protected readonly payInService: PayInService,
-    protected readonly payInFactory: PayInFactory,
     protected readonly payInRepository: PayInRepository,
   ) {
-    super(dexService, payInFactory, payInRepository);
+    super(payInRepository);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.DEFICHAIN;
   }
 
   //*** PUBLIC API ***//

@@ -10,7 +10,8 @@ import { LightningService } from 'src/integration/lightning/services/lightning.s
 @Injectable()
 export class CryptoService {
   private readonly defaultEthereumChain = Blockchain.ARBITRUM;
-  private readonly EthereumBasedChains = [
+
+  readonly EthereumBasedChains = [
     Blockchain.ETHEREUM,
     Blockchain.BINANCE_SMART_CHAIN,
     Blockchain.ARBITRUM,

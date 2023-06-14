@@ -1,30 +1,30 @@
 import { Injectable } from '@nestjs/common';
-import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
-import { PayInRepository } from '../../../repositories/payin.repository';
-import { SendType } from './base/send.strategy';
-import { CryptoInput } from '../../../entities/crypto-input.entity';
-import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { JellyfishStrategy } from './base/jellyfish.strategy';
-import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
+import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { FeeLimitExceededException } from 'src/shared/payment/exceptions/fee-limit-exceeded.exception';
-import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
-import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
-import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
+import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
+import { CryptoInput } from '../../../entities/crypto-input.entity';
+import { PayInRepository } from '../../../repositories/payin.repository';
+import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
+import { JellyfishStrategy } from './base/jellyfish.strategy';
+import { SendType } from './base/send.strategy';
 
 @Injectable()
 export class BitcoinStrategy extends JellyfishStrategy {
   protected readonly logger = new DfxLogger(BitcoinStrategy);
 
-  constructor(
-    protected readonly bitcoinService: PayInBitcoinService,
-    protected readonly payInRepo: PayInRepository,
-    priceProvider: PriceProviderService,
-    payoutService: PayoutService,
-    transactionHelper: TransactionHelper,
-  ) {
-    super(bitcoinService, payInRepo, Blockchain.BITCOIN, priceProvider, payoutService, transactionHelper);
+  constructor(protected readonly bitcoinService: PayInBitcoinService, protected readonly payInRepo: PayInRepository) {
+    super(bitcoinService, payInRepo);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.BITCOIN;
+  }
+
+  get assetType(): AssetType {
+    return undefined;
   }
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {

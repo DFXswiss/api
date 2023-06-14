@@ -23,7 +23,7 @@ export class PayoutBitcoinService extends PayoutJellyfishService {
   }
 
   async sendUtxoToMany(_context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {
-    const feeRate = await this.feeService.getRecommendedFeeRate();
+    const feeRate = await this.getCurrentFeeRate();
     return this.#client.sendMany(payout, feeRate);
   }
 
@@ -36,7 +36,7 @@ export class PayoutBitcoinService extends PayoutJellyfishService {
     return [isComplete, payoutFee];
   }
 
-  async getCurrentFastestFeeRate(): Promise<number> {
-    return this.feeService.getRecommendedFeeRate();
+  async getCurrentFeeRate(): Promise<number> {
+    return this.feeService.getRecommendedFeeRate().then((r) => 1.5 * r);
   }
 }

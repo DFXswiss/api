@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Util } from 'src/shared/utils/util';
 import { CheckLiquidityRequest, CheckLiquidityResult } from '../../../interfaces';
@@ -16,6 +16,18 @@ export class DeFiChainPoolPairStrategy extends CheckLiquidityStrategy {
     private readonly dexDeFiChainService: DexDeFiChainService,
   ) {
     super();
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.DEFICHAIN;
+  }
+
+  get assetType(): AssetType {
+    return undefined;
+  }
+
+  get assetCategory(): AssetCategory {
+    return AssetCategory.POOL_PAIR;
   }
 
   /**

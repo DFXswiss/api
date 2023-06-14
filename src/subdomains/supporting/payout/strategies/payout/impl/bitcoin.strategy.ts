@@ -1,15 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { PayoutOrder, PayoutOrderContext } from '../../../entities/payout-order.entity';
 import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutGroup } from '../../../services/base/payout-jellyfish.service';
 import { PayoutBitcoinService } from '../../../services/payout-bitcoin.service';
 import { JellyfishStrategy } from './base/jellyfish.strategy';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BitcoinStrategy extends JellyfishStrategy {
@@ -26,8 +27,16 @@ export class BitcoinStrategy extends JellyfishStrategy {
     super(notificationService, payoutOrderRepo, bitcoinService);
   }
 
+  get blockchain(): Blockchain {
+    return Blockchain.BITCOIN;
+  }
+
+  get assetType(): AssetType {
+    return undefined;
+  }
+
   async estimateFee(): Promise<FeeResult> {
-    const feeRate = await this.bitcoinService.getCurrentFastestFeeRate();
+    const feeRate = await this.bitcoinService.getCurrentFeeRate();
     const satoshiFeeAmount = this.averageTransactionSize * feeRate;
     const btcFeeAmount = Util.round(satoshiFeeAmount / 100000000, 8);
 

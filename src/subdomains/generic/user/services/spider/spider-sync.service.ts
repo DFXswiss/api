@@ -267,7 +267,8 @@ export class SpiderSyncService {
         parts.find(
           (p) =>
             p.contentType === KycContentType.PDF &&
-            p.fileName.startsWith('DFX persönliche Identifikation Kunden vor Ort'),
+            (p.fileName.startsWith('DFX persönliche Identifikation Kunden vor Ort') ||
+              p.fileName.startsWith('Identifikationsdokument')),
         ),
       );
     return part

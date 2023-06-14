@@ -1,16 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
+import { TransferNotRequiredException } from 'src/subdomains/supporting/dex/exceptions/transfer-not-required.exception';
+import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { PayoutOrder, PayoutOrderContext } from '../../../entities/payout-order.entity';
 import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
 import { PrepareStrategy } from './base/prepare.strategy';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Util } from 'src/shared/utils/util';
-import { TransferNotRequiredException } from 'src/subdomains/supporting/dex/exceptions/transfer-not-required.exception';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class DeFiChainStrategy extends PrepareStrategy {
@@ -23,6 +23,10 @@ export class DeFiChainStrategy extends PrepareStrategy {
     private readonly payoutOrderRepo: PayoutOrderRepository,
   ) {
     super();
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.DEFICHAIN;
   }
 
   async preparePayout(orders: PayoutOrder[]): Promise<void> {
