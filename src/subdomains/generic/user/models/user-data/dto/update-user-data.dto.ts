@@ -134,4 +134,8 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsEnum(KycIdentificationType)
   identificationType: KycIdentificationType;
+
+  @IsOptional()
+  @IsString()
+  internalAmlNote: string;
 }

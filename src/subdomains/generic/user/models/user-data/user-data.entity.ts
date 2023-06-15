@@ -182,6 +182,9 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   identificationType: KycIdentificationType;
 
+  @Column({ length: 256, nullable: true })
+  internalAmlNote: string;
+
   //Mail
   @Column({ length: 256, nullable: true })
   blackSquadRecipientMail: string;
