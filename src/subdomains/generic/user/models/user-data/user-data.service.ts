@@ -154,7 +154,6 @@ export class UserDataService {
 
     // Columns are not updatable
     if (userData.letterSentDate) dto.letterSentDate = userData.letterSentDate;
-    if (userData.amlListAddedDate) dto.amlListAddedDate = userData.amlListAddedDate;
     if (userData.identificationType) dto.identificationType = userData.identificationType;
 
     return this.userDataRepo.save({ ...userData, ...dto });
