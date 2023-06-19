@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Process } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LnurlpPaymentData } from 'src/integration/lightning/data/lnurlp-payment.data';
+import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
@@ -98,7 +99,7 @@ export class LightningStrategy extends RegisterStrategy {
       txId: p.paymentDto.checking_id,
       txType: null,
       blockHeight: null,
-      amount: p.paymentDto.amount / 10 ** 3 / 10 ** 8,
+      amount: LightningHelper.msatToBtc(p.paymentDto.amount),
       asset,
     }));
   }
