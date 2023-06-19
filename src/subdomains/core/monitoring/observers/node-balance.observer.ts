@@ -5,10 +5,12 @@ import { Config, Process } from 'src/config/config';
 import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
 import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
+import { LightningClient } from 'src/integration/lightning/lightning-client';
+import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
-import { Lock } from 'src/shared/utils/lock';
 
 interface NodeBalanceData {
   balance: {
@@ -21,6 +23,7 @@ interface NodeBalanceData {
     bitcoin: {
       input: BigNumber;
     };
+    lightning: { confirmedWallet: number; localChannel: number; remoteChannel: number };
   };
 }
 
@@ -30,14 +33,20 @@ export class NodeBalanceObserver extends MetricObserver<NodeBalanceData> {
 
   private inpClient: DeFiClient;
   private btcInpClient: BtcClient;
+  private lndClient: LightningClient;
 
-  constructor(monitoringService: MonitoringService, readonly nodeService: NodeService) {
+  constructor(
+    monitoringService: MonitoringService,
+    readonly nodeService: NodeService,
+    readonly lightningService: LightningService,
+  ) {
     super(monitoringService, 'node', 'balance');
 
     nodeService.getConnectedNode<NodeType.INPUT>(NodeType.INPUT).subscribe((client) => (this.inpClient = client));
     nodeService
       .getConnectedNode<NodeType.BTC_INPUT>(NodeType.BTC_INPUT)
       .subscribe((client) => (this.btcInpClient = client));
+    this.lndClient = lightningService.getDefaultClient();
   }
 
   @Cron(CronExpression.EVERY_10_MINUTES)
@@ -61,6 +70,11 @@ export class NodeBalanceObserver extends MetricObserver<NodeBalanceData> {
         },
         bitcoin: {
           input: (await this.btcInpClient?.getBalance()) ?? new BigNumber(0),
+        },
+        lightning: {
+          confirmedWallet: await this.lndClient.getLndConfirmedWalletBalance(),
+          localChannel: await this.lndClient.getLndLocalChannelBalance(),
+          remoteChannel: await this.lndClient.getLndRemoteChannelBalance(),
         },
       },
     };
