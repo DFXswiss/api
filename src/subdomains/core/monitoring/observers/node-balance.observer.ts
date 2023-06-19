@@ -73,7 +73,7 @@ export class NodeBalanceObserver extends MetricObserver<NodeBalanceData> {
         },
         lightning: {
           confirmedWallet: await this.lndClient.getLndConfirmedWalletBalance(),
-          localChanel: await this.lndClient.getLndLocalChannelBalance(),
+          localChannel: await this.lndClient.getLndLocalChannelBalance(),
           remoteChannel: await this.lndClient.getLndRemoteChannelBalance(),
         },
       },
