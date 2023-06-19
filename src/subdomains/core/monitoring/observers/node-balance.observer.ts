@@ -8,9 +8,9 @@ import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
-import { Lock } from 'src/shared/utils/lock';
 
 interface NodeBalanceData {
   balance: {
@@ -23,7 +23,7 @@ interface NodeBalanceData {
     bitcoin: {
       input: BigNumber;
     };
-    lightning: { confirmedWallet: number; localChanel: number; remoteChannel: number };
+    lightning: { confirmedWallet: number; localChannel: number; remoteChannel: number };
   };
 }
 
