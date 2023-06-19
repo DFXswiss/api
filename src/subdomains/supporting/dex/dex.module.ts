@@ -12,6 +12,7 @@ import { DexBitcoinService } from './services/dex-bitcoin.service';
 import { DexBscService } from './services/dex-bsc.service';
 import { DexDeFiChainService } from './services/dex-defichain.service';
 import { DexEthereumService } from './services/dex-ethereum.service';
+import { DexLightningService } from './services/dex-lightning.service';
 import { DexOptimismService } from './services/dex-optimism.service';
 import { DexService } from './services/dex.service';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyCL } from './strategies/check-liquidity/impl/arbitrum-coin.strategy';
@@ -24,6 +25,7 @@ import { DeFiChainDefaultStrategy as DeFiChainDefaultStrategyCL } from './strate
 import { DeFiChainPoolPairStrategy as DeFiChainPoolPairStrategyCL } from './strategies/check-liquidity/impl/defichain-poolpair.strategy';
 import { EthereumCoinStrategy as EthereumCoinStrategyCL } from './strategies/check-liquidity/impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy as EthereumTokenStrategyCL } from './strategies/check-liquidity/impl/ethereum-token.strategy';
+import { LightningStrategy as LightningStrategyCL } from './strategies/check-liquidity/impl/lightning.strategy';
 import { OptimismCoinStrategy as OptimismCoinStrategyCL } from './strategies/check-liquidity/impl/optimism-coin.strategy';
 import { OptimismTokenStrategy as OptimismTokenStrategyCL } from './strategies/check-liquidity/impl/optimism-token.strategy';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyPL } from './strategies/purchase-liquidity/impl/arbitrum-coin.strategy';
@@ -73,6 +75,7 @@ import { OptimismStrategy as OptimismStrategyS } from './strategies/supplementar
     DexOptimismService,
     DexBscService,
     DexBitcoinService,
+    DexLightningService,
     CheckLiquidityStrategyRegistry,
     PurchaseLiquidityStrategyRegistry,
     SellLiquidityStrategyRegistry,
@@ -84,6 +87,7 @@ import { OptimismStrategy as OptimismStrategyS } from './strategies/supplementar
     EthereumCoinStrategyCL,
     BscCoinStrategyCL,
     BitcoinStrategyCL,
+    LightningStrategyCL,
     BscTokenStrategyCL,
     EthereumTokenStrategyCL,
     OptimismCoinStrategyCL,

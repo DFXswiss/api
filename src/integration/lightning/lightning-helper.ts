@@ -5,9 +5,43 @@ import { ecdsaRecover, ecdsaVerify } from 'secp256k1';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { decode as zbase32Decode } from 'zbase32';
+import { LnurlpInvoiceDto } from './dto/lnurlp-invoice.dto';
+
+export enum LightningAddressType {
+  LN_URL = 'LNURL',
+  LN_NID = 'LNNID',
+}
 
 export class LightningHelper {
-  static MSG_SIGNATURE_PREFIX = 'Lightning Signed Message:';
+  private static SAT_BTC_FACTOR: number = 10 ** 8;
+  private static SAT_MSAT_FACTOR: number = 10 ** 3;
+
+  private static MSG_SIGNATURE_PREFIX = 'Lightning Signed Message:';
+
+  // --- CONVERT --- /
+  static btcToSat(btcAmount: number): number {
+    return btcAmount * LightningHelper.SAT_BTC_FACTOR;
+  }
+
+  static satToMsat(satAmount: number): number {
+    return satAmount * LightningHelper.SAT_MSAT_FACTOR;
+  }
+
+  static btcToMsat(btcAmount: number): number {
+    return LightningHelper.satToMsat(LightningHelper.btcToSat(btcAmount));
+  }
+
+  static msatToSat(msatAmount: number): number {
+    return msatAmount / LightningHelper.SAT_MSAT_FACTOR;
+  }
+
+  static satToBtc(satAmount: number): number {
+    return satAmount / LightningHelper.SAT_BTC_FACTOR;
+  }
+
+  static msatToBtc(msatAmount: number): number {
+    return LightningHelper.satToBtc(LightningHelper.msatToSat(msatAmount));
+  }
 
   // --- ADDRESSES --- //
   static addressToLnurlp(address: string): string {
@@ -15,6 +49,16 @@ export class LightningHelper {
 
     const url = `https://${domain}/.well-known/lnurlp/${id}`;
     return LightningHelper.encodeLnurlp(url);
+  }
+
+  static getAddressType(address: string): LightningAddressType {
+    if (address.startsWith(LightningAddressType.LN_URL)) {
+      return LightningAddressType.LN_URL;
+    } else if (address.startsWith(LightningAddressType.LN_NID)) {
+      return LightningAddressType.LN_NID;
+    }
+
+    throw new Error(`Cannot detect Lightning Address Type of address ${address}`);
   }
 
   // --- LNURLP --- //
@@ -56,8 +100,8 @@ export class LightningHelper {
   }
 
   // --- INVOICES --- //
-  static getPublicKeyOfInvoice(invoice: string): string {
-    const decodedInvoice = bolt11Decode(invoice);
+  static getPublicKeyOfInvoice(invoice: LnurlpInvoiceDto): string {
+    const decodedInvoice = bolt11Decode(invoice.pr);
     return decodedInvoice.payeeNodeKey;
   }
 

@@ -197,7 +197,9 @@ export class BuyCrypto extends IEntity {
       default:
         return {
           outputReferenceAssetName: 'BTC',
-          type: this.target.asset.blockchain === Blockchain.BITCOIN ? AssetType.COIN : AssetType.TOKEN,
+          type: [Blockchain.BITCOIN, Blockchain.LIGHTNING].includes(this.target.asset.blockchain)
+            ? AssetType.COIN
+            : AssetType.TOKEN,
         };
     }
   }

@@ -1,9 +1,14 @@
+import { randomBytes } from 'crypto';
 import { Agent } from 'https';
 import { Config } from 'src/config/config';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
+import { Util } from 'src/shared/utils/util';
 import { LnurlpPaymentData } from './data/lnurlp-payment.data';
 import { LnBitsWalletDto } from './dto/lnbits-wallet.dto';
 import { LndChannelBalanceDto } from './dto/lnd-channel-balance.dto';
+import { LndInfoDto } from './dto/lnd-info.dto';
+import { LndPaymentsDto } from './dto/lnd-payment.dto';
+import { LndSendPaymentResponseDto } from './dto/lnd-sendpayment-response.dto';
 import { LndWalletBalanceDto } from './dto/lnd-wallet-balance.dto';
 import { LnurlpInvoiceDto } from './dto/lnurlp-invoice.dto';
 import { LnurlpLinkRemoveDto } from './dto/lnurlp-link-remove.dto';
@@ -13,13 +18,15 @@ import { PaymentDto } from './dto/payment.dto';
 import { LightningHelper } from './lightning-helper';
 
 export class LightningClient {
-  private static SAT_BTC_FACTOR: number = 10 ** 8;
-
   constructor(private readonly http: HttpService) {}
 
   // --- LND --- //
+  async getLndInfo(): Promise<LndInfoDto> {
+    return this.http.get<LndInfoDto>(`${Config.blockchain.lightning.lnd.apiUrl}/getinfo`, this.httpLndConfig());
+  }
+
   async getLndConfirmedWalletBalance(): Promise<number> {
-    return this.getLndWalletBalance().then((b) => b.confirmed_balance / LightningClient.SAT_BTC_FACTOR);
+    return this.getLndWalletBalance().then((b) => LightningHelper.satToBtc(b.confirmed_balance));
   }
 
   private async getLndWalletBalance(): Promise<LndWalletBalanceDto> {
@@ -30,11 +37,11 @@ export class LightningClient {
   }
 
   async getLndLocalChannelBalance(): Promise<number> {
-    return this.getLndChannelBalance().then((b) => b.local_balance.sat / LightningClient.SAT_BTC_FACTOR);
+    return this.getLndChannelBalance().then((b) => LightningHelper.satToBtc(b.local_balance.sat));
   }
 
   async getLndRemoteChannelBalance(): Promise<number> {
-    return this.getLndChannelBalance().then((b) => b.remote_balance.sat / LightningClient.SAT_BTC_FACTOR);
+    return this.getLndChannelBalance().then((b) => LightningHelper.satToBtc(b.remote_balance.sat));
   }
 
   private async getLndChannelBalance(): Promise<LndChannelBalanceDto> {
@@ -44,9 +51,45 @@ export class LightningClient {
     );
   }
 
+  // --- LND Payments --- //
+  async listPayments(fromDateInMillis: number, toDateInMillis: number): Promise<LndPaymentsDto> {
+    const httpConfig = this.httpLndConfig();
+    httpConfig.params = {
+      creation_date_start: Math.floor(fromDateInMillis / 1000),
+      creation_date_end: Math.floor(toDateInMillis / 1000),
+    };
+
+    return this.http.get<LndPaymentsDto>(`${Config.blockchain.lightning.lnd.apiUrl}/payments`, httpConfig);
+  }
+
+  async sendPaymentByInvoice(invoice: string): Promise<LndSendPaymentResponseDto> {
+    return this.http.post<LndSendPaymentResponseDto>(
+      `${Config.blockchain.lightning.lnd.apiUrl}/channels/transactions`,
+      { payment_request: invoice },
+      this.httpLndConfig(),
+    );
+  }
+
+  async sendPaymentByPublicKey(publicKey: string, amount: number): Promise<LndSendPaymentResponseDto> {
+    const preImage = randomBytes(32);
+    const paymentHash = Util.createHash(preImage, 'sha256', 'base64');
+
+    return this.http.post<LndSendPaymentResponseDto>(
+      `${Config.blockchain.lightning.lnd.apiUrl}/channels/transactions`,
+      {
+        dest: Buffer.from(publicKey, 'hex').toString('base64'),
+        amt: amount,
+        final_cltv_delta: 0,
+        payment_hash: paymentHash,
+        dest_custom_records: { 5482373484: preImage.toString('base64') },
+      },
+      this.httpLndConfig(),
+    );
+  }
+
   // --- LnBits --- //
   async getLnBitsBalance(): Promise<number> {
-    return this.getLnBitsWallet().then((w) => w.balance / 10 ** 3 / LightningClient.SAT_BTC_FACTOR);
+    return this.getLnBitsWallet().then((w) => LightningHelper.msatToBtc(w.balance));
   }
 
   private async getLnBitsWallet(): Promise<LnBitsWalletDto> {
