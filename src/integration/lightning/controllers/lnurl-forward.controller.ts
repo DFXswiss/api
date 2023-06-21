@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { LnurlPayRequestDto } from '../dto/lnurlp-pay-request.dto';
+import { LnurlPayRequestDto } from '../dto/lnurlp.dto';
 import { LnUrlForwardService } from '../services/lnurl-forward.service';
 
 @ApiTags('LNURLp')

@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { LnurlpInvoiceDto } from '../dto/lnurlp-invoice.dto';
-import { LnurlPayRequestDto } from '../dto/lnurlp-pay-request.dto';
+import { LnurlPayRequestDto, LnurlpInvoiceDto } from '../dto/lnurlp.dto';
 import { LightningClient } from '../lightning-client';
 import { LightningHelper } from '../lightning-helper';
 import { LightningService } from './lightning.service';
@@ -14,7 +13,7 @@ export class LnUrlForwardService {
   }
 
   async lnurlpForward(id: string): Promise<LnurlPayRequestDto> {
-    const payRequest = await this.client.getPaymentRequest(id);
+    const payRequest = await this.client.getLnurlpPaymentRequest(id);
 
     payRequest.callback = LightningHelper.createLnurlpCallbackUrl(id);
 
@@ -22,6 +21,6 @@ export class LnUrlForwardService {
   }
 
   async lnurlpCallbackForward(id: string, params: any): Promise<LnurlpInvoiceDto> {
-    return this.client.createInvoice(id, params);
+    return this.client.getLnurlpInvoice(id, params);
   }
 }

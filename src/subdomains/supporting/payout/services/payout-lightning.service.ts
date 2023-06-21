@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { LndPaymentDto, PaymentStatus } from 'src/integration/lightning/dto/lnd-payment.dto';
+import { LndPaymentDto, LndPaymentStatus } from 'src/integration/lightning/dto/lnd.dto';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 
@@ -21,7 +21,7 @@ export class PayoutLightningService {
   }
 
   async sendPaymentByLnurl(lnurlAddress: string, amount: number): Promise<string> {
-    const invoice = await this.getInvoice(lnurlAddress, LightningHelper.btcToMsat(amount));
+    const invoice = await this.getInvoiceByLnurl(lnurlAddress, LightningHelper.btcToMsat(amount));
 
     const paymentResponse = await this.lightningService.sendPaymentByInvoice(invoice);
 
@@ -32,8 +32,8 @@ export class PayoutLightningService {
     return Buffer.from(paymentResponse.payment_hash, 'base64').toString('hex');
   }
 
-  private async getInvoice(lnurlpAddress: string, amount: number): Promise<string> {
-    const invoice = await this.lightningService.getInvoice(lnurlpAddress, amount);
+  private async getInvoiceByLnurl(lnurlpAddress: string, amount: number): Promise<string> {
+    const invoice = await this.lightningService.getInvoiceByLnurlp(lnurlpAddress, amount);
     return invoice.pr;
   }
 
@@ -51,6 +51,23 @@ export class PayoutLightningService {
     return Buffer.from(paymentResponse.payment_hash, 'base64').toString('hex');
   }
 
+  async sendPaymentByLndhub(lndhubAddress: string, amount: number): Promise<string> {
+    const invoice = await this.getInvoiceByLndhub(lndhubAddress, amount);
+
+    const paymentResponse = await this.lightningService.sendPaymentByInvoice(invoice);
+
+    if (paymentResponse.payment_error) {
+      throw new Error(`Error while sending payment by LNDHUB ${lndhubAddress}: ${paymentResponse.payment_error}`);
+    }
+
+    return Buffer.from(paymentResponse.payment_hash, 'base64').toString('hex');
+  }
+
+  private async getInvoiceByLndhub(lndHubAddress: string, amount: number): Promise<string> {
+    const invoice = await this.lightningService.getInvoiceByLndhub(lndHubAddress, amount);
+    return invoice.payment_request;
+  }
+
   async getPayoutCompletionData(payoutTxId: string): Promise<[boolean, number]> {
     const foundPayment = await this.findPayment(Date.now(), payoutTxId);
 
@@ -58,7 +75,7 @@ export class PayoutLightningService {
     let payoutFee = 0;
 
     if (foundPayment) {
-      isComplete = foundPayment.status === PaymentStatus.SUCCEEDED;
+      isComplete = foundPayment.status === LndPaymentStatus.SUCCEEDED;
       payoutFee = LightningHelper.satToBtc(foundPayment.fee_sat);
     }
 

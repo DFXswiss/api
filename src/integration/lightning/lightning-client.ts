@@ -1,23 +1,25 @@
+import { BadRequestException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { Agent } from 'https';
 import { Config } from 'src/config/config';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { LnurlpPaymentData } from './data/lnurlp-payment.data';
-import { LnBitsWalletDto } from './dto/lnbits-wallet.dto';
-import { LndChannelBalanceDto } from './dto/lnd-channel-balance.dto';
-import { LndInfoDto } from './dto/lnd-info.dto';
-import { LndPaymentsDto } from './dto/lnd-payment.dto';
-import { LndSendPaymentResponseDto } from './dto/lnd-sendpayment-response.dto';
-import { LndWalletBalanceDto } from './dto/lnd-wallet-balance.dto';
-import { LnurlpInvoiceDto } from './dto/lnurlp-invoice.dto';
-import { LnurlpLinkRemoveDto } from './dto/lnurlp-link-remove.dto';
-import { LnurlpLinkDto } from './dto/lnurlp-link.dto';
-import { LnurlPayRequestDto } from './dto/lnurlp-pay-request.dto';
+import { LnBitsInvoiceDto, LnBitsWalletDto } from './dto/lnbits.dto';
+import {
+  LndChannelBalanceDto,
+  LndInfoDto,
+  LndPaymentsDto,
+  LndSendPaymentResponseDto,
+  LndWalletBalanceDto,
+} from './dto/lnd.dto';
+import { LnurlPayRequestDto, LnurlpInvoiceDto, LnurlpLinkDto, LnurlpLinkRemoveDto } from './dto/lnurlp.dto';
 import { PaymentDto } from './dto/payment.dto';
-import { LightningHelper } from './lightning-helper';
+import { LightningAddressType, LightningHelper } from './lightning-helper';
 
 export class LightningClient {
+  private static ALLOWED_LNDHUB_PATTERN = /^lndhub:\/\/invoice:(?<key>.+)@(?<url>https:\/\/.+)$/;
+
   constructor(private readonly http: HttpService) {}
 
   // --- LND --- //
@@ -99,6 +101,52 @@ export class LightningClient {
     );
   }
 
+  async getInvoiceByLnurlp(lnurlpAddress: string, amount?: number): Promise<LnurlpInvoiceDto> {
+    try {
+      const lnurlpUrl = LightningHelper.decodeLnurlp(lnurlpAddress);
+
+      const payRequest = await this.http.get<LnurlPayRequestDto>(lnurlpUrl);
+
+      const payAmount = amount ? amount : payRequest.minSendable;
+
+      if (payAmount < payRequest.minSendable) {
+        throw new BadRequestException(`Pay amount ${payAmount} less than min sendable ${payRequest.minSendable}`);
+      }
+
+      return await this.http.get<LnurlpInvoiceDto>(payRequest.callback, {
+        params: { amount: payAmount },
+      });
+    } catch {
+      throw new BadRequestException(`Error while getting invoice of address ${lnurlpAddress}`);
+    }
+  }
+
+  async getInvoiceByLndhub(lndHubAddress: string, amount?: number): Promise<LnBitsInvoiceDto> {
+    const lnurlAddress = lndHubAddress.replace(LightningAddressType.LND_HUB, LightningAddressType.LN_URL);
+    const lndHubPlain = LightningHelper.decodeLnurlp(lnurlAddress);
+
+    const lndHubMatch = LightningClient.ALLOWED_LNDHUB_PATTERN.exec(lndHubPlain);
+
+    if (!lndHubMatch) {
+      throw new BadRequestException(`Invalid LNDHUB address ${lndHubPlain}`);
+    }
+
+    const invoiceKey = lndHubMatch.groups.key;
+    const checkUrl = new URL(lndHubMatch.groups.url);
+
+    return this.http.post<LnBitsInvoiceDto>(
+      `https://${checkUrl.hostname}/api/v1/payments`,
+      {
+        out: false,
+        amount: amount ? LightningHelper.btcToSat(amount) : 1,
+        memo: 'Payment by DFX.swiss',
+      },
+      {
+        headers: { 'X-Api-Key': invoiceKey, 'Content-Type': 'application/json' },
+      },
+    );
+  }
+
   // --- PAYMENTS --- //
   async getLnurlpPayments(checkingId: string): Promise<LnurlpPaymentData[]> {
     const batchSize = 5;
@@ -156,16 +204,18 @@ export class LightningClient {
     );
   }
 
-  async getPaymentRequest(linkId: string): Promise<LnurlPayRequestDto> {
+  // --- LNURLP FORWARD --- //
+  async getLnurlpPaymentRequest(linkId: string): Promise<LnurlPayRequestDto> {
     const lnBitsUrl = `${Config.blockchain.lightning.lnbits.lnurlpUrl}/${linkId}`;
     return this.http.get(lnBitsUrl, this.httpLnBitsConfig());
   }
 
-  async createInvoice(linkId: string, params: any): Promise<LnurlpInvoiceDto> {
+  async getLnurlpInvoice(linkId: string, params: any): Promise<LnurlpInvoiceDto> {
     const lnBitsCallbackUrl = `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/lnurl/cb/${linkId}`;
     return this.http.get<LnurlpInvoiceDto>(lnBitsCallbackUrl, this.httpLnBitsConfig(params));
   }
 
+  // --- LNURLP LINKS --- //
   async addLnurlpLink(description: string): Promise<LnurlpLinkDto> {
     if (!description) throw new Error('Description is undefined');
 
