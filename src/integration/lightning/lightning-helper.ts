@@ -5,11 +5,11 @@ import { ecdsaRecover, ecdsaVerify } from 'secp256k1';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { decode as zbase32Decode } from 'zbase32';
-import { LnurlpInvoiceDto } from './dto/lnurlp-invoice.dto';
 
 export enum LightningAddressType {
   LN_URL = 'LNURL',
   LN_NID = 'LNNID',
+  LND_HUB = 'LNDHUB',
 }
 
 export class LightningHelper {
@@ -56,6 +56,8 @@ export class LightningHelper {
       return LightningAddressType.LN_URL;
     } else if (address.startsWith(LightningAddressType.LN_NID)) {
       return LightningAddressType.LN_NID;
+    } else if (address.startsWith(LightningAddressType.LND_HUB)) {
+      return LightningAddressType.LND_HUB;
     }
 
     throw new Error(`Cannot detect Lightning Address Type of address ${address}`);
@@ -99,9 +101,9 @@ export class LightningHelper {
     return ecdsaVerify(checkSignature, messageHash, Util.stringToUint8(publicKey, 'hex'));
   }
 
-  // --- INVOICES --- //
-  static getPublicKeyOfInvoice(invoice: LnurlpInvoiceDto): string {
-    const decodedInvoice = bolt11Decode(invoice.pr);
+  // --- INVOICE --- //
+  static getPublicKeyOfInvoice(invoice: string): string {
+    const decodedInvoice = bolt11Decode(invoice);
     return decodedInvoice.payeeNodeKey;
   }
 

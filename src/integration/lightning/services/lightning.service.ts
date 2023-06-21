@@ -1,11 +1,9 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
-import { LndInfoDto } from '../dto/lnd-info.dto';
-import { LndPaymentsDto } from '../dto/lnd-payment.dto';
-import { LndSendPaymentResponseDto } from '../dto/lnd-sendpayment-response.dto';
-import { LnurlpInvoiceDto } from '../dto/lnurlp-invoice.dto';
-import { LnurlPayRequestDto } from '../dto/lnurlp-pay-request.dto';
+import { LnBitsInvoiceDto } from '../dto/lnbits.dto';
+import { LndInfoDto, LndPaymentsDto, LndSendPaymentResponseDto } from '../dto/lnd.dto';
+import { LnurlpInvoiceDto } from '../dto/lnurlp.dto';
 import { LightningClient } from '../lightning-client';
 import { LightningAddressType, LightningHelper } from '../lightning-helper';
 
@@ -28,33 +26,25 @@ export class LightningService {
   }
 
   async getPublicKeyOfAddress(address: string): Promise<string> {
-    if (address.startsWith(LightningAddressType.LN_NID)) {
-      // address is node pub key
+    if (address.startsWith(LightningAddressType.LN_URL)) {
+      const invoice = await this.getInvoiceByLnurlp(address);
+      return LightningHelper.getPublicKeyOfInvoice(invoice.pr);
+    } else if (address.startsWith(LightningAddressType.LN_NID)) {
       return address.replace(LightningAddressType.LN_NID, '');
+    } else if (address.startsWith(LightningAddressType.LND_HUB)) {
+      const invoice = await this.getInvoiceByLndhub(address);
+      return LightningHelper.getPublicKeyOfInvoice(invoice.payment_request);
     }
 
-    const invoice = await this.getInvoice(address);
-    return LightningHelper.getPublicKeyOfInvoice(invoice);
+    throw new Error(`Cannot detect public key of address ${address}`);
   }
 
-  async getInvoice(lnurlpAddress: string, amount?: number): Promise<LnurlpInvoiceDto> {
-    try {
-      const lnurlpUrl = LightningHelper.decodeLnurlp(lnurlpAddress);
+  async getInvoiceByLnurlp(lnurlpAddress: string, amount?: number): Promise<LnurlpInvoiceDto> {
+    return this.client.getInvoiceByLnurlp(lnurlpAddress, amount);
+  }
 
-      const payRequest = await this.http.get<LnurlPayRequestDto>(lnurlpUrl);
-
-      const payAmount = amount ? amount : payRequest.minSendable;
-
-      if (payAmount < payRequest.minSendable) {
-        throw new BadRequestException(`Pay amount ${payAmount} less than min sendable ${payRequest.minSendable}`);
-      }
-
-      return await this.http.get<LnurlpInvoiceDto>(payRequest.callback, {
-        params: { amount: payAmount },
-      });
-    } catch {
-      throw new BadRequestException(`Error while getting invoice of address ${lnurlpAddress}`);
-    }
+  async getInvoiceByLndhub(lndHubAddress: string, amount?: number): Promise<LnBitsInvoiceDto> {
+    return this.client.getInvoiceByLndhub(lndHubAddress, amount);
   }
 
   async getLndInfo(): Promise<LndInfoDto> {

@@ -52,6 +52,12 @@ export class LightningStrategy extends PayoutStrategy {
               break;
             }
 
+            case LightningAddressType.LND_HUB: {
+              const txId = await this.payoutLightningService.sendPaymentByLndhub(address, amount);
+              await this.finishDoPayout(order, txId);
+              break;
+            }
+
             default:
               this.logger.error(`Unknown address type ${addressType} in Lightning payout order ${order.id}`);
           }
