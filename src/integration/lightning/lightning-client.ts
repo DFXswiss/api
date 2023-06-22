@@ -27,6 +27,10 @@ export class LightningClient {
     return this.http.get<LndInfoDto>(`${Config.blockchain.lightning.lnd.apiUrl}/getinfo`, this.httpLndConfig());
   }
 
+  async getBalance(): Promise<number> {
+    return this.getLndLocalChannelBalance();
+  }
+
   async getLndConfirmedWalletBalance(): Promise<number> {
     return this.getLndWalletBalance().then((b) => LightningHelper.satToBtc(b.confirmed_balance));
   }
