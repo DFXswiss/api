@@ -1,14 +1,14 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { TradeChangedException } from 'src/integration/exchange/exceptions/trade-changed.exception';
+import { ExchangeService } from 'src/integration/exchange/services/exchange.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { LiquidityManagementOrder } from '../../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../../enums';
-import { Command, CorrelationId } from '../../../interfaces';
-import { LiquidityManagementAdapter } from './liquidity-management.adapter';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { ExchangeService } from 'src/integration/exchange/services/exchange.service';
-import { TradeChangedException } from 'src/integration/exchange/exceptions/trade-changed.exception';
-import { LiquidityManagementOrderRepository } from '../../../repositories/liquidity-management-order.repository';
 import { OrderNotProcessableException } from '../../../exceptions/order-not-processable.exception';
+import { Command, CorrelationId } from '../../../interfaces';
+import { LiquidityManagementOrderRepository } from '../../../repositories/liquidity-management-order.repository';
+import { LiquidityManagementAdapter } from './liquidity-management.adapter';
 
 export interface CcxtExchangeWithdrawParams {
   destinationBlockchain: Blockchain;
@@ -128,9 +128,9 @@ export abstract class CcxtExchangeAdapter extends LiquidityManagementAdapter {
     } = order;
 
     const withdrawal = await this.exchangeService.getWithdraw(correlationId, asset.dexName);
-    if (!withdrawal) {
+    if (!withdrawal?.txid) {
       this.logger.verbose(
-        `No withdrawal for id ${correlationId} and asset ${asset.uniqueName} at ${this.exchangeService.name} found`,
+        `No withdrawal id for id ${correlationId} and asset ${asset.uniqueName} at ${this.exchangeService.name} found`,
       );
       return false;
     }
