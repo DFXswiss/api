@@ -295,14 +295,14 @@ export abstract class EvmClient {
     amount: number,
     feeLimit?: number,
   ): Promise<string> {
-    /**
-     * @note
-     * adding a cap to make sure gas limit is sufficient
-     */
     const gasLimit = +(await this.getTokenGasLimitForContact(contract));
     const gasPrice = await this.getGasPrice(gasLimit, feeLimit);
     const nonce = await this.getNonce(fromAddress);
 
+    /**
+     * @note
+     * adding a cap to make sure gas limit is sufficient
+     */
     const effectiveGasLimit = Util.round(gasLimit * 1.5, 0);
 
     const decimals = await contract.decimals();
