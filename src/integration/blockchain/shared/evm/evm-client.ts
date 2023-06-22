@@ -1,7 +1,7 @@
 import { CurrencyAmount, Percent, Token, TradeType } from '@uniswap/sdk-core';
 import { AlphaRouter, ChainId, SwapType } from '@uniswap/smart-order-router';
 import BigNumber from 'bignumber.js';
-import { Contract, BigNumber as EthersNumber, ethers } from 'ethers';
+import { BigNumberish, Contract, BigNumber as EthersNumber, ethers } from 'ethers';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
@@ -60,7 +60,7 @@ export abstract class EvmClient {
   async getNativeCoinBalanceOfAddress(address: string): Promise<number> {
     const balance = await this.provider.getBalance(address);
 
-    return this.convertToEthLikeDenomination(balance);
+    return this.fromWeiAmount(balance);
   }
 
   async getTokenBalanceOfAddress(address: string, token: Asset): Promise<number> {
@@ -68,7 +68,7 @@ export abstract class EvmClient {
     const balance = await contract.balanceOf(address);
     const decimals = await contract.decimals();
 
-    return this.convertToEthLikeDenomination(balance, decimals);
+    return this.fromWeiAmount(balance, decimals);
   }
 
   async getCurrentGasPrice(): Promise<EthersNumber> {
@@ -114,7 +114,7 @@ export abstract class EvmClient {
 
     nonce = nonce ?? (await this.getNonce(request.from));
     gasPrice = gasPrice ?? +(await this.getCurrentGasPrice());
-    value = this.convertToWeiLikeDenomination(value as number, 'ether');
+    value = this.toWeiAmount(value as number);
 
     return wallet.sendTransaction({
       ...request,
@@ -179,7 +179,7 @@ export abstract class EvmClient {
     const { gasUsed, effectiveGasPrice } = await this.getTxReceipt(txHash);
     const actualFee = gasUsed.mul(effectiveGasPrice);
 
-    return this.convertToEthLikeDenomination(actualFee);
+    return this.fromWeiAmount(actualFee);
   }
 
   async testSwap(sourceToken: Asset, sourceAmount: number, targetToken: Asset): Promise<number> {
@@ -192,6 +192,11 @@ export abstract class EvmClient {
       TradeType.EXACT_INPUT,
       this.swapConfig,
     );
+
+    if (!route)
+      throw new Error(
+        `No swap route found for ${sourceAmount} ${sourceToken.name} -> ${targetToken.name} (${sourceToken.blockchain})`,
+      );
 
     return +route.quote.toExact();
   }
@@ -225,20 +230,22 @@ export abstract class EvmClient {
 
   // --- PUBLIC HELPER METHODS --- //
 
-  convertToEthLikeDenomination(amountWeiLike: EthersNumber, decimals?: number): number {
-    return decimals
-      ? parseFloat(ethers.utils.formatUnits(amountWeiLike, decimals))
-      : parseFloat(ethers.utils.formatEther(amountWeiLike));
+  fromWeiAmount(amountWeiLike: BigNumberish, decimals?: number): number {
+    const amount = decimals
+      ? ethers.utils.formatUnits(amountWeiLike, decimals)
+      : ethers.utils.formatEther(amountWeiLike);
+
+    return parseFloat(amount);
   }
 
-  convertToWeiLikeDenomination(amountEthLike: number, decimals: number | 'ether'): EthersNumber {
-    const amount = new BigNumber(amountEthLike).toFixed(decimals === 'ether' ? 16 : decimals);
+  toWeiAmount(amountEthLike: number, decimals?: number): EthersNumber {
+    const amount = new BigNumber(amountEthLike).toFixed(decimals ?? 16);
 
-    return ethers.utils.parseUnits(amount, decimals);
+    return decimals ? ethers.utils.parseUnits(amount, decimals) : ethers.utils.parseEther(amount);
   }
 
   private toCurrencyAmount(amount: number, token: Token): CurrencyAmount<Token> {
-    const targetAmount = this.convertToWeiLikeDenomination(amount, token.decimals).toString();
+    const targetAmount = this.toWeiAmount(amount, token.decimals).toString();
 
     return CurrencyAmount.fromRawAmount(token, targetAmount);
   }
@@ -269,7 +276,7 @@ export abstract class EvmClient {
     const tx = await wallet.sendTransaction({
       from: wallet.address,
       to: toAddress,
-      value: this.convertToWeiLikeDenomination(amount, 'ether'),
+      value: this.toWeiAmount(amount),
       nonce,
       gasPrice,
       // has to be provided as a number for BSC
@@ -299,7 +306,7 @@ export abstract class EvmClient {
     const effectiveGasLimit = Util.round(gasLimit * 1.5, 0);
 
     const decimals = await contract.decimals();
-    const targetAmount = this.convertToWeiLikeDenomination(amount, decimals);
+    const targetAmount = this.toWeiAmount(amount, decimals);
 
     const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit: effectiveGasLimit, nonce });
 
@@ -310,8 +317,7 @@ export abstract class EvmClient {
 
   protected async getGasPrice(gasLimit: number, feeLimit?: number): Promise<number> {
     const currentGasPrice = +(await this.getCurrentGasPrice());
-    const proposedGasPrice =
-      feeLimit != null ? Util.round(+this.convertToWeiLikeDenomination(feeLimit, 'ether') / gasLimit, 0) : null;
+    const proposedGasPrice = feeLimit != null ? Util.round(+this.toWeiAmount(feeLimit) / gasLimit, 0) : null;
 
     if (!proposedGasPrice) return currentGasPrice;
 
