@@ -8,6 +8,7 @@ import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import ERC20_ABI from './abi/erc20.abi.json';
 import { WalletAccount } from './domain/wallet-account';
+import { ScanApiResponse } from './dto/scan-api-response.dto';
 import { EvmUtil } from './evm.util';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
 
@@ -336,11 +337,9 @@ export abstract class EvmClient {
       action: type,
     };
 
-    const response = await this.http.get<{ result: T[] | string }>(this.scanApiUrl, { params });
-    const result = response.result;
+    const { result, message } = await this.http.get<ScanApiResponse<T[]>>(this.scanApiUrl, { params });
 
-    if (!Array.isArray(result))
-      throw new Error(`Failed to get ${type} transactions: ${result ?? JSON.stringify(response)}`);
+    if (!Array.isArray(result)) throw new Error(`Failed to get ${type} transactions: ${result ?? message}`);
 
     return result;
   }
