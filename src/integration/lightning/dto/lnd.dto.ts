@@ -44,3 +44,55 @@ export interface LndSendPaymentResponseDto {
   payment_hash: string;
   payment_error: string;
 }
+
+export interface LndChannelDto {
+  active: boolean;
+  remote_pubkey: string;
+  channel_point: string;
+  chan_id: string;
+  capacity: string;
+  local_balance: string;
+  remote_balance: string;
+  commit_fee: string;
+  commit_weight: string;
+  fee_per_kw: string;
+  unsettled_balance: string;
+  total_satoshis_sent: string;
+  total_satoshis_received: string;
+  num_updates: string;
+  pending_htlcs: [];
+  csv_delay: number;
+  private: boolean;
+  initiator: boolean;
+  chan_status_flags: string;
+  local_chan_reserve_sat: string;
+  remote_chan_reserve_sat: string;
+  static_remote_key: boolean;
+  commitment_type: string;
+  lifetime: string;
+  uptime: string;
+  close_address: string;
+  push_amount_sat: string;
+  thaw_height: number;
+  local_constraints: {
+    csv_delay: number;
+    chan_reserve_sat: string;
+    dust_limit_sat: string;
+    max_pending_amt_msat: string;
+    min_htlc_msat: string;
+    max_accepted_htlcs: number;
+  };
+  remote_constraints: {
+    csv_delay: number;
+    chan_reserve_sat: string;
+    dust_limit_sat: string;
+    max_pending_amt_msat: string;
+    min_htlc_msat: string;
+    max_accepted_htlcs: number;
+  };
+  alias_scids: [];
+  zero_conf: boolean;
+  zero_conf_confirmed_scid: string;
+  peer_alias: string;
+  peer_scid_alias: string;
+}

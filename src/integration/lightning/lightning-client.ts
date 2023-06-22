@@ -8,6 +8,7 @@ import { LnurlpPaymentData } from './data/lnurlp-payment.data';
 import { LnBitsInvoiceDto, LnBitsWalletDto } from './dto/lnbits.dto';
 import {
   LndChannelBalanceDto,
+  LndChannelDto,
   LndInfoDto,
   LndPaymentsDto,
   LndSendPaymentResponseDto,
@@ -25,10 +26,6 @@ export class LightningClient {
   // --- LND --- //
   async getLndInfo(): Promise<LndInfoDto> {
     return this.http.get<LndInfoDto>(`${Config.blockchain.lightning.lnd.apiUrl}/getinfo`, this.httpLndConfig());
-  }
-
-  async getBalance(): Promise<number> {
-    return this.getLndLocalChannelBalance();
   }
 
   async getLndConfirmedWalletBalance(): Promise<number> {
@@ -55,6 +52,22 @@ export class LightningClient {
       `${Config.blockchain.lightning.lnd.apiUrl}/balance/channels`,
       this.httpLndConfig(),
     );
+  }
+
+  async getBalance(): Promise<number> {
+    const channels = await this.getChannels();
+
+    const balances = channels
+      .filter((c) => c.active)
+      .map((c) => +c.local_balance - +c.commit_fee - +c.local_chan_reserve_sat);
+
+    return LightningHelper.satToBtc(Util.sum(balances));
+  }
+
+  private async getChannels(): Promise<LndChannelDto[]> {
+    return this.http
+      .get<{ channels: LndChannelDto[] }>(`${Config.blockchain.lightning.lnd.apiUrl}/channels`, this.httpLndConfig())
+      .then((r) => r.channels);
   }
 
   // --- LND Payments --- //
