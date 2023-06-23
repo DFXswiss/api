@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { LightningAddressType, LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -37,30 +36,8 @@ export class LightningStrategy extends PayoutStrategy {
           const address = order.destinationAddress;
           const amount = order.amount;
 
-          const addressType = LightningHelper.getAddressType(address);
-
-          switch (addressType) {
-            case LightningAddressType.LN_URL: {
-              const txId = await this.payoutLightningService.sendPaymentByLnurl(address, amount);
-              await this.finishDoPayout(order, txId);
-              break;
-            }
-
-            case LightningAddressType.LN_NID: {
-              const txId = await this.payoutLightningService.sendPaymentByLnnid(address, amount);
-              await this.finishDoPayout(order, txId);
-              break;
-            }
-
-            case LightningAddressType.LND_HUB: {
-              const txId = await this.payoutLightningService.sendPaymentByLndhub(address, amount);
-              await this.finishDoPayout(order, txId);
-              break;
-            }
-
-            default:
-              this.logger.error(`Unknown address type ${addressType} in Lightning payout order ${order.id}`);
-          }
+          const txId = await this.payoutLightningService.sendPayment(address, amount);
+          await this.finishDoPayout(order, txId);
         } catch (e) {
           this.logger.error(`Error while executing Lightning payout order ${order.id}:`, e);
         }

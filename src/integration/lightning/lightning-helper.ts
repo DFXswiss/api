@@ -52,12 +52,10 @@ export class LightningHelper {
   }
 
   static getAddressType(address: string): LightningAddressType {
-    if (address.startsWith(LightningAddressType.LN_URL)) {
-      return LightningAddressType.LN_URL;
-    } else if (address.startsWith(LightningAddressType.LN_NID)) {
-      return LightningAddressType.LN_NID;
-    } else if (address.startsWith(LightningAddressType.LND_HUB)) {
-      return LightningAddressType.LND_HUB;
+    for (const addressType of Object.values(LightningAddressType)) {
+      if (address.startsWith(addressType)) {
+        return addressType;
+      }
     }
 
     throw new Error(`Cannot detect Lightning Address Type of address ${address}`);

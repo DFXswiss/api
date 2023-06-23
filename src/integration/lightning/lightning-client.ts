@@ -1,11 +1,10 @@
-import { BadRequestException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { Agent } from 'https';
 import { Config } from 'src/config/config';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { LnurlpPaymentData } from './data/lnurlp-payment.data';
-import { LnBitsInvoiceDto, LnBitsWalletDto } from './dto/lnbits.dto';
+import { LnBitsWalletDto } from './dto/lnbits.dto';
 import {
   LndChannelBalanceDto,
   LndChannelDto,
@@ -17,11 +16,9 @@ import {
 } from './dto/lnd.dto';
 import { LnurlPayRequestDto, LnurlpInvoiceDto, LnurlpLinkDto, LnurlpLinkRemoveDto } from './dto/lnurlp.dto';
 import { PaymentDto } from './dto/payment.dto';
-import { LightningAddressType, LightningHelper } from './lightning-helper';
+import { LightningHelper } from './lightning-helper';
 
 export class LightningClient {
-  private static ALLOWED_LNDHUB_PATTERN = /^lndhub:\/\/invoice:(?<key>.+)@(?<url>https:\/\/.+)$/;
-
   constructor(private readonly http: HttpService) {}
 
   // --- LND --- //
@@ -83,11 +80,11 @@ export class LightningClient {
   }
 
   // --- LND Payments --- //
-  async listPayments(fromDateInMillis: number, toDateInMillis: number): Promise<LndPaymentDto[]> {
+  async listPayments(fromDate: Date, toDate: Date): Promise<LndPaymentDto[]> {
     const httpConfig = this.httpLndConfig();
     httpConfig.params = {
-      creation_date_start: Math.floor(fromDateInMillis / 1000),
-      creation_date_end: Math.floor(toDateInMillis / 1000),
+      creation_date_start: Math.floor(fromDate.getTime() / 1000),
+      creation_date_end: Math.floor(toDate.getTime() / 1000),
     };
 
     return this.http
@@ -129,52 +126,6 @@ export class LightningClient {
     return this.http.get<LnBitsWalletDto>(
       `${Config.blockchain.lightning.lnbits.apiUrl}/wallet`,
       this.httpLnBitsConfig(),
-    );
-  }
-
-  async getInvoiceByLnurlp(lnurlpAddress: string, amount?: number): Promise<LnurlpInvoiceDto> {
-    try {
-      const lnurlpUrl = LightningHelper.decodeLnurlp(lnurlpAddress);
-
-      const payRequest = await this.http.get<LnurlPayRequestDto>(lnurlpUrl);
-
-      const payAmount = amount ? amount : payRequest.minSendable;
-
-      if (payAmount < payRequest.minSendable) {
-        throw new BadRequestException(`Pay amount ${payAmount} less than min sendable ${payRequest.minSendable}`);
-      }
-
-      return await this.http.get<LnurlpInvoiceDto>(payRequest.callback, {
-        params: { amount: payAmount },
-      });
-    } catch {
-      throw new BadRequestException(`Error while getting invoice of address ${lnurlpAddress}`);
-    }
-  }
-
-  async getInvoiceByLndhub(lndHubAddress: string, amount?: number): Promise<LnBitsInvoiceDto> {
-    const lnurlAddress = lndHubAddress.replace(LightningAddressType.LND_HUB, LightningAddressType.LN_URL);
-    const lndHubPlain = LightningHelper.decodeLnurlp(lnurlAddress);
-
-    const lndHubMatch = LightningClient.ALLOWED_LNDHUB_PATTERN.exec(lndHubPlain);
-
-    if (!lndHubMatch) {
-      throw new BadRequestException(`Invalid LNDHUB address ${lndHubPlain}`);
-    }
-
-    const invoiceKey = lndHubMatch.groups.key;
-    const checkUrl = new URL(lndHubMatch.groups.url);
-
-    return this.http.post<LnBitsInvoiceDto>(
-      `https://${checkUrl.hostname}/api/v1/payments`,
-      {
-        out: false,
-        amount: amount ? LightningHelper.btcToSat(amount) : 1,
-        memo: 'Payment by DFX.swiss',
-      },
-      {
-        headers: { 'X-Api-Key': invoiceKey, 'Content-Type': 'application/json' },
-      },
     );
   }
 
@@ -235,7 +186,7 @@ export class LightningClient {
     );
   }
 
-  // --- LNURLP FORWARD --- //
+  // --- LNURLP REWRITE --- //
   async getLnurlpPaymentRequest(linkId: string): Promise<LnurlPayRequestDto> {
     const lnBitsUrl = `${Config.blockchain.lightning.lnbits.lnurlpUrl}/${linkId}`;
     return this.http.get(lnBitsUrl, this.httpLnBitsConfig());

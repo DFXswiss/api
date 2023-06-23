@@ -1,15 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { LnBitsInvoiceDto } from '../dto/lnbits.dto';
-import { LndInfoDto, LndPaymentDto, LndRouteDto, LndSendPaymentResponseDto } from '../dto/lnd.dto';
-import { LnurlpInvoiceDto } from '../dto/lnurlp.dto';
+import { LnurlPayRequestDto, LnurlpInvoiceDto } from '../dto/lnurlp.dto';
 import { LightningClient } from '../lightning-client';
 import { LightningAddressType, LightningHelper } from '../lightning-helper';
 
 @Injectable()
 export class LightningService {
   private readonly logger = new DfxLogger(LightningService);
+
+  private static ALLOWED_LNDHUB_PATTERN = /^lndhub:\/\/invoice:(?<key>.+)@(?<url>https:\/\/.+)$/;
 
   private readonly client: LightningClient;
 
@@ -26,44 +27,75 @@ export class LightningService {
   }
 
   async getPublicKeyOfAddress(address: string): Promise<string> {
-    if (address.startsWith(LightningAddressType.LN_URL)) {
-      const invoice = await this.getInvoiceByLnurlp(address);
-      return LightningHelper.getPublicKeyOfInvoice(invoice.pr);
-    } else if (address.startsWith(LightningAddressType.LN_NID)) {
-      return address.replace(LightningAddressType.LN_NID, '');
-    } else if (address.startsWith(LightningAddressType.LND_HUB)) {
-      const invoice = await this.getInvoiceByLndhub(address);
-      return LightningHelper.getPublicKeyOfInvoice(invoice.payment_request);
-    }
+    const addressType = LightningHelper.getAddressType(address);
 
-    throw new Error(`Cannot detect public key of address ${address}`);
+    switch (addressType) {
+      case LightningAddressType.LN_URL: {
+        const invoice = await this.getInvoiceByLnurlp(address);
+        return LightningHelper.getPublicKeyOfInvoice(invoice.pr);
+      }
+
+      case LightningAddressType.LN_NID: {
+        return address.replace(LightningAddressType.LN_NID, '');
+      }
+
+      case LightningAddressType.LND_HUB: {
+        const invoice = await this.getInvoiceByLndhub(address);
+        return LightningHelper.getPublicKeyOfInvoice(invoice.payment_request);
+      }
+
+      default: {
+        throw new Error(`Cannot detect public key of address ${address}`);
+      }
+    }
   }
 
   async getInvoiceByLnurlp(lnurlpAddress: string, amount?: number): Promise<LnurlpInvoiceDto> {
-    return this.client.getInvoiceByLnurlp(lnurlpAddress, amount);
+    try {
+      const lnurlpUrl = LightningHelper.decodeLnurlp(lnurlpAddress);
+
+      const payRequest = await this.http.get<LnurlPayRequestDto>(lnurlpUrl);
+      amount ??= payRequest.minSendable;
+
+      if (amount < payRequest.minSendable) {
+        throw new BadRequestException(`Pay amount ${amount} less than min sendable ${payRequest.minSendable}`);
+      }
+
+      if (amount > payRequest.maxSendable) {
+        throw new BadRequestException(`Pay amount ${amount} greater than max sendable ${payRequest.maxSendable}`);
+      }
+
+      return await this.http.get<LnurlpInvoiceDto>(payRequest.callback, {
+        params: { amount: amount },
+      });
+    } catch {
+      throw new BadRequestException(`Error while getting invoice of address ${lnurlpAddress}`);
+    }
   }
 
   async getInvoiceByLndhub(lndHubAddress: string, amount?: number): Promise<LnBitsInvoiceDto> {
-    return this.client.getInvoiceByLndhub(lndHubAddress, amount);
-  }
+    const lnurlAddress = lndHubAddress.replace(LightningAddressType.LND_HUB, LightningAddressType.LN_URL);
+    const lndHubPlain = LightningHelper.decodeLnurlp(lnurlAddress);
 
-  async getLndInfo(): Promise<LndInfoDto> {
-    return this.client.getLndInfo();
-  }
+    const lndHubMatch = LightningService.ALLOWED_LNDHUB_PATTERN.exec(lndHubPlain);
 
-  async getLndRoutes(publicKey: string, amount: number): Promise<LndRouteDto[]> {
-    return this.client.getLndRoutes(publicKey, amount);
-  }
+    if (!lndHubMatch) {
+      throw new BadRequestException(`Invalid LNDHUB address ${lndHubPlain}`);
+    }
 
-  async sendPaymentByInvoice(invoice: string): Promise<LndSendPaymentResponseDto> {
-    return this.client.sendPaymentByInvoice(invoice);
-  }
+    const invoiceKey = lndHubMatch.groups.key;
+    const checkUrl = new URL(lndHubMatch.groups.url);
 
-  async sendPaymentByPublicKey(publicKey: string, amount: number): Promise<LndSendPaymentResponseDto> {
-    return this.client.sendPaymentByPublicKey(publicKey, amount);
-  }
-
-  async listPayments(fromDate: number, toDate: number): Promise<LndPaymentDto[]> {
-    return this.client.listPayments(fromDate, toDate);
+    return this.http.post<LnBitsInvoiceDto>(
+      `https://${checkUrl.hostname}/api/v1/payments`,
+      {
+        out: false,
+        amount: amount ? LightningHelper.btcToSat(amount) : 1,
+        memo: 'Payment by DFX.swiss',
+      },
+      {
+        headers: { 'X-Api-Key': invoiceKey, 'Content-Type': 'application/json' },
+      },
+    );
   }
 }
