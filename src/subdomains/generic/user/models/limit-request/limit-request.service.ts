@@ -1,17 +1,17 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { KycDocument } from 'src/subdomains/generic/user/services/spider/dto/spider.dto';
+import { SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
+import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { WebhookService } from '../../services/webhook/webhook.service';
 import { KycCompleted } from '../user-data/user-data.entity';
 import { UserDataService } from '../user-data/user-data.service';
 import { LimitRequestDto } from './dto/limit-request.dto';
-import { LimitRequestRepository } from './limit-request.repository';
-import { SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
 import { UpdateLimitRequestDto } from './dto/update-limit-request.dto';
 import { LimitRequest, LimitRequestAccepted } from './limit-request.entity';
-import { Util } from 'src/shared/utils/util';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
-import { WebhookService } from '../../services/webhook/webhook.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { LimitRequestRepository } from './limit-request.repository';
 
 @Injectable()
 export class LimitRequestService {
@@ -88,7 +88,7 @@ export class LimitRequestService {
   }
 
   private fromBase64(file: string): { contentType: string; buffer: Buffer } {
-    const matches = file.match(/^data:(.+);base64,(.*)$/);
-    return { contentType: matches[1], buffer: Buffer.from(matches[2], 'base64') };
+    const [contentType, content] = file.split(';base64,');
+    return { contentType: contentType.replace('data:', ''), buffer: Buffer.from(content, 'base64') };
   }
 }

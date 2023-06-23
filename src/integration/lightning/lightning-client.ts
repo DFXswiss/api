@@ -1,25 +1,33 @@
+import { randomBytes } from 'crypto';
 import { Agent } from 'https';
 import { Config } from 'src/config/config';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
+import { Util } from 'src/shared/utils/util';
 import { LnurlpPaymentData } from './data/lnurlp-payment.data';
-import { LnBitsWalletDto } from './dto/lnbits-wallet.dto';
-import { LndChannelBalanceDto } from './dto/lnd-channel-balance.dto';
-import { LndWalletBalanceDto } from './dto/lnd-wallet-balance.dto';
-import { LnurlpInvoiceDto } from './dto/lnurlp-invoice.dto';
-import { LnurlpLinkRemoveDto } from './dto/lnurlp-link-remove.dto';
-import { LnurlpLinkDto } from './dto/lnurlp-link.dto';
-import { LnurlPayRequestDto } from './dto/lnurlp-pay-request.dto';
+import { LnBitsWalletDto } from './dto/lnbits.dto';
+import {
+  LndChannelBalanceDto,
+  LndChannelDto,
+  LndInfoDto,
+  LndPaymentDto,
+  LndRouteDto,
+  LndSendPaymentResponseDto,
+  LndWalletBalanceDto,
+} from './dto/lnd.dto';
+import { LnurlPayRequestDto, LnurlpInvoiceDto, LnurlpLinkDto, LnurlpLinkRemoveDto } from './dto/lnurlp.dto';
 import { PaymentDto } from './dto/payment.dto';
 import { LightningHelper } from './lightning-helper';
 
 export class LightningClient {
-  private static SAT_BTC_FACTOR: number = 10 ** 8;
-
   constructor(private readonly http: HttpService) {}
 
   // --- LND --- //
+  async getLndInfo(): Promise<LndInfoDto> {
+    return this.http.get<LndInfoDto>(`${Config.blockchain.lightning.lnd.apiUrl}/getinfo`, this.httpLndConfig());
+  }
+
   async getLndConfirmedWalletBalance(): Promise<number> {
-    return this.getLndWalletBalance().then((b) => b.confirmed_balance / LightningClient.SAT_BTC_FACTOR);
+    return this.getLndWalletBalance().then((b) => LightningHelper.satToBtc(b.confirmed_balance));
   }
 
   private async getLndWalletBalance(): Promise<LndWalletBalanceDto> {
@@ -30,11 +38,11 @@ export class LightningClient {
   }
 
   async getLndLocalChannelBalance(): Promise<number> {
-    return this.getLndChannelBalance().then((b) => b.local_balance.sat / LightningClient.SAT_BTC_FACTOR);
+    return this.getLndChannelBalance().then((b) => LightningHelper.satToBtc(b.local_balance.sat));
   }
 
   async getLndRemoteChannelBalance(): Promise<number> {
-    return this.getLndChannelBalance().then((b) => b.remote_balance.sat / LightningClient.SAT_BTC_FACTOR);
+    return this.getLndChannelBalance().then((b) => LightningHelper.satToBtc(b.remote_balance.sat));
   }
 
   private async getLndChannelBalance(): Promise<LndChannelBalanceDto> {
@@ -44,9 +52,74 @@ export class LightningClient {
     );
   }
 
+  async getBalance(): Promise<number> {
+    const channels = await this.getChannels();
+
+    const balances = channels
+      .filter((c) => c.active)
+      .map((c) => +c.local_balance - +c.commit_fee - +c.local_chan_reserve_sat);
+
+    return LightningHelper.satToBtc(Util.sum(balances));
+  }
+
+  private async getChannels(): Promise<LndChannelDto[]> {
+    return this.http
+      .get<{ channels: LndChannelDto[] }>(`${Config.blockchain.lightning.lnd.apiUrl}/channels`, this.httpLndConfig())
+      .then((r) => r.channels);
+  }
+
+  async getLndRoutes(publicKey: string, amount: number): Promise<LndRouteDto[]> {
+    const amountInSat = LightningHelper.btcToSat(amount);
+
+    return this.http
+      .get<{ routes: LndRouteDto[] }>(
+        `${Config.blockchain.lightning.lnd.apiUrl}/graph/routes/${publicKey}/${amountInSat}`,
+        this.httpLndConfig(),
+      )
+      .then((r) => r.routes);
+  }
+
+  // --- LND Payments --- //
+  async listPayments(fromDate: Date, toDate: Date): Promise<LndPaymentDto[]> {
+    const httpConfig = this.httpLndConfig();
+    httpConfig.params = {
+      creation_date_start: Math.floor(fromDate.getTime() / 1000),
+      creation_date_end: Math.floor(toDate.getTime() / 1000),
+    };
+
+    return this.http
+      .get<{ payments: LndPaymentDto[] }>(`${Config.blockchain.lightning.lnd.apiUrl}/payments`, httpConfig)
+      .then((p) => p.payments);
+  }
+
+  async sendPaymentByInvoice(invoice: string): Promise<LndSendPaymentResponseDto> {
+    return this.http.post<LndSendPaymentResponseDto>(
+      `${Config.blockchain.lightning.lnd.apiUrl}/channels/transactions`,
+      { payment_request: invoice },
+      this.httpLndConfig(),
+    );
+  }
+
+  async sendPaymentByPublicKey(publicKey: string, amount: number): Promise<LndSendPaymentResponseDto> {
+    const preImage = randomBytes(32);
+    const paymentHash = Util.createHash(preImage, 'sha256', 'base64');
+
+    return this.http.post<LndSendPaymentResponseDto>(
+      `${Config.blockchain.lightning.lnd.apiUrl}/channels/transactions`,
+      {
+        dest: Buffer.from(publicKey, 'hex').toString('base64'),
+        amt: amount,
+        final_cltv_delta: 0,
+        payment_hash: paymentHash,
+        dest_custom_records: { 5482373484: preImage.toString('base64') },
+      },
+      this.httpLndConfig(),
+    );
+  }
+
   // --- LnBits --- //
   async getLnBitsBalance(): Promise<number> {
-    return this.getLnBitsWallet().then((w) => w.balance / 10 ** 3 / LightningClient.SAT_BTC_FACTOR);
+    return this.getLnBitsWallet().then((w) => LightningHelper.msatToBtc(w.balance));
   }
 
   private async getLnBitsWallet(): Promise<LnBitsWalletDto> {
@@ -113,16 +186,18 @@ export class LightningClient {
     );
   }
 
-  async getPaymentRequest(linkId: string): Promise<LnurlPayRequestDto> {
+  // --- LNURLP REWRITE --- //
+  async getLnurlpPaymentRequest(linkId: string): Promise<LnurlPayRequestDto> {
     const lnBitsUrl = `${Config.blockchain.lightning.lnbits.lnurlpUrl}/${linkId}`;
     return this.http.get(lnBitsUrl, this.httpLnBitsConfig());
   }
 
-  async createInvoice(linkId: string, params: any): Promise<LnurlpInvoiceDto> {
+  async getLnurlpInvoice(linkId: string, params: any): Promise<LnurlpInvoiceDto> {
     const lnBitsCallbackUrl = `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/lnurl/cb/${linkId}`;
     return this.http.get<LnurlpInvoiceDto>(lnBitsCallbackUrl, this.httpLnBitsConfig(params));
   }
 
+  // --- LNURLP LINKS --- //
   async addLnurlpLink(description: string): Promise<LnurlpLinkDto> {
     if (!description) throw new Error('Description is undefined');
 

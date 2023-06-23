@@ -1,3 +1,15 @@
+export interface LnurlPayRequestDto {
+  tag: string;
+  callback: string;
+  minSendable: number;
+  maxSendable: number;
+  metadata: string;
+}
+
+export interface LnurlpInvoiceDto {
+  pr: string;
+}
+
 export interface LnurlpLinkDto {
   id?: string;
   wallet?: string;
@@ -17,4 +29,8 @@ export interface LnurlpLinkDto {
   max: number;
   fiat_base_multiplier: number;
   lnurl?: string;
+}
+
+export interface LnurlpLinkRemoveDto {
+  success: boolean;
 }

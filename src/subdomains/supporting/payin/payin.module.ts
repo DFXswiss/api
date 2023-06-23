@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { ChainalysisModule } from 'src/integration/chainalysis/chainalysis.module';
@@ -49,7 +49,7 @@ import { OptimismTokenStrategy as OptimismTokenStrategyS } from './strategies/se
     PayoutModule,
     DexModule,
     ChainalysisModule,
-    SellCryptoModule,
+    forwardRef(() => SellCryptoModule),
     PaymentModule,
   ],
   controllers: [],

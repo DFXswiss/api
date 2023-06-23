@@ -1,4 +1,4 @@
-import { BigNumber, Contract } from 'ethers';
+import { Contract } from 'ethers';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmService } from 'src/integration/blockchain/shared/evm/evm.service';
@@ -60,8 +60,8 @@ export abstract class DexEvmService {
     return [allCoinTransactions, allTokenTransactions];
   }
 
-  convertToEthLikeDenomination(amountWeiLike: BigNumber, decimals?: number): number {
-    return this.#client.convertToEthLikeDenomination(amountWeiLike, decimals);
+  fromWeiAmount(amountWeiLike: string, decimals?: number): number {
+    return this.#client.fromWeiAmount(amountWeiLike, decimals);
   }
 
   getERC20ContractForDex(tokenAddress: string): Contract {

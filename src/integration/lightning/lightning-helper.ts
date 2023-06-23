@@ -6,8 +6,42 @@ import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { decode as zbase32Decode } from 'zbase32';
 
+export enum LightningAddressType {
+  LN_URL = 'LNURL',
+  LN_NID = 'LNNID',
+  LND_HUB = 'LNDHUB',
+}
+
 export class LightningHelper {
-  static MSG_SIGNATURE_PREFIX = 'Lightning Signed Message:';
+  private static SAT_BTC_FACTOR: number = 10 ** 8;
+  private static SAT_MSAT_FACTOR: number = 10 ** 3;
+
+  private static MSG_SIGNATURE_PREFIX = 'Lightning Signed Message:';
+
+  // --- CONVERT --- /
+  static btcToSat(btcAmount: number): number {
+    return Util.round(btcAmount * LightningHelper.SAT_BTC_FACTOR, 3);
+  }
+
+  static satToMsat(satAmount: number): number {
+    return Util.round(satAmount * LightningHelper.SAT_MSAT_FACTOR, 0);
+  }
+
+  static btcToMsat(btcAmount: number): number {
+    return Util.round(LightningHelper.satToMsat(LightningHelper.btcToSat(btcAmount)), 0);
+  }
+
+  static msatToSat(msatAmount: number): number {
+    return Util.round(msatAmount / LightningHelper.SAT_MSAT_FACTOR, 3);
+  }
+
+  static satToBtc(satAmount: number): number {
+    return Util.round(satAmount / LightningHelper.SAT_BTC_FACTOR, 12);
+  }
+
+  static msatToBtc(msatAmount: number): number {
+    return Util.round(LightningHelper.satToBtc(LightningHelper.msatToSat(msatAmount)), 12);
+  }
 
   // --- ADDRESSES --- //
   static addressToLnurlp(address: string): string {
@@ -15,6 +49,16 @@ export class LightningHelper {
 
     const url = `https://${domain}/.well-known/lnurlp/${id}`;
     return LightningHelper.encodeLnurlp(url);
+  }
+
+  static getAddressType(address: string): LightningAddressType {
+    for (const addressType of Object.values(LightningAddressType)) {
+      if (address.startsWith(addressType)) {
+        return addressType;
+      }
+    }
+
+    throw new Error(`Cannot detect Lightning Address Type of address ${address}`);
   }
 
   // --- LNURLP --- //
@@ -55,7 +99,7 @@ export class LightningHelper {
     return ecdsaVerify(checkSignature, messageHash, Util.stringToUint8(publicKey, 'hex'));
   }
 
-  // --- INVOICES --- //
+  // --- INVOICE --- //
   static getPublicKeyOfInvoice(invoice: string): string {
     const decodedInvoice = bolt11Decode(invoice);
     return decodedInvoice.payeeNodeKey;

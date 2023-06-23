@@ -11,10 +11,12 @@ import { BitcoinStrategy } from '../impl/bitcoin.strategy';
 import { BscStrategy } from '../impl/bsc.strategy';
 import { DeFiChainStrategy } from '../impl/defichain.strategy';
 import { EthereumStrategy } from '../impl/ethereum.strategy';
+import { LightningStrategy } from '../impl/lightning.strategy';
 import { OptimismStrategy } from '../impl/optimism.strategy';
 
 describe('PrepareStrategyRegistry', () => {
   let bitcoinStrategy: BitcoinStrategy;
+  let lightningStrategy: LightningStrategy;
   let defichainStrategy: DeFiChainStrategy;
   let ethereumStrategy: EthereumStrategy;
   let bscStrategy: BscStrategy;
@@ -31,6 +33,7 @@ describe('PrepareStrategyRegistry', () => {
       mock<PayoutDeFiChainService>(),
       mock<PayoutOrderRepository>(),
     );
+    lightningStrategy = new LightningStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
     ethereumStrategy = new EthereumStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
     bscStrategy = new BscStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
     arbitrumStrategy = new ArbitrumStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
@@ -38,6 +41,7 @@ describe('PrepareStrategyRegistry', () => {
 
     registry = new PrepareStrategyRegistryWrapper(
       bitcoinStrategy,
+      lightningStrategy,
       defichainStrategy,
       ethereumStrategy,
       bscStrategy,
@@ -54,13 +58,19 @@ describe('PrepareStrategyRegistry', () => {
         expect(strategy).toBeInstanceOf(BitcoinStrategy);
       });
 
-      it('gets ETHEREUM strategy', () => {
+      it('gets LIGHTNING strategy for LIGHTNING', () => {
+        const strategy = registry.getPrepareStrategy(createCustomAsset({ blockchain: Blockchain.LIGHTNING }));
+
+        expect(strategy).toBeInstanceOf(LightningStrategy);
+      });
+
+      it('gets ETHEREUM strategy for ETHERUM', () => {
         const strategy = registry.getPrepareStrategy(createCustomAsset({ blockchain: Blockchain.ETHEREUM }));
 
         expect(strategy).toBeInstanceOf(EthereumStrategy);
       });
 
-      it('gets BSC strategy', () => {
+      it('gets BSC strategy FOR BINANCE_SMART_CHAIN', () => {
         const strategy = registry.getPrepareStrategy(createCustomAsset({ blockchain: Blockchain.BINANCE_SMART_CHAIN }));
 
         expect(strategy).toBeInstanceOf(BscStrategy);
@@ -98,6 +108,7 @@ describe('PrepareStrategyRegistry', () => {
 class PrepareStrategyRegistryWrapper extends PrepareStrategyRegistry {
   constructor(
     bitcoinStrategy: BitcoinStrategy,
+    lightningStrategy: LightningStrategy,
     defichainStrategy: DeFiChainStrategy,
     ethereumStrategy: EthereumStrategy,
     bscStrategy: BscStrategy,
@@ -107,6 +118,7 @@ class PrepareStrategyRegistryWrapper extends PrepareStrategyRegistry {
     super();
 
     this.addStrategy(Blockchain.BITCOIN, bitcoinStrategy);
+    this.addStrategy(Blockchain.LIGHTNING, lightningStrategy);
     this.addStrategy(Blockchain.DEFICHAIN, defichainStrategy);
     this.addStrategy(Blockchain.ETHEREUM, ethereumStrategy);
     this.addStrategy(Blockchain.BINANCE_SMART_CHAIN, bscStrategy);

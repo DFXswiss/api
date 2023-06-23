@@ -286,10 +286,14 @@ export class Util {
     Object.keys(entity).forEach((k) => entity[k] == null && delete entity[k]);
   }
 
-  static createHash(data: BinaryLike, algo: CryptoAlgorithm = 'sha256'): string {
+  static createHash(
+    data: BinaryLike,
+    algo: CryptoAlgorithm = 'sha256',
+    encoding: crypto.BinaryToTextEncoding = 'hex',
+  ): string {
     const hash = createHash(algo);
     hash.update(data);
-    return hash.digest('hex');
+    return hash.digest(encoding);
   }
 
   static createSign(data: BinaryLike, key: KeyLike, algo: CryptoAlgorithm): string {

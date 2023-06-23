@@ -1,5 +1,4 @@
 import { BadRequestException } from '@nestjs/common';
-import { BigNumber } from 'ethers';
 import { Config } from 'src/config/config';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
@@ -58,7 +57,7 @@ export abstract class EvmStrategy extends SupplementaryStrategy {
   }
 
   private findTargetCoinEntry(history: EvmCoinHistoryEntry[], amount: number): EvmCoinHistoryEntry | undefined {
-    return history.find((h) => this.dexEvmService.convertToEthLikeDenomination(BigNumber.from(h.value)) === amount);
+    return history.find((h) => this.dexEvmService.fromWeiAmount(h.value) === amount);
   }
 
   private async findTargetTokenEntry(
@@ -76,8 +75,6 @@ export abstract class EvmStrategy extends SupplementaryStrategy {
 
     const decimals = await contract.decimals();
 
-    return history.find(
-      (h) => this.dexEvmService.convertToEthLikeDenomination(BigNumber.from(h.value), decimals) === amount,
-    );
+    return history.find((h) => this.dexEvmService.fromWeiAmount(h.value, decimals) === amount);
   }
 }
