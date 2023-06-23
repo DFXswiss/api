@@ -8,8 +8,6 @@ import { LiquidityOrderRepository } from '../repositories/liquidity-order.reposi
 
 @Injectable()
 export class DexLightningService {
-  private static MIN_CHANNEL_AMOUNT = 0.005;
-
   private lightningClient: LightningClient;
 
   constructor(private readonly liquidityOrderRepo: LiquidityOrderRepository, lightningService: LightningService) {
@@ -18,12 +16,9 @@ export class DexLightningService {
 
   async checkAvailableTargetLiquidity(inputAmount: number): Promise<[number, number]> {
     const pendingAmount = await this.getPendingAmount();
-    const availableAmount = await this.lightningClient.getLndLocalChannelBalance();
+    const availableAmount = await this.lightningClient.getBalance();
 
-    // TODO:
-    // Hier stellt sich die Frage, welchen Puffer wir im Lightning Kanal stehen lassen?
-
-    return [inputAmount, availableAmount - DexLightningService.MIN_CHANNEL_AMOUNT - pendingAmount];
+    return [inputAmount, availableAmount - pendingAmount];
   }
 
   private async getPendingAmount(): Promise<number> {
