@@ -14,7 +14,7 @@ import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Country } from 'src/shared/models/country/country.entity';
 import { AccountType } from '../account-type.enum';
 import { IsDfxPhone } from '../is-dfx-phone.validator';
-import { KycIdentificationType, KycState, KycStatus } from '../user-data.entity';
+import { KycIdentificationType, KycState, KycStatus, UserDataStatus } from '../user-data.entity';
 
 export class UpdateUserDataDto {
   @IsOptional()
@@ -138,4 +138,8 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsString()
   internalAmlNote: string;
+
+  @IsOptional()
+  @IsEnum(UserDataStatus)
+  status: UserDataStatus;
 }
