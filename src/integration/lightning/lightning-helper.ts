@@ -20,27 +20,27 @@ export class LightningHelper {
 
   // --- CONVERT --- /
   static btcToSat(btcAmount: number): number {
-    return btcAmount * LightningHelper.SAT_BTC_FACTOR;
+    return Util.round(btcAmount * LightningHelper.SAT_BTC_FACTOR, 3);
   }
 
   static satToMsat(satAmount: number): number {
-    return satAmount * LightningHelper.SAT_MSAT_FACTOR;
+    return Util.round(satAmount * LightningHelper.SAT_MSAT_FACTOR, 0);
   }
 
   static btcToMsat(btcAmount: number): number {
-    return LightningHelper.satToMsat(LightningHelper.btcToSat(btcAmount));
+    return Util.round(LightningHelper.satToMsat(LightningHelper.btcToSat(btcAmount)), 0);
   }
 
   static msatToSat(msatAmount: number): number {
-    return msatAmount / LightningHelper.SAT_MSAT_FACTOR;
+    return Util.round(msatAmount / LightningHelper.SAT_MSAT_FACTOR, 3);
   }
 
   static satToBtc(satAmount: number): number {
-    return satAmount / LightningHelper.SAT_BTC_FACTOR;
+    return Util.round(satAmount / LightningHelper.SAT_BTC_FACTOR, 12);
   }
 
   static msatToBtc(msatAmount: number): number {
-    return LightningHelper.satToBtc(LightningHelper.msatToSat(msatAmount));
+    return Util.round(LightningHelper.satToBtc(LightningHelper.msatToSat(msatAmount)), 12);
   }
 
   // --- ADDRESSES --- //
