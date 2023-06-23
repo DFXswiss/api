@@ -20,11 +20,11 @@ export class LightningHelper {
 
   // --- CONVERT --- /
   static btcToSat(btcAmount: number): number {
-    return btcAmount * LightningHelper.SAT_BTC_FACTOR;
+    return Util.round(btcAmount * LightningHelper.SAT_BTC_FACTOR, 8);
   }
 
   static satToMsat(satAmount: number): number {
-    return satAmount * LightningHelper.SAT_MSAT_FACTOR;
+    return Util.round(satAmount * LightningHelper.SAT_MSAT_FACTOR, 3);
   }
 
   static btcToMsat(btcAmount: number): number {
@@ -32,11 +32,11 @@ export class LightningHelper {
   }
 
   static msatToSat(msatAmount: number): number {
-    return msatAmount / LightningHelper.SAT_MSAT_FACTOR;
+    return Util.round(msatAmount / LightningHelper.SAT_MSAT_FACTOR, 12);
   }
 
   static satToBtc(satAmount: number): number {
-    return satAmount / LightningHelper.SAT_BTC_FACTOR;
+    return Util.round(satAmount / LightningHelper.SAT_BTC_FACTOR, 12);
   }
 
   static msatToBtc(msatAmount: number): number {

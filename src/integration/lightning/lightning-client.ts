@@ -10,7 +10,8 @@ import {
   LndChannelBalanceDto,
   LndChannelDto,
   LndInfoDto,
-  LndPaymentsDto,
+  LndPaymentDto,
+  LndRouteDto,
   LndSendPaymentResponseDto,
   LndWalletBalanceDto,
 } from './dto/lnd.dto';
@@ -70,15 +71,28 @@ export class LightningClient {
       .then((r) => r.channels);
   }
 
+  async getLndRoutes(publicKey: string, amount: number): Promise<LndRouteDto[]> {
+    const amountInSat = LightningHelper.btcToSat(amount);
+
+    return this.http
+      .get<{ routes: LndRouteDto[] }>(
+        `${Config.blockchain.lightning.lnd.apiUrl}/graph/routes/${publicKey}/${amountInSat}`,
+        this.httpLndConfig(),
+      )
+      .then((r) => r.routes);
+  }
+
   // --- LND Payments --- //
-  async listPayments(fromDateInMillis: number, toDateInMillis: number): Promise<LndPaymentsDto> {
+  async listPayments(fromDateInMillis: number, toDateInMillis: number): Promise<LndPaymentDto[]> {
     const httpConfig = this.httpLndConfig();
     httpConfig.params = {
       creation_date_start: Math.floor(fromDateInMillis / 1000),
       creation_date_end: Math.floor(toDateInMillis / 1000),
     };
 
-    return this.http.get<LndPaymentsDto>(`${Config.blockchain.lightning.lnd.apiUrl}/payments`, httpConfig);
+    return this.http
+      .get<{ payments: LndPaymentDto[] }>(`${Config.blockchain.lightning.lnd.apiUrl}/payments`, httpConfig)
+      .then((p) => p.payments);
   }
 
   async sendPaymentByInvoice(invoice: string): Promise<LndSendPaymentResponseDto> {

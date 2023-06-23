@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { LnBitsInvoiceDto } from '../dto/lnbits.dto';
-import { LndInfoDto, LndPaymentsDto, LndSendPaymentResponseDto } from '../dto/lnd.dto';
+import { LndInfoDto, LndPaymentDto, LndRouteDto, LndSendPaymentResponseDto } from '../dto/lnd.dto';
 import { LnurlpInvoiceDto } from '../dto/lnurlp.dto';
 import { LightningClient } from '../lightning-client';
 import { LightningAddressType, LightningHelper } from '../lightning-helper';
@@ -51,6 +51,10 @@ export class LightningService {
     return this.client.getLndInfo();
   }
 
+  async getLndRoutes(publicKey: string, amount: number): Promise<LndRouteDto[]> {
+    return this.client.getLndRoutes(publicKey, amount);
+  }
+
   async sendPaymentByInvoice(invoice: string): Promise<LndSendPaymentResponseDto> {
     return this.client.sendPaymentByInvoice(invoice);
   }
@@ -59,7 +63,7 @@ export class LightningService {
     return this.client.sendPaymentByPublicKey(publicKey, amount);
   }
 
-  async listPayments(fromDate: number, toDate: number): Promise<LndPaymentsDto> {
+  async listPayments(fromDate: number, toDate: number): Promise<LndPaymentDto[]> {
     return this.client.listPayments(fromDate, toDate);
   }
 }

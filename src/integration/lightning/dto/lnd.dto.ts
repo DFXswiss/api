@@ -27,10 +27,6 @@ export enum LndPaymentStatus {
   FAILED = 'FAILED',
 }
 
-export interface LndPaymentsDto {
-  payments: LndPaymentDto[];
-}
-
 export interface LndPaymentDto {
   payment_hash: string;
   value_sat: number;
@@ -95,4 +91,17 @@ export interface LndChannelDto {
   zero_conf_confirmed_scid: string;
   peer_alias: string;
   peer_scid_alias: string;
+}
+
+export interface LndRouteDto {
+  total_fees_msat: number;
+  total_amt_msat: number;
+  hops: [
+    {
+      chan_id: string;
+      amt_to_forward_msat: number;
+      fee_msat: number;
+      pub_key: string;
+    },
+  ];
 }

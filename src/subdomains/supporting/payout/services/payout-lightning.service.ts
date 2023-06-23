@@ -20,6 +20,14 @@ export class PayoutLightningService {
     }
   }
 
+  async getEstimatedFee(publicKey: string, amount: number): Promise<number> {
+    const routes = await this.lightningService.getLndRoutes(publicKey, amount);
+
+    const maxFeeMsat = Math.max(...routes.map((r) => r.total_fees_msat), 0);
+
+    return LightningHelper.msatToBtc(maxFeeMsat);
+  }
+
   async sendPaymentByLnurl(lnurlAddress: string, amount: number): Promise<string> {
     const invoice = await this.getInvoiceByLnurl(lnurlAddress, LightningHelper.btcToMsat(amount));
 
@@ -88,7 +96,7 @@ export class PayoutLightningService {
 
     for (let hour = 0; hour < PayoutLightningService.MAX_HOURS; hour++) {
       const payments = await this.lightningService.listPayments(loopFromDate, loopToDate);
-      const foundPayments = payments.payments.filter((p) => p.payment_hash === payoutTxId);
+      const foundPayments = payments.filter((p) => p.payment_hash === payoutTxId);
 
       if (foundPayments.length === 1) return foundPayments[0];
 
