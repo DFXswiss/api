@@ -55,7 +55,7 @@ export class LightningService {
 
     const payRequest = await this.http.get<LnurlPayRequestDto>(lnurlpUrl);
 
-    amount = amount ? LightningHelper.btcToSat(amount) : payRequest.minSendable;
+    amount = amount ? LightningHelper.btcToMsat(amount) : payRequest.minSendable;
 
     if (amount < payRequest.minSendable) {
       throw new BadRequestException(`Pay amount ${amount} less than min sendable ${payRequest.minSendable}`);
