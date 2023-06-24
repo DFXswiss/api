@@ -47,7 +47,7 @@ export class PayoutLightningService {
 
       case LightningAddressType.LN_NID: {
         const publicKey = await this.lightningService.getPublicKeyOfAddress(address);
-        paymentResponse = await this.client.sendPaymentByPublicKey(publicKey, LightningHelper.btcToSat(amount));
+        paymentResponse = await this.client.sendPaymentByPublicKey(publicKey, amount);
         break;
       }
 

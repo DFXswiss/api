@@ -51,26 +51,23 @@ export class LightningService {
   }
 
   async getInvoiceByLnurlp(lnurlpAddress: string, amount?: number): Promise<LnurlpInvoiceDto> {
-    try {
-      const lnurlpUrl = LightningHelper.decodeLnurlp(lnurlpAddress);
+    const lnurlpUrl = LightningHelper.decodeLnurlp(lnurlpAddress);
 
-      const payRequest = await this.http.get<LnurlPayRequestDto>(lnurlpUrl);
-      amount ??= payRequest.minSendable;
+    const payRequest = await this.http.get<LnurlPayRequestDto>(lnurlpUrl);
 
-      if (amount < payRequest.minSendable) {
-        throw new BadRequestException(`Pay amount ${amount} less than min sendable ${payRequest.minSendable}`);
-      }
+    amount = amount ? LightningHelper.btcToSat(amount) : payRequest.minSendable;
 
-      if (amount > payRequest.maxSendable) {
-        throw new BadRequestException(`Pay amount ${amount} greater than max sendable ${payRequest.maxSendable}`);
-      }
-
-      return await this.http.get<LnurlpInvoiceDto>(payRequest.callback, {
-        params: { amount: amount },
-      });
-    } catch {
-      throw new BadRequestException(`Error while getting invoice of address ${lnurlpAddress}`);
+    if (amount < payRequest.minSendable) {
+      throw new BadRequestException(`Pay amount ${amount} less than min sendable ${payRequest.minSendable}`);
     }
+
+    if (amount > payRequest.maxSendable) {
+      throw new BadRequestException(`Pay amount ${amount} greater than max sendable ${payRequest.maxSendable}`);
+    }
+
+    return this.http.get<LnurlpInvoiceDto>(payRequest.callback, {
+      params: { amount: amount },
+    });
   }
 
   async getInvoiceByLndhub(lndHubAddress: string, amount?: number): Promise<LnBitsInvoiceDto> {
