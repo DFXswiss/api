@@ -4,6 +4,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FeeLimitExceededException } from 'src/shared/payment/exceptions/fee-limit-exceeded.exception';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { LiquidityManagementRuleStatus } from 'src/subdomains/core/liquidity-management/enums';
 import { LiquidityManagementService } from 'src/subdomains/core/liquidity-management/services/liquidity-management.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { CheckLiquidityRequest, CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
@@ -420,26 +421,28 @@ export class BuyCryptoBatchService {
         this.logger.info(`Failed to order missing liquidity for asset ${oa.uniqueName}:`, e);
 
         // send missing liquidity message
-        const maxPurchasableTargetAmountMessage =
-          maxPurchasableTargetAmount != null ? `, purchasable: ${maxPurchasableTargetAmount}` : '';
+        if (!e.message?.includes(LiquidityManagementRuleStatus.PROCESSING)) {
+          const maxPurchasableTargetAmountMessage =
+            maxPurchasableTargetAmount != null ? `, purchasable: ${maxPurchasableTargetAmount}` : '';
 
-        const maxPurchasableReferenceAmountMessage =
-          maxPurchasableReferenceAmount != null ? `, purchasable: ${maxPurchasableReferenceAmount}` : '';
+          const maxPurchasableReferenceAmountMessage =
+            maxPurchasableReferenceAmount != null ? `, purchasable: ${maxPurchasableReferenceAmount}` : '';
 
-        const messages = [
-          `${error.message} Details:`,
-          `Target: ${targetDeficit} ${oa.uniqueName} (required ${targetAmount}, available: ${availableTargetAmount}${maxPurchasableTargetAmountMessage})`,
-          `Reference: ${referenceDeficit} ${ora.uniqueName} (required ${outputReferenceAmount}, available: ${availableReferenceAmount}${maxPurchasableReferenceAmountMessage})`,
-          `Liquidity management order failed: ${e.message}`,
-        ];
+          const messages = [
+            `${error.message} Details:`,
+            `Target: ${targetDeficit} ${oa.uniqueName} (required ${targetAmount}, available: ${availableTargetAmount}${maxPurchasableTargetAmountMessage})`,
+            `Reference: ${referenceDeficit} ${ora.uniqueName} (required ${outputReferenceAmount}, available: ${availableReferenceAmount}${maxPurchasableReferenceAmountMessage})`,
+            `Liquidity management order failed: ${e.message}`,
+          ];
 
-        await this.buyCryptoNotificationService.sendMissingLiquidityError(
-          oa.dexName,
-          oa.blockchain,
-          oa.type,
-          transactions.map((t) => t.id),
-          messages,
-        );
+          await this.buyCryptoNotificationService.sendMissingLiquidityError(
+            oa.dexName,
+            oa.blockchain,
+            oa.type,
+            transactions.map((t) => t.id),
+            messages,
+          );
+        }
       }
     } catch (e) {
       this.logger.error('Error in handling MissingBuyCryptoLiquidityException:', e);
