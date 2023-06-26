@@ -86,7 +86,7 @@ export class BuyCryptoNotificationService {
                     (tx.inputAmount / tx.inputReferenceAmount) * (tx.inputReferenceAmountMinusFee / tx.outputAmount),
                     2,
                   ),
-                  buyWalletAddress: Util.blankBlockchainAddress(tx.target.address),
+                  buyWalletAddress: Util.blankStart(tx.target.address),
                   buyTxId: tx.txId,
                   buyTransactionLink: txExplorerUrl(tx.target.asset.blockchain, tx.txId),
                   fee: `${Util.round(tx.percentFee * 100, 2)}%` + minFee,

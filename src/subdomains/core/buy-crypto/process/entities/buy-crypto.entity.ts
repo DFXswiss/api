@@ -401,13 +401,13 @@ export class BuyCrypto extends IEntity {
       ? {
           address: this.buy.deposit?.address ?? this.buy.user.address,
           asset: this.buy.asset,
-          trimmedReturnAddress: this.buy?.iban ? Util.blankIban(this.buy.iban) : null,
+          trimmedReturnAddress: this.buy?.iban ? Util.blankStart(this.buy.iban) : null,
         }
       : {
           address: this.cryptoRoute.targetDeposit?.address ?? this.cryptoRoute.user.address,
           asset: this.cryptoRoute.asset,
           trimmedReturnAddress: this.cryptoRoute?.user?.address
-            ? Util.blankBlockchainAddress(this.cryptoRoute.user.address)
+            ? Util.blankStart(this.cryptoRoute.user.address)
             : null,
         };
   }

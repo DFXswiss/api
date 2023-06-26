@@ -52,7 +52,7 @@ export class RefRewardNotificationService {
               translationParams: {
                 outputAmount: entity.outputAmount,
                 outputAsset: entity.outputAsset,
-                userAddressTrimmed: Util.blankBlockchainAddress(entity.targetAddress),
+                userAddressTrimmed: Util.blankStart(entity.targetAddress),
                 transactionLink: txExplorerUrl(entity.targetBlockchain, entity.txId),
               },
             },
