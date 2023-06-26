@@ -316,10 +316,8 @@ export class BuyCryptoBatchService {
   // --- PAYOUT FEE OPTIMIZING --- //
   private async optimizeByPayoutFee(batch: BuyCryptoBatch) {
     // add fee estimation
-    const nativePayoutFee = await this.getPayoutFee(batch);
-    const payoutFee = await this.buyCryptoPricingService.getFeeAmountInBatchAsset(batch, nativePayoutFee);
-
     for (const tx of batch.transactions) {
+      const payoutFee = await this.getPayoutFee(tx);
       await this.buyCryptoRepo.updateFee(...tx.fee.addPayoutFeeEstimation(payoutFee, tx));
     }
 
@@ -334,12 +332,10 @@ export class BuyCryptoBatchService {
     }
   }
 
-  private async getPayoutFee(batch: BuyCryptoBatch): Promise<FeeResult> {
-    try {
-      return await this.payoutService.estimateFee(batch.outputAsset);
-    } catch (e) {
-      throw new Error(`Error in getting payout fees for a batch ${batch.id}: ${e.message}`);
-    }
+  private async getPayoutFee(tx: BuyCrypto): Promise<number> {
+    const nativePayoutFee = await this.payoutService.estimateFee(tx.outputAsset, tx.target.address, tx.outputAmount);
+
+    return this.buyCryptoPricingService.getFeeAmountInRefAsset(tx.outputReferenceAsset, nativePayoutFee);
   }
 
   // ---- LIQUIDITY OPTIMIZING --- //
@@ -452,7 +448,10 @@ export class BuyCryptoBatchService {
   // --- PURCHASE FEE OPTIMIZATION -- ///
   private async optimizeByPurchaseFee(batch: BuyCryptoBatch, nativePurchaseFee: FeeResult) {
     try {
-      const purchaseFee = await this.buyCryptoPricingService.getFeeAmountInBatchAsset(batch, nativePurchaseFee);
+      const purchaseFee = await this.buyCryptoPricingService.getFeeAmountInRefAsset(
+        batch.outputReferenceAsset,
+        nativePurchaseFee,
+      );
 
       batch.checkByPurchaseFeeEstimation(purchaseFee);
     } catch (e) {

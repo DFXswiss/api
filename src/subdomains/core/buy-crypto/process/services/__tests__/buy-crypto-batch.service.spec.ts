@@ -1,11 +1,15 @@
+import { Test, TestingModule } from '@nestjs/testing';
 import { mock } from 'jest-mock-extended';
+import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { TestUtil } from 'src/shared/utils/test.util';
 import { createCustomBuy } from 'src/subdomains/core/buy-crypto/routes/buy/__mocks__/buy.entity.mock';
+import { LiquidityManagementService } from 'src/subdomains/core/liquidity-management/services/liquidity-management.service';
 import { CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
-import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
-import { AssetService } from 'src/shared/models/asset/asset.service';
-import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
+import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import {
   createCustomBuyCryptoBatch,
   createDefaultBuyCryptoBatch,
@@ -16,10 +20,6 @@ import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
 import { BuyCryptoBatchService } from '../buy-crypto-batch.service';
 import { BuyCryptoNotificationService } from '../buy-crypto-notification.service';
 import { BuyCryptoPricingService } from '../buy-crypto-pricing.service';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { LiquidityManagementService } from 'src/subdomains/core/liquidity-management/services/liquidity-management.service';
-import { TestUtil } from 'src/shared/utils/test.util';
-import { Test, TestingModule } from '@nestjs/testing';
 
 describe('BuyCryptoBatchService', () => {
   let service: BuyCryptoBatchService;
@@ -280,7 +280,7 @@ describe('BuyCryptoBatchService', () => {
         return { price, path: [] };
       });
 
-    jest.spyOn(buyCryptoPricingService, 'getFeeAmountInBatchAsset').mockImplementation(async () => 0.001);
+    jest.spyOn(buyCryptoPricingService, 'getFeeAmountInRefAsset').mockImplementation(async () => 0.001);
 
     dexServiceCheckLiquidity = jest.spyOn(dexService, 'checkLiquidity').mockImplementation(
       async () =>
