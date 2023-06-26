@@ -212,7 +212,7 @@ export class BuyFiat extends IEntity {
     return `${Util.round(this.percentFee * 100, 2)}%`;
   }
 
-  get transactionId(): string {
+  get txId(): string {
     if (this.cryptoInput.asset.blockchain === Blockchain.LIGHTNING) return Util.blankStart(this.cryptoInput.inTxId);
     return txExplorerUrl(this.cryptoInput.asset.blockchain, this.cryptoInput.inTxId);
   }

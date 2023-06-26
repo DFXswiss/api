@@ -56,7 +56,7 @@ export class BuyFiatNotificationService {
                 inputAmount: entity.cryptoInput.amount,
                 inputAsset: entity.cryptoInput.asset.dexName,
                 blockchain: entity.cryptoInput.asset.blockchain,
-                inputTransactionLink: entity.transactionId,
+                inputTransactionLink: entity.txId,
               },
             },
           });

@@ -1,4 +1,5 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
@@ -358,6 +359,11 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
+  get transactionId(): string {
+    if (this.target.asset.blockchain === Blockchain.LIGHTNING) return Util.blankStart(this.txId);
+    return txExplorerUrl(this.target.asset.blockchain, this.txId);
+  }
+
   get translationKey(): string {
     if (this.amlCheck === AmlCheck.PASS) {
       if (this.target.asset.blockchain === Blockchain.LIGHTNING)
@@ -406,9 +412,7 @@ export class BuyCrypto extends IEntity {
       : {
           address: this.cryptoRoute.targetDeposit?.address ?? this.cryptoRoute.user.address,
           asset: this.cryptoRoute.asset,
-          trimmedReturnAddress: this.cryptoRoute?.user?.address
-            ? Util.blankStart(this.cryptoRoute.user.address)
-            : null,
+          trimmedReturnAddress: this.cryptoRoute?.user?.address ? Util.blankStart(this.cryptoRoute.user.address) : null,
         };
   }
 

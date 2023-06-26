@@ -324,7 +324,7 @@ export class Util {
     return new XMLParser({ ignoreAttributes: false }).parse(file);
   }
 
-  static blankStart(value: string, visibleLength: number = 4): string {
+  static blankStart(value: string, visibleLength = 4): string {
     return '***' + value.slice(value.length - visibleLength);
   }
 
