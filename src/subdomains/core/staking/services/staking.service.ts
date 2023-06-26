@@ -1,24 +1,24 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { Config, Process } from 'src/config/config';
+import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
-import { PayoutType, StakingReward } from '../entities/staking-reward.entity';
-import { StakingRewardRepository } from '../repositories/staking-reward.repository';
-import { Between, In, IsNull, Not } from 'typeorm';
-import { StakingRefReward } from '../entities/staking-ref-reward.entity';
-import { StakingRefRewardRepository } from '../repositories/staking-ref-reward.repository';
-import { CryptoStaking } from '../entities/crypto-staking.entity';
-import { CryptoStakingRepository } from '../repositories/crypto-staking.repository';
-import { StakingRepository } from '../repositories/staking.repository';
-import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
+import { Util } from 'src/shared/utils/util';
+import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
+import { Between, In, IsNull, Not } from 'typeorm';
+import { CryptoStaking } from '../entities/crypto-staking.entity';
+import { StakingRefReward } from '../entities/staking-ref-reward.entity';
+import { PayoutType, StakingReward } from '../entities/staking-reward.entity';
 import { Staking } from '../entities/staking.entity';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
-import { Util } from 'src/shared/utils/util';
-import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { Config, Process } from 'src/config/config';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { CryptoStakingRepository } from '../repositories/crypto-staking.repository';
+import { StakingRefRewardRepository } from '../repositories/staking-ref-reward.repository';
+import { StakingRewardRepository } from '../repositories/staking-reward.repository';
+import { StakingRepository } from '../repositories/staking.repository';
 
 @Injectable()
 export class StakingService {
@@ -148,7 +148,7 @@ export class StakingService {
               translationParams: {
                 inputAmount: payIn.amount,
                 inputAsset: payIn.asset.name,
-                userAddressTrimmed: Util.blankBlockchainAddress(staking.user.address),
+                userAddressTrimmed: Util.blankStart(staking.user.address),
                 transactionLink: txExplorerUrl(payIn.asset.blockchain, payIn.inTxId),
               },
             },
