@@ -150,6 +150,11 @@ export interface Risk {
   categoryKey: RiskState;
 }
 
+export interface RiskResult {
+  result: RiskState | undefined;
+  risks: Risk[];
+}
+
 export interface CustomerBase {
   reference: string;
   type: string;
