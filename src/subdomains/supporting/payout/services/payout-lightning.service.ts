@@ -41,7 +41,7 @@ export class PayoutLightningService {
     switch (addressType) {
       case LightningAddressType.LN_URL: {
         const invoice = await this.lightningService.getInvoiceByLnurlp(address, amount);
-        paymentResponse = await this.client.sendPaymentByInvoice(invoice.pr);
+        paymentResponse = await this.client.sendPaymentByInvoice(invoice);
         break;
       }
 
@@ -53,7 +53,7 @@ export class PayoutLightningService {
 
       case LightningAddressType.LND_HUB: {
         const invoice = await this.lightningService.getInvoiceByLndhub(address, amount);
-        paymentResponse = await this.client.sendPaymentByInvoice(invoice.payment_request);
+        paymentResponse = await this.client.sendPaymentByInvoice(invoice);
         break;
       }
 
