@@ -32,7 +32,7 @@ export class LightningService {
     switch (addressType) {
       case LightningAddressType.LN_URL: {
         const invoice = await this.getInvoiceByLnurlp(address);
-        return LightningHelper.getPublicKeyOfInvoice(invoice.pr);
+        return LightningHelper.getPublicKeyOfInvoice(invoice);
       }
 
       case LightningAddressType.LN_NID: {
@@ -41,7 +41,7 @@ export class LightningService {
 
       case LightningAddressType.LND_HUB: {
         const invoice = await this.getInvoiceByLndhub(address);
-        return LightningHelper.getPublicKeyOfInvoice(invoice.payment_request);
+        return LightningHelper.getPublicKeyOfInvoice(invoice);
       }
 
       default: {
@@ -50,7 +50,7 @@ export class LightningService {
     }
   }
 
-  async getInvoiceByLnurlp(lnurlpAddress: string, amount?: number): Promise<LnurlpInvoiceDto> {
+  async getInvoiceByLnurlp(lnurlpAddress: string, amount?: number): Promise<string> {
     const lnurlpUrl = LightningHelper.decodeLnurlp(lnurlpAddress);
 
     const payRequest = await this.http.get<LnurlPayRequestDto>(lnurlpUrl);
@@ -65,12 +65,14 @@ export class LightningService {
       throw new BadRequestException(`Pay amount ${amount} greater than max sendable ${payRequest.maxSendable}`);
     }
 
-    return this.http.get<LnurlpInvoiceDto>(payRequest.callback, {
-      params: { amount: amount },
-    });
+    return this.http
+      .get<LnurlpInvoiceDto>(payRequest.callback, {
+        params: { amount: amount },
+      })
+      .then((i) => i.pr);
   }
 
-  async getInvoiceByLndhub(lndHubAddress: string, amount?: number): Promise<LnBitsInvoiceDto> {
+  async getInvoiceByLndhub(lndHubAddress: string, amount?: number): Promise<string> {
     const lnurlAddress = lndHubAddress.replace(LightningAddressType.LND_HUB, LightningAddressType.LN_URL);
     const lndHubPlain = LightningHelper.decodeLnurlp(lnurlAddress);
 
@@ -83,16 +85,18 @@ export class LightningService {
     const invoiceKey = lndHubMatch.groups.key;
     const checkUrl = new URL(lndHubMatch.groups.url);
 
-    return this.http.post<LnBitsInvoiceDto>(
-      `https://${checkUrl.hostname}/api/v1/payments`,
-      {
-        out: false,
-        amount: amount ? LightningHelper.btcToSat(amount) : 1,
-        memo: 'Payment by DFX.swiss',
-      },
-      {
-        headers: { 'X-Api-Key': invoiceKey, 'Content-Type': 'application/json' },
-      },
-    );
+    return this.http
+      .post<LnBitsInvoiceDto>(
+        `https://${checkUrl.hostname}/api/v1/payments`,
+        {
+          out: false,
+          amount: amount ? LightningHelper.btcToSat(amount) : 1,
+          memo: 'Payment by DFX.swiss',
+        },
+        {
+          headers: { 'X-Api-Key': invoiceKey, 'Content-Type': 'application/json' },
+        },
+      )
+      .then((i) => i.payment_request);
   }
 }
