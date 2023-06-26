@@ -96,8 +96,8 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
     return this.transactionHelper.getInSpecs(asset).then((r) => r.minFee);
   }
 
-  protected async getEstimatedFee(asset: Asset): Promise<{ nativeFee: number; targetFee: number }> {
-    const nativeFee = await this.payoutService.estimateFee(asset);
+  protected async getEstimatedFee(asset: Asset, amount: number): Promise<{ nativeFee: number; targetFee: number }> {
+    const nativeFee = await this.payoutService.estimateFee(asset, this.getForwardAddress().address, amount);
     const targetFee = await this.getFeeAmountInPayInAsset(asset, nativeFee);
 
     return { nativeFee: nativeFee.amount, targetFee };

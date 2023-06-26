@@ -77,8 +77,9 @@ export class LightningStrategy extends PayoutStrategy {
     }
   }
 
-  async estimateFee(asset: Asset): Promise<FeeResult> {
-    return { asset, amount: 0 };
+  async estimateFee(asset: Asset, address: string, amount: number): Promise<FeeResult> {
+    const fee = await this.payoutLightningService.getEstimatedFee(address, amount);
+    return { asset, amount: fee };
   }
 
   async getFeeAsset(): Promise<Asset> {

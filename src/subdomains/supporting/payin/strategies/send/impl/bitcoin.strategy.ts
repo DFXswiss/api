@@ -38,13 +38,11 @@ export class BitcoinStrategy extends JellyfishStrategy {
 
     await this.bitcoinService.checkHealthOrThrow();
 
-    // assuming BTC is the only asset on Bitcoin
-    const asset = payIns[0].asset;
-    const { targetFee } = await this.getEstimatedFee(asset);
-    const minInputFee = await this.getMinInputFee(asset);
-
     for (const payIn of payIns) {
       try {
+        const { targetFee } = await this.getEstimatedFee(payIn.asset, payIn.amount);
+        const minInputFee = await this.getMinInputFee(payIn.asset);
+
         CryptoInput.verifyEstimatedFee(targetFee, minInputFee, payIn.amount);
 
         this.designateSend(payIn, type);

@@ -57,12 +57,12 @@ export class PayoutService {
     return { isComplete: order && order.status === PayoutOrderStatus.COMPLETE, payoutTxId, payoutFee };
   }
 
-  async estimateFee(asset: Asset): Promise<FeeResult> {
+  async estimateFee(asset: Asset, address: string, amount: number): Promise<FeeResult> {
     const prepareStrategy = this.prepareStrategyRegistry.getPrepareStrategy(asset);
     const payoutStrategy = this.payoutStrategyRegistry.getPayoutStrategy(asset);
 
     const prepareFee = await prepareStrategy.estimateFee(asset);
-    const payoutFee = await payoutStrategy.estimateFee(asset);
+    const payoutFee = await payoutStrategy.estimateFee(asset, address, amount);
 
     const totalFeeAmount = Util.round(prepareFee.amount + payoutFee.amount, 16);
 

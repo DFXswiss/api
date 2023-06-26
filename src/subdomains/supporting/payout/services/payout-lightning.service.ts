@@ -25,7 +25,9 @@ export class PayoutLightningService {
     }
   }
 
-  async getEstimatedFee(publicKey: string, amount: number): Promise<number> {
+  async getEstimatedFee(address: string, amount: number): Promise<number> {
+    const publicKey = await this.lightningService.getPublicKeyOfAddress(address);
+
     const routes = await this.client.getLndRoutes(publicKey, amount);
 
     const maxFeeMsat = Math.max(...routes.map((r) => r.total_fees_msat), 0);
