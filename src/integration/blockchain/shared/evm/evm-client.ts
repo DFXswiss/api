@@ -63,12 +63,12 @@ export abstract class EvmClient {
     return this.fromWeiAmount(balance);
   }
 
-  async getTokenBalanceOfAddress(address: string, token: Asset): Promise<number> {
-    const contract = this.getERC20ContractForDex(token.chainId);
+  async getTokenBalanceOfAddress(address: string, asset: Asset): Promise<number> {
+    const contract = this.getERC20ContractForDex(asset.chainId);
     const balance = await contract.balanceOf(address);
-    const decimals = await contract.decimals();
+    const token = await this.getToken(contract);
 
-    return this.fromWeiAmount(balance, decimals);
+    return this.fromWeiAmount(balance, token.decimals);
   }
 
   async getCurrentGasPrice(): Promise<EthersNumber> {
@@ -183,8 +183,8 @@ export abstract class EvmClient {
   }
 
   async testSwap(sourceToken: Asset, sourceAmount: number, targetToken: Asset): Promise<number> {
-    const source = await this.getToken(sourceToken.chainId);
-    const target = await this.getToken(targetToken.chainId);
+    const source = await this.getTokenByAddress(sourceToken.chainId);
+    const target = await this.getTokenByAddress(targetToken.chainId);
 
     const route = await this.router.route(
       this.toCurrencyAmount(sourceAmount, source),
@@ -254,11 +254,16 @@ export abstract class EvmClient {
     return new ethers.Contract(tokenAddress, ERC20_ABI, this.wallet);
   }
 
-  async getToken(tokenAddress: string): Promise<Token> {
-    return this.tokens.get(tokenAddress, async () => {
-      const contract = this.getERC20ContractForDex(tokenAddress);
-      return new Token(this.chainId, contract.address, await contract.decimals());
-    });
+  async getTokenByAddress(address: string): Promise<Token> {
+    const contract = this.getERC20ContractForDex(address);
+    return this.getToken(contract);
+  }
+
+  async getToken(contract: Contract): Promise<Token> {
+    return this.tokens.get(
+      contract.address,
+      async () => new Token(this.chainId, contract.address, await contract.decimals()),
+    );
   }
 
   // --- PRIVATE HELPER METHODS --- //
@@ -305,8 +310,8 @@ export abstract class EvmClient {
      */
     const effectiveGasLimit = Util.round(gasLimit * 1.5, 0);
 
-    const decimals = await contract.decimals();
-    const targetAmount = this.toWeiAmount(amount, decimals);
+    const token = await this.getToken(contract);
+    const targetAmount = this.toWeiAmount(amount, token.decimals);
 
     const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit: effectiveGasLimit, nonce });
 
