@@ -32,6 +32,9 @@ export class Vote {
   isCake?: boolean;
 
   @ApiPropertyOptional()
+  isBake?: boolean;
+
+  @ApiPropertyOptional()
   isLock?: boolean;
 }
 
@@ -110,6 +113,9 @@ export class CfpResult {
 
   @ApiPropertyOptional({ type: ServiceVotesDto })
   cakeVotes?: ServiceVotesDto;
+
+  @ApiPropertyOptional({ type: ServiceVotesDto })
+  bakeVotes?: ServiceVotesDto;
 
   @ApiPropertyOptional({ type: ServiceVotesDto })
   dfxVotes?: ServiceVotesDto;
