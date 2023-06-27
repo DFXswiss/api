@@ -46,6 +46,7 @@ param ethWalletAddress string
 @secure()
 param ethWalletPrivateKey string
 param ethGatewayUrl string
+param ethSwapContractAddress string
 @secure()
 param ethApiKey string
 param ethChainId string
@@ -57,6 +58,7 @@ param optimismWalletAddress string
 @secure()
 param optimismWalletPrivateKey string
 param optimismGatewayUrl string
+param optimismSwapContractAddress string
 @secure()
 param optimismApiKey string
 param optimismChainId string
@@ -68,6 +70,7 @@ param arbitrumWalletAddress string
 @secure()
 param arbitrumWalletPrivateKey string
 param arbitrumGatewayUrl string
+param arbitrumSwapContractAddress string
 @secure()
 param arbitrumApiKey string
 param arbitrumChainId string
@@ -554,6 +557,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: ethGatewayUrl
         }
         {
+          name: 'ETH_SWAP_CONTRACT_ADDRESS'
+          value: ethSwapContractAddress
+        }
+        {
           name: 'ETH_API_KEY'
           value: ethApiKey
         }
@@ -582,6 +589,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: optimismGatewayUrl
         }
         {
+          name: 'OPTIMISM_SWAP_CONTRACT_ADDRESS'
+          value: optimismSwapContractAddress
+        }
+        {
           name: 'OPTIMISM_API_KEY'
           value: optimismApiKey
         }
@@ -608,6 +619,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'ARBITRUM_GATEWAY_URL'
           value: arbitrumGatewayUrl
+        }
+        {
+          name: 'ARBITRUM_SWAP_CONTRACT_ADDRESS'
+          value: arbitrumSwapContractAddress
         }
         {
           name: 'ARBITRUM_API_KEY'

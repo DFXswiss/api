@@ -80,6 +80,9 @@
     "ethGatewayUrl": {
       "value": "https://mainnet.infura.io/v3"
     },
+    "ethSwapContractAddress": {
+      "value": "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"
+    },
     "ethApiKey": {
       "value": "xxx"
     },
@@ -101,6 +104,9 @@
     "optimismGatewayUrl": {
       "value": "https://optimism-mainnet.infura.io/v3"
     },
+    "optimismSwapContractAddress": {
+      "value": "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"
+    },
     "optimismApiKey": {
       "value": "xxx"
     },
@@ -121,6 +127,9 @@
     },
     "arbitrumGatewayUrl": {
       "value": "https://arbitrum-mainnet.infura.io/v3"
+    },
+    "arbitrumSwapContractAddress": {
+      "value": "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"
     },
     "arbitrumApiKey": {
       "value": "xxx"
