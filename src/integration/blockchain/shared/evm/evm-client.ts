@@ -1,8 +1,8 @@
-import { CurrencyAmount, Percent, Token, TradeType } from '@uniswap/sdk-core';
+import { Currency, CurrencyAmount, Ether, Percent, Token, TradeType } from '@uniswap/sdk-core';
 import { AlphaRouter, ChainId, SwapRoute, SwapType } from '@uniswap/smart-order-router';
 import BigNumber from 'bignumber.js';
 import { BigNumberish, Contract, BigNumber as EthersNumber, ethers } from 'ethers';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
@@ -67,7 +67,7 @@ export abstract class EvmClient {
   async getTokenBalanceOfAddress(address: string, asset: Asset): Promise<number> {
     const contract = this.getERC20ContractForDex(asset.chainId);
     const balance = await contract.balanceOf(address);
-    const token = await this.getToken(contract);
+    const token = await this.getTokenByContract(contract);
 
     return this.fromWeiAmount(balance, token.decimals);
   }
@@ -197,8 +197,8 @@ export abstract class EvmClient {
   }
 
   // --- PUBLIC API - SWAPS --- //
-  async testSwap(sourceToken: Asset, sourceAmount: number, targetToken: Asset): Promise<number> {
-    const route = await this.getRoute(sourceToken, targetToken, sourceAmount, 0.2);
+  async testSwap(source: Asset, sourceAmount: number, target: Asset): Promise<number> {
+    const route = await this.getRoute(source, target, sourceAmount, 0.2);
 
     return +route.quote.toExact();
   }
@@ -216,25 +216,20 @@ export abstract class EvmClient {
     return tx.hash;
   }
 
-  private async getRoute(
-    sourceToken: Asset,
-    targetToken: Asset,
-    sourceAmount: number,
-    maxSlippage: number,
-  ): Promise<SwapRoute> {
-    const source = await this.getTokenByAddress(sourceToken.chainId);
-    const target = await this.getTokenByAddress(targetToken.chainId);
+  private async getRoute(source: Asset, target: Asset, sourceAmount: number, maxSlippage: number): Promise<SwapRoute> {
+    const sourceToken = await this.getToken(source);
+    const targetToken = await this.getToken(target);
 
     const route = await this.router.route(
-      this.toCurrencyAmount(sourceAmount, source),
-      target,
+      this.toCurrencyAmount(sourceAmount, sourceToken),
+      targetToken,
       TradeType.EXACT_INPUT,
       this.swapConfig(maxSlippage),
     );
 
     if (!route)
       throw new Error(
-        `No swap route found for ${sourceAmount} ${sourceToken.name} -> ${targetToken.name} (${sourceToken.blockchain})`,
+        `No swap route found for ${sourceAmount} ${source.name} -> ${target.name} (${source.blockchain})`,
       );
 
     return route;
@@ -262,7 +257,7 @@ export abstract class EvmClient {
     return {
       recipient: this.dfxAddress,
       slippageTolerance: new Percent(maxSlippage * 1000, 1000),
-      deadline: Math.floor(Date.now() / 1000 + 1800),
+      deadline: Math.floor(Util.minutesAfter(30).getTime() / 1000),
       type: SwapType.SWAP_ROUTER_02,
     };
   }
@@ -283,7 +278,7 @@ export abstract class EvmClient {
     return decimals ? ethers.utils.parseUnits(amount, decimals) : ethers.utils.parseEther(amount);
   }
 
-  private toCurrencyAmount(amount: number, token: Token): CurrencyAmount<Token> {
+  private toCurrencyAmount(amount: number, token: Currency): CurrencyAmount<Currency> {
     const targetAmount = this.toWeiAmount(amount, token.decimals).toString();
 
     return CurrencyAmount.fromRawAmount(token, targetAmount);
@@ -293,12 +288,16 @@ export abstract class EvmClient {
     return new ethers.Contract(tokenAddress, ERC20_ABI, this.wallet);
   }
 
-  async getTokenByAddress(address: string): Promise<Token> {
-    const contract = this.getERC20ContractForDex(address);
-    return this.getToken(contract);
+  async getToken(asset: Asset): Promise<Currency> {
+    return asset.type === AssetType.COIN ? Ether.onChain(this.chainId) : this.getTokenByAddress(asset.chainId);
   }
 
-  async getToken(contract: Contract): Promise<Token> {
+  async getTokenByAddress(address: string): Promise<Token> {
+    const contract = this.getERC20ContractForDex(address);
+    return this.getTokenByContract(contract);
+  }
+
+  async getTokenByContract(contract: Contract): Promise<Token> {
     return this.tokens.get(
       contract.address,
       async () => new Token(this.chainId, contract.address, await contract.decimals()),
@@ -349,7 +348,7 @@ export abstract class EvmClient {
      */
     const effectiveGasLimit = Util.round(gasLimit * 1.5, 0);
 
-    const token = await this.getToken(contract);
+    const token = await this.getTokenByContract(contract);
     const targetAmount = this.toWeiAmount(amount, token.decimals);
 
     const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit: effectiveGasLimit, nonce });
