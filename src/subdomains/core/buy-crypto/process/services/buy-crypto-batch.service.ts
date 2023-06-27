@@ -333,7 +333,12 @@ export class BuyCryptoBatchService {
   }
 
   private async getPayoutFee(tx: BuyCrypto): Promise<number> {
-    const nativePayoutFee = await this.payoutService.estimateFee(tx.outputAsset, tx.target.address, tx.outputAmount);
+    const nativePayoutFee = await this.payoutService.estimateFee(
+      tx.outputAsset,
+      tx.target.address,
+      tx.outputReferenceAmount,
+      tx.outputReferenceAsset,
+    );
 
     return this.buyCryptoPricingService.getFeeAmountInRefAsset(tx.outputReferenceAsset, nativePayoutFee);
   }
