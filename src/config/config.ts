@@ -276,6 +276,7 @@ export class Configuration {
       ethGatewayUrl: process.env.ETH_GATEWAY_URL,
       ethApiKey: process.env.ETH_API_KEY,
       ethChainId: +process.env.ETH_CHAIN_ID,
+      swapContractAddress: process.env.ETH_SWAP_CONTRACT_ADDRESS,
     },
     bsc: {
       bscScanApiUrl: process.env.BSC_SCAN_API_URL,
@@ -284,7 +285,7 @@ export class Configuration {
       bscWalletPrivateKey: process.env.BSC_WALLET_PRIVATE_KEY,
       bscGatewayUrl: process.env.BSC_GATEWAY_URL,
       bscChainId: +process.env.BSC_CHAIN_ID,
-      pancakeRouterAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
+      swapContractAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
     },
     optimism: {
       optimismScanApiUrl: process.env.OPTIMISM_SCAN_API_URL,
@@ -294,6 +295,7 @@ export class Configuration {
       optimismGatewayUrl: process.env.OPTIMISM_GATEWAY_URL,
       optimismApiKey: process.env.OPTIMISM_API_KEY,
       optimismChainId: +process.env.OPTIMISM_CHAIN_ID,
+      swapContractAddress: process.env.OPTIMISM_SWAP_CONTRACT_ADDRESS,
     },
     arbitrum: {
       arbitrumScanApiUrl: process.env.ARBITRUM_SCAN_API_URL,
@@ -303,6 +305,7 @@ export class Configuration {
       arbitrumGatewayUrl: process.env.ARBITRUM_GATEWAY_URL,
       arbitrumApiKey: process.env.ARBITRUM_API_KEY,
       arbitrumChainId: +process.env.ARBITRUM_CHAIN_ID,
+      swapContractAddress: process.env.ARBITRUM_SWAP_CONTRACT_ADDRESS,
     },
     lightning: {
       lnbits: {

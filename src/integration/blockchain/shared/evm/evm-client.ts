@@ -1,5 +1,5 @@
 import { CurrencyAmount, Percent, Token, TradeType } from '@uniswap/sdk-core';
-import { AlphaRouter, ChainId, SwapType } from '@uniswap/smart-order-router';
+import { AlphaRouter, ChainId, SwapRoute, SwapType } from '@uniswap/smart-order-router';
 import BigNumber from 'bignumber.js';
 import { BigNumberish, Contract, BigNumber as EthersNumber, ethers } from 'ethers';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -27,6 +27,7 @@ export abstract class EvmClient {
     protected scanApiUrl: string,
     protected scanApiKey: string,
     protected chainId: ChainId,
+    private swapContractAddress: string,
     gatewayUrl: string,
     privateKey: string,
   ) {
@@ -182,7 +183,45 @@ export abstract class EvmClient {
     return this.fromWeiAmount(actualFee);
   }
 
+  async approveToken(asset: Asset, contractAddress: string): Promise<string> {
+    const contract = this.getERC20ContractForDex(asset.chainId);
+
+    const transaction = await contract.populateTransaction.approve(contractAddress, ethers.constants.MaxInt256);
+
+    const tx = await this.wallet.sendTransaction({
+      ...transaction,
+      from: this.dfxAddress,
+    });
+
+    return tx.hash;
+  }
+
+  // --- PUBLIC API - SWAPS --- //
   async testSwap(sourceToken: Asset, sourceAmount: number, targetToken: Asset): Promise<number> {
+    const route = await this.getRoute(sourceToken, targetToken, sourceAmount, 0.2);
+
+    return +route.quote.toExact();
+  }
+
+  async swap(sourceToken: Asset, sourceAmount: number, targetToken: Asset, maxSlippage: number): Promise<string> {
+    const route = await this.getRoute(sourceToken, targetToken, sourceAmount, maxSlippage);
+
+    const tx = await this.wallet.sendTransaction({
+      data: route.methodParameters?.calldata,
+      to: this.swapContractAddress,
+      value: route.methodParameters?.value,
+      from: this.dfxAddress,
+    });
+
+    return tx.hash;
+  }
+
+  private async getRoute(
+    sourceToken: Asset,
+    targetToken: Asset,
+    sourceAmount: number,
+    maxSlippage: number,
+  ): Promise<SwapRoute> {
     const source = await this.getTokenByAddress(sourceToken.chainId);
     const target = await this.getTokenByAddress(targetToken.chainId);
 
@@ -190,7 +229,7 @@ export abstract class EvmClient {
       this.toCurrencyAmount(sourceAmount, source),
       target,
       TradeType.EXACT_INPUT,
-      this.swapConfig,
+      this.swapConfig(maxSlippage),
     );
 
     if (!route)
@@ -198,7 +237,7 @@ export abstract class EvmClient {
         `No swap route found for ${sourceAmount} ${sourceToken.name} -> ${targetToken.name} (${sourceToken.blockchain})`,
       );
 
-    return +route.quote.toExact();
+    return route;
   }
 
   // --- GETTERS --- //
@@ -219,10 +258,10 @@ export abstract class EvmClient {
     return this.wallet.address;
   }
 
-  get swapConfig() {
+  swapConfig(maxSlippage: number) {
     return {
       recipient: this.dfxAddress,
-      slippageTolerance: new Percent(20, 100),
+      slippageTolerance: new Percent(maxSlippage * 1000, 1000),
       deadline: Math.floor(Date.now() / 1000 + 1800),
       type: SwapType.SWAP_ROUTER_02,
     };

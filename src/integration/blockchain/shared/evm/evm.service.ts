@@ -1,6 +1,6 @@
+import { ChainId } from '@uniswap/smart-order-router';
 import { HttpService } from 'src/shared/services/http.service';
 import { EvmClient } from './evm-client';
-import { ChainId } from '@uniswap/smart-order-router';
 
 export abstract class EvmService {
   protected readonly client: EvmClient;
@@ -13,18 +13,28 @@ export abstract class EvmService {
     apiKey: string,
     walletPrivateKey: string,
     chainId: ChainId,
+    swapContractAddress: string,
     client: {
       new (
         http: HttpService,
         scanApiUrl: string,
         scanApiKey: string,
+        chainId: ChainId,
+        swapContractAddress: string,
         gatewayUrl: string,
         privateKey: string,
-        chainId: ChainId,
       ): EvmClient;
     },
   ) {
-    this.client = new client(http, scanApiUrl, scanApiKey, `${gatewayUrl}/${apiKey ?? ''}`, walletPrivateKey, chainId);
+    this.client = new client(
+      http,
+      scanApiUrl,
+      scanApiKey,
+      chainId,
+      swapContractAddress,
+      `${gatewayUrl}/${apiKey ?? ''}`,
+      walletPrivateKey,
+    );
   }
 
   getDefaultClient<T extends EvmClient>(): T {

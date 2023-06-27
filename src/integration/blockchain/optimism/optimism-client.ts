@@ -28,11 +28,12 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
     http: HttpService,
     scanApiUrl: string,
     scanApiKey: string,
+    chainId: ChainId,
+    swapContractAddress: string,
     gatewayUrl: string,
     privateKey: string,
-    chainId: ChainId,
   ) {
-    super(http, scanApiUrl, scanApiKey, chainId, gatewayUrl, privateKey);
+    super(http, scanApiUrl, scanApiKey, chainId, swapContractAddress, gatewayUrl, privateKey);
 
     const { ethGatewayUrl, ethApiKey, ethWalletPrivateKey, ethChainId } = GetConfig().blockchain.ethereum;
     const { optimismChainId } = GetConfig().blockchain.optimism;
@@ -62,7 +63,7 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
     return response.hash;
   }
 
-  async approveToken(l1Token: Asset, l2Token: Asset): Promise<string> {
+  async approveTokenBridge(l1Token: Asset, l2Token: Asset): Promise<string> {
     const allowanceResponse = await this.#crossChainMessenger.approveERC20(l1Token.chainId, l2Token.chainId, Infinity);
 
     return allowanceResponse.hash;

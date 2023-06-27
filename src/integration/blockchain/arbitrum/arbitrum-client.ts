@@ -33,11 +33,12 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     http: HttpService,
     scanApiUrl: string,
     scanApiKey: string,
+    chainId: ChainId,
+    swapContractAddress: string,
     gatewayUrl: string,
     privateKey: string,
-    chainId: ChainId,
   ) {
-    super(http, scanApiUrl, scanApiKey, chainId, gatewayUrl, privateKey);
+    super(http, scanApiUrl, scanApiKey, chainId, swapContractAddress, gatewayUrl, privateKey);
 
     const { ethGatewayUrl, ethApiKey, ethWalletPrivateKey } = GetConfig().blockchain.ethereum;
     const ethereumGateway = `${ethGatewayUrl}/${ethApiKey ?? ''}`;
@@ -73,7 +74,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     return withdrawTx.hash;
   }
 
-  async approveToken(l1Token: Asset, _l2Token: Asset): Promise<string> {
+  async approveTokenBridge(l1Token: Asset, _l2Token: Asset): Promise<string> {
     const erc20Bridge = new Erc20Bridger(this.#l2Network);
 
     const approveTx = await erc20Bridge.approveToken({

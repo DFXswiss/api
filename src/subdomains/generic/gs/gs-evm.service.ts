@@ -1,14 +1,14 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ethers } from 'ethers';
+import { Config } from 'src/config/config';
+import { EvmTokenApproval, EvmTokenBridgeApproval } from 'src/integration/blockchain/shared/evm/dto/approval.dto';
 import { EvmCoinTransactionDto } from 'src/integration/blockchain/shared/evm/dto/evm-coin-transaction.dto';
-import { EvmTokenBridgeApproval } from 'src/integration/blockchain/shared/evm/dto/evm-token-bridge-approval.dto';
 import { EvmTokenTransactionDto } from 'src/integration/blockchain/shared/evm/dto/evm-token-transaction.dto';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DepositService } from 'src/subdomains/supporting/address-pool/deposit/deposit.service';
 import { EvmRawTransactionDto } from '../../../integration/blockchain/shared/evm/dto/evm-raw-transaction.dto';
-import { Config } from 'src/config/config';
 
 @Injectable()
 export class GsEvmService {
@@ -80,6 +80,15 @@ export class GsEvmService {
     throw new Error('Provided source address is not known');
   }
 
+  async approveToken({ assetId, contractAddress }: EvmTokenApproval): Promise<string> {
+    const token = await this.assetService.getAssetById(assetId);
+    if (!token) throw new NotFoundException('Token not found');
+
+    const client = this.evmRegistryService.getClient(token.blockchain);
+
+    return client.approveToken(token, contractAddress);
+  }
+
   async approveTokenBridge({ l1AssetId, l2AssetId }: EvmTokenBridgeApproval): Promise<string> {
     const l1Token = await this.assetService.getAssetById(l1AssetId);
     const l2Token = await this.assetService.getAssetById(l2AssetId);
@@ -87,6 +96,6 @@ export class GsEvmService {
 
     const client = this.evmRegistryService.getL2Client(l2Token.blockchain);
 
-    return client.approveToken(l1Token, l2Token);
+    return client.approveTokenBridge(l1Token, l2Token);
   }
 }

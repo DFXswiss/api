@@ -49,7 +49,7 @@ export interface L2BridgeEvmClient {
   depositCoinOnDex(amount: number): Promise<string>;
   withdrawCoinOnDex(amount: number): Promise<string>;
 
-  approveToken(l1Token: Asset, l2Token: Asset): Promise<string>;
+  approveTokenBridge(l1Token: Asset, l2Token: Asset): Promise<string>;
   depositTokenOnDex(l1Token: Asset, l2Token: Asset, amount: number): Promise<string>;
   withdrawTokenOnDex(l1Token: Asset, l2Token: Asset, amount: number): Promise<string>;
 

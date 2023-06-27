@@ -14,15 +14,16 @@ export class BscClient extends EvmClient {
     http: HttpService,
     scanApiUrl: string,
     scanApiKey: string,
+    chainId: ChainId,
+    swapContractAddress: string,
     gatewayUrl: string,
     privateKey: string,
-    chainId: ChainId,
   ) {
-    super(http, scanApiUrl, scanApiKey, chainId, gatewayUrl, privateKey);
+    super(http, scanApiUrl, scanApiKey, chainId, swapContractAddress, gatewayUrl, privateKey);
 
     // old v2 router
     this.routerV2 = new ethers.Contract(
-      GetConfig().blockchain.bsc.pancakeRouterAddress,
+      GetConfig().blockchain.bsc.swapContractAddress,
       UNISWAP_ROUTER_02_ABI,
       this.wallet,
     );
