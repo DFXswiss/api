@@ -1,4 +1,4 @@
-import { CrossChainMessenger, L2Provider, MessageStatus, asL2Provider } from '@eth-optimism/sdk';
+import { CrossChainMessenger, L2Provider, MessageStatus, asL2Provider, estimateTotalGasCost } from '@eth-optimism/sdk';
 import { ChainId } from '@uniswap/smart-order-router';
 import { BigNumber, Contract, ethers } from 'ethers';
 import { GetConfig } from 'src/config/config';
@@ -160,6 +160,27 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
   /**
    * @overwrite
    */
+
+  async getCurrentGasCostForCoinTransaction(): Promise<number> {
+    const totalGasCost = await estimateTotalGasCost(this.l2Provider, {
+      from: this.dfxAddress,
+      to: this.randomReceiverAddress,
+      value: 1,
+    });
+
+    return this.fromWeiAmount(totalGasCost);
+  }
+
+  async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
+    const totalGasCost = await estimateTotalGasCost(this.l2Provider, {
+      from: this.dfxAddress,
+      to: token.chainId,
+      data: this.dummyTokenPayload,
+    });
+
+    return this.fromWeiAmount(totalGasCost);
+  }
+
   async getTxActualFee(txHash: string): Promise<number> {
     const gasPrice = await this.provider.getGasPrice();
 
@@ -181,5 +202,13 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
 
   private get l2Provider(): L2Provider<ethers.providers.JsonRpcProvider> {
     return asL2Provider(this.provider);
+  }
+
+  private get dummyTokenPayload(): string {
+    const method = 'a9059cbb000000000000000000000000';
+    const destination = this.randomReceiverAddress.slice(2);
+    const value = '0000000000000000000000000000000000000000000000000000000000000001';
+
+    return '0x' + method + destination + value;
   }
 }

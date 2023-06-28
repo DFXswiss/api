@@ -200,15 +200,6 @@ export abstract class EvmClient {
   }
 
   // --- GETTERS --- //
-
-  get dummyTokenPayload(): string {
-    const method = 'a9059cbb000000000000000000000000';
-    const destination = this.randomReceiverAddress.slice(2);
-    const value = '0000000000000000000000000000000000000000000000000000000000000001';
-
-    return '0x' + method + destination + value;
-  }
-
   get dfxAddress(): string {
     return this.wallet.address;
   }
