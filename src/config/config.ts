@@ -70,7 +70,7 @@ export class Configuration {
     signature: /^(.{87}=|[a-f0-9]{130}|[a-f0-9x]{132}|[a-f0-9]{582}|[a-z0-9]{104}|[a-z0-9]{140,146})$/,
     key: /^[a-f0-9]{84}$/,
     ref: /^(\w{1,3}-\w{1,3})$/,
-    bankUsage: /^[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}$/,
+    bankUsage: /[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}/,
   };
 
   database: TypeOrmModuleOptions = {

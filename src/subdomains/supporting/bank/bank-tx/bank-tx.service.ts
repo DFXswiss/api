@@ -39,7 +39,7 @@ export class BankTxService {
   ) {}
 
   // --- TRANSACTION HANDLING --- //
-  @Cron(CronExpression.EVERY_MINUTE)
+  @Cron(CronExpression.EVERY_30_SECONDS)
   @Lock(3600)
   async checkBankTx(): Promise<void> {
     await this.checkTransactions();
