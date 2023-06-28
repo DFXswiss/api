@@ -20,8 +20,6 @@ export abstract class EvmClient {
   protected tokens = new AsyncCache<Token>();
   private router: AlphaRouter;
 
-  #sendCoinGasLimit = 21000;
-
   constructor(
     protected http: HttpService,
     protected scanApiUrl: string,
@@ -203,10 +201,6 @@ export abstract class EvmClient {
 
   // --- GETTERS --- //
 
-  get sendCoinGasLimit(): number {
-    return this.#sendCoinGasLimit;
-  }
-
   get dummyTokenPayload(): string {
     const method = 'a9059cbb000000000000000000000000';
     const destination = this.randomReceiverAddress.slice(2);
@@ -239,7 +233,7 @@ export abstract class EvmClient {
   }
 
   toWeiAmount(amountEthLike: number, decimals?: number): EthersNumber {
-    const amount = new BigNumber(amountEthLike).toFixed(decimals ?? 16);
+    const amount = new BigNumber(amountEthLike).toFixed(decimals ?? 18);
 
     return decimals ? ethers.utils.parseUnits(amount, decimals) : ethers.utils.parseEther(amount);
   }
@@ -266,6 +260,20 @@ export abstract class EvmClient {
     );
   }
 
+  async getCurrentGasCostForCoinTransaction(): Promise<number> {
+    const totalGas = await this.getCurrentGasForCoinTransaction(this.dfxAddress, 1e-18);
+    const gasPrice = await this.getCurrentGasPrice();
+
+    return this.fromWeiAmount(totalGas.mul(gasPrice));
+  }
+
+  async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
+    const totalGas = await this.getTokenGasLimitForAsset(token);
+    const gasPrice = await this.getCurrentGasPrice();
+
+    return this.fromWeiAmount(totalGas.mul(gasPrice));
+  }
+
   // --- PRIVATE HELPER METHODS --- //
 
   protected async sendNativeCoin(
@@ -275,22 +283,31 @@ export abstract class EvmClient {
     feeLimit?: number,
   ): Promise<string> {
     const fromAddress = wallet.address;
-    const gasPrice = await this.getGasPrice(this.#sendCoinGasLimit, feeLimit);
+
+    const gasLimit = await this.getCurrentGasForCoinTransaction(fromAddress, amount);
+    const gasPrice = await this.getGasPrice(+gasLimit, feeLimit);
     const nonce = await this.getNonce(fromAddress);
 
     const tx = await wallet.sendTransaction({
-      from: wallet.address,
+      from: fromAddress,
       to: toAddress,
       value: this.toWeiAmount(amount),
       nonce,
       gasPrice,
-      // has to be provided as a number for BSC
-      gasLimit: this.#sendCoinGasLimit,
+      gasLimit,
     });
 
     this.nonce.set(fromAddress, nonce + 1);
 
     return tx.hash;
+  }
+
+  protected async getCurrentGasForCoinTransaction(fromAddress: string, amount: number): Promise<EthersNumber> {
+    return this.provider.estimateGas({
+      from: fromAddress,
+      to: this.randomReceiverAddress,
+      value: this.toWeiAmount(amount),
+    });
   }
 
   private async sendToken(

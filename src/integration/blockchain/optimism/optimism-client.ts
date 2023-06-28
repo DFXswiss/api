@@ -1,4 +1,4 @@
-import { CrossChainMessenger, L2Provider, MessageStatus, asL2Provider, estimateTotalGasCost } from '@eth-optimism/sdk';
+import { CrossChainMessenger, L2Provider, MessageStatus, asL2Provider } from '@eth-optimism/sdk';
 import { ChainId } from '@uniswap/smart-order-router';
 import { BigNumber, Contract, ethers } from 'ethers';
 import { GetConfig } from 'src/config/config';
@@ -155,26 +155,6 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
     } catch (e) {
       return false;
     }
-  }
-
-  async getCurrentGasCostForCoinTransaction(): Promise<number> {
-    const totalGasCost = await estimateTotalGasCost(this.l2Provider, {
-      from: this.dfxAddress,
-      to: this.randomReceiverAddress,
-      value: 1,
-    });
-
-    return this.fromWeiAmount(totalGasCost);
-  }
-
-  async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
-    const totalGasCost = await estimateTotalGasCost(this.l2Provider, {
-      from: this.dfxAddress,
-      to: token.chainId,
-      data: this.dummyTokenPayload,
-    });
-
-    return this.fromWeiAmount(totalGasCost);
   }
 
   /**
