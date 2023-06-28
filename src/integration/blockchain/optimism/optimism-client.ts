@@ -1,14 +1,14 @@
-import { asL2Provider, estimateTotalGasCost, CrossChainMessenger, MessageStatus, L2Provider } from '@eth-optimism/sdk';
+import { CrossChainMessenger, L2Provider, MessageStatus, asL2Provider, estimateTotalGasCost } from '@eth-optimism/sdk';
+import { ChainId } from '@uniswap/smart-order-router';
 import { BigNumber, Contract, ethers } from 'ethers';
 import { GetConfig } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
+import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
 import { EvmClient } from '../shared/evm/evm-client';
 import { L2BridgeEvmClient } from '../shared/evm/interfaces';
-import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { ChainId } from '@uniswap/smart-order-router';
 
 interface OptimismTransactionReceipt extends ethers.providers.TransactionReceipt {
   l1GasPrice: BigNumber;
@@ -51,13 +51,13 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
   }
 
   async depositCoinOnDex(amount: number): Promise<string> {
-    const response = await this.#crossChainMessenger.depositETH(this.convertToWeiLikeDenomination(amount, 'ether'));
+    const response = await this.#crossChainMessenger.depositETH(this.toWeiAmount(amount));
 
     return response.hash;
   }
 
   async withdrawCoinOnDex(amount: number): Promise<string> {
-    const response = await this.#crossChainMessenger.withdrawETH(this.convertToWeiLikeDenomination(amount, 'ether'));
+    const response = await this.#crossChainMessenger.withdrawETH(this.toWeiAmount(amount));
 
     return response.hash;
   }
@@ -84,7 +84,7 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
     const response = await this.#crossChainMessenger.depositERC20(
       l1Token.chainId,
       l2Token.chainId,
-      this.convertToWeiLikeDenomination(amount, l1Decimals),
+      this.toWeiAmount(amount, l1Decimals),
     );
 
     return response.hash;
@@ -106,7 +106,7 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
     const response = await this.#crossChainMessenger.withdrawERC20(
       l1Token.chainId,
       l2Token.chainId,
-      this.convertToWeiLikeDenomination(amount, l1Decimals),
+      this.toWeiAmount(amount, l1Decimals),
     );
 
     return response.hash;
@@ -157,6 +157,10 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
     }
   }
 
+  /**
+   * @overwrite
+   */
+
   async getCurrentGasCostForCoinTransaction(): Promise<number> {
     const totalGasCost = await estimateTotalGasCost(this.l2Provider, {
       from: this.dfxAddress,
@@ -164,7 +168,7 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
       value: 1,
     });
 
-    return this.convertToEthLikeDenomination(totalGasCost);
+    return this.fromWeiAmount(totalGasCost);
   }
 
   async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
@@ -174,12 +178,9 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
       data: this.dummyTokenPayload,
     });
 
-    return this.convertToEthLikeDenomination(totalGasCost);
+    return this.fromWeiAmount(totalGasCost);
   }
 
-  /**
-   * @overwrite
-   */
   async getTxActualFee(txHash: string): Promise<number> {
     const gasPrice = await this.provider.getGasPrice();
 
@@ -187,10 +188,10 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
 
     const { gasUsed, l1GasPrice, l1GasUsed, l1FeeScalar } = receipt as OptimismTransactionReceipt;
 
-    const actualL2Fee = gasUsed.mul(gasPrice);
-    const actualL1Fee = l1GasUsed.mul(l1GasPrice).mul(l1FeeScalar);
+    const actualL1Fee = this.fromWeiAmount(l1GasUsed.mul(l1GasPrice)) * l1FeeScalar;
+    const actualL2Fee = this.fromWeiAmount(gasUsed.mul(gasPrice));
 
-    return this.convertToEthLikeDenomination(actualL2Fee.add(actualL1Fee));
+    return actualL1Fee + actualL2Fee;
   }
 
   //*** HELPER METHODS ***//
@@ -201,5 +202,13 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
 
   private get l2Provider(): L2Provider<ethers.providers.JsonRpcProvider> {
     return asL2Provider(this.provider);
+  }
+
+  private get dummyTokenPayload(): string {
+    const method = 'a9059cbb000000000000000000000000';
+    const destination = this.randomReceiverAddress.slice(2);
+    const value = '0000000000000000000000000000000000000000000000000000000000000001';
+
+    return '0x' + method + destination + value;
   }
 }

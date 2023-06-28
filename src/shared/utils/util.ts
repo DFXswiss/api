@@ -1,9 +1,9 @@
-import * as crypto from 'crypto';
-import { TransformFnParams } from 'class-transformer';
-import { BinaryLike, createHash, createSign, KeyLike } from 'crypto';
-import { XMLValidator, XMLParser } from 'fast-xml-parser';
-import { readFile } from 'fs';
 import BigNumber from 'bignumber.js';
+import { TransformFnParams } from 'class-transformer';
+import * as crypto from 'crypto';
+import { BinaryLike, createHash, createSign, KeyLike } from 'crypto';
+import { XMLParser, XMLValidator } from 'fast-xml-parser';
+import { readFile } from 'fs';
 
 export type KeyType<T, U> = {
   [K in keyof T]: T[K] extends U ? K : never;
@@ -14,7 +14,11 @@ type CryptoAlgorithm = 'md5' | 'sha256' | 'sha512';
 export class Util {
   // --- MATH --- //
   static round(amount: number, decimals: number): number {
-    return Math.round(amount * Math.pow(10, decimals)) / Math.pow(10, decimals);
+    return this.roundToValue(amount, Math.pow(10, -decimals));
+  }
+
+  static roundToValue(amount: number, value: number): number {
+    return new BigNumber(Math.round(amount / value)).multipliedBy(value).toNumber();
   }
 
   static roundByPrecision(amount: number, precision: number): number {
@@ -96,6 +100,7 @@ export class Util {
   }
 
   // --- DATES --- //
+
   static secondsDiff(from?: Date, to?: Date): number {
     return ((to?.getTime() ?? 0) - (from?.getTime() ?? 0)) / 1000;
   }
@@ -173,7 +178,18 @@ export class Util {
     return decrypted.toString();
   }
 
+  // --- CONVERT --- //
+
+  static uint8ToString(array: Uint8Array, encoding: BufferEncoding): string {
+    return Buffer.from(array).toString(encoding);
+  }
+
+  static stringToUint8(value: string, encoding: BufferEncoding): Uint8Array {
+    return Uint8Array.from(Buffer.from(value, encoding));
+  }
+
   // --- MISC --- //
+
   static async readFileFromDisk(fileName: string): Promise<string> {
     return new Promise((resolve, reject) =>
       readFile(fileName, (err, data) => {
@@ -270,10 +286,14 @@ export class Util {
     Object.keys(entity).forEach((k) => entity[k] == null && delete entity[k]);
   }
 
-  static createHash(data: BinaryLike, algo: CryptoAlgorithm = 'sha256'): string {
+  static createHash(
+    data: BinaryLike,
+    algo: CryptoAlgorithm = 'sha256',
+    encoding: crypto.BinaryToTextEncoding = 'hex',
+  ): string {
     const hash = createHash(algo);
     hash.update(data);
-    return hash.digest('hex');
+    return hash.digest(encoding);
   }
 
   static createSign(data: BinaryLike, key: KeyLike, algo: CryptoAlgorithm): string {
@@ -304,12 +324,8 @@ export class Util {
     return new XMLParser({ ignoreAttributes: false }).parse(file);
   }
 
-  static blankBlockchainAddress(address: string): string {
-    return '***' + address.slice(address.length - 6);
-  }
-
-  static blankIban(iban: string): string {
-    return '***' + iban.slice(iban.length - 4);
+  static blankStart(value: string, visibleLength = 4): string {
+    return '***' + value.slice(value.length - visibleLength);
   }
 
   static trimIban({ value }: TransformFnParams): string {

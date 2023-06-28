@@ -1,14 +1,15 @@
 import { Injectable } from '@nestjs/common';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityOrder } from '../../../entities/liquidity-order.entity';
 import { CheckLiquidityRequest, CheckLiquidityResult } from '../../../interfaces';
 import { DexDeFiChainLiquidityResult, DexDeFiChainService } from '../../../services/dex-defichain.service';
 import { DeFiChainNonPoolPairStrategy } from '../../purchase-liquidity/impl/base/defichain-non-poolpair.strategy';
-import { PurchaseLiquidityStrategies } from '../../purchase-liquidity/purchase-liquidity.facade';
+import { PurchaseLiquidityStrategyRegistry } from '../../purchase-liquidity/impl/base/purchase-liquidity.strategy-registry';
 import { CheckLiquidityStrategy } from './base/check-liquidity.strategy';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
@@ -17,9 +18,21 @@ export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
   constructor(
     protected readonly assetService: AssetService,
     private readonly dexDeFiChainService: DexDeFiChainService,
-    private readonly purchaseStrategies: PurchaseLiquidityStrategies,
+    private readonly purchaseLiquidityStrategyRegistry: PurchaseLiquidityStrategyRegistry,
   ) {
     super();
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.DEFICHAIN;
+  }
+
+  get assetType(): AssetType {
+    return undefined;
+  }
+
+  get assetCategory(): AssetCategory {
+    return undefined;
   }
 
   async checkLiquidity(request: CheckLiquidityRequest): Promise<CheckLiquidityResult> {
@@ -46,7 +59,7 @@ export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
 
   private async getPrioritySwapAssets(targetAsset: Asset): Promise<Asset[]> {
     try {
-      const purchaseStrategy = this.purchaseStrategies.getPurchaseLiquidityStrategy(
+      const purchaseStrategy = this.purchaseLiquidityStrategyRegistry.getPurchaseLiquidityStrategy(
         targetAsset,
       ) as DeFiChainNonPoolPairStrategy;
 

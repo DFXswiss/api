@@ -1,19 +1,22 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { CreateBuyDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/create-buy.dto';
 import { GetBuyPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/get-buy-payment-info.dto';
+import { GetBuyQuoteDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/get-buy-quote.dto';
+import { CreateCryptoRouteDto } from 'src/subdomains/core/buy-crypto/routes/crypto-route/dto/create-crypto-route.dto';
 import { GetCryptoPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/crypto-route/dto/get-crypto-payment-info.dto';
+import { GetCryptoQuoteDto } from 'src/subdomains/core/buy-crypto/routes/crypto-route/dto/get-crypto-quote.dto';
+import { CreateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/create-sell.dto';
 import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-payment-info.dto';
+import { GetSellQuoteDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-quote.dto';
+import { JwtPayload } from '../auth/jwt-payload.interface';
 import { AssetService } from '../models/asset/asset.service';
 import { FiatService } from '../models/fiat/fiat.service';
-import { JwtPayload } from '../auth/jwt-payload.interface';
-import { CreateBuyDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/create-buy.dto';
-import { CreateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/create-sell.dto';
-import { CreateCryptoRouteDto } from 'src/subdomains/core/buy-crypto/routes/crypto-route/dto/create-crypto-route.dto';
 
 @Injectable()
 export class PaymentInfoService {
   constructor(private readonly fiatService: FiatService, private readonly assetService: AssetService) {}
 
-  async buyCheck<T extends GetBuyPaymentInfoDto | CreateBuyDto>(jwt: JwtPayload, dto: T): Promise<T> {
+  async buyCheck<T extends GetBuyPaymentInfoDto | GetBuyQuoteDto | CreateBuyDto>(dto: T, jwt?: JwtPayload): Promise<T> {
     if ('currency' in dto) {
       dto.currency = await this.fiatService.getFiat(dto.currency.id);
       if (!dto.currency) throw new NotFoundException('Currency not found');
@@ -23,21 +26,26 @@ export class PaymentInfoService {
     dto.asset = await this.assetService.getAssetById(dto.asset.id);
     if (!dto.asset) throw new NotFoundException('Asset not found');
     if (!dto.asset.buyable) throw new BadRequestException('Asset not buyable');
-    if (!jwt.blockchains.includes(dto.asset.blockchain)) throw new BadRequestException('Asset blockchain mismatch');
+    if (jwt && !jwt.blockchains.includes(dto.asset.blockchain))
+      throw new BadRequestException('Asset blockchain mismatch');
 
     return dto;
   }
 
-  async sellCheck<T extends GetSellPaymentInfoDto | CreateSellDto>(jwt: JwtPayload, dto: T): Promise<T> {
+  async sellCheck<T extends GetSellPaymentInfoDto | GetSellQuoteDto | CreateSellDto>(
+    dto: T,
+    jwt?: JwtPayload,
+  ): Promise<T> {
     if ('asset' in dto) {
       dto.asset = await this.assetService.getAssetById(dto.asset.id);
       if (!dto.asset) throw new NotFoundException('Asset not found');
       if (!dto.asset.sellable) throw new BadRequestException('Asset not sellable');
-      if (!jwt.blockchains.includes(dto.asset.blockchain)) throw new BadRequestException('Asset blockchain mismatch');
+      if (jwt && !jwt.blockchains.includes(dto.asset.blockchain))
+        throw new BadRequestException('Asset blockchain mismatch');
     }
 
     if ('blockchain' in dto) {
-      if (!jwt.blockchains.includes(dto.blockchain)) throw new BadRequestException('Asset blockchain mismatch');
+      if (jwt && !jwt.blockchains.includes(dto.blockchain)) throw new BadRequestException('Asset blockchain mismatch');
     }
 
     dto.currency = await this.fiatService.getFiat(dto.currency.id);
@@ -47,7 +55,10 @@ export class PaymentInfoService {
     return dto;
   }
 
-  async cryptoCheck<T extends GetCryptoPaymentInfoDto | CreateCryptoRouteDto>(jwt: JwtPayload, dto: T): Promise<T> {
+  async cryptoCheck<T extends GetCryptoPaymentInfoDto | GetCryptoQuoteDto | CreateCryptoRouteDto>(
+    dto: T,
+    jwt?: JwtPayload,
+  ): Promise<T> {
     if ('sourceAsset' in dto) {
       dto.sourceAsset = await this.assetService.getAssetById(dto.sourceAsset.id);
       if (!dto.sourceAsset) throw new NotFoundException('Source asset not found');
@@ -57,7 +68,8 @@ export class PaymentInfoService {
     dto.asset = await this.assetService.getAssetById(dto.asset.id);
     if (!dto.asset) throw new NotFoundException('Asset not found');
     if (!dto.asset.buyable) throw new BadRequestException('Asset not buyable');
-    if (!jwt.blockchains.includes(dto.asset.blockchain)) throw new BadRequestException('Asset blockchain mismatch');
+    if (jwt && !jwt.blockchains.includes(dto.asset.blockchain))
+      throw new BadRequestException('Asset blockchain mismatch');
 
     return dto;
   }

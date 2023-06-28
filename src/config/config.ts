@@ -1,13 +1,14 @@
+import { NetworkName } from '@defichain/jellyfish-network';
+import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { Injectable, Optional } from '@nestjs/common';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { Exchange } from 'ccxt';
 import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
-import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
-import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
-import { FeeTier } from 'src/shared/models/asset/asset.entity';
-import { NetworkName } from '@defichain/jellyfish-network';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
+import { FeeTier } from 'src/shared/models/asset/asset.entity';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
 
 export enum Process {
   PAY_OUT = 'PayOut',
@@ -64,9 +65,9 @@ export class Configuration {
   formats = {
     address:
       this.environment === 'prd'
-        ? /^(8\w{33}|d\w{33}|d\w{41}|0x\w{40}|(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}|LNURL[A-Z0-9]{25,250})$/
-        : /^((7|8)\w{33}|(t|d)\w{33}|(t|d)\w{41}|0x\w{40}|(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}|stake[a-z0-9]{54}|LNURL[A-Z0-9]{25,250})$/,
-    signature: /^(.{87}=|[a-f0-9]{130}|[a-f0-9x]{132}|[a-f0-9]{582}|[a-z0-9]{104})$/,
+        ? /^(8\w{33}|d\w{33}|d\w{41}|0x\w{40}|(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}|(LNURL|LNDHUB)[A-Z0-9]{25,250}|LNNID[A-Z0-9]{66})$/
+        : /^((7|8)\w{33}|(t|d)\w{33}|(t|d)\w{41}|0x\w{40}|(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}|stake[a-z0-9]{54}|(LNURL|LNDHUB)[A-Z0-9]{25,250}|LNNID[A-Z0-9]{66})$/,
+    signature: /^(.{87}=|[a-f0-9]{130}|[a-f0-9x]{132}|[a-f0-9]{582}|[a-z0-9]{104}|[a-z0-9]{140,146})$/,
     key: /^[a-f0-9]{84}$/,
     ref: /^(\w{1,3}-\w{1,3})$/,
   };
@@ -304,12 +305,17 @@ export class Configuration {
       arbitrumChainId: +process.env.ARBITRUM_CHAIN_ID,
     },
     lightning: {
-      lnBitsApiUrl: process.env.LIGHTNING_LNBITS_API_URL,
-      lnBitsLnUrlPApiUrl: process.env.LIGHTNING_LNBITS_LNURLP_API_URL,
-      lnBitsApiKey: process.env.LIGHTNING_LNBITS_API_KEY,
-      lndApiUrl: process.env.LIGHTNING_LND_API_URL,
-      lndCertificate: process.env.LIGHTNING_LND_CERTIFICATE?.split('<br>').join('\n'),
-      lndAdminMacaroon: process.env.LIGHTNING_LND_ADMIN_MACAROON,
+      lnbits: {
+        apiUrl: process.env.LIGHTNING_LNBITS_API_URL,
+        lnurlpApiUrl: process.env.LIGHTNING_LNBITS_LNURLP_API_URL,
+        apiKey: process.env.LIGHTNING_LNBITS_API_KEY,
+        lnurlpUrl: process.env.LIGHTNING_LNBITS_LNURLP_URL,
+      },
+      lnd: {
+        apiUrl: process.env.LIGHTNING_LND_API_URL,
+        adminMacaroon: process.env.LIGHTNING_LND_ADMIN_MACAROON,
+      },
+      certificate: process.env.LIGHTNING_API_CERTIFICATE?.split('<br>').join('\n'),
     },
   };
 
@@ -342,6 +348,9 @@ export class Configuration {
         [FeeTier.TIER4]: 0.0299,
       },
       limit: +(process.env.BUY_CRYPTO_FEE_LIMIT ?? 0.005),
+
+      get: (tier: FeeTier, accountType: AccountType) =>
+        accountType === AccountType.PERSONAL ? this.buy.fee.private[tier] : this.buy.fee.organization[tier],
     },
   };
 
@@ -361,6 +370,9 @@ export class Configuration {
         [FeeTier.TIER3]: 0.0275,
         [FeeTier.TIER4]: 0.0349,
       },
+
+      get: (tier: FeeTier, accountType: AccountType) =>
+        accountType === AccountType.PERSONAL ? this.sell.fee.private[tier] : this.sell.fee.organization[tier],
     },
   };
 
@@ -372,6 +384,7 @@ export class Configuration {
     enableRateLimit: true,
     timeout: 30000,
   };
+  exchangeTxSyncLimit = +(process.env.EXCHANGE_TX_SYNC_LIMIT ?? 720); // minutes
 
   sepaTools = {
     auth: {
@@ -416,6 +429,11 @@ export class Configuration {
     tenantId: process.env.AZURE_TENANT_ID,
     clientId: process.env.AZURE_CLIENT_ID,
     clientSecret: process.env.AZURE_CLIENT_SECRET,
+  };
+
+  alby = {
+    clientId: process.env.ALBY_CLIENT_ID,
+    clientSecret: process.env.ALBY_CLIENT_SECRET,
   };
 
   request = {

@@ -1,18 +1,19 @@
-import { Entity, Column, ManyToOne, OneToOne, JoinColumn } from 'typeorm';
-import { IEntity, UpdateResult } from 'src/shared/models/entity';
-import { BuyCryptoBatch } from './buy-crypto-batch.entity';
-import { Util } from 'src/shared/utils/util';
-import { AmlCheck } from '../enums/aml-check.enum';
-import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
-import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { AmlReason } from '../enums/aml-reason.enum';
-import { BuyCryptoFee } from './buy-crypto-fees.entity';
-import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
+import { Util } from 'src/shared/utils/util';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { Buy } from '../../routes/buy/buy.entity';
+import { AmlCheck } from '../enums/aml-check.enum';
+import { AmlReason } from '../enums/aml-reason.enum';
+import { BuyCryptoBatch } from './buy-crypto-batch.entity';
+import { BuyCryptoFee } from './buy-crypto-fees.entity';
 
 export enum BuyCryptoStatus {
   CREATED = 'Created',
@@ -137,6 +138,9 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 256, nullable: true })
   chargebackRemittanceInfo: string;
 
+  @Column({ length: 256, nullable: true })
+  chargebackCryptoTxId: string;
+
   @OneToOne(() => BankTx, { nullable: true })
   @JoinColumn()
   chargebackBankTx: BankTx;
@@ -194,7 +198,9 @@ export class BuyCrypto extends IEntity {
       default:
         return {
           outputReferenceAssetName: 'BTC',
-          type: this.target.asset.blockchain === Blockchain.BITCOIN ? AssetType.COIN : AssetType.TOKEN,
+          type: [Blockchain.BITCOIN, Blockchain.LIGHTNING].includes(this.target.asset.blockchain)
+            ? AssetType.COIN
+            : AssetType.TOKEN,
         };
     }
   }
@@ -353,6 +359,11 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
+  get transactionId(): string {
+    if (this.target.asset.blockchain === Blockchain.LIGHTNING) return Util.blankStart(this.txId);
+    return txExplorerUrl(this.target.asset.blockchain, this.txId);
+  }
+
   get translationKey(): string {
     if (this.amlCheck === AmlCheck.PASS) {
       if (this.target.asset.blockchain === Blockchain.LIGHTNING)
@@ -379,7 +390,9 @@ export class BuyCrypto extends IEntity {
           return 'mail.payment.pending.nameCheckWithoutKyc';
       }
     } else if (this.amlCheck === AmlCheck.FAIL) {
-      return 'mail.payment.deposit.paybackInitiated';
+      return this.cryptoRoute
+        ? 'mail.payment.withdrawal.paybackToAddressInitiated'
+        : 'mail.payment.deposit.paybackInitiated';
     }
 
     throw new Error(`Tried to send a mail for buy-crypto ${this.id} in invalid state`);
@@ -394,14 +407,12 @@ export class BuyCrypto extends IEntity {
       ? {
           address: this.buy.deposit?.address ?? this.buy.user.address,
           asset: this.buy.asset,
-          trimmedReturnAddress: this.buy?.iban ? Util.blankIban(this.buy.iban) : null,
+          trimmedReturnAddress: this.buy?.iban ? Util.blankStart(this.buy.iban) : null,
         }
       : {
           address: this.cryptoRoute.targetDeposit?.address ?? this.cryptoRoute.user.address,
           asset: this.cryptoRoute.asset,
-          trimmedReturnAddress: this.cryptoRoute?.user?.address
-            ? Util.blankBlockchainAddress(this.cryptoRoute.user.address)
-            : null,
+          trimmedReturnAddress: this.cryptoRoute?.user?.address ? Util.blankStart(this.cryptoRoute.user.address) : null,
         };
   }
 

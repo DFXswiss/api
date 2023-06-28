@@ -1,11 +1,11 @@
-import { HttpService } from 'src/shared/services/http.service';
-import { EvmClient } from '../shared/evm/evm-client';
+import { ChainId } from '@uniswap/smart-order-router';
 import { Contract, ethers } from 'ethers';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { GetConfig } from 'src/config/config';
 import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
 import UNISWAP_ROUTER_02_ABI from 'src/integration/blockchain/shared/evm/abi/uniswap-router02.abi.json';
-import { ChainId } from '@uniswap/smart-order-router';
-import { GetConfig } from 'src/config/config';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { HttpService } from 'src/shared/services/http.service';
+import { EvmClient } from '../shared/evm/evm-client';
 
 export class BscClient extends EvmClient {
   private routerV2: Contract;
@@ -35,9 +35,9 @@ export class BscClient extends EvmClient {
     const targetContract = new ethers.Contract(targetToken.chainId, ERC20_ABI, this.wallet);
     const targetTokenDecimals = await targetContract.decimals();
 
-    const inputAmount = this.convertToWeiLikeDenomination(sourceAmount, sourceTokenDecimals);
+    const inputAmount = this.toWeiAmount(sourceAmount, sourceTokenDecimals);
     const outputAmounts = await this.routerV2.getAmountsOut(inputAmount, [sourceToken.chainId, targetToken.chainId]);
 
-    return this.convertToEthLikeDenomination(outputAmounts[1], targetTokenDecimals);
+    return this.fromWeiAmount(outputAmounts[1], targetTokenDecimals);
   }
 }

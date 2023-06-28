@@ -1,15 +1,16 @@
-import { BigNumber, Contract, ethers } from 'ethers';
-import { Asset } from 'src/shared/models/asset/asset.entity';
-import { HttpService } from 'src/shared/services/http.service';
-import { Util } from 'src/shared/utils/util';
-import ERC20_ABI from './abi/erc20.abi.json';
-import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
-import { WalletAccount } from './domain/wallet-account';
-import { EvmUtil } from './evm.util';
 import { CurrencyAmount, Percent, Token, TradeType } from '@uniswap/sdk-core';
 import { AlphaRouter, ChainId, SwapType } from '@uniswap/smart-order-router';
-import JSBI from 'jsbi';
+import BigNumber from 'bignumber.js';
+import { BigNumberish, Contract, BigNumber as EthersNumber, ethers } from 'ethers';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
+import { Util } from 'src/shared/utils/util';
+import ERC20_ABI from './abi/erc20.abi.json';
+import { WalletAccount } from './domain/wallet-account';
+import { ScanApiResponse } from './dto/scan-api-response.dto';
+import { EvmUtil } from './evm.util';
+import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
 
 export abstract class EvmClient {
   protected provider: ethers.providers.JsonRpcProvider;
@@ -18,8 +19,6 @@ export abstract class EvmClient {
   protected nonce = new Map<string, number>();
   protected tokens = new AsyncCache<Token>();
   private router: AlphaRouter;
-
-  #sendCoinGasLimit = 21000;
 
   constructor(
     protected http: HttpService,
@@ -41,33 +40,11 @@ export abstract class EvmClient {
   // --- PUBLIC API - GETTERS --- //
 
   async getNativeCoinTransactions(walletAddress: string, fromBlock: number): Promise<EvmCoinHistoryEntry[]> {
-    const params = {
-      ...this.getTransactionHistoryCommonParams(walletAddress, fromBlock),
-      action: 'txlist',
-    };
-
-    const result = await this.http
-      .get<{ result: EvmCoinHistoryEntry[] | string }>(this.scanApiUrl, { params })
-      .then((r) => r.result);
-
-    if (!Array.isArray(result)) throw new Error(`Failed to get coin transactions: ${result}`);
-
-    return result;
+    return this.getHistory(walletAddress, fromBlock, 'txlist');
   }
 
   async getERC20Transactions(walletAddress: string, fromBlock: number): Promise<EvmTokenHistoryEntry[]> {
-    const params = {
-      ...this.getTransactionHistoryCommonParams(walletAddress, fromBlock),
-      action: 'tokentx',
-    };
-
-    const result = await this.http
-      .get<{ result: EvmTokenHistoryEntry[] | string }>(this.scanApiUrl, { params })
-      .then((r) => r.result);
-
-    if (!Array.isArray(result)) throw new Error(`Failed to get token transactions: ${result}`);
-
-    return result;
+    return this.getHistory(walletAddress, fromBlock, 'tokentx');
   }
 
   async getNativeCoinBalance(): Promise<number> {
@@ -81,18 +58,18 @@ export abstract class EvmClient {
   async getNativeCoinBalanceOfAddress(address: string): Promise<number> {
     const balance = await this.provider.getBalance(address);
 
-    return this.convertToEthLikeDenomination(balance);
+    return this.fromWeiAmount(balance);
   }
 
-  async getTokenBalanceOfAddress(address: string, token: Asset): Promise<number> {
-    const contract = this.getERC20ContractForDex(token.chainId);
+  async getTokenBalanceOfAddress(address: string, asset: Asset): Promise<number> {
+    const contract = this.getERC20ContractForDex(asset.chainId);
     const balance = await contract.balanceOf(address);
-    const decimals = await contract.decimals();
+    const token = await this.getToken(contract);
 
-    return this.convertToEthLikeDenomination(balance, decimals);
+    return this.fromWeiAmount(balance, token.decimals);
   }
 
-  async getCurrentGasPrice(): Promise<BigNumber> {
+  async getCurrentGasPrice(): Promise<EthersNumber> {
     return this.provider.getGasPrice();
   }
 
@@ -100,13 +77,13 @@ export abstract class EvmClient {
     return this.provider.getBlockNumber();
   }
 
-  async getTokenGasLimitForAsset(token: Asset): Promise<BigNumber> {
+  async getTokenGasLimitForAsset(token: Asset): Promise<EthersNumber> {
     const contract = this.getERC20ContractForDex(token.chainId);
 
     return this.getTokenGasLimitForContact(contract);
   }
 
-  async getTokenGasLimitForContact(contract: Contract): Promise<BigNumber> {
+  async getTokenGasLimitForContact(contract: Contract): Promise<EthersNumber> {
     return contract.estimateGas.transfer(this.randomReceiverAddress, 1);
   }
 
@@ -135,7 +112,7 @@ export abstract class EvmClient {
 
     nonce = nonce ?? (await this.getNonce(request.from));
     gasPrice = gasPrice ?? +(await this.getCurrentGasPrice());
-    value = this.convertToWeiLikeDenomination(value as number, 'ether');
+    value = this.toWeiAmount(value as number);
 
     return wallet.sendTransaction({
       ...request,
@@ -200,12 +177,12 @@ export abstract class EvmClient {
     const { gasUsed, effectiveGasPrice } = await this.getTxReceipt(txHash);
     const actualFee = gasUsed.mul(effectiveGasPrice);
 
-    return this.convertToEthLikeDenomination(actualFee);
+    return this.fromWeiAmount(actualFee);
   }
 
   async testSwap(sourceToken: Asset, sourceAmount: number, targetToken: Asset): Promise<number> {
-    const source = await this.getToken(sourceToken.chainId);
-    const target = await this.getToken(targetToken.chainId);
+    const source = await this.getTokenByAddress(sourceToken.chainId);
+    const target = await this.getTokenByAddress(targetToken.chainId);
 
     const route = await this.router.route(
       this.toCurrencyAmount(sourceAmount, source),
@@ -214,23 +191,15 @@ export abstract class EvmClient {
       this.swapConfig,
     );
 
+    if (!route)
+      throw new Error(
+        `No swap route found for ${sourceAmount} ${sourceToken.name} -> ${targetToken.name} (${sourceToken.blockchain})`,
+      );
+
     return +route.quote.toExact();
   }
 
   // --- GETTERS --- //
-
-  get sendCoinGasLimit(): number {
-    return this.#sendCoinGasLimit;
-  }
-
-  get dummyTokenPayload(): string {
-    const method = 'a9059cbb000000000000000000000000';
-    const destination = this.randomReceiverAddress.slice(2);
-    const value = '0000000000000000000000000000000000000000000000000000000000000001';
-
-    return '0x' + method + destination + value;
-  }
-
   get dfxAddress(): string {
     return this.wallet.address;
   }
@@ -246,27 +215,54 @@ export abstract class EvmClient {
 
   // --- PUBLIC HELPER METHODS --- //
 
-  convertToEthLikeDenomination(amountWeiLike: BigNumber, decimals?: number): number {
-    return decimals
-      ? parseFloat(ethers.utils.formatUnits(amountWeiLike, decimals))
-      : parseFloat(ethers.utils.formatEther(amountWeiLike));
+  fromWeiAmount(amountWeiLike: BigNumberish, decimals?: number): number {
+    const amount = decimals
+      ? ethers.utils.formatUnits(amountWeiLike, decimals)
+      : ethers.utils.formatEther(amountWeiLike);
+
+    return parseFloat(amount);
   }
 
-  convertToWeiLikeDenomination(amountEthLike: number, decimals: number | 'ether'): BigNumber {
-    const amount = decimals === 'ether' ? amountEthLike.toFixed(16) : amountEthLike.toFixed(decimals);
+  toWeiAmount(amountEthLike: number, decimals?: number): EthersNumber {
+    const amount = new BigNumber(amountEthLike).toFixed(decimals ?? 18);
 
-    return ethers.utils.parseUnits(amount, decimals);
+    return decimals ? ethers.utils.parseUnits(amount, decimals) : ethers.utils.parseEther(amount);
+  }
+
+  private toCurrencyAmount(amount: number, token: Token): CurrencyAmount<Token> {
+    const targetAmount = this.toWeiAmount(amount, token.decimals).toString();
+
+    return CurrencyAmount.fromRawAmount(token, targetAmount);
   }
 
   getERC20ContractForDex(tokenAddress: string): Contract {
     return new ethers.Contract(tokenAddress, ERC20_ABI, this.wallet);
   }
 
-  async getToken(tokenAddress: string): Promise<Token> {
-    return this.tokens.get(tokenAddress, async () => {
-      const contract = this.getERC20ContractForDex(tokenAddress);
-      return new Token(this.chainId, contract.address, await contract.decimals());
-    });
+  async getTokenByAddress(address: string): Promise<Token> {
+    const contract = this.getERC20ContractForDex(address);
+    return this.getToken(contract);
+  }
+
+  async getToken(contract: Contract): Promise<Token> {
+    return this.tokens.get(
+      contract.address,
+      async () => new Token(this.chainId, contract.address, await contract.decimals()),
+    );
+  }
+
+  async getCurrentGasCostForCoinTransaction(): Promise<number> {
+    const totalGas = await this.getCurrentGasForCoinTransaction(this.dfxAddress, 1e-18);
+    const gasPrice = await this.getCurrentGasPrice();
+
+    return this.fromWeiAmount(totalGas.mul(gasPrice));
+  }
+
+  async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
+    const totalGas = await this.getTokenGasLimitForAsset(token);
+    const gasPrice = await this.getCurrentGasPrice();
+
+    return this.fromWeiAmount(totalGas.mul(gasPrice));
   }
 
   // --- PRIVATE HELPER METHODS --- //
@@ -278,22 +274,31 @@ export abstract class EvmClient {
     feeLimit?: number,
   ): Promise<string> {
     const fromAddress = wallet.address;
-    const gasPrice = await this.getGasPrice(this.#sendCoinGasLimit, feeLimit);
+
+    const gasLimit = await this.getCurrentGasForCoinTransaction(fromAddress, amount);
+    const gasPrice = await this.getGasPrice(+gasLimit, feeLimit);
     const nonce = await this.getNonce(fromAddress);
 
     const tx = await wallet.sendTransaction({
-      from: wallet.address,
+      from: fromAddress,
       to: toAddress,
-      value: this.convertToWeiLikeDenomination(amount, 'ether'),
+      value: this.toWeiAmount(amount),
       nonce,
       gasPrice,
-      // has to be provided as a number for BSC
-      gasLimit: this.#sendCoinGasLimit,
+      gasLimit,
     });
 
     this.nonce.set(fromAddress, nonce + 1);
 
     return tx.hash;
+  }
+
+  protected async getCurrentGasForCoinTransaction(fromAddress: string, amount: number): Promise<EthersNumber> {
+    return this.provider.estimateGas({
+      from: fromAddress,
+      to: this.randomReceiverAddress,
+      value: this.toWeiAmount(amount),
+    });
   }
 
   private async sendToken(
@@ -303,18 +308,18 @@ export abstract class EvmClient {
     amount: number,
     feeLimit?: number,
   ): Promise<string> {
-    /**
-     * @note
-     * adding a cap to make sure gas limit is sufficient
-     */
     const gasLimit = +(await this.getTokenGasLimitForContact(contract));
     const gasPrice = await this.getGasPrice(gasLimit, feeLimit);
     const nonce = await this.getNonce(fromAddress);
 
+    /**
+     * @note
+     * adding a cap to make sure gas limit is sufficient
+     */
     const effectiveGasLimit = Util.round(gasLimit * 1.5, 0);
 
-    const decimals = await contract.decimals();
-    const targetAmount = this.convertToWeiLikeDenomination(amount, decimals);
+    const token = await this.getToken(contract);
+    const targetAmount = this.toWeiAmount(amount, token.decimals);
 
     const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit: effectiveGasLimit, nonce });
 
@@ -325,8 +330,7 @@ export abstract class EvmClient {
 
   protected async getGasPrice(gasLimit: number, feeLimit?: number): Promise<number> {
     const currentGasPrice = +(await this.getCurrentGasPrice());
-    const proposedGasPrice =
-      feeLimit != null ? Util.round(+this.convertToWeiLikeDenomination(feeLimit, 'ether') / gasLimit, 0) : null;
+    const proposedGasPrice = feeLimit != null ? Util.round(+this.toWeiAmount(feeLimit) / gasLimit, 0) : null;
 
     if (!proposedGasPrice) return currentGasPrice;
 
@@ -342,31 +346,20 @@ export abstract class EvmClient {
     return currentNonce;
   }
 
-  private getTransactionHistoryCommonParams(walletAddress: string, fromBlock: number) {
-    return {
+  private async getHistory<T>(walletAddress: string, fromBlock: number, type: string): Promise<T[]> {
+    const params = {
       module: 'account',
       address: walletAddress,
       startblock: fromBlock,
       apikey: this.scanApiKey,
       sort: 'asc',
+      action: type,
     };
-  }
 
-  private toCurrencyAmount(amount: number, token: Token): CurrencyAmount<Token> {
-    const extraDigits = Math.pow(10, this.countDecimals(amount));
-    const adjustedAmount = amount * extraDigits;
-    const jsbi = JSBI.divide(
-      JSBI.multiply(JSBI.BigInt(adjustedAmount), JSBI.exponentiate(JSBI.BigInt(10), JSBI.BigInt(token.decimals))),
-      JSBI.BigInt(extraDigits),
-    );
+    const { result, message } = await this.http.get<ScanApiResponse<T[]>>(this.scanApiUrl, { params });
 
-    return CurrencyAmount.fromRawAmount(token, jsbi);
-  }
+    if (!Array.isArray(result)) throw new Error(`Failed to get ${type} transactions: ${result ?? message}`);
 
-  private countDecimals(x: number) {
-    if (Math.floor(x) === x) {
-      return 0;
-    }
-    return x.toString().split('.')[1].length || 0;
+    return result;
   }
 }

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { PayoutOrder } from '../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
@@ -14,6 +15,14 @@ export class BscTokenStrategy extends EvmStrategy {
     payoutOrderRepo: PayoutOrderRepository,
   ) {
     super(bscService, payoutOrderRepo);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.BINANCE_SMART_CHAIN;
+  }
+
+  get assetType(): AssetType {
+    return AssetType.TOKEN;
   }
 
   protected dispatchPayout(order: PayoutOrder): Promise<string> {

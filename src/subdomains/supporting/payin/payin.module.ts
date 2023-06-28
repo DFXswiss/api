@@ -1,7 +1,8 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { ChainalysisModule } from 'src/integration/chainalysis/chainalysis.module';
+import { PaymentModule } from 'src/shared/payment/payment.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
 import { DexModule } from '../dex/dex.module';
@@ -18,14 +19,16 @@ import { PayInEthereumService } from './services/payin-ethereum.service';
 import { PayInOptimismService } from './services/payin-optimism.service';
 import { PayInService } from './services/payin.service';
 import { ArbitrumStrategy as ArbitrumStrategyR } from './strategies/register/impl/arbitrum.strategy';
+import { RegisterStrategyRegistry } from './strategies/register/impl/base/register.strategy-registry';
 import { BitcoinStrategy as BitcoinStrategyR } from './strategies/register/impl/bitcoin.strategy';
 import { BscStrategy as BscStrategyR } from './strategies/register/impl/bsc.strategy';
 import { DeFiChainStrategy as DeFiChainStrategyR } from './strategies/register/impl/defichain.strategy';
 import { EthereumStrategy as EthereumStrategyR } from './strategies/register/impl/ethereum.strategy';
+import { LightningStrategy as LightningStrategyR } from './strategies/register/impl/lightning.strategy';
 import { OptimismStrategy as OptimismStrategyR } from './strategies/register/impl/optimism.strategy';
-import { RegisterStrategiesFacade } from './strategies/register/register.facade';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyS } from './strategies/send/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategyS } from './strategies/send/impl/arbitrum-token.strategy';
+import { SendStrategyRegistry } from './strategies/send/impl/base/send.strategy-registry';
 import { BitcoinStrategy as BitcoinStrategyS } from './strategies/send/impl/bitcoin.strategy';
 import { BscCoinStrategy as BscCoinStrategyS } from './strategies/send/impl/bsc-coin.strategy';
 import { BscTokenStrategy as BscTokenStrategyS } from './strategies/send/impl/bsc-token.strategy';
@@ -33,10 +36,9 @@ import { DeFiChainCoinStrategy as DeFiChainCoinStrategyS } from './strategies/se
 import { DeFiChainTokenStrategy as DeFiChainTokenStrategyS } from './strategies/send/impl/defichain-token.strategy';
 import { EthereumCoinStrategy as EthereumCoinStrategyS } from './strategies/send/impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy as EthereumTokenStrategyS } from './strategies/send/impl/ethereum-token.strategy';
+import { LightningStrategy as LightningStrategyS } from './strategies/send/impl/lightning.strategy';
 import { OptimismCoinStrategy as OptimismCoinStrategyS } from './strategies/send/impl/optimism-coin.strategy';
 import { OptimismTokenStrategy as OptimismTokenStrategyS } from './strategies/send/impl/optimism-token.strategy';
-import { SendStrategiesFacade } from './strategies/send/send.facade';
-import { PaymentModule } from 'src/shared/payment/payment.module';
 
 @Module({
   imports: [
@@ -47,7 +49,7 @@ import { PaymentModule } from 'src/shared/payment/payment.module';
     PayoutModule,
     DexModule,
     ChainalysisModule,
-    SellCryptoModule,
+    forwardRef(() => SellCryptoModule),
     PaymentModule,
   ],
   controllers: [],
@@ -61,14 +63,15 @@ import { PaymentModule } from 'src/shared/payment/payment.module';
     PayInOptimismService,
     PayInBitcoinService,
     PayInDeFiChainService,
-    SendStrategiesFacade,
-    RegisterStrategiesFacade,
+    RegisterStrategyRegistry,
+    SendStrategyRegistry,
     ArbitrumStrategyR,
     BitcoinStrategyR,
     BscStrategyR,
     DeFiChainStrategyR,
     EthereumStrategyR,
     OptimismStrategyR,
+    LightningStrategyR,
     ArbitrumCoinStrategyS,
     ArbitrumTokenStrategyS,
     BitcoinStrategyS,
@@ -80,6 +83,7 @@ import { PaymentModule } from 'src/shared/payment/payment.module';
     EthereumTokenStrategyS,
     OptimismCoinStrategyS,
     OptimismTokenStrategyS,
+    LightningStrategyS,
   ],
   exports: [PayInService],
 })

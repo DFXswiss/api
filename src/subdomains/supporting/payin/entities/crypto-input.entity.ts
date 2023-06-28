@@ -1,13 +1,13 @@
-import { DepositRoute, DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
+import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { IEntity } from 'src/shared/models/entity';
-import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
-import { Column, Entity, Index, ManyToOne } from 'typeorm';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Util } from 'src/shared/utils/util';
-import { Config } from 'src/config/config';
 import { FeeLimitExceededException } from 'src/shared/payment/exceptions/fee-limit-exceeded.exception';
+import { Util } from 'src/shared/utils/util';
+import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
+import { DepositRoute, DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
+import { Column, Entity, Index, ManyToOne } from 'typeorm';
 
 export enum PayInPurpose {
   STAKING = 'Staking',
@@ -30,6 +30,7 @@ export enum PayInStatus {
   FORWARDED = 'Forwarded',
   PREPARING = 'Preparing',
   PREPARED = 'Prepared',
+  COMPLETED = 'Completed',
   WAITING_FOR_PRICE_REFERENCE = 'WaitingForPriceReference',
 }
 
@@ -123,7 +124,7 @@ export class CryptoInput extends IEntity {
 
     payIn.addReferenceAmounts(btcAmount, usdtAmount);
 
-    if (!payIn.asset) payIn.status = PayInStatus.FAILED;
+    if (!payIn.asset || !payIn.amount) payIn.status = PayInStatus.FAILED;
 
     return payIn;
   }
@@ -211,6 +212,13 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
+  completed() {
+    this.status = PayInStatus.COMPLETED;
+    this.sendType = null;
+
+    return this;
+  }
+
   confirm(): this {
     this.isConfirmed = true;
 
@@ -231,7 +239,10 @@ export class CryptoInput extends IEntity {
   }
 
   addReferenceAmounts(btcAmount: number, usdtAmount: number): this {
-    if (btcAmount == null || (usdtAmount == null && this.address.blockchain !== Blockchain.BITCOIN)) {
+    if (
+      btcAmount == null ||
+      (usdtAmount == null && ![Blockchain.BITCOIN, Blockchain.LIGHTNING].includes(this.address.blockchain))
+    ) {
       this.status = PayInStatus.WAITING_FOR_PRICE_REFERENCE;
       return this;
     }

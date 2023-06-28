@@ -1,17 +1,17 @@
 import { Injectable } from '@nestjs/common';
-import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repository';
-import { BuyCryptoBatchStatus, BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
-import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
-import { BuyCryptoPricingService } from './buy-crypto-pricing.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { LiquidityOrderNotReadyException } from 'src/subdomains/supporting/dex/exceptions/liquidity-order-not-ready.exception';
 import { NotEnoughLiquidityException } from 'src/subdomains/supporting/dex/exceptions/not-enough-liquidity.exception';
 import { PriceSlippageException } from 'src/subdomains/supporting/dex/exceptions/price-slippage.exception';
 import { PurchaseLiquidityRequest, ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
+import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
+import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repository';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
+import { BuyCryptoPricingService } from './buy-crypto-pricing.service';
 
 @Injectable()
 export class BuyCryptoDexService {
@@ -52,7 +52,10 @@ export class BuyCryptoDexService {
           batch.id.toString(),
         );
 
-        const finalFee = await this.buyCryptoPricingService.getFeeAmountInBatchAsset(batch, nativeFee);
+        const finalFee = await this.buyCryptoPricingService.getFeeAmountInRefAsset(
+          batch.outputReferenceAsset,
+          nativeFee,
+        );
 
         batch.secure(liquidity.amount, finalFee);
         await this.buyCryptoBatchRepo.save(batch);

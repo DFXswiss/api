@@ -1,24 +1,23 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { IsNull, Not } from 'typeorm';
-import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
-import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Util } from 'src/shared/utils/util';
-import { Lock } from 'src/shared/utils/lock';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { LiquidityOrderContext, LiquidityOrder } from '../../../entities/liquidity-order.entity';
+import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
+import { Util } from 'src/shared/utils/util';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { IsNull, Not } from 'typeorm';
+import { LiquidityOrder, LiquidityOrderContext } from '../../../entities/liquidity-order.entity';
 import { NotEnoughLiquidityException } from '../../../exceptions/not-enough-liquidity.exception';
 import { PriceSlippageException } from '../../../exceptions/price-slippage.exception';
 import { LiquidityOrderFactory } from '../../../factories/liquidity-order.factory';
 import { PurchaseLiquidityRequest } from '../../../interfaces';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { LiquidityOrderRepository } from '../../../repositories/liquidity-order.repository';
-import { DexService } from '../../../services/dex.service';
-import { PurchaseLiquidityStrategy } from './base/purchase-liquidity.strategy';
 import { DexDeFiChainService } from '../../../services/dex-defichain.service';
+import { DexService } from '../../../services/dex.service';
 import { DexUtil } from '../../../utils/dex.util';
-import { PurchaseLiquidityStrategyAlias } from '../purchase-liquidity.facade';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { PurchaseLiquidityStrategy } from './base/purchase-liquidity.strategy';
 
 @Injectable()
 export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
@@ -33,11 +32,31 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
     private readonly dexService: DexService,
     private readonly dexDeFiChainService: DexDeFiChainService,
   ) {
-    super(notificationService, PurchaseLiquidityStrategyAlias.DEFICHAIN_POOL_PAIR);
+    super(notificationService);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.DEFICHAIN;
+  }
+
+  get assetType(): AssetType {
+    return undefined;
+  }
+
+  get assetCategory(): AssetCategory {
+    return AssetCategory.POOL_PAIR;
+  }
+
+  get dexName(): string {
+    return undefined;
   }
 
   async purchaseLiquidity(request: PurchaseLiquidityRequest): Promise<void> {
-    const newParentOrder = this.liquidityOrderFactory.createPurchaseOrder(request, Blockchain.DEFICHAIN, this.name);
+    const newParentOrder = this.liquidityOrderFactory.createPurchaseOrder(
+      request,
+      Blockchain.DEFICHAIN,
+      this.constructor.name,
+    );
     const savedParentOrder = await this.liquidityOrderRepo.save(newParentOrder);
 
     try {

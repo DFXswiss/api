@@ -1,21 +1,21 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { LiquidityManagementOrder } from '../entities/liquidity-management-order.entity';
-import { LiquidityManagementOrderStatus, LiquidityManagementPipelineStatus } from '../enums';
-import { OrderNotProcessableException } from '../exceptions/order-not-processable.exception';
-import { LiquidityManagementOrderRepository } from '../repositories/liquidity-management-order.repository';
-import { LiquidityManagementPipelineRepository } from '../repositories/liquidity-management-pipeline.repository';
-import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
-import { Lock } from 'src/shared/utils/lock';
-import { LiquidityActionIntegrationFactory } from '../factories/liquidity-action-integration.factory';
-import { LiquidityManagementRuleRepository } from '../repositories/liquidity-management-rule.repository';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
-import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
-import { OrderFailedException } from '../exceptions/order-failed.exception';
-import { In } from 'typeorm';
 import { Config, Process } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
+import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { In } from 'typeorm';
+import { LiquidityManagementOrder } from '../entities/liquidity-management-order.entity';
+import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
+import { LiquidityManagementOrderStatus, LiquidityManagementPipelineStatus } from '../enums';
+import { OrderFailedException } from '../exceptions/order-failed.exception';
+import { OrderNotProcessableException } from '../exceptions/order-not-processable.exception';
+import { LiquidityActionIntegrationFactory } from '../factories/liquidity-action-integration.factory';
+import { LiquidityManagementOrderRepository } from '../repositories/liquidity-management-order.repository';
+import { LiquidityManagementPipelineRepository } from '../repositories/liquidity-management-pipeline.repository';
+import { LiquidityManagementRuleRepository } from '../repositories/liquidity-management-rule.repository';
 
 @Injectable()
 export class LiquidityManagementPipelineService {
@@ -173,7 +173,7 @@ export class LiquidityManagementPipelineService {
           await this.orderRepo.save(order);
         }
 
-        this.logger.error(`Error in starting new liquidity order ${order.id}:`, e);
+        this.logger.warn(`Error in starting new liquidity order ${order.id}:`, e);
       }
     }
   }

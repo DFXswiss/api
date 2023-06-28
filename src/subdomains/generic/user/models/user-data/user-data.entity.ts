@@ -6,7 +6,8 @@ import { Language } from 'src/shared/models/language/language.entity';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
-import { Entity, Column, OneToMany, OneToOne, JoinColumn, ManyToOne, Index, Generated } from 'typeorm';
+import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
+import { RiskResult } from '../../services/spider/dto/spider.dto';
 import { SpiderData } from '../spider-data/spider-data.entity';
 import { TradingLimit } from '../user/dto/user.dto';
 import { AccountType } from './account-type.enum';
@@ -19,6 +20,7 @@ export enum KycStatus {
   CHECK = 'Check',
   COMPLETED = 'Completed',
   REJECTED = 'Rejected',
+  TERMINATED = 'Terminated',
 }
 
 export enum KycState {
@@ -31,6 +33,12 @@ export enum KycState {
 export enum KycType {
   DFX = 'DFX',
   LOCK = 'LOCK',
+}
+
+export enum KycIdentificationType {
+  ONLINE_ID = 'OnlineId',
+  VIDEO_ID = 'VideoId',
+  MANUAL = 'Manual',
 }
 
 export enum RiskState {
@@ -172,6 +180,12 @@ export class UserData extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   amlListAddedDate: Date;
 
+  @Column({ length: 256, nullable: true })
+  identificationType: KycIdentificationType;
+
+  @Column({ length: 256, nullable: true })
+  internalAmlNote: string;
+
   //Mail
   @Column({ length: 256, nullable: true })
   blackSquadRecipientMail: string;
@@ -242,6 +256,11 @@ export class UserData extends IEntity {
     } else {
       return { limit: Config.defaultDailyTradingLimit, period: LimitPeriod.DAY };
     }
+  }
+
+  set riskResult({ result, risks }: RiskResult) {
+    this.riskState = result;
+    this.riskRoots = result === 'c' ? null : JSON.stringify(risks);
   }
 }
 

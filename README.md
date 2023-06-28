@@ -54,6 +54,17 @@ KYC is not required for a daily transaction volume up to 1000 EUR/CHF. To increa
 
 #### Buy Crypto
 
+_Get a quote_
+
+1. Get all available assets with the [asset endpoint](https://api.dfx.swiss/swagger/#/Asset/AssetController_getAllAsset)
+   - This endpoint will return all assets compatible with the user's address, which might be assets on multiple blockchains. The query parameter (optional) can be used to filter for specific blockchains.
+   - Only assets with the `buyable` field set to `true` can be bought
+1. Get all available currencies with the [fiat endpoint](https://api.dfx.swiss/swagger/#/Fiat/FiatController_getAllFiat)
+   - Only fiats with the `sellable` field set to `true` can be used to buy crypto
+1. Get a quote with the [buy quote endpoint](https://api.dfx.swiss/swagger/#/Buy/BuyController_getBuyQuote)
+
+_Get payment infos_
+
 1. Get all available assets with the [asset endpoint](https://api.dfx.swiss/swagger/#/Asset/AssetController_getAllAsset)
    - This endpoint will return all assets compatible with the user's address, which might be assets on multiple blockchains. The query parameter (optional) can be used to filter for specific blockchains.
    - Only assets with the `buyable` field set to `true` can be bought
@@ -65,6 +76,16 @@ KYC is not required for a daily transaction volume up to 1000 EUR/CHF. To increa
 1. The crypto asset will be sent to the user's blockchain address as soon as the bank transfer is completed
 
 #### Sell Crypto
+
+_Get a quote_
+
+1. Get all available assets with the [asset endpoint](https://api.dfx.swiss/swagger/#/Asset/AssetController_getAllAsset)
+   - Only assets with the `sellable` field set to `true` can be sold
+1. Get all available currencies with the [fiat endpoint](https://api.dfx.swiss/swagger/#/Fiat/FiatController_getAllFiat)
+   - Only fiats with the `buyable` field set to `true` can be used to sell crypto
+1. Get a quote with the [sell quote endpoint](https://api.dfx.swiss/swagger/#/Sell/SellController_getSellQuote)
+
+_Get payment infos_
 
 <em>In order to perform bank transactions, DFX needs to know the name and address of the recipient. Therefore, user data must be collected once before a sale can be made. The user data can be updated with the [kyc data endpoint](https://api.dfx.swiss/swagger#/KYC/KycController_updateKycData). Required fields are `mail, phone, firstname, surname, street, houseNumber, location, zip, country`. For non personal accounts, `organizationName, organizationStreet, organizationHouseNumber, organizationLocation, organizationZip, organizationCountry` are also required.</em>
 

@@ -1,13 +1,14 @@
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
-import { Entity, OneToOne, JoinColumn, ManyToOne, Column } from 'typeorm';
+import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
+import { FiatOutput } from '../../../supporting/bank/fiat-output/fiat-output.entity';
 import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
 import { AmlReason } from '../../buy-crypto/process/enums/aml-reason.enum';
-import { FiatOutput } from '../../../supporting/bank/fiat-output/fiat-output.entity';
 import { Sell } from '../route/sell.entity';
-import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 @Entity()
 export class BuyFiat extends IEntity {
@@ -209,6 +210,11 @@ export class BuyFiat extends IEntity {
 
   get percentFeeString(): string {
     return `${Util.round(this.percentFee * 100, 2)}%`;
+  }
+
+  get txId(): string {
+    if (this.cryptoInput.asset.blockchain === Blockchain.LIGHTNING) return Util.blankStart(this.cryptoInput.inTxId);
+    return txExplorerUrl(this.cryptoInput.asset.blockchain, this.cryptoInput.inTxId);
   }
 
   get translationKey(): string {

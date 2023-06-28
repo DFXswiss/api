@@ -1,5 +1,6 @@
 {
   "cSpell.words": [
+    "alby",
     "appinsights",
     "arbitrum",
     "authorises",
@@ -20,10 +21,15 @@
     "iban",
     "instrumentationkey",
     "kauf",
+    "keysend",
     "kucoin",
+    "lnnid",
+    "lnurl",
+    "lnurlp",
     "masternode",
     "masternodes",
     "meshsdk",
+    "msat",
     "mydefichain",
     "nestjs",
     "oflags",
@@ -47,7 +53,12 @@
   ],
   "prettier.printWidth": 120,
   "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": true,
+    "source.sortMembers": true
+  },
   "files.exclude": {
     "node_modules": true
-  }
+  },
+  "thunder-client.saveToWorkspace": true
 }

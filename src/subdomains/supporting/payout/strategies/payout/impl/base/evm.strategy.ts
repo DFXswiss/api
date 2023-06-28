@@ -1,13 +1,16 @@
-import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { AsyncCache } from 'src/shared/utils/async-cache';
+import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutOrder } from '../../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../../repositories/payout-order.repository';
 import { PayoutEvmService } from '../../../../services/payout-evm.service';
 import { PayoutStrategy } from './payout.strategy';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export abstract class EvmStrategy extends PayoutStrategy {
   private readonly logger = new DfxLogger(EvmStrategy);
+
+  private readonly txFees = new AsyncCache<number>(30);
 
   constructor(
     protected readonly payoutEvmService: PayoutEvmService,
@@ -20,7 +23,7 @@ export abstract class EvmStrategy extends PayoutStrategy {
   protected abstract getCurrentGasForTransaction(token?: Asset): Promise<number>;
 
   async estimateFee(asset: Asset): Promise<FeeResult> {
-    const gasPerTransaction = await this.getCurrentGasForTransaction(asset);
+    const gasPerTransaction = await this.txFees.get(asset.id.toString(), () => this.getCurrentGasForTransaction(asset));
 
     return { asset: await this.feeAsset(), amount: gasPerTransaction };
   }

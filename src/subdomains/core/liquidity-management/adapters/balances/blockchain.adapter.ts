@@ -1,15 +1,17 @@
 import { Injectable } from '@nestjs/common';
+import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
+import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
+import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
+import { LightningClient } from 'src/integration/lightning/lightning-client';
+import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { LiquidityBalance } from '../../entities/liquidity-balance.entity';
 import { LiquidityBalanceIntegration } from '../../interfaces';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
-import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
-import { Util } from 'src/shared/utils/util';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
-import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 
 @Injectable()
 export class BlockchainAdapter implements LiquidityBalanceIntegration {
@@ -23,14 +25,17 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
 
   private dexClient: DeFiClient;
   private btcClient: BtcClient;
+  private lnClient: LightningClient;
 
   constructor(
     private readonly dexService: DexService,
     private readonly evmRegistryService: EvmRegistryService,
-    readonly nodeService: NodeService,
+    nodeService: NodeService,
+    lightningService: LightningService,
   ) {
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.dexClient = client));
     nodeService.getConnectedNode(NodeType.BTC_OUTPUT).subscribe((client) => (this.btcClient = client));
+    this.lnClient = lightningService.getDefaultClient();
   }
 
   async getBalances(assets: Asset[]): Promise<LiquidityBalance[]> {
@@ -81,15 +86,19 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
         case Blockchain.DEFICHAIN:
           await this.getForDeFiChain(assets);
           break;
+
         case Blockchain.BITCOIN:
+        case Blockchain.LIGHTNING:
           await this.getForBitcoin(assets);
           break;
+
         case Blockchain.ETHEREUM:
         case Blockchain.BINANCE_SMART_CHAIN:
         case Blockchain.OPTIMISM:
         case Blockchain.ARBITRUM:
           await this.getForEvm(assets);
           break;
+
         default:
           throw new Error(`${blockchain} is not supported by BlockchainAdapter`);
       }
@@ -126,9 +135,11 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
   private async getForBitcoin(assets: Asset[]): Promise<void> {
     for (const asset of assets) {
       try {
-        if (asset.type !== AssetType.COIN) throw new Error(`Only coins are available on ${Blockchain.BITCOIN}`);
+        if (asset.type !== AssetType.COIN) throw new Error(`Only coins are available on ${asset.blockchain}`);
 
-        const balance = await this.btcClient.getBalance();
+        const client = asset.blockchain === Blockchain.BITCOIN ? this.btcClient : this.lnClient;
+
+        const balance = await client.getBalance();
         this.balanceCache.set(asset.id, +balance);
       } catch (e) {
         this.logger.error(`Failed to update liquidity management balance for ${asset.uniqueName}:`, e);
@@ -145,13 +156,15 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
 
     const tokenTransactions = await client.getERC20Transactions(client.dfxAddress, 0);
     const recentTransactions = tokenTransactions.filter(
-      (tx) => new Date(+tx.timeStamp * 1000) > this.updateTimestamps.get(blockchain),
+      (tx) => !(new Date(+tx.timeStamp * 1000) < this.updateTimestamps.get(blockchain)),
     );
 
     // update all assets with missing cache or with recent transactions
     const assetsToUpdate = assets.filter(
       (a) =>
-        a.type === AssetType.COIN || !this.balanceCache.has(a.id) || recentTransactions.some((tx) => tx.tokenSymbol),
+        a.type === AssetType.COIN ||
+        !this.balanceCache.has(a.id) ||
+        recentTransactions.some((tx) => tx.contractAddress === a.chainId),
     );
 
     for (const asset of assetsToUpdate) {

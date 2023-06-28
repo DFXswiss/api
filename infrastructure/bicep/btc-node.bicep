@@ -93,4 +93,4 @@ resource vm 'Microsoft.Compute/virtualMachines@2022-03-01' = {
   }
 }
 
-output url string = 'http://${nic.properties.ipConfigurations[0].properties.privateIPAddress}:8332'
+output ip string = nic.properties.ipConfigurations[0].properties.privateIPAddress

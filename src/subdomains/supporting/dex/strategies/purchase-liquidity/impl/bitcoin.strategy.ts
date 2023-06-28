@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { PurchaseLiquidityStrategy } from './base/purchase-liquidity.strategy';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { PurchaseLiquidityRequest } from '../../../interfaces';
 import { DexBitcoinService } from '../../../services/dex-bitcoin.service';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Asset } from 'src/shared/models/asset/asset.entity';
-import { PurchaseLiquidityStrategyAlias } from '../purchase-liquidity.facade';
+import { PurchaseLiquidityStrategy } from './base/purchase-liquidity.strategy';
 
 @Injectable()
 export class BitcoinStrategy extends PurchaseLiquidityStrategy {
@@ -14,7 +14,23 @@ export class BitcoinStrategy extends PurchaseLiquidityStrategy {
     notificationService: NotificationService,
     private readonly dexBtcService: DexBitcoinService,
   ) {
-    super(notificationService, PurchaseLiquidityStrategyAlias.BITCOIN);
+    super(notificationService);
+  }
+
+  get blockchain(): Blockchain {
+    return Blockchain.BITCOIN;
+  }
+
+  get assetType(): AssetType {
+    return undefined;
+  }
+
+  get assetCategory(): AssetCategory {
+    return undefined;
+  }
+
+  get dexName(): string {
+    return undefined;
   }
 
   async purchaseLiquidity(request: PurchaseLiquidityRequest): Promise<void> {

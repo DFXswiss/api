@@ -5,26 +5,27 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { CreateUserDto } from 'src/subdomains/generic/user/models/user/dto/create-user.dto';
-import { AuthCredentialsDto } from './dto/auth-credentials.dto';
-import { JwtPayloadBase, JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { JwtService } from '@nestjs/jwt';
-import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
-import { Config } from 'src/config/config';
-import { UserService } from '../user/user.service';
-import { UserRepository } from '../user/user.repository';
-import { User, UserStatus } from '../user/user.entity';
-import { LinkedUserInDto } from '../user/dto/linked-user.dto';
-import { WalletRepository } from '../wallet/wallet.repository';
-import { Wallet } from '../wallet/wallet.entity';
-import { UserRole } from 'src/shared/auth/user-role.enum';
-import { Util } from 'src/shared/utils/util';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
+import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
+import { LightningService } from 'src/integration/lightning/services/lightning.service';
+import { JwtPayload, JwtPayloadBase } from 'src/shared/auth/jwt-payload.interface';
+import { UserRole } from 'src/shared/auth/user-role.enum';
+import { Util } from 'src/shared/utils/util';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
+import { CreateUserDto } from 'src/subdomains/generic/user/models/user/dto/create-user.dto';
+import { LinkedUserInDto } from '../user/dto/linked-user.dto';
+import { User, UserStatus } from '../user/user.entity';
+import { UserRepository } from '../user/user.repository';
+import { UserService } from '../user/user.service';
+import { Wallet } from '../wallet/wallet.entity';
+import { WalletRepository } from '../wallet/wallet.repository';
+import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { ChallengeDto } from './dto/challenge.dto';
 import { SignMessageDto } from './dto/sign-message.dto';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 export interface ChallengeData {
   created: Date;
@@ -41,6 +42,7 @@ export class AuthService {
     private readonly walletRepo: WalletRepository,
     private readonly jwtService: JwtService,
     private readonly cryptoService: CryptoService,
+    private readonly lightningService: LightningService,
     private readonly refService: RefService,
   ) {}
 
@@ -79,13 +81,8 @@ export class AuthService {
 
     const user = await this.userRepo.getByAddress(dto.address, true);
     if (!user || user.status == UserStatus.BLOCKED) throw new NotFoundException('User not found');
-    if (!(await this.verifySignature(dto.address, dto.signature, dto.key)))
+    if (!(await this.verifySignature(dto.address, dto.signature, dto.key, user.signature)))
       throw new UnauthorizedException('Invalid credentials');
-
-    // TODO: temporary code to update old wallet signatures
-    if (user.signature.length !== 88 && dto.key === undefined) {
-      await this.userRepo.update({ id: user.id }, { signature: dto.signature });
-    }
 
     return { accessToken: this.generateUserToken(user) };
   }
@@ -148,11 +145,27 @@ export class AuthService {
     return user?.userData?.users.find((u) => u.address === address);
   }
 
-  private async verifySignature(address: string, signature: string, key?: string): Promise<boolean> {
+  private async verifySignature(
+    address: string,
+    signature: string,
+    key?: string,
+    dbSignature?: string,
+  ): Promise<boolean> {
     const { defaultMessage, fallbackMessage } = this.getSignMessages(address);
 
-    let isValid = await this.cryptoService.verifySignature(defaultMessage, address, signature, key);
-    if (!isValid) isValid = await this.cryptoService.verifySignature(fallbackMessage, address, signature, key);
+    const blockchains = this.cryptoService.getBlockchainsBasedOn(address);
+
+    if (blockchains.includes(Blockchain.LIGHTNING)) {
+      if (/^[a-z0-9]{140,146}$/.test(signature)) {
+        // custodial Lightning wallet, only comparison check
+        return !dbSignature || signature === dbSignature;
+      }
+
+      key = await this.lightningService.getPublicKeyOfAddress(address);
+    }
+
+    let isValid = this.cryptoService.verifySignature(defaultMessage, address, signature, key);
+    if (!isValid) isValid = this.cryptoService.verifySignature(fallbackMessage, address, signature, key);
 
     return isValid;
   }

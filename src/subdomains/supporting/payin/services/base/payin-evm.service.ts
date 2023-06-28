@@ -1,4 +1,3 @@
-import { BigNumber } from 'ethers';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmService } from 'src/integration/blockchain/shared/evm/evm.service';
@@ -41,7 +40,7 @@ export abstract class PayInEvmService {
     return [allCoinTransactions, allTokenTransactions];
   }
 
-  convertToEthLikeDenomination(value: string, decimals?: number): number {
-    return this.#client.convertToEthLikeDenomination(BigNumber.from(value), decimals);
+  fromWeiAmount(value: string, decimals?: number): number {
+    return this.#client.fromWeiAmount(value, decimals);
   }
 }

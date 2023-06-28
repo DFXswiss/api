@@ -1,9 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
+import BigNumber from 'bignumber.js';
 import { Exchange, Market, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
-import { Price } from '../../../subdomains/supporting/pricing/domain/entities/price';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
 import { PricingProvider } from 'src/subdomains/supporting/pricing/domain/interfaces';
-import { QueueHandler } from 'src/shared/utils/queue-handler';
+import { Price } from '../../../subdomains/supporting/pricing/domain/entities/price';
 import { TradeChangedException } from '../exceptions/trade-changed.exception';
 
 export enum OrderSide {
@@ -17,7 +19,15 @@ enum OrderStatus {
   CANCELED = 'canceled',
 }
 
-export class ExchangeService implements PricingProvider {
+enum PrecisionMode {
+  DECIMAL_PLACES = 0,
+  SIGNIFICANT_DIGITS = 1,
+  TICK_SIZE = 2,
+}
+
+export abstract class ExchangeService implements PricingProvider {
+  protected abstract readonly logger: DfxLogger;
+
   private markets: Market[];
 
   constructor(private readonly exchange: Exchange, private readonly queue?: QueueHandler) {
@@ -69,38 +79,38 @@ export class ExchangeService implements PricingProvider {
   async checkTrade(id: string, from: string, to: string): Promise<boolean> {
     const pair = await this.getPair(from, to);
 
-    // loop in case we have to cancel the order
-    for (let i = 0; i < 5; i++) {
-      const order = await this.callApi((e) => e.fetchOrder(id, pair));
+    const order = await this.callApi((e) => e.fetchOrder(id, pair));
 
-      switch (order.status) {
-        case OrderStatus.OPEN:
-          const price = await this.fetchCurrentOrderPrice(order.symbol, order.side);
-          if (price === order.price) return false;
+    switch (order.status) {
+      case OrderStatus.OPEN:
+        const price = await this.fetchCurrentOrderPrice(order.symbol, order.side);
 
-          // price changed -> abort and re-fetch
-          await this.cancelOrder(order).catch(() => undefined);
-          break;
+        // price changed -> update price
+        if (price !== order.price) {
+          const id = await this.updateOrderPrice(order, price).catch((e) =>
+            this.logger.error(`Failed to update price of order ${order.id}:`, e),
+          );
+          if (id) throw new TradeChangedException(id);
+        }
 
-        case OrderStatus.CANCELED:
-          // check for min. amount
-          const minAmount = await this.getMinTradeAmount(order.symbol);
-          if (order.remaining < minAmount) {
-            return true;
-          }
+        return false;
 
-          const id = await this.placeOrder(order.symbol, order.side as OrderSide, order.remaining);
-          throw new TradeChangedException(id);
-
-        case OrderStatus.CLOSED:
+      case OrderStatus.CANCELED:
+        // check for min. amount
+        const minAmount = await this.getMinTradeAmount(order.symbol);
+        if (order.remaining < minAmount) {
           return true;
+        }
 
-        default:
-          return false;
-      }
+        const id = await this.placeOrder(order.symbol, order.side as OrderSide, order.remaining);
+        throw new TradeChangedException(id);
+
+      case OrderStatus.CLOSED:
+        return true;
+
+      default:
+        return false;
     }
-
-    throw new Error(`${this.name}: failed to cancel order ${id}`);
   }
 
   async withdrawFunds(
@@ -130,14 +140,33 @@ export class ExchangeService implements PricingProvider {
   // currency pairs
   private async getMarkets(): Promise<Market[]> {
     if (!this.markets) {
-      this.markets = await this.callApi((e) => e.fetchMarkets());
+      this.markets = await this.callApi((e) => e.fetchMarkets()).then((markets) => markets.filter((m) => m.active));
     }
 
     return this.markets;
   }
 
   private async getMinTradeAmount(pair: string): Promise<number> {
-    return this.getMarkets().then((m) => m.find((m) => m.symbol === pair).limits.amount.min);
+    return this.getMarket(pair).then((m) => m.limits.amount.min);
+  }
+
+  private async getPrecision(pair: string): Promise<{ price: number; amount: number }> {
+    return this.getMarket(pair).then((m) => {
+      return {
+        price: this.convertPrecision(m.precision.price),
+        amount: this.convertPrecision(m.precision.amount),
+      };
+    });
+  }
+
+  private convertPrecision(precision: number): number {
+    return this.exchange.precisionMode === PrecisionMode.TICK_SIZE
+      ? precision
+      : new BigNumber(10).exponentiatedBy(-precision).toNumber();
+  }
+
+  private async getMarket(pair: string): Promise<Market> {
+    return this.getMarkets().then((m) => m.find((m) => m.symbol === pair));
   }
 
   async getPair(from: string, to: string): Promise<string> {
@@ -170,14 +199,14 @@ export class ExchangeService implements PricingProvider {
   }
 
   private async fetchCurrentOrderPrice(pair: string, direction: string): Promise<number> {
-    /* 
-        If 'buy' we want to buy token1 using token2. Example BTC/EUR on 'buy' means we buy BTC using EUR
-            > We want to have the highest 'bids' price in the orderbook
-        If 'sell' we want to sell token1 using token2. Example BTC/EUR on 'sell' means we sell BTC using EUR
-            > We want to have the lowest 'asks' price in the orderbook
-    */
     const orderBook = await this.callApi((e) => e.fetchOrderBook(pair));
-    return direction == OrderSide.BUY ? orderBook.bids[0][0] : orderBook.asks[0][0];
+
+    const { price: pricePrecision } = await this.getPrecision(pair);
+
+    const price =
+      direction == OrderSide.BUY ? orderBook.asks[0][0] - pricePrecision : orderBook.bids[0][0] + pricePrecision;
+
+    return Util.roundToValue(price, pricePrecision);
   }
 
   // orders
@@ -193,8 +222,10 @@ export class ExchangeService implements PricingProvider {
 
     // place the order
     const { pair, direction } = await this.getTradePair(from, to);
+    const { amount: amountPrecision } = await this.getPrecision(pair);
     const price = await this.fetchCurrentOrderPrice(pair, direction);
-    const orderAmount = Util.round(direction === OrderSide.BUY ? amount / price : amount, 6);
+
+    const orderAmount = Util.roundToValue(direction === OrderSide.BUY ? amount / price : amount, amountPrecision);
 
     return this.placeOrder(pair, direction, orderAmount, price);
   }
@@ -202,17 +233,17 @@ export class ExchangeService implements PricingProvider {
   private async placeOrder(pair: string, direction: OrderSide, amount: number, price?: number): Promise<string> {
     price ??= await this.fetchCurrentOrderPrice(pair, direction);
 
-    const order = await this.createOrder(pair, direction, amount, price);
-
-    return order.id;
+    return this.createOrder(pair, direction, amount, price).then((o) => o.id);
   }
 
   protected async createOrder(pair: string, direction: OrderSide, amount: number, price: number): Promise<Order> {
     return this.callApi((e) => e.createOrder(pair, 'limit', direction, amount, price));
   }
 
-  private async cancelOrder(order: Order): Promise<void> {
-    await this.callApi((e) => e.cancelOrder(order.id, order.symbol));
+  protected async updateOrderPrice(order: Order, price: number): Promise<string> {
+    return this.callApi((e) => e.editOrder(order.id, order.symbol, order.type, order.side, order.amount, price)).then(
+      (o) => o.id,
+    );
   }
 
   // other

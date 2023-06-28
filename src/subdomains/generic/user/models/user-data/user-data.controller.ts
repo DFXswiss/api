@@ -1,16 +1,16 @@
 import { Body, Controller, Get, Param, Put, Query, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
-import { UpdateUserDataDto } from './dto/update-user-data.dto';
-import { AuthGuard } from '@nestjs/passport';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { UserDataService } from './user-data.service';
-import { UserData } from './user-data.entity';
-import { UserDataRepository } from './user-data.repository';
-import { BankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/bank-data.dto';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { BankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/bank-data.dto';
 import { KycService } from '../kyc/kyc.service';
 import { UpdateKycStatusDto } from './dto/update-kyc-status.dto';
+import { UpdateUserDataDto } from './dto/update-user-data.dto';
+import { UserData } from './user-data.entity';
+import { UserDataRepository } from './user-data.repository';
+import { UserDataService } from './user-data.service';
 
 @ApiTags('userData')
 @Controller('userData')
@@ -68,6 +68,14 @@ export class UserDataController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async mergeUserData(@Param('id') masterId: string, @Query('id') slaveId: string): Promise<void> {
     return this.userDataService.mergeUserData(+masterId, +slaveId);
+  }
+
+  @Put(':id/volumes')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async updateVolumes(@Param('id') id: string): Promise<void> {
+    return this.userDataService.updateVolumes(+id);
   }
 
   // --- IDENT --- //

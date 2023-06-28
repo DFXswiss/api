@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Util } from 'src/shared/utils/util';
 import { CheckLiquidityRequest, CheckLiquidityResult } from '../../../interfaces';
@@ -18,6 +18,18 @@ export class DeFiChainPoolPairStrategy extends CheckLiquidityStrategy {
     super();
   }
 
+  get blockchain(): Blockchain {
+    return Blockchain.DEFICHAIN;
+  }
+
+  get assetType(): AssetType {
+    return undefined;
+  }
+
+  get assetCategory(): AssetCategory {
+    return AssetCategory.POOL_PAIR;
+  }
+
   /**
    * Assume there is no pool pair liquidity available on DEX node
    * special case - availability check and target amount calculation is omitted
@@ -33,7 +45,7 @@ export class DeFiChainPoolPairStrategy extends CheckLiquidityStrategy {
 
     return CheckLiquidityUtil.createNonPurchasableCheckLiquidityResult(
       request,
-      0,
+      0.001, // some random value > 0 (target amount is unknown)
       0,
       await this.feeAsset(),
       referenceMaxPurchasableAmount > 0 ? referenceMaxPurchasableAmount : 0,

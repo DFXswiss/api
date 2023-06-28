@@ -1,16 +1,11 @@
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { PurchaseLiquidityRequest } from '../../../../interfaces';
 import { DexEvmService } from '../../../../services/base/dex-evm.service';
-import { PurchaseLiquidityStrategyAlias } from '../../purchase-liquidity.facade';
 import { PurchaseLiquidityStrategy } from './purchase-liquidity.strategy';
 
 export abstract class EvmCoinStrategy extends PurchaseLiquidityStrategy {
-  constructor(
-    notificationService: NotificationService,
-    protected readonly dexEvmService: DexEvmService,
-    name: PurchaseLiquidityStrategyAlias,
-  ) {
-    super(notificationService, name);
+  constructor(notificationService: NotificationService, protected readonly dexEvmService: DexEvmService) {
+    super(notificationService);
   }
 
   async purchaseLiquidity(request: PurchaseLiquidityRequest): Promise<void> {

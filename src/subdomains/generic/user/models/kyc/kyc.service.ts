@@ -5,6 +5,12 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { Country } from 'src/shared/models/country/country.entity';
+import { CountryService } from 'src/shared/models/country/country.service';
+import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { HttpService } from 'src/shared/services/http.service';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import {
   Blank,
   BlankType,
@@ -14,30 +20,24 @@ import {
   KycStatus,
   UserData,
 } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { DocumentInfo, KycDocument } from '../../services/spider/dto/spider.dto';
-import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
-import { SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
-import { UserDataService } from '../user-data/user-data.service';
-import { CountryService } from 'src/shared/models/country/country.service';
-import { KycUserDataDto } from './dto/kyc-user-data.dto';
-import { UserDataRepository } from '../user-data/user-data.repository';
 import { SpiderSyncService } from 'src/subdomains/generic/user/services/spider/spider-sync.service';
-import { KycProcessService } from './kyc-process.service';
-import { UpdateKycStatusDto } from '../user-data/dto/update-kyc-status.dto';
-import { KycDataTransferDto } from './dto/kyc-data-transfer.dto';
-import { WalletRepository } from '../wallet/wallet.repository';
-import { HttpService } from 'src/shared/services/http.service';
-import { UserRepository } from '../user/user.repository';
-import { WalletService } from '../wallet/wallet.service';
-import { KycInfo } from './dto/kyc-info.dto';
-import { Country } from 'src/shared/models/country/country.entity';
-import { WebhookService } from '../../services/webhook/webhook.service';
-import { KycDocumentType, KycFileDto } from './dto/kyc-file.dto';
+import { SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
+import { DocumentInfo, KycDocument } from '../../services/spider/dto/spider.dto';
 import { SpiderApiService } from '../../services/spider/spider-api.service';
+import { WebhookService } from '../../services/webhook/webhook.service';
+import { UpdateKycStatusDto } from '../user-data/dto/update-kyc-status.dto';
+import { UserDataRepository } from '../user-data/user-data.repository';
+import { UserDataService } from '../user-data/user-data.service';
 import { User } from '../user/user.entity';
+import { UserRepository } from '../user/user.repository';
+import { WalletRepository } from '../wallet/wallet.repository';
+import { WalletService } from '../wallet/wallet.service';
+import { KycDataTransferDto } from './dto/kyc-data-transfer.dto';
 import { KycDataDto } from './dto/kyc-data.dto';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
+import { KycDocumentType, KycFileDto } from './dto/kyc-file.dto';
+import { KycInfo } from './dto/kyc-info.dto';
+import { KycUserDataDto } from './dto/kyc-user-data.dto';
+import { KycProcessService } from './kyc-process.service';
 
 @Injectable()
 export class KycService {
@@ -63,7 +63,7 @@ export class KycService {
     const userData = await this.userDataRepo.findOneBy({ id: userDataId });
     if (!userData) throw new NotFoundException('User data not found');
 
-    userData.riskState = await this.spiderService.checkCustomer(userData.id);
+    userData.riskResult = await this.spiderService.checkCustomer(userData.id);
     if (!userData.riskState) throw new BadRequestException('User is not in Spider');
 
     await this.userDataRepo.save(userData);
@@ -236,7 +236,7 @@ export class KycService {
     await this.spiderService.initializeCustomer(userData);
 
     // do name check
-    userData.riskState = await this.spiderService.checkCustomer(userData.id);
+    userData.riskResult = await this.spiderService.checkCustomer(userData.id);
 
     // start KYC
     return this.kycProcess.startKycProcess(userData);

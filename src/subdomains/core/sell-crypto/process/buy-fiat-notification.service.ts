@@ -2,17 +2,17 @@ import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { I18nService } from 'nestjs-i18n';
 import { Config, Process } from 'src/config/config';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { Lock } from 'src/shared/utils/lock';
-import { Util } from 'src/shared/utils/util';
-import { IsNull, Not, In } from 'typeorm';
-import { BuyFiatRepository } from './buy-fiat.repository';
-import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
-import { BuyFiatAmlReasonPendingStates } from './buy-fiat.entity';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
+import { Util } from 'src/shared/utils/util';
+import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { In, IsNull, Not } from 'typeorm';
+import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
+import { BuyFiatAmlReasonPendingStates } from './buy-fiat.entity';
+import { BuyFiatRepository } from './buy-fiat.repository';
 
 @Injectable()
 export class BuyFiatNotificationService {
@@ -153,7 +153,7 @@ export class BuyFiatNotificationService {
               prefix: { key: `${MailTranslationKey.BUY_FIAT}.processed.salutation` },
               table: {
                 [`${MailTranslationKey.BUY_FIAT}.output_amount`]: `${entity.outputAmount} ${entity.outputAsset}`,
-                [`${MailTranslationKey.PAYMENT}.bank_account`]: Util.blankIban(entity.sell.iban),
+                [`${MailTranslationKey.PAYMENT}.bank_account`]: Util.blankStart(entity.sell.iban),
                 [`${MailTranslationKey.PAYMENT}.remittance_info`]: entity.fiatOutput.remittanceInfo,
               },
               suffix: [
@@ -205,7 +205,7 @@ export class BuyFiatNotificationService {
                 returnReason: this.i18nService.translate(`mail.amlReasonMailText.${entity.amlReason}`, {
                   lang: entity.sell.user.userData.language?.symbol.toLowerCase(),
                 }),
-                userAddressTrimmed: Util.blankBlockchainAddress(entity.sell.user.address),
+                userAddressTrimmed: Util.blankStart(entity.sell.user.address),
               },
             },
           });

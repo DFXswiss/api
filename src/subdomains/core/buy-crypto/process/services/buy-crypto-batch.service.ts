@@ -1,29 +1,30 @@
 import { Injectable } from '@nestjs/common';
-import { Not, IsNull, In } from 'typeorm';
-import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repository';
-import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
-import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
-import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
-import { AssetService } from 'src/shared/models/asset/asset.service';
-import { MissingBuyCryptoLiquidityException } from '../exceptions/abort-batch-creation.exception';
-import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
-import { BuyCryptoPricingService } from './buy-crypto-pricing.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { FeeLimitExceededException } from 'src/shared/payment/exceptions/fee-limit-exceeded.exception';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
+import { LiquidityManagementRuleStatus } from 'src/subdomains/core/liquidity-management/enums';
+import { LiquidityManagementService } from 'src/subdomains/core/liquidity-management/services/liquidity-management.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { CheckLiquidityRequest, CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
+import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceRequestContext } from 'src/subdomains/supporting/pricing/domain/enums';
-import { PriceResult, PriceRequest } from 'src/subdomains/supporting/pricing/domain/interfaces';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { FeeLimitExceededException } from 'src/shared/payment/exceptions/fee-limit-exceeded.exception';
-import { Util } from 'src/shared/utils/util';
-import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
 import { PriceMismatchException } from 'src/subdomains/supporting/pricing/domain/exceptions/price-mismatch.exception';
-import { LiquidityManagementService } from 'src/subdomains/core/liquidity-management/services/liquidity-management.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { PriceRequest, PriceResult } from 'src/subdomains/supporting/pricing/domain/interfaces';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { In, IsNull, Not } from 'typeorm';
+import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
+import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
+import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
+import { MissingBuyCryptoLiquidityException } from '../exceptions/abort-batch-creation.exception';
+import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repository';
+import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
+import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
+import { BuyCryptoPricingService } from './buy-crypto-pricing.service';
 
 @Injectable()
 export class BuyCryptoBatchService {
@@ -315,10 +316,8 @@ export class BuyCryptoBatchService {
   // --- PAYOUT FEE OPTIMIZING --- //
   private async optimizeByPayoutFee(batch: BuyCryptoBatch) {
     // add fee estimation
-    const nativePayoutFee = await this.getPayoutFee(batch);
-    const payoutFee = await this.buyCryptoPricingService.getFeeAmountInBatchAsset(batch, nativePayoutFee);
-
     for (const tx of batch.transactions) {
+      const payoutFee = await this.getPayoutFee(tx);
       await this.buyCryptoRepo.updateFee(...tx.fee.addPayoutFeeEstimation(payoutFee, tx));
     }
 
@@ -333,12 +332,15 @@ export class BuyCryptoBatchService {
     }
   }
 
-  private async getPayoutFee(batch: BuyCryptoBatch): Promise<FeeResult> {
-    try {
-      return await this.payoutService.estimateFee(batch.outputAsset);
-    } catch (e) {
-      throw new Error(`Error in getting payout fees for a batch ${batch.id}: ${e.message}`);
-    }
+  private async getPayoutFee(tx: BuyCrypto): Promise<number> {
+    const nativePayoutFee = await this.payoutService.estimateFee(
+      tx.outputAsset,
+      tx.target.address,
+      tx.outputReferenceAmount,
+      tx.outputReferenceAsset,
+    );
+
+    return this.buyCryptoPricingService.getFeeAmountInRefAsset(tx.outputReferenceAsset, nativePayoutFee);
   }
 
   // ---- LIQUIDITY OPTIMIZING --- //
@@ -412,36 +414,37 @@ export class BuyCryptoBatchService {
       const referenceDeficit = Util.round(outputReferenceAmount - availableReferenceAmount, 8);
 
       // order liquidity
-      let liqOrderMessage = undefined;
       try {
         const asset = oa.dexName === 'DFI' ? await this.assetService.getDfiToken() : oa;
         const orderId = await this.liquidityService.buyLiquidity(asset.id, targetDeficit, true);
-        liqOrderMessage = `Liquidity management order created: ${orderId}`;
+        this.logger.info(`Missing buy-crypto liquidity. Liquidity management order created: ${orderId}`);
       } catch (e) {
         this.logger.info(`Failed to order missing liquidity for asset ${oa.uniqueName}:`, e);
-        liqOrderMessage = `Liquidity management order failed: ${e.message}`;
+
+        // send missing liquidity message
+        if (!e.message?.includes(LiquidityManagementRuleStatus.PROCESSING)) {
+          const maxPurchasableTargetAmountMessage =
+            maxPurchasableTargetAmount != null ? `, purchasable: ${maxPurchasableTargetAmount}` : '';
+
+          const maxPurchasableReferenceAmountMessage =
+            maxPurchasableReferenceAmount != null ? `, purchasable: ${maxPurchasableReferenceAmount}` : '';
+
+          const messages = [
+            `${error.message} Details:`,
+            `Target: ${targetDeficit} ${oa.uniqueName} (required ${targetAmount}, available: ${availableTargetAmount}${maxPurchasableTargetAmountMessage})`,
+            `Reference: ${referenceDeficit} ${ora.uniqueName} (required ${outputReferenceAmount}, available: ${availableReferenceAmount}${maxPurchasableReferenceAmountMessage})`,
+            `Liquidity management order failed: ${e.message}`,
+          ];
+
+          await this.buyCryptoNotificationService.sendMissingLiquidityError(
+            oa.dexName,
+            oa.blockchain,
+            oa.type,
+            transactions.map((t) => t.id),
+            messages,
+          );
+        }
       }
-
-      const maxPurchasableTargetAmountMessage =
-        maxPurchasableTargetAmount != null ? `, purchasable: ${maxPurchasableTargetAmount}` : '';
-
-      const maxPurchasableReferenceAmountMessage =
-        maxPurchasableReferenceAmount != null ? `, purchasable: ${maxPurchasableReferenceAmount}` : '';
-
-      const messages = [
-        `${error.message} Details:`,
-        `Target: ${targetDeficit} ${oa.uniqueName} (required ${targetAmount}, available: ${availableTargetAmount}${maxPurchasableTargetAmountMessage})`,
-        `Reference: ${referenceDeficit} ${ora.uniqueName} (required ${outputReferenceAmount}, available: ${availableReferenceAmount}${maxPurchasableReferenceAmountMessage})`,
-        liqOrderMessage,
-      ];
-
-      await this.buyCryptoNotificationService.sendMissingLiquidityError(
-        oa.dexName,
-        oa.blockchain,
-        oa.type,
-        transactions.map((t) => t.id),
-        messages,
-      );
     } catch (e) {
       this.logger.error('Error in handling MissingBuyCryptoLiquidityException:', e);
     }
@@ -450,7 +453,10 @@ export class BuyCryptoBatchService {
   // --- PURCHASE FEE OPTIMIZATION -- ///
   private async optimizeByPurchaseFee(batch: BuyCryptoBatch, nativePurchaseFee: FeeResult) {
     try {
-      const purchaseFee = await this.buyCryptoPricingService.getFeeAmountInBatchAsset(batch, nativePurchaseFee);
+      const purchaseFee = await this.buyCryptoPricingService.getFeeAmountInRefAsset(
+        batch.outputReferenceAsset,
+        nativePurchaseFee,
+      );
 
       batch.checkByPurchaseFeeEstimation(purchaseFee);
     } catch (e) {

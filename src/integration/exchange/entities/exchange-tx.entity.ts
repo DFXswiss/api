@@ -52,7 +52,7 @@ export class ExchangeTx extends IEntity {
   @Column({ length: 256, nullable: true })
   currency?: string;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 'MAX', nullable: true })
   address?: string;
 
   @Column({ length: 256, nullable: true })

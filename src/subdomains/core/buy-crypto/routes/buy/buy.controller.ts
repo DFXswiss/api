@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Put, UseGuards, Post, Param, BadRequestException } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
@@ -6,20 +6,24 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
+import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
+import { PaymentInfoService } from 'src/shared/services/payment-info.service';
+import { Util } from 'src/shared/utils/util';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { BuyHistoryDto } from './dto/buy-history.dto';
-import { Buy } from './buy.entity';
-import { BuyService } from './buy.service';
-import { BuyDto } from './dto/buy.dto';
-import { CreateBuyDto } from './dto/create-buy.dto';
-import { UpdateBuyDto } from './dto/update-buy.dto';
-import { BankInfoDto, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
-import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { BuyCryptoService } from '../../process/services/buy-crypto.service';
-import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
-import { PaymentInfoService } from 'src/shared/services/payment-info.service';
-import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
+import { Buy } from './buy.entity';
+import { BuyService } from './buy.service';
+import { BuyHistoryDto } from './dto/buy-history.dto';
+import { BankInfoDto, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
+import { BuyQuoteDto } from './dto/buy-quote.dto';
+import { BuyDto } from './dto/buy.dto';
+import { CreateBuyDto } from './dto/create-buy.dto';
+import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
+import { GetBuyQuoteDto } from './dto/get-buy-quote.dto';
+import { UpdateBuyDto } from './dto/update-buy.dto';
 
 @ApiTags('Buy')
 @Controller('buy')
@@ -54,8 +58,29 @@ export class BuyController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
   async createBuy(@GetJwt() jwt: JwtPayload, @Body() dto: CreateBuyDto): Promise<BuyDto> {
-    dto = await this.paymentInfoService.buyCheck(jwt, dto);
+    dto = await this.paymentInfoService.buyCheck(dto, jwt);
     return this.buyService.createBuy(jwt.id, jwt.address, dto).then((b) => this.toDto(jwt.id, b));
+  }
+
+  @Put('/quote')
+  @ApiOkResponse({ type: BuyQuoteDto })
+  async getBuyQuote(@Body() dto: GetBuyQuoteDto): Promise<BuyQuoteDto> {
+    const { amount, currency, asset } = await this.paymentInfoService.buyCheck(dto);
+
+    const fee = Config.buy.fee.get(asset.feeTier, AccountType.PERSONAL);
+
+    const { exchangeRate, feeAmount, estimatedAmount } = await this.transactionHelper.getTxDetails(
+      amount,
+      fee,
+      currency,
+      asset,
+    );
+
+    return {
+      feeAmount,
+      exchangeRate,
+      estimatedAmount,
+    };
   }
 
   @Put('/paymentInfos')
@@ -66,7 +91,7 @@ export class BuyController {
     @GetJwt() jwt: JwtPayload,
     @Body() dto: GetBuyPaymentInfoDto,
   ): Promise<BuyPaymentInfoDto> {
-    dto = await this.paymentInfoService.buyCheck(jwt, dto);
+    dto = await this.paymentInfoService.buyCheck(dto, jwt);
     return this.buyService
       .createBuy(jwt.id, jwt.address, dto, true)
       .then((buy) => this.toPaymentInfoDto(jwt.id, buy, dto));
@@ -110,7 +135,7 @@ export class BuyController {
       annualVolume: buy.annualVolume,
       bankUsage: buy.bankUsage,
       asset: AssetDtoMapper.entityToDto(buy.asset),
-      fee,
+      fee: Util.round(fee * 100, Config.defaultPercentageDecimal),
       minDeposits: [minDeposit],
       minFee,
     };
@@ -119,23 +144,26 @@ export class BuyController {
   private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
     const bankInfo = await this.getBankInfo(buy, dto);
     const fee = await this.userService.getUserBuyFee(userId, buy.asset);
-    const { minVolume, minFee } = await this.transactionHelper.getSpecs(dto.currency, dto.asset);
-    const estimatedAmount = await this.transactionHelper.getTargetEstimation(
-      dto.amount,
-      fee,
+
+    const {
+      minVolume,
       minFee,
-      dto.currency,
-      dto.asset,
-    );
+      minVolumeTarget,
+      minFeeTarget,
+      estimatedAmount: estimatedAmount,
+    } = await this.transactionHelper.getTxDetails(dto.amount, fee, dto.currency, dto.asset);
+
     return {
       routeId: buy.id,
       ...bankInfo,
       sepaInstant: bankInfo.sepaInstant && buy.bankAccount?.sctInst,
       remittanceInfo: buy.bankUsage,
-      fee,
-      minDeposit: { amount: minVolume, asset: dto.currency.name }, //TODO remove
+      fee: Util.round(fee * 100, Config.defaultPercentageDecimal),
+      minDeposit: { amount: minVolume, asset: dto.currency.name }, // TODO: remove
       minVolume,
       minFee,
+      minVolumeTarget,
+      minFeeTarget,
       estimatedAmount,
     };
   }

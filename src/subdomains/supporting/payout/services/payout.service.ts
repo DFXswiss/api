@@ -1,33 +1,33 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { Config, Process } from 'src/config/config';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
+import { Util } from 'src/shared/utils/util';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { IsNull, Not } from 'typeorm';
 import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../entities/payout-order.entity';
 import { PayoutOrderFactory } from '../factories/payout-order.factory';
-import { PayoutOrderRepository } from '../repositories/payout-order.repository';
-import { PayoutLogService } from './payout-log.service';
 import { FeeResult, PayoutRequest } from '../interfaces';
-import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
-import { PayoutStrategiesFacade } from '../strategies/payout/payout.facade';
-import { PrepareStrategiesFacade } from '../strategies/prepare/prepare.facade';
-import { Util } from 'src/shared/utils/util';
-import { Asset } from 'src/shared/models/asset/asset.entity';
-import { IsNull, Not } from 'typeorm';
-import { Config, Process } from 'src/config/config';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { PayoutOrderRepository } from '../repositories/payout-order.repository';
+import { PayoutStrategyRegistry } from '../strategies/payout/impl/base/payout.strategy-registry';
+import { PrepareStrategyRegistry } from '../strategies/prepare/impl/base/prepare.strategy-registry';
+import { PayoutLogService } from './payout-log.service';
 
 @Injectable()
 export class PayoutService {
   private readonly logger = new DfxLogger(PayoutService);
 
   constructor(
-    private readonly payoutStrategies: PayoutStrategiesFacade,
-    private readonly prepareStrategies: PrepareStrategiesFacade,
     private readonly logs: PayoutLogService,
     private readonly notificationService: NotificationService,
     private readonly payoutOrderRepo: PayoutOrderRepository,
     private readonly payoutOrderFactory: PayoutOrderFactory,
+    private readonly payoutStrategyRegistry: PayoutStrategyRegistry,
+    private readonly prepareStrategyRegistry: PrepareStrategyRegistry,
   ) {}
 
   //*** PUBLIC API ***//
@@ -57,12 +57,12 @@ export class PayoutService {
     return { isComplete: order && order.status === PayoutOrderStatus.COMPLETE, payoutTxId, payoutFee };
   }
 
-  async estimateFee(asset: Asset): Promise<FeeResult> {
-    const prepareStrategy = this.prepareStrategies.getPrepareStrategy(asset);
-    const payoutStrategy = this.payoutStrategies.getPayoutStrategy(asset);
+  async estimateFee(targetAsset: Asset, address: string, amount: number, asset: Asset): Promise<FeeResult> {
+    const prepareStrategy = this.prepareStrategyRegistry.getPrepareStrategy(targetAsset);
+    const payoutStrategy = this.payoutStrategyRegistry.getPayoutStrategy(targetAsset);
 
-    const prepareFee = await prepareStrategy.estimateFee(asset);
-    const payoutFee = await payoutStrategy.estimateFee(asset);
+    const prepareFee = await prepareStrategy.estimateFee(targetAsset);
+    const payoutFee = await payoutStrategy.estimateFee(targetAsset, address, amount, asset);
 
     const totalFeeAmount = Util.round(prepareFee.amount + payoutFee.amount, 16);
 
@@ -106,11 +106,11 @@ export class PayoutService {
       status: PayoutOrderStatus.PREPARATION_PENDING,
       transferTxId: Not(IsNull()),
     });
-    const groups = this.groupByStrategies(orders, this.prepareStrategies.getPrepareStrategyAlias);
+    const groups = this.groupByStrategies(orders, (a) => this.prepareStrategyRegistry.getPrepareStrategy(a));
 
     for (const group of groups.entries()) {
       try {
-        const strategy = this.prepareStrategies.getPrepareStrategy(group[0]);
+        const strategy = group[0];
         await strategy.checkPreparationCompletion(group[1]);
       } catch (e) {
         this.logger.error(`Error while checking payout preparation status of payouts ${group[1].map((o) => o.id)}:`, e);
@@ -126,11 +126,11 @@ export class PayoutService {
       status: PayoutOrderStatus.PAYOUT_PENDING,
       payoutTxId: Not(IsNull()),
     });
-    const groups = this.groupByStrategies(orders, this.payoutStrategies.getPayoutStrategyAlias);
+    const groups = this.groupByStrategies(orders, (a) => this.payoutStrategyRegistry.getPayoutStrategy(a));
 
     for (const group of groups.entries()) {
       try {
-        const strategy = this.payoutStrategies.getPayoutStrategy(group[0]);
+        const strategy = group[0];
         await strategy.checkPayoutCompletionData(group[1]);
       } catch (e) {
         this.logger.error(`Error while checking payout completion status of payouts ${group[1].map((o) => o.id)}:`, e);
@@ -146,11 +146,11 @@ export class PayoutService {
     if (!stable) return;
 
     const orders = await this.payoutOrderRepo.findBy({ status: PayoutOrderStatus.CREATED });
-    const groups = this.groupByStrategies(orders, this.prepareStrategies.getPrepareStrategyAlias);
+    const groups = this.groupByStrategies(orders, (a) => this.prepareStrategyRegistry.getPrepareStrategy(a));
 
     for (const group of groups.entries()) {
       try {
-        const strategy = this.prepareStrategies.getPrepareStrategy(group[0]);
+        const strategy = group[0];
         await strategy.preparePayout(group[1]);
       } catch (e) {
         this.logger.error(`Error while preparing new payout orders ${group[1].map((o) => o.id)}:`, e);
@@ -163,11 +163,11 @@ export class PayoutService {
 
   private async payoutOrders(): Promise<void> {
     const orders = await this.payoutOrderRepo.findBy({ status: PayoutOrderStatus.PREPARATION_CONFIRMED });
-    const groups = this.groupByStrategies(orders, this.payoutStrategies.getPayoutStrategyAlias);
+    const groups = this.groupByStrategies(orders, (a) => this.payoutStrategyRegistry.getPayoutStrategy(a));
 
     for (const group of groups.entries()) {
       try {
-        const strategy = this.payoutStrategies.getPayoutStrategy(group[0]);
+        const strategy = group[0];
         await strategy.doPayout(group[1]);
       } catch (e) {
         this.logger.error(`Error while paying out new payout orders ${group[1].map((o) => o.id)}:`, e);
@@ -196,19 +196,19 @@ export class PayoutService {
     const groups = new Map<T, PayoutOrder[]>();
 
     for (const order of orders) {
-      const alias = getter(order.asset);
+      const payoutStrategy = getter(order.asset);
 
-      if (!alias) {
+      if (!payoutStrategy) {
         this.logger.warn(
-          `No alias found by getter ${getter.name} for payout order ID ${order.id}. Ignoring the payout`,
+          `No PayoutStrategy found by getter ${getter.name} for payout order ID ${order.id}. Ignoring the payout`,
         );
         continue;
       }
 
-      const group = groups.get(alias) ?? [];
+      const group = groups.get(payoutStrategy) ?? [];
       group.push(order);
 
-      groups.set(alias, group);
+      groups.set(payoutStrategy, group);
     }
 
     return groups;

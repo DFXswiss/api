@@ -155,6 +155,15 @@
     "bscScanApiKey": {
       "value": "xxx"
     },
+    "lightningApiCertificate": {
+      "value": "xxx"
+    },
+    "lightningLnbitsApiKey": {
+      "value": "xxx"
+    },
+    "lightningLndAdminMacaroon": {
+      "value": "xxx"
+    },
     "btcOutWalletAddress": {
       "value": "xxx"
     },
@@ -297,6 +306,12 @@
       "value": "xxx"
     },
     "azureClientSecret": {
+      "value": "xxx"
+    },
+    "albyClientId": {
+      "value": "xxx"
+    },
+    "albyClientSecret": {
       "value": "xxx"
     },
     "taliumApiKey": {

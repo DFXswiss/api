@@ -1,26 +1,26 @@
-import { BigNumber, Contract, ethers } from 'ethers';
 import {
-  getL2Network,
+  Erc20Bridger,
   EthBridger,
   L2Network,
-  Erc20Bridger,
-  L2TransactionReceipt,
   L2ToL1MessageStatus,
+  L2TransactionReceipt,
+  getL2Network,
 } from '@arbitrum/sdk';
-import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
-import { HttpService } from 'src/shared/services/http.service';
-import { EvmClient } from '../shared/evm/evm-client';
-import { GetConfig } from 'src/config/config';
 import { EthDepositParams } from '@arbitrum/sdk/dist/lib/assetBridger/ethBridger';
-import { L2BridgeEvmClient } from '../shared/evm/interfaces';
-import { Util } from 'src/shared/utils/util';
 import {
   L1ContractCallTransactionReceipt,
   L1EthDepositTransactionReceipt,
 } from '@arbitrum/sdk/dist/lib/message/L1Transaction';
-import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { ChainId } from '@uniswap/smart-order-router';
+import { Contract, ethers } from 'ethers';
+import { GetConfig } from 'src/config/config';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { HttpService } from 'src/shared/services/http.service';
+import { Util } from 'src/shared/utils/util';
+import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
+import { EvmClient } from '../shared/evm/evm-client';
+import { L2BridgeEvmClient } from '../shared/evm/interfaces';
 
 export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
   private readonly logger = new DfxLogger(ArbitrumClient);
@@ -52,7 +52,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     const ethBridger = new EthBridger(this.#l2Network);
 
     const depositTx = await ethBridger.deposit({
-      amount: this.convertToWeiLikeDenomination(amount, 'ether'),
+      amount: this.toWeiAmount(amount),
       l1Signer: this.#l1Wallet,
       l2Provider: this.provider,
     } as EthDepositParams);
@@ -64,7 +64,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     const ethBridger = new EthBridger(this.#l2Network);
 
     const withdrawTx = await ethBridger.withdraw({
-      amount: this.convertToWeiLikeDenomination(amount, 'ether'),
+      amount: this.toWeiAmount(amount),
       l2Signer: this.wallet,
       from: this.wallet.address,
       destinationAddress: this.#l1Wallet.address,
@@ -90,7 +90,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     const decimals = await contract.decimals();
 
     const depositTx = await erc20Bridge.deposit({
-      amount: this.convertToWeiLikeDenomination(amount, decimals),
+      amount: this.toWeiAmount(amount, decimals),
       erc20L1Address: l1Token.chainId,
       l1Signer: this.#l1Wallet,
       l2Provider: this.provider,
@@ -105,7 +105,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     const decimals = await contract.decimals();
 
     const approveTx = await erc20Bridge.approveToken({
-      amount: this.convertToWeiLikeDenomination(amount, decimals),
+      amount: this.toWeiAmount(amount, decimals),
       l1Signer: this.#l1Wallet,
       erc20L1Address: l1Token.chainId,
     });
@@ -113,7 +113,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     await approveTx.wait();
 
     const withdrawTx = await erc20Bridge.withdraw({
-      amount: this.convertToWeiLikeDenomination(amount, decimals),
+      amount: this.toWeiAmount(amount, decimals),
       destinationAddress: this.#l1Wallet.address,
       erc20l1Address: l1Token.chainId,
       l2Signer: this.wallet,
@@ -156,63 +156,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     }
   }
 
-  async getCurrentGasCostForCoinTransaction(): Promise<number> {
-    const totalGas = await this.getCurrentGasForCoinTransaction(1e-18);
-    const gasPrice = await this.getCurrentGasPrice();
-
-    return this.convertToEthLikeDenomination(totalGas.mul(gasPrice));
-  }
-
-  async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
-    const totalGas = await this.provider.estimateGas({
-      from: this.dfxAddress,
-      to: token.chainId,
-      data: this.dummyTokenPayload,
-    });
-
-    const gasPrice = await this.getCurrentGasPrice();
-
-    return this.convertToEthLikeDenomination(totalGas.mul(gasPrice));
-  }
-
   //*** HELPER METHODS ***//
-
-  protected async sendNativeCoin(
-    wallet: ethers.Wallet,
-    toAddress: string,
-    amount: number,
-    feeLimit?: number,
-  ): Promise<string> {
-    const fromAddress = wallet.address;
-    const gasLimit = await this.getCurrentGasForCoinTransaction(amount);
-    const gasPrice = await this.getGasPrice(+gasLimit, feeLimit);
-    const nonce = await this.getNonce(fromAddress);
-
-    const tx = await wallet.sendTransaction({
-      from: fromAddress,
-      to: toAddress,
-      value: this.convertToWeiLikeDenomination(amount, 'ether'),
-      nonce,
-      gasPrice,
-      gasLimit,
-    });
-
-    this.nonce.set(fromAddress, nonce + 1);
-
-    return tx.hash;
-  }
-
-  /**
-   * @TODO
-   * consider using this as a primary source of estimating gas in super class
-   */
-  private async getCurrentGasForCoinTransaction(amount: number): Promise<BigNumber> {
-    return this.provider.estimateGas({
-      from: this.dfxAddress,
-      to: this.randomReceiverAddress,
-      value: this.convertToWeiLikeDenomination(amount, 'ether'),
-    });
-  }
 
   private async initL2Network() {
     try {

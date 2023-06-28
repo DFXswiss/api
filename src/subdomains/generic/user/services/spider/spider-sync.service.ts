@@ -1,5 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { Config, Process } from 'src/config/config';
+import { SettingService } from 'src/shared/models/setting/setting.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
+import { Util } from 'src/shared/utils/util';
+import { IdentResultDto } from 'src/subdomains/generic/user/models/ident/dto/ident-result.dto';
+import { KycProcessService } from 'src/subdomains/generic/user/models/kyc/kyc-process.service';
+import { SpiderDataRepository } from 'src/subdomains/generic/user/models/spider-data/spider-data.repository';
 import {
   IdentCompleted,
   IdentInProgress,
@@ -10,20 +18,12 @@ import {
   UserData,
 } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
-import { SpiderApiService } from './spider-api.service';
-import { SettingService } from 'src/shared/models/setting/setting.service';
-import { In, LessThan } from 'typeorm';
-import { Lock } from 'src/shared/utils/lock';
-import { SpiderDataRepository } from 'src/subdomains/generic/user/models/spider-data/spider-data.repository';
-import { Util } from 'src/shared/utils/util';
-import { Config, Process } from 'src/config/config';
-import { KycDocuments, KycDocumentState, KycContentType, KycDocument, DocumentVersionPart } from './dto/spider.dto';
-import { IdentResultDto } from 'src/subdomains/generic/user/models/ident/dto/ident-result.dto';
-import { DocumentState, SpiderService } from './spider.service';
-import { KycProcessService } from 'src/subdomains/generic/user/models/kyc/kyc-process.service';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { In, LessThan } from 'typeorm';
+import { DocumentVersionPart, KycContentType, KycDocument, KycDocumentState, KycDocuments } from './dto/spider.dto';
+import { SpiderApiService } from './spider-api.service';
+import { DocumentState, SpiderService } from './spider.service';
 
 @Injectable()
 export class SpiderSyncService {
@@ -46,7 +46,7 @@ export class SpiderSyncService {
   ) {}
 
   @Cron(CronExpression.EVERY_2_HOURS)
-  @Lock(3600)
+  @Lock()
   async checkOngoingKyc() {
     if (Config.processDisabled(Process.KYC)) return;
 
@@ -81,7 +81,7 @@ export class SpiderSyncService {
   }
 
   @Cron(CronExpression.EVERY_5_MINUTES)
-  @Lock(1800)
+  @Lock(7200)
   async continuousSync() {
     if (Config.processDisabled(Process.KYC)) return;
 
@@ -95,7 +95,7 @@ export class SpiderSyncService {
   }
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
-  @Lock(3600)
+  @Lock()
   async dailySync() {
     if (Config.processDisabled(Process.KYC)) return;
 
@@ -131,13 +131,12 @@ export class SpiderSyncService {
     if (!userData) return;
 
     // update KYC data
-    const [customer, { result, risks }] = await Promise.all([
+    const [customer, risks] = await Promise.all([
       this.spiderApi.getCustomer(userData.id),
       this.spiderApi.getCheckResult(userData.id),
     ]);
     userData.kycCustomerId = customer?.id;
-    userData.riskState = result;
-    userData.riskRoots = result === 'c' ? null : JSON.stringify(risks);
+    userData.riskResult = risks;
 
     // check KYC progress
     if (KycInProgress(userData.kycStatus)) {
@@ -267,7 +266,8 @@ export class SpiderSyncService {
         parts.find(
           (p) =>
             p.contentType === KycContentType.PDF &&
-            p.fileName.startsWith('DFX persönliche Identifikation Kunden vor Ort'),
+            (p.fileName.startsWith('DFX persönliche Identifikation Kunden vor Ort') ||
+              p.fileName.startsWith('Identifikationsdokument')),
         ),
       );
     return part

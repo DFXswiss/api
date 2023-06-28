@@ -1,16 +1,33 @@
+import { Inject, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
-import { Asset } from 'src/shared/models/asset/asset.entity';
 import { PayoutOrder } from '../../../../entities/payout-order.entity';
+import { PayoutStrategyRegistry } from './payout.strategy-registry';
 
-export abstract class PayoutStrategy {
+export abstract class PayoutStrategy implements OnModuleInit, OnModuleDestroy {
   private _feeAsset: Asset;
+
+  @Inject()
+  private readonly registry: PayoutStrategyRegistry;
+
+  onModuleInit() {
+    this.registry.addStrategy({ blockchain: this.blockchain, assetType: this.assetType }, this);
+  }
+
+  onModuleDestroy() {
+    this.registry.removeStrategy({ blockchain: this.blockchain, assetType: this.assetType });
+  }
 
   async feeAsset(): Promise<Asset> {
     return (this._feeAsset ??= await this.getFeeAsset());
   }
 
+  abstract get blockchain(): Blockchain;
+  abstract get assetType(): AssetType;
+
   abstract doPayout(orders: PayoutOrder[]): Promise<void>;
   abstract checkPayoutCompletionData(orders: PayoutOrder[]): Promise<void>;
-  abstract estimateFee(asset: Asset): Promise<FeeResult>;
+  abstract estimateFee(targetAsset: Asset, address: string, amount: number, asset: Asset): Promise<FeeResult>;
   protected abstract getFeeAsset(): Promise<Asset>;
 }

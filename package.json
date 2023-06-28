@@ -49,6 +49,7 @@
     "bcrypt": "^5.1.0",
     "bignumber.js": "^9.1.1",
     "bitcoinjs-message": "^2.2.0",
+    "bolt11": "^1.4.1",
     "ccxt": "^3.0.43",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0",
@@ -62,7 +63,6 @@
     "handlebars": "^4.7.7",
     "helmet": "^6.0.1",
     "ibantools": "^4.2.2",
-    "jsbi": "^3.2.5",
     "lnurl": "^0.24.2",
     "lodash": "^4.17.21",
     "morgan": "^1.10.0",
@@ -75,9 +75,11 @@
     "reflect-metadata": "^0.1.13",
     "rimraf": "^4.4.1",
     "rxjs": "^7.8.0",
+    "secp256k1": "^5.0.0",
     "swagger-ui-express": "^4.6.2",
     "typeorm": "^0.3.12",
-    "xoauth2": "^1.2.0"
+    "xoauth2": "^1.2.0",
+    "zbase32": "^1.0.5"
   },
   "devDependencies": {
     "@golevelup/ts-jest": "^0.3.5",

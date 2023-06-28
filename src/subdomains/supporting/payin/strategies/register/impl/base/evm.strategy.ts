@@ -1,37 +1,29 @@
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { PayInFactory } from '../../../../factories/payin.factory';
+import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
+import { Util } from 'src/shared/utils/util';
+import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
+import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
+import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
+import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
+import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInEntry } from '../../../../interfaces';
 import { PayInRepository } from '../../../../repositories/payin.repository';
 import { PayInEvmService } from '../../../../services/base/payin-evm.service';
 import { PayInInputLog, RegisterStrategy } from './register.strategy';
-import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
-import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
-import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
-import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
-import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
-import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
-import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
-import { Util } from 'src/shared/utils/util';
 
 export abstract class EvmStrategy extends RegisterStrategy {
   constructor(
-    protected readonly blockchain: Blockchain,
     protected readonly nativeCoin: string,
-    protected readonly dexService: DexService,
-    protected readonly payInService: PayInService,
     protected readonly payInEvmService: PayInEvmService,
-    protected readonly payInFactory: PayInFactory,
     protected readonly payInRepository: PayInRepository,
     protected readonly assetService: AssetService,
     private readonly repos: RepositoryFactory,
   ) {
-    super(dexService, payInFactory, payInRepository);
+    super(payInRepository);
   }
 
   protected abstract getOwnAddresses(): string[];
@@ -107,7 +99,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
 
       if (entries.length === 0) {
         // rate limiting
-        await Util.delay(200);
+        await Util.delay(250);
         continue;
       }
 
@@ -150,7 +142,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
       txId: tx.hash,
       txType: null,
       blockHeight: parseInt(tx.blockNumber),
-      amount: this.payInEvmService.convertToEthLikeDenomination(tx.value),
+      amount: this.payInEvmService.fromWeiAmount(tx.value),
       asset:
         this.assetService.getByQuerySync(supportedAssets, {
           dexName: this.nativeCoin,
@@ -166,7 +158,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
       txId: tx.hash,
       txType: null,
       blockHeight: parseInt(tx.blockNumber),
-      amount: this.payInEvmService.convertToEthLikeDenomination(tx.value, parseInt(tx.tokenDecimal)),
+      amount: this.payInEvmService.fromWeiAmount(tx.value, parseInt(tx.tokenDecimal)),
       asset: this.assetService.getByChainIdSync(supportedAssets, this.blockchain, tx.contractAddress) ?? null,
     }));
   }
