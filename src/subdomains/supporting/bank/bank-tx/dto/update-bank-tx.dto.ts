@@ -33,5 +33,5 @@ export class UpdateBankTxDto {
   @IsNotEmpty()
   @IsInt()
   @ValidateIf((p: UpdateBankTxDto) => p.type === BankTxType.BUY_CRYPTO)
-  buyId: number;
+  buyId?: number;
 }
