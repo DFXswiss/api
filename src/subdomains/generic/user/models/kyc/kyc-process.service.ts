@@ -1,5 +1,11 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Config } from 'src/config/config';
+import { UserRole } from 'src/shared/auth/user-role.enum';
+import { SettingService } from 'src/shared/models/setting/setting.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { IdentResultDto } from 'src/subdomains/generic/user/models/ident/dto/ident-result.dto';
 import { SpiderDataRepository } from 'src/subdomains/generic/user/models/spider-data/spider-data.repository';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import {
   KycCompleted,
   KycInProgress,
@@ -8,18 +14,12 @@ import {
   KycType,
   UserData,
 } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { KycDocument, KycDocuments, InitiateResponse } from '../../services/spider/dto/spider.dto';
-import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
-import { IdentResultDto } from 'src/subdomains/generic/user/models/ident/dto/ident-result.dto';
 import { DocumentState, SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
-import { UserRole } from 'src/shared/auth/user-role.enum';
-import { UserRepository } from '../user/user.repository';
-import { Config } from 'src/config/config';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { InitiateResponse, KycDocument, KycDocuments } from '../../services/spider/dto/spider.dto';
 import { WebhookService } from '../../services/webhook/webhook.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { SettingService } from 'src/shared/models/setting/setting.service';
+import { UserRepository } from '../user/user.repository';
 
 @Injectable()
 export class KycProcessService {
@@ -142,7 +142,7 @@ export class KycProcessService {
 
   // --- CHATBOT --- //
   async chatbotCompleted(userData: UserData): Promise<UserData> {
-    userData.riskState = await this.spiderService.checkCustomer(userData.id);
+    userData.riskResult = await this.spiderService.checkCustomer(userData.id);
 
     userData = await this.storeChatbotResult(userData);
 

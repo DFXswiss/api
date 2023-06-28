@@ -2,6 +2,8 @@ import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/comm
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -34,6 +36,7 @@ export class SellController {
     private readonly buyFiatService: BuyFiatService,
     private readonly paymentInfoService: PaymentInfoService,
     private readonly transactionHelper: TransactionHelper,
+    private readonly lightningService: LightningService,
   ) {}
 
   @Get()
@@ -163,6 +166,10 @@ export class SellController {
       minVolumeTarget,
       minFeeTarget,
       estimatedAmount,
+      paymentRequest:
+        dto.asset.blockchain === Blockchain.LIGHTNING
+          ? await this.lightningService.getInvoiceByLnurlp(sell.deposit.address, dto.amount)
+          : undefined,
     };
   }
 }

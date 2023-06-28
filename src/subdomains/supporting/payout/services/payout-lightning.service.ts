@@ -25,7 +25,9 @@ export class PayoutLightningService {
     }
   }
 
-  async getEstimatedFee(publicKey: string, amount: number): Promise<number> {
+  async getEstimatedFee(address: string, amount: number): Promise<number> {
+    const publicKey = await this.lightningService.getPublicKeyOfAddress(address);
+
     const routes = await this.client.getLndRoutes(publicKey, amount);
 
     const maxFeeMsat = Math.max(...routes.map((r) => r.total_fees_msat), 0);
@@ -41,7 +43,7 @@ export class PayoutLightningService {
     switch (addressType) {
       case LightningAddressType.LN_URL: {
         const invoice = await this.lightningService.getInvoiceByLnurlp(address, amount);
-        paymentResponse = await this.client.sendPaymentByInvoice(invoice.pr);
+        paymentResponse = await this.client.sendPaymentByInvoice(invoice);
         break;
       }
 
@@ -53,7 +55,7 @@ export class PayoutLightningService {
 
       case LightningAddressType.LND_HUB: {
         const invoice = await this.lightningService.getInvoiceByLndhub(address, amount);
-        paymentResponse = await this.client.sendPaymentByInvoice(invoice.payment_request);
+        paymentResponse = await this.client.sendPaymentByInvoice(invoice);
         break;
       }
 

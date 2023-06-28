@@ -1,23 +1,24 @@
 import { ConflictException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { BankTxRepository } from './bank-tx.repository';
-import { BankTxBatchRepository } from './bank-tx-batch.repository';
-import { BankTxBatch } from './bank-tx-batch.entity';
-import { SepaParser } from './sepa-parser.service';
-import { In } from 'typeorm';
-import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
-import { BankTx, BankTxType, BankTxTypeCompleted } from './bank-tx.entity';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { SettingService } from 'src/shared/models/setting/setting.service';
-import { FrickService } from './frick.service';
-import { OlkypayService } from './olkypay.service';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
-import { BankTxReturnService } from '../bank-tx-return/bank-tx-return.service';
-import { BankTxRepeatService } from '../bank-tx-repeat/bank-tx-repeat.service';
-import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { Config, Process } from 'src/config/config';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
+import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
+import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
+import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { In, IsNull } from 'typeorm';
+import { BankTxRepeatService } from '../bank-tx-repeat/bank-tx-repeat.service';
+import { BankTxReturnService } from '../bank-tx-return/bank-tx-return.service';
+import { BankTxBatch } from './bank-tx-batch.entity';
+import { BankTxBatchRepository } from './bank-tx-batch.repository';
+import { BankTx, BankTxType, BankTxTypeCompleted } from './bank-tx.entity';
+import { BankTxRepository } from './bank-tx.repository';
+import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
+import { FrickService } from './frick.service';
+import { OlkypayService } from './olkypay.service';
+import { SepaParser } from './sepa-parser.service';
 
 @Injectable()
 export class BankTxService {
@@ -34,11 +35,17 @@ export class BankTxService {
     private readonly olkyService: OlkypayService,
     private readonly bankTxReturnService: BankTxReturnService,
     private readonly bankTxRepeatService: BankTxRepeatService,
+    private readonly buyService: BuyService,
   ) {}
 
   // --- TRANSACTION HANDLING --- //
-  @Cron(CronExpression.EVERY_MINUTE)
+  @Cron(CronExpression.EVERY_30_SECONDS)
   @Lock(3600)
+  async checkBankTx(): Promise<void> {
+    await this.checkTransactions();
+    await this.assignTransactions();
+  }
+
   async checkTransactions(): Promise<void> {
     if (Config.processDisabled(Process.BANK_TX)) return;
 
@@ -64,6 +71,19 @@ export class BankTxService {
 
     if (frickTransactions.length > 0) await this.settingService.set(settingKeyFrick, newModificationTime);
     if (olkyTransactions.length > 0) await this.settingService.set(settingKeyOlky, newModificationTime);
+  }
+
+  async assignTransactions() {
+    const unassignedBankTx = await this.bankTxRepo.find({ where: { type: IsNull() } });
+
+    for (const tx of unassignedBankTx) {
+      const match = Config.formats.bankUsage.exec(tx.remittanceInfo);
+
+      if (match) {
+        const buy = await this.buyService.getByBankUsage(match[0]);
+        if (buy) await this.update(tx.id, { type: BankTxType.BUY_CRYPTO, buyId: buy.id });
+      }
+    }
   }
 
   async create(bankTx: Partial<BankTx>): Promise<Partial<BankTx>> {

@@ -324,12 +324,8 @@ export class Util {
     return new XMLParser({ ignoreAttributes: false }).parse(file);
   }
 
-  static blankBlockchainAddress(address: string): string {
-    return '***' + address.slice(address.length - 6);
-  }
-
-  static blankIban(iban: string): string {
-    return '***' + iban.slice(iban.length - 4);
+  static blankStart(value: string, visibleLength = 4): string {
+    return '***' + value.slice(value.length - visibleLength);
   }
 
   static trimIban({ value }: TransformFnParams): string {

@@ -1,23 +1,24 @@
 import { Injectable } from '@nestjs/common';
+import { ClientRequest } from 'http';
 import { Config } from 'src/config/config';
+import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
-import { RiskState, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import {
+  ChatbotExport,
+  ChatbotResult,
   CreateResponse,
   Customer,
-  KycDocument,
-  KycContentType,
-  KycDocumentState,
-  ChatbotResult,
-  IdentificationLog,
   DocumentVersion,
+  IdentificationLog,
   InitiateResponse,
-  ChatbotExport,
+  KycContentType,
+  KycDocument,
+  KycDocumentState,
+  RiskResult,
 } from './dto/spider.dto';
 import { SpiderApiService } from './spider-api.service';
-import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
-import { HttpService } from 'src/shared/services/http.service';
-import { ClientRequest } from 'http';
 
 export enum DocumentState {
   ONGOING = 'Ongoing',
@@ -41,9 +42,7 @@ export class SpiderService {
   async createCustomer(userDataId: number, name: string): Promise<CreateResponse | undefined> {
     const customer = await this.spiderApi.getCustomer(userDataId);
     if (!customer) {
-      const newCustomer = await this.spiderApi.createCustomer(userDataId, name);
-      await this.spiderApi.checkCustomer(userDataId);
-      return newCustomer;
+      return this.spiderApi.createCustomer(userDataId, name);
     }
   }
 
@@ -183,11 +182,10 @@ export class SpiderService {
   }
 
   // --- NAME CHECK --- //
-  async checkCustomer(id: number): Promise<RiskState | undefined> {
+  async checkCustomer(id: number): Promise<RiskResult> {
     return this.spiderApi
       .checkCustomer(id)
       .then(() => this.spiderApi.getCheckResult(id))
-      .then((r) => r.result)
       .catch(() => undefined);
   }
 

@@ -1,15 +1,15 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { UpdateBuyDto } from './dto/update-buy.dto';
-import { Buy } from './buy.entity';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { IsNull, Not, Repository } from 'typeorm';
+import { Config } from 'src/config/config';
+import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { Config } from 'src/config/config';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
+import { IsNull, Not, Repository } from 'typeorm';
+import { Buy } from './buy.entity';
 import { BuyRepository } from './buy.repository';
 import { CreateBuyDto } from './dto/create-buy.dto';
-import { Lock } from 'src/shared/utils/lock';
+import { UpdateBuyDto } from './dto/update-buy.dto';
 
 @Injectable()
 export class BuyService {
@@ -106,6 +106,10 @@ export class BuyService {
 
   async getUserBuys(userId: number): Promise<Buy[]> {
     return this.buyRepo.findBy({ user: { id: userId } });
+  }
+
+  async getByBankUsage(bankUsage: string): Promise<Buy> {
+    return this.buyRepo.findOneBy({ bankUsage });
   }
 
   async getBuyByKey(key: string, value: any): Promise<Buy> {

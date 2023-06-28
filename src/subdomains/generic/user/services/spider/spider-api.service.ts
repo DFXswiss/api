@@ -2,26 +2,26 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Method, ResponseType } from 'axios';
 import { createHash } from 'crypto';
 import { Config } from 'src/config/config';
-import { RiskState, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { HttpError, HttpService } from '../../../../../shared/services/http.service';
 import {
   Challenge,
   CheckResponse,
   CheckResult,
-  DocumentVersion,
   CreateResponse,
   Customer,
   CustomerInformationResponse,
+  DocumentInfo,
+  DocumentVersion,
+  DocumentVersionPart,
   InitiateResponse,
   KycContentType,
   KycDocument,
   KycDocumentState,
   KycRelationType,
   Organization,
+  RiskResult,
   SubmitResponse,
-  DocumentVersionPart,
-  Risk,
-  DocumentInfo,
 } from './dto/spider.dto';
 
 @Injectable()
@@ -163,7 +163,7 @@ export class SpiderApiService {
     return this.callApi<CheckResponse[]>('customers/check', 'POST', [this.reference(id)]);
   }
 
-  async getCheckResult(id: number): Promise<{ result: RiskState | undefined; risks: Risk[] }> {
+  async getCheckResult(id: number): Promise<RiskResult> {
     const customerInfo = await this.getCustomerInfo(id);
     if (!customerInfo || customerInfo.lastCheckId < 0) return { result: undefined, risks: [] };
 

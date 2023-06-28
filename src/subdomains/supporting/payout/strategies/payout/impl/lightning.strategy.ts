@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotImplementedException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -77,8 +77,14 @@ export class LightningStrategy extends PayoutStrategy {
     }
   }
 
-  async estimateFee(asset: Asset): Promise<FeeResult> {
-    return { asset, amount: 0 };
+  async estimateFee(targetAsset: Asset, address: string, amount: number, asset: Asset): Promise<FeeResult> {
+    if (targetAsset.id !== asset.id)
+      throw new NotImplementedException(
+        `Tried to estimate fee with target asset (${targetAsset.uniqueName}) different from ref asset (${asset.uniqueName})`,
+      );
+
+    const fee = await this.payoutLightningService.getEstimatedFee(address, amount);
+    return { asset: await this.feeAsset(), amount: fee };
   }
 
   async getFeeAsset(): Promise<Asset> {

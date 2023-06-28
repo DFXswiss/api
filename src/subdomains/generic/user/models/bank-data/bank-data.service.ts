@@ -3,8 +3,8 @@ import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data
 import { BankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/bank-data.dto';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
-import { BankData } from './bank-data.entity';
 import { SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
+import { BankData } from './bank-data.entity';
 
 @Injectable()
 export class BankDataService {
@@ -27,11 +27,15 @@ export class BankDataService {
     const bankData = this.bankDataRepo.create({ ...dto, userData });
     await this.bankDataRepo.save(bankData);
 
-    // Update updated time in userData
-    await this.userDataRepo.setNewUpdateTime(userDataId);
-
-    // create customer, if not existing
-    await this.spiderService.createCustomer(userData.id, bankData.name);
+    // create customer and do name check, if not existing
+    const created = await this.spiderService.createCustomer(userData.id, bankData.name);
+    if (created) {
+      userData.riskResult = await this.spiderService.checkCustomer(userData.id);
+      await this.userDataRepo.save(userData);
+    } else {
+      // update updated time in user data
+      await this.userDataRepo.setNewUpdateTime(userDataId);
+    }
 
     userData.bankDatas.push(bankData);
     return userData;

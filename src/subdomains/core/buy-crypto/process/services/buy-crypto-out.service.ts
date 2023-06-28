@@ -1,18 +1,18 @@
 import { Injectable } from '@nestjs/common';
-import { In } from 'typeorm';
-import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repository';
-import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
-import { BuyCryptoBatchStatus, BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
-import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
-import { BuyCryptoPricingService } from './buy-crypto-pricing.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
+import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
 import { PayoutRequest } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
-import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
-import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { In } from 'typeorm';
+import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
+import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
+import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repository';
+import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
+import { BuyCryptoPricingService } from './buy-crypto-pricing.service';
 
 @Injectable()
 export class BuyCryptoOutService {
@@ -126,7 +126,10 @@ export class BuyCryptoOutService {
         } = await this.payoutService.checkOrderCompletion(PayoutOrderContext.BUY_CRYPTO, tx.id.toString());
 
         if (isComplete) {
-          const payoutFee = await this.buyCryptoPricingService.getFeeAmountInBatchAsset(batch, nativePayoutFee);
+          const payoutFee = await this.buyCryptoPricingService.getFeeAmountInRefAsset(
+            tx.outputReferenceAsset,
+            nativePayoutFee,
+          );
 
           tx.complete(payoutTxId, payoutFee);
           await this.buyCryptoRepo.save(tx);

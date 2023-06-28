@@ -20,8 +20,6 @@ export abstract class EvmClient {
   protected tokens = new AsyncCache<Token>();
   private router: AlphaRouter;
 
-  #sendCoinGasLimit = 21000;
-
   constructor(
     protected http: HttpService,
     protected scanApiUrl: string,
@@ -63,12 +61,12 @@ export abstract class EvmClient {
     return this.fromWeiAmount(balance);
   }
 
-  async getTokenBalanceOfAddress(address: string, token: Asset): Promise<number> {
-    const contract = this.getERC20ContractForDex(token.chainId);
+  async getTokenBalanceOfAddress(address: string, asset: Asset): Promise<number> {
+    const contract = this.getERC20ContractForDex(asset.chainId);
     const balance = await contract.balanceOf(address);
-    const decimals = await contract.decimals();
+    const token = await this.getToken(contract);
 
-    return this.fromWeiAmount(balance, decimals);
+    return this.fromWeiAmount(balance, token.decimals);
   }
 
   async getCurrentGasPrice(): Promise<EthersNumber> {
@@ -183,8 +181,8 @@ export abstract class EvmClient {
   }
 
   async testSwap(sourceToken: Asset, sourceAmount: number, targetToken: Asset): Promise<number> {
-    const source = await this.getToken(sourceToken.chainId);
-    const target = await this.getToken(targetToken.chainId);
+    const source = await this.getTokenByAddress(sourceToken.chainId);
+    const target = await this.getTokenByAddress(targetToken.chainId);
 
     const route = await this.router.route(
       this.toCurrencyAmount(sourceAmount, source),
@@ -202,19 +200,6 @@ export abstract class EvmClient {
   }
 
   // --- GETTERS --- //
-
-  get sendCoinGasLimit(): number {
-    return this.#sendCoinGasLimit;
-  }
-
-  get dummyTokenPayload(): string {
-    const method = 'a9059cbb000000000000000000000000';
-    const destination = this.randomReceiverAddress.slice(2);
-    const value = '0000000000000000000000000000000000000000000000000000000000000001';
-
-    return '0x' + method + destination + value;
-  }
-
   get dfxAddress(): string {
     return this.wallet.address;
   }
@@ -239,7 +224,7 @@ export abstract class EvmClient {
   }
 
   toWeiAmount(amountEthLike: number, decimals?: number): EthersNumber {
-    const amount = new BigNumber(amountEthLike).toFixed(decimals ?? 16);
+    const amount = new BigNumber(amountEthLike).toFixed(decimals ?? 18);
 
     return decimals ? ethers.utils.parseUnits(amount, decimals) : ethers.utils.parseEther(amount);
   }
@@ -254,11 +239,30 @@ export abstract class EvmClient {
     return new ethers.Contract(tokenAddress, ERC20_ABI, this.wallet);
   }
 
-  async getToken(tokenAddress: string): Promise<Token> {
-    return this.tokens.get(tokenAddress, async () => {
-      const contract = this.getERC20ContractForDex(tokenAddress);
-      return new Token(this.chainId, contract.address, await contract.decimals());
-    });
+  async getTokenByAddress(address: string): Promise<Token> {
+    const contract = this.getERC20ContractForDex(address);
+    return this.getToken(contract);
+  }
+
+  async getToken(contract: Contract): Promise<Token> {
+    return this.tokens.get(
+      contract.address,
+      async () => new Token(this.chainId, contract.address, await contract.decimals()),
+    );
+  }
+
+  async getCurrentGasCostForCoinTransaction(): Promise<number> {
+    const totalGas = await this.getCurrentGasForCoinTransaction(this.dfxAddress, 1e-18);
+    const gasPrice = await this.getCurrentGasPrice();
+
+    return this.fromWeiAmount(totalGas.mul(gasPrice));
+  }
+
+  async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
+    const totalGas = await this.getTokenGasLimitForAsset(token);
+    const gasPrice = await this.getCurrentGasPrice();
+
+    return this.fromWeiAmount(totalGas.mul(gasPrice));
   }
 
   // --- PRIVATE HELPER METHODS --- //
@@ -270,22 +274,31 @@ export abstract class EvmClient {
     feeLimit?: number,
   ): Promise<string> {
     const fromAddress = wallet.address;
-    const gasPrice = await this.getGasPrice(this.#sendCoinGasLimit, feeLimit);
+
+    const gasLimit = await this.getCurrentGasForCoinTransaction(fromAddress, amount);
+    const gasPrice = await this.getGasPrice(+gasLimit, feeLimit);
     const nonce = await this.getNonce(fromAddress);
 
     const tx = await wallet.sendTransaction({
-      from: wallet.address,
+      from: fromAddress,
       to: toAddress,
       value: this.toWeiAmount(amount),
       nonce,
       gasPrice,
-      // has to be provided as a number for BSC
-      gasLimit: this.#sendCoinGasLimit,
+      gasLimit,
     });
 
     this.nonce.set(fromAddress, nonce + 1);
 
     return tx.hash;
+  }
+
+  protected async getCurrentGasForCoinTransaction(fromAddress: string, amount: number): Promise<EthersNumber> {
+    return this.provider.estimateGas({
+      from: fromAddress,
+      to: this.randomReceiverAddress,
+      value: this.toWeiAmount(amount),
+    });
   }
 
   private async sendToken(
@@ -305,8 +318,8 @@ export abstract class EvmClient {
      */
     const effectiveGasLimit = Util.round(gasLimit * 1.5, 0);
 
-    const decimals = await contract.decimals();
-    const targetAmount = this.toWeiAmount(amount, decimals);
+    const token = await this.getToken(contract);
+    const targetAmount = this.toWeiAmount(amount, token.decimals);
 
     const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit: effectiveGasLimit, nonce });
 

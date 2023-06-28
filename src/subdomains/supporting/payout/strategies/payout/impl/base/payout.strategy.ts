@@ -28,6 +28,6 @@ export abstract class PayoutStrategy implements OnModuleInit, OnModuleDestroy {
 
   abstract doPayout(orders: PayoutOrder[]): Promise<void>;
   abstract checkPayoutCompletionData(orders: PayoutOrder[]): Promise<void>;
-  abstract estimateFee(asset: Asset): Promise<FeeResult>;
+  abstract estimateFee(targetAsset: Asset, address: string, amount: number, asset: Asset): Promise<FeeResult>;
   protected abstract getFeeAsset(): Promise<Asset>;
 }

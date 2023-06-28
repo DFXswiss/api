@@ -157,6 +157,10 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
     }
   }
 
+  /**
+   * @overwrite
+   */
+
   async getCurrentGasCostForCoinTransaction(): Promise<number> {
     const totalGasCost = await estimateTotalGasCost(this.l2Provider, {
       from: this.dfxAddress,
@@ -177,9 +181,6 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
     return this.fromWeiAmount(totalGasCost);
   }
 
-  /**
-   * @overwrite
-   */
   async getTxActualFee(txHash: string): Promise<number> {
     const gasPrice = await this.provider.getGasPrice();
 
@@ -201,5 +202,13 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
 
   private get l2Provider(): L2Provider<ethers.providers.JsonRpcProvider> {
     return asL2Provider(this.provider);
+  }
+
+  private get dummyTokenPayload(): string {
+    const method = 'a9059cbb000000000000000000000000';
+    const destination = this.randomReceiverAddress.slice(2);
+    const value = '0000000000000000000000000000000000000000000000000000000000000001';
+
+    return '0x' + method + destination + value;
   }
 }
