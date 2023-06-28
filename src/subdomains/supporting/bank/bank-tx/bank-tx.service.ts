@@ -77,10 +77,10 @@ export class BankTxService {
     const unassignedBankTx = await this.bankTxRepo.find({ where: { type: IsNull() } });
 
     for (const tx of unassignedBankTx) {
-      const match = /^[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}$/.test(tx.remittanceInfo);
+      const match = Config.formats.bankUsage.exec(tx.remittanceInfo);
 
       if (match) {
-        const buy = await this.buyService.getBuyRepo().findOneBy({ bankUsage: tx.remittanceInfo });
+        const buy = await this.buyService.getByBankUsage(match[0]);
         if (buy) await this.update(tx.id, { type: BankTxType.BUY_CRYPTO, buyId: buy.id });
       }
     }
