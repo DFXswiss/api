@@ -12,7 +12,7 @@ import {
   L1EthDepositTransactionReceipt,
 } from '@arbitrum/sdk/dist/lib/message/L1Transaction';
 import { ChainId } from '@uniswap/smart-order-router';
-import { BigNumber, Contract, ethers } from 'ethers';
+import { Contract, ethers } from 'ethers';
 import { GetConfig } from 'src/config/config';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -156,63 +156,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     }
   }
 
-  async getCurrentGasCostForCoinTransaction(): Promise<number> {
-    const totalGas = await this.getCurrentGasForCoinTransaction(1e-18);
-    const gasPrice = await this.getCurrentGasPrice();
-
-    return this.fromWeiAmount(totalGas.mul(gasPrice));
-  }
-
-  async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
-    const totalGas = await this.provider.estimateGas({
-      from: this.dfxAddress,
-      to: token.chainId,
-      data: this.dummyTokenPayload,
-    });
-
-    const gasPrice = await this.getCurrentGasPrice();
-
-    return this.fromWeiAmount(totalGas.mul(gasPrice));
-  }
-
   //*** HELPER METHODS ***//
-
-  protected async sendNativeCoin(
-    wallet: ethers.Wallet,
-    toAddress: string,
-    amount: number,
-    feeLimit?: number,
-  ): Promise<string> {
-    const fromAddress = wallet.address;
-    const gasLimit = await this.getCurrentGasForCoinTransaction(amount);
-    const gasPrice = await this.getGasPrice(+gasLimit, feeLimit);
-    const nonce = await this.getNonce(fromAddress);
-
-    const tx = await wallet.sendTransaction({
-      from: fromAddress,
-      to: toAddress,
-      value: this.toWeiAmount(amount),
-      nonce,
-      gasPrice,
-      gasLimit,
-    });
-
-    this.nonce.set(fromAddress, nonce + 1);
-
-    return tx.hash;
-  }
-
-  /**
-   * @TODO
-   * consider using this as a primary source of estimating gas in super class
-   */
-  private async getCurrentGasForCoinTransaction(amount: number): Promise<BigNumber> {
-    return this.provider.estimateGas({
-      from: this.dfxAddress,
-      to: this.randomReceiverAddress,
-      value: this.toWeiAmount(amount),
-    });
-  }
 
   private async initL2Network() {
     try {

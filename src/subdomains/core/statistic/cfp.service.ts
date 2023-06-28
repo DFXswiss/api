@@ -1,13 +1,13 @@
+import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Util } from 'src/shared/utils/util';
 import { Config, Process } from 'src/config/config';
-import { CfpResult, ResultStatus, Vote, VotingType } from './dto/cfp.dto';
-import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { DeFiClient, Proposal, ProposalType, ProposalVote } from 'src/integration/blockchain/ain/node/defi-client';
+import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { HttpService } from 'src/shared/services/http.service';
-import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
 import { Lock } from 'src/shared/utils/lock';
+import { Util } from 'src/shared/utils/util';
+import { CfpResult, ResultStatus, Vote, VotingType } from './dto/cfp.dto';
 
 interface Masternodes {
   [id: string]: { ownerAuthAddress: string };
@@ -16,14 +16,14 @@ interface Masternodes {
 @Injectable()
 export class CfpService implements OnModuleInit {
   private readonly lockUrl = 'https://api.lock.space/v1/masternode';
-  private readonly cakeUrl = 'https://api.cakedefi.com/nodes?order=status&orderBy=DESC';
+  private readonly bakeUrl = 'https://api.bake.io/nodes?order=status&orderBy=DESC';
 
   private client: DeFiClient;
   private cfpResults: CfpResult[];
   private masternodeCount: number;
   private allMasternodes: Masternodes;
   private lockMasternodes: string[];
-  private cakeMasternodes: [{ address: string }];
+  private bakeMasternodes: [{ address: string }];
   private blockInfo: BlockchainInfo;
 
   constructor(nodeService: NodeService, private readonly http: HttpService) {
@@ -41,7 +41,7 @@ export class CfpService implements OnModuleInit {
     // update masternodes
     this.allMasternodes = await this.client.listMasternodes();
     this.lockMasternodes = await this.callApi<any>(this.lockUrl);
-    this.cakeMasternodes = await this.callApi<any>(this.cakeUrl);
+    this.bakeMasternodes = await this.callApi<any>(this.bakeUrl);
 
     // update cfp results
     this.blockInfo = await this.client.getInfo();
@@ -64,8 +64,8 @@ export class CfpService implements OnModuleInit {
         address: this.allMasternodes[v.masternodeId].ownerAuthAddress,
         cfpId: v.proposalId,
         vote: v.vote,
-        isCake:
-          this.cakeMasternodes.find((n) => n.address === this.allMasternodes[v.masternodeId].ownerAuthAddress) != null,
+        isBake:
+          this.bakeMasternodes.find((n) => n.address === this.allMasternodes[v.masternodeId].ownerAuthAddress) != null,
         isLock: this.lockMasternodes.find((mn) => mn === this.allMasternodes[v.masternodeId].ownerAuthAddress) != null,
       }));
   }
@@ -76,10 +76,10 @@ export class CfpService implements OnModuleInit {
     const noVotes = proposalVotes.filter((v) => v.vote.toLowerCase().endsWith('no'));
     const neutralVotes = proposalVotes.filter((v) => v.vote.toLowerCase().endsWith('neutral'));
 
-    const cakeVotes = proposalVotes.filter((v) => v.isCake);
-    const yesVotesCake = yesVotes.filter((v) => v.isCake);
-    const noVotesCake = noVotes.filter((v) => v.isCake);
-    const neutralVotesCake = neutralVotes.filter((v) => v.isCake);
+    const bakeVotes = proposalVotes.filter((v) => v.isBake);
+    const yesVotesBake = yesVotes.filter((v) => v.isBake);
+    const noVotesBake = noVotes.filter((v) => v.isBake);
+    const neutralVotesBake = neutralVotes.filter((v) => v.isBake);
 
     const lockVotes = proposalVotes.filter((v) => v.isLock);
     const yesVotesLock = yesVotes.filter((v) => v.isLock);
@@ -116,11 +116,11 @@ export class CfpService implements OnModuleInit {
         neutral: neutralVotes.length,
         no: noVotes.length,
       },
-      cakeVotes: {
-        total: cakeVotes.length,
-        yes: yesVotesCake.length,
-        neutral: neutralVotesCake.length,
-        no: noVotesCake.length,
+      bakeVotes: {
+        total: bakeVotes.length,
+        yes: yesVotesBake.length,
+        neutral: neutralVotesBake.length,
+        no: noVotesBake.length,
       },
       lockVotes: {
         total: lockVotes.length,

@@ -1,7 +1,6 @@
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmService } from 'src/integration/blockchain/shared/evm/evm.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { Util } from 'src/shared/utils/util';
 
 export abstract class PayoutEvmService {
   protected client: EvmClient;
@@ -26,18 +25,10 @@ export abstract class PayoutEvmService {
   }
 
   async getCurrentGasForCoinTransaction(): Promise<number> {
-    const gasPrice = await this.client.getCurrentGasPrice();
-    const gasLimit = this.client.sendCoinGasLimit;
-    const gasInWei = gasPrice.mul(gasLimit);
-
-    return Util.round(this.client.fromWeiAmount(gasInWei), 16);
+    return this.client.getCurrentGasCostForCoinTransaction();
   }
 
   async getCurrentGasForTokenTransaction(token: Asset): Promise<number> {
-    const gasPrice = await this.client.getCurrentGasPrice();
-    const gasLimit = await this.client.getTokenGasLimitForAsset(token);
-    const gasInWei = gasPrice.mul(gasLimit);
-
-    return Util.round(this.client.fromWeiAmount(gasInWei), 8);
+    return this.client.getCurrentGasCostForTokenTransaction(token);
   }
 }
