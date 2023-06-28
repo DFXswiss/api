@@ -22,14 +22,21 @@ export interface MailRequestNew {
 export interface MailRequestInput {
   userData: UserData;
   title: string;
-  prefix: TranslationItem[];
+  prefix: TranslationItem;
   table: Record<string, string>;
   suffix: TranslationItem[];
 }
 
+export enum MailParamKey {
+  STYLE = 'style',
+  VALUE = 'value',
+  URL = 'url',
+  DEFAULT = 'default',
+}
+
 export interface TranslationItem {
   key: string;
-  params?: Record<string, string>;
+  params?: { [key in MailParamKey]?: string } | Record<string, string>;
 }
 
 export interface MailRequestGenericInput {

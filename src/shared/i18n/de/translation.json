@@ -1,0 +1,33 @@
+{
+    "general": {
+        "dfx_team_closing": "Dein freundliches DFX Team",
+        "dfx_closing_message": "Bitcoiners by heart ♥️"
+    },
+    "payment": {
+        "buy_fiat": {
+            "initiated": {
+                "title": "Krypto-Asset erhalten",
+                "salutation": "Dein Krypto-Asset ist bei uns eingetroffen",
+                "next_step": "Nächster Schritt: Wir verkaufen das Krypto-Asset und tauschen es in deine gewünschte Währung. Über die nächsten Schritte halten wir dich mit weiteren Emails auf dem Laufenden."
+            },
+            "exchanged": {
+                "title": "Krypto-Asset verkauft",
+                "salutation": "Wir haben das Krypto-Asset verkauft",
+                "next_step": "Nächster Schritt: Wir haben das Krypto-Asset verkauft und bereiten nun die Banküberweisung vor. Sobald das Geld von unserem Bankkonto überwiesen wurde, senden wir eine E-Mail und bestätigen die Überweisung."
+            },
+            "processed": {
+                "title": "Überweisungsbestätigung",
+                "salutation": "Wir haben die Überweisung veranlasst",
+                "next_step": "Die Zahlung hat gerade das DFX-Bankkonto verlassen und wird in Kürze auf deinem Bankkonto eintreffen. In der Zwischenzeit sind die Banken für die Dauer der Überweisung verantwortlich. Vielen Dank, für die Nutzung der DFX Fiat-Offramp."
+            },
+            "input_amount": "Auszahlung",
+            "output_amount": "Betrag",
+            "payment_link": "Dies ist die Transaktions-ID zu deiner Auszahlung: [url:Link]"
+        },
+        "blockchain": "Blockchain",
+        "dfx_fee": "DFX Gebühr",
+        "exchange_rate": "Wechselkurs",
+        "bank_account": "Bank Konto",
+        "remittance_info": "Verwendungszweck"
+    }
+}
