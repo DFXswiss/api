@@ -30,7 +30,6 @@ export class UpdateBankTxDto {
   @IsNumber()
   accountingAmountAfterFeeChf?: number;
 
-  @IsOptional()
   @IsNotEmpty()
   @IsInt()
   @ValidateIf((p: UpdateBankTxDto) => p.type === BankTxType.BUY_CRYPTO)
