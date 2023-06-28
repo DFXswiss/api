@@ -28,6 +28,7 @@
         "dfx_fee": "DFX Frais",
         "exchange_rate": "Taux de change",
         "bank_account": "Compte bancaire",
-        "remittance_info": "Motif du paiement"
+        "remittance_info": "Motif du paiement",
+        "transaction_id": "ID de la transaction"
     }
 }

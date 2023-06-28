@@ -1,5 +1,4 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
@@ -212,9 +211,8 @@ export class BuyFiat extends IEntity {
     return `${Util.round(this.percentFee * 100, 2)}%`;
   }
 
-  get txId(): string {
-    if (this.cryptoInput.asset.blockchain === Blockchain.LIGHTNING) return Util.blankStart(this.cryptoInput.inTxId);
-    return txExplorerUrl(this.cryptoInput.asset.blockchain, this.cryptoInput.inTxId);
+  get cryptoInputBlockchain(): Blockchain {
+    return this.cryptoInput.asset.blockchain;
   }
 
   get translationKey(): string {

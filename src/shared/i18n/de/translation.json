@@ -28,6 +28,7 @@
         "dfx_fee": "DFX Gebühr",
         "exchange_rate": "Wechselkurs",
         "bank_account": "Bank Konto",
-        "remittance_info": "Verwendungszweck"
+        "remittance_info": "Verwendungszweck",
+        "transaction_id": "Transaktions-ID"
     }
 }

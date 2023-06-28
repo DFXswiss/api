@@ -28,6 +28,7 @@
         "dfx_fee": "DFX Commissioni",
         "exchange_rate": "Tasso di cambio",
         "bank_account": "Conto corrente bancario",
-        "remittance_info": "Utilizzo della banca"
+        "remittance_info": "Utilizzo della banca",
+        "transaction_id": "ID transazione"
     }
 }
