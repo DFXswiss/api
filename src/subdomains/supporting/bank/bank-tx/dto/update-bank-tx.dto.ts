@@ -1,4 +1,4 @@
-import { IsEnum, IsInt, IsNumber, IsOptional, ValidateIf } from 'class-validator';
+import { IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, ValidateIf } from 'class-validator';
 import { BankTxType } from '../bank-tx.entity';
 
 export class UpdateBankTxDto {
@@ -31,6 +31,7 @@ export class UpdateBankTxDto {
   accountingAmountAfterFeeChf?: number;
 
   @IsOptional()
+  @IsNotEmpty()
   @IsInt()
   @ValidateIf((p: UpdateBankTxDto) => p.type === BankTxType.BUY_CRYPTO)
   buyId?: number;
