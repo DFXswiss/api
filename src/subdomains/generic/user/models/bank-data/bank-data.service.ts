@@ -31,7 +31,7 @@ export class BankDataService {
     const created = await this.spiderService.createCustomer(userData.id, bankData.name);
     if (created) {
       userData.riskResult = await this.spiderService.checkCustomer(userData.id);
-      await this.userDataRepo.save(userData);
+      await this.userDataRepo.update(userData.id, { riskResult: userData.riskResult });
     } else {
       // update updated time in user data
       await this.userDataRepo.setNewUpdateTime(userDataId);
