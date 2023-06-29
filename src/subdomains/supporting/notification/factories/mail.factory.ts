@@ -1,14 +1,15 @@
 import { Injectable } from '@nestjs/common';
+import Handlebars from 'handlebars';
 import { I18nService } from 'nestjs-i18n';
-import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
-import { KycSupportMailInput, KycSupportMail } from '../entities/mail/kyc-support-mail';
+import { Config } from 'src/config/config';
+import { Util } from 'src/shared/utils/util';
 import { Mail, MailParams } from '../entities/mail/base/mail';
+import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
+import { KycSupportMail, KycSupportMailInput } from '../entities/mail/kyc-support-mail';
+import { PersonalMail, PersonalMailInput } from '../entities/mail/personal-mail';
 import { UserMail, UserMailInput } from '../entities/mail/user-mail';
 import { MailType } from '../enums';
 import { MailRequest, MailRequestGenericInput, MailRequestInput, MailRequestNew, TranslationItem } from '../interfaces';
-import { PersonalMail, PersonalMailInput } from '../entities/mail/personal-mail';
-import { Config } from 'src/config/config';
-import Handlebars from 'handlebars';
 
 export enum MailTranslationKey {
   GENERAL = 'translation.general',
@@ -228,6 +229,8 @@ export class MailFactory {
       {{/each}}
       </table>`,
     );
+
+    Util.removeNullFields(table);
 
     const context = {
       table: Object.entries(table).map((element) => ({

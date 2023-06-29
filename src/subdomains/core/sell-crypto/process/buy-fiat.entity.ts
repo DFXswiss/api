@@ -215,6 +215,10 @@ export class BuyFiat extends IEntity {
     return this.cryptoInput.asset.blockchain;
   }
 
+  get isLightningTransaction(): boolean {
+    return this.cryptoInputBlockchain === Blockchain.LIGHTNING;
+  }
+
   get translationKey(): string {
     if (!this.mail1SendDate) {
       if (this.cryptoInput.asset.blockchain === Blockchain.LIGHTNING)

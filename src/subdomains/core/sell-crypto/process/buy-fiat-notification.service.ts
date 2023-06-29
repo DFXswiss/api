@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { I18nService } from 'nestjs-i18n';
 import { Config, Process } from 'src/config/config';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
@@ -50,27 +49,14 @@ export class BuyFiatNotificationService {
         const recipientMail = entity.sell.user.userData.mail;
 
         if (recipientMail) {
-          const table =
-            entity.cryptoInputBlockchain === Blockchain.LIGHTNING
-              ? {
-                  [`${MailTranslationKey.BUY_FIAT}.input_amount`]: `${entity.inputAmount} ${entity.inputAsset}`,
-                  [`${MailTranslationKey.PAYMENT}.blockchain`]: `${entity.cryptoInputBlockchain}`,
-                  [`${MailTranslationKey.PAYMENT}.transaction_id`]: `${Util.blankStart(entity.cryptoInput.inTxId)}`,
-                }
-              : {
-                  [`${MailTranslationKey.BUY_FIAT}.input_amount`]: `${entity.inputAmount} ${entity.inputAsset}`,
-                  [`${MailTranslationKey.PAYMENT}.blockchain`]: `${entity.cryptoInputBlockchain}`,
-                };
-
-          const suffix: TranslationItem[] =
-            entity.cryptoInputBlockchain === Blockchain.LIGHTNING
-              ? []
-              : [
-                  {
-                    key: `${MailTranslationKey.BUY_FIAT}.payment_link`,
-                    params: { url: txExplorerUrl(entity.cryptoInputBlockchain, entity.cryptoInput.inTxId) },
-                  },
-                ];
+          const suffix: TranslationItem[] = entity.isLightningTransaction
+            ? []
+            : [
+                {
+                  key: `${MailTranslationKey.BUY_FIAT}.payment_link`,
+                  params: { url: txExplorerUrl(entity.cryptoInputBlockchain, entity.cryptoInput.inTxId) },
+                },
+              ];
 
           suffix.push(
             { key: MailKey.SPACE, params: { value: '3' } },
@@ -84,7 +70,13 @@ export class BuyFiatNotificationService {
               userData: entity.sell.user.userData,
               title: `${MailTranslationKey.BUY_FIAT}.initiated.title`,
               prefix: { key: `${MailTranslationKey.BUY_FIAT}.initiated.salutation` },
-              table,
+              table: {
+                [`${MailTranslationKey.BUY_FIAT}.input_amount`]: `${entity.inputAmount} ${entity.inputAsset}`,
+                [`${MailTranslationKey.PAYMENT}.blockchain`]: `${entity.cryptoInputBlockchain}`,
+                [`${MailTranslationKey.PAYMENT}.transaction_id`]: entity.isLightningTransaction
+                  ? Util.blankStart(entity.cryptoInput.inTxId)
+                  : null,
+              },
               suffix,
             },
           });
