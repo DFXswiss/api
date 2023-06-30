@@ -3,7 +3,6 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { Column, Entity, Index, ManyToOne } from 'typeorm';
 
 @Entity()
-@Index('nameLocationIban', (bankData: BankData) => [bankData.name, bankData.iban], { unique: true })
 export class BankData extends IEntity {
   @Column({ length: 256 })
   name: string;
@@ -12,6 +11,7 @@ export class BankData extends IEntity {
   active: boolean;
 
   @Column({ length: 256 })
+  @Index({ unique: true, where: 'active = 1' })
   iban: string;
 
   @ManyToOne(() => UserData, { nullable: false })
