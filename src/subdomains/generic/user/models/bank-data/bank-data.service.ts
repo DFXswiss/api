@@ -1,10 +1,12 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
-import { BankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/bank-data.dto';
+import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
 import { SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
+import { Not } from 'typeorm';
 import { BankData } from './bank-data.entity';
+import { UpdateBankDataDto } from './dto/update-bank-data.dto';
 
 @Injectable()
 export class BankDataService {
@@ -14,13 +16,13 @@ export class BankDataService {
     private readonly spiderService: SpiderService,
   ) {}
 
-  async addBankData(userDataId: number, dto: BankDataDto): Promise<UserData> {
+  async addBankData(userDataId: number, dto: CreateBankDataDto): Promise<UserData> {
     const userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['bankDatas'] });
     if (!userData) throw new NotFoundException('User data not found');
 
     const bankDataCheck = await this.bankDataRepo.findOneBy({
       iban: dto.iban,
-      name: dto.name,
+      active: dto.active,
     });
     if (bankDataCheck) throw new ConflictException('Bank data already exists');
 
@@ -41,9 +43,18 @@ export class BankDataService {
     return userData;
   }
 
-  async updateBankData(id: number, dto: BankDataDto): Promise<BankData> {
+  async updateBankData(id: number, dto: UpdateBankDataDto): Promise<BankData> {
     const bankData = await this.bankDataRepo.findOneBy({ id });
     if (!bankData) throw new NotFoundException('Bank data not found');
+
+    if (dto.active) {
+      const activeBankData = await this.bankDataRepo.findOneBy({
+        id: Not(bankData.id),
+        iban: bankData.iban,
+        active: true,
+      });
+      if (activeBankData) throw new BadRequestException('Active bankData with same iban found');
+    }
 
     return this.bankDataRepo.save({ ...bankData, ...dto });
   }

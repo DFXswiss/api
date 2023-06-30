@@ -1,11 +1,11 @@
 import { Body, Controller, Delete, Param, Put, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
-import { AuthGuard } from '@nestjs/passport';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { BankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/bank-data.dto';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { BankData } from './bank-data.entity';
+import { UpdateBankDataDto } from './dto/update-bank-data.dto';
 
 @ApiTags('bankData')
 @Controller('bankData')
@@ -16,7 +16,7 @@ export class BankDataController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateBankData(@Param('id') id: string, @Body() dto: BankDataDto): Promise<BankData> {
+  async updateBankData(@Param('id') id: string, @Body() dto: UpdateBankDataDto): Promise<BankData> {
     return this.bankDataService.updateBankData(+id, dto);
   }
 
