@@ -4,6 +4,7 @@ import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
 import { SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
+import { Not } from 'typeorm';
 import { BankData } from './bank-data.entity';
 import { UpdateBankDataDto } from './dto/update-bank-data.dto';
 
@@ -47,7 +48,11 @@ export class BankDataService {
     if (!bankData) throw new NotFoundException('Bank data not found');
 
     if (dto.active) {
-      const activeBankData = await this.bankDataRepo.findOneBy({ iban: bankData.iban, active: true });
+      const activeBankData = await this.bankDataRepo.findOneBy({
+        id: Not(bankData.id),
+        iban: bankData.iban,
+        active: true,
+      });
       if (activeBankData) throw new BadRequestException('Active bankData with same iban found');
     }
 
