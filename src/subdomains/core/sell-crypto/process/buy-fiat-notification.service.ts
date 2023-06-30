@@ -8,7 +8,6 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
-import { TranslationItem } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, IsNull, Not } from 'typeorm';
 import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
@@ -49,21 +48,6 @@ export class BuyFiatNotificationService {
         const recipientMail = entity.sell.user.userData.mail;
 
         if (recipientMail) {
-          const suffix: TranslationItem[] = entity.isLightningTransaction
-            ? []
-            : [
-                {
-                  key: `${MailTranslationKey.BUY_FIAT}.payment_link`,
-                  params: { url: txExplorerUrl(entity.cryptoInputBlockchain, entity.cryptoInput.inTxId) },
-                },
-              ];
-
-          suffix.push(
-            { key: MailKey.SPACE, params: { value: '3' } },
-            { key: `${MailTranslationKey.BUY_FIAT}.initiated.next_step` },
-            { key: MailKey.DFX_TEAM_CLOSING, params: { default: 'true' } },
-          );
-
           await this.notificationService.sendMailNew({
             type: MailType.USER,
             input: {
@@ -77,7 +61,17 @@ export class BuyFiatNotificationService {
                   ? Util.blankStart(entity.cryptoInput.inTxId)
                   : null,
               },
-              suffix,
+              suffix: [
+                entity.isLightningTransaction
+                  ? null
+                  : {
+                      key: `${MailTranslationKey.BUY_FIAT}.payment_link`,
+                      params: { url: txExplorerUrl(entity.cryptoInputBlockchain, entity.cryptoInput.inTxId) },
+                    },
+                { key: MailKey.SPACE, params: { value: '3' } },
+                { key: `${MailTranslationKey.BUY_FIAT}.initiated.next_step` },
+                { key: MailKey.DFX_TEAM_CLOSING, params: { default: 'true' } },
+              ],
             },
           });
         } else {

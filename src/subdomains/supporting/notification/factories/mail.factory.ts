@@ -231,6 +231,7 @@ export class MailFactory {
     );
 
     Util.removeNullFields(table);
+    Util.removeNullFields(suffix);
 
     const context = {
       table: Object.entries(table).map((element) => ({
