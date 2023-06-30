@@ -4,7 +4,7 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
-import { BankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/bank-data.dto';
+import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { KycService } from '../kyc/kyc.service';
 import { UpdateKycStatusDto } from './dto/update-kyc-status.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
@@ -58,7 +58,7 @@ export class UserDataController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async addBankData(@Param('id') id: string, @Body() bankData: BankDataDto): Promise<UserData> {
+  async addBankData(@Param('id') id: string, @Body() bankData: CreateBankDataDto): Promise<UserData> {
     return this.bankDataService.addBankData(+id, bankData);
   }
 
