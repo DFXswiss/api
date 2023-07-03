@@ -31,6 +31,21 @@ export interface LnurlpLinkDto {
   lnurl?: string;
 }
 
+export interface LnurlpLinkUpdateDto {
+  description: string;
+  min: number;
+  max: number;
+  currency?: string;
+  comment_chars: number;
+  webhook_url?: string;
+  webhook_headers?: string;
+  webhook_body?: string;
+  success_text?: string;
+  success_url?: string;
+  fiat_base_multiplier: number;
+  username?: string;
+}
+
 export interface LnurlpLinkRemoveDto {
   success: boolean;
 }

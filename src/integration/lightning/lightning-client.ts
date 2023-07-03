@@ -14,7 +14,13 @@ import {
   LndSendPaymentResponseDto,
   LndWalletBalanceDto,
 } from './dto/lnd.dto';
-import { LnurlPayRequestDto, LnurlpInvoiceDto, LnurlpLinkDto, LnurlpLinkRemoveDto } from './dto/lnurlp.dto';
+import {
+  LnurlPayRequestDto,
+  LnurlpInvoiceDto,
+  LnurlpLinkDto,
+  LnurlpLinkRemoveDto,
+  LnurlpLinkUpdateDto,
+} from './dto/lnurlp.dto';
 import { PaymentDto } from './dto/payment.dto';
 import { LightningHelper } from './lightning-helper';
 
@@ -203,7 +209,7 @@ export class LightningClient {
 
     const newLnurlpLinkDto: LnurlpLinkDto = {
       description: description,
-      min: 1,
+      min: 100,
       max: 100000000,
       comment_chars: 0,
       fiat_base_multiplier: 100,
@@ -212,6 +218,16 @@ export class LightningClient {
     return this.http.post<LnurlpLinkDto>(
       `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/links`,
       newLnurlpLinkDto,
+      this.httpLnBitsConfig(),
+    );
+  }
+
+  async updateLnurlpLink(linkId: string, data: LnurlpLinkUpdateDto): Promise<LnurlpLinkDto> {
+    if (!linkId) throw new Error('LinkId is undefined');
+
+    return this.http.post<LnurlpLinkDto>(
+      `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/links?link_id=${linkId}`,
+      data,
       this.httpLnBitsConfig(),
     );
   }
