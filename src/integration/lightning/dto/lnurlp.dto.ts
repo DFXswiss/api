@@ -28,6 +28,7 @@ export interface LnurlpLinkDto {
   comment_chars: number;
   max: number;
   fiat_base_multiplier: number;
+  zaps?: boolean;
   lnurl?: string;
 }
 
@@ -44,6 +45,7 @@ export interface LnurlpLinkUpdateDto {
   success_url?: string;
   fiat_base_multiplier: number;
   username?: string;
+  zaps?: boolean;
 }
 
 export interface LnurlpLinkRemoveDto {

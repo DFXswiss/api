@@ -225,8 +225,8 @@ export class LightningClient {
   async updateLnurlpLink(linkId: string, data: LnurlpLinkUpdateDto): Promise<LnurlpLinkDto> {
     if (!linkId) throw new Error('LinkId is undefined');
 
-    return this.http.post<LnurlpLinkDto>(
-      `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/links?link_id=${linkId}`,
+    return this.http.put<LnurlpLinkDto>(
+      `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/links/${linkId}`,
       data,
       this.httpLnBitsConfig(),
     );
