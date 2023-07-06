@@ -9,11 +9,39 @@ export interface UserMailInput {
   translationParams: object;
 }
 
+export interface UserMailTable {
+  key: string;
+  value: string;
+}
+
+export interface UserMailSuffix {
+  url?: {
+    link: string;
+    text: string;
+  };
+  style: string;
+  key?: string;
+}
+
 export interface UserMailParams {
   to: string;
   subject: string;
   salutation: string;
   body: string;
+  telegramUrl?: string;
+  twitterUrl?: string;
+  linkedinUrl?: string;
+  instagramUrl?: string;
+  metadata?: NotificationMetadata;
+  options?: NotificationOptions;
+}
+
+export interface UserMailParamsNew {
+  to: string;
+  subject: string;
+  salutation: string;
+  table: UserMailTable[];
+  suffix: UserMailSuffix[];
   telegramUrl?: string;
   twitterUrl?: string;
   linkedinUrl?: string;
@@ -32,5 +60,18 @@ export class UserMail extends Mail {
     };
 
     super({ ...params, template: 'user', templateParams: { ...defaultParams, ...params } });
+  }
+}
+
+export class UserMailNew extends Mail {
+  constructor(params: UserMailParamsNew) {
+    const defaultParams: Partial<UserMailParamsNew> = {
+      twitterUrl: Config.defaultTwitterUrl,
+      telegramUrl: Config.defaultTelegramUrl,
+      linkedinUrl: Config.defaultLinkedinUrl,
+      instagramUrl: Config.defaultInstagramUrl,
+    };
+
+    super({ ...params, template: 'userNew', templateParams: { ...defaultParams, ...params } });
   }
 }
