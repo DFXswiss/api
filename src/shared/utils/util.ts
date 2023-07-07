@@ -328,7 +328,7 @@ export class Util {
     return '***' + value.slice(value.length - visibleLength);
   }
 
-  static trimIban({ value }: TransformFnParams): string {
+  static trim({ value }: TransformFnParams): string {
     return value.split(' ').join('');
   }
 }

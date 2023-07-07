@@ -12,7 +12,7 @@ export class CreateBankDataDto {
   @ApiPropertyOptional()
   @IsNotEmpty()
   @IsString()
-  @Transform(Util.trimIban)
+  @Transform(Util.trim)
   iban: string;
 
   @ApiPropertyOptional()

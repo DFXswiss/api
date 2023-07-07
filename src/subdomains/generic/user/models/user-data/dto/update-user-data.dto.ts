@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsDate,
@@ -12,6 +12,7 @@ import {
 } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Country } from 'src/shared/models/country/country.entity';
+import { Util } from 'src/shared/utils/util';
 import { AccountType } from '../account-type.enum';
 import { IsDfxPhone } from '../is-dfx-phone.validator';
 import { KycIdentificationType, KycState, KycStatus, UserDataStatus } from '../user-data.entity';
@@ -28,6 +29,7 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsString()
   @IsDfxPhone()
+  @Transform(Util.trim)
   phone: string;
 
   @IsOptional()

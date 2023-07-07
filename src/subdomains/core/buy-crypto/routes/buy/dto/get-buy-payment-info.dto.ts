@@ -11,8 +11,8 @@ export class GetBuyPaymentInfoDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @Transform(Util.trimIban)
   @IsDfxIban()
+  @Transform(Util.trim)
   iban?: string;
 
   @ApiProperty({ type: EntityDto })

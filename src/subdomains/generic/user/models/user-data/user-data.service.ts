@@ -219,7 +219,7 @@ export class UserDataService {
   private async updateSpiderIfNeeded(userData: UserData, dto: UpdateUserDto): Promise<UserData> {
     if ((dto.phone && dto.phone != userData.phone) || (dto.mail && dto.mail != userData.mail)) {
       await this.spiderService.updateCustomer(userData.id, {
-        telephones: dto.phone ? [dto.phone.replace('+', '').split(' ').join('')] : undefined,
+        telephones: dto.phone ? [dto.phone.replace('+', '')] : undefined,
         emails: dto.mail ? [dto.mail] : undefined,
       });
 

@@ -2094,5 +2094,38 @@
     "headers": [],
     "params": [],
     "tests": []
+  },
+  {
+    "_id": "a0218c25-8598-44b3-b7b3-79ea3b6836a0",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "1ac2a4e1-088e-4ef9-be7f-e1fb2364f464",
+    "name": "Update Ref Volumes",
+    "url": "{{url}}/v1/buyCrypto/refVolumes",
+    "method": "PUT",
+    "sortNum": 20000,
+    "created": "2023-06-05T15:39:00.473Z",
+    "modified": "2023-06-05T15:43:31.483Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "058c87a5-2d51-49ff-b00e-c38d7d8b9a5c",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "1b2f83ce-15e2-4d1c-ba1f-c7e361840254",
+    "name": "Update",
+    "url": "{{url}}/v1/user",
+    "method": "PUT",
+    "sortNum": 250000,
+    "created": "2023-07-07T13:29:14.057Z",
+    "modified": "2023-07-07T13:35:45.254Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"phone\": \"+41 33 781 6363\"\n}",
+      "form": []
+    },
+    "tests": []
   }
 ]

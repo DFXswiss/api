@@ -19,8 +19,8 @@ export class CreateSellDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @Transform(Util.trimIban)
   @IsDfxIban()
+  @Transform(Util.trim)
   iban: string;
 
   // TODO: remove
