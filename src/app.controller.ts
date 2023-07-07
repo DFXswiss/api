@@ -1,21 +1,21 @@
-import { Controller, Get, Query, Req, Res, Redirect, Param } from '@nestjs/common';
+import { Controller, Get, Param, Query, Redirect, Req, Res } from '@nestjs/common';
 import { ApiExcludeEndpoint } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { UserAgent } from 'express-useragent';
 import { RealIP } from 'nestjs-real-ip';
-import { HttpService } from './shared/services/http.service';
-import { SettingService } from './shared/models/setting/setting.service';
+import { Config } from './config/config';
 import { AdDto, AdSettings, AdvertisementDto } from './shared/dto/advertisement.dto';
-import { Util } from './shared/utils/util';
 import { AnnouncementDto } from './shared/dto/announcement.dto';
 import { FlagDto } from './shared/dto/flag.dto';
+import { SettingService } from './shared/models/setting/setting.service';
+import { HttpService } from './shared/services/http.service';
+import { Util } from './shared/utils/util';
 import { RefService } from './subdomains/core/referral/process/ref.service';
-import { Config } from './config/config';
 
 enum App {
-  DFI = 'dfi',
   BTC = 'btc',
   EXCHANGE = 'exchange',
+  LIGHTNING = 'lightning',
 }
 
 enum Manufacturer {
@@ -31,15 +31,12 @@ export class AppController {
   private readonly googleStoreUrl = 'https://play.app.goo.gl/?link=https://play.google.com/store/apps/details';
 
   private readonly appUrls = {
-    [App.DFI]: {
-      [Manufacturer.APPLE]: `${this.appleStoreUrl}/id1582633093`,
-      [Manufacturer.GOOGLE]: `${this.googleStoreUrl}?id=com.defichain.app.dfx`,
-    },
     [App.BTC]: {
       [Manufacturer.APPLE]: `${this.appleStoreUrl}/id6443845399`,
       [Manufacturer.GOOGLE]: `${this.googleStoreUrl}?id=com.defichain.app.dfx.bitcoin`,
     },
     [App.EXCHANGE]: 'https://exchange.dfx.swiss',
+    [App.LIGHTNING]: 'https://lightning.dfx.swiss',
   };
 
   constructor(
@@ -122,7 +119,7 @@ export class AppController {
 
     // redirect user depending on app and platform
     let url: string;
-    if (app === App.EXCHANGE) {
+    if (app === App.EXCHANGE || app === App.LIGHTNING) {
       url = this.appUrls[app];
     } else {
       url = this.appUrls[app]?.[this.getDeviceManufacturer(req)];

@@ -1,17 +1,17 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { IbanService, IbanDetailsDto } from 'src/integration/bank/services/iban.service';
-import { KycType, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { BankAccountRepository } from './bank-account.repository';
-import { BankAccount, BankAccountInfos } from './bank-account.entity';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { Config, Process } from 'src/config/config';
+import { IbanDetailsDto, IbanService } from 'src/integration/bank/services/iban.service';
+import { CountryService } from 'src/shared/models/country/country.service';
 import { IEntity } from 'src/shared/models/entity';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { Lock } from 'src/shared/utils/lock';
+import { KycType, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { BankAccount, BankAccountInfos } from './bank-account.entity';
+import { BankAccountRepository } from './bank-account.repository';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { CountryService } from 'src/shared/models/country/country.service';
-import { Config, Process } from 'src/config/config';
-import { Lock } from 'src/shared/utils/lock';
 
 @Injectable()
 export class BankAccountService {
@@ -105,14 +105,13 @@ export class BankAccountService {
     dto: CreateBankAccountDto | UpdateBankAccountDto,
     bankAccount: BankAccount,
   ): Promise<BankAccount> {
+    Object.assign(bankAccount, dto);
+
     // check currency
     if (dto.preferredCurrency) {
       bankAccount.preferredCurrency = await this.fiatService.getFiat(dto.preferredCurrency.id);
       if (!bankAccount.preferredCurrency) throw new BadRequestException('Currency not found');
     }
-
-    bankAccount.label = dto.label;
-    bankAccount.active = dto.active;
 
     return bankAccount;
   }

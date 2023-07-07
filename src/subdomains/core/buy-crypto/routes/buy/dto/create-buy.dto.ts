@@ -9,8 +9,8 @@ import { IsDfxIban } from 'src/subdomains/supporting/bank/bank-account/is-dfx-ib
 export class CreateBuyDto {
   @ApiPropertyOptional()
   @IsOptional()
-  @Transform(Util.trimIban)
   @IsDfxIban()
+  @Transform(Util.trim)
   iban?: string;
 
   @ApiProperty({ type: EntityDto })
