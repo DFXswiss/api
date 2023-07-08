@@ -55,7 +55,7 @@
             {{#each table}}
               <tr>
                 <td align='right'>
-                  {{this.key}}
+                  {{this.text}}
                 </td>
 
                 <td style="width:2%;">
@@ -71,13 +71,8 @@
             {{#each suffix}}
               <tr style='font-family:{{this.style}}'>
                 <td colspan='3' align='center'>
-                  {{#if this.url}}
-                    {{this.key}}<a style='color:white' href='{{this.url.link}}'>{{this.url.text}}</a>
-                  {{/if}}
-
-                  {{#unless this.url}}
-                    {{this.key}}
-                  {{/unless}}
+                  
+                {{this.text}}{{#if this.url}}<a style='color:white' href='{{this.url.link}}'>{{this.url.text}}</a>{{/if}}
                 </td>
               </tr>
             {{/each}}

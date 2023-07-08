@@ -70,7 +70,7 @@ export class BuyFiatNotificationService {
                     },
                 { key: MailKey.SPACE, params: { value: '3' } },
                 { key: `${MailTranslationKey.BUY_FIAT}.initiated.next_step` },
-                { key: MailKey.DFX_TEAM_CLOSING, params: { default: 'true' } },
+                { key: MailKey.DFX_TEAM_CLOSING },
               ],
             },
           });
@@ -121,7 +121,7 @@ export class BuyFiatNotificationService {
               suffix: [
                 { key: MailKey.SPACE, params: { value: '4' } },
                 { key: `${MailTranslationKey.BUY_FIAT}.exchanged.next_step` },
-                { key: MailKey.DFX_TEAM_CLOSING, params: { default: 'true' } },
+                { key: MailKey.DFX_TEAM_CLOSING },
               ],
             },
           });
@@ -164,7 +164,7 @@ export class BuyFiatNotificationService {
               suffix: [
                 { key: MailKey.SPACE, params: { value: '4' } },
                 { key: `${MailTranslationKey.BUY_FIAT}.processed.next_step` },
-                { key: MailKey.DFX_TEAM_CLOSING, params: { default: 'true' } },
+                { key: MailKey.DFX_TEAM_CLOSING },
               ],
             },
           });

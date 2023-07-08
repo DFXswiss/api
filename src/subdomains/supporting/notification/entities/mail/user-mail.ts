@@ -10,7 +10,7 @@ export interface UserMailInput {
 }
 
 export interface UserMailTable {
-  key: string;
+  text: string;
   value: string;
 }
 
@@ -20,7 +20,7 @@ export interface UserMailSuffix {
     text: string;
   };
   style: string;
-  key?: string;
+  text: string;
 }
 
 export interface UserMailParams {

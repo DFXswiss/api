@@ -31,7 +31,6 @@ export enum MailParamKey {
   STYLE = 'style',
   VALUE = 'value',
   URL = 'url',
-  DEFAULT = 'default',
 }
 
 export interface TranslationItem {
