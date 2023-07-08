@@ -21,13 +21,8 @@ export enum MailKey {
   DFX_TEAM_CLOSING = 'dfxTeamClosing',
 }
 
-interface MailSuffixMap {
-  url?: { link: string; text: string };
-  style: string;
-  key?: string;
-}
-
 const MailDefaultStyle = 'Open Sans,Helvetica,Arial,sans-serif';
+const MailDefaultEmptyLine = { text: '', style: `${MailDefaultStyle};padding:1px` };
 
 @Injectable()
 export class MailFactory {
@@ -219,9 +214,9 @@ export class MailFactory {
 
   private getTable(table: Record<string, string>, lang: string): UserMailTable[] {
     Util.removeNullFields(table);
-    return Object.entries(table).map((element) => ({
-      key: this.tNew(element[0], lang),
-      value: element[1],
+    return Object.entries(table).map(([key, value]) => ({
+      text: this.tNew(key, lang),
+      value: value,
     }));
   }
 
@@ -230,37 +225,48 @@ export class MailFactory {
     return suffix.map((element) => this.mapSuffix(element, lang).flat()).flat();
   }
 
-  private mapSuffix(element: TranslationItem, lang: string): MailSuffixMap[] {
+  private mapSuffix(element: TranslationItem, lang: string): UserMailSuffix[] {
     switch (element.key) {
       case MailKey.SPACE:
-        return [{ key: '', style: `${MailDefaultStyle};padding:1px` }];
+        return [MailDefaultEmptyLine];
 
       case MailKey.DFX_TEAM_CLOSING:
         return [
-          { key: '', style: `${MailDefaultStyle};padding:1px` },
-          { key: '', style: `${MailDefaultStyle};padding:1px` },
+          MailDefaultEmptyLine,
+          MailDefaultEmptyLine,
           {
-            key: this.tNew(`${MailTranslationKey.GENERAL}.dfx_team_closing`, lang),
+            text: this.tNew(`${MailTranslationKey.GENERAL}.dfx_team_closing`, lang),
             style: MailDefaultStyle,
           },
-          { key: '', style: `${MailDefaultStyle};padding:1px` },
-          { key: '', style: `${MailDefaultStyle};padding:1px` },
-          { key: '', style: `${MailDefaultStyle};padding:1px` },
-          { key: '', style: `${MailDefaultStyle};padding:1px` },
-          { key: this.tNew(`${MailTranslationKey.GENERAL}.dfx_closing_message`, lang), style: 'Zapfino' },
+          MailDefaultEmptyLine,
+          MailDefaultEmptyLine,
+          MailDefaultEmptyLine,
+          MailDefaultEmptyLine,
+          { text: this.tNew(`${MailTranslationKey.GENERAL}.dfx_closing_message`, lang), style: 'Zapfino' },
         ];
 
       default:
+        const text = this.tNew(element.key, lang);
+        const specialTag = this.parseSpecialTag(text);
+
         return [
           {
-            url: element.params?.url && {
-              link: element.params.url,
-              text: this.tNew(element.key, lang)?.split('[url:')[1]?.split(']')[0],
-            },
+            url:
+              specialTag?.tag === 'url' && element.params?.url
+                ? {
+                    link: element.params.url,
+                    text: specialTag.value,
+                  }
+                : undefined,
             style: element.params?.style ?? MailDefaultStyle,
-            key: element.params?.url ? this.tNew(element.key, lang)?.split('[url:')[0] : this.tNew(element.key, lang),
+            text: specialTag?.text ?? text,
           },
         ];
     }
+  }
+
+  private parseSpecialTag(text: string): { text: string; tag: string; value: string } | undefined {
+    const match = /^(.*)\[(\w*):(\w*)\]$/.exec(text);
+    return match ? { text: match[1], tag: match[2], value: match[3] } : undefined;
   }
 }
