@@ -8,8 +8,7 @@ import { PrepareStrategyRegistry } from './prepare.strategy-registry';
 export abstract class PrepareStrategy implements OnModuleInit, OnModuleDestroy {
   private _feeAsset: Asset;
 
-  @Inject()
-  private readonly registry: PrepareStrategyRegistry;
+  @Inject() private readonly registry: PrepareStrategyRegistry;
 
   onModuleInit() {
     this.registry.addStrategy(this.blockchain, this);

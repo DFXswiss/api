@@ -8,8 +8,7 @@ import { PayoutStrategyRegistry } from './payout.strategy-registry';
 export abstract class PayoutStrategy implements OnModuleInit, OnModuleDestroy {
   private _feeAsset: Asset;
 
-  @Inject()
-  private readonly registry: PayoutStrategyRegistry;
+  @Inject() private readonly registry: PayoutStrategyRegistry;
 
   onModuleInit() {
     this.registry.addStrategy({ blockchain: this.blockchain, assetType: this.assetType }, this);

@@ -4,8 +4,7 @@ import { TransactionQuery, TransactionResult, TransferRequest } from 'src/subdom
 import { SupplementaryStrategyRegistry } from './supplementary.strategy-registry';
 
 export abstract class SupplementaryStrategy implements OnModuleInit, OnModuleDestroy {
-  @Inject()
-  private readonly registry: SupplementaryStrategyRegistry;
+  @Inject() private readonly registry: SupplementaryStrategyRegistry;
 
   onModuleInit() {
     this.registry.addStrategy(this.blockchain, this);

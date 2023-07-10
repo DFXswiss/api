@@ -22,14 +22,9 @@ export interface PayInInputLog {
 export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy {
   protected abstract readonly logger: DfxLogger;
 
-  @Inject()
-  private readonly dexService: DexService;
-
-  @Inject()
-  private readonly payInFactory: PayInFactory;
-
-  @Inject()
-  private readonly registry: RegisterStrategyRegistry;
+  @Inject() private readonly dexService: DexService;
+  @Inject() private readonly payInFactory: PayInFactory;
+  @Inject() private readonly registry: RegisterStrategyRegistry;
 
   constructor(protected readonly payInRepository: PayInRepository) {}
 
