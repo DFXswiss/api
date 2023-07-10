@@ -446,7 +446,9 @@ export class Configuration {
 
   // --- GETTERS --- //
   get url(): string {
-    return `https://${this.environment === 'prd' ? '' : this.environment + '.'}api.dfx.swiss/${this.version}`;
+    return process.env.PORT
+      ? `http://localhost:${process.env.PORT}/${this.version}`
+      : `https://${this.environment === 'prd' ? '' : this.environment + '.'}api.dfx.swiss/${this.version}`;
   }
 
   get kraken(): ExchangeConfig {
