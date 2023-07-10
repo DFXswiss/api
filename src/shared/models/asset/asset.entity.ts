@@ -69,4 +69,8 @@ export class Asset extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   approxPriceUsd: number;
+
+  get minimalPriceReferenceAmount() {
+    return 1 / this.approxPriceUsd;
+  }
 }

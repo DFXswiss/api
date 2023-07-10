@@ -1,25 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
-import { AssetService } from 'src/shared/models/asset/asset.service';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { LiquidityOrderFactory } from '../../../factories/liquidity-order.factory';
-import { LiquidityOrderRepository } from '../../../repositories/liquidity-order.repository';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DexDeFiChainService } from '../../../services/dex-defichain.service';
-import { DeFiChainNonPoolPairStrategy } from './base/defichain-non-poolpair.strategy';
+import { PurchaseStrategy } from './base/purchase.strategy';
 
 @Injectable()
-export class DeFiChainCryptoStrategy extends DeFiChainNonPoolPairStrategy {
-  constructor(
-    readonly notificationService: NotificationService,
-    readonly assetService: AssetService,
-    readonly dexDeFiChainService: DexDeFiChainService,
-    readonly liquidityOrderRepo: LiquidityOrderRepository,
-    readonly liquidityOrderFactory: LiquidityOrderFactory,
-  ) {
-    super(notificationService, assetService, dexDeFiChainService, liquidityOrderRepo, liquidityOrderFactory, [
-      { name: 'DFI', type: AssetType.TOKEN },
-    ]);
+export class DeFiChainCryptoStrategy extends PurchaseStrategy {
+  protected readonly logger = new DfxLogger(DeFiChainCryptoStrategy);
+
+  constructor(dexService: DexDeFiChainService) {
+    super(dexService, [{ name: 'DFI', type: AssetType.TOKEN }]);
   }
 
   get blockchain(): Blockchain {

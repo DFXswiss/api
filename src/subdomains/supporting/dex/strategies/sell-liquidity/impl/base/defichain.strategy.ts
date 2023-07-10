@@ -12,10 +12,10 @@ export abstract class DeFiChainStrategy extends SellLiquidityStrategy {
   }
 
   async addSellData(order: LiquidityOrder): Promise<void> {
-    const amount = await this.dexDeFiChainService.getSwapAmount(order.txId, order.targetAsset.dexName);
+    const { targetAmount, feeAmount } = await this.dexDeFiChainService.getSwapResult(order.txId, order.targetAsset);
 
-    order.sold(amount);
-    order.recordFee(await this.feeAsset(), 0);
+    order.sold(targetAmount);
+    order.recordFee(await this.feeAsset(), feeAmount);
     await this.liquidityOrderRepo.save(order);
   }
 }

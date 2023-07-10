@@ -43,6 +43,15 @@ export interface TransferRequest {
   destinationAddress: string;
 }
 
+export interface LiquidityResult {
+  targetAmount: number;
+  availableAmount: number;
+  maxPurchasableAmount: number;
+  isSlippageDetected: boolean;
+  slippageMessage: string;
+  feeAmount: number;
+}
+
 export interface CheckLiquidityResult {
   target: {
     asset: Asset;

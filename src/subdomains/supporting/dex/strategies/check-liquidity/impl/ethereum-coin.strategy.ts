@@ -1,13 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
-import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DexEthereumService } from '../../../services/dex-ethereum.service';
 import { EvmCoinStrategy } from './base/evm-coin.strategy';
 
 @Injectable()
 export class EthereumCoinStrategy extends EvmCoinStrategy {
-  constructor(protected readonly assetService: AssetService, dexEthereumService: DexEthereumService) {
+  protected readonly logger = new DfxLogger(EthereumCoinStrategy);
+
+  constructor(dexEthereumService: DexEthereumService) {
     super(dexEthereumService);
   }
 

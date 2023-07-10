@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { Config } from 'src/config/config';
+import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 
 @Injectable()
 export class DeFiChainUtil {
   async getHistoryEntryForTx(
     txId: string,
     client: DeFiClient,
-  ): Promise<{ txId: string; blockHeight: number; amounts: string[] } | null> {
+  ): Promise<{ txId: string; blockHeight: number; amounts: string[]; fee: number } | null> {
     const transaction = await client.getTx(txId);
 
     if (transaction && transaction.blockhash && transaction.confirmations > 0) {
@@ -17,7 +17,7 @@ export class DeFiChainUtil {
         .getHistory(height, height + 1, Config.blockchain.default.dex.address)
         .then((histories) =>
           histories
-            .map((h) => ({ txId: h.txid, blockHeight: h.blockHeight, amounts: h.amounts }))
+            .map((h) => ({ txId: h.txid, blockHeight: h.blockHeight, amounts: h.amounts, fee: transaction.fee }))
             .find((t) => t.txId === txId),
         );
     }

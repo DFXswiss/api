@@ -2,16 +2,10 @@ import { mock } from 'jest-mock-extended';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
-import { AssetService } from 'src/shared/models/asset/asset.service';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { LiquidityOrderFactory } from '../../../factories/liquidity-order.factory';
-import { LiquidityOrderRepository } from '../../../repositories/liquidity-order.repository';
 import { DexArbitrumService } from '../../../services/dex-arbitrum.service';
-import { DexBitcoinService } from '../../../services/dex-bitcoin.service';
 import { DexBscService } from '../../../services/dex-bsc.service';
 import { DexDeFiChainService } from '../../../services/dex-defichain.service';
 import { DexOptimismService } from '../../../services/dex-optimism.service';
-import { DexService } from '../../../services/dex.service';
 import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy } from '../impl/arbitrum-token.strategy';
 import { PurchaseLiquidityStrategyRegistry } from '../impl/base/purchase-liquidity.strategy-registry';
@@ -20,7 +14,6 @@ import { BscCoinStrategy } from '../impl/bsc-coin.strategy';
 import { BscTokenStrategy } from '../impl/bsc-token.strategy';
 import { DeFiChainCryptoStrategy } from '../impl/defichain-crypto.strategy';
 import { DeFiChainDfiStrategy } from '../impl/defichain-dfi.strategy';
-import { DeFiChainPoolPairStrategy } from '../impl/defichain-poolpair.strategy';
 import { DeFiChainStockStrategy } from '../impl/defichain-stock.strategy';
 import { EthereumCoinStrategy } from '../impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy } from '../impl/ethereum-token.strategy';
@@ -33,7 +26,6 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
   let bitcoin: BitcoinStrategy;
   let bscCoin: BscCoinStrategy;
   let bscToken: BscTokenStrategy;
-  let deFiChainPoolPair: DeFiChainPoolPairStrategy;
   let deFiChainStock: DeFiChainStockStrategy;
   let deFiChainCrypto: DeFiChainCryptoStrategy;
   let deFiChainDfi: DeFiChainDfiStrategy;
@@ -45,62 +37,20 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
   let registry: PurchaseLiquidityStrategyRegistryWrapper;
 
   beforeEach(() => {
-    arbitrumCoin = new ArbitrumCoinStrategy(
-      mock<AssetService>(),
-      mock<NotificationService>(),
-      mock<DexArbitrumService>(),
-    );
-    arbitrumToken = new ArbitrumTokenStrategy(
-      mock<AssetService>(),
-      mock<NotificationService>(),
-      mock<DexArbitrumService>(),
-    );
-    bitcoin = new BitcoinStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBitcoinService>());
-    bscCoin = new BscCoinStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBscService>());
-    bscToken = new BscTokenStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBscService>());
+    arbitrumCoin = new ArbitrumCoinStrategy();
+    arbitrumToken = new ArbitrumTokenStrategy(mock<DexArbitrumService>());
+    bitcoin = new BitcoinStrategy();
+    bscCoin = new BscCoinStrategy();
+    bscToken = new BscTokenStrategy(mock<DexBscService>());
 
-    deFiChainPoolPair = new DeFiChainPoolPairStrategy(
-      mock<NotificationService>(),
-      mock<AssetService>(),
-      mock<LiquidityOrderRepository>(),
-      mock<LiquidityOrderFactory>(),
-      mock<DexService>(),
-      mock<DexDeFiChainService>(),
-    );
-    deFiChainStock = new DeFiChainStockStrategy(
-      mock<NotificationService>(),
-      mock<AssetService>(),
-      mock<DexDeFiChainService>(),
-      mock<LiquidityOrderRepository>(),
-      mock<LiquidityOrderFactory>(),
-    );
-    deFiChainCrypto = new DeFiChainCryptoStrategy(
-      mock<NotificationService>(),
-      mock<AssetService>(),
-      mock<DexDeFiChainService>(),
-      mock<LiquidityOrderRepository>(),
-      mock<LiquidityOrderFactory>(),
-    );
+    deFiChainStock = new DeFiChainStockStrategy(mock<DexDeFiChainService>());
+    deFiChainCrypto = new DeFiChainCryptoStrategy(mock<DexDeFiChainService>());
 
-    deFiChainDfi = new DeFiChainDfiStrategy(
-      mock<NotificationService>(),
-      mock<AssetService>(),
-      mock<DexDeFiChainService>(),
-      mock<LiquidityOrderRepository>(),
-      mock<LiquidityOrderFactory>(),
-    );
-    ethereumCoin = new EthereumCoinStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBscService>());
-    ethereumToken = new EthereumTokenStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBscService>());
-    optimismCoin = new OptimismCoinStrategy(
-      mock<AssetService>(),
-      mock<NotificationService>(),
-      mock<DexOptimismService>(),
-    );
-    optimismToken = new OptimismTokenStrategy(
-      mock<AssetService>(),
-      mock<NotificationService>(),
-      mock<DexOptimismService>(),
-    );
+    deFiChainDfi = new DeFiChainDfiStrategy(mock<DexDeFiChainService>());
+    ethereumCoin = new EthereumCoinStrategy();
+    ethereumToken = new EthereumTokenStrategy(mock<DexBscService>());
+    optimismCoin = new OptimismCoinStrategy();
+    optimismToken = new OptimismTokenStrategy(mock<DexOptimismService>());
 
     registry = new PurchaseLiquidityStrategyRegistryWrapper(
       arbitrumCoin,
@@ -110,7 +60,6 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
       bscToken,
       deFiChainDfi,
       deFiChainCrypto,
-      deFiChainPoolPair,
       deFiChainStock,
       ethereumCoin,
       ethereumToken,
@@ -173,14 +122,6 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
         );
 
         expect(strategy).toBeInstanceOf(DeFiChainCryptoStrategy);
-      });
-
-      it('gets DEFICHAIN_POOL_PAIR strategy for DEFICHAIN Pool Pair', () => {
-        const strategy = registry.getPurchaseLiquidityStrategy(
-          createCustomAsset({ blockchain: Blockchain.DEFICHAIN, category: AssetCategory.POOL_PAIR }),
-        );
-
-        expect(strategy).toBeInstanceOf(DeFiChainPoolPairStrategy);
       });
 
       it('gets DEFICHAIN_STOCK strategy for DEFICHAIN Stock', () => {
@@ -253,7 +194,6 @@ class PurchaseLiquidityStrategyRegistryWrapper extends PurchaseLiquidityStrategy
     bscToken: BscTokenStrategy,
     deFiChainDfi: DeFiChainDfiStrategy,
     deFiChainCrypto: DeFiChainCryptoStrategy,
-    deFiChainPoolPair: DeFiChainPoolPairStrategy,
     deFiChainStock: DeFiChainStockStrategy,
     ethereumCoin: EthereumCoinStrategy,
     ethereumToken: EthereumTokenStrategy,
@@ -272,7 +212,6 @@ class PurchaseLiquidityStrategyRegistryWrapper extends PurchaseLiquidityStrategy
       deFiChainDfi,
     );
     this.addStrategy({ blockchain: Blockchain.DEFICHAIN, assetCategory: AssetCategory.CRYPTO }, deFiChainCrypto);
-    this.addStrategy({ blockchain: Blockchain.DEFICHAIN, assetCategory: AssetCategory.POOL_PAIR }, deFiChainPoolPair);
     this.addStrategy({ blockchain: Blockchain.DEFICHAIN, assetCategory: AssetCategory.STOCK }, deFiChainStock);
     this.addStrategy({ blockchain: Blockchain.ETHEREUM, assetType: AssetType.COIN }, ethereumCoin);
     this.addStrategy({ blockchain: Blockchain.ETHEREUM, assetType: AssetType.TOKEN }, ethereumToken);

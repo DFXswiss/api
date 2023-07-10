@@ -21,8 +21,7 @@ import { CheckLiquidityStrategyRegistry } from './strategies/check-liquidity/imp
 import { BitcoinStrategy as BitcoinStrategyCL } from './strategies/check-liquidity/impl/bitcoin.strategy';
 import { BscCoinStrategy as BscCoinStrategyCL } from './strategies/check-liquidity/impl/bsc-coin.strategy';
 import { BscTokenStrategy as BscTokenStrategyCL } from './strategies/check-liquidity/impl/bsc-token.strategy';
-import { DeFiChainDefaultStrategy as DeFiChainDefaultStrategyCL } from './strategies/check-liquidity/impl/defichain-default.strategy';
-import { DeFiChainPoolPairStrategy as DeFiChainPoolPairStrategyCL } from './strategies/check-liquidity/impl/defichain-poolpair.strategy';
+import { DeFiChainStrategy as DeFiChainDefaultStrategyCL } from './strategies/check-liquidity/impl/defichain.strategy';
 import { EthereumCoinStrategy as EthereumCoinStrategyCL } from './strategies/check-liquidity/impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy as EthereumTokenStrategyCL } from './strategies/check-liquidity/impl/ethereum-token.strategy';
 import { LightningStrategy as LightningStrategyCL } from './strategies/check-liquidity/impl/lightning.strategy';
@@ -36,7 +35,6 @@ import { BscCoinStrategy as BscCoinStrategyPL } from './strategies/purchase-liqu
 import { BscTokenStrategy as BscTokenStrategyPL } from './strategies/purchase-liquidity/impl/bsc-token.strategy';
 import { DeFiChainCryptoStrategy as DeFiChainCryptoStrategyPL } from './strategies/purchase-liquidity/impl/defichain-crypto.strategy';
 import { DeFiChainDfiStrategy as DeFiChainDfiStrategyPL } from './strategies/purchase-liquidity/impl/defichain-dfi.strategy';
-import { DeFiChainPoolPairStrategy as DeFiChainPoolPairStrategyPL } from './strategies/purchase-liquidity/impl/defichain-poolpair.strategy';
 import { DeFiChainStockStrategy as DeFiChainStockStrategyPL } from './strategies/purchase-liquidity/impl/defichain-stock.strategy';
 import { EthereumCoinStrategy as EthereumCoinStrategyPL } from './strategies/purchase-liquidity/impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy as EthereumTokenStrategyPL } from './strategies/purchase-liquidity/impl/ethereum-token.strategy';
@@ -81,7 +79,6 @@ import { OptimismStrategy as OptimismStrategyS } from './strategies/supplementar
     SellLiquidityStrategyRegistry,
     SupplementaryStrategyRegistry,
     DeFiChainDefaultStrategyCL,
-    DeFiChainPoolPairStrategyCL,
     ArbitrumCoinStrategyCL,
     ArbitrumTokenStrategyCL,
     EthereumCoinStrategyCL,
@@ -94,7 +91,6 @@ import { OptimismStrategy as OptimismStrategyS } from './strategies/supplementar
     OptimismTokenStrategyCL,
     DeFiChainDfiStrategyPL,
     DeFiChainCryptoStrategyPL,
-    DeFiChainPoolPairStrategyPL,
     DeFiChainStockStrategyPL,
     EthereumCoinStrategyPL,
     BscCoinStrategyPL,

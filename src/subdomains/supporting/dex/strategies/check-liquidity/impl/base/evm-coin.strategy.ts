@@ -1,3 +1,4 @@
+import { LiquidityOrder } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { CheckLiquidityRequest, CheckLiquidityResult } from '../../../../interfaces';
 import { DexEvmService } from '../../../../services/base/dex-evm.service';
 import { CheckLiquidityUtil } from '../../utils/check-liquidity.util';
@@ -9,10 +10,16 @@ export abstract class EvmCoinStrategy extends CheckLiquidityStrategy {
   }
 
   async checkLiquidity(request: CheckLiquidityRequest): Promise<CheckLiquidityResult> {
-    const { referenceAsset, referenceAmount: nativeCoinAmount, context, correlationId } = request;
+    const { referenceAsset, referenceAmount, context, correlationId, targetAsset } = request;
 
     if (referenceAsset.dexName === this.dexEvmService._nativeCoin) {
-      const [targetAmount, availableAmount] = await this.dexEvmService.checkNativeCoinAvailability(nativeCoinAmount);
+      const { targetAmount, availableAmount } = await this.dexEvmService.getAndCheckAvailableTargetLiquidity(
+        referenceAsset,
+        referenceAmount,
+        targetAsset,
+        LiquidityOrder.getMaxPriceSlippage(targetAsset.dexName),
+        [],
+      );
 
       return CheckLiquidityUtil.createNonPurchasableCheckLiquidityResult(
         request,

@@ -197,10 +197,20 @@ export abstract class EvmClient {
   }
 
   // --- PUBLIC API - SWAPS --- //
-  async testSwap(source: Asset, sourceAmount: number, target: Asset): Promise<number> {
-    const route = await this.getRoute(source, target, sourceAmount, 0.2);
+  async testSwap(
+    source: Asset,
+    sourceAmount: number,
+    target: Asset,
+    maxSlippage: number,
+  ): Promise<{ targetAmount: number; feeAmount: number }> {
+    if (source.id === target.id) return { targetAmount: sourceAmount, feeAmount: 0 };
 
-    return +route.quote.toExact();
+    const route = await this.getRoute(source, target, sourceAmount, maxSlippage);
+
+    return {
+      targetAmount: +route.quote.toExact(),
+      feeAmount: this.fromWeiAmount(route.estimatedGasUsed.mul(route.gasPriceWei)),
+    };
   }
 
   async swap(sourceToken: Asset, sourceAmount: number, targetToken: Asset, maxSlippage: number): Promise<string> {
@@ -278,12 +288,6 @@ export abstract class EvmClient {
     return decimals ? ethers.utils.parseUnits(amount, decimals) : ethers.utils.parseEther(amount);
   }
 
-  private toCurrencyAmount(amount: number, token: Currency): CurrencyAmount<Currency> {
-    const targetAmount = this.toWeiAmount(amount, token.decimals).toString();
-
-    return CurrencyAmount.fromRawAmount(token, targetAmount);
-  }
-
   getERC20ContractForDex(tokenAddress: string): Contract {
     return new ethers.Contract(tokenAddress, ERC20_ABI, this.wallet);
   }
@@ -292,19 +296,25 @@ export abstract class EvmClient {
     return asset.type === AssetType.COIN ? Ether.onChain(this.chainId) : this.getTokenByAddress(asset.chainId);
   }
 
-  async getTokenByAddress(address: string): Promise<Token> {
+  // --- PRIVATE HELPER METHODS --- //
+
+  private toCurrencyAmount(amount: number, token: Currency): CurrencyAmount<Currency> {
+    const targetAmount = this.toWeiAmount(amount, token.decimals).toString();
+
+    return CurrencyAmount.fromRawAmount(token, targetAmount);
+  }
+
+  private async getTokenByAddress(address: string): Promise<Token> {
     const contract = this.getERC20ContractForDex(address);
     return this.getTokenByContract(contract);
   }
 
-  async getTokenByContract(contract: Contract): Promise<Token> {
+  private async getTokenByContract(contract: Contract): Promise<Token> {
     return this.tokens.get(
       contract.address,
       async () => new Token(this.chainId, contract.address, await contract.decimals()),
     );
   }
-
-  // --- PRIVATE HELPER METHODS --- //
 
   protected async sendNativeCoin(
     wallet: ethers.Wallet,

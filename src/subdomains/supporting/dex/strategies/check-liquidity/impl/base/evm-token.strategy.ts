@@ -1,5 +1,6 @@
+import { LiquidityOrder } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
+import { DexEvmService } from 'src/subdomains/supporting/dex/services/base/dex-evm.service';
 import { CheckLiquidityRequest, CheckLiquidityResult } from '../../../../interfaces';
-import { DexEvmService } from '../../../../services/base/dex-evm.service';
 import { CheckLiquidityUtil } from '../../utils/check-liquidity.util';
 import { CheckLiquidityStrategy } from './check-liquidity.strategy';
 
@@ -11,18 +12,16 @@ export abstract class EvmTokenStrategy extends CheckLiquidityStrategy {
   async checkLiquidity(request: CheckLiquidityRequest): Promise<CheckLiquidityResult> {
     const { referenceAmount, referenceAsset, targetAsset } = request;
 
-    const [targetAmount, availableAmount] = await this.dexEvmService.getAndCheckTokenAvailability(
+    const prioritySwapAssets = await this.getPrioritySwapAssets(targetAsset);
+
+    const liquidity = await this.dexEvmService.getAndCheckAvailableTargetLiquidity(
       referenceAsset,
       referenceAmount,
       targetAsset,
+      LiquidityOrder.getMaxPriceSlippage(targetAsset.dexName),
+      prioritySwapAssets,
     );
 
-    // will be different from coin implementation once token auto-purchase implemented.
-    return CheckLiquidityUtil.createNonPurchasableCheckLiquidityResult(
-      request,
-      targetAmount,
-      availableAmount,
-      await this.feeAsset(),
-    );
+    return CheckLiquidityUtil.createCheckLiquidityResult(request, liquidity, await this.feeAsset());
   }
 }

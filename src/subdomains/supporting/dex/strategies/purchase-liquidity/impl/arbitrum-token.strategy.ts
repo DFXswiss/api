@@ -1,19 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
-import { AssetService } from 'src/shared/models/asset/asset.service';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DexArbitrumService } from '../../../services/dex-arbitrum.service';
-import { EvmTokenStrategy } from './base/evm-token.strategy';
+import { PurchaseStrategy } from './base/purchase.strategy';
 
 @Injectable()
-export class ArbitrumTokenStrategy extends EvmTokenStrategy {
-  constructor(
-    protected readonly assetService: AssetService,
-    notificationService: NotificationService,
-    dexArbitrumService: DexArbitrumService,
-  ) {
-    super(notificationService, dexArbitrumService);
+export class ArbitrumTokenStrategy extends PurchaseStrategy {
+  protected readonly logger = new DfxLogger(ArbitrumTokenStrategy);
+
+  constructor(dexArbitrumService: DexArbitrumService) {
+    super(dexArbitrumService, [{ name: 'ETH', type: AssetType.COIN }]);
   }
 
   get blockchain(): Blockchain {

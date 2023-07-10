@@ -29,7 +29,11 @@ export class BscClient extends EvmClient {
     );
   }
 
-  async testSwap(sourceToken: Asset, sourceAmount: number, targetToken: Asset): Promise<number> {
+  async testSwap(
+    sourceToken: Asset,
+    sourceAmount: number,
+    targetToken: Asset,
+  ): Promise<{ targetAmount: number; feeAmount: number }> {
     const sourceContract = new ethers.Contract(sourceToken.chainId, ERC20_ABI, this.wallet);
     const sourceTokenDecimals = await sourceContract.decimals();
 
@@ -39,6 +43,6 @@ export class BscClient extends EvmClient {
     const inputAmount = this.toWeiAmount(sourceAmount, sourceTokenDecimals);
     const outputAmounts = await this.routerV2.getAmountsOut(inputAmount, [sourceToken.chainId, targetToken.chainId]);
 
-    return this.fromWeiAmount(outputAmounts[1], targetTokenDecimals);
+    return { targetAmount: this.fromWeiAmount(outputAmounts[1], targetTokenDecimals), feeAmount: 0 };
   }
 }

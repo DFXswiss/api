@@ -1,27 +1,19 @@
+import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { DeFiChainUtil } from 'src/integration/blockchain/ain/utils/defichain.util';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Config } from 'src/config/config';
 import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { ChainSwapId, LiquidityOrder } from '../entities/liquidity-order.entity';
-import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
 import { PriceSlippageException } from '../exceptions/price-slippage.exception';
-import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
-import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { TransactionNotFoundException } from '../exceptions/transaction-not-found.exception';
-
-export interface DexDeFiChainLiquidityResult {
-  targetAmount: number;
-  availableAmount: number;
-  maxPurchasableAmount: number;
-  isSlippageDetected: boolean;
-  slippageMessage: string;
-  feeAmount: number;
-}
+import { LiquidityResult } from '../interfaces';
+import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
+import { CheckLiquidityUtil } from '../strategies/check-liquidity/utils/check-liquidity.util';
 
 @Injectable()
 export class DexDeFiChainService {
@@ -45,17 +37,21 @@ export class DexDeFiChainService {
     targetAsset: Asset,
     maxSlippage: number,
     purchaseAssets: Asset[],
-  ): Promise<DexDeFiChainLiquidityResult> {
+  ): Promise<LiquidityResult> {
+    // get amounts
     const targetAmount = await this.getTargetAmount(sourceAsset, sourceAmount, targetAsset);
-
     const availableAmount = await this.getAssetAvailability(targetAsset);
     const maxPurchasableAmount = await this.getMaxPurchasableAmount(purchaseAssets, targetAsset);
-    const [isSlippageDetected, slippageMessage] = await this.checkTestSwapPriceSlippage(
-      sourceAsset,
-      sourceAmount,
-      targetAsset,
-      targetAmount,
+
+    // slippage check
+    const price = await this.calculatePrice(sourceAsset, targetAsset);
+    const [isSlippageDetected, slippageMessage] = CheckLiquidityUtil.checkSlippage(
+      price,
       maxSlippage,
+      sourceAmount,
+      targetAmount,
+      sourceAsset,
+      targetAsset,
     );
 
     return {
@@ -68,13 +64,9 @@ export class DexDeFiChainService {
     };
   }
 
-  async swapLiquidity(
-    swapAsset: Asset,
-    swapAmount: number,
-    targetAsset: Asset,
-    maxSlippage: number,
-  ): Promise<ChainSwapId> {
-    const maxPrice = await this.getMaxPriceForPurchaseLiquidity(swapAsset, targetAsset, maxSlippage);
+  async swap(swapAsset: Asset, swapAmount: number, targetAsset: Asset, maxSlippage: number): Promise<ChainSwapId> {
+    const price = await this.calculatePrice(swapAsset, targetAsset);
+    const maxPrice = CheckLiquidityUtil.getMaxPrice(price, maxSlippage);
 
     try {
       return await this.#dexClient.compositeSwap(
@@ -87,7 +79,7 @@ export class DexDeFiChainService {
         maxPrice,
       );
     } catch (e) {
-      if (this.isCompositeSwapSlippageError(e)) {
+      if (e.message?.includes('Price is higher than indicated')) {
         throw new PriceSlippageException(
           `Price is higher than indicated. Composite swap ${swapAmount} ${swapAsset.dexName} to ${targetAsset.dexName}. Maximum price for asset ${targetAsset.dexName} is ${maxPrice} ${swapAsset.dexName}.`,
         );
@@ -124,77 +116,31 @@ export class DexDeFiChainService {
     return transaction && transaction.blockhash && transaction.confirmations > 0;
   }
 
-  async getSwapAmount(txId: string, asset: string): Promise<number> {
+  async getSwapResult(txId: string, asset: Asset): Promise<{ targetAmount: number; feeAmount: number }> {
     const historyEntry = await this.deFiChainUtil.getHistoryEntryForTx(txId, this.#dexClient);
     if (!historyEntry) throw new TransactionNotFoundException(`Transaction ${txId} not found on blockchain`);
 
     const amounts = historyEntry.amounts.map((a) => this.#dexClient.parseAmount(a));
 
-    const { amount: purchasedAmount } = amounts.find((a) => a.asset === asset);
+    const { amount: targetAmount } = amounts.find((a) => a.asset === asset.dexName);
 
-    if (!purchasedAmount) {
+    if (!targetAmount) {
       throw new Error(`Failed to get amount for TX: ${txId} while trying to extract purchased liquidity`);
     }
 
-    return purchasedAmount;
+    return { targetAmount, feeAmount: historyEntry.fee };
   }
 
-  async getSwapAmountForPurchase(
-    referenceAsset: Asset,
-    referenceAmount: number,
-    targetAsset: Asset,
-    swapAsset: Asset,
-  ): Promise<number> {
-    const swapAmount = await this.calculateSwapAmountForPurchase(
-      referenceAsset,
-      referenceAmount,
-      swapAsset,
-      targetAsset,
-    );
-
-    await this.checkAssetAvailability(swapAsset, swapAmount);
-
-    return swapAmount;
-  }
-
-  async calculateSwapAmountForPurchase(
-    referenceAsset: Asset,
-    referenceAmount: number,
-    swapAsset: Asset,
-    targetAsset?: Asset,
-  ): Promise<number> {
-    if (referenceAsset.id === targetAsset?.id) {
-      const swapAssetPrice = await this.calculatePrice(swapAsset, referenceAsset);
-
-      const swapAmount = referenceAmount * swapAssetPrice;
-
-      // adding 5% cap to liquidity swap to cover meantime referenceAmount price difference (initially taken from Kraken/Binance)
-      return Util.round(swapAmount + swapAmount * 0.05, 8);
-    }
-
-    return this.testSwap(referenceAsset, swapAsset, referenceAmount);
+  async getTargetAmount(sourceAsset: Asset, sourceAmount: number, targetAsset: Asset): Promise<number> {
+    return targetAsset.id === sourceAsset.id ? sourceAmount : this.testSwap(sourceAsset, targetAsset, sourceAmount);
   }
 
   async getAssetAvailability(asset: Asset): Promise<number> {
-    const pendingOrders = (await this.liquidityOrderRepo.findBy({ isComplete: false })).filter(
-      (o) => o.targetAsset.dexName === asset.dexName && o.targetAsset.blockchain === Blockchain.DEFICHAIN,
-    );
-    const pendingAmount = Util.sumObj<LiquidityOrder>(pendingOrders, 'estimatedTargetAmount');
+    const pendingAmount = await this.getPendingAmount(asset);
     const availableAmount = await this.deFiChainUtil.getAvailableTokenAmount(asset.dexName, this.#dexClient);
 
     // adding a small cap to pendingAmount in case testSwap results got slightly outdated by the moment current check is done
     return Util.round(availableAmount - pendingAmount * 1.05, 8);
-  }
-
-  async testSwap(sourceAsset: Asset, targetAsset: Asset, amount: number): Promise<number> {
-    if (sourceAsset.category !== targetAsset.category) {
-      const intermediateAsset = targetAsset.category === AssetCategory.CRYPTO ? 'DFI' : 'DUSD';
-
-      const dfiAmount = await this.#dexClient.testCompositeSwap(sourceAsset.dexName, intermediateAsset, amount);
-      return this.#dexClient.testCompositeSwap(intermediateAsset, targetAsset.dexName, dfiAmount);
-    } else {
-      return this.#dexClient.testCompositeSwap(sourceAsset.dexName, targetAsset.dexName, amount);
-    }
   }
 
   async getRecentHistory(depth: number): Promise<AccountHistory[]> {
@@ -203,6 +149,14 @@ export class DexDeFiChainService {
 
   parseAmounts(amounts: string[]): { asset: string; amount: number }[] {
     return amounts.map((a) => this.getClient().parseAmount(a));
+  }
+
+  async calculatePrice(sourceAsset: Asset, targetAsset: Asset): Promise<number> {
+    const sourceAmount = sourceAsset.minimalPriceReferenceAmount;
+    const targetAmount = await this.getTargetAmount(sourceAsset, sourceAmount, targetAsset);
+
+    // how much of sourceAsset you going to pay for 1 unit of targetAsset, caution - only indicative calculation
+    return sourceAmount / targetAmount;
   }
 
   //*** GETTERS ***//
@@ -217,17 +171,22 @@ export class DexDeFiChainService {
     return this.#dexClient;
   }
 
-  private async getTargetAmount(sourceAsset: Asset, sourceAmount: number, targetAsset: Asset): Promise<number> {
-    return targetAsset.id === sourceAsset.id ? sourceAmount : this.testSwap(sourceAsset, targetAsset, sourceAmount);
+  private async getPendingAmount(asset: Asset) {
+    const pendingOrders = (await this.liquidityOrderRepo.findBy({ isComplete: false })).filter(
+      (o) => o.targetAsset.dexName === asset.dexName && o.targetAsset.blockchain === Blockchain.DEFICHAIN,
+    );
+
+    return Util.sumObj<LiquidityOrder>(pendingOrders, 'estimatedTargetAmount');
   }
 
-  private async checkAssetAvailability(asset: Asset, requiredAmount: number): Promise<void> {
-    const availableAmount = await this.getAssetAvailability(asset);
+  private async testSwap(sourceAsset: Asset, targetAsset: Asset, amount: number): Promise<number> {
+    if (sourceAsset.category !== targetAsset.category) {
+      const intermediateAsset = targetAsset.category === AssetCategory.CRYPTO ? 'DFI' : 'DUSD';
 
-    if (requiredAmount > availableAmount) {
-      throw new NotEnoughLiquidityException(
-        `Not enough liquidity of asset ${asset.dexName}. Trying to use ${requiredAmount} ${asset.dexName} worth liquidity. Available amount: ${availableAmount}.`,
-      );
+      const dfiAmount = await this.#dexClient.testCompositeSwap(sourceAsset.dexName, intermediateAsset, amount);
+      return this.#dexClient.testCompositeSwap(intermediateAsset, targetAsset.dexName, dfiAmount);
+    } else {
+      return this.#dexClient.testCompositeSwap(sourceAsset.dexName, targetAsset.dexName, amount);
     }
   }
 
@@ -247,7 +206,7 @@ export class DexDeFiChainService {
       const availableAmount = await this.getAssetAvailability(swapAsset);
       if (availableAmount === 0) return 0;
 
-      return await this.testSwap(swapAsset, targetAsset, availableAmount);
+      return await this.getTargetAmount(swapAsset, availableAmount, targetAsset);
     } catch (e) {
       this.logger.warn(`Could not find purchasable amount for swap ${swapAsset.dexName} -> ${targetAsset.dexName}:`, e);
 
@@ -262,56 +221,7 @@ export class DexDeFiChainService {
     targetAmount: number,
     maxSlippage: number,
   ): Promise<[boolean, string]> {
-    // how much sourceAsset we are willing to pay for 1 unit of targetAsset max
-    const maxPrice = await this.getMaxPriceForPurchaseLiquidity(sourceAsset, targetAsset, maxSlippage);
-
-    const minimalAllowedTargetAmount = Util.round(sourceAmount / maxPrice, 8);
-
-    const isSlippageDetected = targetAmount > 0.000001 && targetAmount < minimalAllowedTargetAmount;
-    const slippageMessage = isSlippageDetected
-      ? this.generateSlippageMessage(sourceAsset, sourceAmount, targetAsset, targetAmount, maxPrice)
-      : 'no slippage detected';
-
-    return [isSlippageDetected, slippageMessage];
-  }
-
-  private generateSlippageMessage(
-    sourceAsset: Asset,
-    sourceAmount: number,
-    targetAsset: Asset,
-    targetAmount: number,
-    maxPrice: number,
-  ): string {
-    const actualPrice = Util.round(sourceAmount / targetAmount, 8);
-
-    return `Price is higher than indicated. Test swap ${sourceAmount} ${sourceAsset.dexName} to ${targetAmount} ${targetAsset.dexName}. Maximum price for asset ${targetAsset.dexName} is ${maxPrice} ${sourceAsset.dexName}. Actual price is ${actualPrice} ${sourceAsset.dexName}`;
-  }
-
-  private async getMaxPriceForPurchaseLiquidity(
-    sourceAsset: Asset,
-    targetAsset: Asset,
-    maxSlippage: number,
-  ): Promise<number> {
-    // how much of sourceAsset you get for 1 unit of targetAsset
-    const targetAssetPrice = await this.calculatePrice(sourceAsset, targetAsset);
-
-    return Util.round(targetAssetPrice * (1 + maxSlippage), 8);
-  }
-
-  private async calculatePrice(sourceAsset: Asset, targetAsset: Asset): Promise<number> {
-    // how much of sourceAsset you going to pay for 1 unit of targetAsset, caution - only indicative calculation
-    return (
-      1 /
-      ((await this.testSwap(sourceAsset, targetAsset, this.getMinimalPriceReferenceAmount(sourceAsset.dexName))) /
-        this.getMinimalPriceReferenceAmount(sourceAsset.dexName))
-    );
-  }
-
-  private isCompositeSwapSlippageError(e: Error): boolean {
-    return e.message && e.message.includes('Price is higher than indicated');
-  }
-
-  private getMinimalPriceReferenceAmount(sourceAsset: string): number {
-    return sourceAsset === 'BTC' ? 0.001 : 1;
+    const price = await this.calculatePrice(sourceAsset, targetAsset);
+    return CheckLiquidityUtil.checkSlippage(price, maxSlippage, sourceAmount, targetAmount, sourceAsset, targetAsset);
   }
 }

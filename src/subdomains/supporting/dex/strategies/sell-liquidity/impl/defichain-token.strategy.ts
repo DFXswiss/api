@@ -85,12 +85,7 @@ export class DeFiChainTokenStrategy extends DeFiChainStrategy {
   private async bookLiquiditySell(order: LiquidityOrder): Promise<void> {
     const { referenceAsset, referenceAmount, targetAsset, maxPriceSlippage } = order;
 
-    const txId = await this.dexDeFiChainService.swapLiquidity(
-      referenceAsset,
-      referenceAmount,
-      targetAsset,
-      maxPriceSlippage,
-    );
+    const txId = await this.dexDeFiChainService.swap(referenceAsset, referenceAmount, targetAsset, maxPriceSlippage);
 
     this.logger.verbose(
       `Booked sell of ${referenceAmount} ${referenceAsset.dexName} liquidity for ${targetAsset.dexName}. Context: ${order.context}. CorrelationId: ${order.correlationId}.`,

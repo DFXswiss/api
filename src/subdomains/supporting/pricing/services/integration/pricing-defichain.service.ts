@@ -1,14 +1,14 @@
-import { v4 as uuid } from 'uuid';
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Util } from 'src/shared/utils/util';
+import { v4 as uuid } from 'uuid';
 import { LiquidityOrderContext } from '../../../dex/entities/liquidity-order.entity';
 import { CheckLiquidityRequest } from '../../../dex/interfaces';
 import { DexService } from '../../../dex/services/dex.service';
 import { Price } from '../../domain/entities/price';
 import { PricingProvider } from '../../domain/interfaces';
-import { Util } from 'src/shared/utils/util';
-import { AssetType } from 'src/shared/models/asset/asset.entity';
 
 @Injectable()
 export class PricingDeFiChainService implements PricingProvider {
@@ -35,20 +35,12 @@ export class PricingDeFiChainService implements PricingProvider {
       context: LiquidityOrderContext.PRICING,
       correlationId: uuid(),
       referenceAsset: fromAsset,
-      referenceAmount: this.getMinimalPriceReferenceAmount(fromAsset.dexName),
+      referenceAmount: fromAsset.minimalPriceReferenceAmount,
       targetAsset: toAsset,
     };
 
     const { target } = await this.dexService.checkLiquidity(liquidityRequest);
 
-    return Price.create(
-      from,
-      to,
-      Util.round(this.getMinimalPriceReferenceAmount(fromAsset.dexName) / target.amount, 8),
-    );
-  }
-
-  private getMinimalPriceReferenceAmount(sourceAsset: string): number {
-    return sourceAsset === 'BTC' ? 0.001 : 1;
+    return Price.create(from, to, Util.round(fromAsset.minimalPriceReferenceAmount / target.amount, 8));
   }
 }

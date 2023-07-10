@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
-import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CheckLiquidityRequest, CheckLiquidityResult } from '../../../interfaces';
 import { DexLightningService } from '../../../services/dex-lightning.service';
 import { CheckLiquidityUtil } from '../utils/check-liquidity.util';
@@ -9,7 +9,9 @@ import { CheckLiquidityStrategy } from './base/check-liquidity.strategy';
 
 @Injectable()
 export class LightningStrategy extends CheckLiquidityStrategy {
-  constructor(private readonly assetService: AssetService, private readonly dexLightningService: DexLightningService) {
+  protected readonly logger = new DfxLogger(LightningStrategy);
+
+  constructor(private readonly dexLightningService: DexLightningService) {
     super();
   }
 

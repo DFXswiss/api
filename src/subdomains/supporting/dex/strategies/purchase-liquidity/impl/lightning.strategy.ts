@@ -2,30 +2,29 @@ import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DexEthereumService } from '../../../services/dex-ethereum.service';
-import { EvmTokenStrategy } from './base/evm-token.strategy';
+import { NoPurchaseStrategy } from './base/no-purchase.strategy';
 
 @Injectable()
-export class EthereumTokenStrategy extends EvmTokenStrategy {
-  protected readonly logger = new DfxLogger(EthereumTokenStrategy);
-
-  constructor(dexEthereumService: DexEthereumService) {
-    super(dexEthereumService);
-  }
+export class LightningStrategy extends NoPurchaseStrategy {
+  protected readonly logger = new DfxLogger(LightningStrategy);
 
   get blockchain(): Blockchain {
-    return Blockchain.ETHEREUM;
+    return Blockchain.LIGHTNING;
   }
 
   get assetType(): AssetType {
-    return AssetType.TOKEN;
+    return undefined;
   }
 
   get assetCategory(): AssetCategory {
     return undefined;
   }
 
+  get dexName(): string {
+    return undefined;
+  }
+
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getEthCoin();
+    return this.assetService.getLightningCoin();
   }
 }
