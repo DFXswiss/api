@@ -172,7 +172,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityManagementAdapter {
 
   private parseWithdrawParams(params: Record<string, unknown>): { address: string; key: string; network: string } {
     const address = process.env[params.destinationAddress as string];
-    const key = process.env[params.destinationAddressKey as string];
+    const key = this.exchangeService.config.withdrawKeys?.get(params.destinationAddressKey as string);
     const network = this.mapBlockchainToCcxtNetwork(params.destinationBlockchain as Blockchain);
 
     if (!(address && key && network))

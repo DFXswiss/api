@@ -9,6 +9,6 @@ export class BinanceService extends ExchangeService {
   protected readonly logger = new DfxLogger(BinanceService);
 
   constructor() {
-    super(new binance(GetConfig().binance));
+    super(binance, GetConfig().binance);
   }
 }

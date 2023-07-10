@@ -9,6 +9,6 @@ export class BitpandaService extends ExchangeService {
   protected readonly logger = new DfxLogger(BitpandaService);
 
   constructor() {
-    super(new bitpanda(GetConfig().exchange));
+    super(bitpanda, GetConfig().exchange);
   }
 }
