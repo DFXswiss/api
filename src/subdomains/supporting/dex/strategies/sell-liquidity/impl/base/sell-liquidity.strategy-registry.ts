@@ -9,15 +9,10 @@ interface StrategyRegistryKey {
 }
 
 export class SellLiquidityStrategyRegistry extends StrategyRegistry<StrategyRegistryKey, SellLiquidityStrategy> {
-  getSellLiquidityStrategy(asset: Asset): SellLiquidityStrategy {
-    const strategy =
+  getSellLiquidityStrategy(asset: Asset): SellLiquidityStrategy | undefined {
+    return (
       super.getStrategy({ blockchain: asset.blockchain, assetType: asset.type }) ??
-      super.getStrategy({ blockchain: asset.blockchain });
-
-    if (!strategy) {
-      throw new Error(`No SellLiquidityStrategy found. Blockchain: ${asset.blockchain}, AssetType: ${asset.type}`);
-    }
-
-    return strategy;
+      super.getStrategy({ blockchain: asset.blockchain })
+    );
   }
 }

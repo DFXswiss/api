@@ -7,6 +7,6 @@ import { DexEvmService } from './base/dex-evm.service';
 @Injectable()
 export class DexArbitrumService extends DexEvmService {
   constructor(liquidityOrderRepo: LiquidityOrderRepository, arbitrumService: ArbitrumService) {
-    super(liquidityOrderRepo, arbitrumService, 'ETH', Blockchain.ARBITRUM);
+    super(liquidityOrderRepo, arbitrumService, Blockchain.ARBITRUM);
   }
 }

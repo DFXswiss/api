@@ -7,6 +7,6 @@ import { DexEvmService } from './base/dex-evm.service';
 @Injectable()
 export class DexBscService extends DexEvmService {
   constructor(liquidityOrderRepo: LiquidityOrderRepository, bscService: BscService) {
-    super(liquidityOrderRepo, bscService, 'BNB', Blockchain.BINANCE_SMART_CHAIN);
+    super(liquidityOrderRepo, bscService, Blockchain.BINANCE_SMART_CHAIN);
   }
 }

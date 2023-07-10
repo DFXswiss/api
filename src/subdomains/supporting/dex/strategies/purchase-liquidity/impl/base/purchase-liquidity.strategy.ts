@@ -19,7 +19,7 @@ export abstract class PurchaseLiquidityStrategy implements OnModuleInit, OnModul
 
   private _feeAsset: Asset;
 
-  private prioritySwapAssets: Asset[] = [];
+  private prioritySwapAssets: Asset[];
 
   @Inject() protected readonly assetService: AssetService;
   @Inject() protected readonly liquidityOrderRepo: LiquidityOrderRepository;
@@ -83,13 +83,10 @@ export abstract class PurchaseLiquidityStrategy implements OnModuleInit, OnModul
 
   private async getSwapAsset({ name, type }: { name: string; type: AssetType }): Promise<Asset> {
     const asset = await this.assetService.getAssetByQuery({ dexName: name, type, blockchain: this.blockchain });
+    if (!asset)
+      throw new Error(`Swap Asset reference not found (name: ${name}, type: ${type}, blockchain: ${this.blockchain})`);
 
-    if (asset) {
-      this.prioritySwapAssets.push(asset);
-      return asset;
-    }
-
-    throw new Error(`Swap Asset reference not found (name: ${name}, type: ${type}, blockchain: ${this.blockchain})`);
+    return asset;
   }
 
   // --- ERROR HANDLING --- //

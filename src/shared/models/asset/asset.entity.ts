@@ -71,6 +71,6 @@ export class Asset extends IEntity {
   approxPriceUsd: number;
 
   get minimalPriceReferenceAmount() {
-    return 1 / this.approxPriceUsd;
+    return this.approxPriceUsd ? 1 / this.approxPriceUsd : 1;
   }
 }

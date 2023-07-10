@@ -21,7 +21,7 @@ import { CheckLiquidityStrategyRegistry } from './strategies/check-liquidity/imp
 import { BitcoinStrategy as BitcoinStrategyCL } from './strategies/check-liquidity/impl/bitcoin.strategy';
 import { BscCoinStrategy as BscCoinStrategyCL } from './strategies/check-liquidity/impl/bsc-coin.strategy';
 import { BscTokenStrategy as BscTokenStrategyCL } from './strategies/check-liquidity/impl/bsc-token.strategy';
-import { DeFiChainStrategy as DeFiChainDefaultStrategyCL } from './strategies/check-liquidity/impl/defichain.strategy';
+import { DeFiChainStrategy as DeFiChainStrategyCL } from './strategies/check-liquidity/impl/defichain.strategy';
 import { EthereumCoinStrategy as EthereumCoinStrategyCL } from './strategies/check-liquidity/impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy as EthereumTokenStrategyCL } from './strategies/check-liquidity/impl/ethereum-token.strategy';
 import { LightningStrategy as LightningStrategyCL } from './strategies/check-liquidity/impl/lightning.strategy';
@@ -78,7 +78,7 @@ import { OptimismStrategy as OptimismStrategyS } from './strategies/supplementar
     PurchaseLiquidityStrategyRegistry,
     SellLiquidityStrategyRegistry,
     SupplementaryStrategyRegistry,
-    DeFiChainDefaultStrategyCL,
+    DeFiChainStrategyCL,
     ArbitrumCoinStrategyCL,
     ArbitrumTokenStrategyCL,
     EthereumCoinStrategyCL,

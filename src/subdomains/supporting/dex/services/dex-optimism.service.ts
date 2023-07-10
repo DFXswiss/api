@@ -7,6 +7,6 @@ import { DexEvmService } from './base/dex-evm.service';
 @Injectable()
 export class DexOptimismService extends DexEvmService {
   constructor(liquidityOrderRepo: LiquidityOrderRepository, optimismService: OptimismService) {
-    super(liquidityOrderRepo, optimismService, 'ETH', Blockchain.OPTIMISM);
+    super(liquidityOrderRepo, optimismService, Blockchain.OPTIMISM);
   }
 }

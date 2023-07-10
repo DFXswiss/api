@@ -164,22 +164,20 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
         expect(strategy).toBeInstanceOf(OptimismTokenStrategy);
       });
 
-      it('fails to get strategy for non-supported Blockchain', () => {
-        const testCall = () =>
-          registry.getPurchaseLiquidityStrategy(createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }));
+      it('returns undefined for non-supported Blockchain', () => {
+        const strategy = registry.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }),
+        );
 
-        expect(testCall).toThrow();
-        expect(testCall).toThrowError('No PurchaseLiquidityStrategy found. Blockchain: NewBlockchain, AssetType: Coin');
+        expect(strategy).toBeUndefined();
       });
 
       it('fails to get strategy for non-supported AssetCategory', () => {
-        const testCall = () =>
-          registry.getPurchaseLiquidityStrategy(
-            createCustomAsset({ blockchain: Blockchain.DEFICHAIN, category: 'NewCategory' as AssetCategory }),
-          );
+        const strategy = registry.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.DEFICHAIN, category: 'NewCategory' as AssetCategory }),
+        );
 
-        expect(testCall).toThrow();
-        expect(testCall).toThrowError('No PurchaseLiquidityStrategy found. Blockchain: DeFiChain, AssetType: Coin');
+        expect(strategy).toBeUndefined();
       });
     });
   });

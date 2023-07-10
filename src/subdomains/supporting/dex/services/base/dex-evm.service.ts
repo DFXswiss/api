@@ -19,7 +19,6 @@ export abstract class DexEvmService {
   constructor(
     protected readonly liquidityOrderRepo: LiquidityOrderRepository,
     protected readonly service: EvmService,
-    protected readonly nativeCoin: string,
     protected readonly blockchain: Blockchain,
   ) {
     this.#client = service.getDefaultClient();
@@ -88,10 +87,6 @@ export abstract class DexEvmService {
   async fromWeiAmount(amountWeiLike: string, asset: Asset): Promise<number> {
     const token = await this.#client.getToken(asset);
     return this.#client.fromWeiAmount(amountWeiLike, token.decimals);
-  }
-
-  get _nativeCoin(): string {
-    return this.nativeCoin;
   }
 
   async calculatePrice(sourceAsset: Asset, targetAsset: Asset): Promise<number> {

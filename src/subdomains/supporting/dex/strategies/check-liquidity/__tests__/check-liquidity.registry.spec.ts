@@ -32,7 +32,7 @@ describe('CheckLiquidityStrategies', () => {
   let bitcoin: BitcoinStrategy;
   let bscCoin: BscCoinStrategy;
   let bscToken: BscTokenStrategy;
-  let deFiChainDefault: DeFiChainStrategy;
+  let deFiChain: DeFiChainStrategy;
   let ethereumCoin: EthereumCoinStrategy;
   let ethereumToken: EthereumTokenStrategy;
   let lightning: LightningStrategy;
@@ -50,7 +50,7 @@ describe('CheckLiquidityStrategies', () => {
     bitcoin = new BitcoinStrategy(mock<DexBitcoinService>());
     bscCoin = new BscCoinStrategy(mock<DexBscService>());
     bscToken = new BscTokenStrategy(mock<DexBscService>());
-    deFiChainDefault = new DeFiChainStrategy(mock<DexDeFiChainService>());
+    deFiChain = new DeFiChainStrategy(mock<DexDeFiChainService>());
     ethereumCoin = new EthereumCoinStrategy(mock<DexEthereumService>());
     ethereumToken = new EthereumTokenStrategy(mock<DexEthereumService>());
     lightning = new LightningStrategy(mock<DexLightningService>());
@@ -63,7 +63,7 @@ describe('CheckLiquidityStrategies', () => {
       bitcoin,
       bscCoin,
       bscToken,
-      deFiChainDefault,
+      deFiChain,
       ethereumCoin,
       ethereumToken,
       lightning,
@@ -165,11 +165,11 @@ describe('CheckLiquidityStrategies', () => {
       });
 
       it('fails to get strategy for non-supported Blockchain', () => {
-        const testCall = () =>
-          register.getCheckLiquidityStrategy(createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }));
+        const strategy = register.getCheckLiquidityStrategy(
+          createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }),
+        );
 
-        expect(testCall).toThrow();
-        expect(testCall).toThrowError('No CheckLiquidityStrategy found. Blockchain: NewBlockchain, AssetType: Coin');
+        expect(strategy).toBeUndefined();
       });
     });
   });
@@ -182,7 +182,7 @@ class CheckLiquidityStrategyRegistryWrapper extends CheckLiquidityStrategyRegist
     bitcoin: BitcoinStrategy,
     bscCoin: BscCoinStrategy,
     bscToken: BscTokenStrategy,
-    deFiChainDefault: DeFiChainStrategy,
+    deFiChain: DeFiChainStrategy,
     ethereumCoin: EthereumCoinStrategy,
     ethereumToken: EthereumTokenStrategy,
     lightning: LightningStrategy,
@@ -196,8 +196,8 @@ class CheckLiquidityStrategyRegistryWrapper extends CheckLiquidityStrategyRegist
     this.addStrategy({ blockchain: Blockchain.BITCOIN }, bitcoin);
     this.addStrategy({ blockchain: Blockchain.BINANCE_SMART_CHAIN, assetType: AssetType.COIN }, bscCoin);
     this.addStrategy({ blockchain: Blockchain.BINANCE_SMART_CHAIN, assetType: AssetType.TOKEN }, bscToken);
-    this.addStrategy({ blockchain: Blockchain.DEFICHAIN, assetCategory: AssetCategory.CRYPTO }, deFiChainDefault);
-    this.addStrategy({ blockchain: Blockchain.DEFICHAIN, assetCategory: AssetCategory.STOCK }, deFiChainDefault);
+    this.addStrategy({ blockchain: Blockchain.DEFICHAIN, assetCategory: AssetCategory.CRYPTO }, deFiChain);
+    this.addStrategy({ blockchain: Blockchain.DEFICHAIN, assetCategory: AssetCategory.STOCK }, deFiChain);
     this.addStrategy({ blockchain: Blockchain.ETHEREUM, assetType: AssetType.COIN }, ethereumCoin);
     this.addStrategy({ blockchain: Blockchain.ETHEREUM, assetType: AssetType.TOKEN }, ethereumToken);
     this.addStrategy({ blockchain: Blockchain.LIGHTNING }, lightning);

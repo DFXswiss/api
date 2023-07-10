@@ -1,3 +1,4 @@
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { LiquidityOrder } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { CheckLiquidityRequest, CheckLiquidityResult } from '../../../../interfaces';
 import { DexEvmService } from '../../../../services/base/dex-evm.service';
@@ -12,7 +13,7 @@ export abstract class EvmCoinStrategy extends CheckLiquidityStrategy {
   async checkLiquidity(request: CheckLiquidityRequest): Promise<CheckLiquidityResult> {
     const { referenceAsset, referenceAmount, context, correlationId, targetAsset } = request;
 
-    if (referenceAsset.dexName === this.dexEvmService._nativeCoin) {
+    if (referenceAsset.type === AssetType.COIN) {
       const { targetAmount, availableAmount } = await this.dexEvmService.getAndCheckAvailableTargetLiquidity(
         referenceAsset,
         referenceAmount,
