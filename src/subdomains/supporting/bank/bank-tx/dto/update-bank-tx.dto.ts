@@ -1,4 +1,4 @@
-import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsNumber, ValidateIf } from 'class-validator';
+import { IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, ValidateIf } from 'class-validator';
 import { BankTxType } from '../bank-tx.entity';
 
 export class UpdateBankTxDto {
@@ -8,30 +8,30 @@ export class UpdateBankTxDto {
 
   @IsOptional()
   @IsNumber()
-  accountingAmountBeforeFee: number;
+  accountingAmountBeforeFee?: number;
 
   @IsOptional()
   @IsNumber()
-  accountingFeeAmount: number;
+  accountingFeeAmount?: number;
 
   @IsOptional()
   @IsNumber()
-  accountingFeePercent: number;
+  accountingFeePercent?: number;
 
   @IsOptional()
   @IsNumber()
-  accountingAmountAfterFee: number;
+  accountingAmountAfterFee?: number;
 
   @IsOptional()
   @IsNumber()
-  accountingAmountBeforeFeeChf: number;
+  accountingAmountBeforeFeeChf?: number;
 
   @IsOptional()
   @IsNumber()
-  accountingAmountAfterFeeChf: number;
+  accountingAmountAfterFeeChf?: number;
 
   @IsNotEmpty()
   @IsInt()
   @ValidateIf((p: UpdateBankTxDto) => p.type === BankTxType.BUY_CRYPTO)
-  buyId: number;
+  buyId?: number;
 }

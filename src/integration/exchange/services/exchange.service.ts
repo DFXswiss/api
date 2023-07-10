@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import BigNumber from 'bignumber.js';
 import { Exchange, Market, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
+import { ExchangeConfig } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
@@ -28,10 +29,17 @@ enum PrecisionMode {
 export abstract class ExchangeService implements PricingProvider {
   protected abstract readonly logger: DfxLogger;
 
+  private readonly exchange: Exchange;
+
   private markets: Market[];
 
-  constructor(private readonly exchange: Exchange, private readonly queue?: QueueHandler) {
+  constructor(
+    exchange: { new (config: ExchangeConfig): Exchange },
+    public readonly config: ExchangeConfig,
+    private readonly queue?: QueueHandler,
+  ) {
     this.queue ??= new QueueHandler(180000, 60000);
+    this.exchange = new exchange(config);
   }
 
   get name(): string {

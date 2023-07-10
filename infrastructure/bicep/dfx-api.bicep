@@ -109,7 +109,7 @@ param krakenKey string
 @secure()
 param krakenSecret string
 
-param krakenBtcWalletWithdrawKey string
+param krakenWithdrawKeys string
 param krakenBtcDepositAddress string
 
 @secure()
@@ -117,11 +117,7 @@ param binanceKey string
 @secure()
 param binanceSecret string
 
-param binanceEthWalletWithdrawKey string
-param binanceBscWalletWithdrawKey string
-param binanceArbArbWithdrawKey string
-param binanceArbEthWithdrawKey string
-param binanceOptEthWithdrawKey string
+param binanceWithdrawKeys string
 
 param olkyClient string
 @secure()
@@ -729,8 +725,8 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: krakenSecret
         }
         {
-          name: 'KRAKEN_BTC_WALLET_WITHDRAW_KEY'
-          value: krakenBtcWalletWithdrawKey
+          name: 'KRAKEN_WITHDRAW_KEYS'
+          value: krakenWithdrawKeys
         }
         {
           name: 'KRAKEN_BTC_DEPOSIT_ADDRESS'
@@ -745,24 +741,8 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: binanceSecret
         }
         {
-          name: 'BINANCE_ETH_WALLET_WITHDRAW_KEY'
-          value: binanceEthWalletWithdrawKey
-        }
-        {
-          name: 'BINANCE_BSC_WALLET_WITHDRAW_KEY'
-          value: binanceBscWalletWithdrawKey
-        }
-        {
-          name: 'BINANCE_ARB_ARB_WITHDRAW_KEY'
-          value: binanceArbArbWithdrawKey
-        }
-        {
-          name: 'BINANCE_ARB_ETH_WITHDRAW_KEY'
-          value: binanceArbEthWithdrawKey
-        }
-        {
-          name: 'BINANCE_OPT_ETH_WITHDRAW_KEY'
-          value: binanceOptEthWithdrawKey
+          name: 'BINANCE_WITHDRAW_KEYS'
+          value: binanceWithdrawKeys
         }
         {
           name: 'LETTER_URL'

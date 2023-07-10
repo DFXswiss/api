@@ -9,6 +9,6 @@ export class BitstampService extends ExchangeService {
   protected readonly logger = new DfxLogger(BitstampService);
 
   constructor() {
-    super(new bitstamp(GetConfig().exchange));
+    super(bitstamp, GetConfig().exchange);
   }
 }

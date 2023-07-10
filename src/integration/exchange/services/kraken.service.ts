@@ -9,7 +9,7 @@ export class KrakenService extends ExchangeService {
   protected readonly logger = new DfxLogger(KrakenService);
 
   constructor() {
-    super(new kraken(GetConfig().kraken));
+    super(kraken, GetConfig().kraken);
   }
 
   protected async createOrder(pair: string, direction: OrderSide, amount: number, price: number): Promise<Order> {

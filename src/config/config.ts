@@ -33,6 +33,8 @@ export enum Process {
   PRICING = 'Pricing',
 }
 
+export type ExchangeConfig = Partial<Exchange> & { withdrawKeys?: Map<string, string> };
+
 export function GetConfig(): Configuration {
   return new Configuration();
 }
@@ -70,6 +72,7 @@ export class Configuration {
     signature: /^(.{87}=|[a-f0-9]{130}|[a-f0-9x]{132}|[a-f0-9]{582}|[a-z0-9]{104}|[a-z0-9]{140,146})$/,
     key: /^[a-f0-9]{84}$/,
     ref: /^(\w{1,3}-\w{1,3})$/,
+    bankUsage: /[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}/,
   };
 
   database: TypeOrmModuleOptions = {
@@ -383,7 +386,7 @@ export class Configuration {
     fee: 0.0099,
   };
 
-  exchange: Partial<Exchange> = {
+  exchange: ExchangeConfig = {
     enableRateLimit: true,
     timeout: 30000,
   };
@@ -446,21 +449,25 @@ export class Configuration {
 
   // --- GETTERS --- //
   get url(): string {
-    return `https://${this.environment === 'prd' ? '' : this.environment + '.'}api.dfx.swiss/${this.version}`;
+    return process.env.PORT
+      ? `http://localhost:${process.env.PORT}/${this.version}`
+      : `https://${this.environment === 'prd' ? '' : this.environment + '.'}api.dfx.swiss/${this.version}`;
   }
 
-  get kraken(): Partial<Exchange> {
+  get kraken(): ExchangeConfig {
     return {
       apiKey: process.env.KRAKEN_KEY,
       secret: process.env.KRAKEN_SECRET,
+      withdrawKeys: splitWithdrawKeys(process.env.KRAKEN_WITHDRAW_KEYS),
       ...this.exchange,
     };
   }
 
-  get binance(): Partial<Exchange> {
+  get binance(): ExchangeConfig {
     return {
       apiKey: process.env.BINANCE_KEY,
       secret: process.env.BINANCE_SECRET,
+      withdrawKeys: splitWithdrawKeys(process.env.BINANCE_WITHDRAW_KEYS),
       ...this.exchange,
     };
   }
@@ -469,6 +476,12 @@ export class Configuration {
 
   processDisabled = (processName: Process) =>
     process.env.DISABLED_PROCESSES === '*' || (process.env.DISABLED_PROCESSES?.split(',') ?? []).includes(processName);
+}
+
+function splitWithdrawKeys(value?: string): Map<string, string> {
+  return (value?.split(',') ?? [])
+    .map((k) => k.split(':'))
+    .reduce((prev, [key, value]) => prev.set(key, value), new Map<string, string>());
 }
 
 @Injectable()

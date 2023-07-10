@@ -20,8 +20,6 @@ export abstract class EvmClient {
   protected tokens = new AsyncCache<Token>();
   private router: AlphaRouter;
 
-  #sendCoinGasLimit = 21000;
-
   constructor(
     protected http: HttpService,
     protected scanApiUrl: string,
@@ -72,8 +70,9 @@ export abstract class EvmClient {
     return this.fromWeiAmount(balance, token.decimals);
   }
 
-  async getCurrentGasPrice(): Promise<EthersNumber> {
-    return this.provider.getGasPrice();
+  async getRecommendedGasPrice(): Promise<EthersNumber> {
+    // 10% cap
+    return this.provider.getGasPrice().then((p) => p.mul(11).div(10));
   }
 
   async getCurrentBlock(): Promise<number> {
@@ -114,7 +113,7 @@ export abstract class EvmClient {
     let { nonce, gasPrice, value } = request;
 
     nonce = nonce ?? (await this.getNonce(request.from));
-    gasPrice = gasPrice ?? +(await this.getCurrentGasPrice());
+    gasPrice = gasPrice ?? +(await this.getRecommendedGasPrice());
     value = this.toWeiAmount(value as number);
 
     return wallet.sendTransaction({
@@ -246,19 +245,6 @@ export abstract class EvmClient {
   }
 
   // --- GETTERS --- //
-
-  get sendCoinGasLimit(): number {
-    return this.#sendCoinGasLimit;
-  }
-
-  get dummyTokenPayload(): string {
-    const method = 'a9059cbb000000000000000000000000';
-    const destination = this.randomReceiverAddress.slice(2);
-    const value = '0000000000000000000000000000000000000000000000000000000000000001';
-
-    return '0x' + method + destination + value;
-  }
-
   get dfxAddress(): string {
     return this.wallet.address;
   }
@@ -283,7 +269,7 @@ export abstract class EvmClient {
   }
 
   toWeiAmount(amountEthLike: number, decimals?: number): EthersNumber {
-    const amount = new BigNumber(amountEthLike).toFixed(decimals ?? 16);
+    const amount = new BigNumber(amountEthLike).toFixed(decimals ?? 18);
 
     return decimals ? ethers.utils.parseUnits(amount, decimals) : ethers.utils.parseEther(amount);
   }
@@ -316,6 +302,22 @@ export abstract class EvmClient {
     );
   }
 
+  async getCurrentGasCostForCoinTransaction(): Promise<number> {
+    const totalGas = await this.getCurrentGasForCoinTransaction(this.dfxAddress, 1e-18);
+    const gasPrice = await this.getRecommendedGasPrice();
+
+    return this.fromWeiAmount(totalGas.mul(gasPrice));
+  }
+
+  async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
+    const totalGas = await this.getTokenGasLimitForAsset(token);
+    const gasPrice = await this.getRecommendedGasPrice();
+
+    return this.fromWeiAmount(totalGas.mul(gasPrice));
+  }
+
+  // --- PRIVATE HELPER METHODS --- //
+
   protected async sendNativeCoin(
     wallet: ethers.Wallet,
     toAddress: string,
@@ -323,22 +325,31 @@ export abstract class EvmClient {
     feeLimit?: number,
   ): Promise<string> {
     const fromAddress = wallet.address;
-    const gasPrice = await this.getGasPrice(this.#sendCoinGasLimit, feeLimit);
+
+    const gasLimit = await this.getCurrentGasForCoinTransaction(fromAddress, amount);
+    const gasPrice = await this.getGasPrice(+gasLimit, feeLimit);
     const nonce = await this.getNonce(fromAddress);
 
     const tx = await wallet.sendTransaction({
-      from: wallet.address,
+      from: fromAddress,
       to: toAddress,
       value: this.toWeiAmount(amount),
       nonce,
       gasPrice,
-      // has to be provided as a number for BSC
-      gasLimit: this.#sendCoinGasLimit,
+      gasLimit,
     });
 
     this.nonce.set(fromAddress, nonce + 1);
 
     return tx.hash;
+  }
+
+  protected async getCurrentGasForCoinTransaction(fromAddress: string, amount: number): Promise<EthersNumber> {
+    return this.provider.estimateGas({
+      from: fromAddress,
+      to: this.randomReceiverAddress,
+      value: this.toWeiAmount(amount),
+    });
   }
 
   private async sendToken(
@@ -369,7 +380,7 @@ export abstract class EvmClient {
   }
 
   protected async getGasPrice(gasLimit: number, feeLimit?: number): Promise<number> {
-    const currentGasPrice = +(await this.getCurrentGasPrice());
+    const currentGasPrice = +(await this.getRecommendedGasPrice());
     const proposedGasPrice = feeLimit != null ? Util.round(+this.toWeiAmount(feeLimit) / gasLimit, 0) : null;
 
     if (!proposedGasPrice) return currentGasPrice;
