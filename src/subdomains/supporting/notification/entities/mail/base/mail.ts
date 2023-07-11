@@ -1,6 +1,7 @@
 import { GetConfig } from 'src/config/config';
 import { NotificationType } from 'src/subdomains/supporting/notification/enums';
-import { Notification, NotificationOptions, NotificationMetadata } from '../../notification.entity';
+import { Notification, NotificationMetadata, NotificationOptions } from '../../notification.entity';
+import { UserMailSuffix, UserMailTable } from '../user-mail';
 
 export interface MailParams {
   to: string | string[];
@@ -24,6 +25,29 @@ export interface MailParams {
   metadata?: NotificationMetadata;
 }
 
+export interface MailParamsNew {
+  to: string | string[];
+  subject: string;
+  from?: string;
+  displayName?: string;
+  cc?: string;
+  bcc?: string;
+  template?: string;
+  templateParams?: {
+    salutation: string;
+    table: UserMailTable[];
+    suffix: UserMailSuffix[];
+    date?: number;
+    banner?: string;
+    telegramUrl?: string;
+    twitterUrl?: string;
+    linkedinUrl?: string;
+    instagramUrl?: string;
+  };
+  options?: NotificationOptions;
+  metadata?: NotificationMetadata;
+}
+
 export class Mail extends Notification {
   readonly #from: { name: string; address: string } = {
     name: 'DFX.swiss',
@@ -36,7 +60,7 @@ export class Mail extends Notification {
   readonly #template: string = GetConfig().mail.defaultMailTemplate;
   readonly #templateParams: { [name: string]: any };
 
-  constructor(params: MailParams) {
+  constructor(params: MailParams | MailParamsNew) {
     super();
     this.create(NotificationType.MAIL, params.metadata, params.options);
 

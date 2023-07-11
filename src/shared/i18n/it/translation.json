@@ -1,0 +1,34 @@
+{
+    "general": {
+        "dfx_team_closing": "Tuo DFX team",
+        "dfx_closing_message": "Bitcoiners by heart ♥️"
+    },
+    "payment": {
+        "buy_fiat": {
+            "initiated": {
+                "title": "Fondi ricevuti",
+                "salutation": "Abbiamo ricevuto il tuoi fondi",
+                "next_step": "Prossimo passaggio: vendiamo i tuoi fondi e li cambiamo nella valuta desiderata e ti teniamo aggiornato con ulteriori email."
+            },
+            "exchanged": {
+                "title": "Fondi venduti",
+                "salutation": "Abbiamo venduto i tuoi fondi",
+                "next_step": "Prossimo passaggio: abbiamo venduto i tuoi fondi ed ora stiamo preparando il transferimento bancario. Una volta che il denaro sara' inviato al tuo conto corrente bancario riceverai la email finale di notifica del bonifico."
+            },
+            "processed": {
+                "title": "Trasferimento bancario effettuato",
+                "salutation": "Abbiamo disposto il trasferimento bancario",
+                "next_step": "Il pagamento e' stato emesso dal nostro conto corrente e sara' visibile sul tuo conto a breve. Nel frattempo gli iter bancari sono gli unici responsabili delle tempistiche del bonifico. Grazie per avere utilizzato il servizio di DFX."
+            },
+            "input_amount": "Pagamento",
+            "output_amount": "Importo",
+            "payment_link": "Qui puoi trovare l'ID della transazione con il tuo prelievo: [url:Link]"
+        },
+        "blockchain": "Blockchain",
+        "dfx_fee": "DFX Commissioni",
+        "exchange_rate": "Tasso di cambio",
+        "bank_account": "Conto corrente bancario",
+        "remittance_info": "Utilizzo della banca",
+        "transaction_id": "ID transazione"
+    }
+}

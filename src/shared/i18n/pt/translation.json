@@ -1,0 +1,34 @@
+{
+    "general": {
+        "dfx_team_closing": "Your DFX Team",
+        "dfx_closing_message": "Bitcoiners by heart ♥️"
+    },
+    "payment": {
+        "buy_fiat": {
+            "initiated": {
+                "title": "Funds received",
+                "salutation": "We have received your funds",
+                "next_step": "Next Step: We are going to sell your funds and exchange them into your desired currency and keep you updated with further emails."
+            },
+            "exchanged": {
+                "title": "Funds sold",
+                "salutation": "We sold your funds",
+                "next_step": "Next Step: We sold your funds and are now preparing the bank transfer. Once the money is sent out of our bank account you will receive the final wire-transfer email."
+            },
+            "processed": {
+                "title": "Bank transfer arranged",
+                "salutation": "We have arranged the bank transfer",
+                "next_step": "The payment has just left our bank account and will be visible on your bank account shortly. In the meantime the bank performances are responsible for the wire transfer duration. Thank you for using the DFX withdrawal service."
+            },
+            "input_amount": "Payout",
+            "output_amount": "Output",
+            "payment_link": "Here you can find the transaction ID with your withdrawal: [url:Link]"
+        },
+        "blockchain": "Blockchain",
+        "dfx_fee": "DFX Fee",
+        "exchange_rate": "Exchange rate",
+        "bank_account": "Bank Account",
+        "remittance_info": "Purpose of the payment",
+        "transaction_id": "Transaction-ID"
+    }
+}
