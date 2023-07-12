@@ -1,0 +1,15 @@
+{
+    "_id": "1f2cc1f8-90ed-439a-9753-1f609ddf7ac5",
+    "name": "loc (Admin)",
+    "default": false,
+    "sortNum": 23750,
+    "created": "2022-12-20T10:52:17.609Z",
+    "modified": "2022-12-20T10:52:17.609Z",
+    "data": [
+        {
+            "name": "url",
+            "value": "http://localhost:3000"
+        }
+    ],
+    "envFile": "env/loc.admin.env"
+}
