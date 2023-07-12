@@ -55,7 +55,7 @@ export class BuyFiatNotificationService {
               title: `${MailTranslationKey.BUY_FIAT}.initiated.title`,
               prefix: { key: `${MailTranslationKey.BUY_FIAT}.initiated.salutation` },
               table: {
-                [`${MailTranslationKey.BUY_FIAT}.input_amount`]: `${entity.inputAmount} ${entity.inputAsset}`,
+                [`${MailTranslationKey.BUY_FIAT}.input_amount`]: `${entity.cryptoInput.amount} ${entity.cryptoInput.asset.dexName}`,
                 [`${MailTranslationKey.PAYMENT}.blockchain`]: `${entity.cryptoInputBlockchain}`,
                 [`${MailTranslationKey.PAYMENT}.transaction_id`]: entity.isLightningTransaction
                   ? Util.blankStart(entity.cryptoInput.inTxId)
