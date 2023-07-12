@@ -33,6 +33,12 @@ export enum Process {
   PRICING = 'Pricing',
 }
 
+export enum Environment {
+  LOC = 'loc',
+  DEV = 'dev',
+  PRD = 'prd',
+}
+
 export type ExchangeConfig = Partial<Exchange> & { withdrawKeys?: Map<string, string> };
 
 export function GetConfig(): Configuration {
@@ -40,7 +46,8 @@ export function GetConfig(): Configuration {
 }
 
 export class Configuration {
-  environment = process.env.ENVIRONMENT;
+  port = process.env.PORT ?? 3000;
+  environment = process.env.ENVIRONMENT as Environment;
   version = 'v1';
   network = process.env.NETWORK as NetworkName;
   githubToken = process.env.GH_TOKEN;
@@ -66,7 +73,7 @@ export class Configuration {
 
   formats = {
     address:
-      this.environment === 'prd'
+      this.environment === Environment.PRD
         ? /^(8\w{33}|d\w{33}|d\w{41}|0x\w{40}|(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}|(LNURL|LNDHUB)[A-Z0-9]{25,250}|LNNID[A-Z0-9]{66})$/
         : /^((7|8)\w{33}|(t|d)\w{33}|(t|d)\w{41}|0x\w{40}|(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}|stake[a-z0-9]{54}|(LNURL|LNDHUB)[A-Z0-9]{25,250}|LNNID[A-Z0-9]{66})$/,
     signature: /^(.{87}=|[a-f0-9]{130}|[a-f0-9x]{132}|[a-f0-9]{582}|[a-z0-9]{104}|[a-z0-9]{140,146})$/,
@@ -446,9 +453,9 @@ export class Configuration {
 
   // --- GETTERS --- //
   get url(): string {
-    return process.env.PORT
-      ? `http://localhost:${process.env.PORT}/${this.version}`
-      : `https://${this.environment === 'prd' ? '' : this.environment + '.'}api.dfx.swiss/${this.version}`;
+    return this.environment === Environment.LOC
+      ? `http://localhost:${this.port}/${this.version}`
+      : `https://${this.environment === Environment.PRD ? '' : this.environment + '.'}api.dfx.swiss/${this.version}`;
   }
 
   get kraken(): ExchangeConfig {

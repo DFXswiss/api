@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config } from 'src/config/config';
+import { Config, Environment } from 'src/config/config';
 import { DfiTaxService } from 'src/integration/blockchain/ain/services/dfi-tax.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
@@ -160,7 +160,7 @@ export class UserService {
 
     if (!country) return;
 
-    if (!country.ipEnable && Config.environment !== 'loc')
+    if (!country.ipEnable && Config.environment !== Environment.LOC)
       throw new ForbiddenException('The country of IP address is not allowed');
 
     return ipCountry;
