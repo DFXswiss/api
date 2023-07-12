@@ -363,16 +363,10 @@ export abstract class EvmClient {
     const gasPrice = await this.getGasPrice(gasLimit, feeLimit);
     const nonce = await this.getNonce(fromAddress);
 
-    /**
-     * @note
-     * adding a cap to make sure gas limit is sufficient
-     */
-    const effectiveGasLimit = Util.round(gasLimit * 1.5, 0);
-
     const token = await this.getTokenByContract(contract);
     const targetAmount = this.toWeiAmount(amount, token.decimals);
 
-    const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit: effectiveGasLimit, nonce });
+    const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit, nonce });
 
     this.nonce.set(fromAddress, nonce + 1);
 
@@ -381,11 +375,9 @@ export abstract class EvmClient {
 
   protected async getGasPrice(gasLimit: number, feeLimit?: number): Promise<number> {
     const currentGasPrice = +(await this.getRecommendedGasPrice());
-    const proposedGasPrice = feeLimit != null ? Util.round(+this.toWeiAmount(feeLimit) / gasLimit, 0) : null;
+    const proposedGasPrice = feeLimit != null ? Util.round(+this.toWeiAmount(feeLimit) / gasLimit, 0) : Infinity;
 
-    if (!proposedGasPrice) return currentGasPrice;
-
-    return currentGasPrice < proposedGasPrice ? currentGasPrice : proposedGasPrice;
+    return Math.min(currentGasPrice, proposedGasPrice);
   }
 
   protected async getNonce(address: string): Promise<number> {

@@ -7,6 +7,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, IsNull, Not } from 'typeorm';
 import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
@@ -47,17 +48,30 @@ export class BuyFiatNotificationService {
         const recipientMail = entity.sell.user.userData.mail;
 
         if (recipientMail) {
-          await this.notificationService.sendMail({
+          await this.notificationService.sendMailNew({
             type: MailType.USER,
             input: {
               userData: entity.sell.user.userData,
-              translationKey: entity.translationKey,
-              translationParams: {
-                inputAmount: entity.cryptoInput.amount,
-                inputAsset: entity.cryptoInput.asset.dexName,
-                blockchain: entity.cryptoInput.asset.blockchain,
-                inputTransactionLink: entity.txId,
+              title: `${MailTranslationKey.BUY_FIAT}.initiated.title`,
+              prefix: { key: `${MailTranslationKey.BUY_FIAT}.initiated.salutation` },
+              table: {
+                [`${MailTranslationKey.BUY_FIAT}.input_amount`]: `${entity.cryptoInput.amount} ${entity.cryptoInput.asset.dexName}`,
+                [`${MailTranslationKey.PAYMENT}.blockchain`]: `${entity.cryptoInputBlockchain}`,
+                [`${MailTranslationKey.PAYMENT}.transaction_id`]: entity.isLightningTransaction
+                  ? Util.blankStart(entity.cryptoInput.inTxId)
+                  : null,
               },
+              suffix: [
+                entity.isLightningTransaction
+                  ? null
+                  : {
+                      key: `${MailTranslationKey.BUY_FIAT}.payment_link`,
+                      params: { url: txExplorerUrl(entity.cryptoInputBlockchain, entity.cryptoInput.inTxId) },
+                    },
+                { key: MailKey.SPACE, params: { value: '3' } },
+                { key: `${MailTranslationKey.BUY_FIAT}.initiated.next_step` },
+                { key: MailKey.DFX_TEAM_CLOSING },
+              ],
             },
           });
         } else {
@@ -90,20 +104,25 @@ export class BuyFiatNotificationService {
           const minFee = entity.minFeeAmountFiat
             ? ` (min. ${entity.minFeeAmountFiat} ${entity.outputReferenceAsset})`
             : '';
-          await this.notificationService.sendMail({
+
+          await this.notificationService.sendMailNew({
             type: MailType.USER,
             input: {
               userData: entity.sell.user.userData,
-              translationKey: entity.translationKey,
-              translationParams: {
-                inputAmount: entity.inputAmount,
-                inputAsset: entity.inputAsset,
-                blockchain: entity.cryptoInput.asset.blockchain,
-                exchangeRate: entity.exchangeRateString,
-                outputAmount: entity.outputAmount,
-                outputAsset: entity.outputAsset,
-                fee: `${entity.percentFeeString}` + minFee,
+              title: `${MailTranslationKey.BUY_FIAT}.exchanged.title`,
+              prefix: { key: `${MailTranslationKey.BUY_FIAT}.exchanged.salutation` },
+              table: {
+                [`${MailTranslationKey.BUY_FIAT}.input_amount`]: `${entity.inputAmount} ${entity.inputAsset}`,
+                [`${MailTranslationKey.PAYMENT}.blockchain`]: `${entity.cryptoInputBlockchain}`,
+                [`${MailTranslationKey.PAYMENT}.dfx_fee`]: `${entity.percentFeeString}` + minFee,
+                [`${MailTranslationKey.PAYMENT}.exchange_rate`]: `${entity.exchangeRateString}`,
+                [`${MailTranslationKey.BUY_FIAT}.output_amount`]: `${entity.outputAmount} ${entity.outputAsset}`,
               },
+              suffix: [
+                { key: MailKey.SPACE, params: { value: '4' } },
+                { key: `${MailTranslationKey.BUY_FIAT}.exchanged.next_step` },
+                { key: MailKey.DFX_TEAM_CLOSING },
+              ],
             },
           });
         }
@@ -131,17 +150,22 @@ export class BuyFiatNotificationService {
     for (const entity of entities) {
       try {
         if (entity.sell.user.userData.mail) {
-          await this.notificationService.sendMail({
+          await this.notificationService.sendMailNew({
             type: MailType.USER,
             input: {
               userData: entity.sell.user.userData,
-              translationKey: entity.translationKey,
-              translationParams: {
-                outputAmount: entity.outputAmount,
-                outputAsset: entity.outputAsset,
-                bankAccountTrimmed: Util.blankStart(entity.sell.iban),
-                remittanceInfo: entity.fiatOutput.remittanceInfo,
+              title: `${MailTranslationKey.BUY_FIAT}.processed.title`,
+              prefix: { key: `${MailTranslationKey.BUY_FIAT}.processed.salutation` },
+              table: {
+                [`${MailTranslationKey.BUY_FIAT}.output_amount`]: `${entity.outputAmount} ${entity.outputAsset}`,
+                [`${MailTranslationKey.PAYMENT}.bank_account`]: Util.blankStart(entity.sell.iban),
+                [`${MailTranslationKey.PAYMENT}.remittance_info`]: entity.fiatOutput.remittanceInfo,
               },
+              suffix: [
+                { key: MailKey.SPACE, params: { value: '4' } },
+                { key: `${MailTranslationKey.BUY_FIAT}.processed.next_step` },
+                { key: MailKey.DFX_TEAM_CLOSING },
+              ],
             },
           });
         }
@@ -181,8 +205,8 @@ export class BuyFiatNotificationService {
               translationParams: {
                 inputAmount: entity.inputAmount,
                 inputAsset: entity.inputAsset,
-                blockchain: entity.cryptoInput.asset.blockchain,
-                returnTransactionLink: txExplorerUrl(entity.cryptoInput.asset.blockchain, entity.cryptoReturnTxId),
+                blockchain: entity.cryptoInputBlockchain,
+                returnTransactionLink: txExplorerUrl(entity.cryptoInputBlockchain, entity.cryptoReturnTxId),
                 returnReason: this.i18nService.translate(`mail.amlReasonMailText.${entity.amlReason}`, {
                   lang: entity.sell.user.userData.language?.symbol.toLowerCase(),
                 }),

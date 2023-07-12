@@ -1,13 +1,28 @@
 import { Injectable } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
-import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
-import { KycSupportMailInput, KycSupportMail } from '../entities/mail/kyc-support-mail';
-import { Mail, MailParams } from '../entities/mail/base/mail';
-import { UserMail, UserMailInput } from '../entities/mail/user-mail';
-import { MailType } from '../enums';
-import { MailRequest, MailRequestGenericInput } from '../interfaces';
-import { PersonalMail, PersonalMailInput } from '../entities/mail/personal-mail';
 import { Config } from 'src/config/config';
+import { Util } from 'src/shared/utils/util';
+import { Mail, MailParams } from '../entities/mail/base/mail';
+import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
+import { KycSupportMail, KycSupportMailInput } from '../entities/mail/kyc-support-mail';
+import { PersonalMail, PersonalMailInput } from '../entities/mail/personal-mail';
+import { UserMail, UserMailInput, UserMailNew, UserMailSuffix, UserMailTable } from '../entities/mail/user-mail';
+import { MailType } from '../enums';
+import { MailRequest, MailRequestGenericInput, MailRequestInput, MailRequestNew, TranslationItem } from '../interfaces';
+
+export enum MailTranslationKey {
+  GENERAL = 'translation.general',
+  PAYMENT = 'translation.payment',
+  BUY_FIAT = 'translation.payment.buy_fiat',
+}
+
+export enum MailKey {
+  SPACE = 'space',
+  DFX_TEAM_CLOSING = 'dfxTeamClosing',
+}
+
+const MailDefaultStyle = 'Open Sans,Helvetica,Arial,sans-serif';
+const MailDefaultEmptyLine = { text: '', style: `${MailDefaultStyle};padding:1px` };
 
 @Injectable()
 export class MailFactory {
@@ -37,6 +52,18 @@ export class MailFactory {
 
       case MailType.INTERNAL: {
         return this.createInternalMail(request);
+      }
+
+      default: {
+        throw new Error(`Unsupported mail type: ${request.type}`);
+      }
+    }
+  }
+
+  async createMailNew(request: MailRequestNew): Promise<Mail> {
+    switch (request.type) {
+      case MailType.USER: {
+        return this.createUserMailNew(request);
       }
 
       default: {
@@ -124,6 +151,23 @@ export class MailFactory {
     });
   }
 
+  private async createUserMailNew(request: MailRequestNew): Promise<UserMailNew> {
+    const { metadata, options } = request;
+    const { userData, title, prefix, suffix, table } = request.input as MailRequestInput;
+
+    const lang = userData.language?.symbol.toLowerCase();
+
+    return new UserMailNew({
+      to: userData.mail,
+      subject: this.tNew(title, lang),
+      salutation: this.tNew(prefix.key, lang, prefix.params),
+      table: this.getTable(table, lang),
+      suffix: this.getSuffix(suffix, lang),
+      metadata,
+      options,
+    });
+  }
+
   private async createPersonalMail(request: MailRequest): Promise<PersonalMail> {
     const { userData, translationKey, translationParams, banner, displayName, from } =
       request.input as PersonalMailInput;
@@ -160,5 +204,69 @@ export class MailFactory {
     const subject = this.i18n.translate(`${key}.title`, { lang, args });
 
     return { salutation, body, subject };
+  }
+
+  private tNew(key: string, lang: string, args?: any): string {
+    return this.i18n.translate(key, { lang, args });
+  }
+
+  //*** MAIL BUILDING METHODS ***//
+
+  private getTable(table: Record<string, string>, lang: string): UserMailTable[] {
+    Util.removeNullFields(table);
+    return Object.entries(table).map(([key, value]) => ({
+      text: this.tNew(key, lang),
+      value: value,
+    }));
+  }
+
+  private getSuffix(suffix: TranslationItem[], lang: string): UserMailSuffix[] {
+    Util.removeNullFields(suffix);
+    return suffix.map((element) => this.mapSuffix(element, lang).flat()).flat();
+  }
+
+  private mapSuffix(element: TranslationItem, lang: string): UserMailSuffix[] {
+    switch (element.key) {
+      case MailKey.SPACE:
+        return [MailDefaultEmptyLine];
+
+      case MailKey.DFX_TEAM_CLOSING:
+        return [
+          MailDefaultEmptyLine,
+          MailDefaultEmptyLine,
+          {
+            text: this.tNew(`${MailTranslationKey.GENERAL}.dfx_team_closing`, lang),
+            style: MailDefaultStyle,
+          },
+          MailDefaultEmptyLine,
+          MailDefaultEmptyLine,
+          MailDefaultEmptyLine,
+          MailDefaultEmptyLine,
+          { text: this.tNew(`${MailTranslationKey.GENERAL}.dfx_closing_message`, lang), style: 'Zapfino' },
+        ];
+
+      default:
+        const text = this.tNew(element.key, lang);
+        const specialTag = this.parseSpecialTag(text);
+
+        return [
+          {
+            url:
+              specialTag?.tag === 'url' && element.params?.url
+                ? {
+                    link: element.params.url,
+                    text: specialTag.value,
+                  }
+                : undefined,
+            style: element.params?.style ?? MailDefaultStyle,
+            text: specialTag?.text ?? text,
+          },
+        ];
+    }
+  }
+
+  private parseSpecialTag(text: string): { text: string; tag: string; value: string } | undefined {
+    const match = /^(.*)\[(\w*):(\w*)\]$/.exec(text);
+    return match ? { text: match[1], tag: match[2], value: match[3] } : undefined;
   }
 }

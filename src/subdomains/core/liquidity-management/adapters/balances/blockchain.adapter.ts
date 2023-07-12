@@ -156,7 +156,8 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
 
     const tokenTransactions = await client.getERC20Transactions(client.dfxAddress, 0);
     const recentTransactions = tokenTransactions.filter(
-      (tx) => !(new Date(+tx.timeStamp * 1000) < this.updateTimestamps.get(blockchain)),
+      (tx) =>
+        new Date(+tx.timeStamp * 1000) > Util.minutesBefore(5, this.updateTimestamps.get(blockchain) ?? new Date(0)),
     );
 
     // update all assets with missing cache or with recent transactions
