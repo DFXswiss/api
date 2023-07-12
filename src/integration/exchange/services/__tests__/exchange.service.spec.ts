@@ -1,8 +1,8 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Exchange, Market } from 'ccxt';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
-import { ExchangeService, OrderSide } from './exchange.service';
+import { ExchangeService, OrderSide } from '../exchange.service';
+import * as ExchangeTestModule from './exchange.test';
 
 describe('ExchangeService', () => {
   let service: ExchangeService;
@@ -12,7 +12,13 @@ describe('ExchangeService', () => {
   beforeEach(() => {
     exchange = createMock<Exchange>();
 
-    service = new TestExchangeService(exchange, new QueueHandler(undefined, undefined));
+    jest.spyOn(ExchangeTestModule, 'TestExchange').mockImplementation(() => exchange);
+
+    service = new ExchangeTestModule.TestExchangeService(
+      ExchangeTestModule.TestExchange,
+      undefined,
+      new QueueHandler(undefined, undefined),
+    );
   });
 
   afterEach(() => {
@@ -48,7 +54,3 @@ describe('ExchangeService', () => {
     });
   });
 });
-
-class TestExchangeService extends ExchangeService {
-  protected logger = new DfxLogger(TestExchangeService);
-}

@@ -1,0 +1,15 @@
+{
+    "_id": "e3f21c97-c599-484f-843f-d2aa58dfb213",
+    "name": "loc (User)",
+    "default": false,
+    "sortNum": 22500,
+    "created": "2022-12-20T10:50:32.444Z",
+    "modified": "2022-12-20T10:50:32.444Z",
+    "data": [
+        {
+            "name": "url",
+            "value": "http://localhost:3000"
+        }
+    ],
+    "envFile": "env/loc.user.env"
+}

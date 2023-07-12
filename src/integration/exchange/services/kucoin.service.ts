@@ -9,6 +9,6 @@ export class KucoinService extends ExchangeService {
   protected readonly logger = new DfxLogger(KucoinService);
 
   constructor() {
-    super(new kucoin(GetConfig().exchange));
+    super(kucoin, GetConfig().exchange);
   }
 }

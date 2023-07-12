@@ -25,7 +25,8 @@ export abstract class EvmTokenStrategy extends EvmStrategy {
   }
 
   protected async prepareSend(payInGroup: SendGroup, nativeFee: number): Promise<void> {
-    const prepareTxId = await this.topUpCoin(payInGroup, Util.round(nativeFee * 1.5, 12));
+    // small cap for gas price changes
+    const prepareTxId = await this.topUpCoin(payInGroup, Util.round(nativeFee * 1.1, 12));
 
     for (const payIn of payInGroup.payIns) {
       payIn.preparing(prepareTxId, Util.round(nativeFee / payInGroup.payIns.length, 16));

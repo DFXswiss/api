@@ -1,0 +1,15 @@
+{
+    "_id": "e5266aee-6640-4e0a-8772-501440b494e5",
+    "name": "dev (Beta)",
+    "default": false,
+    "sortNum": 26250,
+    "created": "2022-12-20T10:57:52.578Z",
+    "modified": "2022-12-20T10:57:52.578Z",
+    "data": [
+        {
+            "name": "url",
+            "value": "https://app-dfx-api-dev.azurewebsites.net"
+        }
+    ],
+    "envFile": "env/dev.beta.env"
+}

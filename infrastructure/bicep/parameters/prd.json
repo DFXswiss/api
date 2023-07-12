@@ -191,7 +191,7 @@
     "krakenSecret": {
       "value": "xxx"
     },
-    "krakenBtcWalletWithdrawKey": {
+    "krakenWithdrawKeys": {
       "value": "xxx"
     },
     "krakenBtcDepositAddress": {
@@ -203,19 +203,7 @@
     "binanceSecret": {
       "value": "xxx"
     },
-    "binanceEthWalletWithdrawKey": {
-      "value": "xxx"
-    },
-    "binanceBscWalletWithdrawKey": {
-      "value": "xxx"
-    },
-    "binanceArbArbWithdrawKey": {
-      "value": "xxx"
-    },
-    "binanceArbEthWithdrawKey": {
-      "value": "xxx"
-    },
-    "binanceOptEthWithdrawKey": {
+    "binanceWithdrawKeys": {
       "value": "xxx"
     },
     "olkyClient": {
