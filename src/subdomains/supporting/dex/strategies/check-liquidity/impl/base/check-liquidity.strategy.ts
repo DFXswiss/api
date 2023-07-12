@@ -46,9 +46,7 @@ export abstract class CheckLiquidityStrategy implements OnModuleInit, OnModuleDe
     try {
       const purchaseStrategy = this.purchaseRegistry.getPurchaseLiquidityStrategy(targetAsset);
 
-      if (!purchaseStrategy) return [];
-
-      return await purchaseStrategy.swapAssets();
+      return purchaseStrategy ? await purchaseStrategy.swapAssets() : [];
     } catch (e) {
       this.logger.warn(`Error while getting priority assets for ${targetAsset.uniqueName}:`, e);
 

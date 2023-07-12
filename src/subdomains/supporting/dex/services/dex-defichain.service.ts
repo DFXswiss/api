@@ -172,9 +172,10 @@ export class DexDeFiChainService {
   }
 
   private async getPendingAmount(asset: Asset) {
-    const pendingOrders = (await this.liquidityOrderRepo.findBy({ isComplete: false })).filter(
-      (o) => o.targetAsset.dexName === asset.dexName && o.targetAsset.blockchain === Blockchain.DEFICHAIN,
-    );
+    const pendingOrders = await this.liquidityOrderRepo.findBy({
+      isComplete: false,
+      targetAsset: { dexName: asset.dexName, blockchain: Blockchain.DEFICHAIN },
+    });
 
     return Util.sumObj<LiquidityOrder>(pendingOrders, 'estimatedTargetAmount');
   }
@@ -212,16 +213,5 @@ export class DexDeFiChainService {
 
       return 0;
     }
-  }
-
-  private async checkTestSwapPriceSlippage(
-    sourceAsset: Asset,
-    sourceAmount: number,
-    targetAsset: Asset,
-    targetAmount: number,
-    maxSlippage: number,
-  ): Promise<[boolean, string]> {
-    const price = await this.calculatePrice(sourceAsset, targetAsset);
-    return CheckLiquidityUtil.checkSlippage(price, maxSlippage, sourceAmount, targetAmount, sourceAsset, targetAsset);
   }
 }

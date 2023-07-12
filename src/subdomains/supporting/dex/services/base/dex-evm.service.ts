@@ -151,9 +151,10 @@ export abstract class DexEvmService {
   //*** HELPER METHODS ***//
 
   private async getPendingAmount(asset: Asset): Promise<number> {
-    const pendingOrders = (await this.liquidityOrderRepo.findBy({ isComplete: false })).filter(
-      (o) => o.targetAsset.dexName === asset.dexName && o.targetAsset.blockchain === this.blockchain,
-    );
+    const pendingOrders = await this.liquidityOrderRepo.findBy({
+      isComplete: false,
+      targetAsset: { dexName: asset.dexName, blockchain: asset.blockchain },
+    });
 
     return Util.sumObj<LiquidityOrder>(pendingOrders, 'estimatedTargetAmount');
   }
