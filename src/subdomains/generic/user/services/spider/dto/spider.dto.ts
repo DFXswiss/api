@@ -77,6 +77,12 @@ export enum KycDocumentState {
   FAILED = 'FAILED',
 }
 
+export enum InitiateState {
+  INITIATED = 'INITIATED',
+  FAILED = 'FAILED',
+  REFERENCE_NOT_FOUND = 'REFERENCE_NOT_FOUND',
+}
+
 export interface SubmitResponse {
   customerReference: string;
   customerId: number;
@@ -104,7 +110,7 @@ export interface CreateResponse {
 }
 
 export interface InitiateResponse {
-  document: string;
+  state: InitiateState;
   reference: string;
   sessionUrl: string;
 

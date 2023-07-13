@@ -74,7 +74,10 @@ export class LinkService {
     const userToBeLinked = await this.userRepo.getByAddress(linkAddress.newAddress, true);
     if (!userToBeLinked) throw new NotFoundException('User not found');
 
-    await this.userDataService.mergeUserData(existingUser.userData.id, userToBeLinked.userData.id);
+    if (existingUser.userData.id !== userToBeLinked.userData.id) {
+      await this.userDataService.mergeUserData(existingUser.userData.id, userToBeLinked.userData.id);
+    }
+
     await this.linkAddressRepo.save(linkAddress.complete());
 
     return linkAddress;
