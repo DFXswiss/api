@@ -85,7 +85,7 @@ export abstract class EvmClient {
   }
 
   async getTokenGasLimitForContact(contract: Contract): Promise<EthersNumber> {
-    return contract.estimateGas.transfer(this.randomReceiverAddress, 1);
+    return contract.estimateGas.transfer(this.randomReceiverAddress, 1).then((l) => l.mul(12).div(10));
   }
 
   // --- PUBLIC API - WRITE TRANSACTIONS --- //
