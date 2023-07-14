@@ -1,19 +1,26 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
+import { TransactionSpecificationRepository } from 'src/shared/payment/repositories/transaction-specification.repository';
+import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { CryptoRouteRepository } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.repository';
 import { CryptoRouteService } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.service';
 import { createCustomHistory } from 'src/subdomains/core/history/dto/__mocks__/history.dto.mock';
-import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
-import { SettingService } from 'src/shared/models/setting/setting.service';
-import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
+import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxRepository } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.repository';
 import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
+import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
+import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
+import { BuyRepository } from '../../../routes/buy/buy.repository';
+import { BuyService } from '../../../routes/buy/buy.service';
 import { createCustomBuyHistory } from '../../../routes/buy/dto/__mocks__/buy-history.dto.mock';
-import { BuyCrypto } from '../../entities/buy-crypto.entity';
 import { createCustomBuyCrypto } from '../../entities/__mocks__/buy-crypto.entity.mock';
+import { BuyCrypto } from '../../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
 import { BuyCryptoBatchService } from '../buy-crypto-batch.service';
 import { BuyCryptoDexService } from '../buy-crypto-dex.service';
@@ -21,9 +28,6 @@ import { BuyCryptoNotificationService } from '../buy-crypto-notification.service
 import { BuyCryptoOutService } from '../buy-crypto-out.service';
 import { BuyCryptoRegistrationService } from '../buy-crypto-registration.service';
 import { BuyCryptoService } from '../buy-crypto.service';
-import { BuyRepository } from '../../../routes/buy/buy.repository';
-import { BuyService } from '../../../routes/buy/buy.service';
-import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 
 enum MockBuyData {
   DEFAULT,
@@ -53,6 +57,10 @@ describe('BuyCryptoService', () => {
   let userService: UserService;
   let buyFiatService: BuyFiatService;
   let webhookService: WebhookService;
+  let transactionSpecificationRepo: TransactionSpecificationRepository;
+  let priceProviderService: PriceProviderService;
+  let fiatService: FiatService;
+  let bankDataRepo: BankDataRepository;
 
   beforeEach(async () => {
     buyCryptoRepo = createMock<BuyCryptoRepository>();
@@ -71,6 +79,10 @@ describe('BuyCryptoService', () => {
     userService = createMock<UserService>();
     buyFiatService = createMock<BuyFiatService>();
     webhookService = createMock<WebhookService>();
+    transactionSpecificationRepo = createMock<TransactionSpecificationRepository>();
+    priceProviderService = createMock<PriceProviderService>();
+    fiatService = createMock<FiatService>();
+    bankDataRepo = createMock<BankDataRepository>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -92,6 +104,10 @@ describe('BuyCryptoService', () => {
         { provide: UserService, useValue: userService },
         { provide: BuyFiatService, useValue: buyFiatService },
         { provide: WebhookService, useValue: webhookService },
+        { provide: TransactionSpecificationRepository, useValue: transactionSpecificationRepo },
+        { provide: PriceProviderService, useValue: priceProviderService },
+        { provide: FiatService, useValue: fiatService },
+        { provide: BankDataRepository, useValue: bankDataRepo },
       ],
     }).compile();
 
