@@ -377,7 +377,7 @@ export class BuyCrypto extends IEntity {
       this.target.asset.buyable &&
       this.bankTx.txAmount >= minVolume &&
       this.user.userData.annualBuyVolume + inputAmountEur < this.user.userData.depositLimit &&
-      bankDataUserData === this.user.userData &&
+      bankDataUserData?.id === this.user.userData.id &&
       this.user.userData.kycStatus === KycStatus.COMPLETED &&
       this.user.status === UserStatus.ACTIVE &&
       this.user.userData.status === UserDataStatus.ACTIVE &&

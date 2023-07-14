@@ -129,9 +129,7 @@ export class BuyCryptoService {
     if (dto.allowedTotalFeePercent && entity.fee) fee.allowedTotalFeePercent = dto.allowedTotalFeePercent;
 
     const forceUpdate = {
-      ...(BuyCryptoEditableAmlCheck.includes(entity.amlCheck) &&
-      update.amlCheck &&
-      !BuyCryptoEditableAmlCheck.includes(update.amlCheck)
+      ...(BuyCryptoEditableAmlCheck.includes(entity.amlCheck) && update.amlCheck && update.amlCheck !== entity.amlCheck
         ? { amlCheck: update.amlCheck, mailSendDate: null }
         : undefined),
       isComplete: dto.isComplete,
@@ -311,9 +309,9 @@ export class BuyCryptoService {
       await this.buyCryptoRepo.update(
         ...entity.fiatAmlCheck(
           inputAmountEur,
-          blockchainSpecification.minVolume,
+          blockchainSpecification?.minVolume,
           Util.sumObj(userDataTransactions, 'amountInEur'),
-          bankData.userData,
+          bankData?.userData,
         ),
       );
 
