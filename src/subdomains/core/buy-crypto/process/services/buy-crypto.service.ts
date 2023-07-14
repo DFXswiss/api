@@ -191,7 +191,7 @@ export class BuyCryptoService {
   @Lock(7200)
   async process() {
     if (Config.processDisabled(Process.BUY_CRYPTO)) return;
-    await this.saveAmlCheck();
+    if (!Config.processDisabled(Process.BUY_CRYPTO_AML_CHECK)) await this.saveAmlCheck();
     await this.buyCryptoBatchService.prepareTransactions();
     await this.buyCryptoBatchService.batchAndOptimizeTransactions();
     await this.buyCryptoDexService.secureLiquidity();

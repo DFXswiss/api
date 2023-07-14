@@ -31,6 +31,7 @@ export enum Process {
   STAKING = 'Staking',
   REF_PAYOUT = 'RefPayout',
   PRICING = 'Pricing',
+  BUY_CRYPTO_AML_CHECK = 'BuyCryptoAmlCheck',
 }
 
 export enum Environment {
