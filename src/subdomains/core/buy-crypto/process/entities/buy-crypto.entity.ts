@@ -1,10 +1,17 @@
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
-import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import {
+  KycStatus,
+  RiskState,
+  UserData,
+  UserDataStatus,
+} from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
@@ -359,6 +366,70 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
+  fiatAmlCheck(
+    inputAmountEur: number,
+    minVolume: number,
+    monthlyAmountInEur: number,
+    bankDataUserData: UserData,
+  ): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> =
+      this.bankTx.currency === this.bankTx.txCurrency &&
+      this.target.asset.buyable &&
+      this.bankTx.txAmount >= minVolume &&
+      this.user.userData.annualBuyVolume + inputAmountEur < this.user.userData.depositLimit &&
+      bankDataUserData === this.user.userData &&
+      this.user.userData.kycStatus === KycStatus.COMPLETED &&
+      this.user.status === UserStatus.ACTIVE &&
+      this.user.userData.status === UserDataStatus.ACTIVE &&
+      this.user.userData.riskState === RiskState.C &&
+      monthlyAmountInEur <= Config.amlCheckMonthlyTradingLimit
+        ? { amlCheck: AmlCheck.PASS }
+        : { amlCheck: AmlCheck.GSHEET };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  fillUp(
+    amountInChf: number,
+    amountInEur: number,
+    minVolumeInCurrency: number,
+    minVolumeChf: number,
+  ): UpdateResult<BuyCrypto> {
+    const userBuyFee = this.user.buyFee;
+    const assetFee = Config.buy.fee.get(this.target.asset.feeTier, this.user.userData.accountType);
+    const fee = userBuyFee && userBuyFee < assetFee ? userBuyFee : assetFee;
+    const inputReferenceAmount = this.bankTx.amount + this.bankTx.chargeAmount;
+    const percentFeeAmount = fee * inputReferenceAmount;
+    const totalFeeAmount = percentFeeAmount < minVolumeInCurrency ? minVolumeInCurrency : percentFeeAmount;
+    const usedRef = userBuyFee ? '000-000' : this.user.usedRef;
+
+    const update: Partial<BuyCrypto> = {
+      inputAmount: this.bankTx.txAmount,
+      inputAsset: this.bankTx.txCurrency,
+      inputReferenceAmount,
+      inputReferenceAsset: this.bankTx.currency,
+      amountInChf,
+      amountInEur,
+      absoluteFeeAmount: 0,
+      percentFee: fee,
+      percentFeeAmount: percentFeeAmount,
+      minFeeAmount: minVolumeInCurrency,
+      minFeeAmountFiat: minVolumeInCurrency,
+      totalFeeAmount,
+      totalFeeAmountChf: minVolumeChf,
+      inputReferenceAmountMinusFee: inputReferenceAmount - totalFeeAmount,
+      usedRef,
+      refProvision: usedRef === '000-000' ? 0 : this.user.refFeePercent,
+      refFactor: usedRef === '000-000' ? 0 : 1,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   get transactionId(): string {
     if (this.target.asset.blockchain === Blockchain.LIGHTNING) return Util.blankStart(this.txId);
     return txExplorerUrl(this.target.asset.blockchain, this.txId);
@@ -442,3 +513,5 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.OLKY_NO_KYC,
   AmlReason.NAME_CHECK_WITHOUT_KYC,
 ];
+
+export const BuyCryptoEditableAmlCheck = [AmlCheck.PENDING, AmlCheck.GSHEET];

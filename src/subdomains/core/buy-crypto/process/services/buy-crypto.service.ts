@@ -6,37 +6,44 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { Between, In, IsNull, Not } from 'typeorm';
-import { Util } from 'src/shared/utils/util';
-import { Lock } from 'src/shared/utils/lock';
-import { BuyCrypto } from '../entities/buy-crypto.entity';
-import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
-import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { BuyCryptoBatchService } from './buy-crypto-batch.service';
-import { BuyCryptoOutService } from './buy-crypto-out.service';
-import { BuyCryptoDexService } from './buy-crypto-dex.service';
-import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
-import { AmlCheck } from '../enums/aml-check.enum';
+import { Config, Process } from 'src/config/config';
+import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { TransactionSpecificationRepository } from 'src/shared/payment/repositories/transaction-specification.repository';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
+import { Util } from 'src/shared/utils/util';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { CryptoRouteService } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.service';
 import { HistoryDto, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
-import { BuyHistoryDto } from '../../routes/buy/dto/buy-history.dto';
-import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
-import { BuyCryptoRegistrationService } from './buy-crypto-registration.service';
+import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
+import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
+import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
+import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
+import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
+import { Between, In, IsNull, Not } from 'typeorm';
 import { Buy } from '../../routes/buy/buy.entity';
 import { BuyRepository } from '../../routes/buy/buy.repository';
 import { BuyService } from '../../routes/buy/buy.service';
-import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
-import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
-import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
-import { Config, Process } from 'src/config/config';
-import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { BuyHistoryDto } from '../../routes/buy/dto/buy-history.dto';
+import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
+import { BuyCrypto, BuyCryptoEditableAmlCheck } from '../entities/buy-crypto.entity';
+import { AmlCheck } from '../enums/aml-check.enum';
+import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
+import { BuyCryptoBatchService } from './buy-crypto-batch.service';
+import { BuyCryptoDexService } from './buy-crypto-dex.service';
+import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
+import { BuyCryptoOutService } from './buy-crypto-out.service';
+import { BuyCryptoRegistrationService } from './buy-crypto-registration.service';
 
 @Injectable()
 export class BuyCryptoService {
+  private readonly logger = new DfxLogger(BuyCryptoNotificationService);
+
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyRepo: BuyRepository,
@@ -53,6 +60,10 @@ export class BuyCryptoService {
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly userService: UserService,
     private readonly webhookService: WebhookService,
+    private readonly transactionSpecificationRepo: TransactionSpecificationRepository,
+    private readonly priceProviderService: PriceProviderService,
+    private readonly fiatService: FiatService,
+    private readonly bankDataRepo: BankDataRepository,
   ) {}
 
   async createFromFiat(bankTxId: number, buyId: number): Promise<BuyCrypto> {
@@ -118,7 +129,9 @@ export class BuyCryptoService {
     if (dto.allowedTotalFeePercent && entity.fee) fee.allowedTotalFeePercent = dto.allowedTotalFeePercent;
 
     const forceUpdate = {
-      ...(entity.amlCheck === AmlCheck.PENDING && update.amlCheck && update.amlCheck !== AmlCheck.PENDING
+      ...(BuyCryptoEditableAmlCheck.includes(entity.amlCheck) &&
+      update.amlCheck &&
+      !BuyCryptoEditableAmlCheck.includes(update.amlCheck)
         ? { amlCheck: update.amlCheck, mailSendDate: null }
         : undefined),
       isComplete: dto.isComplete,
@@ -180,6 +193,7 @@ export class BuyCryptoService {
   @Lock(7200)
   async process() {
     if (Config.processDisabled(Process.BUY_CRYPTO)) return;
+    await this.saveAmlCheck();
     await this.buyCryptoBatchService.prepareTransactions();
     await this.buyCryptoBatchService.batchAndOptimizeTransactions();
     await this.buyCryptoDexService.secureLiquidity();
@@ -249,6 +263,71 @@ export class BuyCryptoService {
   }
 
   // --- HELPER METHODS --- //
+
+  private async saveAmlCheck() {
+    const entities = await this.buyCryptoRepo.find({
+      where: { amlCheck: IsNull(), amlReason: IsNull(), bankTx: Not(IsNull()) },
+      relations: ['bankTx', 'buy', 'buy.user', 'buy.user.userData', 'buy.user.userData.users'],
+    });
+
+    const assetSpecifications = await this.transactionSpecificationRepo.find({ where: { system: Not('Fiat') } });
+
+    this.logger.verbose(
+      `AmlCheck for ${entities.length} buy-crypto transaction(s). Transaction ID(s): ${entities.map((t) => t.id)}`,
+    );
+
+    // CHF/EUR Price
+    const fiatEur = await this.fiatService.getFiatByName('EUR');
+    const fiatChf = await this.fiatService.getFiatByName('CHF');
+
+    for (const entity of entities) {
+      const blockchainSpecification = assetSpecifications.filter(
+        (blockchain) => blockchain.system === entity.target.asset.blockchain,
+      )[0];
+
+      const inputCurrency = await this.fiatService.getFiatByName(entity.bankTx.txCurrency);
+
+      const inputAssetEurPrice = await this.priceProviderService.getPrice(inputCurrency, fiatEur);
+      const inputAssetChfPrice = await this.priceProviderService.getPrice(inputCurrency, fiatChf);
+
+      const eurChfPrice = await this.priceProviderService.getPrice(fiatEur, fiatChf);
+
+      const inputAmountEur = inputAssetEurPrice.convert(entity.bankTx.txAmount);
+      const inputAmountChf = inputAssetChfPrice.convert(entity.bankTx.txAmount);
+
+      const bankData = await this.bankDataRepo.findOne({
+        where: { iban: entity.bankTx.iban, active: true },
+        relations: ['userData'],
+      });
+
+      const dateFrom = Util.daysBefore(30);
+      const userDataTransactions = (
+        await this.getAllUserTransactions(
+          entity.user.userData.users.map((user) => user.id),
+          dateFrom,
+        )
+      ).filter((buyCrypto) => buyCrypto.amlCheck === AmlCheck.PASS && buyCrypto.bankTx);
+
+      await this.buyCryptoRepo.update(
+        ...entity.fiatAmlCheck(
+          inputAmountEur,
+          blockchainSpecification.minVolume,
+          Util.sumObj(userDataTransactions, 'amountInEur'),
+          bankData.userData,
+        ),
+      );
+
+      if (entity.amlCheck === AmlCheck.PASS)
+        await this.buyCryptoRepo.update(
+          ...entity.fillUp(
+            inputAmountChf,
+            inputAmountEur,
+            inputAssetEurPrice.invert().convert(blockchainSpecification.minVolume),
+            eurChfPrice.convert(blockchainSpecification.minVolume),
+          ),
+        );
+    }
+  }
 
   private toHistoryDto(buyCrypto: BuyCrypto): HistoryDto {
     return {
@@ -369,9 +448,16 @@ export class BuyCryptoService {
     });
   }
 
-  async getAllUserTransactions(userIds: number[]): Promise<BuyCrypto[]> {
+  async getAllUserTransactions(
+    userIds: number[],
+    dateFrom: Date = new Date(0),
+    dateTo: Date = new Date(),
+  ): Promise<BuyCrypto[]> {
     return this.buyCryptoRepo.find({
-      where: [{ buy: { user: { id: In(userIds) } } }, { cryptoRoute: { user: { id: In(userIds) } } }],
+      where: [
+        { buy: { user: { id: In(userIds) } }, outputDate: Between(dateFrom, dateTo) },
+        { cryptoRoute: { user: { id: In(userIds) } }, outputDate: Between(dateFrom, dateTo) },
+      ],
       relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
       order: { id: 'DESC' },
     });

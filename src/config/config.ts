@@ -63,6 +63,7 @@ export class Configuration {
   defaultDailyTradingLimit = 990; // EUR
   apiKeyVersionCT = '0'; // single digit hex number
   azureIpSubstring = '169.254';
+  amlCheckMonthlyTradingLimit = 50000; // EUR
 
   colors = {
     white: '#FFFFFF',
