@@ -125,13 +125,18 @@ export class BuyCryptoOutService {
           payoutFee: nativePayoutFee,
         } = await this.payoutService.checkOrderCompletion(PayoutOrderContext.BUY_CRYPTO, tx.id.toString());
 
+        if (!tx.txId && payoutTxId) {
+          tx.setTxId(payoutTxId);
+          await this.buyCryptoRepo.save(tx);
+        }
+
         if (isComplete) {
           const payoutFee = await this.buyCryptoPricingService.getFeeAmountInRefAsset(
             tx.outputReferenceAsset,
             nativePayoutFee,
           );
 
-          tx.complete(payoutTxId, payoutFee);
+          tx.complete(payoutFee);
           await this.buyCryptoRepo.save(tx);
 
           // payment webhook

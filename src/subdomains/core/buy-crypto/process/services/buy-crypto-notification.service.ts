@@ -7,7 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, IsNull, Not } from 'typeorm';
-import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
+import { BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
 import { BuyCryptoAmlReasonPendingStates } from '../entities/buy-crypto.entity';
 import { AmlCheck } from '../enums/aml-check.enum';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
@@ -39,8 +39,6 @@ export class BuyCryptoNotificationService {
         where: {
           mailSendDate: IsNull(),
           txId: Not(IsNull()),
-          isComplete: true,
-          batch: { status: BuyCryptoBatchStatus.COMPLETE },
           amlCheck: AmlCheck.PASS,
         },
         relations: [

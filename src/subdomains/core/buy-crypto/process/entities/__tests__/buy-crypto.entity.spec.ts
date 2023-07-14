@@ -1,10 +1,10 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { createCustomBuy } from 'src/subdomains/core/buy-crypto/routes/buy/__mocks__/buy.entity.mock';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
-import { AssetType } from 'src/shared/models/asset/asset.entity';
-import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
-import { BuyCrypto } from '../buy-crypto.entity';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-crypto.entity.mock';
+import { BuyCrypto } from '../buy-crypto.entity';
 
 function createPrice(source: string, target: string, price?: number): Price {
   return Object.assign(new Price(), { source, target, price });
@@ -461,7 +461,7 @@ describe('BuyCrypto', () => {
 
       expect(entity.isComplete).toBe(undefined);
 
-      entity.complete('TX_ID_01', 0);
+      entity.complete(0);
 
       expect(entity.isComplete).toBe(true);
     });
@@ -471,7 +471,7 @@ describe('BuyCrypto', () => {
 
       expect(entity.txId).toBe(undefined);
 
-      entity.complete('TX_ID_01', 0);
+      entity.setTxId('TX_ID_01');
 
       expect(entity.txId).toBe('TX_ID_01');
     });
@@ -481,7 +481,7 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputDate).toBe(undefined);
 
-      entity.complete('TX_ID_01', 0);
+      entity.complete(0);
 
       expect(entity.outputDate).toBeInstanceOf(Date);
     });
