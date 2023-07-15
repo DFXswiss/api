@@ -218,38 +218,6 @@ export class BuyFiat extends IEntity {
   get isLightningTransaction(): boolean {
     return this.cryptoInputBlockchain === Blockchain.LIGHTNING;
   }
-
-  get translationKey(): string {
-    if (!this.mail1SendDate) {
-      if (this.cryptoInput.asset.blockchain === Blockchain.LIGHTNING)
-        return 'mail.payment.withdrawal.offRampInitiatedLightning';
-
-      return 'mail.payment.withdrawal.offRampInitiated';
-    }
-
-    if (this.amlCheck === AmlCheck.PASS) {
-      if (!this.mail2SendDate) return 'mail.payment.withdrawal.cryptoExchangedToFiat';
-      return 'mail.payment.withdrawal.fiatToBankTransferInitiated';
-    } else if (this.amlCheck === AmlCheck.PENDING) {
-      switch (this.amlReason) {
-        case AmlReason.DAILY_LIMIT:
-          return 'mail.payment.pending.dailyLimit';
-
-        case AmlReason.ANNUAL_LIMIT:
-          return 'mail.payment.pending.annualLimit';
-
-        case AmlReason.ANNUAL_LIMIT_WITHOUT_KYC:
-          return 'mail.payment.pending.annualLimitWithoutKyc';
-
-        case AmlReason.NAME_CHECK_WITHOUT_KYC:
-          return 'mail.payment.pending.nameCheckWithoutKyc';
-      }
-    } else if (this.amlCheck === AmlCheck.FAIL) {
-      return 'mail.payment.withdrawal.paybackToAddressInitiated';
-    }
-
-    throw new Error(`Tried to send a mail for buy-fiat ${this.id} in invalid state`);
-  }
 }
 
 export const BuyFiatAmlReasonPendingStates = [

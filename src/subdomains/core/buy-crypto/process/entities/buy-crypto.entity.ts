@@ -1,11 +1,11 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
+import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
@@ -359,43 +359,28 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
-  get transactionId(): string {
-    if (this.target.asset.blockchain === Blockchain.LIGHTNING) return Util.blankStart(this.txId);
-    return txExplorerUrl(this.target.asset.blockchain, this.txId);
+  get isLightningOutput(): boolean {
+    return this.target.asset.blockchain === Blockchain.LIGHTNING;
   }
 
-  get translationKey(): string {
-    if (this.amlCheck === AmlCheck.PASS) {
-      if (this.target.asset.blockchain === Blockchain.LIGHTNING)
-        return this.cryptoRoute
-          ? 'mail.payment.deposit.buyCryptoCryptoLightning'
-          : 'mail.payment.deposit.buyCryptoFiatLightning';
+  get isLightningInput(): boolean {
+    return this.cryptoInput?.asset.blockchain === Blockchain.LIGHTNING;
+  }
 
-      return this.cryptoRoute ? 'mail.payment.deposit.buyCryptoCrypto' : 'mail.payment.deposit.buyCryptoFiat';
-    } else if (this.amlCheck === AmlCheck.PENDING) {
-      switch (this.amlReason) {
-        case AmlReason.DAILY_LIMIT:
-          return 'mail.payment.pending.dailyLimit';
+  get isCryptoCryptoTransaction(): boolean {
+    return this.cryptoInput !== null;
+  }
 
-        case AmlReason.ANNUAL_LIMIT:
-          return 'mail.payment.pending.annualLimit';
+  get exchangeRateString(): string {
+    return `${Util.round(
+      (this.outputAmount / this.inputReferenceAmountMinusFee) * (this.inputReferenceAmount / this.inputAmount),
+      2,
+    )} ${this.outputAsset.name}/${this.inputAsset}`;
+  }
 
-        case AmlReason.ANNUAL_LIMIT_WITHOUT_KYC:
-          return 'mail.payment.pending.annualLimitWithoutKyc';
-
-        case AmlReason.OLKY_NO_KYC:
-          return 'mail.payment.pending.olkyNoKyc';
-
-        case AmlReason.NAME_CHECK_WITHOUT_KYC:
-          return 'mail.payment.pending.nameCheckWithoutKyc';
-      }
-    } else if (this.amlCheck === AmlCheck.FAIL) {
-      return this.cryptoRoute
-        ? 'mail.payment.withdrawal.paybackToAddressInitiated'
-        : 'mail.payment.deposit.paybackInitiated';
-    }
-
-    throw new Error(`Tried to send a mail for buy-crypto ${this.id} in invalid state`);
+  get translationKey(): MailTranslationKey {
+    if (!this.isCryptoCryptoTransaction) return MailTranslationKey.CRYPTO_RETURN;
+    return MailTranslationKey.FIAT_RETURN;
   }
 
   get user(): User {

@@ -4,6 +4,8 @@ import * as crypto from 'crypto';
 import { BinaryLike, createHash, createSign, KeyLike } from 'crypto';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { readFile } from 'fs';
+import { AmlReason } from 'src/subdomains/core/buy-crypto/process/enums/aml-reason.enum';
+import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 
 export type KeyType<T, U> = {
   [K in keyof T]: T[K] extends U ? K : never;
@@ -330,5 +332,9 @@ export class Util {
 
   static trim({ value }: TransformFnParams): string {
     return value.split(' ').join('');
+  }
+
+  static parseMailKey(mailKey: MailTranslationKey, amlReason: AmlReason): string {
+    return `${mailKey}.${amlReason.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase()}`;
   }
 }

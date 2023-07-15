@@ -14,11 +14,23 @@ export enum MailTranslationKey {
   GENERAL = 'translation.general',
   PAYMENT = 'translation.payment',
   BUY_FIAT = 'translation.payment.buy_fiat',
+  BUY_CRYPTO = 'translation.payment.buy_crypto',
+  PENDING = 'translation.payment.pending',
+  RETURN = 'translation.payment.return',
+  CRYPTO_RETURN = 'translation.payment.return.crypto',
+  FIAT_RETURN = 'translation.payment.return.fiat',
 }
 
 export enum MailKey {
   SPACE = 'space',
   DFX_TEAM_CLOSING = 'dfxTeamClosing',
+}
+
+interface SpecialTag {
+  text: string;
+  textSuffix: string;
+  tag: string;
+  value: string;
 }
 
 const MailDefaultStyle = 'Open Sans,Helvetica,Arial,sans-serif';
@@ -221,7 +233,7 @@ export class MailFactory {
   }
 
   private getSuffix(suffix: TranslationItem[], lang: string): UserMailSuffix[] {
-    Util.removeNullFields(suffix);
+    Util.removeNullFields(this.combineConnectedLineElements(suffix));
     return suffix.map((element) => this.mapSuffix(element, lang).flat()).flat();
   }
 
@@ -246,7 +258,13 @@ export class MailFactory {
         ];
 
       default:
-        const text = this.tNew(element.key, lang);
+        const text =
+          element.key.split('&&').length > 1
+            ? element.key
+                .split('&&')
+                .map((splitKey) => this.tNew(splitKey, lang))
+                .join('')
+            : this.tNew(element.key, lang);
         const specialTag = this.parseSpecialTag(text);
 
         return [
@@ -256,7 +274,12 @@ export class MailFactory {
                 ? {
                     link: element.params.url,
                     text: specialTag.value,
+                    textSuffix: specialTag.textSuffix,
                   }
+                : undefined,
+            mail:
+              specialTag?.tag === 'mail'
+                ? { mailAddress: specialTag.value, textSuffix: specialTag.textSuffix }
                 : undefined,
             style: element.params?.style ?? MailDefaultStyle,
             text: specialTag?.text ?? text,
@@ -265,8 +288,18 @@ export class MailFactory {
     }
   }
 
-  private parseSpecialTag(text: string): { text: string; tag: string; value: string } | undefined {
-    const match = /^(.*)\[(\w*):(\w*)\]$/.exec(text);
-    return match ? { text: match[1], tag: match[2], value: match[3] } : undefined;
+  private combineConnectedLineElements(suffix: TranslationItem[]): TranslationItem[] {
+    for (let index = 0; index < suffix.length - 1; index++) {
+      if (suffix[index]?.params?.connectNextLine) {
+        suffix[index + 1].key = `${suffix[index].key}&&${suffix[index + 1].key}`;
+        suffix[index] = null;
+      }
+    }
+    return suffix;
+  }
+
+  private parseSpecialTag(text: string): SpecialTag | undefined {
+    const match = /^(.*)\[(\w+):([^\]]+)\](.*)$/.exec(text);
+    return match ? { text: match[1], textSuffix: match[4], tag: match[2], value: match[3] } : undefined;
   }
 }

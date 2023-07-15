@@ -55,7 +55,7 @@ export class BuyFiatNotificationService {
               title: `${MailTranslationKey.BUY_FIAT}.initiated.title`,
               prefix: { key: `${MailTranslationKey.BUY_FIAT}.initiated.salutation` },
               table: {
-                [`${MailTranslationKey.BUY_FIAT}.input_amount`]: `${entity.cryptoInput.amount} ${entity.cryptoInput.asset.dexName}`,
+                [`${MailTranslationKey.BUY_FIAT}.input_amount`]: `${entity.cryptoInput.amount} ${entity.cryptoInput.asset.name}`,
                 [`${MailTranslationKey.PAYMENT}.blockchain`]: `${entity.cryptoInputBlockchain}`,
                 [`${MailTranslationKey.PAYMENT}.transaction_id`]: entity.isLightningTransaction
                   ? Util.blankStart(entity.cryptoInput.inTxId)
@@ -197,21 +197,35 @@ export class BuyFiatNotificationService {
         entity.paybackToAddressInitiated();
 
         if (entity.sell.user.userData.mail) {
-          await this.notificationService.sendMail({
+          await this.notificationService.sendMailNew({
             type: MailType.USER,
             input: {
               userData: entity.sell.user.userData,
-              translationKey: entity.translationKey,
-              translationParams: {
-                inputAmount: entity.inputAmount,
-                inputAsset: entity.inputAsset,
-                blockchain: entity.cryptoInputBlockchain,
-                returnTransactionLink: txExplorerUrl(entity.cryptoInputBlockchain, entity.cryptoReturnTxId),
-                returnReason: this.i18nService.translate(`mail.amlReasonMailText.${entity.amlReason}`, {
-                  lang: entity.sell.user.userData.language?.symbol.toLowerCase(),
-                }),
-                userAddressTrimmed: Util.blankStart(entity.sell.user.address),
+              title: `${MailTranslationKey.FIAT_RETURN}.title`,
+              prefix: { key: `${MailTranslationKey.FIAT_RETURN}.salutation` },
+              table: {
+                [`${MailTranslationKey.PAYMENT}.reimbursed`]: `${entity.inputAmount} ${entity.inputAsset}`,
+                [`${MailTranslationKey.PAYMENT}.blockchain`]: entity.cryptoInputBlockchain,
+                [`${MailTranslationKey.PAYMENT}.wallet_address`]: Util.blankStart(entity.sell.user.address),
+                [`${MailTranslationKey.PAYMENT}.transaction_id`]: entity.isLightningTransaction
+                  ? Util.blankStart(entity.cryptoReturnTxId)
+                  : null,
               },
+              suffix: [
+                entity.isLightningTransaction
+                  ? null
+                  : {
+                      key: `${MailTranslationKey.FIAT_RETURN}.payment_link`,
+                      params: { url: txExplorerUrl(entity.cryptoInputBlockchain, entity.cryptoReturnTxId) },
+                    },
+                { key: `${MailTranslationKey.RETURN}.introduction`, params: { connectNextLine: 'true' } },
+                { key: `${MailTranslationKey.RETURN}.${entity.amlReason}` },
+                { key: MailKey.SPACE, params: { value: '2' } },
+                { key: `${MailTranslationKey.GENERAL}.support` },
+                { key: MailKey.SPACE, params: { value: '4' } },
+                { key: `${MailTranslationKey.GENERAL}.thanks` },
+                { key: MailKey.DFX_TEAM_CLOSING },
+              ],
             },
           });
         }
@@ -239,14 +253,29 @@ export class BuyFiatNotificationService {
     for (const entity of entities) {
       try {
         if (entity.sell.user.userData.mail) {
-          await this.notificationService.sendMail({
+          await this.notificationService.sendMailNew({
             type: MailType.USER,
             input: {
               userData: entity.sell.user.userData,
-              translationKey: entity.translationKey,
-              translationParams: {
-                hashLink: `${Config.payment.url}/kyc?code=${entity.sell.user.userData.kycHash}`,
-              },
+              title: `${Util.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.title`,
+              prefix: { key: `${Util.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.salutation` },
+              table: {},
+              suffix: [
+                { key: `${Util.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line1` },
+                { key: `${Util.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line2` },
+                { key: `${Util.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line3` },
+                {
+                  key: `${Util.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line4`,
+                  params: { url: `${Config.payment.url}/kyc?code=${entity.sell.user.userData.kycHash}` },
+                },
+                { key: `${Util.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line5` },
+                { key: MailKey.SPACE, params: { value: '1' } },
+                { key: `${MailTranslationKey.GENERAL}.support` },
+                { key: MailKey.SPACE, params: { value: '2' } },
+                { key: `${MailTranslationKey.GENERAL}.thanks` },
+                { key: MailKey.SPACE, params: { value: '4' } },
+                { key: MailKey.DFX_TEAM_CLOSING },
+              ],
             },
           });
         }

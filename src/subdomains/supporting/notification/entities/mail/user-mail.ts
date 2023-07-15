@@ -18,6 +18,11 @@ export interface UserMailSuffix {
   url?: {
     link: string;
     text: string;
+    textSuffix?: string;
+  };
+  mail?: {
+    mailAddress: string;
+    textSuffix?: string;
   };
   style: string;
   text: string;
