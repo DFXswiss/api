@@ -5,7 +5,11 @@ import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
-import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
+import {
+  MailFactory,
+  MailKey,
+  MailTranslationKey,
+} from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, IsNull, Not } from 'typeorm';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
@@ -95,7 +99,6 @@ export class BuyCryptoNotificationService {
                     : null,
                 },
                 suffix: [
-                  { key: MailKey.SPACE, params: { value: '4' } },
                   tx.isLightningOutput
                     ? null
                     : {
@@ -179,8 +182,8 @@ export class BuyCryptoNotificationService {
             type: MailType.USER,
             input: {
               userData: entity.user.userData,
-              title: `${entity.translationKey}.title`,
-              prefix: { key: `${entity.translationKey}.salutation` },
+              title: `${entity.translationReturnMailKey}.title`,
+              prefix: { key: `${entity.translationReturnMailKey}.salutation` },
               table: {
                 [`${MailTranslationKey.PAYMENT}.reimbursed`]: `${entity.inputAmount} ${entity.inputAsset}`,
                 [`${MailTranslationKey.PAYMENT}.bank_account`]: !entity.isCryptoCryptoTransaction
@@ -202,12 +205,12 @@ export class BuyCryptoNotificationService {
               suffix: [
                 !entity.isLightningInput && entity.isCryptoCryptoTransaction
                   ? {
-                      key: `${entity.translationKey}.payment_link`,
+                      key: `${entity.translationReturnMailKey}.payment_link`,
                       params: { url: txExplorerUrl(entity.cryptoInput.asset.blockchain, entity.chargebackCryptoTxId) },
                     }
                   : null,
                 { key: `${MailTranslationKey.RETURN}.introduction`, params: { connectNextLine: 'true' } },
-                { key: `${Util.parseMailKey(MailTranslationKey.RETURN, entity.amlReason)}` },
+                { key: `${MailFactory.parseMailKey(MailTranslationKey.RETURN_REASON, entity.amlReason)}` },
                 { key: MailKey.SPACE, params: { value: '2' } },
                 { key: `${MailTranslationKey.GENERAL}.support` },
                 { key: MailKey.SPACE, params: { value: '4' } },
@@ -255,18 +258,18 @@ export class BuyCryptoNotificationService {
             type: MailType.USER,
             input: {
               userData: entity.user.userData,
-              title: `${Util.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.title`,
-              prefix: { key: `${Util.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.salutation` },
+              title: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.title`,
+              prefix: { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.salutation` },
               table: {},
               suffix: [
-                { key: `${Util.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line1` },
-                { key: `${Util.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line2` },
-                { key: `${Util.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line3` },
+                { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line1` },
+                { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line2` },
+                { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line3` },
                 {
-                  key: `${Util.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line4`,
+                  key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line4`,
                   params: { url: `${Config.payment.url}/kyc?code=${entity.user.userData.kycHash}` },
                 },
-                { key: `${Util.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line5` },
+                { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line5` },
                 { key: MailKey.SPACE, params: { value: '1' } },
                 { key: `${MailTranslationKey.GENERAL}.support` },
                 { key: MailKey.SPACE, params: { value: '2' } },

@@ -7,7 +7,11 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
-import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
+import {
+  MailFactory,
+  MailKey,
+  MailTranslationKey,
+} from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, IsNull, Not } from 'typeorm';
 import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
@@ -219,7 +223,7 @@ export class BuyFiatNotificationService {
                       params: { url: txExplorerUrl(entity.cryptoInputBlockchain, entity.cryptoReturnTxId) },
                     },
                 { key: `${MailTranslationKey.RETURN}.introduction`, params: { connectNextLine: 'true' } },
-                { key: `${MailTranslationKey.RETURN}.${entity.amlReason}` },
+                { key: `${MailTranslationKey.RETURN_REASON}.${entity.amlReason}` },
                 { key: MailKey.SPACE, params: { value: '2' } },
                 { key: `${MailTranslationKey.GENERAL}.support` },
                 { key: MailKey.SPACE, params: { value: '4' } },
@@ -257,18 +261,18 @@ export class BuyFiatNotificationService {
             type: MailType.USER,
             input: {
               userData: entity.sell.user.userData,
-              title: `${Util.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.title`,
-              prefix: { key: `${Util.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.salutation` },
+              title: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.title`,
+              prefix: { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.salutation` },
               table: {},
               suffix: [
-                { key: `${Util.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line1` },
-                { key: `${Util.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line2` },
-                { key: `${Util.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line3` },
+                { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line1` },
+                { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line2` },
+                { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line3` },
                 {
-                  key: `${Util.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line4`,
+                  key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line4`,
                   params: { url: `${Config.payment.url}/kyc?code=${entity.sell.user.userData.kycHash}` },
                 },
-                { key: `${Util.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line5` },
+                { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line5` },
                 { key: MailKey.SPACE, params: { value: '1' } },
                 { key: `${MailTranslationKey.GENERAL}.support` },
                 { key: MailKey.SPACE, params: { value: '2' } },

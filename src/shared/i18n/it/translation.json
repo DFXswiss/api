@@ -44,17 +44,19 @@
                 "payment_link": "Qui trovi l'ID della transazione<br>con il tuo prelievo: [url:Link]"
             },
             "introduction": "Reason why we reimbursed your funds:<br>",
-            "daily_limit": "Hai superato il limite senza KYC",
-            "user_data_mismatch": "Il nome che hai fornito a DFX non coincide col nome del proprietario dell'IBAN",
-            "iban_check": "L'IBAN non può essere utilizzato con DFX",
-            "kyc_rejected": "La tua richiesta di KYC è stata rigettata",
-            "name_check": "Per ragioni legali non possiamo servirti come cliente",
-            "annual_limit": "Hai superato il tuo limite annuale",
-            "olky_no_kyc": "Devi completare la KYC per DFX per poter utilizzare Olkypay Bank",
-            "min_deposit_not_reached": "Il limite di deposito minimo non è stato raggiunto",
-            "name_check_without_kyc": "La tua transazione è stata annullata a causa della KYC mancante",
-            "annual_limit_without_kyc": "Hai superato il limite annuale senza KYC",
-            "asset_currently_not_available": "L'asset non è al momento disponibile per lo scambio su DFX"
+            "reasons": {
+                "daily_limit": "Hai superato il limite senza KYC",
+                "user_data_mismatch": "Il nome che hai fornito a DFX non coincide col nome del proprietario dell'IBAN",
+                "iban_check": "L'IBAN non può essere utilizzato con DFX",
+                "kyc_rejected": "La tua richiesta di KYC è stata rigettata",
+                "name_check": "Per ragioni legali non possiamo servirti come cliente",
+                "annual_limit": "Hai superato il tuo limite annuale",
+                "olky_no_kyc": "Devi completare la KYC per DFX per poter utilizzare Olkypay Bank",
+                "min_deposit_not_reached": "Il limite di deposito minimo non è stato raggiunto",
+                "name_check_without_kyc": "La tua transazione è stata annullata a causa della KYC mancante",
+                "annual_limit_without_kyc": "Hai superato il limite annuale senza KYC",
+                "asset_currently_not_available": "L'asset non è al momento disponibile per lo scambio su DFX"
+            }
         },
         "pending": {
             "daily_limit": {

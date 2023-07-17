@@ -44,17 +44,19 @@
                 "payment_link": "Aquí encontrará el identificador<br>de su reembolso: [url:Link]"
             },
             "introduction": "Reason why we reimbursed your funds:<br>",
-            "daily_limit": "Excediste el límite sin verificación KYC",
-            "user_data_mismatch": "El nombre que compartiste a DFX no encaja con el nombre del propietario del IBAN",
-            "iban_check": "El IBAN no puede ser usado por DFX",
-            "kyc_rejected": "Tu propuesta de registro KYC fue rechazada",
-            "name_check": "Por razones legales, no podemos servirle como cliente",
-            "annual_limit": "Excedes el límite anual",
-            "olky_no_kyc": "Tienes que completar KYC para DFX para poder usar Olkypay Bank",
-            "min_deposit_not_reached": "La cantidad de depósito mínima no ha sido alcanzada",
-            "name_check_without_kyc": "Tu transacción se ha cancelado debido a la falta del KYC",
-            "annual_limit_without_kyc": "Has excedido el límite anual sin KYC",
-            "asset_currently_not_available": "Este activo no está actualmente disponible para comerciar con DFX"
+            "reasons": {
+                "daily_limit": "Excediste el límite sin verificación KYC",
+                "user_data_mismatch": "El nombre que compartiste a DFX no encaja con el nombre del propietario del IBAN",
+                "iban_check": "El IBAN no puede ser usado por DFX",
+                "kyc_rejected": "Tu propuesta de registro KYC fue rechazada",
+                "name_check": "Por razones legales, no podemos servirle como cliente",
+                "annual_limit": "Excedes el límite anual",
+                "olky_no_kyc": "Tienes que completar KYC para DFX para poder usar Olkypay Bank",
+                "min_deposit_not_reached": "La cantidad de depósito mínima no ha sido alcanzada",
+                "name_check_without_kyc": "Tu transacción se ha cancelado debido a la falta del KYC",
+                "annual_limit_without_kyc": "Has excedido el límite anual sin KYC",
+                "asset_currently_not_available": "Este activo no está actualmente disponible para comerciar con DFX"
+            }
         },
         "pending": {
             "daily_limit": {

@@ -378,7 +378,7 @@ export class BuyCrypto extends IEntity {
     )} ${this.outputAsset.name}/${this.inputAsset}`;
   }
 
-  get translationKey(): MailTranslationKey {
+  get translationReturnMailKey(): MailTranslationKey {
     if (!this.isCryptoCryptoTransaction) return MailTranslationKey.CRYPTO_RETURN;
     return MailTranslationKey.FIAT_RETURN;
   }

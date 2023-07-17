@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
+import { AmlReason } from 'src/subdomains/core/buy-crypto/process/enums/aml-reason.enum';
 import { Mail, MailParams } from '../entities/mail/base/mail';
 import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
 import { KycSupportMail, KycSupportMailInput } from '../entities/mail/kyc-support-mail';
@@ -17,6 +18,7 @@ export enum MailTranslationKey {
   BUY_CRYPTO = 'translation.payment.buy_crypto',
   PENDING = 'translation.payment.pending',
   RETURN = 'translation.payment.return',
+  RETURN_REASON = 'translation.payment.return.reasons',
   CRYPTO_RETURN = 'translation.payment.return.crypto',
   FIAT_RETURN = 'translation.payment.return.fiat',
 }
@@ -278,9 +280,7 @@ export class MailFactory {
                   }
                 : undefined,
             mail:
-              specialTag?.tag === 'mail'
-                ? { mailAddress: specialTag.value, textSuffix: specialTag.textSuffix }
-                : undefined,
+              specialTag?.tag === 'mail' ? { address: specialTag.value, textSuffix: specialTag.textSuffix } : undefined,
             style: element.params?.style ?? MailDefaultStyle,
             text: specialTag?.text ?? text,
           },
@@ -301,5 +301,11 @@ export class MailFactory {
   private parseSpecialTag(text: string): SpecialTag | undefined {
     const match = /^(.*)\[(\w+):([^\]]+)\](.*)$/.exec(text);
     return match ? { text: match[1], textSuffix: match[4], tag: match[2], value: match[3] } : undefined;
+  }
+
+  //*** STATIC HELPER METHODS ***//
+
+  static parseMailKey(mailKey: MailTranslationKey, amlReason: AmlReason): string {
+    return `${mailKey}.${amlReason.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase()}`;
   }
 }

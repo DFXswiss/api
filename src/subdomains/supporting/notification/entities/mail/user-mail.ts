@@ -21,7 +21,7 @@ export interface UserMailSuffix {
     textSuffix?: string;
   };
   mail?: {
-    mailAddress: string;
+    address: string;
     textSuffix?: string;
   };
   style: string;

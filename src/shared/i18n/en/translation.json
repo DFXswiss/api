@@ -44,17 +44,19 @@
                 "payment_link": "Here you can find the transaction ID<br>for your reimbursement: [url:Link]"
             },
             "introduction": "Reason why we reimbursed your funds:<br>",
-            "daily_limit": "You exceeded the limit without KYC",
-            "user_data_mismatch": "Your name you provided to DFX does not match the name of the owner of the IBAN",
-            "iban_check": "The IBAN cannot be used with DFX",
-            "kyc_rejected": "Your KYC Request was rejected",
-            "name_check": "For legal reasons we can not serve you as a customer",
-            "annual_limit": "You exceeded your annual limit",
-            "olky_no_kyc": "You have to complete KYC for DFX in order to use Olkypay Bank",
-            "min_deposit_not_reached": "The minimum deposit limit was not reached",
-            "name_check_without_kyc": "Your transaction was cancelled due to missing KYC",
-            "annual_limit_without_kyc": "You exceeded the annual limit without KYC",
-            "asset_currently_not_available": "The asset is currently not available for trading with DFX"
+            "reasons": {
+                "daily_limit": "You exceeded the limit without KYC",
+                "user_data_mismatch": "Your name you provided to DFX does not match the name of the owner of the IBAN",
+                "iban_check": "The IBAN cannot be used with DFX",
+                "kyc_rejected": "Your KYC Request was rejected",
+                "name_check": "For legal reasons we can not serve you as a customer",
+                "annual_limit": "You exceeded your annual limit",
+                "olky_no_kyc": "You have to complete KYC for DFX in order to use Olkypay Bank",
+                "min_deposit_not_reached": "The minimum deposit limit was not reached",
+                "name_check_without_kyc": "Your transaction was cancelled due to missing KYC",
+                "annual_limit_without_kyc": "You exceeded the annual limit without KYC",
+                "asset_currently_not_available": "The asset is currently not available for trading with DFX"
+            }
         },
         "pending": {
             "daily_limit": {

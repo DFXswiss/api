@@ -44,17 +44,19 @@
                 "payment_link": "Dies ist die Transaktions-ID<br>zu deiner Rückzahlung: [url:Link]"
             },
             "introduction": "Grund, warum wir zurückerstattet haben:<br>",
-            "daily_limit": "Du hast das Limit ohne Verifizierung überschritten",
-            "user_data_mismatch": "Dein Name, den du DFX mitgeteilt hast, stimmt nicht mit dem Namen des Inhabers der IBAN überein",
-            "iban_check": "Die IBAN kann nicht mit DFX verwendet werden",
-            "kyc_rejected": "Deine Verifizierung wurde abgelehnt",
-            "name_check": "Aus rechtlichen Gründen können dich als Kunden leider nicht bedienen",
-            "annual_limit": "Du hast das Jahreslimit überschritten",
-            "olky_no_kyc": "Für Nutzung der Olkypay Bank musst du dich vorher vollständig verifzieren (KYC)",
-            "min_deposit_not_reached": "Die Mindesteinzahlungsgrenze wurde nicht erreicht",
-            "name_check_without_kyc": "Deine Transaktion wurde aufgrund fehlender Verifizierung storniert",
-            "annual_limit_without_kyc": "Du hast das Jahreslimit ohne Verifizierung (KYC) überschritten",
-            "asset_currently_not_available": "Der Vermögenswert ist derzeit nicht für den Handel mit DFX verfügbar"
+            "reasons": {
+                "daily_limit": "Du hast das Limit ohne Verifizierung überschritten",
+                "user_data_mismatch": "Dein Name, den du DFX mitgeteilt hast, stimmt nicht mit dem Namen des Inhabers der IBAN überein",
+                "iban_check": "Die IBAN kann nicht mit DFX verwendet werden",
+                "kyc_rejected": "Deine Verifizierung wurde abgelehnt",
+                "name_check": "Aus rechtlichen Gründen können dich als Kunden leider nicht bedienen",
+                "annual_limit": "Du hast das Jahreslimit überschritten",
+                "olky_no_kyc": "Für Nutzung der Olkypay Bank musst du dich vorher vollständig verifzieren (KYC)",
+                "min_deposit_not_reached": "Die Mindesteinzahlungsgrenze wurde nicht erreicht",
+                "name_check_without_kyc": "Deine Transaktion wurde aufgrund fehlender Verifizierung storniert",
+                "annual_limit_without_kyc": "Du hast das Jahreslimit ohne Verifizierung (KYC) überschritten",
+                "asset_currently_not_available": "Der Vermögenswert ist derzeit nicht für den Handel mit DFX verfügbar"
+            }           
         },
         "pending": {
             "daily_limit": {
