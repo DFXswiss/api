@@ -125,7 +125,7 @@ export class BuyCryptoOutService {
           payoutFee: nativePayoutFee,
         } = await this.payoutService.checkOrderCompletion(PayoutOrderContext.BUY_CRYPTO, tx.id.toString());
 
-        if (!tx.txId && payoutTxId) {
+        if (tx.txId !== payoutTxId) {
           tx.setTxId(payoutTxId);
           await this.buyCryptoRepo.save(tx);
         }
