@@ -1,5 +1,5 @@
-import { CurrencyAmount, Percent, Token, TradeType } from '@uniswap/sdk-core';
-import { AlphaRouter, ChainId, SwapType } from '@uniswap/smart-order-router';
+import { ChainId, CurrencyAmount, Percent, Token, TradeType } from '@uniswap/sdk-core';
+import { AlphaRouter, SwapType } from '@uniswap/smart-order-router';
 import BigNumber from 'bignumber.js';
 import { BigNumberish, Contract, BigNumber as EthersNumber, ethers } from 'ethers';
 import { Asset } from 'src/shared/models/asset/asset.entity';
