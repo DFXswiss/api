@@ -10,16 +10,6 @@ import { Command, CorrelationId } from '../../../interfaces';
 import { LiquidityManagementOrderRepository } from '../../../repositories/liquidity-management-order.repository';
 import { LiquidityManagementAdapter } from './liquidity-management.adapter';
 
-export interface CcxtExchangeWithdrawParams {
-  destinationBlockchain: Blockchain;
-  destinationAddress: string;
-  destinationAddressKey: string;
-}
-
-export interface CcxtExchangeTradeParams {
-  tradeAsset: string;
-}
-
 /**
  * @note
  * commands should be lower-case
@@ -77,9 +67,9 @@ export abstract class CcxtExchangeAdapter extends LiquidityManagementAdapter {
   // --- COMMAND IMPLEMENTATIONS --- //
 
   private async withdraw(order: LiquidityManagementOrder): Promise<CorrelationId> {
-    const { address, key, network } = this.parseWithdrawParams(order.action.paramMap);
+    const { address, key, network, asset } = this.parseWithdrawParams(order.action.paramMap);
 
-    const token = order.pipeline.rule.targetAsset.dexName;
+    const token = asset ?? order.pipeline.rule.targetAsset.dexName;
 
     const balance = await this.exchangeService.getBalance(token);
     if (order.amount > balance)
@@ -121,16 +111,20 @@ export abstract class CcxtExchangeAdapter extends LiquidityManagementAdapter {
   private async checkWithdrawCompletion(order: LiquidityManagementOrder): Promise<boolean> {
     const {
       pipeline: {
-        rule: { targetAsset: asset },
+        rule: { targetAsset },
       },
       action: { paramMap },
       correlationId,
     } = order;
 
-    const withdrawal = await this.exchangeService.getWithdraw(correlationId, asset.dexName);
+    const { asset } = this.parseWithdrawParams(paramMap);
+
+    const token = asset ?? targetAsset.dexName;
+
+    const withdrawal = await this.exchangeService.getWithdraw(correlationId, token);
     if (!withdrawal?.txid) {
       this.logger.verbose(
-        `No withdrawal id for id ${correlationId} and asset ${asset.uniqueName} at ${this.exchangeService.name} found`,
+        `No withdrawal id for id ${correlationId} and asset ${token} at ${this.exchangeService.name} found`,
       );
       return false;
     }
@@ -170,15 +164,21 @@ export abstract class CcxtExchangeAdapter extends LiquidityManagementAdapter {
     }
   }
 
-  private parseWithdrawParams(params: Record<string, unknown>): { address: string; key: string; network: string } {
+  private parseWithdrawParams(params: Record<string, unknown>): {
+    address: string;
+    key: string;
+    network: string;
+    asset?: string;
+  } {
     const address = process.env[params.destinationAddress as string];
     const key = this.exchangeService.config.withdrawKeys?.get(params.destinationAddressKey as string);
     const network = this.mapBlockchainToCcxtNetwork(params.destinationBlockchain as Blockchain);
+    const asset = params.asset as string | undefined;
 
     if (!(address && key && network))
       throw new Error(`Params provided to CcxtExchangeAdapter.withdraw(...) command are invalid.`);
 
-    return { address, key, network };
+    return { address, key, network, asset };
   }
 
   private validateTradeParams(params: Record<string, unknown>): boolean {
