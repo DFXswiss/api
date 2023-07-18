@@ -5,7 +5,7 @@ import { OrderFailedException } from '../../../exceptions/order-failed.exception
 import { OrderNotProcessableException } from '../../../exceptions/order-not-processable.exception';
 import { Command, CorrelationId, LiquidityActionIntegration } from '../../../interfaces';
 
-export abstract class LiquidityManagementAdapter implements LiquidityActionIntegration {
+export abstract class LiquidityActionAdapter implements LiquidityActionIntegration {
   constructor(protected readonly system: LiquidityManagementSystem) {}
 
   protected abstract commands: Map<string, Command>;

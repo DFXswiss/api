@@ -8,7 +8,7 @@ import { LiquidityManagementSystem } from '../../../enums';
 import { OrderNotProcessableException } from '../../../exceptions/order-not-processable.exception';
 import { Command, CorrelationId } from '../../../interfaces';
 import { LiquidityManagementOrderRepository } from '../../../repositories/liquidity-management-order.repository';
-import { LiquidityManagementAdapter } from './liquidity-management.adapter';
+import { LiquidityActionAdapter } from './liquidity-action.adapter';
 
 /**
  * @note
@@ -19,7 +19,7 @@ export enum CcxtExchangeAdapterCommands {
   TRADE = 'trade',
 }
 
-export abstract class CcxtExchangeAdapter extends LiquidityManagementAdapter {
+export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
   private readonly logger = new DfxLogger(CcxtExchangeAdapter);
 
   protected commands = new Map<string, Command>();

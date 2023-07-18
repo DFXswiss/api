@@ -6,12 +6,7 @@ import { LiquidityManagementOrder } from '../../entities/liquidity-management-or
 import { LiquidityManagementSystem } from '../../enums';
 import { OrderFailedException } from '../../exceptions/order-failed.exception';
 import { Command, CorrelationId } from '../../interfaces';
-import { LiquidityManagementAdapter } from './base/liquidity-management.adapter';
-
-export interface DfxDexWithdrawParams {
-  destinationAddress: string;
-  destinationSystem: LiquidityManagementSystem;
-}
+import { LiquidityActionAdapter } from './base/liquidity-action.adapter';
 
 /**
  * @note
@@ -24,7 +19,7 @@ export enum DfxDexAdapterCommands {
 }
 
 @Injectable()
-export class DfxDexAdapter extends LiquidityManagementAdapter {
+export class DfxDexAdapter extends LiquidityActionAdapter {
   protected commands = new Map<string, Command>();
 
   constructor(private readonly dexService: DexService, private readonly exchangeRegistry: ExchangeRegistryService) {
