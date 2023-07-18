@@ -1,14 +1,15 @@
 import { Injectable, NotImplementedException, OnModuleInit } from '@nestjs/common';
-import { CoinGeckoService } from './integration/coin-gecko.service';
-import { PriceProviderDeFiChainService } from './integration/price-provider-defichain.service';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Active, isFiat } from 'src/shared/models/active';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Price } from '../domain/entities/price';
-import { MetadataNotFoundException } from '../domain/exceptions/metadata-not-found.exception';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { CurrencyService } from './integration/currency.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { Price } from '../domain/entities/price';
+import { MetadataNotFoundException } from '../domain/exceptions/metadata-not-found.exception';
+import { CoinGeckoService } from './integration/coin-gecko.service';
+import { CurrencyService } from './integration/currency.service';
+import { PriceProviderDeFiChainService } from './integration/price-provider-defichain.service';
 
 /**
  * Price provider service - use this service for indicative prices
@@ -32,11 +33,11 @@ export class PriceProviderService implements OnModuleInit {
     void this.fiatService.getFiatByName('USD').then((a) => (this.usd = a));
   }
 
-  async getPrice(from: Asset | Fiat, to: Asset | Fiat): Promise<Price> {
-    if (this.isFiat(from)) {
-      return this.isFiat(to) ? this.fiatFiat(from, to) : this.fiatCrypto(from, to);
+  async getPrice(from: Active, to: Active): Promise<Price> {
+    if (isFiat(from)) {
+      return isFiat(to) ? this.fiatFiat(from, to) : this.fiatCrypto(from, to);
     } else {
-      return this.isFiat(to) ? this.cryptoFiat(from, to) : this.cryptoCrypto(from, to);
+      return isFiat(to) ? this.cryptoFiat(from, to) : this.cryptoCrypto(from, to);
     }
   }
 
@@ -96,10 +97,6 @@ export class PriceProviderService implements OnModuleInit {
   }
 
   // --- HELPER METHODS --- //
-  private isFiat(item: Asset | Fiat): item is Fiat {
-    return item instanceof Fiat;
-  }
-
   private async getFiatReferenceAssetFor(blockchain: Blockchain): Promise<Asset> {
     if (!this.refAssetMap.has(blockchain)) {
       const refAsset = await this.assetService.getAssetByQuery({

@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Active, isAsset, isFiat } from 'src/shared/models/active';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { MinAmount } from 'src/shared/payment/dto/min-amount.dto';
@@ -36,7 +36,7 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   // --- SPECIFICATIONS --- //
-  async isValidInput(from: Asset | Fiat, amount: number): Promise<boolean> {
+  async isValidInput(from: Active, amount: number): Promise<boolean> {
     // check sellable
     if (!from.sellable) return false;
 
@@ -45,14 +45,14 @@ export class TransactionHelper implements OnModuleInit {
     return amount > minVolume * 0.5;
   }
 
-  async getInSpecs(from: Asset | Fiat): Promise<TxSpec> {
+  async getInSpecs(from: Active): Promise<TxSpec> {
     const { system, asset } = this.getProps(from);
     const spec = this.getSpec(system, asset, TransactionDirection.IN);
 
     return this.convertToSource(from, spec);
   }
 
-  getSpecs(from: Asset | Fiat, to: Asset | Fiat): TxSpec {
+  getSpecs(from: Active, to: Active): TxSpec {
     const { system: fromSystem, asset: fromAsset } = this.getProps(from);
     const { system: toSystem, asset: toAsset } = this.getProps(to);
 
@@ -97,7 +97,7 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   // --- TARGET ESTIMATION --- //
-  async getTxDetails(amount: number, fee: number, from: Asset | Fiat, to: Asset | Fiat): Promise<TransactionDetails> {
+  async getTxDetails(amount: number, fee: number, from: Active, to: Active): Promise<TransactionDetails> {
     const specs = this.getSpecs(from, to);
 
     const { minVolume, minFee } = await this.convertToSource(from, specs);
@@ -118,42 +118,40 @@ export class TransactionHelper implements OnModuleInit {
     amount: number,
     fee: number,
     minFee: number,
-    from: Asset | Fiat,
-    to: Asset | Fiat,
+    from: Active,
+    to: Active,
   ): Promise<TargetEstimation> {
     const price = await this.priceProviderService.getPrice(from, to);
     const feeAmount = Math.max(amount * fee, minFee);
-    const targetAmount = this.convert(Math.max(amount - feeAmount, 0), price, to instanceof Fiat);
+    const targetAmount = this.convert(Math.max(amount - feeAmount, 0), price, isFiat(to));
 
     return {
-      exchangeRate: this.round(price.price, from instanceof Fiat),
-      feeAmount: this.round(feeAmount, from instanceof Fiat),
+      exchangeRate: this.round(price.price, isFiat(from)),
+      feeAmount: this.round(feeAmount, isFiat(from)),
       estimatedAmount: targetAmount,
     };
   }
 
   // --- HELPER METHODS --- //
-  private getProps(param: Asset | Fiat): { system: string; asset: string } {
-    return param instanceof Fiat
-      ? { system: 'Fiat', asset: param.name }
-      : { system: param.blockchain, asset: param.dexName };
+  private getProps(param: Active): { system: string; asset: string } {
+    return isAsset(param) ? { system: param.blockchain, asset: param.dexName } : { system: 'Fiat', asset: param.name };
   }
 
-  private async convertToSource(from: Asset | Fiat, { minFee, minVolume }: TxSpec): Promise<TxSpec> {
+  private async convertToSource(from: Active, { minFee, minVolume }: TxSpec): Promise<TxSpec> {
     const price = await this.priceProviderService.getPrice(from, this.eur).then((p) => p.invert());
 
     return {
-      minFee: this.convert(minFee, price, from instanceof Fiat),
-      minVolume: this.convert(minVolume, price, from instanceof Fiat),
+      minFee: this.convert(minFee, price, isFiat(from)),
+      minVolume: this.convert(minVolume, price, isFiat(from)),
     };
   }
 
-  private async convertToTarget(to: Asset | Fiat, { minFee, minVolume }: TxSpec): Promise<TxSpec> {
+  private async convertToTarget(to: Active, { minFee, minVolume }: TxSpec): Promise<TxSpec> {
     const price = await this.priceProviderService.getPrice(this.eur, to);
 
     return {
-      minFee: this.convert(minFee, price, to instanceof Fiat),
-      minVolume: this.convert(minVolume, price, to instanceof Fiat),
+      minFee: this.convert(minFee, price, isFiat(to)),
+      minVolume: this.convert(minVolume, price, isFiat(to)),
     };
   }
 

@@ -11,6 +11,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { LiquidityBalance } from '../../entities/liquidity-balance.entity';
+import { LiquidityManagementContext } from '../../enums';
 import { LiquidityBalanceIntegration } from '../../interfaces';
 
 @Injectable()
@@ -38,7 +39,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     this.lnClient = lightningService.getDefaultClient();
   }
 
-  async getBalances(assets: Asset[]): Promise<LiquidityBalance[]> {
+  async getBalances(assets: (Asset & { context: LiquidityManagementContext })[]): Promise<LiquidityBalance[]> {
     if (!assets.every((a) => a instanceof Asset)) {
       throw new Error(`BlockchainAdapter supports only assets`);
     }

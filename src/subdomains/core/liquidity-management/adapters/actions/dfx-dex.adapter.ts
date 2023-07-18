@@ -155,7 +155,7 @@ export class DfxDexAdapter extends LiquidityManagementAdapter {
   private async checkWithdrawCompletion(order: LiquidityManagementOrder): Promise<boolean> {
     const { system } = this.parseWithdrawParams(order.action.paramMap);
 
-    const exchange = this.registryService.getExchange(system.toLowerCase());
+    const exchange = this.registryService.getStrategy(system);
 
     const deposits = await exchange.getDeposits(order.pipeline.rule.targetAsset.dexName, order.created);
     const deposit = deposits.find((d) => d.amount === order.amount && d.timestamp > order.created.getTime());
@@ -191,7 +191,7 @@ export class DfxDexAdapter extends LiquidityManagementAdapter {
       address &&
       system &&
       Object.values(LiquidityManagementSystem).includes(system) &&
-      this.registryService.getExchange(system.toLowerCase())
+      this.registryService.getStrategy(system)
     );
   }
 }

@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, Inject, OnModuleInit } from '@nestjs/common';
 import BigNumber from 'bignumber.js';
 import { Exchange, Market, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
 import { ExchangeConfig } from 'src/config/config';
@@ -8,6 +8,7 @@ import { Util } from 'src/shared/utils/util';
 import { PricingProvider } from 'src/subdomains/supporting/pricing/domain/interfaces';
 import { Price } from '../../../subdomains/supporting/pricing/domain/entities/price';
 import { TradeChangedException } from '../exceptions/trade-changed.exception';
+import { ExchangeRegistryService } from './exchange-registry.service';
 
 export enum OrderSide {
   BUY = 'buy',
@@ -26,12 +27,14 @@ enum PrecisionMode {
   TICK_SIZE = 2,
 }
 
-export abstract class ExchangeService implements PricingProvider {
+export abstract class ExchangeService implements PricingProvider, OnModuleInit {
   protected abstract readonly logger: DfxLogger;
 
-  private readonly exchange: Exchange;
+  protected readonly exchange: Exchange;
 
   private markets: Market[];
+
+  @Inject() private readonly registry: ExchangeRegistryService;
 
   constructor(
     exchange: { new (config: ExchangeConfig): Exchange },
@@ -40,6 +43,10 @@ export abstract class ExchangeService implements PricingProvider {
   ) {
     this.queue ??= new QueueHandler(180000, 60000);
     this.exchange = new exchange(config);
+  }
+
+  onModuleInit() {
+    this.registry.addStrategy(this.name, this);
   }
 
   get name(): string {

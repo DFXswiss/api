@@ -1,5 +1,4 @@
-import { Asset } from 'src/shared/models/asset/asset.entity';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { isAsset, isFiat } from 'src/shared/models/active';
 import { LiquidityManagementOrder } from '../../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../../enums';
 import { OrderFailedException } from '../../../exceptions/order-failed.exception';
@@ -21,7 +20,7 @@ export abstract class LiquidityManagementAdapter implements LiquidityActionInteg
       },
     } = order;
 
-    if (!(target instanceof Asset) && !(target instanceof Fiat)) {
+    if (!isAsset(target) && !isFiat(target)) {
       throw new Error(
         `LiquidityManagementAdapter for ${this.system} supports only Asset or Fiat instances as an input`,
       );

@@ -1,14 +1,15 @@
-import { Asset } from 'src/shared/models/asset/asset.entity';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { Active } from 'src/shared/models/active';
 import { LiquidityBalance } from '../entities/liquidity-balance.entity';
 import { LiquidityManagementOrder } from '../entities/liquidity-management-order.entity';
+import { LiquidityManagementContext } from '../enums';
 
 export type CorrelationId = string;
 export type PipelineId = number;
 export type Command = (order: LiquidityManagementOrder) => Promise<CorrelationId>;
+export type LiquidityManagementAsset = Active & { context: LiquidityManagementContext };
 
 export interface LiquidityBalanceIntegration {
-  getBalances(assets: (Asset | Fiat)[]): Promise<LiquidityBalance[]>;
+  getBalances(assets: LiquidityManagementAsset[]): Promise<LiquidityBalance[]>;
 }
 
 export interface LiquidityActionIntegration {

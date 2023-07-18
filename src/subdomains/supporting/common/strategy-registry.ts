@@ -13,7 +13,7 @@ export abstract class StrategyRegistry<K, S> {
     return this.registry.get(this.getKey(key));
   }
 
-  private getKey(key: K): string {
+  protected getKey(key: K): string {
     return JSON.stringify(key);
   }
 }

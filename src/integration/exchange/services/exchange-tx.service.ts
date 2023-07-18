@@ -25,7 +25,7 @@ export class ExchangeTxService {
     const since = Util.minutesBefore(Config.exchangeTxSyncLimit);
 
     for (const exchange of ExchangeSyncs) {
-      const exchangeService = this.registryService.getExchange(exchange);
+      const exchangeService = this.registryService.getStrategy(exchange);
 
       const transactions: ExchangeTxDto[] = [];
 

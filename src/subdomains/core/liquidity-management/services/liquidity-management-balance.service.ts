@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { LiquidityBalance } from '../entities/liquidity-balance.entity';
 import { LiquidityManagementRule } from '../entities/liquidity-management-rule.entity';
 import { LiquidityBalanceIntegrationFactory } from '../factories/liquidity-balance-integration.factory';
 import { LiquidityBalanceRepository } from '../repositories/liquidity-balance.repository';
-import { Util } from 'src/shared/utils/util';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class LiquidityManagementBalanceService {
@@ -21,7 +21,7 @@ export class LiquidityManagementBalanceService {
     const integrations = this.balanceIntegrationFactory.getIntegrations(rules);
 
     const balanceRequests = integrations.map(({ integration, rules }) =>
-      integration.getBalances(rules.map((r) => r.target)).catch((e) => {
+      integration.getBalances(rules.map((r) => Object.assign(r.target, { context: r.context }))).catch((e) => {
         this.logger.warn(`Error getting liquidity management balances for rules ${rules.map((r) => r.id)}:`, e);
         throw e;
       }),
