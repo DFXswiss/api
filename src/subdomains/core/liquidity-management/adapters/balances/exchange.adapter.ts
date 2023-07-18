@@ -3,19 +3,22 @@ import { ExchangeRegistryService } from 'src/integration/exchange/services/excha
 import { isAsset } from 'src/shared/models/active';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { In } from 'typeorm';
 import { LiquidityBalance } from '../../entities/liquidity-balance.entity';
-import { LiquidityManagementContext } from '../../enums';
+import { LiquidityManagementContext, LiquidityManagementOrderStatus, LiquidityManagementSystem } from '../../enums';
 import { LiquidityBalanceIntegration, LiquidityManagementAsset } from '../../interfaces';
+import { LiquidityManagementOrderRepository } from '../../repositories/liquidity-management-order.repository';
 
 @Injectable()
 export class ExchangeAdapter implements LiquidityBalanceIntegration {
   private readonly logger = new DfxLogger(ExchangeAdapter);
 
-  constructor(private readonly exchangeRegistry: ExchangeRegistryService) {}
+  constructor(
+    private readonly exchangeRegistry: ExchangeRegistryService,
+    private readonly orderRepo: LiquidityManagementOrderRepository,
+  ) {}
 
   async getBalances(assets: LiquidityManagementAsset[]): Promise<LiquidityBalance[]> {
-    assets = await Util.asyncFilter(assets, (a) => this.hasSafeBalance(a));
-
     const liquidityManagementAssets = Util.groupBy<LiquidityManagementAsset, LiquidityManagementContext>(
       assets,
       'context',
@@ -29,16 +32,12 @@ export class ExchangeAdapter implements LiquidityBalanceIntegration {
   }
 
   // --- HELPER METHODS --- //
-  private async hasSafeBalance(asset: LiquidityManagementAsset): Promise<boolean> {
-    // TODO
-    return true;
-  }
 
-  async getForExchange(
-    exchange: LiquidityManagementContext,
-    assets: LiquidityManagementAsset[],
-  ): Promise<LiquidityBalance[]> {
+  async getForExchange(exchange: string, assets: LiquidityManagementAsset[]): Promise<LiquidityBalance[]> {
     try {
+      const hasSafeBalances = await this.hasSafeBalances(exchange);
+      if (!hasSafeBalances) return [];
+
       const exchangeService = this.exchangeRegistry.getStrategy(exchange);
       const balances = await exchangeService.getBalances().then((b) => b.total);
 
@@ -51,5 +50,16 @@ export class ExchangeAdapter implements LiquidityBalanceIntegration {
     } catch (e) {
       this.logger.error(`Failed to update liquidity management balance for ${exchange}:`, e);
     }
+  }
+
+  private async hasSafeBalances(exchange: string): Promise<boolean> {
+    return this.orderRepo
+      .exist({
+        where: {
+          action: { system: exchange as LiquidityManagementSystem },
+          status: In([LiquidityManagementOrderStatus.CREATED, LiquidityManagementOrderStatus.IN_PROGRESS]),
+        },
+      })
+      .then((r) => !r);
   }
 }
