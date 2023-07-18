@@ -46,7 +46,7 @@ export abstract class ExchangeService implements PricingProvider, OnModuleInit {
   }
 
   onModuleInit() {
-    this.registry.addStrategy(this.name, this);
+    this.registry.add(this.name, this);
   }
 
   get name(): string {

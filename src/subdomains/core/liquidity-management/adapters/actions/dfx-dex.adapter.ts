@@ -27,7 +27,7 @@ export enum DfxDexAdapterCommands {
 export class DfxDexAdapter extends LiquidityManagementAdapter {
   protected commands = new Map<string, Command>();
 
-  constructor(private readonly dexService: DexService, private readonly registryService: ExchangeRegistryService) {
+  constructor(private readonly dexService: DexService, private readonly exchangeRegistry: ExchangeRegistryService) {
     super(LiquidityManagementSystem.DFX_DEX);
 
     this.commands.set(DfxDexAdapterCommands.PURCHASE, this.purchase.bind(this));
@@ -155,7 +155,7 @@ export class DfxDexAdapter extends LiquidityManagementAdapter {
   private async checkWithdrawCompletion(order: LiquidityManagementOrder): Promise<boolean> {
     const { system } = this.parseWithdrawParams(order.action.paramMap);
 
-    const exchange = this.registryService.getStrategy(system);
+    const exchange = this.exchangeRegistry.get(system);
 
     const deposits = await exchange.getDeposits(order.pipeline.rule.targetAsset.dexName, order.created);
     const deposit = deposits.find((d) => d.amount === order.amount && d.timestamp > order.created.getTime());
@@ -191,7 +191,7 @@ export class DfxDexAdapter extends LiquidityManagementAdapter {
       address &&
       system &&
       Object.values(LiquidityManagementSystem).includes(system) &&
-      this.registryService.getStrategy(system)
+      this.exchangeRegistry.get(system)
     );
   }
 }

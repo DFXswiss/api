@@ -34,7 +34,7 @@ export class ExchangeController {
 
   private trades: { [key: number]: TradeResult } = {};
 
-  constructor(private readonly registryService: ExchangeRegistryService) {}
+  constructor(private readonly exchangeRegistry: ExchangeRegistryService) {}
 
   @Get(':exchange/balances')
   @ApiBearerAuth()
@@ -119,8 +119,8 @@ export class ExchangeController {
     const token = withdrawalDto.token.toUpperCase();
     const amount = withdrawalDto.amount ? withdrawalDto.amount : await this.call(exchange, (e) => e.getBalance(token));
 
-    return this.registryService
-      .getStrategy(exchange)
+    return this.exchangeRegistry
+      .get(exchange)
       .withdrawFunds(token, amount, withdrawalDto.address, withdrawalDto.key, withdrawalDto.network);
   }
 
@@ -140,7 +140,7 @@ export class ExchangeController {
   }
 
   private async call<T>(exchange: string, call: (e: ExchangeService) => Promise<T>): Promise<T> {
-    const exchangeService = this.registryService.getStrategy(exchange);
+    const exchangeService = this.exchangeRegistry.get(exchange);
     return call(exchangeService).catch((e: ExchangeError) => {
       throw new ServiceUnavailableException(e.message);
     });
@@ -156,7 +156,7 @@ export class ExchangeController {
 
       const currentOrder = orders[orders.length - 1];
       try {
-        const isComplete = await this.registryService.getStrategy(exchange).checkTrade(currentOrder, from, to);
+        const isComplete = await this.exchangeRegistry.get(exchange).checkTrade(currentOrder, from, to);
         if (isComplete) {
           trade.status = TradeStatus.CLOSED;
           trade.trade = await this.getTradeResponse(exchange, from, to, orders);
@@ -183,7 +183,7 @@ export class ExchangeController {
     orders: string[],
   ): Promise<TradeResponse | undefined> {
     try {
-      const recentTrades = await this.registryService.getStrategy(exchange).getTrades(from, to);
+      const recentTrades = await this.exchangeRegistry.get(exchange).getTrades(from, to);
       const trades = recentTrades.filter((t) => orders.includes(t.order));
 
       if (trades.length === 0) return undefined;

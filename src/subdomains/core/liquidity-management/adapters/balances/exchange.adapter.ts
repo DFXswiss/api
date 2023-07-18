@@ -38,7 +38,7 @@ export class ExchangeAdapter implements LiquidityBalanceIntegration {
       const hasSafeBalances = await this.hasSafeBalances(exchange);
       if (!hasSafeBalances) return [];
 
-      const exchangeService = this.exchangeRegistry.getStrategy(exchange);
+      const exchangeService = this.exchangeRegistry.get(exchange);
       const balances = await exchangeService.getBalances().then((b) => b.total);
 
       return assets.map((a) => {

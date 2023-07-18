@@ -12,7 +12,7 @@ import { ExchangeRegistryService } from './exchange-registry.service';
 export class ExchangeTxService {
   constructor(
     private readonly exchangeTxRepo: ExchangeTxRepository,
-    private readonly registryService: ExchangeRegistryService,
+    private readonly exchangeRegistry: ExchangeRegistryService,
   ) {}
 
   //*** JOBS ***//
@@ -25,7 +25,7 @@ export class ExchangeTxService {
     const since = Util.minutesBefore(Config.exchangeTxSyncLimit);
 
     for (const exchange of ExchangeSyncs) {
-      const exchangeService = this.registryService.getStrategy(exchange);
+      const exchangeService = this.exchangeRegistry.get(exchange);
 
       const transactions: ExchangeTxDto[] = [];
 
