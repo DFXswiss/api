@@ -1,18 +1,18 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { Config } from 'src/config/config';
+import { Lock } from 'src/shared/utils/lock';
+import { Util } from 'src/shared/utils/util';
+import { KycCompleted } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { IsNull, Not } from 'typeorm';
 import { User, UserStatus } from '../../../../generic/user/models/user/user.entity';
-import { Util } from 'src/shared/utils/util';
-import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { Config } from 'src/config/config';
-import { CryptoRouteRepository } from './crypto-route.repository';
-import { UpdateCryptoRouteDto } from './dto/update-crypto-route.dto';
-import { CreateCryptoRouteDto } from './dto/create-crypto-route.dto';
-import { CryptoRoute } from './crypto-route.entity';
 import { DepositService } from '../../../../supporting/address-pool/deposit/deposit.service';
-import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { KycCompleted } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { Lock } from 'src/shared/utils/lock';
+import { CryptoRoute } from './crypto-route.entity';
+import { CryptoRouteRepository } from './crypto-route.repository';
+import { CreateCryptoRouteDto } from './dto/create-crypto-route.dto';
+import { UpdateCryptoRouteDto } from './dto/update-crypto-route.dto';
 
 @Injectable()
 export class CryptoRouteService {
@@ -121,7 +121,7 @@ export class CryptoRouteService {
 
   async getUserCryptos(userId: number): Promise<CryptoRoute[]> {
     const cryptoRoutes = await this.cryptoRepo.findBy({ user: { id: userId } });
-    return cryptoRoutes.filter((c) => c.asset.blockchain && c.targetDeposit);
+    return cryptoRoutes.filter((c) => c.asset.buyable);
   }
 
   async updateCrypto(userId: number, cryptoId: number, dto: UpdateCryptoRouteDto): Promise<CryptoRoute> {
