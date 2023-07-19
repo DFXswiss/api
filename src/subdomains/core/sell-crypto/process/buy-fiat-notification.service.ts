@@ -222,8 +222,10 @@ export class BuyFiatNotificationService {
                       key: `${MailTranslationKey.FIAT_RETURN}.payment_link`,
                       params: { url: txExplorerUrl(entity.cryptoInputBlockchain, entity.cryptoReturnTxId) },
                     },
-                { key: `${MailTranslationKey.RETURN}.introduction`, params: { connectNextLine: 'true' } },
-                { key: `${MailTranslationKey.RETURN_REASON}.${entity.amlReason}` },
+                {
+                  key: `${MailTranslationKey.RETURN}.introduction`,
+                  params: { reason: MailFactory.parseMailKey(MailTranslationKey.RETURN_REASON, entity.amlReason) },
+                },
                 { key: MailKey.SPACE, params: { value: '2' } },
                 { key: `${MailTranslationKey.GENERAL}.support` },
                 { key: MailKey.SPACE, params: { value: '4' } },

@@ -31,7 +31,6 @@ export enum MailParamKey {
   STYLE = 'style',
   VALUE = 'value',
   URL = 'url',
-  CONNECT_NEXT_LINE = 'connectNextLine', // only working wo other params
 }
 
 export interface TranslationItem {

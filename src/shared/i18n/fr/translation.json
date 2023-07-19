@@ -43,7 +43,7 @@
                 "salutation": "Vos fonds ont été remboursés sur votre adresse de wallet",
                 "payment_link": "Vous trouverez l'ID de transaction<br>pour le remboursement: [url:Link]"
             },
-            "introduction": "Reason why we reimbursed your funds:<br>",
+            "introduction": "Reason why we reimbursed your funds:<br>{reason}",
             "reasons": {
                 "daily_limit": "Vous avez dépassé la limite hors KYC",
                 "user_data_mismatch": "Le nom que vous avez indiqué à DFX ne correspond pas au nom du propriétaire de l'IBAN",

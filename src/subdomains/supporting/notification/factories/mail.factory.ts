@@ -9,7 +9,14 @@ import { KycSupportMail, KycSupportMailInput } from '../entities/mail/kyc-suppor
 import { PersonalMail, PersonalMailInput } from '../entities/mail/personal-mail';
 import { UserMail, UserMailInput, UserMailNew, UserMailSuffix, UserMailTable } from '../entities/mail/user-mail';
 import { MailType } from '../enums';
-import { MailRequest, MailRequestGenericInput, MailRequestInput, MailRequestNew, TranslationItem } from '../interfaces';
+import {
+  MailParamKey,
+  MailRequest,
+  MailRequestGenericInput,
+  MailRequestInput,
+  MailRequestNew,
+  TranslationItem,
+} from '../interfaces';
 
 export enum MailTranslationKey {
   GENERAL = 'translation.general',
@@ -74,7 +81,7 @@ export class MailFactory {
     }
   }
 
-  async createMailNew(request: MailRequestNew): Promise<Mail> {
+  createMailNew(request: MailRequestNew): Mail {
     switch (request.type) {
       case MailType.USER: {
         return this.createUserMailNew(request);
@@ -165,7 +172,7 @@ export class MailFactory {
     });
   }
 
-  private async createUserMailNew(request: MailRequestNew): Promise<UserMailNew> {
+  private createUserMailNew(request: MailRequestNew): UserMailNew {
     const { metadata, options } = request;
     const { userData, title, prefix, suffix, table } = request.input as MailRequestInput;
 
@@ -235,7 +242,7 @@ export class MailFactory {
   }
 
   private getSuffix(suffix: TranslationItem[], lang: string): UserMailSuffix[] {
-    Util.removeNullFields(this.combineConnectedLineElements(suffix));
+    Util.removeNullFields(suffix);
     return suffix.map((element) => this.mapSuffix(element, lang).flat()).flat();
   }
 
@@ -261,11 +268,8 @@ export class MailFactory {
 
       default:
         const text =
-          element.key.split('&&').length > 1
-            ? element.key
-                .split('&&')
-                .map((splitKey) => this.tNew(splitKey, lang))
-                .join('')
+          element.params && !this.isMailParamType(element.params)
+            ? this.getTranslatedTextWithParams(element, lang)
             : this.tNew(element.key, lang);
         const specialTag = this.parseSpecialTag(text);
 
@@ -288,19 +292,19 @@ export class MailFactory {
     }
   }
 
-  private combineConnectedLineElements(suffix: TranslationItem[]): TranslationItem[] {
-    for (let index = 0; index < suffix.length - 1; index++) {
-      if (suffix[index]?.params?.connectNextLine) {
-        suffix[index + 1].key = `${suffix[index].key}&&${suffix[index + 1].key}`;
-        suffix[index] = null;
-      }
-    }
-    return suffix;
+  private getTranslatedTextWithParams(element: TranslationItem, lang: string): string {
+    const paramName = Object.keys(element.params)[0];
+    element.params[paramName] = this.tNew(element.params[paramName], lang);
+    return this.tNew(element.key, lang, element.params[paramName] === paramName ? element.params[0] : element.params);
   }
 
   private parseSpecialTag(text: string): SpecialTag | undefined {
     const match = /^(.*)\[(\w+):([^\]]+)\](.*)$/.exec(text);
     return match ? { text: match[1], textSuffix: match[4], tag: match[2], value: match[3] } : undefined;
+  }
+
+  private isMailParamType(params: TranslationItem['params']): params is { [key in MailParamKey]?: string } {
+    return MailParamKey[Object.keys(params)[0]] !== undefined;
   }
 
   //*** STATIC HELPER METHODS ***//

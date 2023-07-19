@@ -43,7 +43,7 @@
                 "salutation": "Tus fondos han sido reembolsados a la dirección de tu billetera",
                 "payment_link": "Aquí encontrará el identificador<br>de su reembolso: [url:Link]"
             },
-            "introduction": "Reason why we reimbursed your funds:<br>",
+            "introduction": "Reason why we reimbursed your funds:<br>{reason}",
             "reasons": {
                 "daily_limit": "Excediste el límite sin verificación KYC",
                 "user_data_mismatch": "El nombre que compartiste a DFX no encaja con el nombre del propietario del IBAN",

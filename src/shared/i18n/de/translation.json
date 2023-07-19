@@ -43,7 +43,7 @@
                 "salutation": "Dein Guthaben wurde an deine Wallet-Adresse zurückerstattet",
                 "payment_link": "Dies ist die Transaktions-ID<br>zu deiner Rückzahlung: [url:Link]"
             },
-            "introduction": "Grund, warum wir zurückerstattet haben:<br>",
+            "introduction": "Grund, warum wir zurückerstattet haben:<br>{reason}",
             "reasons": {
                 "daily_limit": "Du hast das Limit ohne Verifizierung überschritten",
                 "user_data_mismatch": "Dein Name, den du DFX mitgeteilt hast, stimmt nicht mit dem Namen des Inhabers der IBAN überein",

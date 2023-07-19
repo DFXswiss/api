@@ -209,8 +209,10 @@ export class BuyCryptoNotificationService {
                       params: { url: txExplorerUrl(entity.cryptoInput.asset.blockchain, entity.chargebackCryptoTxId) },
                     }
                   : null,
-                { key: `${MailTranslationKey.RETURN}.introduction`, params: { connectNextLine: 'true' } },
-                { key: `${MailFactory.parseMailKey(MailTranslationKey.RETURN_REASON, entity.amlReason)}` },
+                {
+                  key: `${MailTranslationKey.RETURN}.introduction`,
+                  params: { reason: MailFactory.parseMailKey(MailTranslationKey.RETURN_REASON, entity.amlReason) },
+                },
                 { key: MailKey.SPACE, params: { value: '2' } },
                 { key: `${MailTranslationKey.GENERAL}.support` },
                 { key: MailKey.SPACE, params: { value: '4' } },
