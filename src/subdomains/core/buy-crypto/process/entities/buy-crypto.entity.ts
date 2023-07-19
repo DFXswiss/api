@@ -334,9 +334,18 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
-  complete(payoutTxId: string, payoutFee: number): UpdateResult<BuyCrypto> {
+  setTxId(payoutTxId: string): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       txId: payoutTxId,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  complete(payoutFee: number): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
       outputDate: new Date(),
       isComplete: true,
       status: BuyCryptoStatus.COMPLETE,

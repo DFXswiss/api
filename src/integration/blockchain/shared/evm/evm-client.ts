@@ -1,5 +1,5 @@
-import { Currency, CurrencyAmount, Ether, Percent, Token, TradeType } from '@uniswap/sdk-core';
-import { AlphaRouter, ChainId, SwapRoute, SwapType } from '@uniswap/smart-order-router';
+import { ChainId, Currency, CurrencyAmount, Ether, Percent, Token, TradeType } from '@uniswap/sdk-core';
+import { AlphaRouter, SwapRoute, SwapType } from '@uniswap/smart-order-router';
 import BigNumber from 'bignumber.js';
 import { BigNumberish, Contract, BigNumber as EthersNumber, ethers } from 'ethers';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
@@ -86,7 +86,7 @@ export abstract class EvmClient {
   }
 
   async getTokenGasLimitForContact(contract: Contract): Promise<EthersNumber> {
-    return contract.estimateGas.transfer(this.randomReceiverAddress, 1);
+    return contract.estimateGas.transfer(this.randomReceiverAddress, 1).then((l) => l.mul(12).div(10));
   }
 
   // --- PUBLIC API - WRITE TRANSACTIONS --- //

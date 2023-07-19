@@ -26,6 +26,8 @@ export class AssetDtoMapper {
   }
 
   static entitiesToDto(assets: Asset[]): AssetDto[] {
-    return assets.map(AssetDtoMapper.entityToDto);
+    return assets
+      .filter((asset) => asset.buyable || asset.sellable || asset.comingSoon)
+      .map(AssetDtoMapper.entityToDto);
   }
 }

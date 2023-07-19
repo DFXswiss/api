@@ -95,10 +95,13 @@ export abstract class ExchangeService implements PricingProvider {
 
         // price changed -> update price
         if (price !== order.price) {
+          this.logger.verbose(`Order ${order.id} open, price changed ${order.price} -> ${price}`);
           const id = await this.updateOrderPrice(order, price).catch((e) =>
             this.logger.error(`Failed to update price of order ${order.id}:`, e),
           );
           if (id) throw new TradeChangedException(id);
+        } else {
+          this.logger.verbose(`Order ${order.id} open, price is still ${price}`);
         }
 
         return false;
@@ -110,10 +113,16 @@ export abstract class ExchangeService implements PricingProvider {
           return true;
         }
 
+        this.logger.verbose(`Order ${order.id} cancelled, restarting with ${order.remaining}`);
+
         const id = await this.placeOrder(order.symbol, order.side as OrderSide, order.remaining);
+
+        this.logger.verbose(`Order ${order.id} changed to ${id}`);
+
         throw new TradeChangedException(id);
 
       case OrderStatus.CLOSED:
+        this.logger.verbose(`Order ${order.id} closed`);
         return true;
 
       default:

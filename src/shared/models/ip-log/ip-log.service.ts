@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Config } from 'src/config/config';
+import { Config, Environment } from 'src/config/config';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
@@ -30,7 +30,7 @@ export class IpLogService {
   }
 
   private async checkIpCountry(userIp: string, address: string): Promise<{ country: string; result: boolean }> {
-    if (Config.environment === 'loc' || userIp?.includes(Config.azureIpSubstring))
+    if (Config.environment === Environment.LOC || userIp?.includes(Config.azureIpSubstring))
       return { country: 'INTERN', result: true };
 
     const country = await this.geoLocationService.getCountry(userIp);

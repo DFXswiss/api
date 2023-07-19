@@ -328,7 +328,7 @@ export class Util {
     return '***' + value.slice(value.length - visibleLength);
   }
 
-  static trim({ value }: TransformFnParams): string {
-    return value.split(' ').join('');
+  static trim({ value }: TransformFnParams): string | undefined {
+    return value?.split(' ').join('');
   }
 }

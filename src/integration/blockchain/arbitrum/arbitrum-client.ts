@@ -11,7 +11,7 @@ import {
   L1ContractCallTransactionReceipt,
   L1EthDepositTransactionReceipt,
 } from '@arbitrum/sdk/dist/lib/message/L1Transaction';
-import { ChainId } from '@uniswap/smart-order-router';
+import { ChainId } from '@uniswap/sdk-core';
 import { Contract, ethers } from 'ethers';
 import { GetConfig } from 'src/config/config';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';

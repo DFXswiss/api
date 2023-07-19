@@ -1,4 +1,4 @@
-import { ChainId } from '@uniswap/smart-order-router';
+import { ChainId } from '@uniswap/sdk-core';
 import { HttpService } from 'src/shared/services/http.service';
 import { EvmClient } from './evm-client';
 

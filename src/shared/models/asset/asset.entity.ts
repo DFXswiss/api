@@ -55,6 +55,9 @@ export class Asset extends IEntity {
   @Column({ default: true })
   sellable: boolean;
 
+  @Column({ default: false })
+  ikna: boolean;
+
   @Column({ length: 256, default: Blockchain.DEFICHAIN })
   blockchain: Blockchain;
 

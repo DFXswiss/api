@@ -1,20 +1,20 @@
+import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import * as AppInsights from 'applicationinsights';
+import cors from 'cors';
+import { json, text } from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import cors from 'cors';
-import * as AppInsights from 'applicationinsights';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { ValidationPipe } from '@nestjs/common';
+import { AppModule } from './app.module';
+import { Config } from './config/config';
 import { ApiExceptionFilter } from './shared/filters/exception.filter';
-import { json, text } from 'express';
+import { DfxLogger } from './shared/services/dfx-logger';
 import {
   KycChangedWebhookDto,
   KycFailedWebhookDto,
 } from './subdomains/generic/user/services/webhook/dto/kyc-webhook.dto';
 import { PaymentWebhookDto } from './subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
-import { DfxLogger } from './shared/services/dfx-logger';
-import { Config } from './config/config';
 
 async function bootstrap() {
   if (process.env.APPINSIGHTS_INSTRUMENTATIONKEY) {
@@ -48,7 +48,7 @@ async function bootstrap() {
   });
   SwaggerModule.setup('/swagger', app, swaggerDocument);
 
-  await app.listen(process.env.PORT || 3000);
+  await app.listen(Config.port);
 
   new DfxLogger('Main').info(`Application ready ...`);
 }

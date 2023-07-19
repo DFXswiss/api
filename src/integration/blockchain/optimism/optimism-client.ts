@@ -1,5 +1,5 @@
 import { CrossChainMessenger, L2Provider, MessageStatus, asL2Provider, estimateTotalGasCost } from '@eth-optimism/sdk';
-import { ChainId } from '@uniswap/smart-order-router';
+import { ChainId } from '@uniswap/sdk-core';
 import { BigNumber, Contract, ethers } from 'ethers';
 import { GetConfig } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';

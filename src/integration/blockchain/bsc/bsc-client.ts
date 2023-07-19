@@ -1,4 +1,4 @@
-import { ChainId } from '@uniswap/smart-order-router';
+import { ChainId } from '@uniswap/sdk-core';
 import { Contract, ethers } from 'ethers';
 import { GetConfig } from 'src/config/config';
 import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
