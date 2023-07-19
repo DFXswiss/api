@@ -207,7 +207,7 @@ describe('BuyCrypto', () => {
       expect(entity.outputReferenceAsset.dexName).toBe('DFI');
     });
 
-    it('assigns outputReferenceAsset to outputAsset, on ARBITRUM blockchain when outputAsset is DFI', () => {
+    it('assigns outputReferenceAsset to ETH, on ARBITRUM blockchain when outputAsset is DFI', () => {
       const entity = createCustomBuyCrypto({
         outputReferenceAsset: undefined,
         buy: createCustomBuy({ asset: createCustomAsset({ blockchain: Blockchain.ARBITRUM, dexName: 'DFI' }) }),
@@ -217,11 +217,11 @@ describe('BuyCrypto', () => {
 
       const requiredAssetFetch = entity.defineAssetExchangePair();
 
-      expect(requiredAssetFetch).toBe(null);
-      expect(entity.outputReferenceAsset.dexName).toBe('DFI');
+      expect(requiredAssetFetch).toMatchObject({ outputReferenceAssetName: 'ETH', type: AssetType.COIN });
+      expect(entity.outputReferenceAsset).toBeUndefined();
     });
 
-    it('assigns outputReferenceAsset to outputAsset, on OPTIMISM blockchain when outputAsset is DFI', () => {
+    it('assigns outputReferenceAsset to ETH, on OPTIMISM blockchain when outputAsset is DFI', () => {
       const entity = createCustomBuyCrypto({
         outputReferenceAsset: undefined,
         buy: createCustomBuy({ asset: createCustomAsset({ blockchain: Blockchain.OPTIMISM, dexName: 'DFI' }) }),
@@ -231,8 +231,8 @@ describe('BuyCrypto', () => {
 
       const requiredAssetFetch = entity.defineAssetExchangePair();
 
-      expect(requiredAssetFetch).toBe(null);
-      expect(entity.outputReferenceAsset.dexName).toBe('DFI');
+      expect(requiredAssetFetch).toMatchObject({ outputReferenceAssetName: 'ETH', type: AssetType.COIN });
+      expect(entity.outputReferenceAsset).toBeUndefined();
     });
 
     it('assigns outputReferenceAsset to outputAsset, on BSC blockchain when outputAsset is DFI', () => {
