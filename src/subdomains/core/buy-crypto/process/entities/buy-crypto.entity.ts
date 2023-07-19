@@ -174,10 +174,7 @@ export class BuyCrypto extends IEntity {
 
     switch (this.target.asset.blockchain) {
       case Blockchain.DEFICHAIN:
-        if (
-          ['USDC', 'USDT'].includes(this.outputAsset.dexName) &&
-          ['EUR', 'CHF', 'USD', 'USDC', 'USDT'].includes(this.inputReferenceAsset)
-        ) {
+        if (this.isUsd) {
           this.setOutputReferenceAsset(this.outputAsset);
 
           return null;
@@ -188,9 +185,21 @@ export class BuyCrypto extends IEntity {
           type: AssetType.TOKEN,
         };
 
-      case Blockchain.ETHEREUM:
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
+        if (this.isUsd) {
+          return {
+            outputReferenceAssetName: 'USDT',
+            type: AssetType.TOKEN,
+          };
+        }
+
+        return {
+          outputReferenceAssetName: 'ETH',
+          type: AssetType.COIN,
+        };
+
+      case Blockchain.ETHEREUM:
       case Blockchain.BINANCE_SMART_CHAIN:
         this.setOutputReferenceAsset(this.outputAsset);
         return null;
@@ -203,6 +212,13 @@ export class BuyCrypto extends IEntity {
             : AssetType.TOKEN,
         };
     }
+  }
+
+  private get isUsd(): boolean {
+    return (
+      ['USDC', 'USDT', 'BUSD'].includes(this.outputAsset.dexName) &&
+      ['EUR', 'CHF', 'USD', 'USDC', 'USDT'].includes(this.inputReferenceAsset)
+    );
   }
 
   setOutputReferenceAsset(asset: Asset): UpdateResult<BuyCrypto> {
