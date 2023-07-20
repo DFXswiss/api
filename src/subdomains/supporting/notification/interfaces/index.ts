@@ -33,9 +33,11 @@ export enum MailParamKey {
   URL = 'url',
 }
 
+export type TranslationParams = { [key in MailParamKey]?: string } | Record<string, string>;
+
 export interface TranslationItem {
   key: string;
-  params?: { [key in MailParamKey]?: string } | Record<string, string>;
+  params?: TranslationParams;
 }
 
 export interface MailRequestGenericInput {
