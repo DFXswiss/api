@@ -9,7 +9,14 @@ import { KycSupportMail, KycSupportMailInput } from '../entities/mail/kyc-suppor
 import { PersonalMail, PersonalMailInput } from '../entities/mail/personal-mail';
 import { UserMail, UserMailInput, UserMailNew, UserMailSuffix, UserMailTable } from '../entities/mail/user-mail';
 import { MailType } from '../enums';
-import { MailRequest, MailRequestGenericInput, MailRequestInput, MailRequestNew, TranslationItem } from '../interfaces';
+import {
+  MailRequest,
+  MailRequestGenericInput,
+  MailRequestInput,
+  MailRequestNew,
+  TranslationItem,
+  TranslationParams,
+} from '../interfaces';
 
 export enum MailTranslationKey {
   GENERAL = 'translation.general',
@@ -288,7 +295,7 @@ export class MailFactory {
     return match ? { text: match[1], textSuffix: match[4], tag: match[2], value: match[3] } : undefined;
   }
 
-  private translateParams(params: TranslationItem['params'], lang: string): TranslationItem['params'] {
+  private translateParams(params: TranslationParams, lang: string): TranslationParams {
     return params
       ? Object.entries(params)
           .map(([key, value]) => [key, this.tNew(value, lang)])
