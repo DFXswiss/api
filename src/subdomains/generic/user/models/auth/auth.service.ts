@@ -61,8 +61,12 @@ export class AuthService {
     const existingUser = await this.userRepo.getByAddress(dto.address, true);
     if (existingUser) throw new ConflictException('User already exists');
 
-    if (!(await this.verifySignature(dto.address, dto.signature, dto.key)))
+    const wallet = await this.walletRepo.findOneBy({ address: dto.address });
+
+    if (wallet.masterKey != dto.signature && !(await this.verifySignature(dto.address, dto.signature, dto.key)))
       throw new BadRequestException('Invalid signature');
+
+    if (wallet.masterKey) delete dto.signature;
 
     const ref = await this.refService.get(userIp);
     if (ref) {
@@ -81,7 +85,10 @@ export class AuthService {
 
     const user = await this.userRepo.getByAddress(dto.address, true);
     if (!user || user.status == UserStatus.BLOCKED) throw new NotFoundException('User not found');
-    if (!(await this.verifySignature(dto.address, dto.signature, dto.key, user.signature)))
+    if (
+      user.wallet.masterKey != dto.signature &&
+      !(await this.verifySignature(dto.address, dto.signature, dto.key, user.signature))
+    )
       throw new UnauthorizedException('Invalid credentials');
 
     return { accessToken: this.generateUserToken(user) };
