@@ -43,8 +43,7 @@ export class SellService {
   }
 
   async getUserSells(userId: number): Promise<Sell[]> {
-    const sellRoutes = await this.sellRepo.findBy({ user: { id: userId } });
-    return sellRoutes.filter((s) => s.fiat.buyable);
+    return this.sellRepo.findBy({ user: { id: userId }, fiat: { buyable: true } });
   }
 
   async createSell(userId: number, dto: CreateSellDto, ignoreExisting = false): Promise<Sell> {
