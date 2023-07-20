@@ -182,6 +182,17 @@ export class BuyFiat extends IEntity {
     return [this.id, { recipientMail: this.recipientMail, mail2SendDate: this.mail2SendDate }];
   }
 
+  returnMail(): UpdateResult<BuyFiat> {
+    const update: Partial<BuyFiat> = {
+      recipientMail: this.sell.user.userData.mail,
+      mailReturnSendDate: new Date(),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   cryptoExchangedToFiat(): UpdateResult<BuyFiat> {
     this.mail2SendDate = new Date();
 
@@ -192,12 +203,6 @@ export class BuyFiat extends IEntity {
     this.mail3SendDate = new Date();
 
     return [this.id, { mail3SendDate: this.mail3SendDate }];
-  }
-
-  paybackToAddressInitiated(): this {
-    this.mailReturnSendDate = new Date();
-
-    return this;
   }
 
   get exchangeRateString(): string {

@@ -9,14 +9,7 @@ import { KycSupportMail, KycSupportMailInput } from '../entities/mail/kyc-suppor
 import { PersonalMail, PersonalMailInput } from '../entities/mail/personal-mail';
 import { UserMail, UserMailInput, UserMailNew, UserMailSuffix, UserMailTable } from '../entities/mail/user-mail';
 import { MailType } from '../enums';
-import {
-  MailParamKey,
-  MailRequest,
-  MailRequestGenericInput,
-  MailRequestInput,
-  MailRequestNew,
-  TranslationItem,
-} from '../interfaces';
+import { MailRequest, MailRequestGenericInput, MailRequestInput, MailRequestNew, TranslationItem } from '../interfaces';
 
 export enum MailTranslationKey {
   GENERAL = 'translation.general',
@@ -267,10 +260,8 @@ export class MailFactory {
         ];
 
       default:
-        const text =
-          element.params && !this.isMailParamType(element.params)
-            ? this.getTranslatedTextWithParams(element, lang)
-            : this.tNew(element.key, lang);
+        const translatedParams = this.translateParams(element.params, lang);
+        const text = this.tNew(element.key, lang, translatedParams);
         const specialTag = this.parseSpecialTag(text);
 
         return [
@@ -292,19 +283,20 @@ export class MailFactory {
     }
   }
 
-  private getTranslatedTextWithParams(element: TranslationItem, lang: string): string {
-    const paramName = Object.keys(element.params)[0];
-    element.params[paramName] = this.tNew(element.params[paramName], lang);
-    return this.tNew(element.key, lang, element.params[paramName] === paramName ? element.params[0] : element.params);
-  }
-
   private parseSpecialTag(text: string): SpecialTag | undefined {
     const match = /^(.*)\[(\w+):([^\]]+)\](.*)$/.exec(text);
     return match ? { text: match[1], textSuffix: match[4], tag: match[2], value: match[3] } : undefined;
   }
 
-  private isMailParamType(params: TranslationItem['params']): params is { [key in MailParamKey]?: string } {
-    return MailParamKey[Object.keys(params)[0]] !== undefined;
+  private translateParams(params: TranslationItem['params'], lang: string): TranslationItem['params'] {
+    return params
+      ? Object.entries(params)
+          .map(([key, value]) => [key, this.tNew(value, lang)])
+          .reduce((prev, [key, value]) => {
+            prev[key] = value;
+            return prev;
+          }, {})
+      : {};
   }
 
   //*** STATIC HELPER METHODS ***//

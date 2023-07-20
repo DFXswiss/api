@@ -198,8 +198,6 @@ export class BuyFiatNotificationService {
 
     for (const entity of entities) {
       try {
-        entity.paybackToAddressInitiated();
-
         if (entity.sell.user.userData.mail) {
           await this.notificationService.sendMailNew({
             type: MailType.USER,
@@ -236,7 +234,7 @@ export class BuyFiatNotificationService {
           });
         }
 
-        await this.buyFiatRepo.update({ id: entity.id }, { mailReturnSendDate: entity.mailReturnSendDate });
+        await this.buyFiatRepo.update(...entity.returnMail());
       } catch (e) {
         this.logger.error(`Failed to send payback to address mail for buy-fiat ${entity.id}:`, e);
       }
