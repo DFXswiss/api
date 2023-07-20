@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 import { MinAmount } from 'src/shared/payment/dto/min-amount.dto';
 
 export class CryptoPaymentInfoDto {
@@ -32,4 +33,7 @@ export class CryptoPaymentInfoDto {
 
   @ApiProperty({ description: 'Estimated amount in target asset' })
   estimatedAmount: number;
+
+  @ApiProperty({ type: AssetDto, description: 'Target asset' })
+  targetAsset: AssetDto;
 }

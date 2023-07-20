@@ -56,6 +56,8 @@ export class CryptoRouteController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
   async createCrypto(@GetJwt() jwt: JwtPayload, @Body() dto: CreateCryptoRouteDto): Promise<CryptoRouteDto> {
+    dto.targetAsset ??= dto.asset;
+
     dto = await this.paymentInfoService.cryptoCheck(dto, jwt);
     return this.cryptoRouteService.createCrypto(jwt.id, dto).then((b) => this.toDto(jwt.id, b));
   }
@@ -63,7 +65,9 @@ export class CryptoRouteController {
   @Put('/quote')
   @ApiOkResponse({ type: CryptoQuoteDto })
   async getCryptoQuote(@Body() dto: GetCryptoQuoteDto): Promise<CryptoQuoteDto> {
-    const { amount, sourceAsset, asset } = await this.paymentInfoService.cryptoCheck(dto);
+    dto.targetAsset ??= dto.asset;
+
+    const { amount, sourceAsset, targetAsset } = await this.paymentInfoService.cryptoCheck(dto);
 
     const fee = Config.crypto.fee;
 
@@ -71,7 +75,7 @@ export class CryptoRouteController {
       amount,
       fee,
       sourceAsset,
-      asset,
+      targetAsset,
     );
 
     return {
@@ -89,6 +93,8 @@ export class CryptoRouteController {
     @GetJwt() jwt: JwtPayload,
     @Body() dto: GetCryptoPaymentInfoDto,
   ): Promise<CryptoPaymentInfoDto> {
+    dto.targetAsset ??= dto.asset;
+
     dto = await this.paymentInfoService.cryptoCheck(dto, jwt);
     return this.cryptoRouteService
       .createCrypto(jwt.id, { ...dto, blockchain: dto.sourceAsset.blockchain }, true)
@@ -157,7 +163,7 @@ export class CryptoRouteController {
       minVolumeTarget,
       minFeeTarget,
       estimatedAmount: estimatedAmount,
-    } = await this.transactionHelper.getTxDetails(dto.amount, fee, dto.sourceAsset, dto.asset);
+    } = await this.transactionHelper.getTxDetails(dto.amount, fee, dto.sourceAsset, dto.targetAsset);
 
     return {
       routeId: cryptoRoute.id,
@@ -170,6 +176,7 @@ export class CryptoRouteController {
       minVolumeTarget,
       minFeeTarget,
       estimatedAmount,
+      targetAsset: AssetDtoMapper.entityToDto(dto.targetAsset),
     };
   }
 }
