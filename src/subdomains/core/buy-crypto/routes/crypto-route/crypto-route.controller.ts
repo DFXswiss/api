@@ -63,21 +63,22 @@ export class CryptoRouteController {
   @Put('/quote')
   @ApiOkResponse({ type: CryptoQuoteDto })
   async getCryptoQuote(@Body() dto: GetCryptoQuoteDto): Promise<CryptoQuoteDto> {
-    const { amount, sourceAsset, asset } = await this.paymentInfoService.cryptoCheck(dto);
+    const { amount: sourceAmount, sourceAsset, asset, targetAmount } = await this.paymentInfoService.cryptoCheck(dto);
 
     const fee = Config.crypto.fee;
 
-    const { exchangeRate, feeAmount, estimatedAmount } = await this.transactionHelper.getTxDetails(
-      amount,
-      fee,
-      sourceAsset,
-      asset,
-    );
+    const {
+      exchangeRate,
+      feeAmount,
+      estimatedAmount,
+      sourceAmount: amount,
+    } = await this.transactionHelper.getTxDetails(sourceAmount, targetAmount, fee, sourceAsset, asset);
 
     return {
       feeAmount,
       exchangeRate,
       estimatedAmount,
+      amount,
     };
   }
 
@@ -156,8 +157,9 @@ export class CryptoRouteController {
       minFee,
       minVolumeTarget,
       minFeeTarget,
-      estimatedAmount: estimatedAmount,
-    } = await this.transactionHelper.getTxDetails(dto.amount, fee, dto.sourceAsset, dto.asset);
+      estimatedAmount,
+      sourceAmount: amount,
+    } = await this.transactionHelper.getTxDetails(dto.amount, dto.targetAmount, fee, dto.sourceAsset, dto.asset);
 
     return {
       routeId: cryptoRoute.id,
@@ -170,6 +172,7 @@ export class CryptoRouteController {
       minVolumeTarget,
       minFeeTarget,
       estimatedAmount,
+      amount,
     };
   }
 }

@@ -65,21 +65,22 @@ export class BuyController {
   @Put('/quote')
   @ApiOkResponse({ type: BuyQuoteDto })
   async getBuyQuote(@Body() dto: GetBuyQuoteDto): Promise<BuyQuoteDto> {
-    const { amount, currency, asset } = await this.paymentInfoService.buyCheck(dto);
+    const { amount: sourceAmount, currency, asset, targetAmount } = await this.paymentInfoService.buyCheck(dto);
 
     const fee = Config.buy.fee.get(asset.feeTier, AccountType.PERSONAL);
 
-    const { exchangeRate, feeAmount, estimatedAmount } = await this.transactionHelper.getTxDetails(
-      amount,
-      fee,
-      currency,
-      asset,
-    );
+    const {
+      exchangeRate,
+      feeAmount,
+      estimatedAmount,
+      sourceAmount: amount,
+    } = await this.transactionHelper.getTxDetails(sourceAmount, targetAmount, fee, currency, asset);
 
     return {
       feeAmount,
       exchangeRate,
       estimatedAmount,
+      amount,
     };
   }
 
@@ -142,16 +143,16 @@ export class BuyController {
   }
 
   private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
-    const bankInfo = await this.getBankInfo(buy, dto);
     const fee = await this.userService.getUserBuyFee(userId, buy.asset);
-
     const {
       minVolume,
       minFee,
       minVolumeTarget,
       minFeeTarget,
-      estimatedAmount: estimatedAmount,
-    } = await this.transactionHelper.getTxDetails(dto.amount, fee, dto.currency, dto.asset);
+      estimatedAmount,
+      sourceAmount: amount,
+    } = await this.transactionHelper.getTxDetails(dto.amount, dto.targetAmount, fee, dto.currency, dto.asset);
+    const bankInfo = await this.getBankInfo(buy, { ...dto, amount });
 
     return {
       routeId: buy.id,
@@ -165,6 +166,7 @@ export class BuyController {
       minVolumeTarget,
       minFeeTarget,
       estimatedAmount,
+      amount,
     };
   }
 

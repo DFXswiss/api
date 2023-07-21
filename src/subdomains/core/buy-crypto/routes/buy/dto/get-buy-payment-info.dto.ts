@@ -1,10 +1,20 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsNotEmpty, IsNotEmptyObject, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsNotEmptyObject,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Validate,
+  ValidateIf,
+  ValidateNested,
+} from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
+import { XOR } from 'src/shared/validators/xor.validator';
 import { IsDfxIban } from 'src/subdomains/supporting/bank/bank-account/is-dfx-iban.validator';
 
 export class GetBuyPaymentInfoDto {
@@ -21,8 +31,10 @@ export class GetBuyPaymentInfoDto {
   @Type(() => EntityDto)
   asset: Asset;
 
-  @ApiProperty()
+  @ApiPropertyOptional({ description: 'Amount in source currency' })
   @IsNotEmpty()
+  @ValidateIf((b: GetBuyPaymentInfoDto) => Boolean(b.amount || !b.targetAmount))
+  @Validate(XOR, ['outputAmount'])
   @IsNumber()
   amount: number;
 
@@ -31,4 +43,11 @@ export class GetBuyPaymentInfoDto {
   @ValidateNested()
   @Type(() => EntityDto)
   currency: Fiat;
+
+  @ApiPropertyOptional({ description: 'Amount in target asset' })
+  @IsNotEmpty()
+  @ValidateIf((b: GetBuyPaymentInfoDto) => Boolean(b.targetAmount || !b.amount))
+  @Validate(XOR, ['amount'])
+  @IsNumber()
+  targetAmount: number;
 }

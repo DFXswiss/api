@@ -24,6 +24,9 @@ export class CryptoPaymentInfoDto {
   @ApiProperty({ description: 'Minimum volume in source asset' })
   minVolume: number;
 
+  @ApiProperty({ description: 'Amount in source currency' })
+  amount: number;
+
   @ApiProperty({ description: 'Minimum fee in target asset' })
   minFeeTarget: number;
 

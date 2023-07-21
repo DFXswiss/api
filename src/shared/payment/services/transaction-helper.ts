@@ -97,13 +97,19 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   // --- TARGET ESTIMATION --- //
-  async getTxDetails(amount: number, fee: number, from: Asset | Fiat, to: Asset | Fiat): Promise<TransactionDetails> {
+  async getTxDetails(
+    sourceAmount: number,
+    targetAmount: number,
+    fee: number,
+    from: Asset | Fiat,
+    to: Asset | Fiat,
+  ): Promise<TransactionDetails> {
     const specs = this.getSpecs(from, to);
 
     const { minVolume, minFee } = await this.convertToSource(from, specs);
     const { minVolume: minVolumeTarget, minFee: minFeeTarget } = await this.convertToTarget(to, specs);
 
-    const target = await this.getTargetEstimation(amount, fee, minFee, from, to);
+    const target = await this.getTargetEstimation(sourceAmount, targetAmount, fee, minFee, from, to);
 
     return {
       ...target,
@@ -115,20 +121,27 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   private async getTargetEstimation(
-    amount: number,
+    inputAmount: number,
+    outputAmount: number,
     fee: number,
     minFee: number,
     from: Asset | Fiat,
     to: Asset | Fiat,
   ): Promise<TargetEstimation> {
     const price = await this.priceProviderService.getPrice(from, to);
-    const feeAmount = Math.max(amount * fee, minFee);
-    const targetAmount = this.convert(Math.max(amount - feeAmount, 0), price, to instanceof Fiat);
+    const feeAmount = Math.max(inputAmount ? inputAmount * fee : (outputAmount * fee) / (1 - fee), minFee);
+    const targetAmount = inputAmount
+      ? this.convert(Math.max(inputAmount - feeAmount, 0), price, to instanceof Fiat)
+      : this.round(outputAmount, to instanceof Fiat);
+    const sourceAmount = inputAmount
+      ? this.round(inputAmount, from instanceof Fiat)
+      : this.convert(outputAmount, price.invert(), from instanceof Fiat);
 
     return {
       exchangeRate: this.round(price.price, from instanceof Fiat),
       feeAmount: this.round(feeAmount, from instanceof Fiat),
       estimatedAmount: targetAmount,
+      sourceAmount,
     };
   }
 

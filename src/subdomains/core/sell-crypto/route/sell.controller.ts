@@ -69,21 +69,22 @@ export class SellController {
   @Put('/quote')
   @ApiOkResponse({ type: SellQuoteDto })
   async getSellQuote(@Body() dto: GetSellQuoteDto): Promise<SellQuoteDto> {
-    const { amount, asset, currency } = await this.paymentInfoService.sellCheck(dto);
+    const { amount: sourceAmount, asset, currency, targetAmount } = await this.paymentInfoService.sellCheck(dto);
 
     const fee = Config.sell.fee.get(asset.feeTier, AccountType.PERSONAL);
 
-    const { exchangeRate, feeAmount, estimatedAmount } = await this.transactionHelper.getTxDetails(
-      amount,
-      fee,
-      asset,
-      currency,
-    );
+    const {
+      exchangeRate,
+      feeAmount,
+      estimatedAmount,
+      sourceAmount: amount,
+    } = await this.transactionHelper.getTxDetails(sourceAmount, targetAmount, fee, asset, currency);
 
     return {
       feeAmount,
       exchangeRate,
       estimatedAmount,
+      amount,
     };
   }
 
@@ -153,7 +154,8 @@ export class SellController {
       minVolumeTarget,
       minFeeTarget,
       estimatedAmount: estimatedAmount,
-    } = await this.transactionHelper.getTxDetails(dto.amount, fee, dto.asset, dto.currency);
+      sourceAmount: amount,
+    } = await this.transactionHelper.getTxDetails(dto.amount, dto.targetAmount, fee, dto.asset, dto.currency);
 
     return {
       routeId: sell.id,
@@ -166,6 +168,7 @@ export class SellController {
       minVolumeTarget,
       minFeeTarget,
       estimatedAmount,
+      amount,
       paymentRequest:
         dto.asset.blockchain === Blockchain.LIGHTNING
           ? await this.lightningService.getInvoiceByLnurlp(sell.deposit.address, dto.amount)
