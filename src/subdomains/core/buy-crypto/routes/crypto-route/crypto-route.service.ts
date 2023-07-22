@@ -120,7 +120,7 @@ export class CryptoRouteService {
   }
 
   async getUserCryptos(userId: number): Promise<CryptoRoute[]> {
-    return this.cryptoRepo.findBy({ user: { id: userId } });
+    return this.cryptoRepo.findBy({ user: { id: userId }, asset: { buyable: true } });
   }
 
   async updateCrypto(userId: number, cryptoId: number, dto: UpdateCryptoRouteDto): Promise<CryptoRoute> {
