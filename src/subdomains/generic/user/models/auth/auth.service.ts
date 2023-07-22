@@ -61,12 +61,12 @@ export class AuthService {
     const existingUser = await this.userRepo.getByAddress(dto.address, true);
     if (existingUser) throw new ConflictException('User already exists');
 
-    const wallet = await this.walletRepo.findOneBy({ id: dto.walletId });
+    const wallet = await this.walletRepo.findOneBy([{ id: dto.walletId }, { name: dto.wallet }]);
 
-    if (wallet.masterKey != dto.signature && !(await this.verifySignature(dto.address, dto.signature, dto.key)))
+    if (wallet?.masterKey === dto.signature) {
+      delete dto.signature;
+    } else if (!(await this.verifySignature(dto.address, dto.signature, dto.key)))
       throw new BadRequestException('Invalid signature');
-
-    if (wallet.masterKey) delete dto.signature;
 
     const ref = await this.refService.get(userIp);
     if (ref) {
