@@ -75,7 +75,13 @@ export class AuthService {
 
     if (dto.key) dto.signature = [dto.signature, dto.key].join(';');
 
-    const user = await this.userService.createUser(dto, userIp, ref?.origin);
+    const user = await this.userService.createUser(
+      { address: dto.address, signature: dto.signature, key: dto.key, usedRef: dto.usedRef, walletId: dto.walletId },
+      userIp,
+      ref?.origin,
+      undefined,
+      wallet,
+    );
     return { accessToken: this.generateUserToken(user) };
   }
 
