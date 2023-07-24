@@ -23,6 +23,7 @@ import { Between, Not } from 'typeorm';
 import { KycService } from '../kyc/kyc.service';
 import { KycStatus, KycType, UserData, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
+import { Wallet } from '../wallet/wallet.entity';
 import { WalletService } from '../wallet/wallet.service';
 import { ApiKeyDto } from './dto/api-key.dto';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -110,13 +111,19 @@ export class UserService {
     return this.userRepo.findOne({ where: { ref }, relations: ['userData', 'userData.users'] });
   }
 
-  async createUser(dto: CreateUserDto, userIp: string, userOrigin?: string, userData?: UserData): Promise<User> {
-    let user = this.userRepo.create(dto);
+  async createUser(
+    { address, signature, usedRef }: CreateUserDto,
+    userIp: string,
+    userOrigin?: string,
+    userData?: UserData,
+    wallet?: Wallet,
+  ): Promise<User> {
+    let user = this.userRepo.create({ address, signature });
 
     user.ip = userIp;
     user.ipCountry = await this.checkIpCountry(userIp);
-    user.wallet = await this.walletService.getWalletOrDefault(dto.walletId);
-    user.usedRef = await this.checkRef(user, dto.usedRef);
+    user.wallet = wallet ?? (await this.walletService.getDefault());
+    user.usedRef = await this.checkRef(user, usedRef);
     user.origin = userOrigin;
     user.userData = userData ?? (await this.userDataService.createUserData(user.wallet.customKyc ?? KycType.DFX));
     user = await this.userRepo.save(user);

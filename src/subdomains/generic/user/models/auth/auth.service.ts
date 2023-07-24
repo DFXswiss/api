@@ -22,7 +22,7 @@ import { User, UserStatus } from '../user/user.entity';
 import { UserRepository } from '../user/user.repository';
 import { UserService } from '../user/user.service';
 import { Wallet } from '../wallet/wallet.entity';
-import { WalletRepository } from '../wallet/wallet.repository';
+import { WalletService } from '../wallet/wallet.service';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { ChallengeDto } from './dto/challenge.dto';
 import { SignMessageDto } from './dto/sign-message.dto';
@@ -39,7 +39,7 @@ export class AuthService {
   constructor(
     private readonly userService: UserService,
     private readonly userRepo: UserRepository,
-    private readonly walletRepo: WalletRepository,
+    private readonly walletService: WalletService,
     private readonly jwtService: JwtService,
     private readonly cryptoService: CryptoService,
     private readonly lightningService: LightningService,
@@ -61,7 +61,11 @@ export class AuthService {
     const existingUser = await this.userRepo.getByAddress(dto.address, true);
     if (existingUser) throw new ConflictException('User already exists');
 
-    if (!(await this.verifySignature(dto.address, dto.signature, dto.key)))
+    const wallet = await this.walletService.getByIdOrName(dto.walletId, dto.wallet);
+
+    if (wallet?.masterKey === dto.signature) {
+      delete dto.signature;
+    } else if (!(await this.verifySignature(dto.address, dto.signature, dto.key)))
       throw new BadRequestException('Invalid signature');
 
     const ref = await this.refService.get(userIp);
@@ -71,7 +75,7 @@ export class AuthService {
 
     if (dto.key) dto.signature = [dto.signature, dto.key].join(';');
 
-    const user = await this.userService.createUser(dto, userIp, ref?.origin);
+    const user = await this.userService.createUser(dto, userIp, ref?.origin, undefined, wallet);
     return { accessToken: this.generateUserToken(user) };
   }
 
@@ -81,14 +85,17 @@ export class AuthService {
 
     const user = await this.userRepo.getByAddress(dto.address, true);
     if (!user || user.status == UserStatus.BLOCKED) throw new NotFoundException('User not found');
-    if (!(await this.verifySignature(dto.address, dto.signature, dto.key, user.signature)))
+    if (
+      user.wallet.masterKey != dto.signature &&
+      !(await this.verifySignature(dto.address, dto.signature, dto.key, user.signature))
+    )
       throw new UnauthorizedException('Invalid credentials');
 
     return { accessToken: this.generateUserToken(user) };
   }
 
   private async companySignIn(dto: AuthCredentialsDto): Promise<{ accessToken: string }> {
-    const wallet = await this.walletRepo.findOneBy({ address: dto.address });
+    const wallet = await this.walletService.getByAddress(dto.address);
     if (!wallet?.isKycClient) throw new NotFoundException('Wallet not found');
 
     if (!(await this.verifyCompanySignature(dto.address, dto.signature, dto.key)))
@@ -98,7 +105,7 @@ export class AuthService {
   }
 
   async getCompanyChallenge(address: string): Promise<ChallengeDto> {
-    const wallet = await this.walletRepo.findOneBy({ address });
+    const wallet = await this.walletService.getByAddress(address);
     if (!wallet?.isKycClient) throw new BadRequestException('Wallet not found/invalid');
 
     const challenge = randomUUID();
