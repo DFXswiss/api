@@ -39,11 +39,3 @@ export class CreateUserDto {
   @IsString()
   wallet: string;
 }
-
-export interface CreateUser {
-  address: string;
-  signature: string;
-  key: string;
-  usedRef?: string;
-  walletId: number;
-}
