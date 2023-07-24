@@ -98,8 +98,8 @@ export class TransactionHelper implements OnModuleInit {
 
   // --- TARGET ESTIMATION --- //
   async getTxDetails(
-    sourceAmount: number,
-    targetAmount: number,
+    sourceAmount: number | undefined,
+    targetAmount: number | undefined,
     fee: number,
     from: Asset | Fiat,
     to: Asset | Fiat,
@@ -121,21 +121,26 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   private async getTargetEstimation(
-    inputAmount: number,
-    outputAmount: number,
+    inputAmount: number | undefined,
+    outputAmount: number | undefined,
     fee: number,
     minFee: number,
     from: Asset | Fiat,
     to: Asset | Fiat,
   ): Promise<TargetEstimation> {
     const price = await this.priceProviderService.getPrice(from, to);
-    const feeAmount = Math.max(inputAmount ? inputAmount * fee : (outputAmount * fee) / (1 - fee), minFee);
-    const targetAmount = inputAmount
-      ? this.convert(Math.max(inputAmount - feeAmount, 0), price, to instanceof Fiat)
-      : this.round(outputAmount, to instanceof Fiat);
-    const sourceAmount = inputAmount
-      ? this.round(inputAmount, from instanceof Fiat)
-      : this.convert(outputAmount, price.invert(), from instanceof Fiat);
+    const feeAmount = Math.max(
+      inputAmount != null ? inputAmount * fee : (this.round(outputAmount, to instanceof Fiat) * fee) / (1 - fee),
+      minFee,
+    );
+    const targetAmount =
+      inputAmount != null
+        ? this.convert(Math.max(inputAmount - feeAmount, 0), price, to instanceof Fiat)
+        : this.round(outputAmount, to instanceof Fiat);
+    const sourceAmount =
+      inputAmount != null
+        ? this.round(inputAmount, from instanceof Fiat)
+        : this.convert(outputAmount, price.invert(), from instanceof Fiat) + feeAmount;
 
     return {
       exchangeRate: this.round(price.price, from instanceof Fiat),

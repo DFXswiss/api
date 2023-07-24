@@ -7,7 +7,13 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { XOR } from 'src/shared/validators/xor.validator';
 
 export class GetBuyQuoteDto {
-  @ApiProperty({ type: EntityDto })
+  @ApiProperty({ type: EntityDto, description: 'Source currency' })
+  @IsNotEmptyObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  currency: Fiat;
+
+  @ApiProperty({ type: EntityDto, description: 'Target asset' })
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)
@@ -16,15 +22,9 @@ export class GetBuyQuoteDto {
   @ApiPropertyOptional({ description: 'Amount in source currency' })
   @IsNotEmpty()
   @ValidateIf((b: GetBuyQuoteDto) => Boolean(b.amount || !b.targetAmount))
-  @Validate(XOR, ['outputAmount'])
+  @Validate(XOR, ['targetAmount'])
   @IsNumber()
   amount: number;
-
-  @ApiProperty({ type: EntityDto })
-  @IsNotEmptyObject()
-  @ValidateNested()
-  @Type(() => EntityDto)
-  currency: Fiat;
 
   @ApiPropertyOptional({ description: 'Amount in target asset' })
   @IsNotEmpty()

@@ -4,7 +4,7 @@ export class SellQuoteDto {
   @ApiProperty({ description: 'Fee amount in source asset' })
   feeAmount: number;
 
-  @ApiProperty({ description: 'Amount in source currency' })
+  @ApiProperty({ description: 'Amount in source asset' })
   amount: number;
 
   @ApiProperty({ description: 'Exchange rate in source/target' })

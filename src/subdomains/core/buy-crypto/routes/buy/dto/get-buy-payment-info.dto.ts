@@ -25,7 +25,13 @@ export class GetBuyPaymentInfoDto {
   @Transform(Util.trim)
   iban?: string;
 
-  @ApiProperty({ type: EntityDto })
+  @ApiProperty({ type: EntityDto, description: 'Source currency' })
+  @IsNotEmptyObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  currency: Fiat;
+
+  @ApiProperty({ type: EntityDto, description: 'Target asset' })
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)
@@ -34,15 +40,9 @@ export class GetBuyPaymentInfoDto {
   @ApiPropertyOptional({ description: 'Amount in source currency' })
   @IsNotEmpty()
   @ValidateIf((b: GetBuyPaymentInfoDto) => Boolean(b.amount || !b.targetAmount))
-  @Validate(XOR, ['outputAmount'])
+  @Validate(XOR, ['targetAmount'])
   @IsNumber()
   amount: number;
-
-  @ApiProperty({ type: EntityDto })
-  @IsNotEmptyObject()
-  @ValidateNested()
-  @Type(() => EntityDto)
-  currency: Fiat;
 
   @ApiPropertyOptional({ description: 'Amount in target asset' })
   @IsNotEmpty()

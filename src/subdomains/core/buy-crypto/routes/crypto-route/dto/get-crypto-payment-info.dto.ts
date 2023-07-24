@@ -13,12 +13,12 @@ export class GetCryptoPaymentInfoDto {
   sourceAsset: Asset;
 
   //eslint-disable-next-line @typescript-eslint/no-inferrable-types
-  @ApiPropertyOptional({ description: 'Amount in source currency' })
+  @ApiPropertyOptional({ description: 'Amount in source asset' })
   @IsNotEmpty()
   @ValidateIf((b: GetCryptoPaymentInfoDto) => Boolean(b.amount || !b.targetAmount))
-  @Validate(XOR, ['outputAmount'])
+  @Validate(XOR, ['targetAmount'])
   @IsNumber()
-  amount: number;
+  amount: number = 0;
 
   @ApiProperty({ type: EntityDto, description: 'Target asset' })
   @IsNotEmptyObject()

@@ -6,20 +6,20 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { XOR } from 'src/shared/validators/xor.validator';
 
 export class GetCryptoQuoteDto {
-  @ApiProperty({ type: EntityDto })
+  @ApiProperty({ type: EntityDto, description: 'Source asset' })
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)
   sourceAsset: Asset;
 
-  @ApiPropertyOptional({ description: 'Amount in source currency' })
+  @ApiPropertyOptional({ description: 'Amount in source asset' })
   @IsNotEmpty()
   @ValidateIf((b: GetCryptoQuoteDto) => Boolean(b.amount || !b.targetAmount))
-  @Validate(XOR, ['outputAmount'])
+  @Validate(XOR, ['targetAmount'])
   @IsNumber()
   amount: number;
 
-  @ApiProperty({ type: EntityDto })
+  @ApiProperty({ type: EntityDto, description: 'Target asset' })
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)

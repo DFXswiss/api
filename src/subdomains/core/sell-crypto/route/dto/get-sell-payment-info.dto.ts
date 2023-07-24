@@ -24,27 +24,27 @@ export class GetSellPaymentInfoDto {
   @Transform(Util.trim)
   iban: string;
 
-  @ApiProperty({ type: EntityDto })
+  @ApiProperty({ type: EntityDto, description: 'Source asset' })
+  @IsNotEmptyObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  asset: Asset;
+
+  @ApiProperty({ type: EntityDto, description: 'Target currency' })
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)
   currency: Fiat;
 
   //eslint-disable-next-line @typescript-eslint/no-inferrable-types
-  @ApiPropertyOptional({ description: 'Amount in source currency' })
+  @ApiPropertyOptional({ description: 'Amount in source asset' })
   @IsNotEmpty()
   @ValidateIf((b: GetSellPaymentInfoDto) => Boolean(b.amount || !b.targetAmount))
-  @Validate(XOR, ['outputAmount'])
+  @Validate(XOR, ['targetAmount'])
   @IsNumber()
-  amount: number;
+  amount: number = 0;
 
-  @ApiProperty({ type: EntityDto })
-  @IsNotEmptyObject()
-  @ValidateNested()
-  @Type(() => EntityDto)
-  asset: Asset;
-
-  @ApiPropertyOptional({ description: 'Amount in target asset' })
+  @ApiPropertyOptional({ description: 'Amount in target currency' })
   @IsNotEmpty()
   @ValidateIf((b: GetSellPaymentInfoDto) => Boolean(b.targetAmount || !b.amount))
   @Validate(XOR, ['amount'])
