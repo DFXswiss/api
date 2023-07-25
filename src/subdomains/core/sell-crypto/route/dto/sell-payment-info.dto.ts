@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { MinAmount } from 'src/shared/payment/dto/min-amount.dto';
 
 export class SellPaymentInfoDto {
@@ -35,6 +36,9 @@ export class SellPaymentInfoDto {
 
   @ApiProperty({ description: 'Estimated amount in target currency' })
   estimatedAmount: number;
+
+  @ApiProperty({ type: FiatDto, description: 'Target currency' })
+  currency: FiatDto;
 
   @ApiPropertyOptional({ description: 'Payment request (e.g. Lightning invoice)' })
   paymentRequest?: string;

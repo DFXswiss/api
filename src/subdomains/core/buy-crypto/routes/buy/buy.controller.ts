@@ -167,6 +167,7 @@ export class BuyController {
       minFeeTarget,
       estimatedAmount,
       amount,
+      asset: AssetDtoMapper.entityToDto(dto.asset),
     };
   }
 

@@ -105,7 +105,7 @@ export class BuyService {
   }
 
   async getUserBuys(userId: number): Promise<Buy[]> {
-    return this.buyRepo.findBy({ user: { id: userId } });
+    return this.buyRepo.findBy({ user: { id: userId }, asset: { buyable: true } });
   }
 
   async getByBankUsage(bankUsage: string): Promise<Buy> {

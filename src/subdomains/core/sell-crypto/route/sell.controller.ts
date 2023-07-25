@@ -169,6 +169,7 @@ export class SellController {
       minFeeTarget,
       estimatedAmount,
       amount,
+      currency: FiatDtoMapper.entityToDto(dto.currency),
       paymentRequest:
         dto.asset.blockchain === Blockchain.LIGHTNING
           ? await this.lightningService.getInvoiceByLnurlp(sell.deposit.address, dto.amount)

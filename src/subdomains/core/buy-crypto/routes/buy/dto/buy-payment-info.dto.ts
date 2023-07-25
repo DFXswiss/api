@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 import { MinAmount } from 'src/shared/payment/dto/min-amount.dto';
 
 export class BankInfoDto {
@@ -60,4 +61,7 @@ export class BuyPaymentInfoDto extends BankInfoDto {
 
   @ApiProperty({ description: 'Estimated amount in target asset' })
   estimatedAmount: number;
+
+  @ApiProperty({ type: AssetDto, description: 'Target asset' })
+  asset: AssetDto;
 }
