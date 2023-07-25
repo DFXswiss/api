@@ -2,7 +2,7 @@ import { Inject, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
+import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
@@ -45,7 +45,7 @@ export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy 
 
   abstract checkPayInEntries(): Promise<void>;
   abstract addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void>;
-  abstract doAmlCheck(payIn: CryptoInput, route: Staking | Sell | CryptoRoute): Promise<AmlCheck> | AmlCheck;
+  abstract doAmlCheck(payIn: CryptoInput, route: Staking | Sell | CryptoRoute): Promise<CheckStatus> | CheckStatus;
 
   protected async createPayInsAndSave(transactions: PayInEntry[], log: PayInInputLog): Promise<void> {
     const payIns = transactions.map((t) => this.payInFactory.createFromEntry(t));

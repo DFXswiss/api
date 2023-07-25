@@ -8,7 +8,7 @@ import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { In, IsNull, Not } from 'typeorm';
-import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
+import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
 
 interface PaymentData {
   lastOutputDates: LastOutputDates;
@@ -61,7 +61,7 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
         .where('route.id IS NULL')
         .getCount(),
       unhandledCryptoInputs: await this.repos.payIn.countBy({
-        amlCheck: Not(AmlCheck.FAIL),
+        amlCheck: Not(CheckStatus.FAIL),
         status: Not(
           In([
             PayInStatus.FAILED,
@@ -79,11 +79,11 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
     return {
       buyCrypto: await this.repos.buyCrypto.countBy({
         mailSendDate: IsNull(),
-        amlCheck: Not(AmlCheck.FAIL),
+        amlCheck: Not(CheckStatus.FAIL),
       }),
       buyFiat: await this.repos.buyFiat.countBy({
         mail3SendDate: IsNull(),
-        amlCheck: Not(AmlCheck.FAIL),
+        amlCheck: Not(CheckStatus.FAIL),
       }),
     };
   }

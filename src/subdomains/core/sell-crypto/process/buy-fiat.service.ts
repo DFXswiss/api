@@ -1,27 +1,27 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { BuyFiat } from './buy-fiat.entity';
-import { BuyFiatRepository } from './buy-fiat.repository';
-import { Sell } from '../route/sell.entity';
-import { Between, In, IsNull } from 'typeorm';
-import { UpdateBuyFiatDto } from './dto/update-buy-fiat.dto';
-import { Util } from 'src/shared/utils/util';
-import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { SellRepository } from '../route/sell.repository';
-import { SellService } from '../route/sell.service';
-import { SellHistoryDto } from '../route/dto/sell-history.dto';
-import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
-import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
-import { FiatOutputService } from '../../../supporting/bank/fiat-output/fiat-output.service';
-import { Lock } from 'src/shared/utils/lock';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
-import { BuyFiatRegistrationService } from './buy-fiat-registration.service';
-import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
-import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
-import { TransactionDetailsDto } from '../../statistic/dto/statistic.dto';
-import { PaymentStatus } from '../../history/dto/history.dto';
 import { Config, Process } from 'src/config/config';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { Lock } from 'src/shared/utils/lock';
+import { Util } from 'src/shared/utils/util';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
+import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
+import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
+import { Between, In, IsNull } from 'typeorm';
+import { FiatOutputService } from '../../../supporting/bank/fiat-output/fiat-output.service';
+import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
+import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
+import { PaymentStatus } from '../../history/dto/history.dto';
+import { TransactionDetailsDto } from '../../statistic/dto/statistic.dto';
+import { SellHistoryDto } from '../route/dto/sell-history.dto';
+import { Sell } from '../route/sell.entity';
+import { SellRepository } from '../route/sell.repository';
+import { SellService } from '../route/sell.service';
+import { BuyFiatRegistrationService } from './buy-fiat-registration.service';
+import { BuyFiat } from './buy-fiat.entity';
+import { BuyFiatRepository } from './buy-fiat.repository';
+import { UpdateBuyFiatDto } from './dto/update-buy-fiat.dto';
 
 @Injectable()
 export class BuyFiatService {
@@ -46,7 +46,7 @@ export class BuyFiatService {
     if (Config.processDisabled(Process.BUY_FIAT)) return;
     const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
       relations: ['fiatOutput'],
-      where: { amlCheck: AmlCheck.PASS, fiatOutput: IsNull() },
+      where: { amlCheck: CheckStatus.PASS, fiatOutput: IsNull() },
     });
 
     for (const buyFiat of buyFiatsWithoutOutput) {
@@ -89,7 +89,7 @@ export class BuyFiatService {
     Util.removeNullFields(entity);
 
     const forceUpdate = {
-      ...(entity.amlCheck === AmlCheck.PENDING && update.amlCheck && update.amlCheck !== AmlCheck.PENDING
+      ...(entity.amlCheck === CheckStatus.PENDING && update.amlCheck && update.amlCheck !== CheckStatus.PENDING
         ? { amlCheck: update.amlCheck, mailSendDate: null }
         : undefined),
       isComplete: dto.isComplete,
@@ -97,7 +97,7 @@ export class BuyFiatService {
     entity = await this.buyFiatRepo.save({ ...update, ...entity, ...forceUpdate });
 
     // activate user
-    if (entity.amlCheck === AmlCheck.PASS && entity.sell?.user) {
+    if (entity.amlCheck === CheckStatus.PASS && entity.sell?.user) {
       await this.userService.activateUser(entity.sell.user);
     }
 
@@ -208,7 +208,7 @@ export class BuyFiatService {
         .createQueryBuilder('buyFiat')
         .select('SUM(amountInEur)', 'volume')
         .where('sellId = :id', { id: id })
-        .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
+        .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
         .getRawOne<{ volume: number }>();
 
       const newYear = new Date(new Date().getFullYear(), 0, 1);
@@ -217,7 +217,7 @@ export class BuyFiatService {
         .select('SUM(amountInEur)', 'annualVolume')
         .leftJoin('buyFiat.cryptoInput', 'cryptoInput')
         .where('buyFiat.sellId = :id', { id: id })
-        .andWhere('buyFiat.amlCheck = :check', { check: AmlCheck.PASS })
+        .andWhere('buyFiat.amlCheck = :check', { check: CheckStatus.PASS })
         .andWhere('cryptoInput.created >= :year', { year: newYear })
         .getRawOne<{ annualVolume: number }>();
 
@@ -242,7 +242,7 @@ export class BuyFiatService {
       .select('SUM(amountInEur * refFactor)', 'volume')
       .addSelect('SUM(amountInEur * refFactor * refProvision * 0.01)', 'credit')
       .where('usedRef = :ref', { ref })
-      .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
+      .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
       .getRawOne<{ volume: number; credit: number }>();
 
     return { volume: volume ?? 0, credit: credit ?? 0 };
@@ -252,7 +252,7 @@ export class BuyFiatService {
 
   async getTransactions(dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<TransactionDetailsDto[]> {
     const buyFiats = await this.buyFiatRepo.find({
-      where: { outputDate: Between(dateFrom, dateTo), amlCheck: AmlCheck.PASS },
+      where: { outputDate: Between(dateFrom, dateTo), amlCheck: CheckStatus.PASS },
       relations: ['cryptoInput', 'cryptoInput.asset'],
       loadEagerRelations: false,
     });

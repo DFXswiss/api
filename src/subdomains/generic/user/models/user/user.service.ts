@@ -16,7 +16,7 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
+import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { Between, Not } from 'typeorm';
@@ -224,7 +224,7 @@ export class UserService {
       .leftJoin('user.buys', 'buys')
       .leftJoin('buys.buyCryptos', 'buyCryptos')
       .where('buyCryptos.outputDate BETWEEN :from AND :to', { from: query.from, to: query.to })
-      .andWhere('buyCryptos.amlCheck = :check', { check: AmlCheck.PASS })
+      .andWhere('buyCryptos.amlCheck = :check', { check: CheckStatus.PASS })
       .andWhere('user.id = :userId', { userId: query.userId })
       .getRawOne<{ buyVolume: number }>();
 
@@ -234,7 +234,7 @@ export class UserService {
       .leftJoin('user.sells', 'sells')
       .leftJoin('sells.buyFiats', 'buyFiats')
       .where('buyFiats.outputDate BETWEEN :from AND :to', { from: query.from, to: query.to })
-      .andWhere('buyFiats.amlCheck = :check', { check: AmlCheck.PASS })
+      .andWhere('buyFiats.amlCheck = :check', { check: CheckStatus.PASS })
       .andWhere('user.id = :userId', { userId: query.userId })
       .getRawOne<{ sellVolume: number }>();
 
@@ -302,7 +302,7 @@ export class UserService {
       .leftJoin('user.buys', 'buys')
       .leftJoin('buys.buyCryptos', 'buyCryptos')
       .where('user.created BETWEEN :from AND :to', { from: query.from, to: query.to })
-      .andWhere('buyCryptos.amlCheck = :check', { check: AmlCheck.PASS });
+      .andWhere('buyCryptos.amlCheck = :check', { check: CheckStatus.PASS });
 
     if (query.refCode) dbQuery = dbQuery.andWhere('user.usedRef = :ref', { ref: query.refCode });
     if (query.origin) dbQuery = dbQuery.andWhere('user.origin = :origin', { origin: query.origin });
@@ -315,7 +315,7 @@ export class UserService {
       .leftJoin('user.cryptoRoutes', 'cryptoRoutes')
       .leftJoin('cryptoRoutes.buyCryptos', 'buyCryptos')
       .where('user.created BETWEEN :from AND :to', { from: query.from, to: query.to })
-      .andWhere('buyCryptos.amlCheck = :check', { check: AmlCheck.PASS });
+      .andWhere('buyCryptos.amlCheck = :check', { check: CheckStatus.PASS });
 
     if (query.refCode) dbQuery = dbQuery.andWhere('user.usedRef = :ref', { ref: query.refCode });
     if (query.origin) dbQuery = dbQuery.andWhere('user.origin = :origin', { origin: query.origin });

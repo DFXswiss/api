@@ -5,7 +5,7 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { IEntity } from 'src/shared/models/entity';
 import { FeeLimitExceededException } from 'src/shared/payment/exceptions/fee-limit-exceeded.exception';
 import { Util } from 'src/shared/utils/util';
-import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
+import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { DepositRoute, DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { Column, Entity, Index, ManyToOne } from 'typeorm';
 
@@ -83,7 +83,7 @@ export class CryptoInput extends IEntity {
   isConfirmed: boolean;
 
   @Column({ length: 256, nullable: true })
-  amlCheck: AmlCheck;
+  amlCheck: CheckStatus;
 
   @Column({ length: 256, nullable: true })
   purpose: PayInPurpose;
@@ -145,7 +145,7 @@ export class CryptoInput extends IEntity {
 
   //*** PUBLIC API ***//
 
-  acknowledge(purpose: PayInPurpose, route: DepositRouteType, amlCheck: AmlCheck): this {
+  acknowledge(purpose: PayInPurpose, route: DepositRouteType, amlCheck: CheckStatus): this {
     this.purpose = purpose;
     this.route = route;
     this.amlCheck = amlCheck;
@@ -174,7 +174,7 @@ export class CryptoInput extends IEntity {
     purpose: PayInPurpose,
     returnAddress: BlockchainAddress,
     route: DepositRouteType,
-    amlCheck: AmlCheck,
+    amlCheck: CheckStatus,
   ): this {
     this.purpose = purpose;
     this.route = route;
