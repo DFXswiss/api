@@ -18,7 +18,7 @@ export class GetCryptoPaymentInfoDto {
   @ValidateIf((b: GetCryptoPaymentInfoDto) => Boolean(b.amount || !b.targetAmount))
   @Validate(XOR, ['targetAmount'])
   @IsNumber()
-  amount: number = 0;
+  amount: number;
 
   @ApiProperty({ type: EntityDto, description: 'Target asset' })
   @IsNotEmptyObject()
