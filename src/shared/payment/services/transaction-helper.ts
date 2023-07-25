@@ -129,12 +129,12 @@ export class TransactionHelper implements OnModuleInit {
     to: Asset | Fiat,
   ): Promise<TargetEstimation> {
     const price = await this.priceProviderService.getPrice(from, to);
-    const feeAmount = Math.max(
+    const percentFeeAmount =
       outputAmount != null
         ? this.convert((outputAmount * fee) / (1 - fee), price.invert(), from instanceof Fiat)
-        : inputAmount * fee,
-      minFee,
-    );
+        : inputAmount * fee;
+    const feeAmount = Math.max(percentFeeAmount, minFee);
+
     const targetAmount =
       outputAmount != null
         ? this.round(outputAmount, to instanceof Fiat)

@@ -12,7 +12,6 @@ export class GetCryptoPaymentInfoDto {
   @Type(() => EntityDto)
   sourceAsset: Asset;
 
-  //eslint-disable-next-line @typescript-eslint/no-inferrable-types
   @ApiPropertyOptional({ description: 'Amount in source asset' })
   @IsNotEmpty()
   @ValidateIf((b: GetCryptoPaymentInfoDto) => Boolean(b.amount || !b.targetAmount))
