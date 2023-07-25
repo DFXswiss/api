@@ -27,8 +27,8 @@ export class GetSellPaymentInfoDto {
   @Type(() => EntityDto)
   currency: Fiat;
 
-  //eslint-disable-next-line @typescript-eslint/no-inferrable-types
   // TODO: add Validation Checks if App is updated
+  //eslint-disable-next-line @typescript-eslint/no-inferrable-types
   @ApiPropertyOptional({ description: 'Amount in source asset' })
   @IsNotEmpty()
   //@ValidateIf((b: GetSellPaymentInfoDto) => Boolean(b.amount || !b.targetAmount))
