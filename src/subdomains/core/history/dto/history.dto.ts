@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BuyCryptoStatus } from '../../buy-crypto/process/entities/buy-crypto.entity';
-import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
+import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
 
 export enum HistoryTransactionType {
   BUY = 'Buy',
@@ -37,7 +37,7 @@ export class HistoryDto {
   date: Date;
 
   @ApiProperty()
-  amlCheck: AmlCheck;
+  amlCheck: CheckStatus;
 
   @ApiProperty({ deprecated: true })
   isComplete: boolean;

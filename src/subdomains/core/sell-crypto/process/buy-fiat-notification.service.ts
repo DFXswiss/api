@@ -14,7 +14,7 @@ import {
 } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, IsNull, Not } from 'typeorm';
-import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
+import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
 import { BuyFiatAmlReasonPendingStates } from './buy-fiat.entity';
 import { BuyFiatRepository } from './buy-fiat.repository';
 
@@ -95,7 +95,7 @@ export class BuyFiatNotificationService {
         mail1SendDate: Not(IsNull()),
         mail2SendDate: IsNull(),
         outputAmount: Not(IsNull()),
-        amlCheck: AmlCheck.PASS,
+        amlCheck: CheckStatus.PASS,
       },
       relations: ['cryptoInput', 'sell', 'sell.user', 'sell.user.userData'],
     });
@@ -144,7 +144,7 @@ export class BuyFiatNotificationService {
         mail2SendDate: Not(IsNull()),
         mail3SendDate: IsNull(),
         fiatOutput: { bankTx: Not(IsNull()), remittanceInfo: Not(IsNull()) },
-        amlCheck: AmlCheck.PASS,
+        amlCheck: CheckStatus.PASS,
       },
       relations: ['sell', 'sell.user', 'sell.user.userData', 'fiatOutput', 'fiatOutput.bankTx'],
     });
@@ -188,7 +188,7 @@ export class BuyFiatNotificationService {
         cryptoReturnTxId: Not(IsNull()),
         cryptoReturnDate: Not(IsNull()),
         amlReason: Not(IsNull()),
-        amlCheck: AmlCheck.FAIL,
+        amlCheck: CheckStatus.FAIL,
         mailReturnSendDate: IsNull(),
       },
       relations: ['sell', 'sell.user', 'sell.user.userData', 'cryptoInput'],
@@ -247,7 +247,7 @@ export class BuyFiatNotificationService {
         mail2SendDate: IsNull(),
         outputAmount: IsNull(),
         amlReason: In(BuyFiatAmlReasonPendingStates),
-        amlCheck: AmlCheck.PENDING,
+        amlCheck: CheckStatus.PENDING,
       },
       relations: ['sell', 'sell.user', 'sell.user.userData'],
     });

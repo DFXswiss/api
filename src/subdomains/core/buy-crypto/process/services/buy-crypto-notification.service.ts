@@ -14,7 +14,7 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { In, IsNull, Not } from 'typeorm';
 import { BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
 import { BuyCryptoAmlReasonPendingStates } from '../entities/buy-crypto.entity';
-import { AmlCheck } from '../enums/aml-check.enum';
+import { CheckStatus } from '../enums/check-status.enum';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 
 @Injectable()
@@ -44,7 +44,7 @@ export class BuyCryptoNotificationService {
         where: {
           mailSendDate: IsNull(),
           txId: Not(IsNull()),
-          amlCheck: AmlCheck.PASS,
+          amlCheck: CheckStatus.PASS,
         },
         relations: [
           'bankTx',
@@ -158,7 +158,7 @@ export class BuyCryptoNotificationService {
         outputAmount: IsNull(),
         chargebackDate: Not(IsNull()),
         amlReason: Not(IsNull()),
-        amlCheck: AmlCheck.FAIL,
+        amlCheck: CheckStatus.FAIL,
       },
       relations: [
         'buy',
@@ -236,7 +236,7 @@ export class BuyCryptoNotificationService {
         chargebackDate: IsNull(),
         chargebackBankTx: IsNull(),
         amlReason: In(BuyCryptoAmlReasonPendingStates),
-        amlCheck: AmlCheck.PENDING,
+        amlCheck: CheckStatus.PENDING,
       },
       relations: [
         'buy',

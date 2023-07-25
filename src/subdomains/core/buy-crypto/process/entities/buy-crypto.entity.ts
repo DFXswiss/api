@@ -10,8 +10,8 @@ import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-inp
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { Buy } from '../../routes/buy/buy.entity';
-import { AmlCheck } from '../enums/aml-check.enum';
 import { AmlReason } from '../enums/aml-reason.enum';
+import { CheckStatus } from '../enums/check-status.enum';
 import { BuyCryptoBatch } from './buy-crypto-batch.entity';
 import { BuyCryptoFee } from './buy-crypto-fees.entity';
 
@@ -67,7 +67,7 @@ export class BuyCrypto extends IEntity {
   amountInEur: number;
 
   @Column({ length: 256, nullable: true })
-  amlCheck: AmlCheck;
+  amlCheck: CheckStatus;
 
   @Column({ length: 256, nullable: true })
   amlReason: AmlReason;

@@ -6,34 +6,34 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { Between, In, IsNull, Not } from 'typeorm';
-import { Util } from 'src/shared/utils/util';
-import { Lock } from 'src/shared/utils/lock';
-import { BuyCrypto } from '../entities/buy-crypto.entity';
-import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
-import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { BuyCryptoBatchService } from './buy-crypto-batch.service';
-import { BuyCryptoOutService } from './buy-crypto-out.service';
-import { BuyCryptoDexService } from './buy-crypto-dex.service';
-import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
-import { AmlCheck } from '../enums/aml-check.enum';
+import { Config, Process } from 'src/config/config';
+import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { Lock } from 'src/shared/utils/lock';
+import { Util } from 'src/shared/utils/util';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { CryptoRouteService } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.service';
 import { HistoryDto, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
-import { BuyHistoryDto } from '../../routes/buy/dto/buy-history.dto';
-import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
-import { BuyCryptoRegistrationService } from './buy-crypto-registration.service';
+import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
+import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
+import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
+import { Between, In, IsNull, Not } from 'typeorm';
 import { Buy } from '../../routes/buy/buy.entity';
 import { BuyRepository } from '../../routes/buy/buy.repository';
 import { BuyService } from '../../routes/buy/buy.service';
-import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
-import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
-import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
-import { Config, Process } from 'src/config/config';
-import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { BuyHistoryDto } from '../../routes/buy/dto/buy-history.dto';
+import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
+import { BuyCrypto } from '../entities/buy-crypto.entity';
+import { CheckStatus } from '../enums/check-status.enum';
+import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
+import { BuyCryptoBatchService } from './buy-crypto-batch.service';
+import { BuyCryptoDexService } from './buy-crypto-dex.service';
+import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
+import { BuyCryptoOutService } from './buy-crypto-out.service';
+import { BuyCryptoRegistrationService } from './buy-crypto-registration.service';
 
 @Injectable()
 export class BuyCryptoService {
@@ -118,7 +118,7 @@ export class BuyCryptoService {
     if (dto.allowedTotalFeePercent && entity.fee) fee.allowedTotalFeePercent = dto.allowedTotalFeePercent;
 
     const forceUpdate = {
-      ...(entity.amlCheck === AmlCheck.PENDING && update.amlCheck && update.amlCheck !== AmlCheck.PENDING
+      ...(entity.amlCheck === CheckStatus.PENDING && update.amlCheck && update.amlCheck !== CheckStatus.PENDING
         ? { amlCheck: update.amlCheck, mailSendDate: null }
         : undefined),
       isComplete: dto.isComplete,
@@ -133,7 +133,7 @@ export class BuyCryptoService {
     );
 
     // activate user
-    if (entity.amlCheck === AmlCheck.PASS && entity.buy?.user) {
+    if (entity.amlCheck === CheckStatus.PASS && entity.buy?.user) {
       await this.userService.activateUser(entity.buy.user);
     }
 
@@ -294,7 +294,7 @@ export class BuyCryptoService {
         .createQueryBuilder('buyCrypto')
         .select('SUM(amountInEur)', 'volume')
         .where('buyId = :id', { id: id })
-        .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
+        .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
         .getRawOne<{ volume: number }>();
 
       const newYear = new Date(new Date().getFullYear(), 0, 1);
@@ -303,7 +303,7 @@ export class BuyCryptoService {
         .select('SUM(amountInEur)', 'annualVolume')
         .leftJoin('buyCrypto.bankTx', 'bankTx')
         .where('buyCrypto.buyId = :id', { id: id })
-        .andWhere('buyCrypto.amlCheck = :check', { check: AmlCheck.PASS })
+        .andWhere('buyCrypto.amlCheck = :check', { check: CheckStatus.PASS })
         .andWhere('bankTx.bookingDate >= :year', { year: newYear })
         .getRawOne<{ annualVolume: number }>();
 
@@ -319,7 +319,7 @@ export class BuyCryptoService {
         .createQueryBuilder('buyCrypto')
         .select('SUM(amountInEur)', 'volume')
         .where('cryptoRouteId = :id', { id: id })
-        .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
+        .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
         .getRawOne<{ volume: number }>();
 
       const newYear = new Date(new Date().getFullYear(), 0, 1);
@@ -328,7 +328,7 @@ export class BuyCryptoService {
         .select('SUM(amountInEur)', 'annualVolume')
         .leftJoin('buyCrypto.cryptoInput', 'cryptoInput')
         .where('buyCrypto.cryptoRouteId = :id', { id: id })
-        .andWhere('buyCrypto.amlCheck = :check', { check: AmlCheck.PASS })
+        .andWhere('buyCrypto.amlCheck = :check', { check: CheckStatus.PASS })
         .andWhere('cryptoInput.created >= :year', { year: newYear })
         .getRawOne<{ annualVolume: number }>();
 
@@ -353,7 +353,7 @@ export class BuyCryptoService {
       .select('SUM(amountInEur * refFactor)', 'volume')
       .addSelect('SUM(amountInEur * refFactor * refProvision * 0.01)', 'credit')
       .where('usedRef = :ref', { ref })
-      .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
+      .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
       .getRawOne<{ volume: number; credit: number }>();
 
     return { volume: volume ?? 0, credit: credit ?? 0 };
@@ -381,7 +381,7 @@ export class BuyCryptoService {
 
   async getTransactions(dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<TransactionDetailsDto[]> {
     const buyCryptos = await this.buyCryptoRepo.find({
-      where: { buy: { id: Not(IsNull()) }, outputDate: Between(dateFrom, dateTo), amlCheck: AmlCheck.PASS },
+      where: { buy: { id: Not(IsNull()) }, outputDate: Between(dateFrom, dateTo), amlCheck: CheckStatus.PASS },
       relations: ['buy', 'buy.asset'],
       loadEagerRelations: false,
     });

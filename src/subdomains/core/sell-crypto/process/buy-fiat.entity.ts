@@ -5,8 +5,8 @@ import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/bank/fiat-output/fiat-output.entity';
-import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
 import { AmlReason } from '../../buy-crypto/process/enums/aml-reason.enum';
+import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
 import { Sell } from '../route/sell.entity';
 
 @Entity()
@@ -70,7 +70,7 @@ export class BuyFiat extends IEntity {
 
   //Check
   @Column({ length: 256, nullable: true })
-  amlCheck: AmlCheck;
+  amlCheck: CheckStatus;
 
   @Column({ length: 256, nullable: true })
   amlReason: AmlReason;
@@ -162,7 +162,7 @@ export class BuyFiat extends IEntity {
     return entity;
   }
 
-  addAmlCheck(amlCheck: AmlCheck): this {
+  addAmlCheck(amlCheck: CheckStatus): this {
     this.amlCheck = amlCheck;
 
     return this;
