@@ -110,6 +110,8 @@ describe('BuyController', () => {
 
     const dto = createBuyPaymentInfoDto();
 
+    jest.spyOn(paymentInfoService, 'buyCheck').mockResolvedValue(dto);
+
     await expect(controller.createBuyWithPaymentInfo(createJwt(), dto)).resolves.toMatchObject({
       name: 'DFX AG',
       street: 'Bahnhofstrasse',
