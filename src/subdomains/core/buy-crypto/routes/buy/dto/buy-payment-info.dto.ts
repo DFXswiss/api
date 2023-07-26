@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
+import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { MinAmount } from 'src/shared/payment/dto/min-amount.dto';
 
 export class BankInfoDto {
@@ -52,6 +53,9 @@ export class BuyPaymentInfoDto extends BankInfoDto {
 
   @ApiProperty({ description: 'Amount in source currency' })
   amount: number;
+
+  @ApiProperty({ type: FiatDto, description: 'Source currency' })
+  currency: FiatDto;
 
   @ApiProperty({ description: 'Minimum fee in target asset' })
   minFeeTarget: number;

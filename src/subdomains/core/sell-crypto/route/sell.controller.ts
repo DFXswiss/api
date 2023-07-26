@@ -8,6 +8,7 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
@@ -170,6 +171,7 @@ export class SellController {
       estimatedAmount,
       amount,
       currency: FiatDtoMapper.entityToDto(dto.currency),
+      asset: AssetDtoMapper.entityToDto(dto.asset),
       paymentRequest:
         dto.asset.blockchain === Blockchain.LIGHTNING
           ? await this.lightningService.getInvoiceByLnurlp(sell.deposit.address, dto.amount)
