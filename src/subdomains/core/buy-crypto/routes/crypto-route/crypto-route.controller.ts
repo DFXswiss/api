@@ -67,21 +67,27 @@ export class CryptoRouteController {
   async getCryptoQuote(@Body() dto: GetCryptoQuoteDto): Promise<CryptoQuoteDto> {
     dto.targetAsset ??= dto.asset;
 
-    const { amount, sourceAsset, targetAsset } = await this.paymentInfoService.cryptoCheck(dto);
+    const {
+      amount: sourceAmount,
+      sourceAsset,
+      targetAsset,
+      targetAmount,
+    } = await this.paymentInfoService.cryptoCheck(dto);
 
     const fee = Config.crypto.fee;
 
-    const { exchangeRate, feeAmount, estimatedAmount } = await this.transactionHelper.getTxDetails(
-      amount,
-      fee,
-      sourceAsset,
-      targetAsset,
-    );
+    const {
+      exchangeRate,
+      feeAmount,
+      estimatedAmount,
+      sourceAmount: amount,
+    } = await this.transactionHelper.getTxDetails(sourceAmount, targetAmount, fee, sourceAsset, targetAsset);
 
     return {
       feeAmount,
       exchangeRate,
       estimatedAmount,
+      amount,
     };
   }
 
@@ -162,8 +168,9 @@ export class CryptoRouteController {
       minFee,
       minVolumeTarget,
       minFeeTarget,
-      estimatedAmount: estimatedAmount,
-    } = await this.transactionHelper.getTxDetails(dto.amount, fee, dto.sourceAsset, dto.targetAsset);
+      estimatedAmount,
+      sourceAmount: amount,
+    } = await this.transactionHelper.getTxDetails(dto.amount, dto.targetAmount, fee, dto.sourceAsset, dto.targetAsset);
 
     return {
       routeId: cryptoRoute.id,
@@ -176,7 +183,9 @@ export class CryptoRouteController {
       minVolumeTarget,
       minFeeTarget,
       estimatedAmount,
+      amount,
       targetAsset: AssetDtoMapper.entityToDto(dto.targetAsset),
+      sourceAsset: AssetDtoMapper.entityToDto(dto.sourceAsset),
     };
   }
 }
