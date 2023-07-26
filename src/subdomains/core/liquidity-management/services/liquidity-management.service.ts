@@ -13,6 +13,7 @@ import { In } from 'typeorm';
 import { Util } from 'src/shared/utils/util';
 import { Config, Process } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 @Injectable()
 export class LiquidityManagementService {
@@ -94,8 +95,11 @@ export class LiquidityManagementService {
       if (result.deficit || result.redundancy) {
         if (!this.ruleActivations.has(rule.id)) this.ruleActivations.set(rule.id, new Date());
 
-        // execute rule 30 minutes after activation
-        if (this.ruleActivations.get(rule.id) < Util.minutesBefore(30)) {
+        // execute rule 30 seconds/minutes after activation
+        const requiredActivationTime =
+          rule.targetAsset?.blockchain === Blockchain.DEFICHAIN ? Util.secondsBefore(30) : Util.minutesBefore(30);
+
+        if (this.ruleActivations.get(rule.id) < requiredActivationTime) {
           this.ruleActivations.delete(rule.id);
 
           await this.executeRule(rule, result);
