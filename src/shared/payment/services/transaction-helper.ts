@@ -137,18 +137,16 @@ export class TransactionHelper implements OnModuleInit {
 
     const targetAmount =
       outputAmount != null
-        ? this.round(outputAmount, to instanceof Fiat)
+        ? outputAmount
         : this.convert(Math.max(inputAmount - feeAmount, 0), price, to instanceof Fiat);
     const sourceAmount =
-      outputAmount != null
-        ? this.convert(outputAmount, price.invert(), from instanceof Fiat) + feeAmount
-        : this.round(inputAmount, from instanceof Fiat);
+      outputAmount != null ? this.convert(outputAmount, price.invert(), from instanceof Fiat) + feeAmount : inputAmount;
 
     return {
       exchangeRate: this.round(price.price, from instanceof Fiat),
       feeAmount: this.round(feeAmount, from instanceof Fiat),
-      estimatedAmount: targetAmount,
-      sourceAmount,
+      estimatedAmount: this.round(targetAmount, to instanceof Fiat),
+      sourceAmount: this.round(sourceAmount, from instanceof Fiat),
     };
   }
 
