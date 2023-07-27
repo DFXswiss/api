@@ -317,10 +317,11 @@ export class Configuration {
     },
     lightning: {
       lnbits: {
+        apiKey: process.env.LIGHTNING_LNBITS_API_KEY,
         apiUrl: process.env.LIGHTNING_LNBITS_API_URL,
         lnurlpApiUrl: process.env.LIGHTNING_LNBITS_LNURLP_API_URL,
-        apiKey: process.env.LIGHTNING_LNBITS_API_KEY,
         lnurlpUrl: process.env.LIGHTNING_LNBITS_LNURLP_URL,
+        lnurlwApiUrl: process.env.LIGHTNING_LNBITS_LNURLW_API_URL,
       },
       lnd: {
         apiUrl: process.env.LIGHTNING_LND_API_URL,

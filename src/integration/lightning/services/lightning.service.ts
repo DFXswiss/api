@@ -51,7 +51,7 @@ export class LightningService {
   }
 
   async getInvoiceByLnurlp(lnurlpAddress: string, amount?: number): Promise<string> {
-    const lnurlpUrl = LightningHelper.decodeLnurlp(lnurlpAddress);
+    const lnurlpUrl = LightningHelper.decodeLnurl(lnurlpAddress);
 
     const payRequest = await this.http.get<LnurlPayRequestDto>(lnurlpUrl);
 
@@ -74,7 +74,7 @@ export class LightningService {
 
   async getInvoiceByLndhub(lndHubAddress: string, amount?: number): Promise<string> {
     const lnurlAddress = lndHubAddress.replace(LightningAddressType.LND_HUB, LightningAddressType.LN_URL);
-    const lndHubPlain = LightningHelper.decodeLnurlp(lnurlAddress);
+    const lndHubPlain = LightningHelper.decodeLnurl(lnurlAddress);
 
     const lndHubMatch = LightningService.ALLOWED_LNDHUB_PATTERN.exec(lndHubPlain);
 
