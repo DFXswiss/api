@@ -13,6 +13,7 @@ import {
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Country } from 'src/shared/models/country/country.entity';
 import { Util } from 'src/shared/utils/util';
+import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { AccountType } from '../account-type.enum';
 import { IsDfxPhone } from '../is-dfx-phone.validator';
 import { KycIdentificationType, KycState, KycStatus, UserDataStatus } from '../user-data.entity';
@@ -144,4 +145,12 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsEnum(UserDataStatus)
   status: UserDataStatus;
+
+  @IsOptional()
+  @IsBoolean()
+  pep: boolean;
+
+  @IsOptional()
+  @IsEnum(CheckStatus)
+  bankTransactionVerification: CheckStatus;
 }

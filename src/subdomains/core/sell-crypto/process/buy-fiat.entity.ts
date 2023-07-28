@@ -5,8 +5,8 @@ import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/bank/fiat-output/fiat-output.entity';
-import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
 import { AmlReason } from '../../buy-crypto/process/enums/aml-reason.enum';
+import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
 import { Sell } from '../route/sell.entity';
 
 @Entity()
@@ -70,7 +70,7 @@ export class BuyFiat extends IEntity {
 
   //Check
   @Column({ length: 256, nullable: true })
-  amlCheck: AmlCheck;
+  amlCheck: CheckStatus;
 
   @Column({ length: 256, nullable: true })
   amlReason: AmlReason;
@@ -162,7 +162,7 @@ export class BuyFiat extends IEntity {
     return entity;
   }
 
-  addAmlCheck(amlCheck: AmlCheck): this {
+  addAmlCheck(amlCheck: CheckStatus): this {
     this.amlCheck = amlCheck;
 
     return this;
@@ -182,6 +182,17 @@ export class BuyFiat extends IEntity {
     return [this.id, { recipientMail: this.recipientMail, mail2SendDate: this.mail2SendDate }];
   }
 
+  returnMail(): UpdateResult<BuyFiat> {
+    const update: Partial<BuyFiat> = {
+      recipientMail: this.sell.user.userData.mail,
+      mailReturnSendDate: new Date(),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   cryptoExchangedToFiat(): UpdateResult<BuyFiat> {
     this.mail2SendDate = new Date();
 
@@ -192,12 +203,6 @@ export class BuyFiat extends IEntity {
     this.mail3SendDate = new Date();
 
     return [this.id, { mail3SendDate: this.mail3SendDate }];
-  }
-
-  paybackToAddressInitiated(): this {
-    this.mailReturnSendDate = new Date();
-
-    return this;
   }
 
   get exchangeRateString(): string {
@@ -217,38 +222,6 @@ export class BuyFiat extends IEntity {
 
   get isLightningTransaction(): boolean {
     return this.cryptoInputBlockchain === Blockchain.LIGHTNING;
-  }
-
-  get translationKey(): string {
-    if (!this.mail1SendDate) {
-      if (this.cryptoInput.asset.blockchain === Blockchain.LIGHTNING)
-        return 'mail.payment.withdrawal.offRampInitiatedLightning';
-
-      return 'mail.payment.withdrawal.offRampInitiated';
-    }
-
-    if (this.amlCheck === AmlCheck.PASS) {
-      if (!this.mail2SendDate) return 'mail.payment.withdrawal.cryptoExchangedToFiat';
-      return 'mail.payment.withdrawal.fiatToBankTransferInitiated';
-    } else if (this.amlCheck === AmlCheck.PENDING) {
-      switch (this.amlReason) {
-        case AmlReason.DAILY_LIMIT:
-          return 'mail.payment.pending.dailyLimit';
-
-        case AmlReason.ANNUAL_LIMIT:
-          return 'mail.payment.pending.annualLimit';
-
-        case AmlReason.ANNUAL_LIMIT_WITHOUT_KYC:
-          return 'mail.payment.pending.annualLimitWithoutKyc';
-
-        case AmlReason.NAME_CHECK_WITHOUT_KYC:
-          return 'mail.payment.pending.nameCheckWithoutKyc';
-      }
-    } else if (this.amlCheck === AmlCheck.FAIL) {
-      return 'mail.payment.withdrawal.paybackToAddressInitiated';
-    }
-
-    throw new Error(`Tried to send a mail for buy-fiat ${this.id} in invalid state`);
   }
 }
 

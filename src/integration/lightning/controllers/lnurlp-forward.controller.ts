@@ -3,9 +3,9 @@ import { ApiTags } from '@nestjs/swagger';
 import { LnurlPayRequestDto } from '../dto/lnurlp.dto';
 import { LnUrlForwardService } from '../services/lnurl-forward.service';
 
-@ApiTags('LNURLp')
+@ApiTags('LNURL')
 @Controller('lnurlp')
-export class LnUrlForwardController {
+export class LnUrlPForwardController {
   constructor(private forwardService: LnUrlForwardService) {}
 
   @Get(':id')

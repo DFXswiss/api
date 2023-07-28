@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
 import { KycCompleted, KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
 import { CountryService } from '../../../../shared/models/country/country.service';
 import { Bank, BankName } from './bank.entity';
 import { BankRepository } from './bank.repository';
@@ -56,8 +56,8 @@ export class BankService {
       account = this.getMatchingBank(banks, BankName.MAERKI, bankSelectorInput.currency, fallBackCurrency);
     }
     if (!account) {
-      // Default => Frick
-      account = this.getMatchingBank(banks, BankName.FRICK, bankSelectorInput.currency, fallBackCurrency);
+      // Default => MB
+      account = this.getMatchingBank(banks, BankName.MAERKI, bankSelectorInput.currency, fallBackCurrency);
     }
 
     return account;

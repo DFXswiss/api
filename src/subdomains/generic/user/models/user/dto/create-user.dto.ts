@@ -33,4 +33,9 @@ export class CreateUserDto {
   @IsOptional()
   @IsInt()
   walletId: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  wallet: string;
 }

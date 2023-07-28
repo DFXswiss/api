@@ -7,10 +7,14 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
-import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
+import {
+  MailFactory,
+  MailKey,
+  MailTranslationKey,
+} from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, IsNull, Not } from 'typeorm';
-import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
+import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
 import { BuyFiatAmlReasonPendingStates } from './buy-fiat.entity';
 import { BuyFiatRepository } from './buy-fiat.repository';
 
@@ -55,7 +59,7 @@ export class BuyFiatNotificationService {
               title: `${MailTranslationKey.BUY_FIAT}.initiated.title`,
               prefix: { key: `${MailTranslationKey.BUY_FIAT}.initiated.salutation` },
               table: {
-                [`${MailTranslationKey.BUY_FIAT}.input_amount`]: `${entity.cryptoInput.amount} ${entity.cryptoInput.asset.dexName}`,
+                [`${MailTranslationKey.BUY_FIAT}.input_amount`]: `${entity.cryptoInput.amount} ${entity.cryptoInput.asset.name}`,
                 [`${MailTranslationKey.PAYMENT}.blockchain`]: `${entity.cryptoInputBlockchain}`,
                 [`${MailTranslationKey.PAYMENT}.transaction_id`]: entity.isLightningTransaction
                   ? Util.blankStart(entity.cryptoInput.inTxId)
@@ -91,7 +95,7 @@ export class BuyFiatNotificationService {
         mail1SendDate: Not(IsNull()),
         mail2SendDate: IsNull(),
         outputAmount: Not(IsNull()),
-        amlCheck: AmlCheck.PASS,
+        amlCheck: CheckStatus.PASS,
       },
       relations: ['cryptoInput', 'sell', 'sell.user', 'sell.user.userData'],
     });
@@ -140,7 +144,7 @@ export class BuyFiatNotificationService {
         mail2SendDate: Not(IsNull()),
         mail3SendDate: IsNull(),
         fiatOutput: { bankTx: Not(IsNull()), remittanceInfo: Not(IsNull()) },
-        amlCheck: AmlCheck.PASS,
+        amlCheck: CheckStatus.PASS,
       },
       relations: ['sell', 'sell.user', 'sell.user.userData', 'fiatOutput', 'fiatOutput.bankTx'],
     });
@@ -184,7 +188,7 @@ export class BuyFiatNotificationService {
         cryptoReturnTxId: Not(IsNull()),
         cryptoReturnDate: Not(IsNull()),
         amlReason: Not(IsNull()),
-        amlCheck: AmlCheck.FAIL,
+        amlCheck: CheckStatus.FAIL,
         mailReturnSendDate: IsNull(),
       },
       relations: ['sell', 'sell.user', 'sell.user.userData', 'cryptoInput'],
@@ -194,29 +198,43 @@ export class BuyFiatNotificationService {
 
     for (const entity of entities) {
       try {
-        entity.paybackToAddressInitiated();
-
         if (entity.sell.user.userData.mail) {
-          await this.notificationService.sendMail({
+          await this.notificationService.sendMailNew({
             type: MailType.USER,
             input: {
               userData: entity.sell.user.userData,
-              translationKey: entity.translationKey,
-              translationParams: {
-                inputAmount: entity.inputAmount,
-                inputAsset: entity.inputAsset,
-                blockchain: entity.cryptoInputBlockchain,
-                returnTransactionLink: txExplorerUrl(entity.cryptoInputBlockchain, entity.cryptoReturnTxId),
-                returnReason: this.i18nService.translate(`mail.amlReasonMailText.${entity.amlReason}`, {
-                  lang: entity.sell.user.userData.language?.symbol.toLowerCase(),
-                }),
-                userAddressTrimmed: Util.blankStart(entity.sell.user.address),
+              title: `${MailTranslationKey.FIAT_RETURN}.title`,
+              prefix: { key: `${MailTranslationKey.FIAT_RETURN}.salutation` },
+              table: {
+                [`${MailTranslationKey.PAYMENT}.reimbursed`]: `${entity.inputAmount} ${entity.inputAsset}`,
+                [`${MailTranslationKey.PAYMENT}.blockchain`]: entity.cryptoInputBlockchain,
+                [`${MailTranslationKey.PAYMENT}.wallet_address`]: Util.blankStart(entity.sell.user.address),
+                [`${MailTranslationKey.PAYMENT}.transaction_id`]: entity.isLightningTransaction
+                  ? Util.blankStart(entity.cryptoReturnTxId)
+                  : null,
               },
+              suffix: [
+                entity.isLightningTransaction
+                  ? null
+                  : {
+                      key: `${MailTranslationKey.FIAT_RETURN}.payment_link`,
+                      params: { url: txExplorerUrl(entity.cryptoInputBlockchain, entity.cryptoReturnTxId) },
+                    },
+                {
+                  key: `${MailTranslationKey.RETURN}.introduction`,
+                  params: { reason: MailFactory.parseMailKey(MailTranslationKey.RETURN_REASON, entity.amlReason) },
+                },
+                { key: MailKey.SPACE, params: { value: '2' } },
+                { key: `${MailTranslationKey.GENERAL}.support` },
+                { key: MailKey.SPACE, params: { value: '4' } },
+                { key: `${MailTranslationKey.GENERAL}.thanks` },
+                { key: MailKey.DFX_TEAM_CLOSING },
+              ],
             },
           });
         }
 
-        await this.buyFiatRepo.update({ id: entity.id }, { mailReturnSendDate: entity.mailReturnSendDate });
+        await this.buyFiatRepo.update(...entity.returnMail());
       } catch (e) {
         this.logger.error(`Failed to send payback to address mail for buy-fiat ${entity.id}:`, e);
       }
@@ -229,7 +247,7 @@ export class BuyFiatNotificationService {
         mail2SendDate: IsNull(),
         outputAmount: IsNull(),
         amlReason: In(BuyFiatAmlReasonPendingStates),
-        amlCheck: AmlCheck.PENDING,
+        amlCheck: CheckStatus.PENDING,
       },
       relations: ['sell', 'sell.user', 'sell.user.userData'],
     });
@@ -239,14 +257,29 @@ export class BuyFiatNotificationService {
     for (const entity of entities) {
       try {
         if (entity.sell.user.userData.mail) {
-          await this.notificationService.sendMail({
+          await this.notificationService.sendMailNew({
             type: MailType.USER,
             input: {
               userData: entity.sell.user.userData,
-              translationKey: entity.translationKey,
-              translationParams: {
-                hashLink: `${Config.payment.url}/kyc?code=${entity.sell.user.userData.kycHash}`,
-              },
+              title: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.title`,
+              prefix: { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.salutation` },
+              table: {},
+              suffix: [
+                { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line1` },
+                { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line2` },
+                { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line3` },
+                {
+                  key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line4`,
+                  params: { url: `${Config.payment.url}/kyc?code=${entity.sell.user.userData.kycHash}` },
+                },
+                { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line5` },
+                { key: MailKey.SPACE, params: { value: '1' } },
+                { key: `${MailTranslationKey.GENERAL}.support` },
+                { key: MailKey.SPACE, params: { value: '2' } },
+                { key: `${MailTranslationKey.GENERAL}.thanks` },
+                { key: MailKey.SPACE, params: { value: '4' } },
+                { key: MailKey.DFX_TEAM_CLOSING },
+              ],
             },
           });
         }

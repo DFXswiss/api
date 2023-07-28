@@ -3,6 +3,7 @@ import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
+import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
@@ -185,6 +186,12 @@ export class UserData extends IEntity {
 
   @Column({ length: 256, nullable: true })
   internalAmlNote: string;
+
+  @Column({ nullable: true })
+  pep: boolean;
+
+  @Column({ length: 256, nullable: true })
+  bankTransactionVerification: CheckStatus;
 
   //Mail
   @Column({ length: 256, nullable: true })

@@ -16,13 +16,14 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
+import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { Between, Not } from 'typeorm';
 import { KycService } from '../kyc/kyc.service';
 import { KycStatus, KycType, UserData, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
+import { Wallet } from '../wallet/wallet.entity';
 import { WalletService } from '../wallet/wallet.service';
 import { ApiKeyDto } from './dto/api-key.dto';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -110,13 +111,19 @@ export class UserService {
     return this.userRepo.findOne({ where: { ref }, relations: ['userData', 'userData.users'] });
   }
 
-  async createUser(dto: CreateUserDto, userIp: string, userOrigin?: string, userData?: UserData): Promise<User> {
-    let user = this.userRepo.create(dto);
+  async createUser(
+    { address, signature, usedRef }: CreateUserDto,
+    userIp: string,
+    userOrigin?: string,
+    userData?: UserData,
+    wallet?: Wallet,
+  ): Promise<User> {
+    let user = this.userRepo.create({ address, signature });
 
     user.ip = userIp;
     user.ipCountry = await this.checkIpCountry(userIp);
-    user.wallet = await this.walletService.getWalletOrDefault(dto.walletId);
-    user.usedRef = await this.checkRef(user, dto.usedRef);
+    user.wallet = wallet ?? (await this.walletService.getDefault());
+    user.usedRef = await this.checkRef(user, usedRef);
     user.origin = userOrigin;
     user.userData = userData ?? (await this.userDataService.createUserData(user.wallet.customKyc ?? KycType.DFX));
     user = await this.userRepo.save(user);
@@ -217,7 +224,7 @@ export class UserService {
       .leftJoin('user.buys', 'buys')
       .leftJoin('buys.buyCryptos', 'buyCryptos')
       .where('buyCryptos.outputDate BETWEEN :from AND :to', { from: query.from, to: query.to })
-      .andWhere('buyCryptos.amlCheck = :check', { check: AmlCheck.PASS })
+      .andWhere('buyCryptos.amlCheck = :check', { check: CheckStatus.PASS })
       .andWhere('user.id = :userId', { userId: query.userId })
       .getRawOne<{ buyVolume: number }>();
 
@@ -227,7 +234,7 @@ export class UserService {
       .leftJoin('user.sells', 'sells')
       .leftJoin('sells.buyFiats', 'buyFiats')
       .where('buyFiats.outputDate BETWEEN :from AND :to', { from: query.from, to: query.to })
-      .andWhere('buyFiats.amlCheck = :check', { check: AmlCheck.PASS })
+      .andWhere('buyFiats.amlCheck = :check', { check: CheckStatus.PASS })
       .andWhere('user.id = :userId', { userId: query.userId })
       .getRawOne<{ sellVolume: number }>();
 
@@ -295,7 +302,7 @@ export class UserService {
       .leftJoin('user.buys', 'buys')
       .leftJoin('buys.buyCryptos', 'buyCryptos')
       .where('user.created BETWEEN :from AND :to', { from: query.from, to: query.to })
-      .andWhere('buyCryptos.amlCheck = :check', { check: AmlCheck.PASS });
+      .andWhere('buyCryptos.amlCheck = :check', { check: CheckStatus.PASS });
 
     if (query.refCode) dbQuery = dbQuery.andWhere('user.usedRef = :ref', { ref: query.refCode });
     if (query.origin) dbQuery = dbQuery.andWhere('user.origin = :origin', { origin: query.origin });
@@ -308,7 +315,7 @@ export class UserService {
       .leftJoin('user.cryptoRoutes', 'cryptoRoutes')
       .leftJoin('cryptoRoutes.buyCryptos', 'buyCryptos')
       .where('user.created BETWEEN :from AND :to', { from: query.from, to: query.to })
-      .andWhere('buyCryptos.amlCheck = :check', { check: AmlCheck.PASS });
+      .andWhere('buyCryptos.amlCheck = :check', { check: CheckStatus.PASS });
 
     if (query.refCode) dbQuery = dbQuery.andWhere('user.usedRef = :ref', { ref: query.refCode });
     if (query.origin) dbQuery = dbQuery.andWhere('user.origin = :origin', { origin: query.origin });
