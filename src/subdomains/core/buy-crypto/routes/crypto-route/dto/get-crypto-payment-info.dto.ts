@@ -1,14 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import {
-  IsNotEmpty,
-  IsNotEmptyObject,
-  IsNumber,
-  IsOptional,
-  Validate,
-  ValidateIf,
-  ValidateNested,
-} from 'class-validator';
+import { IsNotEmpty, IsNotEmptyObject, IsNumber, Validate, ValidateIf, ValidateNested } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { XOR } from 'src/shared/validators/xor.validator';
@@ -27,15 +19,8 @@ export class GetCryptoPaymentInfoDto {
   @IsNumber()
   amount: number;
 
-  @ApiProperty({ type: EntityDto, deprecated: true, description: 'Use the targetAsset property' })
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => EntityDto)
-  asset: Asset;
-
   @ApiProperty({ type: EntityDto, description: 'Target asset' })
   @IsNotEmptyObject()
-  @ValidateIf((dto: GetCryptoPaymentInfoDto) => Boolean(dto.targetAsset || !dto.asset))
   @ValidateNested()
   @Type(() => EntityDto)
   targetAsset: Asset;

@@ -59,14 +59,14 @@ export class CryptoRouteController {
     dto.targetAsset ??= dto.asset;
 
     dto = await this.paymentInfoService.cryptoCheck(dto, jwt);
-    return this.cryptoRouteService.createCrypto(jwt.id, dto).then((b) => this.toDto(jwt.id, b));
+    return this.cryptoRouteService
+      .createCrypto(jwt.id, dto.blockchain, dto.targetAsset)
+      .then((b) => this.toDto(jwt.id, b));
   }
 
   @Put('/quote')
   @ApiOkResponse({ type: CryptoQuoteDto })
   async getCryptoQuote(@Body() dto: GetCryptoQuoteDto): Promise<CryptoQuoteDto> {
-    dto.targetAsset ??= dto.asset;
-
     const {
       amount: sourceAmount,
       sourceAsset,
@@ -99,11 +99,9 @@ export class CryptoRouteController {
     @GetJwt() jwt: JwtPayload,
     @Body() dto: GetCryptoPaymentInfoDto,
   ): Promise<CryptoPaymentInfoDto> {
-    dto.targetAsset ??= dto.asset;
-
     dto = await this.paymentInfoService.cryptoCheck(dto, jwt);
     return this.cryptoRouteService
-      .createCrypto(jwt.id, { ...dto, blockchain: dto.sourceAsset.blockchain }, true)
+      .createCrypto(jwt.id, dto.sourceAsset.blockchain, dto.targetAsset, true)
       .then((crypto) => this.toPaymentInfoDto(jwt.id, crypto, dto));
   }
 

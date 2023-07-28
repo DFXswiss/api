@@ -1,6 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { KycCompleted } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -11,7 +13,6 @@ import { User, UserStatus } from '../../../../generic/user/models/user/user.enti
 import { DepositService } from '../../../../supporting/address-pool/deposit/deposit.service';
 import { CryptoRoute } from './crypto-route.entity';
 import { CryptoRouteRepository } from './crypto-route.repository';
-import { CreateCryptoRouteDto } from './dto/create-crypto-route.dto';
 import { UpdateCryptoRouteDto } from './dto/update-crypto-route.dto';
 
 @Injectable()
@@ -79,7 +80,12 @@ export class CryptoRouteService {
     return this.cryptoRepo.findOneBy({ id, user: { id: userId } });
   }
 
-  async createCrypto(userId: number, dto: CreateCryptoRouteDto, ignoreExisting = false): Promise<CryptoRoute> {
+  async createCrypto(
+    userId: number,
+    blockchain: Blockchain,
+    asset: Asset,
+    ignoreExisting = false,
+  ): Promise<CryptoRoute> {
     // KYC check
     const { kycStatus } = await this.userDataService.getUserDataByUser(userId);
     if (!KycCompleted(kycStatus)) throw new BadRequestException('Missing KYC');
@@ -90,10 +96,10 @@ export class CryptoRouteService {
     // check if exists
     const existing = await this.cryptoRepo.findOne({
       where: {
-        asset: { id: dto.targetAsset.id },
+        asset: { id: asset.id },
         targetDeposit: IsNull(),
         user: { id: userId },
-        deposit: { blockchain: dto.blockchain },
+        deposit: { blockchain: blockchain },
       },
       relations: ['deposit'],
     });
@@ -111,9 +117,9 @@ export class CryptoRouteService {
     }
 
     // create the entity
-    const crypto = this.cryptoRepo.create(dto);
+    const crypto = this.cryptoRepo.create({ asset });
     crypto.user = { id: userId } as User;
-    crypto.deposit = await this.depositService.getNextDeposit(dto.blockchain);
+    crypto.deposit = await this.depositService.getNextDeposit(blockchain);
 
     // save
     return this.cryptoRepo.save(crypto);
