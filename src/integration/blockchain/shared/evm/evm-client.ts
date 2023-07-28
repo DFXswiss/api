@@ -360,9 +360,12 @@ export abstract class EvmClient {
     const requestConfig = { url: this.scanApiUrl, ...config };
 
     try {
-      return await this.http.request<ScanApiResponse<T>>(requestConfig);
+      const result = await this.http.request<ScanApiResponse<T>>(requestConfig);
+      if (result.status !== '1') throw new Error(result.result);
+
+      return result;
     } catch (e) {
-      if (nthTry > 1 && e.response.status === 429) {
+      if (nthTry > 1 && (e.message?.includes('Max rate limit reached') || e.response?.status === 429)) {
         await Util.delay(500);
         return this.callScanApi(requestConfig, nthTry - 1);
       }
