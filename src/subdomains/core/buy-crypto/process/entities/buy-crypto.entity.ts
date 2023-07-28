@@ -166,6 +166,8 @@ export class BuyCrypto extends IEntity {
   defineAssetExchangePair(): { outputReferenceAssetName: string; type: AssetType } | null {
     this.outputAsset = this.target?.asset;
 
+    if (this.outputAsset?.type === AssetType.CUSTOM) return null;
+
     if (this.outputAsset.dexName === this.inputReferenceAsset) {
       this.setOutputReferenceAsset(this.outputAsset);
 
