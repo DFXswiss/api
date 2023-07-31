@@ -1,30 +1,6 @@
-import { log } from 'console';
-import { readFileSync } from 'fs';
 import { GetConfig } from '../config';
 
 describe('Config', () => {
-  it('CheckAddressFormat', async () => {
-    process.env.ENVIRONMENT = 'prd';
-
-    const addressFormat = GetConfig().formats.address;
-    log(addressFormat);
-
-    const addressExpression = new RegExp(addressFormat);
-
-    const fileContent = readFileSync('C:/Users/Bernd/Downloads/addresses.csv', 'utf-8');
-    const fileContentArray = fileContent.split(/\r?\n/).splice(1);
-    log('LENGTH: ' + fileContentArray.length);
-
-    for (const line of fileContentArray) {
-      const address = line.split(',')[1];
-      const testResult = addressExpression.test(address);
-
-      if (!testResult) {
-        log('RESULT: ' + line + ' / ' + testResult);
-      }
-    }
-  });
-
   it('should match all addresses', async () => {
     process.env.ENVIRONMENT = 'prd';
 
