@@ -33,7 +33,7 @@ describe('Config', () => {
       ),
     ).toEqual(true);
 
-    // Etherium
+    // Ethereum
     expect(addrExp.test('0x000341705b2bED92e0D6938Cc206fB0CD7F57d74')).toEqual(true);
 
     // Defichain
