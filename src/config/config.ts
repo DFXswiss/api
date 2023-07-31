@@ -71,8 +71,17 @@ export class Configuration {
     darkBlue: '#072440',
   };
 
+  bitcoinAddressFormat = '([13]|bc1)[a-zA-HJ-NP-Z0-9]{25,62}';
+  lightningAddressFormat = '(LNURL|LNDHUB)[A-Z0-9]{25,250}|LNNID[A-Z0-9]{66}';
+  ethereumAddressFormat = '0x\\w{40}';
+  cardanoAddressFormat = 'stake[a-z0-9]{54}';
+  defichainAddressFormat =
+    this.environment === Environment.PRD ? '8\\w{33}|d\\w{33}|d\\w{41}' : '[78]\\w{33}|[td]\\w{33}|[td]\\w{41}';
+
+  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.ethereumAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}`;
+
   formats = {
-    address: new RegExp(`^(${this.getAllAddressFormat()})$`),
+    address: new RegExp(`^(${this.allAddressFormat})$`),
     signature:
       /^([0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}|.{87}=|[a-f0-9]{130}|[a-f0-9x]{132}|[a-f0-9]{582}|[a-z0-9]{104}|[a-z0-9]{140,146})$/,
     key: /^[a-f0-9]{84}$/,
@@ -451,36 +460,6 @@ export class Configuration {
   };
 
   // --- GETTERS --- //
-  getAllAddressFormat(): string {
-    const bitcoin = this.getBitcoinAddressFormat();
-    const lightning = this.getLightningAddressFormat();
-    const ethereum = this.getEthereumAddressFormat();
-    const cardano = this.getCardanoAddressFormat();
-    const defichain = this.getDefichainAddressFormat();
-
-    return `${bitcoin}|${lightning}|${ethereum}|${cardano}|${defichain}`;
-  }
-
-  getBitcoinAddressFormat(): string {
-    return '([13]|bc1)[a-zA-HJ-NP-Z0-9]{25,62}';
-  }
-
-  getLightningAddressFormat(): string {
-    return '(LNURL|LNDHUB)[A-Z0-9]{25,250}|LNNID[A-Z0-9]{66}';
-  }
-
-  getEthereumAddressFormat(): string {
-    return '0x\\w{40}';
-  }
-
-  getCardanoAddressFormat(): string {
-    return 'stake[a-z0-9]{54}';
-  }
-
-  getDefichainAddressFormat(): string {
-    return this.environment === Environment.PRD ? '8\\w{33}|d\\w{33}|d\\w{41}' : '[78]\\w{33}|[td]\\w{33}|[td]\\w{41}';
-  }
-
   get url(): string {
     return this.environment === Environment.LOC
       ? `http://localhost:${this.port}/${this.version}`
