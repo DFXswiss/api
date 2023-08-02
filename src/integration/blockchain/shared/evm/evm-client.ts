@@ -356,17 +356,17 @@ export abstract class EvmClient {
     return result;
   }
 
-  private async callScanApi<T>(config: HttpRequestConfig, nthTry = 3): Promise<ScanApiResponse<T>> {
+  private async callScanApi<T>(config: HttpRequestConfig, nthTry = 10): Promise<ScanApiResponse<T>> {
     const requestConfig = { url: this.scanApiUrl, ...config };
 
     try {
       const response = await this.http.request<ScanApiResponse<T>>(requestConfig);
-      if (response.status === '0' && typeof response.result === 'string') throw new Error(response.result);
+      if (response.status === '0' && response.message === 'NOK') throw new Error(response.result.toString());
 
       return response;
     } catch (e) {
       if (nthTry > 1 && (e.message?.includes('Max rate limit reached') || e.response?.status === 429)) {
-        await Util.delay(500);
+        await Util.delay(1000);
         return this.callScanApi(requestConfig, nthTry - 1);
       }
 
