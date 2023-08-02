@@ -138,10 +138,11 @@ export class BuyCryptoService {
     }
 
     // payment webhook
-    if (dto.inputAmount && dto.inputAsset) {
+    if ((dto.inputAmount && dto.inputAsset) || dto.isComplete) {
+      const state = entity.isComplete ? PaymentWebhookState.COMPLETED : PaymentWebhookState.CREATED;
       entity.buy
-        ? await this.webhookService.fiatCryptoUpdate(entity.user, entity, PaymentWebhookState.CREATED)
-        : await this.webhookService.cryptoCryptoUpdate(entity.user, entity, PaymentWebhookState.CREATED);
+        ? await this.webhookService.fiatCryptoUpdate(entity.user, entity, state)
+        : await this.webhookService.cryptoCryptoUpdate(entity.user, entity, state);
     }
 
     await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
