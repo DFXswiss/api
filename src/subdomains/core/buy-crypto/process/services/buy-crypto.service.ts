@@ -9,6 +9,7 @@ import {
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Process } from 'src/config/config';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
@@ -53,6 +54,7 @@ export class BuyCryptoService {
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly userService: UserService,
     private readonly webhookService: WebhookService,
+    private readonly assetService: AssetService,
   ) {}
 
   async createFromFiat(bankTxId: number, buyId: number): Promise<BuyCrypto> {
@@ -111,6 +113,11 @@ export class BuyCryptoService {
       if (!entity.cryptoRoute) throw new BadRequestException(`Cannot assign buy-crypto ${id} to a crypto route`);
       update.cryptoRoute = await this.getCryptoRoute(dto.cryptoRouteId);
       if (entity.bankTx) await this.bankTxService.getBankTxRepo().setNewUpdateTime(entity.bankTx.id);
+    }
+
+    if (dto.outputAssetId) {
+      update.outputAsset = await this.assetService.getAssetById(dto.outputAssetId);
+      if (!update.outputAsset) throw new BadRequestException('Asset not found');
     }
 
     Util.removeNullFields(entity);

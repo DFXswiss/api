@@ -361,7 +361,7 @@ export abstract class EvmClient {
 
     try {
       const response = await this.http.request<ScanApiResponse<T>>(requestConfig);
-      if (response.status === '0' && response.message === 'NOK') throw new Error(response.result.toString());
+      if (response.status === '0' && typeof response.result === 'string') throw new Error(response.result);
 
       return response;
     } catch (e) {
