@@ -137,27 +137,6 @@ export class StakingService {
 
   private async returnPayIns(payInsPairs: [CryptoInput, Staking][]): Promise<void> {
     for (const [payIn, staking] of payInsPairs) {
-      //send mail
-      try {
-        if (staking.user.userData.mail) {
-          await this.notificationService.sendMail({
-            type: MailType.USER,
-            input: {
-              userData: staking.user.userData,
-              translationKey: 'mail.staking.return',
-              translationParams: {
-                inputAmount: payIn.amount,
-                inputAsset: payIn.asset.name,
-                userAddressTrimmed: Util.blankStart(staking.user.address),
-                transactionLink: txExplorerUrl(payIn.asset.blockchain, payIn.inTxId),
-              },
-            },
-          });
-        }
-      } catch (e) {
-        this.logger.error(`Failed to send staking return mail for pay-in ${payIn.id}:`, e);
-      }
-
       await this.payInService.returnPayIn(
         payIn,
         PayInPurpose.STAKING,

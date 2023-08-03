@@ -17,13 +17,10 @@ import { IsNull, Not } from 'typeorm';
 import { PayInRepository } from '../repositories/payin.repository';
 
 @Injectable()
-export class BuyCryptoNotificationService {
-  private readonly logger = new DfxLogger(BuyCryptoNotificationService);
+export class PayInNotificationService {
+  private readonly logger = new DfxLogger(PayInNotificationService);
 
-  constructor(
-    private readonly cryptoInputRepo: PayInRepository,
-    private readonly notificationService: NotificationService,
-  ) {}
+  constructor(private readonly payInRepo: PayInRepository, private readonly notificationService: NotificationService) {}
 
   @Cron(CronExpression.EVERY_5_MINUTES)
   @Lock(1800)
@@ -37,7 +34,7 @@ export class BuyCryptoNotificationService {
   }
 
   async returnedCryptoInput(): Promise<void> {
-    const entities = await this.cryptoInputRepo.find({
+    const entities = await this.payInRepo.find({
       where: {
         mailReturnSendDate: IsNull(),
         recipientMail: IsNull(),
@@ -47,7 +44,7 @@ export class BuyCryptoNotificationService {
       relations: ['route', 'route.user', 'route.user.userData'],
     });
 
-    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'payback to address' email(s)`);
+    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} cryptoInput return email(s)`);
 
     for (const entity of entities) {
       try {
@@ -89,7 +86,7 @@ export class BuyCryptoNotificationService {
           });
         }
 
-        await this.cryptoInputRepo.update(...entity.returnMail());
+        await this.payInRepo.update(...entity.returnMail());
       } catch (e) {
         this.logger.error(`Failed to send cryptoInput return mail ${entity.id}:`, e);
       }
