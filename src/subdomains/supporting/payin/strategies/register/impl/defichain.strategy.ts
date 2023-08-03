@@ -13,7 +13,7 @@ import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { CryptoInput, PayInSendType, PayInStatus } from '../../../entities/crypto-input.entity';
+import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { PayInEntry } from '../../../interfaces';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { HistoryAmount, PayInDeFiChainService } from '../../../services/payin-defichain.service';
@@ -140,7 +140,7 @@ export class DeFiChainStrategy extends RegisterStrategy {
       try {
         const amounts = this.deFiChainService.getAmounts(history);
         for (const amount of amounts) {
-          inputs.push(this.createEntry(history, amount, supportedAssets, PayInStatus.TO_RETURN, PayInSendType.RETURN));
+          inputs.push(this.createEntry(history, amount, supportedAssets));
         }
       } catch (e) {
         this.logger.error(`Failed to create DeFiChain input ${history.txid}:`, e);
@@ -174,8 +174,6 @@ export class DeFiChainStrategy extends RegisterStrategy {
     history: AccountHistory,
     { amount, asset, type }: HistoryAmount,
     supportedAssets: Asset[],
-    status: PayInStatus,
-    sendType: PayInSendType,
   ): PayInEntry {
     return {
       address: BlockchainAddress.create(history.owner, Blockchain.DEFICHAIN),
@@ -186,8 +184,6 @@ export class DeFiChainStrategy extends RegisterStrategy {
       asset:
         this.assetService.getByQuerySync(supportedAssets, { dexName: asset, type, blockchain: Blockchain.DEFICHAIN }) ??
         null,
-      status,
-      sendType,
     };
   }
 }

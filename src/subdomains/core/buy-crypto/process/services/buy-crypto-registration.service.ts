@@ -1,14 +1,16 @@
 import { Injectable } from '@nestjs/common';
+import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { PayInNotSellableException } from 'src/shared/payment/exceptions/pay-in-not-sellable-exception';
+import { PayInTooSmallException } from 'src/shared/payment/exceptions/pay-in-too-small.exception';
+import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { CryptoRouteRepository } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.repository';
-import { PayInIgnoredException } from 'src/shared/payment/exceptions/pay-in-ignored.exception';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { IsNull, Not } from 'typeorm';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
-import { BuyCryptoInitSpecification } from '../specifications/buy-crypto-init.specification';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BuyCryptoRegistrationService {
@@ -18,7 +20,7 @@ export class BuyCryptoRegistrationService {
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly cryptoRouteRepository: CryptoRouteRepository,
     private readonly payInService: PayInService,
-    private readonly buyCryptoInitSpec: BuyCryptoInitSpecification,
+    private readonly transactionHelper: TransactionHelper,
   ) {}
 
   async registerCryptoPayIn(): Promise<void> {
@@ -72,15 +74,25 @@ export class BuyCryptoRegistrationService {
 
         if (!existingBuyCrypto) {
           const newBuyCrypto = BuyCrypto.createFromPayIn(payIn, cryptoRoute);
-          await this.buyCryptoInitSpec.isSatisfiedBy(newBuyCrypto);
+          await this.transactionHelper.isValidInput(newBuyCrypto.cryptoInput.asset, newBuyCrypto.cryptoInput.amount);
           await this.buyCryptoRepo.save(newBuyCrypto);
         }
 
         await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_CRYPTO, cryptoRoute);
       } catch (e) {
-        if (e instanceof PayInIgnoredException) {
+        if (e instanceof PayInTooSmallException) {
           await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_CRYPTO, cryptoRoute);
 
+          continue;
+        }
+
+        if (e instanceof PayInNotSellableException) {
+          await this.payInService.returnPayIn(
+            payIn,
+            PayInPurpose.BUY_CRYPTO,
+            BlockchainAddress.create(payIn.route.user.address, payIn.route.deposit.blockchain),
+            payIn.route,
+          );
           continue;
         }
 

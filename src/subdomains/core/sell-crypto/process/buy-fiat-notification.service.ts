@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { I18nService } from 'nestjs-i18n';
 import { Config, Process } from 'src/config/config';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -25,7 +24,6 @@ export class BuyFiatNotificationService {
   constructor(
     private readonly buyFiatRepo: BuyFiatRepository,
     private readonly notificationService: NotificationService,
-    private readonly i18nService: I18nService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)

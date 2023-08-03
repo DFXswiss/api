@@ -159,7 +159,7 @@ export class StakingService {
       }
 
       await this.payInService.returnPayIn(
-        payIn.id,
+        payIn,
         PayInPurpose.STAKING,
         BlockchainAddress.create(staking.user.address, staking.deposit.blockchain),
         staking,

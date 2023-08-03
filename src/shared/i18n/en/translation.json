@@ -55,7 +55,8 @@
                 "min_deposit_not_reached": "The minimum deposit limit was not reached",
                 "name_check_without_kyc": "Your transaction was cancelled due to missing KYC",
                 "annual_limit_without_kyc": "You exceeded the annual limit without KYC",
-                "asset_currently_not_available": "The asset is currently not available for trading with DFX"
+                "asset_currently_not_available": "The asset is currently not available for trading with DFX",
+                "staking": "Staking deposits are no longer possible"
             }
         },
         "pending": {

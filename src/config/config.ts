@@ -17,6 +17,7 @@ export enum Process {
   BUY_CRYPTO = 'BuyCrypto',
   LIMIT_REQUEST_MAIL = 'LimitRequestMail',
   BLACK_SQUAD_MAIL = 'BlackSquadMail',
+  PAY_IN_MAIL = 'PayInMail',
   BUY_CRYPTO_MAIL = 'BuyCryptoMail',
   BUY_FIAT_MAIL = 'BuyFiatMail',
   REF_REWARD_MAIL = 'RefRewardMail',
