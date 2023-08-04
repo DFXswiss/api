@@ -90,7 +90,7 @@ export class BuyFiatRegistrationService {
           await this.payInService.returnPayIn(
             payIn,
             PayInPurpose.BUY_FIAT,
-            BlockchainAddress.create(payIn.route.user.address, payIn.route.deposit.blockchain),
+            BlockchainAddress.create(sellRoute.user.address, payIn.route.deposit.blockchain),
             payIn.route,
           );
           continue;
