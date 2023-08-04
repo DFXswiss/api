@@ -25,12 +25,8 @@ export class PayInNotificationService {
   @Cron(CronExpression.EVERY_5_MINUTES)
   @Lock(1800)
   async sendNotificationMails(): Promise<void> {
-    try {
-      if (Config.processDisabled(Process.PAY_IN_MAIL)) return;
-      await this.returnedCryptoInput();
-    } catch (e) {
-      this.logger.error('Error during buy-crypto notification:', e);
-    }
+    if (Config.processDisabled(Process.PAY_IN_MAIL)) return;
+    await this.returnedCryptoInput();
   }
 
   async returnedCryptoInput(): Promise<void> {

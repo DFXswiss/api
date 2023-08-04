@@ -1,6 +1,5 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -40,13 +39,12 @@ export class TransactionHelper implements OnModuleInit {
 
   // --- SPECIFICATIONS --- //
   async isValidInput(from: Asset | Fiat, amount: number): Promise<void> {
-    // check sellable
-    if (!from.sellable || (from instanceof Asset && from.blockchain === Blockchain.DEFICHAIN))
-      throw new PayInNotSellableException();
-
     // check min. volume
     const { minVolume } = await this.getInSpecs(from);
     if (amount < minVolume * 0.5) throw new PayInTooSmallException();
+
+    // check sellable
+    if (!from.sellable) throw new PayInNotSellableException();
   }
 
   async getInSpecs(from: Asset | Fiat): Promise<TxSpec> {
