@@ -34,11 +34,11 @@
             "payment_link": "Qui puoi trovare l'ID della transazione con il tuo pagamento: [url:Link]"
         },
         "return": {
-            "crypto": {
+            "fiat": {
                 "title": "Trasferimento bancario effettuato",
                 "salutation": "I tuoi fondi sono stati rimborsati sul tuo conto corrente"
             },
-            "fiat": {
+            "crypto": {
                 "title": "I tuoi fondi sono stati rimborsati",
                 "salutation": "I tuoi fondi sono stati rimborsati all'indirizzo del tuo portafoglio",
                 "payment_link": "Qui trovi l'ID della transazione<br>con il tuo prelievo: [url:Link]"

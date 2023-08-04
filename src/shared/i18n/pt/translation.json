@@ -34,11 +34,11 @@
             "payment_link": "Here you can find the transaction ID with your payout: [url:Link]"
         },
         "return": {
-            "crypto": {
+            "fiat": {
                 "title":"Funds have been reimbursed",
                 "salutation": "Your funds have been reimbursed to your bank account"
             },
-            "fiat": {
+            "crypto": {
                 "title":"Funds have been reimbursed",
                 "salutation": "Your funds have been reimbursed to your wallet address",
                 "payment_link": "Here you can find the transaction ID<br>for your reimbursement: [url:Link]"

@@ -34,11 +34,11 @@
             "payment_link": "Vous trouverez ici l'ID de transaction associée à votre versement: [url:Link]"
         },
         "return": {
-            "crypto": {
+            "fiat": {
                 "title":"Remboursement des fonds",
                 "salutation": "Vos fonds ont été retournés à votre banque"
             },
-            "fiat": {
+            "crypto": {
                 "title": "Remboursement des fonds",
                 "salutation": "Vos fonds ont été remboursés sur votre adresse de wallet",
                 "payment_link": "Vous trouverez l'ID de transaction<br>pour le remboursement: [url:Link]"

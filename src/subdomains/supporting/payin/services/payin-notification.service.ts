@@ -56,7 +56,7 @@ export class PayInNotificationService {
               title: `${MailTranslationKey.CRYPTO_RETURN}.title`,
               prefix: { key: `${MailTranslationKey.CRYPTO_RETURN}.salutation` },
               table: {
-                [`${MailTranslationKey.PAYMENT}.reimbursed`]: `${entity.amount} ${entity.asset}`,
+                [`${MailTranslationKey.PAYMENT}.reimbursed`]: `${entity.amount} ${entity.asset.name}`,
                 [`${MailTranslationKey.PAYMENT}.blockchain`]: entity.asset.blockchain,
                 [`${MailTranslationKey.PAYMENT}.wallet_address`]: Util.blankStart(entity.route.user.address),
                 [`${MailTranslationKey.PAYMENT}.transaction_id`]: entity.isLightningInput
