@@ -1,7 +1,7 @@
 import { IEntity } from 'src/shared/models/entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Column, Entity, Index, OneToMany } from 'typeorm';
-import { KycType } from '../user-data/user-data.entity';
+import { KycStatus, KycType } from '../user-data/user-data.entity';
 
 @Entity()
 export class Wallet extends IEntity {
@@ -26,4 +26,7 @@ export class Wallet extends IEntity {
 
   @OneToMany(() => User, (user) => user.wallet)
   users: User[];
+
+  @Column({ length: 256, nullable: true })
+  identMethod?: KycStatus;
 }
