@@ -64,8 +64,8 @@
                 "salutation": "Du hast dein 24h Volumenlimit überschritten",
                 "line1": "Bitte verifiziere dich, um dein Limit zu erhöhen.",
                 "line2": "Nach der vollständigen Verifizierung wird deine Transaktion weiter bearbeitet.",
-                "line3": "Limit erhöhen mit Verizfierung?",
-                "line4": "Klicke bitte [url:hier] um dich zu verifizieren.",
+                "line3": "Ohne Verifizierung wird dein Geld nach 7 Tagen automatisch retourniert.",
+                "line4": "Limit erhöhen mit Verifizierung?<br>Klicke bitte [url:hier] um dich zu verifizieren.",
                 "line5": "Alternativ kannst du auch über die DFX App auf deiner Paymentseite <br> bei \"Dein Limit\" auf den roten Pfeil klicken <br> und die Verifizierung starten."
             },
             "annual_limit": {

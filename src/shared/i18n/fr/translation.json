@@ -64,8 +64,8 @@
                 "salutation": "Vous avez dépassé votre volume sur 24h",
                 "line1": "Veuillez vous faire vérifier par le KYC (know your customer) pour augmenter votre limite.",
                 "line2": "Nous traiterons votre transaction après la réussite du KYC.",
-                "line3": "Augmenter la limite par un KYC ?",
-                "line4": "Cliquer [url:ici] pour commencer la procédure de KYC.",
+                "line3": "Sans vérification, ton argent te sera automatiquement retourné après 7 jours.",
+                "line4": "Augmenter la limite par un KYC ?<br>Cliquer [url:ici] pour commencer la procédure de KYC.",
                 "line5": "Autrement, vous pouvez aussi utiliser l'appli DFX sur votre page de paiement,<br> cliquer sur la flèche rouge en face de \"Votre limite\"<br> et commencer la vérification."
             },
             "annual_limit": {
