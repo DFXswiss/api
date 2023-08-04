@@ -168,6 +168,7 @@ export class BuyCryptoNotificationService {
         'cryptoRoute',
         'cryptoRoute.user',
         'cryptoRoute.user.userData',
+        'bankTx',
       ],
     });
 
@@ -185,7 +186,7 @@ export class BuyCryptoNotificationService {
               table: {
                 [`${MailTranslationKey.PAYMENT}.reimbursed`]: `${entity.inputAmount} ${entity.inputAsset}`,
                 [`${MailTranslationKey.PAYMENT}.bank_account`]: !entity.isCryptoCryptoTransaction
-                  ? Util.blankStart(entity.buy.iban)
+                  ? Util.blankStart(entity.bankTx.iban)
                   : null,
                 [`${MailTranslationKey.PAYMENT}.remittance_info`]: !entity.isCryptoCryptoTransaction
                   ? entity.chargebackRemittanceInfo?.split(' Zahlung')[0]

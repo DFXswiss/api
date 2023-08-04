@@ -17,6 +17,7 @@ import {
 import { DocumentState, SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { IsNull, Not } from 'typeorm';
 import { InitiateResponse, KycDocument, KycDocuments } from '../../services/spider/dto/spider.dto';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { UserRepository } from '../user/user.repository';
@@ -233,11 +234,24 @@ export class KycProcessService {
     return this.userRepo.exist({ where: { userData: { id: userDataId }, role } });
   }
 
+  private async customIdentMethod(userDataId: number): Promise<KycStatus | undefined> {
+    const userWithCustomMethod = await this.userRepo.findOne({
+      where: {
+        userData: { id: userDataId },
+        wallet: { identMethod: Not(IsNull()) },
+      },
+      relations: { wallet: true },
+    });
+
+    return userWithCustomMethod?.wallet.identMethod;
+  }
+
   private async getIdentMethod(userData: UserData): Promise<KycStatus> {
     const defaultIdent = await this.settingService.get('defaultIdentMethod', KycStatus.ONLINE_ID);
+    const customIdent = await this.customIdentMethod(userData.id);
     const isVipUser = await this.hasRole(userData.id, UserRole.VIP);
 
-    return isVipUser ? KycStatus.VIDEO_ID : (defaultIdent as KycStatus);
+    return isVipUser ? KycStatus.VIDEO_ID : customIdent ?? (defaultIdent as KycStatus);
   }
 
   private async updateSpiderData(userData: UserData, initiateData: InitiateResponse) {

@@ -16,7 +16,6 @@ import { BankTxBatchRepository } from './bank-tx-batch.repository';
 import { BankTx, BankTxType, BankTxTypeCompleted } from './bank-tx.entity';
 import { BankTxRepository } from './bank-tx.repository';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
-import { FrickService } from './frick.service';
 import { OlkypayService } from './olkypay.service';
 import { SepaParser } from './sepa-parser.service';
 
@@ -31,7 +30,6 @@ export class BankTxService {
     private readonly buyCryptoService: BuyCryptoService,
     private readonly notificationService: NotificationService,
     private readonly settingService: SettingService,
-    private readonly frickService: FrickService,
     private readonly olkyService: OlkypayService,
     private readonly bankTxReturnService: BankTxReturnService,
     private readonly bankTxRepeatService: BankTxRepeatService,
@@ -50,16 +48,13 @@ export class BankTxService {
     if (Config.processDisabled(Process.BANK_TX)) return;
 
     // Get settings
-    const settingKeyFrick = 'lastBankFrickDate';
     const settingKeyOlky = 'lastBankOlkyDate';
-    const lastModificationTimeFrick = await this.settingService.get(settingKeyFrick, new Date(0).toISOString());
     const lastModificationTimeOlky = await this.settingService.get(settingKeyOlky, new Date(0).toISOString());
     const newModificationTime = new Date().toISOString();
 
     // Get bank transactions
-    const frickTransactions = await this.frickService.getFrickTransactions(lastModificationTimeFrick);
     const olkyTransactions = await this.olkyService.getOlkyTransactions(lastModificationTimeOlky);
-    const allTransactions = olkyTransactions.concat(frickTransactions);
+    const allTransactions = olkyTransactions;
 
     for (const bankTx of allTransactions) {
       try {
@@ -69,7 +64,6 @@ export class BankTxService {
       }
     }
 
-    if (frickTransactions.length > 0) await this.settingService.set(settingKeyFrick, newModificationTime);
     if (olkyTransactions.length > 0) await this.settingService.set(settingKeyOlky, newModificationTime);
   }
 
@@ -95,7 +89,7 @@ export class BankTxService {
     if (entity)
       throw new ConflictException(`There is already a bank tx with the accountServiceRef: ${bankTx.accountServiceRef}`);
 
-    entity = await this.bankTxRepo.create(bankTx);
+    entity = this.bankTxRepo.create(bankTx);
     return this.bankTxRepo.save(entity);
   }
 

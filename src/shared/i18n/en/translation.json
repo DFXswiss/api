@@ -64,8 +64,8 @@
                 "salutation": "You have exceeded your 24h volume limit",
                 "line1": "Please verify yourself by KYC (know your customer) to increase your limit.",
                 "line2": "After a successful KYC we proceed with your transaction.",
-                "line3": "Increase the limit by KYC?",
-                "line4": "Click [url:here] to start the KYC process.",
+                "line3": "Without verification, your money will be automatically returned after 7 days.",
+                "line4": "Increase the limit by KYC?<br>Click [url:here] to start the KYC process.",
                 "line5": "Alternatively, you can also use the DFX app on your payment page,<br> click on the red arrow next to \"Your limit\"<br> and start the verification."
             },
             "annual_limit": {
