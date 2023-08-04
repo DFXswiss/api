@@ -34,11 +34,11 @@
             "payment_link": "Here you can find the transaction ID with your payout: [url:Link]"
         },
         "return": {
-            "crypto": {
+            "fiat": {
                 "title":"Funds have been reimbursed",
                 "salutation": "Your funds have been reimbursed to your bank account"
             },
-            "fiat": {
+            "crypto": {
                 "title":"Funds have been reimbursed",
                 "salutation": "Your funds have been reimbursed to your wallet address",
                 "payment_link": "Here you can find the transaction ID<br>for your reimbursement: [url:Link]"
@@ -55,7 +55,8 @@
                 "min_deposit_not_reached": "The minimum deposit limit was not reached",
                 "name_check_without_kyc": "Your transaction was cancelled due to missing KYC",
                 "annual_limit_without_kyc": "You exceeded the annual limit without KYC",
-                "asset_currently_not_available": "The asset is currently not available for trading with DFX"
+                "asset_currently_not_available": "The asset is currently not available for trading with DFX",
+                "staking_discontinued": "Staking deposits are no longer possible"
             }
         },
         "pending": {

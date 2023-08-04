@@ -34,11 +34,11 @@
             "payment_link": "Qui puoi trovare l'ID della transazione con il tuo pagamento: [url:Link]"
         },
         "return": {
-            "crypto": {
+            "fiat": {
                 "title": "Trasferimento bancario effettuato",
                 "salutation": "I tuoi fondi sono stati rimborsati sul tuo conto corrente"
             },
-            "fiat": {
+            "crypto": {
                 "title": "I tuoi fondi sono stati rimborsati",
                 "salutation": "I tuoi fondi sono stati rimborsati all'indirizzo del tuo portafoglio",
                 "payment_link": "Qui trovi l'ID della transazione<br>con il tuo prelievo: [url:Link]"
@@ -55,7 +55,8 @@
                 "min_deposit_not_reached": "Il limite di deposito minimo non è stato raggiunto",
                 "name_check_without_kyc": "La tua transazione è stata annullata a causa della KYC mancante",
                 "annual_limit_without_kyc": "Hai superato il limite annuale senza KYC",
-                "asset_currently_not_available": "L'asset non è al momento disponibile per lo scambio su DFX"
+                "asset_currently_not_available": "L'asset non è al momento disponibile per lo scambio su DFX",
+                "staking_discontinued": "Non è possibile effettuare nuovi depositi di staking"
             }
         },
         "pending": {

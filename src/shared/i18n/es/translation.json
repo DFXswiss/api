@@ -34,11 +34,11 @@
             "payment_link": "Aquí puedes encontrar el Identificador de tu transacción con tu pago: [url:Link]"
         },
         "return": {
-            "crypto": {
+            "fiat": {
                 "title": "Los fondos han sido reembolsados",
                 "salutation": "Tus fondos se han reembolsado a tu cuenta bancaria"
             },
-            "fiat": {
+            "crypto": {
                 "title": "Los fondos han sido reembolsados",
                 "salutation": "Tus fondos han sido reembolsados a la dirección de tu billetera",
                 "payment_link": "Aquí encontrará el identificador<br>de su reembolso: [url:Link]"
@@ -55,7 +55,8 @@
                 "min_deposit_not_reached": "La cantidad de depósito mínima no ha sido alcanzada",
                 "name_check_without_kyc": "Tu transacción se ha cancelado debido a la falta del KYC",
                 "annual_limit_without_kyc": "Has excedido el límite anual sin KYC",
-                "asset_currently_not_available": "Este activo no está actualmente disponible para comerciar con DFX"
+                "asset_currently_not_available": "Este activo no está actualmente disponible para comerciar con DFX",
+                "staking_discontinued": "No se pueden depositar más en el servicio de Staking"
             }
         },
         "pending": {

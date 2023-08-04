@@ -34,11 +34,11 @@
             "payment_link": "Dies ist die Transaktions-ID zur Krypto-Auszahlung: [url:Link]"
         },
         "return": {
-            "crypto": {
+            "fiat": {
                 "title": "Guthaben wurde erstattet",
                 "salutation": "Dein Guthaben wurde an dein Bankkonto zurückerstattet"
             },
-            "fiat": {
+            "crypto": {
                 "title": "Guthaben wurde erstattet",
                 "salutation": "Dein Guthaben wurde an deine Wallet-Adresse zurückerstattet",
                 "payment_link": "Dies ist die Transaktions-ID<br>zu deiner Rückzahlung: [url:Link]"
@@ -55,7 +55,8 @@
                 "min_deposit_not_reached": "Die Mindesteinzahlungsgrenze wurde nicht erreicht",
                 "name_check_without_kyc": "Deine Transaktion wurde aufgrund fehlender Verifizierung storniert",
                 "annual_limit_without_kyc": "Du hast das Jahreslimit ohne Verifizierung (KYC) überschritten",
-                "asset_currently_not_available": "Der Vermögenswert ist derzeit nicht für den Handel mit DFX verfügbar"
+                "asset_currently_not_available": "Der Vermögenswert ist derzeit nicht für den Handel mit DFX verfügbar",
+                "staking_discontinued": "Staking-Einzahlungen sind nicht mehr möglich"
             }           
         },
         "pending": {

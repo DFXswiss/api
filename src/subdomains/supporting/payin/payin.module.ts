@@ -6,6 +6,7 @@ import { PaymentModule } from 'src/shared/payment/payment.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
 import { DexModule } from '../dex/dex.module';
+import { NotificationModule } from '../notification/notification.module';
 import { PayoutModule } from '../payout/payout.module';
 import { PricingModule } from '../pricing/pricing.module';
 import { CryptoInput } from './entities/crypto-input.entity';
@@ -16,6 +17,7 @@ import { PayInBitcoinService } from './services/payin-bitcoin.service';
 import { PayInBscService } from './services/payin-bsc.service';
 import { PayInDeFiChainService } from './services/payin-defichain.service';
 import { PayInEthereumService } from './services/payin-ethereum.service';
+import { PayInNotificationService } from './services/payin-notification.service';
 import { PayInOptimismService } from './services/payin-optimism.service';
 import { PayInService } from './services/payin.service';
 import { ArbitrumStrategy as ArbitrumStrategyR } from './strategies/register/impl/arbitrum.strategy';
@@ -51,6 +53,7 @@ import { OptimismTokenStrategy as OptimismTokenStrategyS } from './strategies/se
     ChainalysisModule,
     forwardRef(() => SellCryptoModule),
     PaymentModule,
+    NotificationModule,
   ],
   controllers: [],
   providers: [
@@ -84,6 +87,7 @@ import { OptimismTokenStrategy as OptimismTokenStrategyS } from './strategies/se
     OptimismCoinStrategyS,
     OptimismTokenStrategyS,
     LightningStrategyS,
+    PayInNotificationService,
   ],
   exports: [PayInService],
 })
