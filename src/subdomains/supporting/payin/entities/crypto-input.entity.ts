@@ -283,7 +283,7 @@ export class CryptoInput extends IEntity {
     return this.asset.blockchain === Blockchain.LIGHTNING;
   }
 
-  get amlReason(): AmlReason | 'staking' {
-    return this.route instanceof Staking ? 'staking' : AmlReason.ASSET_CURRENTLY_NOT_AVAILABLE;
+  get amlReason(): AmlReason {
+    return this.route instanceof Staking ? AmlReason.STAKING_DISCONTINUED : AmlReason.ASSET_CURRENTLY_NOT_AVAILABLE;
   }
 }

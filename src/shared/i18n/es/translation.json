@@ -56,7 +56,7 @@
                 "name_check_without_kyc": "Tu transacción se ha cancelado debido a la falta del KYC",
                 "annual_limit_without_kyc": "Has excedido el límite anual sin KYC",
                 "asset_currently_not_available": "Este activo no está actualmente disponible para comerciar con DFX",
-                "staking": "No se pueden depositar más en el servicio de Staking"
+                "staking_discontinued": "No se pueden depositar más en el servicio de Staking"
             }
         },
         "pending": {
