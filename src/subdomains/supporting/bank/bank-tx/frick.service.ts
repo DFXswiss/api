@@ -1,10 +1,10 @@
+import { Injectable } from '@nestjs/common';
 import { Method, RawAxiosRequestHeaders } from 'axios';
 import { Config } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { BankTx, BankTxIndicator, BankTxType } from './bank-tx.entity';
-import { Injectable } from '@nestjs/common';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 interface Transactions {
   moreResults: boolean;
@@ -149,9 +149,8 @@ export class FrickService {
   async getFrickTransactions(lastModificationTime: string): Promise<Partial<BankTx>[]> {
     if (!Config.bank.frick.credentials.key) return [];
 
-    let transactions: Transaction[];
     try {
-      transactions = await this.getTransactions(new Date(lastModificationTime));
+      const transactions = await this.getTransactions(new Date(lastModificationTime));
       if (!transactions) return [];
 
       // get additional information (required for ABA transactions)
@@ -164,10 +163,7 @@ export class FrickService {
       }
       return transactions.map((t) => this.parseTransaction(t));
     } catch (e) {
-      this.logger.error(
-        `Failed to get Bank Frick transactions ${transactions.map((t) => (t.orderId ?? t.transactionNr)?.toString())}:`,
-        e,
-      );
+      this.logger.error(`Failed to get Bank Frick transactions:`, e);
       return [];
     }
   }
@@ -200,28 +196,32 @@ export class FrickService {
 
   // --- PARSING --- //
   private parseTransaction(tx: Transaction): Partial<BankTx> {
-    return {
-      accountServiceRef: (tx.orderId ?? tx.transactionNr)?.toString(),
-      bookingDate: tx.valutaIsExecutionDate ? new Date(tx.valuta) : new Date(tx.bookingDate),
-      valueDate: new Date(tx.valuta),
-      txCount: 1,
-      txId: tx.transactionNr?.toString(),
-      ...this.getExchangeInformation(tx),
-      amount: Math.abs(tx.totalAmount),
-      instructedAmount: tx.fxTransactionAmount ? Math.abs(tx.fxTransactionAmount) : Math.abs(tx.amount),
-      txAmount: Math.abs(tx.amount),
-      chargeAmount: tx.fees ? Math.abs(tx.fees) : 0,
-      currency: tx.currency,
-      instructedCurrency: tx.fxTransactionCurrency ?? tx.currency,
-      txCurrency: tx.currency,
-      chargeCurrency: tx.currency,
-      ...this.getCustomerInformation(tx),
-      creditDebitIndicator: tx.amount > 0 ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT,
-      remittanceInfo: tx.reference,
-      type: tx.type === TransactionType.INTERNAL ? BankTxType.INTERNAL : null,
-      accountIban: tx.direction == TransactionDirection.OUTGOING ? tx.debitor.iban : tx.creditor.iban,
-      txRaw: JSON.stringify(tx),
-    };
+    try {
+      return {
+        accountServiceRef: (tx.orderId ?? tx.transactionNr)?.toString(),
+        bookingDate: tx.valutaIsExecutionDate ? new Date(tx.valuta) : new Date(tx.bookingDate),
+        valueDate: new Date(tx.valuta),
+        txCount: 1,
+        txId: tx.transactionNr?.toString(),
+        ...this.getExchangeInformation(tx),
+        amount: Math.abs(tx.totalAmount),
+        instructedAmount: tx.fxTransactionAmount ? Math.abs(tx.fxTransactionAmount) : Math.abs(tx.amount),
+        txAmount: Math.abs(tx.amount),
+        chargeAmount: tx.fees ? Math.abs(tx.fees) : 0,
+        currency: tx.currency,
+        instructedCurrency: tx.fxTransactionCurrency ?? tx.currency,
+        txCurrency: tx.currency,
+        chargeCurrency: tx.currency,
+        ...this.getCustomerInformation(tx),
+        creditDebitIndicator: tx.amount > 0 ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT,
+        remittanceInfo: tx.reference,
+        type: tx.type === TransactionType.INTERNAL ? BankTxType.INTERNAL : null,
+        accountIban: tx.direction == TransactionDirection.OUTGOING ? tx.debitor.iban : tx.creditor.iban,
+        txRaw: JSON.stringify(tx),
+      };
+    } catch (e) {
+      throw new Error(`Failed to parse transaction ${tx.orderId ?? tx.transactionNr}: ${e.message}`);
+    }
   }
 
   private getExchangeInformation(tx: Transaction): {
