@@ -308,7 +308,7 @@ export class MailFactory {
 
   //*** STATIC HELPER METHODS ***//
 
-  static parseMailKey(mailKey: MailTranslationKey, amlReason: AmlReason | 'staking'): string {
+  static parseMailKey(mailKey: MailTranslationKey, amlReason: AmlReason): string {
     return `${mailKey}.${amlReason.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase()}`;
   }
 }
