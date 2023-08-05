@@ -91,7 +91,7 @@ export class BuyFiatRegistrationService {
             payIn,
             PayInPurpose.BUY_FIAT,
             BlockchainAddress.create(sellRoute.user.address, sellRoute.deposit.blockchain),
-            payIn.route,
+            sellRoute,
           );
           continue;
         }

@@ -91,7 +91,7 @@ export class BuyCryptoRegistrationService {
             payIn,
             PayInPurpose.BUY_CRYPTO,
             BlockchainAddress.create(cryptoRoute.user.address, cryptoRoute.deposit.blockchain),
-            payIn.route,
+            cryptoRoute,
           );
           continue;
         }
