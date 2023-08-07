@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { PayInIgnoredException } from 'src/shared/payment/exceptions/pay-in-ignored.exception';
+import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { PayInNotSellableException } from 'src/shared/payment/exceptions/pay-in-not-sellable-exception';
+import { PayInTooSmallException } from 'src/shared/payment/exceptions/pay-in-too-small.exception';
+import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { IsNull, Not } from 'typeorm';
@@ -7,8 +11,6 @@ import { Sell } from '../route/sell.entity';
 import { SellRepository } from '../route/sell.repository';
 import { BuyFiat } from './buy-fiat.entity';
 import { BuyFiatRepository } from './buy-fiat.repository';
-import { BuyFiatInitSpecification } from './specifications/buy-fiat-init.specification';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BuyFiatRegistrationService {
@@ -18,7 +20,7 @@ export class BuyFiatRegistrationService {
     private readonly buyFiatRepo: BuyFiatRepository,
     private readonly sellRepository: SellRepository,
     private readonly payInService: PayInService,
-    private readonly buyFiatInitSpec: BuyFiatInitSpecification,
+    private readonly transactionHelper: TransactionHelper,
   ) {}
 
   async registerSellPayIn(): Promise<void> {
@@ -72,15 +74,25 @@ export class BuyFiatRegistrationService {
 
         if (!buyFiat) {
           buyFiat = BuyFiat.createFromPayIn(payIn, sellRoute);
-          await this.buyFiatInitSpec.isSatisfiedBy(buyFiat);
+          await this.transactionHelper.isValidInput(buyFiat.cryptoInput.asset, buyFiat.cryptoInput.amount);
           await this.buyFiatRepo.save(buyFiat);
         }
 
         await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_FIAT, sellRoute);
       } catch (e) {
-        if (e instanceof PayInIgnoredException) {
+        if (e instanceof PayInTooSmallException) {
           await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_FIAT, sellRoute);
 
+          continue;
+        }
+
+        if (e instanceof PayInNotSellableException) {
+          await this.payInService.returnPayIn(
+            payIn,
+            PayInPurpose.BUY_FIAT,
+            BlockchainAddress.create(sellRoute.user.address, sellRoute.deposit.blockchain),
+            sellRoute,
+          );
           continue;
         }
 

@@ -63,13 +63,11 @@ export class PayInService {
   }
 
   async returnPayIn(
-    payInId: number,
+    payIn: CryptoInput,
     purpose: PayInPurpose,
     returnAddress: BlockchainAddress,
     route: Staking | Sell | CryptoRoute,
   ): Promise<void> {
-    const payIn = await this.payInRepository.findOneBy({ id: payInId });
-
     const amlCheck = await this.doAmlCheck(payIn, route);
 
     payIn.triggerReturn(purpose, returnAddress, route, amlCheck);

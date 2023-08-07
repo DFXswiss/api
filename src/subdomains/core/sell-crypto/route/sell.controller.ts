@@ -174,7 +174,7 @@ export class SellController {
       asset: AssetDtoMapper.entityToDto(dto.asset),
       paymentRequest:
         dto.asset.blockchain === Blockchain.LIGHTNING
-          ? await this.lightningService.getInvoiceByLnurlp(sell.deposit.address, dto.amount)
+          ? await this.lightningService.getInvoiceByLnurlp(sell.deposit.address, amount)
           : undefined,
     };
   }

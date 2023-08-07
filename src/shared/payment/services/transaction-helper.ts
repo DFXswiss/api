@@ -11,6 +11,8 @@ import { PriceProviderService } from 'src/subdomains/supporting/pricing/services
 import { TargetEstimation, TransactionDetails } from '../entities/transaction-details';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
 import { TxSpec } from '../entities/tx-spec';
+import { PayInNotSellableException } from '../exceptions/pay-in-not-sellable-exception';
+import { PayInTooSmallException } from '../exceptions/pay-in-too-small.exception';
 import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
 
 @Injectable()
@@ -36,13 +38,13 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   // --- SPECIFICATIONS --- //
-  async isValidInput(from: Asset | Fiat, amount: number): Promise<boolean> {
-    // check sellable
-    if (!from.sellable) return false;
-
+  async isValidInput(from: Asset | Fiat, amount: number): Promise<void> {
     // check min. volume
     const { minVolume } = await this.getInSpecs(from);
-    return amount > minVolume * 0.5;
+    if (amount < minVolume * 0.5) throw new PayInTooSmallException();
+
+    // check sellable
+    if (!from.sellable) throw new PayInNotSellableException();
   }
 
   async getInSpecs(from: Asset | Fiat): Promise<TxSpec> {

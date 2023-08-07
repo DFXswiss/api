@@ -15,7 +15,6 @@ import { BuyFiatController } from './process/buy-fiat.controller';
 import { BuyFiat } from './process/buy-fiat.entity';
 import { BuyFiatRepository } from './process/buy-fiat.repository';
 import { BuyFiatService } from './process/buy-fiat.service';
-import { BuyFiatInitSpecification } from './process/specifications/buy-fiat-init.specification';
 import { SellController } from './route/sell.controller';
 import { Sell } from './route/sell.entity';
 import { SellRepository } from './route/sell.repository';
@@ -43,7 +42,6 @@ import { SellService } from './route/sell.service';
     BuyFiatRegistrationService,
     BuyFiatService,
     SellService,
-    BuyFiatInitSpecification,
   ],
   exports: [SellController, BuyFiatService, SellService],
 })

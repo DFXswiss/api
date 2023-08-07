@@ -1,12 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Process } from 'src/config/config';
-import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
-import { Util } from 'src/shared/utils/util';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
@@ -137,29 +134,8 @@ export class StakingService {
 
   private async returnPayIns(payInsPairs: [CryptoInput, Staking][]): Promise<void> {
     for (const [payIn, staking] of payInsPairs) {
-      //send mail
-      try {
-        if (staking.user.userData.mail) {
-          await this.notificationService.sendMail({
-            type: MailType.USER,
-            input: {
-              userData: staking.user.userData,
-              translationKey: 'mail.staking.return',
-              translationParams: {
-                inputAmount: payIn.amount,
-                inputAsset: payIn.asset.name,
-                userAddressTrimmed: Util.blankStart(staking.user.address),
-                transactionLink: txExplorerUrl(payIn.asset.blockchain, payIn.inTxId),
-              },
-            },
-          });
-        }
-      } catch (e) {
-        this.logger.error(`Failed to send staking return mail for pay-in ${payIn.id}:`, e);
-      }
-
       await this.payInService.returnPayIn(
-        payIn.id,
+        payIn,
         PayInPurpose.STAKING,
         BlockchainAddress.create(staking.user.address, staking.deposit.blockchain),
         staking,
