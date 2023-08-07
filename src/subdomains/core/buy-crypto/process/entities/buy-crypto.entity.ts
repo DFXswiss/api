@@ -383,10 +383,12 @@ export class BuyCrypto extends IEntity {
   }
 
   get exchangeRateString(): string {
-    return `${Util.round(
-      (this.outputAmount / this.inputReferenceAmountMinusFee) * (this.inputReferenceAmount / this.inputAmount),
-      2,
-    )} ${this.outputAsset.name}/${this.inputAsset}`;
+    const amount =
+      (this.outputAmount / this.inputReferenceAmountMinusFee) * (this.inputReferenceAmount / this.inputAmount);
+
+    return this.isCryptoCryptoTransaction
+      ? `${Util.roundByPrecision(amount, 5)} ${this.outputAsset.name}/${this.inputAsset}`
+      : `${Util.round(amount, 2)} ${this.outputAsset.name}/${this.inputAsset}`;
   }
 
   get translationReturnMailKey(): MailTranslationKey {
