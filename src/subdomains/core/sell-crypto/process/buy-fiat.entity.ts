@@ -206,9 +206,9 @@ export class BuyFiat extends IEntity {
   }
 
   get exchangeRateString(): string {
-    return `${Util.roundByPrecision(
+    return `${Util.round(
       (this.outputAmount / this.inputReferenceAmountMinusFee) * (this.inputReferenceAmount / this.inputAmount),
-      5,
+      2,
     )} ${this.outputAsset}/${this.inputAsset}`;
   }
 
