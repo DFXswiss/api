@@ -97,7 +97,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     SpiderApiService,
     LinkService,
     WebhookService,
-    BankDataRepository,
+    BankDataService,
   ],
 })
 export class UserModule {}

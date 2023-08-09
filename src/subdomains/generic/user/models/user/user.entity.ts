@@ -1,19 +1,27 @@
+import { Config } from 'src/config/config';
+import { UserRole } from 'src/shared/auth/user-role.enum';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { IEntity } from 'src/shared/models/entity';
+import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
+import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
+import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
+import { StakingRefReward } from 'src/subdomains/core/staking/entities/staking-ref-reward.entity';
+import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
-import { Entity, Column, OneToMany, ManyToOne, Index } from 'typeorm';
-import { UserRole } from 'src/shared/auth/user-role.enum';
-import { IEntity } from 'src/shared/models/entity';
-import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
-import { StakingRefReward } from 'src/subdomains/core/staking/entities/staking-ref-reward.entity';
-import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
-import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
-import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
+import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 
 export enum UserStatus {
   NA = 'NA',
   ACTIVE = 'Active',
   BLOCKED = 'Blocked',
+}
+
+export enum FeeType {
+  BUY = 'buy',
+  SELL = 'sell',
+  CRYPTO = 'crypto',
 }
 
 @Entity()
@@ -122,4 +130,22 @@ export class User extends IEntity {
 
   @Column({ length: 'MAX', nullable: true })
   comment: string;
+
+  //*** FACTORY METHODS ***//
+  get getBuyUsedRef(): string {
+    return this.buyFee ? '000-000' : this.usedRef;
+  }
+
+  getFee(type: FeeType, asset?: Asset) {
+    switch (type) {
+      case FeeType.BUY:
+        const defaultBuyFee = Config.buy.fee.get(asset.feeTier, this.userData.accountType);
+        return this.buyFee ? Math.min(this.buyFee, defaultBuyFee) : defaultBuyFee;
+      case FeeType.SELL:
+        const defaultSellFee = Config.sell.fee.get(asset.feeTier, this.userData.accountType);
+        return this.sellFee ? Math.min(this.sellFee, defaultSellFee) : defaultSellFee;
+      case FeeType.CRYPTO:
+        return this.cryptoFee ? Math.min(this.cryptoFee, Config.crypto.fee) : Config.crypto.fee;
+    }
+  }
 }

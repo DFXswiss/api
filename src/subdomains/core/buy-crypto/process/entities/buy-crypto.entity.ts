@@ -11,7 +11,7 @@ import {
   UserData,
   UserDataStatus,
 } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
+import { FeeType, User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
@@ -366,44 +366,20 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
-  fiatAmlCheck(
-    inputAmountEur: number,
+  amlCheckAndFillUp(
+    amountInChf: number,
+    amountInEur: number,
     minVolume: number,
+    minVolumeInCurrency: number,
+    minVolumeChf: number,
     monthlyAmountInEur: number,
     bankDataUserData: UserData,
   ): UpdateResult<BuyCrypto> {
-    const update: Partial<BuyCrypto> =
-      this.bankTx.currency === this.bankTx.txCurrency &&
-      this.target.asset.buyable &&
-      this.bankTx.txAmount >= minVolume &&
-      this.user.userData.annualBuyVolume + inputAmountEur < this.user.userData.depositLimit &&
-      bankDataUserData?.id === this.user.userData.id &&
-      this.user.userData.kycStatus === KycStatus.COMPLETED &&
-      this.user.status === UserStatus.ACTIVE &&
-      this.user.userData.status === UserDataStatus.ACTIVE &&
-      this.user.userData.riskState === RiskState.C &&
-      monthlyAmountInEur <= Config.amlCheckMonthlyTradingLimit
-        ? { amlCheck: AmlCheck.PASS }
-        : { amlCheck: AmlCheck.GSHEET };
-
-    Object.assign(this, update);
-
-    return [this.id, update];
-  }
-
-  fillUp(
-    amountInChf: number,
-    amountInEur: number,
-    minVolumeInCurrency: number,
-    minVolumeChf: number,
-  ): UpdateResult<BuyCrypto> {
-    const userBuyFee = this.user.buyFee;
-    const assetFee = Config.buy.fee.get(this.target.asset.feeTier, this.user.userData.accountType);
-    const fee = userBuyFee && userBuyFee < assetFee ? userBuyFee : assetFee;
+    const fee = this.user.getFee(FeeType.BUY, this.target.asset);
     const inputReferenceAmount = this.bankTx.amount + this.bankTx.chargeAmount;
     const percentFeeAmount = fee * inputReferenceAmount;
     const totalFeeAmount = percentFeeAmount < minVolumeInCurrency ? minVolumeInCurrency : percentFeeAmount;
-    const usedRef = userBuyFee ? '000-000' : this.user.usedRef;
+    const usedRef = this.user.getBuyUsedRef;
 
     const update: Partial<BuyCrypto> = {
       inputAmount: this.bankTx.txAmount,
@@ -423,6 +399,19 @@ export class BuyCrypto extends IEntity {
       usedRef,
       refProvision: usedRef === '000-000' ? 0 : this.user.refFeePercent,
       refFactor: usedRef === '000-000' ? 0 : 1,
+      amlCheck:
+        this.bankTx.currency === this.bankTx.txCurrency &&
+        this.target.asset.buyable &&
+        this.bankTx.txAmount >= minVolume &&
+        this.user.userData.annualBuyVolume + amountInEur < this.user.userData.depositLimit &&
+        bankDataUserData?.id === this.user.userData.id &&
+        this.user.userData.kycStatus === KycStatus.COMPLETED &&
+        this.user.status === UserStatus.ACTIVE &&
+        this.user.userData.status === UserDataStatus.ACTIVE &&
+        this.user.userData.riskState === RiskState.C &&
+        monthlyAmountInEur <= Config.amlCheckMonthlyTradingLimit
+          ? AmlCheck.PASS
+          : AmlCheck.GSHEET,
     };
 
     Object.assign(this, update);

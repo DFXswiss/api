@@ -9,6 +9,6 @@ import { TransactionHelper } from './services/transaction-helper';
 @Module({
   imports: [PricingModule, SharedModule, TypeOrmModule.forFeature([TransactionSpecification])],
   providers: [TransactionHelper, TransactionSpecificationRepository],
-  exports: [TransactionHelper, TransactionSpecificationRepository],
+  exports: [TransactionHelper],
 })
 export class PaymentModule {}

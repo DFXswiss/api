@@ -62,4 +62,11 @@ export class BankDataService {
   async deleteBankData(id: number): Promise<void> {
     await this.bankDataRepo.delete(id);
   }
+
+  async getActiveBankDataWithIban(iban: string): Promise<BankData> {
+    return this.bankDataRepo.findOne({
+      where: { iban, active: true },
+      relations: ['userData'],
+    });
+  }
 }

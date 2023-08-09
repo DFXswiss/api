@@ -10,7 +10,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Process } from 'src/config/config';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { TransactionSpecificationRepository } from 'src/shared/payment/repositories/transaction-specification.repository';
+import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
@@ -19,7 +19,8 @@ import { CryptoRouteService } from 'src/subdomains/core/buy-crypto/routes/crypto
 import { HistoryDto, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
-import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
+import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { FeeType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
@@ -60,10 +61,10 @@ export class BuyCryptoService {
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly userService: UserService,
     private readonly webhookService: WebhookService,
-    private readonly transactionSpecificationRepo: TransactionSpecificationRepository,
+    private readonly transactionHelper: TransactionHelper,
     private readonly priceProviderService: PriceProviderService,
     private readonly fiatService: FiatService,
-    private readonly bankDataRepo: BankDataRepository,
+    private readonly bankDataService: BankDataService,
   ) {}
 
   async createFromFiat(bankTxId: number, buyId: number): Promise<BuyCrypto> {
@@ -268,8 +269,6 @@ export class BuyCryptoService {
       relations: ['bankTx', 'buy', 'buy.user', 'buy.user.userData', 'buy.user.userData.users'],
     });
 
-    const assetSpecifications = await this.transactionSpecificationRepo.find({ where: { system: Not('Fiat') } });
-
     this.logger.verbose(
       `AmlCheck for ${entities.length} buy-crypto transaction(s). Transaction ID(s): ${entities.map((t) => t.id)}`,
     );
@@ -279,11 +278,14 @@ export class BuyCryptoService {
     const fiatChf = await this.fiatService.getFiatByName('CHF');
 
     for (const entity of entities) {
-      const blockchainSpecification = assetSpecifications.filter(
-        (blockchain) => blockchain.system === entity.target.asset.blockchain,
-      )[0];
-
       const inputCurrency = await this.fiatService.getFiatByName(entity.bankTx.txCurrency);
+
+      const assetSpecifications = await this.transactionHelper.getTxDetails(
+        entity.bankTx.txAmount,
+        entity.user.getFee(FeeType.BUY, entity.target.asset),
+        inputCurrency,
+        entity.outputAsset,
+      );
 
       const inputAssetEurPrice = await this.priceProviderService.getPrice(inputCurrency, fiatEur);
       const inputAssetChfPrice = await this.priceProviderService.getPrice(inputCurrency, fiatChf);
@@ -293,10 +295,7 @@ export class BuyCryptoService {
       const inputAmountEur = inputAssetEurPrice.convert(entity.bankTx.txAmount);
       const inputAmountChf = inputAssetChfPrice.convert(entity.bankTx.txAmount);
 
-      const bankData = await this.bankDataRepo.findOne({
-        where: { iban: entity.bankTx.iban, active: true },
-        relations: ['userData'],
-      });
+      const bankData = await this.bankDataService.getActiveBankDataWithIban(entity.bankTx.iban);
 
       const dateFrom = Util.daysBefore(30);
       const userDataTransactions = (
@@ -307,23 +306,16 @@ export class BuyCryptoService {
       ).filter((buyCrypto) => buyCrypto.amlCheck === AmlCheck.PASS && buyCrypto.bankTx);
 
       await this.buyCryptoRepo.update(
-        ...entity.fiatAmlCheck(
+        ...entity.amlCheckAndFillUp(
           inputAmountEur,
-          blockchainSpecification?.minVolume,
+          inputAmountChf,
+          assetSpecifications.minVolume,
+          inputAssetEurPrice.invert().convert(assetSpecifications.minVolume),
+          eurChfPrice.convert(assetSpecifications.minVolume),
           Util.sumObj(userDataTransactions, 'amountInEur'),
           bankData?.userData,
         ),
       );
-
-      if (entity.amlCheck === AmlCheck.PASS)
-        await this.buyCryptoRepo.update(
-          ...entity.fillUp(
-            inputAmountChf,
-            inputAmountEur,
-            inputAssetEurPrice.invert().convert(blockchainSpecification.minVolume),
-            eurChfPrice.convert(blockchainSpecification.minVolume),
-          ),
-        );
     }
   }
 
