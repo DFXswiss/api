@@ -34,6 +34,11 @@ export class AssetService {
     return this.assetRepo.findOneBy({ blockchain, type: AssetType.COIN });
   }
 
+  async getSellableBlockchains(): Promise<Blockchain[]> {
+    const sellableAssets = await this.assetRepo.find({ where: { sellable: true } });
+    return [...new Set(sellableAssets.map((a) => a.blockchain))];
+  }
+
   async updatePrice(assetId: number, usdPrice: number) {
     await this.assetRepo.update(assetId, { approxPriceUsd: usdPrice });
   }
