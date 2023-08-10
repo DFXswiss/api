@@ -68,4 +68,7 @@ export class BuyPaymentInfoDto extends BankInfoDto {
 
   @ApiProperty({ type: AssetDto, description: 'Target asset' })
   asset: AssetDto;
+
+  @ApiProperty()
+  isValid: boolean;
 }

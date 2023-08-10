@@ -168,6 +168,7 @@ export class CryptoRouteController {
       minFeeTarget,
       estimatedAmount,
       sourceAmount: amount,
+      isValid,
     } = await this.transactionHelper.getTxDetails(dto.amount, dto.targetAmount, fee, dto.sourceAsset, dto.targetAsset);
 
     return {
@@ -184,6 +185,7 @@ export class CryptoRouteController {
       amount,
       targetAsset: AssetDtoMapper.entityToDto(dto.targetAsset),
       sourceAsset: AssetDtoMapper.entityToDto(dto.sourceAsset),
+      isValid,
     };
   }
 }
