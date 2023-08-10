@@ -46,4 +46,7 @@ export class SellPaymentInfoDto {
 
   @ApiPropertyOptional({ description: 'Payment request (e.g. Lightning invoice)' })
   paymentRequest?: string;
+
+  @ApiProperty()
+  isValid: boolean;
 }

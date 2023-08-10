@@ -156,6 +156,7 @@ export class SellController {
       minFeeTarget,
       estimatedAmount: estimatedAmount,
       sourceAmount: amount,
+      isValid,
     } = await this.transactionHelper.getTxDetails(dto.amount, dto.targetAmount, fee, dto.asset, dto.currency);
 
     return {
@@ -173,9 +174,10 @@ export class SellController {
       currency: FiatDtoMapper.entityToDto(dto.currency),
       asset: AssetDtoMapper.entityToDto(dto.asset),
       paymentRequest:
-        dto.asset.blockchain === Blockchain.LIGHTNING
+        dto.asset.blockchain === Blockchain.LIGHTNING && isValid
           ? await this.lightningService.getInvoiceByLnurlp(sell.deposit.address, amount)
           : undefined,
+      isValid,
     };
   }
 }

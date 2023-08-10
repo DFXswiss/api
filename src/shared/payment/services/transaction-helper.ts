@@ -119,6 +119,7 @@ export class TransactionHelper implements OnModuleInit {
       minVolume,
       minFeeTarget,
       minVolumeTarget,
+      isValid: target.sourceAmount >= minVolume,
     };
   }
 

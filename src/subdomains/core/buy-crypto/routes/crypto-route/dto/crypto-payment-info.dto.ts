@@ -42,4 +42,7 @@ export class CryptoPaymentInfoDto {
 
   @ApiProperty({ type: AssetDto, description: 'Target asset' })
   targetAsset: AssetDto;
+
+  @ApiProperty()
+  isValid: boolean;
 }

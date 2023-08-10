@@ -152,6 +152,7 @@ export class BuyController {
       minFeeTarget,
       estimatedAmount,
       sourceAmount: amount,
+      isValid,
     } = await this.transactionHelper.getTxDetails(dto.amount, dto.targetAmount, fee, dto.currency, dto.asset);
     const bankInfo = await this.getBankInfo(buy, { ...dto, amount });
 
@@ -170,6 +171,7 @@ export class BuyController {
       amount,
       asset: AssetDtoMapper.entityToDto(dto.asset),
       currency: FiatDtoMapper.entityToDto(dto.currency),
+      isValid,
     };
   }
 
