@@ -74,28 +74,40 @@ export class BuyCryptoRegistrationService {
 
         if (!existingBuyCrypto) {
           const newBuyCrypto = BuyCrypto.createFromPayIn(payIn, cryptoRoute);
-          await this.transactionHelper.isValidInput(newBuyCrypto.cryptoInput.asset, newBuyCrypto.cryptoInput.amount);
+
+          try {
+            await this.transactionHelper.isValidInput(newBuyCrypto.cryptoInput.asset, newBuyCrypto.cryptoInput.amount);
+          } catch (e) {
+            if (e instanceof PayInTooSmallException) {
+              await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_CRYPTO, cryptoRoute);
+
+              continue;
+            }
+
+            if (e instanceof PayInNotSellableException) {
+              if (cryptoRoute.asset.blockchain === cryptoRoute.deposit.blockchain) {
+                await this.payInService.returnPayIn(
+                  payIn,
+                  PayInPurpose.BUY_CRYPTO,
+                  BlockchainAddress.create(cryptoRoute.user.address, cryptoRoute.deposit.blockchain),
+                  cryptoRoute,
+                );
+                continue;
+              }
+            } else {
+              this.logger.error(
+                `Unknown error during buy-crypto pay-in registration (isValidInputCheck) (pay-in ${payIn.id}):`,
+                e,
+              );
+              continue;
+            }
+          }
+
           await this.buyCryptoRepo.save(newBuyCrypto);
         }
 
         await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_CRYPTO, cryptoRoute);
       } catch (e) {
-        if (e instanceof PayInTooSmallException) {
-          await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_CRYPTO, cryptoRoute);
-
-          continue;
-        }
-
-        if (e instanceof PayInNotSellableException) {
-          await this.payInService.returnPayIn(
-            payIn,
-            PayInPurpose.BUY_CRYPTO,
-            BlockchainAddress.create(cryptoRoute.user.address, cryptoRoute.deposit.blockchain),
-            cryptoRoute,
-          );
-          continue;
-        }
-
         this.logger.error(`Error during buy-crypto pay-in registration (pay-in ${payIn.id}):`, e);
       }
     }
