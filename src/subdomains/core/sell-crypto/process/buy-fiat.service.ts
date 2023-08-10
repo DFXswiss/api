@@ -94,7 +94,7 @@ export class BuyFiatService {
         : undefined),
       isComplete: dto.isComplete,
     };
-    entity = await this.buyFiatRepo.save({ ...update, ...entity, ...forceUpdate });
+    entity = await this.buyFiatRepo.save(Object.assign(new BuyFiat(), { ...update, ...entity, ...forceUpdate }));
 
     // activate user
     if (entity.amlCheck === CheckStatus.PASS && entity.sell?.user) {
@@ -103,14 +103,15 @@ export class BuyFiatService {
 
     // payment webhook
     // TODO add fiatFiatUpdate here
-    if (dto.outputAmount && dto.outputAsset) {
-      entity.sell
-        ? await this.webhookService.cryptoFiatUpdate(entity.sell.user, entity, PaymentWebhookState.COMPLETED)
-        : null;
-    } else if (dto.inputAmount && dto.inputAsset) {
-      entity.sell
-        ? await this.webhookService.cryptoFiatUpdate(entity.sell.user, entity, PaymentWebhookState.CREATED)
-        : null;
+    if (
+      (dto.inputAmount && dto.inputAsset) ||
+      dto.isComplete ||
+      (dto.amlCheck && dto.amlCheck !== CheckStatus.PASS) ||
+      dto.outputReferenceAsset ||
+      dto.cryptoReturnDate
+    ) {
+      const state = this.getWebhookState(entity);
+      await this.triggerWebhook(entity, state);
     }
 
     await this.updateSellVolume([sellIdBefore, entity.sell?.id]);
@@ -130,6 +131,10 @@ export class BuyFiatService {
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`buyFiat.${key} = :param`, { param: value })
       .getOne();
+  }
+
+  async triggerWebhook(buyFiat: BuyFiat, webhookState: PaymentWebhookState): Promise<void> {
+    buyFiat.sell ? this.webhookService.cryptoFiatUpdate(buyFiat.sell.user, buyFiat, webhookState) : undefined;
   }
 
   async updateVolumes(): Promise<void> {
@@ -177,6 +182,25 @@ export class BuyFiatService {
   }
 
   // --- HELPER METHODS --- //
+
+  private getWebhookState(buyFiat: BuyFiat): PaymentWebhookState {
+    if (buyFiat.cryptoReturnDate) return PaymentWebhookState.RETURNED;
+
+    switch (buyFiat.amlCheck) {
+      case CheckStatus.PENDING:
+        return PaymentWebhookState.AML_PENDING;
+      case CheckStatus.FAIL:
+        return PaymentWebhookState.FAILED;
+      case CheckStatus.PASS:
+        if (buyFiat.isComplete) return PaymentWebhookState.COMPLETED;
+        break;
+    }
+
+    if (buyFiat.outputReferenceAsset) return PaymentWebhookState.PROCESSING;
+
+    return PaymentWebhookState.CREATED;
+  }
+
   private toHistoryDto(buyFiat: BuyFiat): SellHistoryDto {
     return {
       inputAmount: buyFiat.inputAmount,

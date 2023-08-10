@@ -26,6 +26,7 @@ import { BuyCryptoNotificationService } from './process/services/buy-crypto-noti
 import { BuyCryptoOutService } from './process/services/buy-crypto-out.service';
 import { BuyCryptoPricingService } from './process/services/buy-crypto-pricing.service';
 import { BuyCryptoRegistrationService } from './process/services/buy-crypto-registration.service';
+import { BuyCryptoWebhookService } from './process/services/buy-crypto-webhook.service';
 import { BuyCryptoService } from './process/services/buy-crypto.service';
 import { BuyController } from './routes/buy/buy.controller';
 import { Buy } from './routes/buy/buy.entity';
@@ -69,6 +70,7 @@ import { CryptoRouteService } from './routes/crypto-route/crypto-route.service';
     BuyCryptoOutService,
     BuyService,
     CryptoRouteService,
+    BuyCryptoWebhookService,
   ],
   exports: [BuyController, CryptoRouteController, BuyCryptoService, BuyService],
 })
