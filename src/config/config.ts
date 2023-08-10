@@ -439,6 +439,15 @@ export class Configuration {
     },
   };
 
+  giroCode = {
+    service: 'BCD',
+    version: '001',
+    encoding: '2',
+    transfer: 'SCT',
+    char: '',
+    ref: '',
+  };
+
   chainalysis = {
     apiKey: process.env.CHAINALYSIS_API_KEY,
   };
