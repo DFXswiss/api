@@ -106,6 +106,7 @@ describe('BuyController', () => {
       feeAmount: 3,
       estimatedAmount: 100,
       sourceAmount: 50,
+      isValid: true
     });
 
     const dto = createBuyPaymentInfoDto();

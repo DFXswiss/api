@@ -152,6 +152,7 @@ export class BuyController {
       minFeeTarget,
       estimatedAmount,
       sourceAmount: amount,
+      isValid,
     } = await this.transactionHelper.getTxDetails(dto.amount, dto.targetAmount, fee, dto.currency, dto.asset);
     const bankInfo = await this.getBankInfo(buy, { ...dto, amount });
 
@@ -170,6 +171,8 @@ export class BuyController {
       amount,
       asset: AssetDtoMapper.entityToDto(dto.asset),
       currency: FiatDtoMapper.entityToDto(dto.currency),
+      paymentRequest: this.generateGiroCode(buy, bankInfo, dto),
+      isValid,
     };
   }
 
@@ -185,5 +188,21 @@ export class BuyController {
     if (!bank) throw new BadRequestException('No Bank for the given amount/currency');
 
     return { ...Config.bank.dfxBankInfo, iban: bank.iban, bic: bank.bic, sepaInstant: bank.sctInst };
+  }
+
+  private generateGiroCode(buy: Buy, bankInfo: BankInfoDto, dto: GetBuyPaymentInfoDto): string {
+    return `
+${Config.giroCode.service}
+${Config.giroCode.version}
+${Config.giroCode.encoding}
+${Config.giroCode.transfer}
+${bankInfo.bic}
+${bankInfo.name}, ${bankInfo.street} ${bankInfo.number}, ${bankInfo.zip} ${bankInfo.city}, ${bankInfo.country}
+${bankInfo.iban}
+${dto.currency.name}${dto.amount}
+${Config.giroCode.char}
+${Config.giroCode.ref}
+${buy.bankUsage}
+`.trim();
   }
 }

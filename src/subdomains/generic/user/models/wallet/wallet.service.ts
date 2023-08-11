@@ -12,7 +12,7 @@ export class WalletService {
   }
 
   async getByIdOrName(id?: number, name?: string): Promise<Wallet | undefined> {
-    return this.repo.findOneBy([{ id }, { name }]);
+    return id || name ? this.repo.findOneBy([{ id }, { name }]) : undefined;
   }
 
   async getDefault(): Promise<Wallet> {

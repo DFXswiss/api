@@ -1,8 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { PayInNotSellableException } from 'src/shared/payment/exceptions/pay-in-not-sellable-exception';
-import { PayInTooSmallException } from 'src/shared/payment/exceptions/pay-in-too-small.exception';
-import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
+import { TransactionHelper, ValidationError } from 'src/shared/payment/services/transaction-helper';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { CryptoRouteRepository } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.repository';
@@ -74,28 +72,32 @@ export class BuyCryptoRegistrationService {
 
         if (!existingBuyCrypto) {
           const newBuyCrypto = BuyCrypto.createFromPayIn(payIn, cryptoRoute);
-          await this.transactionHelper.isValidInput(newBuyCrypto.cryptoInput.asset, newBuyCrypto.cryptoInput.amount);
+
+          const result = await this.transactionHelper.validateInput(
+            newBuyCrypto.cryptoInput.asset,
+            newBuyCrypto.cryptoInput.amount,
+          );
+
+          if (result === ValidationError.PAY_IN_TOO_SMALL) {
+            await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_CRYPTO, cryptoRoute);
+            continue;
+          } else if (result === ValidationError.PAY_IN_NOT_SELLABLE) {
+            if (cryptoRoute.asset.blockchain === cryptoRoute.deposit.blockchain) {
+              await this.payInService.returnPayIn(
+                payIn,
+                PayInPurpose.BUY_CRYPTO,
+                BlockchainAddress.create(cryptoRoute.user.address, cryptoRoute.deposit.blockchain),
+                cryptoRoute,
+              );
+              continue;
+            }
+          }
+
           await this.buyCryptoRepo.save(newBuyCrypto);
         }
 
         await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_CRYPTO, cryptoRoute);
       } catch (e) {
-        if (e instanceof PayInTooSmallException) {
-          await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_CRYPTO, cryptoRoute);
-
-          continue;
-        }
-
-        if (e instanceof PayInNotSellableException) {
-          await this.payInService.returnPayIn(
-            payIn,
-            PayInPurpose.BUY_CRYPTO,
-            BlockchainAddress.create(cryptoRoute.user.address, cryptoRoute.deposit.blockchain),
-            cryptoRoute,
-          );
-          continue;
-        }
-
         this.logger.error(`Error during buy-crypto pay-in registration (pay-in ${payIn.id}):`, e);
       }
     }
