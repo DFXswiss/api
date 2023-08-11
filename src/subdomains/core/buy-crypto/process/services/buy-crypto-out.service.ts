@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
@@ -140,7 +139,7 @@ export class BuyCryptoOutService {
           await this.buyCryptoRepo.save(tx);
 
           // payment webhook
-          await this.buyCryptoWebhookService.triggerWebhook(tx, PaymentWebhookState.COMPLETED);
+          await this.buyCryptoWebhookService.triggerWebhook(tx);
         }
       } catch (e) {
         this.logger.error(`Error on validating completion for transaction ${tx.id}:`, e);
