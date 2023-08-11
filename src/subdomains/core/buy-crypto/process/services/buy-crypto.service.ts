@@ -151,8 +151,7 @@ export class BuyCryptoService {
       dto.outputReferenceAssetId ||
       dto.chargebackDate
     ) {
-      const state = this.buyCryptoWebhookService.getWebhookState(entity);
-      await this.buyCryptoWebhookService.triggerWebhook(entity, state);
+      await this.buyCryptoWebhookService.triggerWebhook(entity);
     }
 
     await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);

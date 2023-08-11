@@ -8,10 +8,11 @@ import { CheckStatus } from '../enums/check-status.enum';
 export class BuyCryptoWebhookService {
   constructor(private readonly webhookService: WebhookService) {}
 
-  async triggerWebhook(buyCrypto: BuyCrypto, webhookState: PaymentWebhookState): Promise<void> {
+  async triggerWebhook(buyCrypto: BuyCrypto): Promise<void> {
+    const state = this.getWebhookState(buyCrypto);
     buyCrypto.isCryptoCryptoTransaction
-      ? this.webhookService.cryptoCryptoUpdate(buyCrypto.user, buyCrypto, webhookState)
-      : this.webhookService.fiatCryptoUpdate(buyCrypto.user, buyCrypto, webhookState);
+      ? await this.webhookService.cryptoCryptoUpdate(buyCrypto.user, buyCrypto, state)
+      : await this.webhookService.fiatCryptoUpdate(buyCrypto.user, buyCrypto, state);
   }
 
   public getWebhookState(buyCrypto: BuyCrypto): PaymentWebhookState {

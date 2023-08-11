@@ -101,8 +101,6 @@ export class BuyFiatService {
       await this.userService.activateUser(entity.sell.user);
     }
 
-    // payment webhook
-    // TODO add fiatFiatUpdate here
     if (
       (dto.inputAmount && dto.inputAsset) ||
       dto.isComplete ||
@@ -110,8 +108,7 @@ export class BuyFiatService {
       dto.outputReferenceAsset ||
       dto.cryptoReturnDate
     ) {
-      const state = this.getWebhookState(entity);
-      await this.triggerWebhook(entity, state);
+      await this.triggerWebhook(entity);
     }
 
     await this.updateSellVolume([sellIdBefore, entity.sell?.id]);
@@ -133,8 +130,11 @@ export class BuyFiatService {
       .getOne();
   }
 
-  async triggerWebhook(buyFiat: BuyFiat, webhookState: PaymentWebhookState): Promise<void> {
-    buyFiat.sell ? this.webhookService.cryptoFiatUpdate(buyFiat.sell.user, buyFiat, webhookState) : undefined;
+  async triggerWebhook(buyFiat: BuyFiat): Promise<void> {
+    // payment webhook
+    // TODO add fiatFiatUpdate here
+    const state = this.getWebhookState(buyFiat);
+    buyFiat.sell ? await this.webhookService.cryptoFiatUpdate(buyFiat.sell.user, buyFiat, state) : undefined;
   }
 
   async updateVolumes(): Promise<void> {
