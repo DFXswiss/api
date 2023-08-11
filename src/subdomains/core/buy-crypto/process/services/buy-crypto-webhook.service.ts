@@ -15,7 +15,7 @@ export class BuyCryptoWebhookService {
       : await this.webhookService.fiatCryptoUpdate(buyCrypto.user, buyCrypto, state);
   }
 
-  public getWebhookState(buyCrypto: BuyCrypto): PaymentWebhookState {
+  private getWebhookState(buyCrypto: BuyCrypto): PaymentWebhookState {
     if (buyCrypto.chargebackDate) return PaymentWebhookState.RETURNED;
 
     switch (buyCrypto.amlCheck) {
