@@ -1,8 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { PayInNotSellableException } from 'src/shared/payment/exceptions/pay-in-not-sellable-exception';
-import { PayInTooSmallException } from 'src/shared/payment/exceptions/pay-in-too-small.exception';
-import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
+import { TransactionHelper, ValidationError } from 'src/shared/payment/services/transaction-helper';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
@@ -74,28 +72,30 @@ export class BuyFiatRegistrationService {
 
         if (!buyFiat) {
           buyFiat = BuyFiat.createFromPayIn(payIn, sellRoute);
-          await this.transactionHelper.isValidInput(buyFiat.cryptoInput.asset, buyFiat.cryptoInput.amount);
+
+          const result = await this.transactionHelper.validateInput(
+            buyFiat.cryptoInput.asset,
+            buyFiat.cryptoInput.amount,
+          );
+
+          if (result === ValidationError.PAY_IN_TOO_SMALL) {
+            await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_FIAT, sellRoute);
+            continue;
+          } else if (result === ValidationError.PAY_IN_NOT_SELLABLE) {
+            await this.payInService.returnPayIn(
+              payIn,
+              PayInPurpose.BUY_FIAT,
+              BlockchainAddress.create(sellRoute.user.address, sellRoute.deposit.blockchain),
+              sellRoute,
+            );
+            continue;
+          }
+
           await this.buyFiatRepo.save(buyFiat);
         }
 
         await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_FIAT, sellRoute);
       } catch (e) {
-        if (e instanceof PayInTooSmallException) {
-          await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_FIAT, sellRoute);
-
-          continue;
-        }
-
-        if (e instanceof PayInNotSellableException) {
-          await this.payInService.returnPayIn(
-            payIn,
-            PayInPurpose.BUY_FIAT,
-            BlockchainAddress.create(sellRoute.user.address, sellRoute.deposit.blockchain),
-            sellRoute,
-          );
-          continue;
-        }
-
         this.logger.error(`Error during buy-fiat pay-in registration (pay-in ${payIn.id}):`, e);
       }
     }

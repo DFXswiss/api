@@ -11,9 +11,12 @@ import { PriceProviderService } from 'src/subdomains/supporting/pricing/services
 import { TargetEstimation, TransactionDetails } from '../entities/transaction-details';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
 import { TxSpec } from '../entities/tx-spec';
-import { PayInNotSellableException } from '../exceptions/pay-in-not-sellable-exception';
-import { PayInTooSmallException } from '../exceptions/pay-in-too-small.exception';
 import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
+
+export enum ValidationError {
+  PAY_IN_TOO_SMALL = 'PayInTooSmall',
+  PAY_IN_NOT_SELLABLE = 'PayInNotSellable',
+}
 
 @Injectable()
 export class TransactionHelper implements OnModuleInit {
@@ -38,13 +41,15 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   // --- SPECIFICATIONS --- //
-  async isValidInput(from: Asset | Fiat, amount: number): Promise<void> {
+  async validateInput(from: Asset | Fiat, amount: number): Promise<true | ValidationError> {
     // check min. volume
     const { minVolume } = await this.getInSpecs(from);
-    if (amount < minVolume * 0.5) throw new PayInTooSmallException();
+    if (amount < minVolume * 0.5) return ValidationError.PAY_IN_TOO_SMALL;
 
     // check sellable
-    if (!from.sellable) throw new PayInNotSellableException();
+    if (!from.sellable) return ValidationError.PAY_IN_NOT_SELLABLE;
+
+    return true;
   }
 
   async getInSpecs(from: Asset | Fiat): Promise<TxSpec> {
