@@ -119,6 +119,11 @@ export class BuyCryptoService {
       if (!update.outputAsset) throw new BadRequestException('Asset not found');
     }
 
+    if (dto.outputReferenceAssetId) {
+      update.outputReferenceAsset = await this.assetService.getAssetById(dto.outputAssetId);
+      if (!update.outputReferenceAsset) throw new BadRequestException('Asset not found');
+    }
+
     Util.removeNullFields(entity);
     const fee = entity.fee;
     if (dto.allowedTotalFeePercent && entity.fee) fee.allowedTotalFeePercent = dto.allowedTotalFeePercent;
