@@ -9,7 +9,6 @@ import { CryptoRouteService } from 'src/subdomains/core/buy-crypto/routes/crypto
 import { createCustomHistory } from 'src/subdomains/core/history/dto/__mocks__/history.dto.mock';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxRepository } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.repository';
 import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
@@ -24,6 +23,7 @@ import { BuyCryptoDexService } from '../buy-crypto-dex.service';
 import { BuyCryptoNotificationService } from '../buy-crypto-notification.service';
 import { BuyCryptoOutService } from '../buy-crypto-out.service';
 import { BuyCryptoRegistrationService } from '../buy-crypto-registration.service';
+import { BuyCryptoWebhookService } from '../buy-crypto-webhook.service';
 import { BuyCryptoService } from '../buy-crypto.service';
 
 enum MockBuyData {
@@ -53,7 +53,7 @@ describe('BuyCryptoService', () => {
   let buyCryptoNotificationService: BuyCryptoNotificationService;
   let userService: UserService;
   let buyFiatService: BuyFiatService;
-  let webhookService: WebhookService;
+  let buyCryptoWebhookService: BuyCryptoWebhookService;
   let assetService: AssetService;
 
   beforeEach(async () => {
@@ -72,7 +72,7 @@ describe('BuyCryptoService', () => {
     buyCryptoRegistrationService = createMock<BuyCryptoRegistrationService>();
     userService = createMock<UserService>();
     buyFiatService = createMock<BuyFiatService>();
-    webhookService = createMock<WebhookService>();
+    buyCryptoWebhookService = createMock<BuyCryptoWebhookService>();
     assetService = createMock<AssetService>();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -94,7 +94,7 @@ describe('BuyCryptoService', () => {
         { provide: BuyCryptoRegistrationService, useValue: buyCryptoRegistrationService },
         { provide: UserService, useValue: userService },
         { provide: BuyFiatService, useValue: buyFiatService },
-        { provide: WebhookService, useValue: webhookService },
+        { provide: BuyCryptoWebhookService, useValue: buyCryptoWebhookService },
         { provide: AssetService, useValue: assetService },
       ],
     }).compile();

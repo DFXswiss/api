@@ -10,7 +10,11 @@ export enum PaymentWebhookType {
 
 export enum PaymentWebhookState {
   CREATED = 'Created',
+  PROCESSING = 'Processing',
+  AML_PENDING = 'AmlPending',
   COMPLETED = 'Completed',
+  FAILED = 'Failed',
+  RETURNED = 'Returned',
 }
 
 export class PaymentWebhookData {

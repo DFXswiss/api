@@ -18,8 +18,6 @@ import { HistoryDto, PaymentStatusMapper } from 'src/subdomains/core/history/dto
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
-import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
 import { Between, In, IsNull, Not } from 'typeorm';
 import { Buy } from '../../routes/buy/buy.entity';
@@ -35,6 +33,7 @@ import { BuyCryptoDexService } from './buy-crypto-dex.service';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { BuyCryptoOutService } from './buy-crypto-out.service';
 import { BuyCryptoRegistrationService } from './buy-crypto-registration.service';
+import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 
 @Injectable()
 export class BuyCryptoService {
@@ -53,8 +52,8 @@ export class BuyCryptoService {
     private readonly buyCryptoRegistrationService: BuyCryptoRegistrationService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly userService: UserService,
-    private readonly webhookService: WebhookService,
     private readonly assetService: AssetService,
+    private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
   ) {}
 
   async createFromFiat(bankTxId: number, buyId: number): Promise<BuyCrypto> {
@@ -120,6 +119,11 @@ export class BuyCryptoService {
       if (!update.outputAsset) throw new BadRequestException('Asset not found');
     }
 
+    if (dto.outputReferenceAssetId) {
+      update.outputReferenceAsset = await this.assetService.getAssetById(dto.outputAssetId);
+      if (!update.outputReferenceAsset) throw new BadRequestException('Asset not found');
+    }
+
     Util.removeNullFields(entity);
     const fee = entity.fee;
     if (dto.allowedTotalFeePercent && entity.fee) fee.allowedTotalFeePercent = dto.allowedTotalFeePercent;
@@ -145,11 +149,14 @@ export class BuyCryptoService {
     }
 
     // payment webhook
-    if ((dto.inputAmount && dto.inputAsset) || dto.isComplete) {
-      const state = entity.isComplete ? PaymentWebhookState.COMPLETED : PaymentWebhookState.CREATED;
-      entity.buy
-        ? await this.webhookService.fiatCryptoUpdate(entity.user, entity, state)
-        : await this.webhookService.cryptoCryptoUpdate(entity.user, entity, state);
+    if (
+      (dto.inputAmount && dto.inputAsset) ||
+      dto.isComplete ||
+      (dto.amlCheck && dto.amlCheck !== CheckStatus.PASS) ||
+      dto.outputReferenceAssetId ||
+      dto.chargebackDate
+    ) {
+      await this.buyCryptoWebhookService.triggerWebhook(entity);
     }
 
     await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
