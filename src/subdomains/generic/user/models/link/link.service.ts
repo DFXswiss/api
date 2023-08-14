@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MoreThan } from 'typeorm';
 import { Blank, BlankType, UserData } from '../user-data/user-data.entity';
@@ -44,19 +45,29 @@ export class LinkService {
 
     const linkAddress = await this.linkAddressRepo.save(LinkAddress.create(existingAddress, newAddress));
 
-    await this.notificationService.sendMail({
+    await this.notificationService.sendMailNew({
       type: MailType.USER,
       input: {
         userData: user,
-        translationKey: 'mail.link.address',
-        translationParams: {
-          firstname: completedUser.firstname,
-          surname: completedUser.surname,
-          organizationName: completedUser.organizationName ?? '',
-          existingAddress: Blank(existingAddress, BlankType.WALLET_ADDRESS),
-          newAddress: Blank(newAddress, BlankType.WALLET_ADDRESS),
-          url: this.buildLinkUrl(linkAddress.authentication),
+        title: `${MailTranslationKey.LINK_ADDRESS}.title`,
+        prefix: {
+          key: `${MailTranslationKey.GENERAL}.welcome`,
+          params: { name: completedUser.organizationName ?? completedUser.firstname },
         },
+        table: {
+          [`${MailTranslationKey.LINK_ADDRESS}.existing_address`]: Blank(existingAddress, BlankType.WALLET_ADDRESS),
+          [`${MailTranslationKey.LINK_ADDRESS}.new_address`]: Blank(newAddress, BlankType.WALLET_ADDRESS),
+        },
+        suffix: [
+          { key: MailKey.SPACE, params: { value: '1' } },
+          { key: `${MailTranslationKey.LINK_ADDRESS}.line1` },
+          { key: MailKey.SPACE, params: { value: '2' } },
+          {
+            key: `${MailTranslationKey.LINK_ADDRESS}.line2`,
+            params: { url: this.buildLinkUrl(linkAddress.authentication) },
+          },
+          { key: MailKey.DFX_TEAM_CLOSING },
+        ],
       },
     });
   }

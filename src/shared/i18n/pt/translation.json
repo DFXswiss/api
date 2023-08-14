@@ -3,7 +3,9 @@
         "dfx_team_closing": "Your DFX Team",
         "dfx_closing_message": "Bitcoiners by heart ♥️",
         "support": "If you have any questions,<br>we are happy to help you at [mail:support@dfx.swiss].",
-        "thanks": "Thank you very much for your trust"
+        "thanks": "Thank you very much for your trust",
+        "happy_trading": "Happy Trading",
+        "welcome": "Hi {name}"
     },
     "payment": {
         "buy_fiat": {
@@ -123,5 +125,40 @@
         "output_amount": "Amount",
         "payment_link": "Here you can find the transaction ID for your referral payout: [url:Link]",
         "dfx_ambassador": "You are a true DFX Ambassador - thanks for spreading the word of DFX!"
+    },
+    "kyc": {
+        "success": {
+            "title": "Verification successful",
+            "salutation": "Verification successful",
+            "message": "Your verification is complete."
+        },
+        "failed": {
+            "title": "Online identification failed",
+            "salutation": "Your online identification has failed",
+            "message": "We have noticed that your online identification has failed. However, we have already unlocked video identification for you."
+        },
+        "ident": {
+            "title": "Identification completed",
+            "salutation": "Identification completed - your data will be verified",
+            "message": "The identification has been completed successfully and your data will now be checked.<br>The verification can take up to 24 hours in some cases."
+        },
+        "chatbot": {
+            "title": "Chatbot completed",
+            "salutation": "Chatbot completed - next step for your verification"
+        },
+        "reminder": {
+            "title": "Complete verification",
+            "salutation": "Complete your verification",
+            "message": "We have noticed that you have not completed the {status}."
+        },
+        "next_step": "To start the online identification process, click on the refresh button in the limit section on the payment page (access via the \"My DFX\" button in the app) or [url:here].",
+        "last_step": "Take the final step and start working on your financial freedom today"
+    },
+    "link_address": {
+        "title": "Ligar o seu endereço",
+        "existing_address": "Existente endereço",
+        "new_address": "Novo endereço",
+        "line1": "Deseja ligar o seu endereço à sua conta existente?",
+        "line2": "Se quiser ligar o seu novo endereço à sua conta existente e já verificada, por favor siga as instruções: [url:kliknij tutaj]"
     }
 }

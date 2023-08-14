@@ -3,7 +3,9 @@
         "dfx_team_closing": "Tuo DFX team",
         "dfx_closing_message": "Bitcoiners by heart ♥️",
         "support": "Se hai domande,<br>siamo felici di aiutarti su [mail:support@dfx.swiss].",
-        "thanks": "Grazie mille per la tua fiducia"
+        "thanks": "Grazie mille per la tua fiducia",
+        "happy_trading": "Buon trading",
+        "welcome": "Ciao {name}"
     },
     "payment": {
         "buy_fiat": {
@@ -123,5 +125,40 @@
         "output_amount": "Importo",
         "payment_link": "Qui puoi trovare l'ID della transazione per il pagamento delle ricompense dai tuoi referral: [url:Link]",
         "dfx_ambassador": "Sei un vero Ambasciatore DFX - grazie per promuovere DFX!"
+    },
+    "kyc": {
+        "success": {
+            "title": "Verifica riuscita",
+            "salutation": "Verifica riuscita",
+            "message": "La verifica è stata completata."
+        },
+        "failed": {
+            "title": "La tua identificazione online non è riuscita",
+            "salutation": "La tua identificazione online non è riuscita",
+            "message": "Abbiamo notato che la sua identificazione online è fallita. Tuttavia, abbiamo già sbloccato l'identificazione video per te."
+        },
+        "ident": {
+            "title": "Verifica completata",
+            "salutation": "Identificazione completata - i suoi dati saranno controllati",
+            "message": "L'identificazione è stata completata con successo e i tuoi dati vengono ora controllati.<br>Il controllo può richiedere fino a 24 ore in casi individuali."
+        },
+        "chatbot": {
+            "title": "Chatbot completato",
+            "salutation": "Chatbot completato -passo successivo per la tua verifica"
+        },
+        "reminder": {
+            "title": "Completa la tua verifica",
+            "salutation": "Completa la tua verifica",
+            "message": "Abbiamo notato che non hai completato la {status}."
+        },
+        "next_step": "Per iniziare il processo di identificazione online, clicca sul pulsante di aggiornamento nella sezione dei limiti della pagina di pagamento (accedi tramite il bottone \"My DFX\" nell'app) o [url:qui].",
+        "last_step": "Fai il passo finale e inizia a lavorare sulla tua libertà finanziaria oggi stesso"
+    },
+    "link_address": {
+        "title": "Collega il tuo indirizzo",
+        "existing_address": "Indirizzo esistente",
+        "new_address": "Nuovo indirizzo",
+        "line1": "Vuoi collegare il tuo indirizzo al tuo account pre-esistente?",
+        "line2": "Se vuoi collegare il tuo nuovo indirizzo al tuo account pre-esistente e già verificato, per favore, queste istruzioni: [url:clicca qui]"
     }
 }

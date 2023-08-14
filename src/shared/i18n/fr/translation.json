@@ -3,7 +3,9 @@
         "dfx_team_closing": "Votre équipe DFX",
         "dfx_closing_message": "Bitcoiners by heart ♥️",
         "support": "Si vous avez des questions,<br>nous sommes ravis de vous aider sur [mail:support@dfx.swiss].",
-        "thanks": "Merci beaucoup pour votre confiance"
+        "thanks": "Merci beaucoup pour votre confiance",
+        "happy_trading": "Bon trading",
+        "welcome": "Bonjour {name}"
     },
     "payment": {
         "buy_fiat": {
@@ -123,5 +125,40 @@
         "output_amount": "Montant",
         "payment_link": "Voici l'ID de transaction de votre prime de parrainage: [url:Link]",
         "dfx_ambassador": "Vous êtes un véritable ambassadeur. Merci de passer le mot à propos de DFX !"
+    },
+    "kyc": {
+        "success": {
+            "title": "Vérification réussie",
+            "salutation": "Vérification réussie",
+            "message": "Votre vérification est terminée."
+        },
+        "failed": {
+            "title": "Votre identification en ligne a échoué",
+            "salutation": "Votre identification en ligne a échoué",
+            "message": "Nous avons remarqué que votre identification en ligne a échoué. Nous avons cependant déjà débloqué l'identification vidéo pour vous."
+        },
+        "ident": {
+            "title": "Identification terminée",
+            "salutation": "Identification terminée - tes données sont vérifiées",
+            "message": "L'identification est terminée avec succès et tes données sont maintenant vérifiées.<br>Dans certains cas, la vérification peut durer jusqu'à 24 heures."
+        },
+        "chatbot": {
+            "title": "Chatbot terminé",
+            "salutation": "Chatbot terminé - prochaine étape pour votre vérification"
+        },
+        "reminder": {
+            "title": "Terminez votre vérification",
+            "salutation": "Terminez votre vérification",
+            "message": "Nous avons remarqué que vous n'avez pas terminé votre vérification ({status})."
+        },
+        "next_step": "Pour commencer l'identification en ligne, cliquez sur le bouton d'actualisation dans la section Limites de la page de paiement (via le bouton \"My DFX\" dans l'appli) ou [url:ici].",
+        "last_step": "Franchissez le dernier pas et développez votre liberté financière dès aujourd'hui"
+    },
+    "link_address": {
+        "title": "Associez votre adresse",
+        "existing_address": "Adresse existante",
+        "new_address": "Nouvelle adresse",
+        "line1": "Souhaitez-vous lier votre adresse à votre compte actuel ?",
+        "line2": "Si vous souhaitez lier cette nouvelle adresse à votre compte actuel déjà vérifié, veuillez les instructions ci-dessous: [url:Cliquez ici]"
     }
 }

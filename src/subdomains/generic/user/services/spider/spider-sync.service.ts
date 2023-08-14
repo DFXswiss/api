@@ -19,6 +19,7 @@ import {
 } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, LessThan } from 'typeorm';
 import { DocumentVersionPart, KycContentType, KycDocument, KycDocumentState, KycDocuments } from './dto/spider.dto';
@@ -197,14 +198,23 @@ export class SpiderSyncService {
 
       if (userData.isDfxUser) {
         await this.notificationService
-          .sendMail({
+          .sendMailNew({
             type: MailType.USER,
             input: {
               userData,
-              translationKey: 'mail.kyc.chatbot',
-              translationParams: {
-                url: `${Config.payment.url}/kyc?code=${userData.kycHash}`,
-              },
+              title: `${MailTranslationKey.KYC_CHATBOT}.title`,
+              prefix: { key: `${MailTranslationKey.KYC_CHATBOT}.salutation` },
+              table: {},
+              suffix: [
+                { key: MailKey.SPACE, params: { value: '1' } },
+                {
+                  key: `${MailTranslationKey.KYC}.next_step`,
+                  params: { url: `${Config.payment.url}/kyc?code=${userData.kycHash}` },
+                },
+                { key: MailKey.SPACE, params: { value: '2' } },
+                { key: `${MailTranslationKey.KYC}.last_step` },
+                { key: MailKey.DFX_TEAM_CLOSING },
+              ],
             },
           })
           .catch(() => null);
@@ -224,15 +234,28 @@ export class SpiderSyncService {
     // send reminder
     if (userData.isDfxUser) {
       await this.notificationService
-        .sendMail({
+        .sendMailNew({
           type: MailType.USER,
           input: {
             userData,
-            translationKey: 'mail.kyc.reminder',
-            translationParams: {
-              status: this.kycStatusTranslation[userData.kycStatus],
-              url: `${Config.payment.url}/kyc?code=${userData.kycHash}`,
-            },
+            title: `${MailTranslationKey.KYC_REMINDER}.title`,
+            prefix: { key: `${MailTranslationKey.KYC_REMINDER}.salutation` },
+            table: {},
+            suffix: [
+              { key: MailKey.SPACE, params: { value: '1' } },
+              {
+                key: `${MailTranslationKey.KYC_REMINDER}.message`,
+                params: { status: this.kycStatusTranslation[userData.kycStatus] },
+              },
+              { key: MailKey.SPACE, params: { value: '2' } },
+              {
+                key: `${MailTranslationKey.KYC}.next_step`,
+                params: { url: `${Config.payment.url}/kyc?code=${userData.kycHash}` },
+              },
+              { key: MailKey.SPACE, params: { value: '2' } },
+              { key: `${MailTranslationKey.KYC}.last_step` },
+              { key: MailKey.DFX_TEAM_CLOSING },
+            ],
           },
         })
         .catch(() => null);

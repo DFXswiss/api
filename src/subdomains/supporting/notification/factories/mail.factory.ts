@@ -29,6 +29,13 @@ export enum MailTranslationKey {
   CRYPTO_RETURN = 'translation.payment.return.crypto',
   FIAT_RETURN = 'translation.payment.return.fiat',
   REFERRAL = 'translation.referral',
+  KYC = 'translation.kyc',
+  KYC_SUCCESS = 'translation.kyc.success',
+  KYC_FAILED = 'translation.kyc.failed',
+  KYC_IDENT = 'translation.kyc.ident',
+  KYC_CHATBOT = 'translation.kyc.chatbot',
+  KYC_REMINDER = 'translation.kyc.reminder',
+  LINK_ADDRESS = 'translation.link_address',
 }
 
 export enum MailKey {

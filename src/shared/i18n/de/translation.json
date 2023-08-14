@@ -3,7 +3,9 @@
         "dfx_team_closing": "Dein freundliches DFX Team",
         "dfx_closing_message": "Bitcoiners by heart ♥️",
         "support": "Bei Fragen stehen wir dir<br>gerne unter [mail:support@dfx.swiss] zur Seite.",
-        "thanks": "Herzlichen Dank für dein entgegengebrachtes Vertrauen"
+        "thanks": "Herzlichen Dank für dein entgegengebrachtes Vertrauen",
+        "happy_trading": "Viel Erfolg beim Traden",
+        "welcome": "Hi {name}"
     },
     "payment": {
         "buy_fiat": {
@@ -123,5 +125,40 @@
         "output_amount": "Betrag",
         "payment_link": "Dies ist die Transaktions-ID: [url:Link]",
         "dfx_ambassador": "Du bist ein echter DFX-Ambassador - vielen Dank für das Teilen der DFX Botschaft!"
+    },
+    "kyc": {
+        "success": {
+            "title": "Verifikation erfolgreich",
+            "salutation": "Verifikation erfolgreich",
+            "message": "Deine Verifikation ist abgeschlossen."
+        },
+        "failed": {
+            "title": "Online Identifikation fehlgeschlagen",
+            "salutation": "Deine Online-Identifikation ist fehlgeschlagen",
+            "message": "Wir haben festgestellt, dass die Online-Identifizierung fehlgeschlagen ist. Wir haben jedoch bereits die Video-Identifikation freigeschaltet."
+        },
+        "ident": {
+            "title": "Identifikation abgeschlossen",
+            "salutation": "Identifikation abgeschlossen - deine Daten werden überprüft",
+            "message": "Deine Identifikation ist erfolgreich abgeschlossen und die Daten werden nun geprüft.<br>Die Überprüfung kann in Einzelfällen bis zu 24 Stunden dauern."
+        },
+        "chatbot": {
+            "title": "Chatbot abgeschlossen",
+            "salutation": "Chatbot abgeschlossen - nächster Schritt zur Verifizierung"
+        },
+        "reminder": {
+            "title": "Vervollständige Verifizierung",
+            "salutation": "Vervollständige deine Verifizierung",
+            "message": "Uns ist aufgefallen, dass {status} noch nicht vollständig abgeschlossen wurde."
+        },
+        "next_step": "Um den Online-Identifizierungsprozess zu starten, klicke auf der Payment Seite (Zugang über den \"My DFX\" Button in der App) auf den Refresh Button (roter Pfeil in Kreisoptik) oder [url:hier].",
+        "last_step": "Mache den letzten Schritt und beginne noch heute deine Reise zur finanziellen Freiheit"
+    },
+    "link_address": {
+        "title": "Adresse verknüpfen",
+        "existing_address": "Bestehende Adresse",
+        "new_address": "Neue Adresse",
+        "line1": "Du möchtest deine Adresse mit deinem bestehenden Konto verknüpfen?",
+        "line2": "Wenn du deine neue Adresse mit deinem bestehenden und bereits verifizierten Konto verknüpfen möchtest, folge bitte den Anweisungen: [url:Klick hier]"
     }
 }

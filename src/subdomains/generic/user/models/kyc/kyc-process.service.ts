@@ -16,6 +16,7 @@ import {
 } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { DocumentState, SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { IsNull, Not } from 'typeorm';
 import { InitiateResponse, KycDocument, KycDocuments } from '../../services/spider/dto/spider.dto';
@@ -76,9 +77,21 @@ export class KycProcessService {
 
     if (KycCompleted(status) && userData.isDfxUser) {
       if (userData.mail) {
-        await this.notificationService.sendMail({
+        await this.notificationService.sendMailNew({
           type: MailType.USER,
-          input: { translationKey: 'mail.kyc.success', translationParams: {}, userData },
+          input: {
+            userData,
+            title: `${MailTranslationKey.KYC_SUCCESS}.title`,
+            prefix: { key: `${MailTranslationKey.KYC_SUCCESS}.salutation` },
+            table: {},
+            suffix: [
+              { key: MailKey.SPACE, params: { value: '1' } },
+              { key: `${MailTranslationKey.KYC_SUCCESS}.message` },
+              { key: MailKey.SPACE, params: { value: '4' } },
+              { key: `${MailTranslationKey.GENERAL}.happy_trading` },
+              { key: MailKey.DFX_TEAM_CLOSING },
+            ],
+          },
         });
       } else {
         this.logger.warn(`Failed to send KYC completion mail for user data ${userData.id}: user has no email`);
@@ -117,14 +130,25 @@ export class KycProcessService {
 
       if (userData.isDfxUser) {
         await this.notificationService
-          .sendMail({
+          .sendMailNew({
             type: MailType.USER,
             input: {
               userData,
-              translationKey: 'mail.kyc.failed',
-              translationParams: {
-                url: `${Config.payment.url}/kyc?code=${userData.kycHash}`,
-              },
+              title: `${MailTranslationKey.KYC_FAILED}.title`,
+              prefix: { key: `${MailTranslationKey.KYC_FAILED}.salutation` },
+              table: {},
+              suffix: [
+                { key: MailKey.SPACE, params: { value: '1' } },
+                { key: `${MailTranslationKey.KYC_FAILED}.message` },
+                { key: MailKey.SPACE, params: { value: '2' } },
+                {
+                  key: `${MailTranslationKey.KYC}.next_step`,
+                  params: { url: `${Config.payment.url}/kyc?code=${userData.kycHash}` },
+                },
+                { key: MailKey.SPACE, params: { value: '2' } },
+                { key: `${MailTranslationKey.KYC}.last_step` },
+                { key: MailKey.DFX_TEAM_CLOSING },
+              ],
             },
           })
           .catch(() => null);
@@ -192,9 +216,19 @@ export class KycProcessService {
 
     if (userData.isDfxUser) {
       await this.notificationService
-        .sendMail({
+        .sendMailNew({
           type: MailType.USER,
-          input: { userData, translationKey: 'mail.kyc.ident', translationParams: {} },
+          input: {
+            userData,
+            title: `${MailTranslationKey.KYC_IDENT}.title`,
+            prefix: { key: `${MailTranslationKey.KYC_IDENT}.salutation` },
+            table: {},
+            suffix: [
+              { key: MailKey.SPACE, params: { value: '1' } },
+              { key: `${MailTranslationKey.KYC_IDENT}.message` },
+              { key: MailKey.DFX_TEAM_CLOSING },
+            ],
+          },
         })
         .catch(() => null);
     }
