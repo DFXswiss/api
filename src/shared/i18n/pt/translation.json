@@ -116,5 +116,12 @@
         "transaction_id": "Transaction-ID",
         "wallet_address": "Wallet address",
         "reimbursed": "Reimbursed"
+    },
+    "referral": {
+        "title": "Payout Referral Rewards",
+        "salutation": "Your referral rewards have been paid out",
+        "output_amount": "Amount",
+        "payment_link": "Here you can find the transaction ID for your referral payout: [url:Link]",
+        "dfx_ambassador": "You are a true DFX Ambassador - thanks for spreading the word of DFX!"
     }
 }

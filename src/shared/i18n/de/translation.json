@@ -116,5 +116,12 @@
         "transaction_id": "Transaktions-ID",
         "wallet_address": "Wallet-Adresse",
         "reimbursed": "Erstattet"
+    },
+    "referral": {
+        "title": "Auszahlung Referral Rewards",
+        "salutation": "Deine RefCode Rewards wurden ausgezahlt",
+        "output_amount": "Betrag",
+        "payment_link": "Dies ist die Transaktions-ID: [url:Link]",
+        "dfx_ambassador": "Du bist ein echter DFX-Ambassador - vielen Dank für das Teilen der DFX Botschaft!"
     }
 }

@@ -1,8 +1,8 @@
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { UpdateResult } from 'src/shared/models/entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Column, Entity, ManyToOne } from 'typeorm';
 import { Reward } from '../../../../shared/models/reward.entity';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { UpdateResult } from 'src/shared/models/entity';
 
 export enum RewardStatus {
   CREATED = 'Created',
@@ -69,5 +69,9 @@ export class RefReward extends Reward {
     Object.assign(this, update);
 
     return [this.id, update];
+  }
+
+  get isLightningTransaction(): boolean {
+    return this.targetBlockchain === Blockchain.LIGHTNING;
   }
 }

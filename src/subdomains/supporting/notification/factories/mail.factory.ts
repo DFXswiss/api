@@ -28,6 +28,7 @@ export enum MailTranslationKey {
   RETURN_REASON = 'translation.payment.return.reasons',
   CRYPTO_RETURN = 'translation.payment.return.crypto',
   FIAT_RETURN = 'translation.payment.return.fiat',
+  REFERRAL = 'translation.referral',
 }
 
 export enum MailKey {

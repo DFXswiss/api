@@ -116,5 +116,12 @@
         "transaction_id": "ID de la transaction",
         "wallet_address": "Adresse du portefeuille",
         "reimbursed": "Remboursés"
+    },
+    "referral": {
+        "title": "Paiement de la prime de parrainage",
+        "salutation": "Votre prime de parrainage a été versée",
+        "output_amount": "Montant",
+        "payment_link": "Voici l'ID de transaction de votre prime de parrainage: [url:Link]",
+        "dfx_ambassador": "Vous êtes un véritable ambassadeur. Merci de passer le mot à propos de DFX !"
     }
 }
