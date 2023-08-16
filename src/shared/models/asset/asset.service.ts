@@ -35,8 +35,13 @@ export class AssetService {
   }
 
   async getSellableBlockchains(): Promise<Blockchain[]> {
-    const sellableAssets = await this.assetRepo.find({ where: { sellable: true } });
-    return [...new Set(sellableAssets.map((a) => a.blockchain))];
+    return this.assetRepo
+      .createQueryBuilder('asset')
+      .select('asset.blockchain', 'blockchain')
+      .where('asset.sellable = 1')
+      .distinct()
+      .getRawMany<{ blockchain: Blockchain }>()
+      .then((r) => r.map((a) => a.blockchain));
   }
 
   async updatePrice(assetId: number, usdPrice: number) {
