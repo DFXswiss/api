@@ -1,7 +1,8 @@
 import { IEntity } from 'src/shared/models/entity';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
-import { Entity, Column, ManyToOne, OneToOne } from 'typeorm';
+import { Column, Entity, ManyToOne, OneToOne } from 'typeorm';
+import { BankTxReturn } from '../bank-tx-return/bank-tx-return.entity';
 import { BankTxBatch } from './bank-tx-batch.entity';
 
 export enum BankTxType {
@@ -166,6 +167,9 @@ export class BankTx extends IEntity {
 
   @ManyToOne(() => BankTxBatch, (batch) => batch.transactions, { nullable: true })
   batch: BankTxBatch;
+
+  @OneToOne(() => BankTxReturn, (bankTxReturn) => bankTxReturn.bankTx, { nullable: true })
+  bankTxReturn?: BankTxReturn;
 
   @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.bankTx, { nullable: true })
   buyCrypto?: BuyCrypto;
