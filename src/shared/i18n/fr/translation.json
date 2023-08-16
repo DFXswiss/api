@@ -156,9 +156,9 @@
     },
     "link_address": {
         "title": "Associez votre adresse",
+        "salutation": "Souhaitez-vous lier votre adresse à votre compte actuel ?",
         "existing_address": "Adresse existante",
         "new_address": "Nouvelle adresse",
-        "line1": "Souhaitez-vous lier votre adresse à votre compte actuel ?",
-        "line2": "Si vous souhaitez lier cette nouvelle adresse à votre compte actuel déjà vérifié, veuillez les instructions ci-dessous: [url:Cliquez ici]"
+        "message": "Si vous souhaitez lier cette nouvelle adresse à votre compte actuel déjà vérifié, veuillez les instructions ci-dessous: [url:Cliquez ici]"
     }
 }

@@ -156,9 +156,9 @@
     },
     "link_address": {
         "title": "Vincular su dirección",
+        "salutation": "¿Quieres conectar la dirección de tu billetera a tu cuenta existente?",
         "existing_address": "Dirección existente",
         "new_address": "Nueva dirección",
-        "line1": "¿Quieres conectar la dirección de tu billetera a tu cuenta existente?",
-        "line2": "Si quieres emparejar tu nueva dirección a la que ya tienes verificada, por favor sigue las instrucciones: [url:Pulse aquí]"
+        "message": "Si quieres emparejar tu nueva dirección a la que ya tienes verificada, por favor sigue las instrucciones: [url:Pulse aquí]"
     }
 }

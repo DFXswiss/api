@@ -156,9 +156,9 @@
     },
     "link_address": {
         "title": "Link your address",
+        "salutation": "Do you want to link your address to your existing account?",
         "existing_address": "Existing address",
         "new_address": "New address",
-        "line1": "Do you want to link your address to your existing account?",
-        "line2": "If you want to link your new address to your existing and already verified account, please follow instructions: [url:Click here]"
+        "message": "If you want to link your new address to your existing and already verified account, please follow instructions: [url:Click here]"
     }
 }

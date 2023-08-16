@@ -156,9 +156,9 @@
     },
     "link_address": {
         "title": "Ligar o seu endereço",
+        "salutation": "Deseja ligar o seu endereço à sua conta existente?",
         "existing_address": "Existente endereço",
         "new_address": "Novo endereço",
-        "line1": "Deseja ligar o seu endereço à sua conta existente?",
-        "line2": "Se quiser ligar o seu novo endereço à sua conta existente e já verificada, por favor siga as instruções: [url:kliknij tutaj]"
+        "message": "Se quiser ligar o seu novo endereço à sua conta existente e já verificada, por favor siga as instruções: [url:kliknij tutaj]"
     }
 }

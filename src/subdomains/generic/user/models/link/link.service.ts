@@ -50,24 +50,25 @@ export class LinkService {
       input: {
         userData: user,
         title: `${MailTranslationKey.LINK_ADDRESS}.title`,
-        prefix: {
-          key: `${MailTranslationKey.GENERAL}.welcome`,
-          params: { name: completedUser.organizationName ?? completedUser.firstname },
-        },
+        prefix: [
+          { key: `${MailTranslationKey.LINK_ADDRESS}.salutation` },
+          { key: MailKey.SPACE, params: { value: '3' } },
+          {
+            key: `${MailTranslationKey.GENERAL}.welcome`,
+            params: { name: completedUser.organizationName ?? completedUser.firstname },
+          },
+          { key: MailKey.SPACE, params: { value: '2' } },
+          {
+            key: `${MailTranslationKey.LINK_ADDRESS}.message`,
+            params: { url: this.buildLinkUrl(linkAddress.authentication) },
+          },
+          { key: MailKey.SPACE, params: { value: '4' } },
+        ],
         table: {
           [`${MailTranslationKey.LINK_ADDRESS}.existing_address`]: Blank(existingAddress, BlankType.WALLET_ADDRESS),
           [`${MailTranslationKey.LINK_ADDRESS}.new_address`]: Blank(newAddress, BlankType.WALLET_ADDRESS),
         },
-        suffix: [
-          { key: MailKey.SPACE, params: { value: '1' } },
-          { key: `${MailTranslationKey.LINK_ADDRESS}.line1` },
-          { key: MailKey.SPACE, params: { value: '2' } },
-          {
-            key: `${MailTranslationKey.LINK_ADDRESS}.line2`,
-            params: { url: this.buildLinkUrl(linkAddress.authentication) },
-          },
-          { key: MailKey.DFX_TEAM_CLOSING },
-        ],
+        suffix: [{ key: MailKey.SPACE, params: { value: '4' } }, { key: MailKey.DFX_TEAM_CLOSING }],
       },
     });
   }

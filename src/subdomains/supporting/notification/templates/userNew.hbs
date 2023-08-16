@@ -52,6 +52,21 @@
       <tr>
         <td align='center'>
           <table style='font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%' align='center'>
+            {{#each prefix}}
+              <tr style='font-family:{{this.style}}'>
+                <td colspan='3' align='center'>
+                  
+                {{{this.text}}}
+                {{#if this.url}}<a style='color:white' href='{{this.url.link}}'>{{this.url.text}}</a>
+                  {{#if this.url.textSuffix}}{{this.url.textSuffix}}{{/if}}
+                {{/if}}
+                {{#if this.mail}}<a style='color:white' href='mailto:{{this.mail.address}}'>{{this.mail.address}}</a>
+                  {{#if this.mail.textSuffix}}{{this.mail.textSuffix}}{{/if}}
+                {{/if}}
+                </td>
+              </tr>
+            {{/each}}
+            
             {{#each table}}
               <tr>
                 <td align='right'>

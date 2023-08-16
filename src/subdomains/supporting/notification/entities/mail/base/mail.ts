@@ -1,7 +1,7 @@
 import { GetConfig } from 'src/config/config';
 import { NotificationType } from 'src/subdomains/supporting/notification/enums';
 import { Notification, NotificationMetadata, NotificationOptions } from '../../notification.entity';
-import { UserMailSuffix, UserMailTable } from '../user-mail';
+import { UserMailAffix, UserMailTable } from '../user-mail';
 
 export interface MailParams {
   to: string | string[];
@@ -36,7 +36,7 @@ export interface MailParamsNew {
   templateParams?: {
     salutation: string;
     table: UserMailTable[];
-    suffix: UserMailSuffix[];
+    suffix: UserMailAffix[];
     date?: number;
     banner?: string;
     telegramUrl?: string;

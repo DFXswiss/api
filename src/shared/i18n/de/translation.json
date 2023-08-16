@@ -156,9 +156,9 @@
     },
     "link_address": {
         "title": "Adresse verknüpfen",
+        "salutation": "Du möchtest deine Adresse mit deinem bestehenden Konto verknüpfen?",
         "existing_address": "Bestehende Adresse",
         "new_address": "Neue Adresse",
-        "line1": "Du möchtest deine Adresse mit deinem bestehenden Konto verknüpfen?",
-        "line2": "Wenn du deine neue Adresse mit deinem bestehenden und bereits verifizierten Konto verknüpfen möchtest, folge bitte den Anweisungen: [url:Klick hier]"
+        "message": "Wenn du deine neue Adresse mit deinem bestehenden und bereits verifizierten Konto verknüpfen möchtest, folge bitte den Anweisungen: [url:Klick hier]"
     }
 }

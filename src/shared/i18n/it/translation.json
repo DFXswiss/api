@@ -156,9 +156,9 @@
     },
     "link_address": {
         "title": "Collega il tuo indirizzo",
+        "salutation": "Vuoi collegare il tuo indirizzo al tuo account pre-esistente?",
         "existing_address": "Indirizzo esistente",
         "new_address": "Nuovo indirizzo",
-        "line1": "Vuoi collegare il tuo indirizzo al tuo account pre-esistente?",
-        "line2": "Se vuoi collegare il tuo nuovo indirizzo al tuo account pre-esistente e già verificato, per favore, queste istruzioni: [url:clicca qui]"
+        "message": "Se vuoi collegare il tuo nuovo indirizzo al tuo account pre-esistente e già verificato, per favore, queste istruzioni: [url:clicca qui]"
     }
 }
