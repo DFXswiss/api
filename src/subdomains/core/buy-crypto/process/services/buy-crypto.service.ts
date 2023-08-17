@@ -280,20 +280,17 @@ export class BuyCryptoService {
     for (const entity of entities) {
       const inputCurrency = await this.fiatService.getFiatByName(entity.bankTx.txCurrency);
 
-      const { minVolume, minFee } = await this.transactionHelper.getTxDetails(
+      const userFee = entity.user.getFee(FeeType.BUY, entity.target.asset);
+
+      const { minVolume, minFee, feeAmount } = await this.transactionHelper.getTxDetails(
         entity.bankTx.txAmount,
-        entity.user.getFee(FeeType.BUY, entity.target.asset),
+        userFee,
         inputCurrency,
         entity.outputAsset,
       );
 
       const inputAssetEurPrice = await this.priceProviderService.getPrice(inputCurrency, fiatEur);
       const inputAssetChfPrice = await this.priceProviderService.getPrice(inputCurrency, fiatChf);
-
-      const eurChfPrice = await this.priceProviderService.getPrice(fiatEur, fiatChf);
-
-      const inputAmountEur = inputAssetEurPrice.convert(entity.bankTx.txAmount);
-      const inputAmountChf = inputAssetChfPrice.convert(entity.bankTx.txAmount);
 
       const bankData = await this.bankDataService.getActiveBankDataWithIban(entity.bankTx.iban);
 
@@ -307,12 +304,12 @@ export class BuyCryptoService {
 
       await this.buyCryptoRepo.update(
         ...entity.amlCheckAndFillUp(
-          inputAmountEur,
-          inputAmountChf,
+          inputAssetEurPrice,
+          inputAssetChfPrice,
+          feeAmount,
+          userFee,
           minFee,
           minVolume,
-          inputAssetEurPrice.invert().convert(minVolume),
-          eurChfPrice.convert(minVolume),
           Util.sumObj(userDataTransactions, 'amountInEur'),
           bankData?.userData,
         ),
