@@ -369,6 +369,7 @@ export class BuyCrypto extends IEntity {
   amlCheckAndFillUp(
     amountInChf: number,
     amountInEur: number,
+    minFeeAmount: number,
     minVolume: number,
     minVolumeInCurrency: number,
     minVolumeChf: number,
@@ -391,8 +392,8 @@ export class BuyCrypto extends IEntity {
       absoluteFeeAmount: 0,
       percentFee: fee,
       percentFeeAmount: percentFeeAmount,
-      minFeeAmount: minVolumeInCurrency,
-      minFeeAmountFiat: minVolumeInCurrency,
+      minFeeAmount,
+      minFeeAmountFiat: minFeeAmount,
       totalFeeAmount,
       totalFeeAmountChf: minVolumeChf,
       inputReferenceAmountMinusFee: inputReferenceAmount - totalFeeAmount,

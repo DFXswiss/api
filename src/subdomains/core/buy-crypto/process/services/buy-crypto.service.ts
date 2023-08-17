@@ -192,7 +192,7 @@ export class BuyCryptoService {
   @Lock(7200)
   async process() {
     if (Config.processDisabled(Process.BUY_CRYPTO)) return;
-    if (!Config.processDisabled(Process.BUY_CRYPTO_AML_CHECK)) await this.saveAmlCheck();
+    if (!Config.processDisabled(Process.BUY_CRYPTO_AML_CHECK)) await this.doAmlCheck();
     await this.buyCryptoBatchService.prepareTransactions();
     await this.buyCryptoBatchService.batchAndOptimizeTransactions();
     await this.buyCryptoDexService.secureLiquidity();
@@ -263,7 +263,7 @@ export class BuyCryptoService {
 
   // --- HELPER METHODS --- //
 
-  private async saveAmlCheck() {
+  private async doAmlCheck() {
     const entities = await this.buyCryptoRepo.find({
       where: { amlCheck: IsNull(), amlReason: IsNull(), bankTx: Not(IsNull()) },
       relations: ['bankTx', 'buy', 'buy.user', 'buy.user.userData', 'buy.user.userData.users'],
@@ -280,7 +280,7 @@ export class BuyCryptoService {
     for (const entity of entities) {
       const inputCurrency = await this.fiatService.getFiatByName(entity.bankTx.txCurrency);
 
-      const assetSpecifications = await this.transactionHelper.getTxDetails(
+      const { minVolume, minFee } = await this.transactionHelper.getTxDetails(
         entity.bankTx.txAmount,
         entity.user.getFee(FeeType.BUY, entity.target.asset),
         inputCurrency,
@@ -309,9 +309,10 @@ export class BuyCryptoService {
         ...entity.amlCheckAndFillUp(
           inputAmountEur,
           inputAmountChf,
-          assetSpecifications.minVolume,
-          inputAssetEurPrice.invert().convert(assetSpecifications.minVolume),
-          eurChfPrice.convert(assetSpecifications.minVolume),
+          minFee,
+          minVolume,
+          inputAssetEurPrice.invert().convert(minVolume),
+          eurChfPrice.convert(minVolume),
           Util.sumObj(userDataTransactions, 'amountInEur'),
           bankData?.userData,
         ),
