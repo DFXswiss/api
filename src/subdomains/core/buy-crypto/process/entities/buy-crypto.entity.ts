@@ -434,11 +434,6 @@ export class BuyCrypto extends IEntity {
     );
   }
 
-  get transactionId(): string {
-    if (this.target.asset.blockchain === Blockchain.LIGHTNING) return Util.blankStart(this.txId);
-    return txExplorerUrl(this.target.asset.blockchain, this.txId);
-  }
-
   get isLightningOutput(): boolean {
     return this.target.asset.blockchain === Blockchain.LIGHTNING;
   }

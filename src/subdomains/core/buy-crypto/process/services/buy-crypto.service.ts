@@ -32,6 +32,7 @@ import { BuyService } from '../../routes/buy/buy.service';
 import { BuyHistoryDto } from '../../routes/buy/dto/buy-history.dto';
 import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
 import { BuyCrypto, BuyCryptoEditableAmlCheck } from '../entities/buy-crypto.entity';
+import { AmlReason } from '../enums/aml-reason.enum';
 import { CheckStatus } from '../enums/check-status.enum';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoBatchService } from './buy-crypto-batch.service';
@@ -140,12 +141,19 @@ export class BuyCryptoService {
     const fee = entity.fee;
     if (dto.allowedTotalFeePercent && entity.fee) fee.allowedTotalFeePercent = dto.allowedTotalFeePercent;
 
-    const forceUpdate = {
-      ...(BuyCryptoEditableAmlCheck.includes(entity.amlCheck) && update.amlCheck && update.amlCheck !== entity.amlCheck
-        ? { amlCheck: update.amlCheck, mailSendDate: null }
+    const forceUpdate: Partial<BuyCrypto> = {
+      ...(BuyCryptoEditableAmlCheck.includes(entity.amlCheck) && update?.amlCheck !== entity.amlCheck
+        ? {
+            amlCheck: update.amlCheck,
+            mailSendDate: null,
+            amlReason: update.amlCheck === CheckStatus.PASS ? AmlReason.NA : update.amlReason ?? undefined,
+          }
+        : update.amlCheck === CheckStatus.PASS
+        ? { amlReason: AmlReason.NA }
         : undefined),
       isComplete: dto.isComplete,
     };
+
     entity = await this.buyCryptoRepo.save(
       Object.assign(new BuyCrypto(), {
         ...update,
