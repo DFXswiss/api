@@ -182,21 +182,17 @@ export class MailFactory {
 
   private createUserMailNew(request: MailRequestNew): UserMailNew {
     const { metadata, options } = request;
-    const { userData, title, prefix, suffix, table } = request.input as MailRequestInput;
+    const { userData, title, salutation, prefix, suffix, table } = request.input as MailRequestInput;
 
     const lang = userData.language?.symbol.toLowerCase();
 
     return new UserMailNew({
       to: userData.mail,
       subject: this.tNew(title, lang),
-      salutation:
-        prefix &&
-        (Array.isArray(prefix)
-          ? this.tNew(prefix[0].key, lang, prefix[0].params)
-          : this.tNew(prefix.key, lang, prefix.params)),
-      prefix: prefix && Array.isArray(prefix) && this.getAffix(prefix.slice(1), lang),
-      table: this.getTable(table, lang),
-      suffix: this.getAffix(suffix, lang),
+      salutation: salutation && this.tNew(salutation.key, lang, salutation.params),
+      prefix: prefix && this.getAffix(prefix, lang),
+      table: table && this.getTable(table, lang),
+      suffix: suffix && this.getAffix(suffix, lang),
       metadata,
       options,
     });

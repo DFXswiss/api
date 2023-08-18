@@ -50,8 +50,8 @@ export class LinkService {
       input: {
         userData: user,
         title: `${MailTranslationKey.LINK_ADDRESS}.title`,
+        salutation: { key: `${MailTranslationKey.LINK_ADDRESS}.salutation` },
         prefix: [
-          { key: `${MailTranslationKey.LINK_ADDRESS}.salutation` },
           { key: MailKey.SPACE, params: { value: '3' } },
           {
             key: `${MailTranslationKey.GENERAL}.welcome`,

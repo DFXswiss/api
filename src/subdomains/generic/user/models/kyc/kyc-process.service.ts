@@ -82,7 +82,7 @@ export class KycProcessService {
           input: {
             userData,
             title: `${MailTranslationKey.KYC_SUCCESS}.title`,
-            prefix: { key: `${MailTranslationKey.KYC_SUCCESS}.salutation` },
+            salutation: { key: `${MailTranslationKey.KYC_SUCCESS}.salutation` },
             table: {},
             suffix: [
               { key: MailKey.SPACE, params: { value: '1' } },
@@ -135,7 +135,7 @@ export class KycProcessService {
             input: {
               userData,
               title: `${MailTranslationKey.KYC_FAILED}.title`,
-              prefix: { key: `${MailTranslationKey.KYC_FAILED}.salutation` },
+              salutation: { key: `${MailTranslationKey.KYC_FAILED}.salutation` },
               table: {},
               suffix: [
                 { key: MailKey.SPACE, params: { value: '1' } },
@@ -221,7 +221,7 @@ export class KycProcessService {
           input: {
             userData,
             title: `${MailTranslationKey.KYC_IDENT}.title`,
-            prefix: { key: `${MailTranslationKey.KYC_IDENT}.salutation` },
+            salutation: { key: `${MailTranslationKey.KYC_IDENT}.salutation` },
             table: {},
             suffix: [
               { key: MailKey.SPACE, params: { value: '1' } },

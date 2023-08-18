@@ -1,7 +1,6 @@
 import { GetConfig } from 'src/config/config';
 import { NotificationType } from 'src/subdomains/supporting/notification/enums';
 import { Notification, NotificationMetadata, NotificationOptions } from '../../notification.entity';
-import { UserMailAffix, UserMailTable } from '../user-mail';
 
 export interface MailParams {
   to: string | string[];
@@ -33,17 +32,7 @@ export interface MailParamsNew {
   cc?: string;
   bcc?: string;
   template?: string;
-  templateParams?: {
-    salutation: string;
-    table: UserMailTable[];
-    suffix: UserMailAffix[];
-    date?: number;
-    banner?: string;
-    telegramUrl?: string;
-    twitterUrl?: string;
-    linkedinUrl?: string;
-    instagramUrl?: string;
-  };
+  templateParams?: any;
   options?: NotificationOptions;
   metadata?: NotificationMetadata;
 }

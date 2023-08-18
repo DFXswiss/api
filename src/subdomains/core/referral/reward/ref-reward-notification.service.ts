@@ -50,7 +50,7 @@ export class RefRewardNotificationService {
             input: {
               userData: entity.user.userData,
               title: `${MailTranslationKey.REFERRAL}.title`,
-              prefix: { key: `${MailTranslationKey.REFERRAL}.salutation` },
+              salutation: { key: `${MailTranslationKey.REFERRAL}.salutation` },
               table: {
                 [`${MailTranslationKey.REFERRAL}.output_amount`]: `${entity.outputAmount} ${entity.outputAsset}`,
                 [`${MailTranslationKey.PAYMENT}.blockchain`]: entity.targetBlockchain,
