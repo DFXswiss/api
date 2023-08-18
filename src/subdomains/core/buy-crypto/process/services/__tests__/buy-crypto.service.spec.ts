@@ -4,13 +4,13 @@ import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entit
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { TransactionSpecificationRepository } from 'src/shared/payment/repositories/transaction-specification.repository';
+import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { CryptoRouteRepository } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.repository';
 import { CryptoRouteService } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.service';
 import { createCustomHistory } from 'src/subdomains/core/history/dto/__mocks__/history.dto.mock';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
-import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
+import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxRepository } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.repository';
@@ -59,10 +59,10 @@ describe('BuyCryptoService', () => {
   let userService: UserService;
   let buyFiatService: BuyFiatService;
   let webhookService: WebhookService;
-  let transactionSpecificationRepo: TransactionSpecificationRepository;
+  let transactionHelper: TransactionHelper;
   let priceProviderService: PriceProviderService;
   let fiatService: FiatService;
-  let bankDataRepo: BankDataRepository;
+  let bankDataService: BankDataService;
   let buyCryptoWebhookService: BuyCryptoWebhookService;
   let assetService: AssetService;
 
@@ -83,10 +83,10 @@ describe('BuyCryptoService', () => {
     userService = createMock<UserService>();
     buyFiatService = createMock<BuyFiatService>();
     webhookService = createMock<WebhookService>();
-    transactionSpecificationRepo = createMock<TransactionSpecificationRepository>();
+    transactionHelper = createMock<TransactionHelper>();
     priceProviderService = createMock<PriceProviderService>();
     fiatService = createMock<FiatService>();
-    bankDataRepo = createMock<BankDataRepository>();
+    bankDataService = createMock<BankDataService>();
     buyCryptoWebhookService = createMock<BuyCryptoWebhookService>();
     assetService = createMock<AssetService>();
 
@@ -110,10 +110,10 @@ describe('BuyCryptoService', () => {
         { provide: UserService, useValue: userService },
         { provide: BuyFiatService, useValue: buyFiatService },
         { provide: WebhookService, useValue: webhookService },
-        { provide: TransactionSpecificationRepository, useValue: transactionSpecificationRepo },
+        { provide: TransactionHelper, useValue: transactionHelper },
         { provide: PriceProviderService, useValue: priceProviderService },
         { provide: FiatService, useValue: fiatService },
-        { provide: BankDataRepository, useValue: bankDataRepo },
+        { provide: BankDataService, useValue: bankDataService },
         { provide: BuyCryptoWebhookService, useValue: buyCryptoWebhookService },
         { provide: AssetService, useValue: assetService },
       ],

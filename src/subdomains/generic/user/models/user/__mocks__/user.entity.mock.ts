@@ -2,19 +2,16 @@ import { createDefaultUserData } from 'src/subdomains/generic/user/models/user-d
 import { createDefaultWallet } from 'src/subdomains/generic/user/models/wallet/__mocks__/wallet.entity.mock';
 import { User } from '../user.entity';
 
+const defaultUser: Partial<User> = {
+  userData: createDefaultUserData(),
+  wallet: createDefaultWallet(),
+  address: 'ADDR_01',
+};
+
 export function createDefaultUser(): User {
   return createCustomUser({});
 }
 
 export function createCustomUser(customValues: Partial<User>): User {
-  const { userData, wallet, address } = customValues;
-  const keys = Object.keys(customValues);
-
-  const entity = new User();
-
-  entity.userData = keys.includes('userData') ? userData : createDefaultUserData();
-  entity.wallet = keys.includes('wallet') ? wallet : createDefaultWallet();
-  entity.address = keys.includes('address') ? address : 'ADDR_01';
-
-  return entity;
+  return Object.assign(new User(), { ...defaultUser, ...customValues });
 }
