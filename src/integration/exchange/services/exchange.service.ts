@@ -95,10 +95,14 @@ export abstract class ExchangeService implements PricingProvider {
 
         // price changed -> update price
         if (price !== order.price) {
-          this.logger.verbose(`Order ${order.id} open, price changed ${order.price} -> ${price}`);
+          this.logger.verbose(
+            `Order ${order.id} open, price changed ${order.price} -> ${price}, restarting with ${order.remaining}`,
+          );
           const id = await this.updateOrderPrice(order, price).catch((e) =>
             this.logger.error(`Failed to update price of order ${order.id}:`, e),
           );
+          this.logger.verbose(`Order ${order.id} changed to ${id}`);
+
           if (id) throw new TradeChangedException(id);
         } else {
           this.logger.verbose(`Order ${order.id} open, price is still ${price}`);
@@ -244,7 +248,13 @@ export abstract class ExchangeService implements PricingProvider {
 
     const orderAmount = Util.roundToValue(direction === OrderSide.BUY ? amount / price : amount, amountPrecision);
 
-    return this.placeOrder(pair, direction, orderAmount, price);
+    const id = await this.placeOrder(pair, direction, orderAmount, price);
+
+    this.logger.verbose(
+      `Order ${id} placed (pair: ${pair}, direction: ${direction}, amount: ${amount}, price: ${price})`,
+    );
+
+    return id;
   }
 
   private async placeOrder(pair: string, direction: OrderSide, amount: number, price?: number): Promise<string> {
@@ -258,9 +268,9 @@ export abstract class ExchangeService implements PricingProvider {
   }
 
   protected async updateOrderPrice(order: Order, price: number): Promise<string> {
-    return this.callApi((e) => e.editOrder(order.id, order.symbol, order.type, order.side, order.amount, price)).then(
-      (o) => o.id,
-    );
+    return this.callApi((e) =>
+      e.editOrder(order.id, order.symbol, order.type, order.side, order.remaining, price),
+    ).then((o) => o.id);
   }
 
   // other

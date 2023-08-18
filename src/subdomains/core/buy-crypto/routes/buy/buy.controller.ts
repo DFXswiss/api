@@ -7,6 +7,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
+import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
@@ -65,21 +66,22 @@ export class BuyController {
   @Put('/quote')
   @ApiOkResponse({ type: BuyQuoteDto })
   async getBuyQuote(@Body() dto: GetBuyQuoteDto): Promise<BuyQuoteDto> {
-    const { amount, currency, asset } = await this.paymentInfoService.buyCheck(dto);
+    const { amount: sourceAmount, currency, asset, targetAmount } = await this.paymentInfoService.buyCheck(dto);
 
     const fee = Config.buy.fee.get(asset.feeTier, AccountType.PERSONAL);
 
-    const { exchangeRate, feeAmount, estimatedAmount } = await this.transactionHelper.getTxDetails(
-      amount,
-      fee,
-      currency,
-      asset,
-    );
+    const {
+      exchangeRate,
+      feeAmount,
+      estimatedAmount,
+      sourceAmount: amount,
+    } = await this.transactionHelper.getTxDetails(sourceAmount, targetAmount, fee, currency, asset);
 
     return {
       feeAmount,
       exchangeRate,
       estimatedAmount,
+      amount,
     };
   }
 
@@ -142,16 +144,17 @@ export class BuyController {
   }
 
   private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
-    const bankInfo = await this.getBankInfo(buy, dto);
     const fee = await this.userService.getUserBuyFee(userId, buy.asset);
-
     const {
       minVolume,
       minFee,
       minVolumeTarget,
       minFeeTarget,
-      estimatedAmount: estimatedAmount,
-    } = await this.transactionHelper.getTxDetails(dto.amount, fee, dto.currency, dto.asset);
+      estimatedAmount,
+      sourceAmount: amount,
+      isValid,
+    } = await this.transactionHelper.getTxDetails(dto.amount, dto.targetAmount, fee, dto.currency, dto.asset);
+    const bankInfo = await this.getBankInfo(buy, { ...dto, amount });
 
     return {
       routeId: buy.id,
@@ -165,6 +168,11 @@ export class BuyController {
       minVolumeTarget,
       minFeeTarget,
       estimatedAmount,
+      amount,
+      asset: AssetDtoMapper.entityToDto(dto.asset),
+      currency: FiatDtoMapper.entityToDto(dto.currency),
+      paymentRequest: this.generateGiroCode(buy, bankInfo, dto),
+      isValid,
     };
   }
 
@@ -180,5 +188,21 @@ export class BuyController {
     if (!bank) throw new BadRequestException('No Bank for the given amount/currency');
 
     return { ...Config.bank.dfxBankInfo, iban: bank.iban, bic: bank.bic, sepaInstant: bank.sctInst };
+  }
+
+  private generateGiroCode(buy: Buy, bankInfo: BankInfoDto, dto: GetBuyPaymentInfoDto): string {
+    return `
+${Config.giroCode.service}
+${Config.giroCode.version}
+${Config.giroCode.encoding}
+${Config.giroCode.transfer}
+${bankInfo.bic}
+${bankInfo.name}, ${bankInfo.street} ${bankInfo.number}, ${bankInfo.zip} ${bankInfo.city}, ${bankInfo.country}
+${bankInfo.iban}
+${dto.currency.name}${dto.amount}
+${Config.giroCode.char}
+${Config.giroCode.ref}
+${buy.bankUsage}
+`.trim();
   }
 }

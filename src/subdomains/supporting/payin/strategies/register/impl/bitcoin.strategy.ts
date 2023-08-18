@@ -8,7 +8,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
-import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
+import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
@@ -38,8 +38,8 @@ export class BitcoinStrategy extends JellyfishStrategy {
 
   //*** PUBLIC API ***//
 
-  async doAmlCheck(payIn: CryptoInput, route: Staking | Sell | CryptoRoute): Promise<AmlCheck> {
-    if (route.user.userData.kycStatus === KycStatus.REJECTED) return AmlCheck.FAIL;
+  async doAmlCheck(payIn: CryptoInput, route: Staking | Sell | CryptoRoute): Promise<CheckStatus> {
+    if (route.user.userData.kycStatus === KycStatus.REJECTED) return CheckStatus.FAIL;
 
     // TODO just check chainalysis if amount in EUR > 10k or userData.highRisk
     const highRisk = await this.chainalysisService.isHighRiskTx(
@@ -49,7 +49,7 @@ export class BitcoinStrategy extends JellyfishStrategy {
       'BTC',
       Blockchain.BITCOIN,
     );
-    return highRisk ? AmlCheck.FAIL : AmlCheck.PASS;
+    return highRisk ? CheckStatus.FAIL : CheckStatus.PASS;
   }
 
   /**

@@ -3,8 +3,7 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
-import { Util } from 'src/shared/utils/util';
-import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
+import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
@@ -37,8 +36,8 @@ export abstract class EvmStrategy extends RegisterStrategy {
     await this.getTransactionsAndCreatePayIns(addresses, lastCheckedBlockHeight);
   }
 
-  doAmlCheck(_: CryptoInput, route: Staking | Sell | CryptoRoute): AmlCheck {
-    return route.user.userData.kycStatus === KycStatus.REJECTED ? AmlCheck.FAIL : AmlCheck.PASS;
+  doAmlCheck(_: CryptoInput, route: Staking | Sell | CryptoRoute): CheckStatus {
+    return route.user.userData.kycStatus === KycStatus.REJECTED ? CheckStatus.FAIL : CheckStatus.PASS;
   }
 
   async addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void> {
@@ -96,12 +95,6 @@ export abstract class EvmStrategy extends RegisterStrategy {
       const [coinHistory, tokenHistory] = await this.payInEvmService.getHistory(address, lastCheckedBlockHeight + 1);
 
       const entries = this.mapHistoryToPayInEntries(address, coinHistory, tokenHistory, supportedAssets);
-
-      if (entries.length === 0) {
-        // rate limiting
-        await Util.delay(250);
-        continue;
-      }
 
       await this.processNewEntries(entries, lastCheckedBlockHeight, log);
     }

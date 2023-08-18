@@ -47,7 +47,7 @@ export class ArbitrumStrategy extends EvmStrategy {
 
   async getSourceAssetRepresentation(asset: Asset): Promise<Asset> {
     return this.assetService.getAssetByQuery({
-      dexName: asset.dexName,
+      dexName: asset.dexName.split('.')[0], // workaround for bridged USDC (USDC.e)
       blockchain: Blockchain.ETHEREUM,
       type: asset.type,
     });

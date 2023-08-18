@@ -1,7 +1,9 @@
 {
     "general": {
         "dfx_team_closing": "Tu Equipo DFX",
-        "dfx_closing_message": "Bitcoiners by heart ♥️"
+        "dfx_closing_message": "Bitcoiners by heart ♥️",
+        "support": "Si tienes alguna pregunta,<br>nos encantaría ayudarte en [mail:support@dfx.swiss].",
+        "thanks": "Muchas gracias por tu confianza"
     },
     "payment": {
         "buy_fiat": {
@@ -24,11 +26,95 @@
             "output_amount": "Importe",
             "payment_link": "Aqui puedes encontrar el identificador de tu transacción con tu retiro: [url:Link]"
         },
+        "buy_crypto": {
+            "title": "Depósito procesado",
+            "salutation": "Tu deposito se ha procesado satisfactoriamente",
+            "input_amount": "Depositado",
+            "output_amount": "Pago en criptomonedas",
+            "payment_link": "Aquí puedes encontrar el Identificador de tu transacción con tu pago: [url:Link]"
+        },
+        "return": {
+            "fiat": {
+                "title": "Los fondos han sido reembolsados",
+                "salutation": "Tus fondos se han reembolsado a tu cuenta bancaria"
+            },
+            "crypto": {
+                "title": "Los fondos han sido reembolsados",
+                "salutation": "Tus fondos han sido reembolsados a la dirección de tu billetera",
+                "payment_link": "Aquí encontrará el identificador<br>de su reembolso: [url:Link]"
+            },
+            "introduction": "Reason why we reimbursed your funds:<br>{reason}",
+            "reasons": {
+                "daily_limit": "Excediste el límite sin verificación KYC",
+                "user_data_mismatch": "El nombre que compartiste a DFX no encaja con el nombre del propietario del IBAN",
+                "iban_check": "El IBAN no puede ser usado por DFX",
+                "kyc_rejected": "Tu propuesta de registro KYC fue rechazada",
+                "name_check": "Por razones legales, no podemos servirle como cliente",
+                "annual_limit": "Excedes el límite anual",
+                "olky_no_kyc": "Tienes que completar KYC para DFX para poder usar Olkypay Bank",
+                "min_deposit_not_reached": "La cantidad de depósito mínima no ha sido alcanzada",
+                "name_check_without_kyc": "Tu transacción se ha cancelado debido a la falta del KYC",
+                "annual_limit_without_kyc": "Has excedido el límite anual sin KYC",
+                "asset_currently_not_available": "Este activo no está actualmente disponible para comerciar con DFX",
+                "staking_discontinued": "No se pueden depositar más en el servicio de Staking"
+            }
+        },
+        "pending": {
+            "daily_limit": {
+                "title": "Límite cada 24 excedido",
+                "salutation": "Has excedido tu volumen máximo durante 24 horas",
+                "line1": "Por favor, verificate a través de KYC (conoce a tu cliente) para incrementar tu límite.",
+                "line2": "Después de que pases el KYC empezaremos con tu transacción.",
+                "line3": "Sin verificación, su dinero será devuelto automáticamente al cabo de 7 días.",
+                "line4": "¿Quieres incrementar el límite a través del KYC?<br>Aprieta [url:aquí] para empezar el proceso KYC.",
+                "line5": "Alternativamente, puedes usar la app DFX en la página de pago,<br> apretar la flecha roja al lado de \"Tu límite\"<br> y empieza la verificación."
+            },
+            "annual_limit": {
+                "title": "Has excedido el límite anual",
+                "salutation": "Has excedido tu límite de volumen anual",
+                "line1": "Por favor, registra tu interés para un límite anual nuevo.",
+                "line2": "Una vez el nuevo límite anual de haya aprobado,<br> empezaremos con tu transacción.",
+                "line3": "¿Quieres incrementar el límite?",
+                "line4": "Abre la aplicación DFX a través de la página de pago en \"My DFX\".",
+                "line5": "Ves a la flecha roja debajo de \"Tu límite\" y<br> pide un límite nuevo."
+            },
+            "annual_limit_without_kyc": {
+                "title": "Transacción pendiente - límite anual excedido sin KYC",
+                "salutation": "Has excedido el volumen anual sin KYC",
+                "line1": "Querido y valorado cliente, muchas gracias por tu confianza en DFX AG.",
+                "line2": "Desafortunadamente, no podemos procesar la transferencia sin una verificación completa, ya que has excedido el límite anual.",
+                "line3": "Te proponemos que uses este enlace [url:aquí] para pasar el KYC con tu tarjeta de identidad.",
+                "line4": "Alternativamente, puedes también usar la app DFX en la página de pago <br> para apretar en la flecha roja al lado de \"Tu límite\" <br> y empieza el KYC",
+                "line5": "Si no quieres llevar a cabo la verificación, el dinero se devolverá después de 7 días."
+            },
+            "olky_no_kyc": {
+                "title": "Se requiere el registro KYC para usar las transferencias SEPA instantáneas",
+                "salutation": "La verificación de KYC es requerida para usar nuestro banco en Luxemburgo",
+                "line1": "Para poder usar nuestra cuenta bancaria en Luxemburgo con la función instantánea SEPA, la verificación completa es desafortunadamente obligatoria.",
+                "line2": "Por ello, les pedimos que usen este enlace [url:aquí] para ejecutar el KYC con tu tarjeta de identificación.",
+                "line3": "Alternativamente, puedes usar la app DFX en la página de pagos <br> y  apretar en la flecha roja al lado de  \"Tu límite\" <br> y empiezas el KYC.",
+                "line4": "Sin la verificación, puedes continuar usando nuestro banco en Suiza hasta 1,000 euros al día sin el KYC con transferencias SEPA ordinarias.",
+                "line5": "Si no quieres pasar el proceso de verificación, el dinero se devolverá en su totalidad a partir del séptimo día."
+            },
+            "name_check_without_kyc": {
+                "title": "Se requiere KYC para ejecutar la transacción pendiente",
+                "salutation": "La transacción pendiente necesita una verificación KYC completa antes de su ejecución",
+                "line1": "Querido y valorado cliente, muchas gracias por tu confianza en DFX AG.",
+                "line2": "Desafortunadamente, no podemos procesar tu orden sin una verificación KYC completa.",
+                "line3": "Por ello, te invitamos a que uses el enlace a continuación [url:aquí] para pasar la verificación KYC con tu tarjeta de identidad.",
+                "line4": "Alternativamente, puedes usar la app DFX en la página de pago <br> y apretar la flecha roja al lado de \"Tu límite\" <br> y empezar el KYC.",
+                "line5": "Si no quieres llevar a cabo la verificación, el dinero se devolverá después de 7 días."
+            }
+        },
         "blockchain": "Blockchain",
+        "input_blockchain": "Blockchain de depósito",
+        "output_blockchain": "Blockchain de pago",
         "dfx_fee": "DFX Comisión",
         "exchange_rate": "Tasa de cambio",
         "bank_account": "Cuenta bancaria",
         "remittance_info": "Uso bancario",
-        "transaction_id": "Identificador de la transacción"
+        "transaction_id": "Identificador de la transacción",
+        "wallet_address": "Dirección de la billetera",
+        "reimbursed": "Reembolsados"
     }
 }

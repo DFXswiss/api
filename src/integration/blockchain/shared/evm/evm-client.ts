@@ -1,9 +1,9 @@
-import { CurrencyAmount, Percent, Token, TradeType } from '@uniswap/sdk-core';
-import { AlphaRouter, ChainId, SwapType } from '@uniswap/smart-order-router';
+import { ChainId, CurrencyAmount, Percent, Token, TradeType } from '@uniswap/sdk-core';
+import { AlphaRouter, SwapType } from '@uniswap/smart-order-router';
 import BigNumber from 'bignumber.js';
 import { BigNumberish, Contract, BigNumber as EthersNumber, ethers } from 'ethers';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { HttpService } from 'src/shared/services/http.service';
+import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import ERC20_ABI from './abi/erc20.abi.json';
@@ -85,7 +85,7 @@ export abstract class EvmClient {
   }
 
   async getTokenGasLimitForContact(contract: Contract): Promise<EthersNumber> {
-    return contract.estimateGas.transfer(this.randomReceiverAddress, 1);
+    return contract.estimateGas.transfer(this.randomReceiverAddress, 1).then((l) => l.mul(12).div(10));
   }
 
   // --- PUBLIC API - WRITE TRANSACTIONS --- //
@@ -349,10 +349,28 @@ export abstract class EvmClient {
       action: type,
     };
 
-    const { result, message } = await this.http.get<ScanApiResponse<T[]>>(this.scanApiUrl, { params });
+    const { result, message } = await this.callScanApi({ method: 'GET', params });
 
     if (!Array.isArray(result)) throw new Error(`Failed to get ${type} transactions: ${result ?? message}`);
 
     return result;
+  }
+
+  private async callScanApi<T>(config: HttpRequestConfig, nthTry = 10): Promise<ScanApiResponse<T>> {
+    const requestConfig = { url: this.scanApiUrl, ...config };
+
+    try {
+      const response = await this.http.request<ScanApiResponse<T>>(requestConfig);
+      if (response.status === '0' && typeof response.result === 'string') throw new Error(response.result);
+
+      return response;
+    } catch (e) {
+      if (nthTry > 1 && (e.message?.includes('Max rate limit reached') || e.response?.status === 429)) {
+        await Util.delay(1000);
+        return this.callScanApi(requestConfig, nthTry - 1);
+      }
+
+      throw e;
+    }
   }
 }

@@ -2,23 +2,44 @@ import { Injectable } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
+import { AmlReason } from 'src/subdomains/core/buy-crypto/process/enums/aml-reason.enum';
 import { Mail, MailParams } from '../entities/mail/base/mail';
 import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
 import { KycSupportMail, KycSupportMailInput } from '../entities/mail/kyc-support-mail';
 import { PersonalMail, PersonalMailInput } from '../entities/mail/personal-mail';
 import { UserMail, UserMailInput, UserMailNew, UserMailSuffix, UserMailTable } from '../entities/mail/user-mail';
 import { MailType } from '../enums';
-import { MailRequest, MailRequestGenericInput, MailRequestInput, MailRequestNew, TranslationItem } from '../interfaces';
+import {
+  MailRequest,
+  MailRequestGenericInput,
+  MailRequestInput,
+  MailRequestNew,
+  TranslationItem,
+  TranslationParams,
+} from '../interfaces';
 
 export enum MailTranslationKey {
   GENERAL = 'translation.general',
   PAYMENT = 'translation.payment',
   BUY_FIAT = 'translation.payment.buy_fiat',
+  BUY_CRYPTO = 'translation.payment.buy_crypto',
+  PENDING = 'translation.payment.pending',
+  RETURN = 'translation.payment.return',
+  RETURN_REASON = 'translation.payment.return.reasons',
+  CRYPTO_RETURN = 'translation.payment.return.crypto',
+  FIAT_RETURN = 'translation.payment.return.fiat',
 }
 
 export enum MailKey {
   SPACE = 'space',
   DFX_TEAM_CLOSING = 'dfxTeamClosing',
+}
+
+interface SpecialTag {
+  text: string;
+  textSuffix: string;
+  tag: string;
+  value: string;
 }
 
 const MailDefaultStyle = 'Open Sans,Helvetica,Arial,sans-serif';
@@ -60,7 +81,7 @@ export class MailFactory {
     }
   }
 
-  async createMailNew(request: MailRequestNew): Promise<Mail> {
+  createMailNew(request: MailRequestNew): Mail {
     switch (request.type) {
       case MailType.USER: {
         return this.createUserMailNew(request);
@@ -151,7 +172,7 @@ export class MailFactory {
     });
   }
 
-  private async createUserMailNew(request: MailRequestNew): Promise<UserMailNew> {
+  private createUserMailNew(request: MailRequestNew): UserMailNew {
     const { metadata, options } = request;
     const { userData, title, prefix, suffix, table } = request.input as MailRequestInput;
 
@@ -246,7 +267,8 @@ export class MailFactory {
         ];
 
       default:
-        const text = this.tNew(element.key, lang);
+        const translatedParams = this.translateParams(element.params, lang);
+        const text = this.tNew(element.key, lang, translatedParams);
         const specialTag = this.parseSpecialTag(text);
 
         return [
@@ -256,8 +278,11 @@ export class MailFactory {
                 ? {
                     link: element.params.url,
                     text: specialTag.value,
+                    textSuffix: specialTag.textSuffix,
                   }
                 : undefined,
+            mail:
+              specialTag?.tag === 'mail' ? { address: specialTag.value, textSuffix: specialTag.textSuffix } : undefined,
             style: element.params?.style ?? MailDefaultStyle,
             text: specialTag?.text ?? text,
           },
@@ -265,8 +290,25 @@ export class MailFactory {
     }
   }
 
-  private parseSpecialTag(text: string): { text: string; tag: string; value: string } | undefined {
-    const match = /^(.*)\[(\w*):(\w*)\]$/.exec(text);
-    return match ? { text: match[1], tag: match[2], value: match[3] } : undefined;
+  private parseSpecialTag(text: string): SpecialTag | undefined {
+    const match = /^(.*)\[(\w+):([^\]]+)\](.*)$/.exec(text);
+    return match ? { text: match[1], textSuffix: match[4], tag: match[2], value: match[3] } : undefined;
+  }
+
+  private translateParams(params: TranslationParams, lang: string): TranslationParams {
+    return params
+      ? Object.entries(params)
+          .map(([key, value]) => [key, this.tNew(value, lang)])
+          .reduce((prev, [key, value]) => {
+            prev[key] = value;
+            return prev;
+          }, {})
+      : {};
+  }
+
+  //*** STATIC HELPER METHODS ***//
+
+  static parseMailKey(mailKey: MailTranslationKey, amlReason: AmlReason): string {
+    return `${mailKey}.${amlReason.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase()}`;
   }
 }

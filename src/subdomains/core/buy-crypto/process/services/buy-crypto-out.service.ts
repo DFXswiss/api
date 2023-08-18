@@ -1,7 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
-import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
@@ -13,6 +11,7 @@ import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repository';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoPricingService } from './buy-crypto-pricing.service';
+import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 
 @Injectable()
 export class BuyCryptoOutService {
@@ -24,7 +23,7 @@ export class BuyCryptoOutService {
     private readonly buyCryptoPricingService: BuyCryptoPricingService,
     private readonly dexService: DexService,
     private readonly payoutService: PayoutService,
-    private readonly webhookService: WebhookService,
+    private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
   ) {}
 
   async payoutTransactions(): Promise<void> {
@@ -125,19 +124,22 @@ export class BuyCryptoOutService {
           payoutFee: nativePayoutFee,
         } = await this.payoutService.checkOrderCompletion(PayoutOrderContext.BUY_CRYPTO, tx.id.toString());
 
+        if (tx.txId !== payoutTxId) {
+          tx.setTxId(payoutTxId);
+          await this.buyCryptoRepo.save(tx);
+        }
+
         if (isComplete) {
           const payoutFee = await this.buyCryptoPricingService.getFeeAmountInRefAsset(
             tx.outputReferenceAsset,
             nativePayoutFee,
           );
 
-          tx.complete(payoutTxId, payoutFee);
+          tx.complete(payoutFee);
           await this.buyCryptoRepo.save(tx);
 
           // payment webhook
-          tx.buy
-            ? await this.webhookService.fiatCryptoUpdate(tx.user, tx, PaymentWebhookState.COMPLETED)
-            : await this.webhookService.cryptoCryptoUpdate(tx.user, tx, PaymentWebhookState.COMPLETED);
+          await this.buyCryptoWebhookService.triggerWebhook(tx);
         }
       } catch (e) {
         this.logger.error(`Error on validating completion for transaction ${tx.id}:`, e);

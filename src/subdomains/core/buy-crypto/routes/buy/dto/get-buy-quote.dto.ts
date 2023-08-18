@@ -1,25 +1,35 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsNotEmpty, IsNotEmptyObject, IsNumber, ValidateNested } from 'class-validator';
+import { IsNotEmpty, IsNotEmptyObject, IsNumber, Validate, ValidateIf, ValidateNested } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { XOR } from 'src/shared/validators/xor.validator';
 
 export class GetBuyQuoteDto {
-  @ApiProperty({ type: EntityDto })
+  @ApiProperty({ type: EntityDto, description: 'Source currency' })
+  @IsNotEmptyObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  currency: Fiat;
+
+  @ApiProperty({ type: EntityDto, description: 'Target asset' })
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)
   asset: Asset;
 
-  @ApiProperty()
+  @ApiPropertyOptional({ description: 'Amount in source currency' })
   @IsNotEmpty()
+  @ValidateIf((b: GetBuyQuoteDto) => Boolean(b.amount || !b.targetAmount))
+  @Validate(XOR, ['targetAmount'])
   @IsNumber()
   amount: number;
 
-  @ApiProperty({ type: EntityDto })
-  @IsNotEmptyObject()
-  @ValidateNested()
-  @Type(() => EntityDto)
-  currency: Fiat;
+  @ApiPropertyOptional({ description: 'Amount in target asset' })
+  @IsNotEmpty()
+  @ValidateIf((b: GetBuyQuoteDto) => Boolean(b.targetAmount || !b.amount))
+  @Validate(XOR, ['amount'])
+  @IsNumber()
+  targetAmount: number;
 }

@@ -1,6 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { TransactionSpecificationRepository } from 'src/shared/payment/repositories/transaction-specification.repository';
@@ -27,6 +28,7 @@ import { BuyCryptoDexService } from '../buy-crypto-dex.service';
 import { BuyCryptoNotificationService } from '../buy-crypto-notification.service';
 import { BuyCryptoOutService } from '../buy-crypto-out.service';
 import { BuyCryptoRegistrationService } from '../buy-crypto-registration.service';
+import { BuyCryptoWebhookService } from '../buy-crypto-webhook.service';
 import { BuyCryptoService } from '../buy-crypto.service';
 
 enum MockBuyData {
@@ -61,6 +63,8 @@ describe('BuyCryptoService', () => {
   let priceProviderService: PriceProviderService;
   let fiatService: FiatService;
   let bankDataRepo: BankDataRepository;
+  let buyCryptoWebhookService: BuyCryptoWebhookService;
+  let assetService: AssetService;
 
   beforeEach(async () => {
     buyCryptoRepo = createMock<BuyCryptoRepository>();
@@ -83,6 +87,8 @@ describe('BuyCryptoService', () => {
     priceProviderService = createMock<PriceProviderService>();
     fiatService = createMock<FiatService>();
     bankDataRepo = createMock<BankDataRepository>();
+    buyCryptoWebhookService = createMock<BuyCryptoWebhookService>();
+    assetService = createMock<AssetService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -108,6 +114,8 @@ describe('BuyCryptoService', () => {
         { provide: PriceProviderService, useValue: priceProviderService },
         { provide: FiatService, useValue: fiatService },
         { provide: BankDataRepository, useValue: bankDataRepo },
+        { provide: BuyCryptoWebhookService, useValue: buyCryptoWebhookService },
+        { provide: AssetService, useValue: assetService },
       ],
     }).compile();
 

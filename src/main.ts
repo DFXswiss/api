@@ -38,7 +38,7 @@ async function bootstrap() {
 
   const swaggerOptions = new DocumentBuilder()
     .setTitle('DFX API')
-    .setDescription(`DFX API (updated on ${new Date().toLocaleString()})`)
+    .setDescription(`DFX API ${Config.environment.toUpperCase()} (updated on ${new Date().toLocaleString()})`)
     .setVersion(Config.version)
     .addBearerAuth()
     .build();

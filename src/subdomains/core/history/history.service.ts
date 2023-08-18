@@ -1,20 +1,20 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Readable } from 'stream';
-import { Util } from 'src/shared/utils/util';
 import { DfiTaxService } from 'src/integration/blockchain/ain/services/dfi-tax.service';
-import { PayoutType } from '../staking/entities/staking-reward.entity';
-import { RefRewardService } from '../referral/reward/ref-reward.service';
-import { HistoryQuery } from './dto/history-query.dto';
-import { CryptoStaking } from '../staking/entities/crypto-staking.entity';
-import { RefReward } from '../referral/reward/ref-reward.entity';
-import { StakingRefReward, StakingRefType } from '../staking/entities/staking-ref-reward.entity';
-import { BuyFiatService } from '../sell-crypto/process/buy-fiat.service';
-import { CoinTrackingHistory } from './dto/coin-tracking-history.dto';
-import { BuyCrypto } from '../buy-crypto/process/entities/buy-crypto.entity';
-import { AmlCheck } from '../buy-crypto/process/enums/aml-check.enum';
-import { BuyCryptoService } from '../buy-crypto/process/services/buy-crypto.service';
-import { StakingService } from '../staking/services/staking.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
+import { Readable } from 'stream';
+import { BuyCrypto } from '../buy-crypto/process/entities/buy-crypto.entity';
+import { CheckStatus } from '../buy-crypto/process/enums/check-status.enum';
+import { BuyCryptoService } from '../buy-crypto/process/services/buy-crypto.service';
+import { RefReward } from '../referral/reward/ref-reward.entity';
+import { RefRewardService } from '../referral/reward/ref-reward.service';
+import { BuyFiatService } from '../sell-crypto/process/buy-fiat.service';
+import { CryptoStaking } from '../staking/entities/crypto-staking.entity';
+import { StakingRefReward, StakingRefType } from '../staking/entities/staking-ref-reward.entity';
+import { PayoutType } from '../staking/entities/staking-reward.entity';
+import { StakingService } from '../staking/services/staking.service';
+import { CoinTrackingHistory } from './dto/coin-tracking-history.dto';
+import { HistoryQuery } from './dto/history-query.dto';
 
 @Injectable()
 export class HistoryService {
@@ -66,7 +66,7 @@ export class HistoryService {
     return buyCryptos
       .filter(
         (c) =>
-          c.amlCheck === AmlCheck.PASS &&
+          c.amlCheck === CheckStatus.PASS &&
           c.inputAmount &&
           c.outputAmount &&
           c.inputAsset &&
@@ -136,7 +136,7 @@ export class HistoryService {
     return buyCryptos
       .filter(
         (c) =>
-          c.amlCheck === AmlCheck.PASS &&
+          c.amlCheck === CheckStatus.PASS &&
           c.inputAmount &&
           c.outputAmount &&
           c.inputAsset &&
@@ -187,7 +187,7 @@ export class HistoryService {
     return buyFiats
       .filter(
         (c) =>
-          c.amlCheck === AmlCheck.PASS &&
+          c.amlCheck === CheckStatus.PASS &&
           c.fiatOutput.bankTx &&
           c.cryptoInput &&
           c.outputAmount &&

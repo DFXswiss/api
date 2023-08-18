@@ -2,10 +2,12 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { IEntity } from 'src/shared/models/entity';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { FeeLimitExceededException } from 'src/shared/payment/exceptions/fee-limit-exceeded.exception';
 import { Util } from 'src/shared/utils/util';
-import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
+import { AmlReason } from 'src/subdomains/core/buy-crypto/process/enums/aml-reason.enum';
+import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
+import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { DepositRoute, DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { Column, Entity, Index, ManyToOne } from 'typeorm';
 
@@ -52,6 +54,12 @@ export class CryptoInput extends IEntity {
   @Column({ length: 256, nullable: true })
   returnTxId: string;
 
+  @Column({ length: 256, nullable: true })
+  recipientMail: string;
+
+  @Column({ type: 'datetime2', nullable: true })
+  mailReturnSendDate: Date;
+
   @Column({ nullable: true })
   prepareTxId: string;
 
@@ -83,7 +91,7 @@ export class CryptoInput extends IEntity {
   isConfirmed: boolean;
 
   @Column({ length: 256, nullable: true })
-  amlCheck: AmlCheck;
+  amlCheck: CheckStatus;
 
   @Column({ length: 256, nullable: true })
   purpose: PayInPurpose;
@@ -145,7 +153,7 @@ export class CryptoInput extends IEntity {
 
   //*** PUBLIC API ***//
 
-  acknowledge(purpose: PayInPurpose, route: DepositRouteType, amlCheck: AmlCheck): this {
+  acknowledge(purpose: PayInPurpose, route: DepositRouteType, amlCheck: CheckStatus): this {
     this.purpose = purpose;
     this.route = route;
     this.amlCheck = amlCheck;
@@ -174,7 +182,7 @@ export class CryptoInput extends IEntity {
     purpose: PayInPurpose,
     returnAddress: BlockchainAddress,
     route: DepositRouteType,
-    amlCheck: AmlCheck,
+    amlCheck: CheckStatus,
   ): this {
     this.purpose = purpose;
     this.route = route;
@@ -238,6 +246,17 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
+  returnMail(): UpdateResult<CryptoInput> {
+    const update: Partial<CryptoInput> = {
+      recipientMail: this.route.user.userData.mail,
+      mailReturnSendDate: new Date(),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   addReferenceAmounts(btcAmount: number, usdtAmount: number): this {
     if (
       btcAmount == null ||
@@ -258,5 +277,13 @@ export class CryptoInput extends IEntity {
     this.status = PayInStatus.CREATED;
 
     return this;
+  }
+
+  get isLightningInput(): boolean {
+    return this.asset.blockchain === Blockchain.LIGHTNING;
+  }
+
+  get amlReason(): AmlReason {
+    return this.route instanceof Staking ? AmlReason.STAKING_DISCONTINUED : AmlReason.ASSET_CURRENTLY_NOT_AVAILABLE;
   }
 }

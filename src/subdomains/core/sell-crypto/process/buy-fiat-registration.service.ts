@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { PayInIgnoredException } from 'src/shared/payment/exceptions/pay-in-ignored.exception';
+import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { TransactionHelper, ValidationError } from 'src/shared/payment/services/transaction-helper';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { IsNull, Not } from 'typeorm';
@@ -7,8 +9,6 @@ import { Sell } from '../route/sell.entity';
 import { SellRepository } from '../route/sell.repository';
 import { BuyFiat } from './buy-fiat.entity';
 import { BuyFiatRepository } from './buy-fiat.repository';
-import { BuyFiatInitSpecification } from './specifications/buy-fiat-init.specification';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BuyFiatRegistrationService {
@@ -18,7 +18,7 @@ export class BuyFiatRegistrationService {
     private readonly buyFiatRepo: BuyFiatRepository,
     private readonly sellRepository: SellRepository,
     private readonly payInService: PayInService,
-    private readonly buyFiatInitSpec: BuyFiatInitSpecification,
+    private readonly transactionHelper: TransactionHelper,
   ) {}
 
   async registerSellPayIn(): Promise<void> {
@@ -72,18 +72,30 @@ export class BuyFiatRegistrationService {
 
         if (!buyFiat) {
           buyFiat = BuyFiat.createFromPayIn(payIn, sellRoute);
-          await this.buyFiatInitSpec.isSatisfiedBy(buyFiat);
+
+          const result = await this.transactionHelper.validateInput(
+            buyFiat.cryptoInput.asset,
+            buyFiat.cryptoInput.amount,
+          );
+
+          if (result === ValidationError.PAY_IN_TOO_SMALL) {
+            await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_FIAT, sellRoute);
+            continue;
+          } else if (result === ValidationError.PAY_IN_NOT_SELLABLE) {
+            await this.payInService.returnPayIn(
+              payIn,
+              PayInPurpose.BUY_FIAT,
+              BlockchainAddress.create(sellRoute.user.address, sellRoute.deposit.blockchain),
+              sellRoute,
+            );
+            continue;
+          }
+
           await this.buyFiatRepo.save(buyFiat);
         }
 
         await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_FIAT, sellRoute);
       } catch (e) {
-        if (e instanceof PayInIgnoredException) {
-          await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_FIAT, sellRoute);
-
-          continue;
-        }
-
         this.logger.error(`Error during buy-fiat pay-in registration (pay-in ${payIn.id}):`, e);
       }
     }

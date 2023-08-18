@@ -1,4 +1,4 @@
-import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
+import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { HistoryDto, PaymentStatus } from 'src/subdomains/core/history/dto/history.dto';
 
 const defaultHistory: HistoryDto = {
@@ -10,7 +10,7 @@ const defaultHistory: HistoryDto = {
   isComplete: false,
   txId: 'TX_INPUT_ID_01',
   txUrl: 'https://defiscan.live/transactions/TX_ID_01',
-  amlCheck: AmlCheck.PASS,
+  amlCheck: CheckStatus.PASS,
   status: PaymentStatus.PENDING,
 };
 

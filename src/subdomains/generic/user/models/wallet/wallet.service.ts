@@ -5,14 +5,22 @@ import { Wallet } from './wallet.entity';
 
 @Injectable()
 export class WalletService {
-  constructor(private readonly walletRepo: WalletRepository) {}
+  constructor(private readonly repo: WalletRepository) {}
 
-  async getWalletOrDefault(id: number): Promise<Wallet> {
-    return (await this.walletRepo.findOneBy({ id })) ?? (await this.walletRepo.findOneBy({ id: 1 }));
+  async getByAddress(address: string): Promise<Wallet | undefined> {
+    return this.repo.findOneBy({ address });
+  }
+
+  async getByIdOrName(id?: number, name?: string): Promise<Wallet | undefined> {
+    return id || name ? this.repo.findOneBy([{ id }, { name }]) : undefined;
+  }
+
+  async getDefault(): Promise<Wallet> {
+    return this.repo.findOneBy({ id: 1 });
   }
 
   async getAllExternalServices(): Promise<Wallet[]> {
-    return this.walletRepo.findBy({ isKycClient: true });
+    return this.repo.findBy({ isKycClient: true });
   }
 
   public getApiKeyInternal(name: string): string {

@@ -56,28 +56,38 @@ export class CryptoRouteController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
   async createCrypto(@GetJwt() jwt: JwtPayload, @Body() dto: CreateCryptoRouteDto): Promise<CryptoRouteDto> {
+    dto.targetAsset ??= dto.asset;
+
     dto = await this.paymentInfoService.cryptoCheck(dto, jwt);
-    return this.cryptoRouteService.createCrypto(jwt.id, dto).then((b) => this.toDto(jwt.id, b));
+    return this.cryptoRouteService
+      .createCrypto(jwt.id, dto.blockchain, dto.targetAsset)
+      .then((b) => this.toDto(jwt.id, b));
   }
 
   @Put('/quote')
   @ApiOkResponse({ type: CryptoQuoteDto })
   async getCryptoQuote(@Body() dto: GetCryptoQuoteDto): Promise<CryptoQuoteDto> {
-    const { amount, sourceAsset, asset } = await this.paymentInfoService.cryptoCheck(dto);
+    const {
+      amount: sourceAmount,
+      sourceAsset,
+      targetAsset,
+      targetAmount,
+    } = await this.paymentInfoService.cryptoCheck(dto);
 
     const fee = Config.crypto.fee;
 
-    const { exchangeRate, feeAmount, estimatedAmount } = await this.transactionHelper.getTxDetails(
-      amount,
-      fee,
-      sourceAsset,
-      asset,
-    );
+    const {
+      exchangeRate,
+      feeAmount,
+      estimatedAmount,
+      sourceAmount: amount,
+    } = await this.transactionHelper.getTxDetails(sourceAmount, targetAmount, fee, sourceAsset, targetAsset);
 
     return {
       feeAmount,
       exchangeRate,
       estimatedAmount,
+      amount,
     };
   }
 
@@ -91,7 +101,7 @@ export class CryptoRouteController {
   ): Promise<CryptoPaymentInfoDto> {
     dto = await this.paymentInfoService.cryptoCheck(dto, jwt);
     return this.cryptoRouteService
-      .createCrypto(jwt.id, { ...dto, blockchain: dto.sourceAsset.blockchain }, true)
+      .createCrypto(jwt.id, dto.sourceAsset.blockchain, dto.targetAsset, true)
       .then((crypto) => this.toPaymentInfoDto(jwt.id, crypto, dto));
   }
 
@@ -156,8 +166,10 @@ export class CryptoRouteController {
       minFee,
       minVolumeTarget,
       minFeeTarget,
-      estimatedAmount: estimatedAmount,
-    } = await this.transactionHelper.getTxDetails(dto.amount, fee, dto.sourceAsset, dto.asset);
+      estimatedAmount,
+      sourceAmount: amount,
+      isValid,
+    } = await this.transactionHelper.getTxDetails(dto.amount, dto.targetAmount, fee, dto.sourceAsset, dto.targetAsset);
 
     return {
       routeId: cryptoRoute.id,
@@ -170,6 +182,10 @@ export class CryptoRouteController {
       minVolumeTarget,
       minFeeTarget,
       estimatedAmount,
+      amount,
+      targetAsset: AssetDtoMapper.entityToDto(dto.targetAsset),
+      sourceAsset: AssetDtoMapper.entityToDto(dto.sourceAsset),
+      isValid,
     };
   }
 }

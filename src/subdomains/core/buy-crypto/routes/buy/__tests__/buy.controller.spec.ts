@@ -21,11 +21,16 @@ import { BuyController } from '../buy.controller';
 import { BuyService } from '../buy.service';
 import { GetBuyPaymentInfoDto } from '../dto/get-buy-payment-info.dto';
 
-function createBuyPaymentInfoDto(amount = 1, currency: Fiat = { id: 1 } as Fiat): GetBuyPaymentInfoDto {
+function createBuyPaymentInfoDto(
+  amount = 1,
+  targetAmount = 1,
+  currency: Fiat = { id: 1 } as Fiat,
+): GetBuyPaymentInfoDto {
   return {
     iban: 'DE123456786',
     asset: { id: 1 } as Asset,
     amount: amount,
+    targetAmount: targetAmount,
     currency: currency,
   };
 }
@@ -92,19 +97,21 @@ describe('BuyController', () => {
     jest.spyOn(buyService, 'createBuy').mockResolvedValue(createDefaultBuy());
     jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(createDefaultCountry());
     jest.spyOn(userService, 'getUserBuyFee').mockResolvedValue(0.01);
-    jest
-      .spyOn(transactionHelper, 'getTxDetails')
-      .mockResolvedValue({
-        minVolume: 0,
-        minFee: 0,
-        minVolumeTarget: 0,
-        minFeeTarget: 0,
-        exchangeRate: 10,
-        feeAmount: 3,
-        estimatedAmount: 100,
-      });
+    jest.spyOn(transactionHelper, 'getTxDetails').mockResolvedValue({
+      minVolume: 0,
+      minFee: 0,
+      minVolumeTarget: 0,
+      minFeeTarget: 0,
+      exchangeRate: 10,
+      feeAmount: 3,
+      estimatedAmount: 100,
+      sourceAmount: 50,
+      isValid: true
+    });
 
     const dto = createBuyPaymentInfoDto();
+
+    jest.spyOn(paymentInfoService, 'buyCheck').mockImplementation(async (dto) => dto);
 
     await expect(controller.createBuyWithPaymentInfo(createJwt(), dto)).resolves.toMatchObject({
       name: 'DFX AG',

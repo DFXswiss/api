@@ -13,6 +13,11 @@ import { TransactionDirection, TransactionSpecification } from '../entities/tran
 import { TxSpec } from '../entities/tx-spec';
 import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
 
+export enum ValidationError {
+  PAY_IN_TOO_SMALL = 'PayInTooSmall',
+  PAY_IN_NOT_SELLABLE = 'PayInNotSellable',
+}
+
 @Injectable()
 export class TransactionHelper implements OnModuleInit {
   private eur: Fiat;
@@ -36,13 +41,15 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   // --- SPECIFICATIONS --- //
-  async isValidInput(from: Asset | Fiat, amount: number): Promise<boolean> {
-    // check sellable
-    if (!from.sellable) return false;
-
+  async validateInput(from: Asset | Fiat, amount: number): Promise<true | ValidationError> {
     // check min. volume
     const { minVolume } = await this.getInSpecs(from);
-    return amount > minVolume * 0.5;
+    if (amount < minVolume * 0.5) return ValidationError.PAY_IN_TOO_SMALL;
+
+    // check sellable
+    if (!from.sellable) return ValidationError.PAY_IN_NOT_SELLABLE;
+
+    return true;
   }
 
   async getInSpecs(from: Asset | Fiat): Promise<TxSpec> {
@@ -97,13 +104,19 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   // --- TARGET ESTIMATION --- //
-  async getTxDetails(amount: number, fee: number, from: Asset | Fiat, to: Asset | Fiat): Promise<TransactionDetails> {
+  async getTxDetails(
+    sourceAmount: number | undefined,
+    targetAmount: number | undefined,
+    fee: number,
+    from: Asset | Fiat,
+    to: Asset | Fiat,
+  ): Promise<TransactionDetails> {
     const specs = this.getSpecs(from, to);
 
     const { minVolume, minFee } = await this.convertToSource(from, specs);
     const { minVolume: minVolumeTarget, minFee: minFeeTarget } = await this.convertToTarget(to, specs);
 
-    const target = await this.getTargetEstimation(amount, fee, minFee, from, to);
+    const target = await this.getTargetEstimation(sourceAmount, targetAmount, fee, minFee, from, to);
 
     return {
       ...target,
@@ -111,24 +124,32 @@ export class TransactionHelper implements OnModuleInit {
       minVolume,
       minFeeTarget,
       minVolumeTarget,
+      isValid: target.sourceAmount >= minVolume,
     };
   }
 
   private async getTargetEstimation(
-    amount: number,
+    inputAmount: number | undefined,
+    outputAmount: number | undefined,
     fee: number,
     minFee: number,
     from: Asset | Fiat,
     to: Asset | Fiat,
   ): Promise<TargetEstimation> {
     const price = await this.priceProviderService.getPrice(from, to);
-    const feeAmount = Math.max(amount * fee, minFee);
-    const targetAmount = this.convert(Math.max(amount - feeAmount, 0), price, to instanceof Fiat);
+
+    const percentFeeAmount =
+      outputAmount != null ? price.invert().convert((outputAmount * fee) / (1 - fee)) : inputAmount * fee;
+    const feeAmount = Math.max(percentFeeAmount, minFee);
+
+    const targetAmount = outputAmount != null ? outputAmount : price.convert(Math.max(inputAmount - feeAmount, 0));
+    const sourceAmount = outputAmount != null ? price.invert().convert(outputAmount) + feeAmount : inputAmount;
 
     return {
       exchangeRate: this.round(price.price, from instanceof Fiat),
       feeAmount: this.round(feeAmount, from instanceof Fiat),
-      estimatedAmount: targetAmount,
+      estimatedAmount: this.round(targetAmount, to instanceof Fiat),
+      sourceAmount: this.round(sourceAmount, from instanceof Fiat),
     };
   }
 

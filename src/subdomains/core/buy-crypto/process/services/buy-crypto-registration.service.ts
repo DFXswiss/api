@@ -1,14 +1,14 @@
 import { Injectable } from '@nestjs/common';
+import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { TransactionHelper, ValidationError } from 'src/shared/payment/services/transaction-helper';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { CryptoRouteRepository } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.repository';
-import { PayInIgnoredException } from 'src/shared/payment/exceptions/pay-in-ignored.exception';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { IsNull, Not } from 'typeorm';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
-import { BuyCryptoInitSpecification } from '../specifications/buy-crypto-init.specification';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class BuyCryptoRegistrationService {
@@ -18,7 +18,7 @@ export class BuyCryptoRegistrationService {
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly cryptoRouteRepository: CryptoRouteRepository,
     private readonly payInService: PayInService,
-    private readonly buyCryptoInitSpec: BuyCryptoInitSpecification,
+    private readonly transactionHelper: TransactionHelper,
   ) {}
 
   async registerCryptoPayIn(): Promise<void> {
@@ -72,18 +72,32 @@ export class BuyCryptoRegistrationService {
 
         if (!existingBuyCrypto) {
           const newBuyCrypto = BuyCrypto.createFromPayIn(payIn, cryptoRoute);
-          await this.buyCryptoInitSpec.isSatisfiedBy(newBuyCrypto);
+
+          const result = await this.transactionHelper.validateInput(
+            newBuyCrypto.cryptoInput.asset,
+            newBuyCrypto.cryptoInput.amount,
+          );
+
+          if (result === ValidationError.PAY_IN_TOO_SMALL) {
+            await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_CRYPTO, cryptoRoute);
+            continue;
+          } else if (result === ValidationError.PAY_IN_NOT_SELLABLE) {
+            if (cryptoRoute.asset.blockchain === cryptoRoute.deposit.blockchain) {
+              await this.payInService.returnPayIn(
+                payIn,
+                PayInPurpose.BUY_CRYPTO,
+                BlockchainAddress.create(cryptoRoute.user.address, cryptoRoute.deposit.blockchain),
+                cryptoRoute,
+              );
+              continue;
+            }
+          }
+
           await this.buyCryptoRepo.save(newBuyCrypto);
         }
 
         await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_CRYPTO, cryptoRoute);
       } catch (e) {
-        if (e instanceof PayInIgnoredException) {
-          await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_CRYPTO, cryptoRoute);
-
-          continue;
-        }
-
         this.logger.error(`Error during buy-crypto pay-in registration (pay-in ${payIn.id}):`, e);
       }
     }

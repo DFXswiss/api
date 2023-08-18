@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { Method } from 'axios';
+import { stringify } from 'qs';
 import { Config } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
-import { BankTx, BankTxIndicator, BankTxType } from './bank-tx.entity';
-import { stringify } from 'qs';
-import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { Bank, BankName } from 'src/subdomains/supporting/bank/bank/bank.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { BankTx, BankTxIndicator, BankTxType } from './bank-tx.entity';
 
 interface Transaction {
   idCtp: number;
@@ -57,16 +57,15 @@ export class OlkypayService {
   async getOlkyTransactions(lastModificationTime: string): Promise<Partial<BankTx>[]> {
     if (!Config.bank.olkypay.credentials.clientId) return [];
 
-    let transactions: Transaction[];
     try {
-      transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1));
+      const transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1));
       if (!transactions) return [];
 
       const bank = await this.bankService.getBankInternal(BankName.OLKY, 'EUR');
 
       return transactions.map((t) => this.parseTransaction(t, bank));
     } catch (e) {
-      this.logger.error(`Failed to get Bank Olky transactions ${transactions.map((t) => t.idCtp.toString())}:`, e);
+      this.logger.error(`Failed to get Bank Olky transactions:`, e);
       return [];
     }
   }
@@ -91,33 +90,37 @@ export class OlkypayService {
   // --- PARSING --- //
   private parseTransaction(tx: Transaction, bank: Bank): Partial<BankTx> {
     if (tx.debit > 0 && tx.credit > 0)
-      throw new Error(`Transaction with debit (${tx.debit} EUR) and credit (${tx.credit} EUR)`);
+      throw new Error(`Transaction ${tx.idCtp} with debit (${tx.debit} EUR) and credit (${tx.credit} EUR)`);
 
-    const amount = Util.round((tx.debit + tx.credit) / 100, 2);
-    const currency = 'EUR';
-    return {
-      accountServiceRef: tx.idCtp.toString(),
-      bookingDate: this.parseDate(tx.dateEcriture),
-      valueDate: this.parseDate(tx.dateValeur),
-      txCount: 1,
-      instructionId: tx.codeInterbancaireInterne,
-      amount,
-      instructedAmount: amount,
-      txAmount: amount,
-      chargeAmount: 0,
-      currency,
-      instructedCurrency: currency,
-      txCurrency: currency,
-      chargeCurrency: currency,
-      creditDebitIndicator: tx.debit > 0 ? BankTxIndicator.DEBIT : BankTxIndicator.CREDIT,
-      iban: tx.instructingIban,
-      ...this.getNameAndAddress(tx),
-      txInfo: tx.line1,
-      txRaw: JSON.stringify(tx),
-      remittanceInfo: tx.line2,
-      accountIban: bank.iban,
-      type: tx.codeInterbancaireInterne === TransactionType.BILLING ? BankTxType.INTERNAL : null,
-    };
+    try {
+      const amount = Util.round((tx.debit + tx.credit) / 100, 2);
+      const currency = 'EUR';
+      return {
+        accountServiceRef: tx.idCtp.toString(),
+        bookingDate: this.parseDate(tx.dateEcriture),
+        valueDate: this.parseDate(tx.dateValeur),
+        txCount: 1,
+        instructionId: tx.codeInterbancaireInterne,
+        amount,
+        instructedAmount: amount,
+        txAmount: amount,
+        chargeAmount: 0,
+        currency,
+        instructedCurrency: currency,
+        txCurrency: currency,
+        chargeCurrency: currency,
+        creditDebitIndicator: tx.debit > 0 ? BankTxIndicator.DEBIT : BankTxIndicator.CREDIT,
+        iban: tx.instructingIban,
+        ...this.getNameAndAddress(tx),
+        txInfo: tx.line1,
+        txRaw: JSON.stringify(tx),
+        remittanceInfo: tx.line2,
+        accountIban: bank.iban,
+        type: tx.codeInterbancaireInterne === TransactionType.BILLING ? BankTxType.INTERNAL : null,
+      };
+    } catch (e) {
+      throw new Error(`Failed to parse transaction ${tx.idCtp}: ${e.message}`);
+    }
   }
 
   private parseDate(olkypayDate: number[]): Date {

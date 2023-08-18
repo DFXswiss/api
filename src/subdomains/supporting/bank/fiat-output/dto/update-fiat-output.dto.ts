@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import { IsBoolean, IsDate, IsNumber, IsOptional, IsString } from 'class-validator';
-import { TransactionCharge } from '../../bank-tx/frick.service';
+import { TransactionCharge } from '../fiat-output.entity';
 
 export class UpdateFiatOutputDto {
   @IsOptional()

@@ -13,12 +13,13 @@ import {
 } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
+import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { Buy } from '../../routes/buy/buy.entity';
-import { AmlCheck } from '../enums/aml-check.enum';
 import { AmlReason } from '../enums/aml-reason.enum';
+import { CheckStatus } from '../enums/check-status.enum';
 import { BuyCryptoBatch } from './buy-crypto-batch.entity';
 import { BuyCryptoFee } from './buy-crypto-fees.entity';
 
@@ -74,7 +75,7 @@ export class BuyCrypto extends IEntity {
   amountInEur: number;
 
   @Column({ length: 256, nullable: true })
-  amlCheck: AmlCheck;
+  amlCheck: CheckStatus;
 
   @Column({ length: 256, nullable: true })
   amlReason: AmlReason;
@@ -172,6 +173,8 @@ export class BuyCrypto extends IEntity {
 
   defineAssetExchangePair(): { outputReferenceAssetName: string; type: AssetType } | null {
     this.outputAsset = this.target?.asset;
+
+    if (this.outputAsset?.type === AssetType.CUSTOM) return null;
 
     if (this.outputAsset.dexName === this.inputReferenceAsset) {
       this.setOutputReferenceAsset(this.outputAsset);
@@ -341,9 +344,18 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
-  complete(payoutTxId: string, payoutFee: number): UpdateResult<BuyCrypto> {
+  setTxId(payoutTxId: string): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       txId: payoutTxId,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  complete(payoutFee: number): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
       outputDate: new Date(),
       isComplete: true,
       status: BuyCryptoStatus.COMPLETE,
@@ -398,9 +410,9 @@ export class BuyCrypto extends IEntity {
           usedRef,
           refProvision: usedRef === '000-000' ? 0 : this.user.refFeePercent,
           refFactor: usedRef === '000-000' ? 0 : 1,
-          amlCheck: AmlCheck.PASS,
+          amlCheck: CheckStatus.PASS,
         }
-      : { amlCheck: AmlCheck.GSHEET };
+      : { amlCheck: CheckStatus.GSHEET };
 
     Object.assign(this, update);
 
@@ -427,38 +439,28 @@ export class BuyCrypto extends IEntity {
     return txExplorerUrl(this.target.asset.blockchain, this.txId);
   }
 
-  get translationKey(): string {
-    if (this.amlCheck === AmlCheck.PASS) {
-      if (this.target.asset.blockchain === Blockchain.LIGHTNING)
-        return this.cryptoRoute
-          ? 'mail.payment.deposit.buyCryptoCryptoLightning'
-          : 'mail.payment.deposit.buyCryptoFiatLightning';
+  get isLightningOutput(): boolean {
+    return this.target.asset.blockchain === Blockchain.LIGHTNING;
+  }
 
-      return this.cryptoRoute ? 'mail.payment.deposit.buyCryptoCrypto' : 'mail.payment.deposit.buyCryptoFiat';
-    } else if (this.amlCheck === AmlCheck.PENDING) {
-      switch (this.amlReason) {
-        case AmlReason.DAILY_LIMIT:
-          return 'mail.payment.pending.dailyLimit';
+  get isLightningInput(): boolean {
+    return this.cryptoInput?.asset.blockchain === Blockchain.LIGHTNING;
+  }
 
-        case AmlReason.ANNUAL_LIMIT:
-          return 'mail.payment.pending.annualLimit';
+  get isCryptoCryptoTransaction(): boolean {
+    return this.cryptoInput !== null;
+  }
 
-        case AmlReason.ANNUAL_LIMIT_WITHOUT_KYC:
-          return 'mail.payment.pending.annualLimitWithoutKyc';
+  get exchangeRateString(): string {
+    return `${Util.roundByPrecision(
+      (this.outputAmount / this.inputReferenceAmountMinusFee) * (this.inputReferenceAmount / this.inputAmount),
+      5,
+    )} ${this.outputAsset.name}/${this.inputAsset}`;
+  }
 
-        case AmlReason.OLKY_NO_KYC:
-          return 'mail.payment.pending.olkyNoKyc';
-
-        case AmlReason.NAME_CHECK_WITHOUT_KYC:
-          return 'mail.payment.pending.nameCheckWithoutKyc';
-      }
-    } else if (this.amlCheck === AmlCheck.FAIL) {
-      return this.cryptoRoute
-        ? 'mail.payment.withdrawal.paybackToAddressInitiated'
-        : 'mail.payment.deposit.paybackInitiated';
-    }
-
-    throw new Error(`Tried to send a mail for buy-crypto ${this.id} in invalid state`);
+  get translationReturnMailKey(): MailTranslationKey {
+    if (!this.isCryptoCryptoTransaction) return MailTranslationKey.FIAT_RETURN;
+    return MailTranslationKey.CRYPTO_RETURN;
   }
 
   get user(): User {
@@ -506,4 +508,4 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.NAME_CHECK_WITHOUT_KYC,
 ];
 
-export const BuyCryptoEditableAmlCheck = [AmlCheck.PENDING, AmlCheck.GSHEET];
+export const BuyCryptoEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET];

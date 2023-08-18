@@ -20,6 +20,7 @@ import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
 import { BuyCryptoBatchService } from '../buy-crypto-batch.service';
 import { BuyCryptoNotificationService } from '../buy-crypto-notification.service';
 import { BuyCryptoPricingService } from '../buy-crypto-pricing.service';
+import { BuyCryptoWebhookService } from '../buy-crypto-webhook.service';
 
 describe('BuyCryptoBatchService', () => {
   let service: BuyCryptoBatchService;
@@ -35,6 +36,7 @@ describe('BuyCryptoBatchService', () => {
   let payoutService: PayoutService;
   let buyCryptoNotificationService: BuyCryptoNotificationService;
   let liquidityManagementService: LiquidityManagementService;
+  let buyCryptoWebhookService: BuyCryptoWebhookService;
 
   /*** Spies ***/
 
@@ -236,6 +238,7 @@ describe('BuyCryptoBatchService', () => {
     payoutService = mock<PayoutService>();
     buyCryptoNotificationService = mock<BuyCryptoNotificationService>();
     liquidityManagementService = mock<LiquidityManagementService>();
+    buyCryptoWebhookService = mock<BuyCryptoWebhookService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -249,6 +252,7 @@ describe('BuyCryptoBatchService', () => {
         { provide: PayoutService, useValue: payoutService },
         { provide: BuyCryptoNotificationService, useValue: buyCryptoNotificationService },
         { provide: LiquidityManagementService, useValue: liquidityManagementService },
+        { provide: BuyCryptoWebhookService, useValue: buyCryptoWebhookService },
         TestUtil.provideConfig(),
       ],
     }).compile();

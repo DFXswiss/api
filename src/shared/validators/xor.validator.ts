@@ -1,4 +1,4 @@
-import { ValidatorConstraint, ValidatorConstraintInterface, ValidationArguments } from 'class-validator';
+import { ValidationArguments, ValidatorConstraint, ValidatorConstraintInterface } from 'class-validator';
 
 @ValidatorConstraint({ name: 'XOR', async: false })
 export class XOR implements ValidatorConstraintInterface {
@@ -9,6 +9,6 @@ export class XOR implements ValidatorConstraintInterface {
   }
 
   defaultMessage(args: ValidationArguments) {
-    return `Failed XOR relation between "${args.property}" and "${args.constraints[0]}"`;
+    return `only set ${args.property} or ${args.constraints[0]}`;
   }
 }

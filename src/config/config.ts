@@ -17,6 +17,7 @@ export enum Process {
   BUY_CRYPTO = 'BuyCrypto',
   LIMIT_REQUEST_MAIL = 'LimitRequestMail',
   BLACK_SQUAD_MAIL = 'BlackSquadMail',
+  PAY_IN_MAIL = 'PayInMail',
   BUY_CRYPTO_MAIL = 'BuyCryptoMail',
   BUY_FIAT_MAIL = 'BuyFiatMail',
   REF_REWARD_MAIL = 'RefRewardMail',
@@ -73,12 +74,19 @@ export class Configuration {
     darkBlue: '#072440',
   };
 
+  bitcoinAddressFormat = '([13]|bc1)[a-zA-HJ-NP-Z0-9]{25,62}';
+  lightningAddressFormat = '(LNURL|LNDHUB)[A-Z0-9]{25,250}|LNNID[A-Z0-9]{66}';
+  ethereumAddressFormat = '0x\\w{40}';
+  cardanoAddressFormat = 'stake[a-z0-9]{54}';
+  defichainAddressFormat =
+    this.environment === Environment.PRD ? '8\\w{33}|d\\w{33}|d\\w{41}' : '[78]\\w{33}|[td]\\w{33}|[td]\\w{41}';
+
+  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.ethereumAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}`;
+
   formats = {
-    address:
-      this.environment === Environment.PRD
-        ? /^(8\w{33}|d\w{33}|d\w{41}|0x\w{40}|(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}|(LNURL|LNDHUB)[A-Z0-9]{25,250}|LNNID[A-Z0-9]{66})$/
-        : /^((7|8)\w{33}|(t|d)\w{33}|(t|d)\w{41}|0x\w{40}|(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}|stake[a-z0-9]{54}|(LNURL|LNDHUB)[A-Z0-9]{25,250}|LNNID[A-Z0-9]{66})$/,
-    signature: /^(.{87}=|[a-f0-9]{130}|[a-f0-9x]{132}|[a-f0-9]{582}|[a-z0-9]{104}|[a-z0-9]{140,146})$/,
+    address: new RegExp(`^(${this.allAddressFormat})$`),
+    signature:
+      /^([0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}|.{87}=|[a-f0-9]{130}|[a-f0-9x]{132}|[a-f0-9]{582}|[a-z0-9]{104}|[a-z0-9]{140,146})$/,
     key: /^[a-f0-9]{84}$/,
     ref: /^(\w{1,3}-\w{1,3})$/,
     bankUsage: /[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}/,
@@ -318,10 +326,11 @@ export class Configuration {
     },
     lightning: {
       lnbits: {
+        apiKey: process.env.LIGHTNING_LNBITS_API_KEY,
         apiUrl: process.env.LIGHTNING_LNBITS_API_URL,
         lnurlpApiUrl: process.env.LIGHTNING_LNBITS_LNURLP_API_URL,
-        apiKey: process.env.LIGHTNING_LNBITS_API_KEY,
         lnurlpUrl: process.env.LIGHTNING_LNBITS_LNURLP_URL,
+        lnurlwApiUrl: process.env.LIGHTNING_LNBITS_LNURLW_API_URL,
       },
       lnd: {
         apiUrl: process.env.LIGHTNING_LND_API_URL,
@@ -430,6 +439,15 @@ export class Configuration {
         privateKey: process.env.FRICK_PRIVATE_KEY?.split('<br>').join('\n'),
       },
     },
+  };
+
+  giroCode = {
+    service: 'BCD',
+    version: '001',
+    encoding: '2',
+    transfer: 'SCT',
+    char: '',
+    ref: '',
   };
 
   chainalysis = {

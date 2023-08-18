@@ -1,4 +1,5 @@
 export interface ScanApiResponse<T> {
-  result: T | string;
+  status: '0' | '1';
   message: string;
+  result: T | string;
 }

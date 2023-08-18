@@ -1,28 +1,27 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { createMock } from '@golevelup/ts-jest';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { CountryService } from 'src/shared/models/country/country.service';
+import { Test, TestingModule } from '@nestjs/testing';
 import { createCustomCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
+import { CountryService } from 'src/shared/models/country/country.service';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { TestSharedModule } from 'src/shared/utils/test.shared.module';
+import { TestUtil } from 'src/shared/utils/test.util';
+import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { BankSelectorInput, BankService } from '../bank.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
-import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
 import { createDefaultBankAccount } from 'src/subdomains/supporting/bank/bank-account/__mocks__/bank-account.entity.mock';
-import { BankRepository } from '../bank.repository';
+import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
+import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import {
   createDefaultBanks,
   createDefaultDisabledBanks,
   frickCHF,
-  frickEUR,
   frickUSD,
   maerkiCHF,
   maerkiEUR,
   olkyEUR,
 } from '../__mocks__/bank.entity.mock';
-import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
-import { TestSharedModule } from 'src/shared/utils/test.shared.module';
-import { TestUtil } from 'src/shared/utils/test.util';
+import { BankRepository } from '../bank.repository';
+import { BankSelectorInput, BankService } from '../bank.service';
 
 function createBankSelectorInput(
   currency = 'EUR',
@@ -116,11 +115,11 @@ describe('BankService', () => {
     });
   });
 
-  it('should return BF as default', async () => {
+  it('should return MB as default', async () => {
     defaultSetup(false);
     await expect(service.getBank(createBankSelectorInput('GBP'))).resolves.toMatchObject({
-      iban: frickEUR.iban,
-      bic: frickEUR.bic,
+      iban: maerkiEUR.iban,
+      bic: maerkiEUR.bic,
     });
   });
 

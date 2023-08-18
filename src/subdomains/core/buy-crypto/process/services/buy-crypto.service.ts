@@ -9,6 +9,7 @@ import {
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Process } from 'src/config/config';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -22,8 +23,6 @@ import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statist
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { FeeType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
-import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { Between, In, IsNull, Not } from 'typeorm';
@@ -33,13 +32,14 @@ import { BuyService } from '../../routes/buy/buy.service';
 import { BuyHistoryDto } from '../../routes/buy/dto/buy-history.dto';
 import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
 import { BuyCrypto, BuyCryptoEditableAmlCheck } from '../entities/buy-crypto.entity';
-import { AmlCheck } from '../enums/aml-check.enum';
+import { CheckStatus } from '../enums/check-status.enum';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoBatchService } from './buy-crypto-batch.service';
 import { BuyCryptoDexService } from './buy-crypto-dex.service';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { BuyCryptoOutService } from './buy-crypto-out.service';
 import { BuyCryptoRegistrationService } from './buy-crypto-registration.service';
+import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 
 @Injectable()
 export class BuyCryptoService {
@@ -60,11 +60,12 @@ export class BuyCryptoService {
     private readonly buyCryptoRegistrationService: BuyCryptoRegistrationService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly userService: UserService,
-    private readonly webhookService: WebhookService,
     private readonly transactionHelper: TransactionHelper,
     private readonly priceProviderService: PriceProviderService,
     private readonly fiatService: FiatService,
     private readonly bankDataService: BankDataService,
+    private readonly assetService: AssetService,
+    private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
   ) {}
 
   async createFromFiat(bankTxId: number, buyId: number): Promise<BuyCrypto> {
@@ -125,6 +126,16 @@ export class BuyCryptoService {
       if (entity.bankTx) await this.bankTxService.getBankTxRepo().setNewUpdateTime(entity.bankTx.id);
     }
 
+    if (dto.outputAssetId) {
+      update.outputAsset = await this.assetService.getAssetById(dto.outputAssetId);
+      if (!update.outputAsset) throw new BadRequestException('Asset not found');
+    }
+
+    if (dto.outputReferenceAssetId) {
+      update.outputReferenceAsset = await this.assetService.getAssetById(dto.outputReferenceAssetId);
+      if (!update.outputReferenceAsset) throw new BadRequestException('Asset not found');
+    }
+
     Util.removeNullFields(entity);
     const fee = entity.fee;
     if (dto.allowedTotalFeePercent && entity.fee) fee.allowedTotalFeePercent = dto.allowedTotalFeePercent;
@@ -145,15 +156,19 @@ export class BuyCryptoService {
     );
 
     // activate user
-    if (entity.amlCheck === AmlCheck.PASS && entity.buy?.user) {
+    if (entity.amlCheck === CheckStatus.PASS && entity.buy?.user) {
       await this.userService.activateUser(entity.buy.user);
     }
 
     // payment webhook
-    if (dto.inputAmount && dto.inputAsset) {
-      entity.buy
-        ? await this.webhookService.fiatCryptoUpdate(entity.user, entity, PaymentWebhookState.CREATED)
-        : await this.webhookService.cryptoCryptoUpdate(entity.user, entity, PaymentWebhookState.CREATED);
+    if (
+      (dto.inputAmount && dto.inputAsset) ||
+      dto.isComplete ||
+      (dto.amlCheck && dto.amlCheck !== CheckStatus.PASS) ||
+      dto.outputReferenceAssetId ||
+      dto.chargebackDate
+    ) {
+      await this.buyCryptoWebhookService.triggerWebhook(entity);
     }
 
     await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
@@ -284,6 +299,7 @@ export class BuyCryptoService {
 
       const { minVolume, minFee, feeAmount } = await this.transactionHelper.getTxDetails(
         entity.bankTx.txAmount,
+        undefined,
         userFee,
         inputCurrency,
         entity.outputAsset,
@@ -300,7 +316,7 @@ export class BuyCryptoService {
           entity.user.userData.users.map((user) => user.id),
           dateFrom,
         )
-      ).filter((buyCrypto) => buyCrypto.amlCheck === AmlCheck.PASS && buyCrypto.bankTx);
+      ).filter((buyCrypto) => buyCrypto.amlCheck === CheckStatus.PASS && buyCrypto.bankTx);
 
       await this.buyCryptoRepo.update(
         ...entity.amlCheckAndFillUp(
@@ -361,7 +377,7 @@ export class BuyCryptoService {
         .createQueryBuilder('buyCrypto')
         .select('SUM(amountInEur)', 'volume')
         .where('buyId = :id', { id: id })
-        .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
+        .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
         .getRawOne<{ volume: number }>();
 
       const newYear = new Date(new Date().getFullYear(), 0, 1);
@@ -370,7 +386,7 @@ export class BuyCryptoService {
         .select('SUM(amountInEur)', 'annualVolume')
         .leftJoin('buyCrypto.bankTx', 'bankTx')
         .where('buyCrypto.buyId = :id', { id: id })
-        .andWhere('buyCrypto.amlCheck = :check', { check: AmlCheck.PASS })
+        .andWhere('buyCrypto.amlCheck = :check', { check: CheckStatus.PASS })
         .andWhere('bankTx.bookingDate >= :year', { year: newYear })
         .getRawOne<{ annualVolume: number }>();
 
@@ -386,7 +402,7 @@ export class BuyCryptoService {
         .createQueryBuilder('buyCrypto')
         .select('SUM(amountInEur)', 'volume')
         .where('cryptoRouteId = :id', { id: id })
-        .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
+        .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
         .getRawOne<{ volume: number }>();
 
       const newYear = new Date(new Date().getFullYear(), 0, 1);
@@ -395,7 +411,7 @@ export class BuyCryptoService {
         .select('SUM(amountInEur)', 'annualVolume')
         .leftJoin('buyCrypto.cryptoInput', 'cryptoInput')
         .where('buyCrypto.cryptoRouteId = :id', { id: id })
-        .andWhere('buyCrypto.amlCheck = :check', { check: AmlCheck.PASS })
+        .andWhere('buyCrypto.amlCheck = :check', { check: CheckStatus.PASS })
         .andWhere('cryptoInput.created >= :year', { year: newYear })
         .getRawOne<{ annualVolume: number }>();
 
@@ -420,7 +436,7 @@ export class BuyCryptoService {
       .select('SUM(amountInEur * refFactor)', 'volume')
       .addSelect('SUM(amountInEur * refFactor * refProvision * 0.01)', 'credit')
       .where('usedRef = :ref', { ref })
-      .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
+      .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
       .getRawOne<{ volume: number; credit: number }>();
 
     return { volume: volume ?? 0, credit: credit ?? 0 };
@@ -455,7 +471,7 @@ export class BuyCryptoService {
 
   async getTransactions(dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<TransactionDetailsDto[]> {
     const buyCryptos = await this.buyCryptoRepo.find({
-      where: { buy: { id: Not(IsNull()) }, outputDate: Between(dateFrom, dateTo), amlCheck: AmlCheck.PASS },
+      where: { buy: { id: Not(IsNull()) }, outputDate: Between(dateFrom, dateTo), amlCheck: CheckStatus.PASS },
       relations: ['buy', 'buy.asset'],
       loadEagerRelations: false,
     });
