@@ -101,6 +101,7 @@ export class BuyFiatService {
       await this.userService.activateUser(entity.sell.user);
     }
 
+    // payment webhook
     if (
       (dto.inputAmount && dto.inputAsset) ||
       dto.isComplete ||
@@ -131,7 +132,6 @@ export class BuyFiatService {
   }
 
   async triggerWebhook(buyFiat: BuyFiat): Promise<void> {
-    // payment webhook
     // TODO add fiatFiatUpdate here
     const state = this.getWebhookState(buyFiat);
     buyFiat.sell ? await this.webhookService.cryptoFiatUpdate(buyFiat.sell.user, buyFiat, state) : undefined;

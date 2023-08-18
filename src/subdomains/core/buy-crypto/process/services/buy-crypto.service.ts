@@ -120,7 +120,7 @@ export class BuyCryptoService {
     }
 
     if (dto.outputReferenceAssetId) {
-      update.outputReferenceAsset = await this.assetService.getAssetById(dto.outputAssetId);
+      update.outputReferenceAsset = await this.assetService.getAssetById(dto.outputReferenceAssetId);
       if (!update.outputReferenceAsset) throw new BadRequestException('Asset not found');
     }
 
