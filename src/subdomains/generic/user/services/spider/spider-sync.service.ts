@@ -204,7 +204,6 @@ export class SpiderSyncService {
               userData,
               title: `${MailTranslationKey.KYC_CHATBOT}.title`,
               salutation: { key: `${MailTranslationKey.KYC_CHATBOT}.salutation` },
-              table: {},
               suffix: [
                 { key: MailKey.SPACE, params: { value: '1' } },
                 {
@@ -240,7 +239,6 @@ export class SpiderSyncService {
             userData,
             title: `${MailTranslationKey.KYC_REMINDER}.title`,
             salutation: { key: `${MailTranslationKey.KYC_REMINDER}.salutation` },
-            table: {},
             suffix: [
               { key: MailKey.SPACE, params: { value: '1' } },
               {
