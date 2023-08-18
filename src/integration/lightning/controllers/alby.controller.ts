@@ -4,6 +4,7 @@ import { Response } from 'express';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
+import { URL } from 'url';
 import { LightningHelper } from '../lightning-helper';
 
 interface AlbyAuthResponse {
@@ -85,7 +86,10 @@ export class AlbyController {
       // construct LNURL
       const lnurl = LightningHelper.addressToLnurlp(lightning_address);
 
-      res.redirect(307, `${returnUri}?address=${lnurl}`);
+      const url = new URL(returnUri);
+      url.searchParams.set('address', lnurl);
+
+      res.redirect(307, url.toString());
     } catch (e) {
       this.logger.error('Failed to get LNURL from Alby:', e);
 

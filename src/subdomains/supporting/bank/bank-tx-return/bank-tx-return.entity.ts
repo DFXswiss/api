@@ -1,10 +1,10 @@
-import { Entity, OneToOne, JoinColumn, Column } from 'typeorm';
 import { IEntity } from 'src/shared/models/entity';
+import { Column, Entity, JoinColumn, OneToOne } from 'typeorm';
 import { BankTx } from '../bank-tx/bank-tx.entity';
 
 @Entity()
 export class BankTxReturn extends IEntity {
-  @OneToOne(() => BankTx, { nullable: false })
+  @OneToOne(() => BankTx, (bankTx) => bankTx.bankTxReturn, { nullable: false })
   @JoinColumn()
   bankTx: BankTx;
 

@@ -25,6 +25,7 @@ import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repos
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { BuyCryptoPricingService } from './buy-crypto-pricing.service';
+import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 
 @Injectable()
 export class BuyCryptoBatchService {
@@ -40,6 +41,7 @@ export class BuyCryptoBatchService {
     private readonly payoutService: PayoutService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly liquidityService: LiquidityManagementService,
+    private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
   ) {}
 
   async prepareTransactions(): Promise<void> {
@@ -76,6 +78,7 @@ export class BuyCryptoBatchService {
 
       for (const tx of txWithFeeConstraints) {
         await this.buyCryptoRepo.save(tx);
+        await this.buyCryptoWebhookService.triggerWebhook(tx);
       }
     } catch (e) {
       this.logger.error('Error during buy-crypto preparation:', e);

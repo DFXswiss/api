@@ -25,39 +25,41 @@ export class BankService {
   }
 
   // --- BankSelector --- //
-  async getBank(bankSelectorInput: BankSelectorInput): Promise<Bank> {
-    let account: Bank;
-
+  async getBank({ bankAccount, amount, currency, kycStatus }: BankSelectorInput): Promise<Bank> {
     const frickAmountLimit = 9000;
+    const olkyAmountLimit = 2000;
     const fallBackCurrency = 'EUR';
 
-    const ibanCodeCountry = bankSelectorInput.bankAccount
-      ? await this.countryService.getCountryWithSymbol(bankSelectorInput.bankAccount.iban.substring(0, 2))
+    const ibanCodeCountry = bankAccount
+      ? await this.countryService.getCountryWithSymbol(bankAccount.iban.substring(0, 2))
       : undefined;
 
     const banks = await this.bankRepo.find();
 
     // select the matching bank account
-    if (bankSelectorInput.amount > frickAmountLimit || bankSelectorInput.currency === 'USD') {
+    let account: Bank;
+
+    if (amount > frickAmountLimit || currency === 'USD') {
       // amount > 9k => Frick || USD => Frick
-      account = this.getMatchingBank(banks, BankName.FRICK, bankSelectorInput.currency, fallBackCurrency);
+      account = this.getMatchingBank(banks, BankName.FRICK, currency, fallBackCurrency);
     }
     if (
       !account &&
-      bankSelectorInput.currency === 'EUR' &&
-      (!bankSelectorInput.bankAccount || bankSelectorInput.bankAccount.sctInst) &&
-      KycCompleted(bankSelectorInput.kycStatus)
+      currency === 'EUR' &&
+      (!bankAccount || bankAccount.sctInst) &&
+      KycCompleted(kycStatus) &&
+      amount <= olkyAmountLimit
     ) {
       // instant => Olkypay / EUR
-      account = this.getMatchingBank(banks, BankName.OLKY, bankSelectorInput.currency, fallBackCurrency);
+      account = this.getMatchingBank(banks, BankName.OLKY, currency, fallBackCurrency);
     }
     if (!account && (!ibanCodeCountry || ibanCodeCountry.maerkiBaumannEnable)) {
       // Valid Maerki Baumann country => MB CHF/USD/EUR
-      account = this.getMatchingBank(banks, BankName.MAERKI, bankSelectorInput.currency, fallBackCurrency);
+      account = this.getMatchingBank(banks, BankName.MAERKI, currency, fallBackCurrency);
     }
     if (!account) {
       // Default => MB
-      account = this.getMatchingBank(banks, BankName.MAERKI, bankSelectorInput.currency, fallBackCurrency);
+      account = this.getMatchingBank(banks, BankName.MAERKI, currency, fallBackCurrency);
     }
 
     return account;
