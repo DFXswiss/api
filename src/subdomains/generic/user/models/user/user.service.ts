@@ -244,9 +244,9 @@ export class UserService {
   // --- FEES --- //
   async getUserBuyFee(userId: number, asset: Asset): Promise<number> {
     const user = await this.userRepo.findOne({
-      select: ['id', 'buyFee', 'userData'],
+      select: ['id', 'buyFee', 'wallet', 'userData'],
       where: { id: userId },
-      relations: ['userData'],
+      relations: ['wallet', 'userData'],
     });
 
     return user.getFee(FeeType.BUY, asset);
@@ -254,9 +254,9 @@ export class UserService {
 
   async getUserSellFee(userId: number, asset: Asset): Promise<number> {
     const user = await this.userRepo.findOne({
-      select: ['id', 'sellFee', 'userData'],
+      select: ['id', 'sellFee', 'wallet', 'userData'],
       where: { id: userId },
-      relations: ['userData'],
+      relations: ['wallet', 'userData'],
     });
 
     return user.getFee(FeeType.SELL, asset);
@@ -265,8 +265,9 @@ export class UserService {
   async getUserCryptoFee(userId: number): Promise<number> {
     // fee
     const user = await this.userRepo.findOne({
-      select: ['id', 'cryptoFee', 'usedRef'],
+      select: ['id', 'cryptoFee', 'wallet'],
       where: { id: userId },
+      relations: ['wallet'],
     });
 
     return user.getFee(FeeType.CRYPTO);

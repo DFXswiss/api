@@ -285,8 +285,10 @@ export class BuyCryptoService {
   private async doAmlCheck() {
     const entities = await this.buyCryptoRepo.find({
       where: { amlCheck: IsNull(), amlReason: IsNull(), bankTx: Not(IsNull()) },
-      relations: ['bankTx', 'buy', 'buy.user', 'buy.user.userData', 'buy.user.userData.users'],
+      relations: ['bankTx', 'buy', 'buy.user', 'buy.user.wallet', 'buy.user.userData', 'buy.user.userData.users'],
     });
+
+    if (entities.length === 0) return;
 
     this.logger.verbose(
       `AmlCheck for ${entities.length} buy-crypto transaction(s). Transaction ID(s): ${entities.map((t) => t.id)}`,
