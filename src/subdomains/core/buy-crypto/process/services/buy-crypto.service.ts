@@ -141,15 +141,11 @@ export class BuyCryptoService {
     const fee = entity.fee;
     if (dto.allowedTotalFeePercent && entity.fee) fee.allowedTotalFeePercent = dto.allowedTotalFeePercent;
 
+    update.amlReason = update.amlCheck === CheckStatus.PASS ? AmlReason.NA : update.amlReason;
+
     const forceUpdate: Partial<BuyCrypto> = {
       ...(BuyCryptoEditableAmlCheck.includes(entity.amlCheck) && update?.amlCheck !== entity.amlCheck
-        ? {
-            amlCheck: update.amlCheck,
-            mailSendDate: null,
-            amlReason: update.amlCheck === CheckStatus.PASS ? AmlReason.NA : update.amlReason ?? undefined,
-          }
-        : update.amlCheck === CheckStatus.PASS
-        ? { amlReason: AmlReason.NA }
+        ? { amlCheck: update.amlCheck, mailSendDate: null, amlReason: update.amlReason }
         : undefined),
       isComplete: dto.isComplete,
     };
