@@ -155,9 +155,8 @@ export class BuyCryptoService {
       (dto.amlCheck && dto.amlCheck !== CheckStatus.PASS) ||
       dto.outputReferenceAssetId ||
       dto.chargebackDate
-    ) {
+    )
       await this.buyCryptoWebhookService.triggerWebhook(entity);
-    }
 
     await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
     await this.updateCryptoRouteVolume([cryptoRouteIdBefore, entity.cryptoRoute?.id]);
