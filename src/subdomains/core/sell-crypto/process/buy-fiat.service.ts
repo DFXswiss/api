@@ -108,9 +108,8 @@ export class BuyFiatService {
       (dto.amlCheck && dto.amlCheck !== CheckStatus.PASS) ||
       dto.outputReferenceAsset ||
       dto.cryptoReturnDate
-    ) {
+    )
       await this.triggerWebhook(entity);
-    }
 
     await this.updateSellVolume([sellIdBefore, entity.sell?.id]);
     await this.updateRefVolume([usedRefBefore, entity.usedRef]);

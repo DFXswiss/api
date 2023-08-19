@@ -57,10 +57,12 @@ export class BuyCryptoBatchService {
           'bankTx',
           'buy',
           'buy.user',
+          'buy.user.wallet',
           'buy.asset',
           'batch',
           'cryptoRoute',
           'cryptoRoute.user',
+          'cryptoRoute.user.wallet',
           'cryptoRoute.asset',
         ],
       });
