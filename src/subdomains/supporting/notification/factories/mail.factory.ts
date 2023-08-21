@@ -7,7 +7,7 @@ import { Mail, MailParams } from '../entities/mail/base/mail';
 import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
 import { KycSupportMail, KycSupportMailInput } from '../entities/mail/kyc-support-mail';
 import { PersonalMail, PersonalMailInput } from '../entities/mail/personal-mail';
-import { UserMail, UserMailInput, UserMailNew, UserMailSuffix, UserMailTable } from '../entities/mail/user-mail';
+import { UserMail, UserMailAffix, UserMailInput, UserMailNew, UserMailTable } from '../entities/mail/user-mail';
 import { MailType } from '../enums';
 import {
   MailRequest,
@@ -28,6 +28,14 @@ export enum MailTranslationKey {
   RETURN_REASON = 'translation.payment.return.reasons',
   CRYPTO_RETURN = 'translation.payment.return.crypto',
   FIAT_RETURN = 'translation.payment.return.fiat',
+  REFERRAL = 'translation.referral',
+  KYC = 'translation.kyc',
+  KYC_SUCCESS = 'translation.kyc.success',
+  KYC_FAILED = 'translation.kyc.failed',
+  KYC_IDENT = 'translation.kyc.ident',
+  KYC_CHATBOT = 'translation.kyc.chatbot',
+  KYC_REMINDER = 'translation.kyc.reminder',
+  LINK_ADDRESS = 'translation.link_address',
 }
 
 export enum MailKey {
@@ -174,16 +182,17 @@ export class MailFactory {
 
   private createUserMailNew(request: MailRequestNew): UserMailNew {
     const { metadata, options } = request;
-    const { userData, title, prefix, suffix, table } = request.input as MailRequestInput;
+    const { userData, title, salutation, prefix, suffix, table } = request.input as MailRequestInput;
 
     const lang = userData.language?.symbol.toLowerCase();
 
     return new UserMailNew({
       to: userData.mail,
       subject: this.tNew(title, lang),
-      salutation: this.tNew(prefix.key, lang, prefix.params),
-      table: this.getTable(table, lang),
-      suffix: this.getSuffix(suffix, lang),
+      salutation: salutation && this.tNew(salutation.key, lang, salutation.params),
+      prefix: prefix && this.getAffix(prefix, lang),
+      table: table && this.getTable(table, lang),
+      suffix: suffix && this.getAffix(suffix, lang),
       metadata,
       options,
     });
@@ -241,12 +250,12 @@ export class MailFactory {
     }));
   }
 
-  private getSuffix(suffix: TranslationItem[], lang: string): UserMailSuffix[] {
-    Util.removeNullFields(suffix);
-    return suffix.map((element) => this.mapSuffix(element, lang).flat()).flat();
+  private getAffix(affix: TranslationItem[], lang: string): UserMailAffix[] {
+    Util.removeNullFields(affix);
+    return affix.map((element) => this.mapAffix(element, lang).flat()).flat();
   }
 
-  private mapSuffix(element: TranslationItem, lang: string): UserMailSuffix[] {
+  private mapAffix(element: TranslationItem, lang: string): UserMailAffix[] {
     switch (element.key) {
       case MailKey.SPACE:
         return [MailDefaultEmptyLine];

@@ -22,9 +22,10 @@ export interface MailRequestNew {
 export interface MailRequestInput {
   userData: UserData;
   title: string;
-  prefix: TranslationItem;
-  table: Record<string, string>;
-  suffix: TranslationItem[];
+  salutation?: TranslationItem;
+  prefix?: TranslationItem[];
+  table?: Record<string, string>;
+  suffix?: TranslationItem[];
 }
 
 export enum MailParamKey {

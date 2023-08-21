@@ -76,7 +76,7 @@ export class BuyCryptoNotificationService {
               input: {
                 userData: tx.user.userData,
                 title: `${MailTranslationKey.BUY_CRYPTO}.title`,
-                prefix: { key: `${MailTranslationKey.BUY_CRYPTO}.salutation` },
+                salutation: { key: `${MailTranslationKey.BUY_CRYPTO}.salutation` },
                 table: {
                   [`${MailTranslationKey.BUY_CRYPTO}.input_amount`]: `${tx.inputAmount} ${tx.inputAsset}`,
                   [`${MailTranslationKey.PAYMENT}.input_blockchain`]: tx.cryptoInput
@@ -180,7 +180,7 @@ export class BuyCryptoNotificationService {
             input: {
               userData: entity.user.userData,
               title: `${entity.translationReturnMailKey}.title`,
-              prefix: { key: `${entity.translationReturnMailKey}.salutation` },
+              salutation: { key: `${entity.translationReturnMailKey}.salutation` },
               table: {
                 [`${MailTranslationKey.PAYMENT}.reimbursed`]: `${entity.inputAmount} ${entity.inputAsset}`,
                 [`${MailTranslationKey.PAYMENT}.bank_account`]: !entity.isCryptoCryptoTransaction
@@ -258,8 +258,9 @@ export class BuyCryptoNotificationService {
             input: {
               userData: entity.user.userData,
               title: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.title`,
-              prefix: { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.salutation` },
-              table: {},
+              salutation: {
+                key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.salutation`,
+              },
               suffix: [
                 { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line1` },
                 { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line2` },
