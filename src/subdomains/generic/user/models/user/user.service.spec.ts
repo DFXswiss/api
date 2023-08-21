@@ -10,11 +10,12 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { KycService } from '../kyc/kyc.service';
+import { createCustomUserData } from '../user-data/__mocks__/user-data.entity.mock';
 import { AccountType } from '../user-data/account-type.enum';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { UserDataService } from '../user-data/user-data.service';
 import { WalletService } from '../wallet/wallet.service';
-import { User } from './user.entity';
+import { createCustomUser } from './__mocks__/user.entity.mock';
 import { UserRepository } from './user.repository';
 import { UserService } from './user.service';
 
@@ -35,9 +36,15 @@ describe('UserService', () => {
   let apiKeyService: ApiKeyService;
 
   function setup(accountType: AccountType, buyFee?: number, usedRef?: string, cryptoFee?: number, sellFee?: number) {
-    jest
-      .spyOn(userRepo, 'findOne')
-      .mockResolvedValue({ buyFee, usedRef, cryptoFee, userData: { accountType: accountType }, sellFee } as User);
+    jest.spyOn(userRepo, 'findOne').mockResolvedValue(
+      createCustomUser({
+        buyFee,
+        usedRef,
+        cryptoFee,
+        userData: createCustomUserData({ accountType: accountType }),
+        sellFee,
+      }),
+    );
   }
 
   beforeEach(async () => {

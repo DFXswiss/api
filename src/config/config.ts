@@ -32,6 +32,7 @@ export enum Process {
   STAKING = 'Staking',
   REF_PAYOUT = 'RefPayout',
   PRICING = 'Pricing',
+  BUY_CRYPTO_AML_CHECK = 'BuyCryptoAmlCheck',
 }
 
 export enum Environment {
@@ -64,6 +65,7 @@ export class Configuration {
   defaultDailyTradingLimit = 990; // EUR
   apiKeyVersionCT = '0'; // single digit hex number
   azureIpSubstring = '169.254';
+  amlCheckMonthlyTradingLimit = 50000; // EUR
 
   colors = {
     white: '#FFFFFF',

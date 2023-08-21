@@ -32,7 +32,7 @@ import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
-import { User, UserStatus } from './user.entity';
+import { FeeType, User, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
 
 @Injectable()
@@ -243,35 +243,33 @@ export class UserService {
 
   // --- FEES --- //
   async getUserBuyFee(userId: number, asset: Asset): Promise<number> {
-    const { buyFee, userData } = await this.userRepo.findOne({
+    const user = await this.userRepo.findOne({
       select: ['id', 'buyFee', 'userData'],
       where: { id: userId },
       relations: ['userData'],
     });
-    const defaultFee = Config.buy.fee.get(asset.feeTier, userData.accountType);
 
-    return buyFee ? Math.min(buyFee, defaultFee) : defaultFee;
+    return user.getFee(FeeType.BUY, asset);
   }
 
   async getUserSellFee(userId: number, asset: Asset): Promise<number> {
-    const { sellFee, userData } = await this.userRepo.findOne({
+    const user = await this.userRepo.findOne({
       select: ['id', 'sellFee', 'userData'],
       where: { id: userId },
       relations: ['userData'],
     });
-    const defaultFee = Config.sell.fee.get(asset.feeTier, userData.accountType);
 
-    return sellFee ? Math.min(sellFee, defaultFee) : defaultFee;
+    return user.getFee(FeeType.SELL, asset);
   }
 
   async getUserCryptoFee(userId: number): Promise<number> {
     // fee
-    const { cryptoFee } = await this.userRepo.findOne({
+    const user = await this.userRepo.findOne({
       select: ['id', 'cryptoFee', 'usedRef'],
       where: { id: userId },
     });
 
-    return cryptoFee ? Math.min(cryptoFee, Config.crypto.fee) : Config.crypto.fee;
+    return user.getFee(FeeType.CRYPTO);
   }
 
   // --- REF --- //
