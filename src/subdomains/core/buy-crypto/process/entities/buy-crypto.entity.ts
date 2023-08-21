@@ -388,7 +388,7 @@ export class BuyCrypto extends IEntity {
     bankDataUserData: UserData,
   ): UpdateResult<BuyCrypto> {
     const usedRef = this.user.getBuyUsedRef;
-    const amountInEur = eurPrice.convert(this.bankTx.txAmount);
+    const amountInEur = eurPrice.convert(this.bankTx.txAmount, 2);
 
     const update: Partial<BuyCrypto> = this.isAmlPass(minVolume, amountInEur, bankDataUserData?.id, monthlyAmountInEur)
       ? {
@@ -396,7 +396,7 @@ export class BuyCrypto extends IEntity {
           inputAsset: this.bankTx.txCurrency,
           inputReferenceAmount: this.bankTx.txAmount,
           inputReferenceAsset: this.bankTx.currency,
-          amountInChf: chfPrice.convert(this.bankTx.txAmount),
+          amountInChf: chfPrice.convert(this.bankTx.txAmount, 2),
           amountInEur,
           absoluteFeeAmount: 0,
           percentFee: userFee,
@@ -404,7 +404,7 @@ export class BuyCrypto extends IEntity {
           minFeeAmount,
           minFeeAmountFiat: minFeeAmount,
           totalFeeAmount,
-          totalFeeAmountChf: chfPrice.convert(totalFeeAmount),
+          totalFeeAmountChf: chfPrice.convert(totalFeeAmount, 2),
           inputReferenceAmountMinusFee: this.bankTx.txAmount - totalFeeAmount,
           usedRef,
           refProvision: usedRef === '000-000' ? 0 : this.user.refFeePercent,

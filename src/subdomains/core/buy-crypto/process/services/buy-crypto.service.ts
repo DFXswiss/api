@@ -282,11 +282,12 @@ export class BuyCryptoService {
 
   // --- HELPER METHODS --- //
 
-  private async doAmlCheck() {
+  private async doAmlCheck(): Promise<void> {
     const entities = await this.buyCryptoRepo.find({
-      where: { amlCheck: IsNull(), amlReason: IsNull(), bankTx: Not(IsNull()) },
+      where: { amlCheck: IsNull(), amlReason: IsNull(), bankTx: Not(IsNull()), buy: Not(IsNull()), status: IsNull() },
       relations: ['bankTx', 'buy', 'buy.user', 'buy.user.userData', 'buy.user.userData.users'],
     });
+    if (entities.length === 0) return;
 
     this.logger.verbose(
       `AmlCheck for ${entities.length} buy-crypto transaction(s). Transaction ID(s): ${entities.map((t) => t.id)}`,
@@ -306,7 +307,7 @@ export class BuyCryptoService {
         undefined,
         userFee,
         inputCurrency,
-        entity.outputAsset,
+        entity.target.asset,
       );
 
       const inputAssetEurPrice = await this.priceProviderService.getPrice(inputCurrency, fiatEur);
