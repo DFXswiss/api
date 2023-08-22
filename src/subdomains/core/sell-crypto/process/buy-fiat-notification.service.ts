@@ -55,7 +55,7 @@ export class BuyFiatNotificationService {
             input: {
               userData: entity.sell.user.userData,
               title: `${MailTranslationKey.BUY_FIAT}.initiated.title`,
-              prefix: { key: `${MailTranslationKey.BUY_FIAT}.initiated.salutation` },
+              salutation: { key: `${MailTranslationKey.BUY_FIAT}.initiated.salutation` },
               table: {
                 [`${MailTranslationKey.BUY_FIAT}.input_amount`]: `${entity.cryptoInput.amount} ${entity.cryptoInput.asset.name}`,
                 [`${MailTranslationKey.PAYMENT}.blockchain`]: `${entity.cryptoInputBlockchain}`,
@@ -112,7 +112,7 @@ export class BuyFiatNotificationService {
             input: {
               userData: entity.sell.user.userData,
               title: `${MailTranslationKey.BUY_FIAT}.exchanged.title`,
-              prefix: { key: `${MailTranslationKey.BUY_FIAT}.exchanged.salutation` },
+              salutation: { key: `${MailTranslationKey.BUY_FIAT}.exchanged.salutation` },
               table: {
                 [`${MailTranslationKey.BUY_FIAT}.input_amount`]: `${entity.inputAmount} ${entity.inputAsset}`,
                 [`${MailTranslationKey.PAYMENT}.blockchain`]: `${entity.cryptoInputBlockchain}`,
@@ -157,7 +157,7 @@ export class BuyFiatNotificationService {
             input: {
               userData: entity.sell.user.userData,
               title: `${MailTranslationKey.BUY_FIAT}.processed.title`,
-              prefix: { key: `${MailTranslationKey.BUY_FIAT}.processed.salutation` },
+              salutation: { key: `${MailTranslationKey.BUY_FIAT}.processed.salutation` },
               table: {
                 [`${MailTranslationKey.BUY_FIAT}.output_amount`]: `${entity.outputAmount} ${entity.outputAsset}`,
                 [`${MailTranslationKey.PAYMENT}.bank_account`]: Util.blankStart(entity.sell.iban),
@@ -202,7 +202,7 @@ export class BuyFiatNotificationService {
             input: {
               userData: entity.sell.user.userData,
               title: `${MailTranslationKey.CRYPTO_RETURN}.title`,
-              prefix: { key: `${MailTranslationKey.CRYPTO_RETURN}.salutation` },
+              salutation: { key: `${MailTranslationKey.CRYPTO_RETURN}.salutation` },
               table: {
                 [`${MailTranslationKey.PAYMENT}.reimbursed`]: `${entity.inputAmount} ${entity.inputAsset}`,
                 [`${MailTranslationKey.PAYMENT}.blockchain`]: entity.cryptoInputBlockchain,
@@ -260,8 +260,9 @@ export class BuyFiatNotificationService {
             input: {
               userData: entity.sell.user.userData,
               title: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.title`,
-              prefix: { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.salutation` },
-              table: {},
+              salutation: {
+                key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.salutation`,
+              },
               suffix: [
                 { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line1` },
                 { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line2` },

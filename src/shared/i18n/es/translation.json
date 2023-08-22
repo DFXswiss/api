@@ -3,7 +3,9 @@
         "dfx_team_closing": "Tu Equipo DFX",
         "dfx_closing_message": "Bitcoiners by heart ♥️",
         "support": "Si tienes alguna pregunta,<br>nos encantaría ayudarte en [mail:support@dfx.swiss].",
-        "thanks": "Muchas gracias por tu confianza"
+        "thanks": "Muchas gracias por tu confianza",
+        "happy_trading": "¡Que disfrutes al comerciar!",
+        "welcome": "Hola {name}"
     },
     "payment": {
         "buy_fiat": {
@@ -116,5 +118,47 @@
         "transaction_id": "Identificador de la transacción",
         "wallet_address": "Dirección de la billetera",
         "reimbursed": "Reembolsados"
+    },
+    "referral": {
+        "title": "Pago de Recompensas por Referidos",
+        "salutation": "Tus recompensas por referidos han sido pagadas",
+        "output_amount": "Cantidad",
+        "payment_link": "Aquí puedes encontrar la ID de la transacción del pago de referidos: [url:Link]",
+        "dfx_ambassador": "Eres un auténtico embajador de DFX - Gracias por compartir DFX!"
+    },
+    "kyc": {
+        "success": {
+            "title": "Verificación exitosa",
+            "salutation": "Verificación exitosa",
+            "message": "Su verificación está completa."
+        },
+        "failed": {
+            "title": "Tu identificación online ha fallado",
+            "salutation": "Tu identificación online ha fallado",
+            "message": "Nos hemos dado cuenta de que tu identificación online ha fallado. De todas formas, hemos desbloquado la identificación por video para ti."
+        },
+        "ident": {
+            "title": "Identificación completada",
+            "salutation": "Identificación completada - se comprobarán sus datos",
+            "message": "La identificación se ha completado con éxito y sus datos se comprobarán ahora.<br>La comprobación puede tardar hasta 24 horas en casos individuales."
+        },
+        "chatbot": {
+            "title": "Chatbot completado",
+            "salutation": "Chatbot completado - el siguiente paso para tu verificación"
+        },
+        "reminder": {
+            "title": "Completa tu verificación",
+            "salutation": "Completa tu verificación",
+            "message": "Nos hemos dado cuenta de que no has completado la verificación ({status})."
+        },
+        "next_step": "Para empezar el proceso de identificacion online, apreta el botón de refresco en la sección \"límite\" de la página de pago (acceso a través del botón \"My DFX\" en la app) o [url:aquí].",
+        "last_step": "Da el último paso y empieza a crear tu libertad financiera hoy"
+    },
+    "link_address": {
+        "title": "Vincular su dirección",
+        "salutation": "¿Quieres conectar la dirección de tu billetera a tu cuenta existente?",
+        "existing_address": "Dirección existente",
+        "new_address": "Nueva dirección",
+        "message": "Si quieres emparejar tu nueva dirección a la que ya tienes verificada, por favor sigue las instrucciones: [url:Pulse aquí]"
     }
 }

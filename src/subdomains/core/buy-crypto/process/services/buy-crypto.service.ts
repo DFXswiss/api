@@ -171,9 +171,8 @@ export class BuyCryptoService {
       (dto.amlCheck && dto.amlCheck !== CheckStatus.PASS) ||
       dto.outputReferenceAssetId ||
       dto.chargebackDate
-    ) {
+    )
       await this.buyCryptoWebhookService.triggerWebhook(entity);
-    }
 
     await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
     await this.updateCryptoRouteVolume([cryptoRouteIdBefore, entity.cryptoRoute?.id]);
@@ -282,12 +281,11 @@ export class BuyCryptoService {
 
   // --- HELPER METHODS --- //
 
-  private async doAmlCheck() {
+  private async doAmlCheck(): Promise<void> {
     const entities = await this.buyCryptoRepo.find({
-      where: { amlCheck: IsNull(), amlReason: IsNull(), bankTx: Not(IsNull()) },
+      where: { amlCheck: IsNull(), amlReason: IsNull(), bankTx: Not(IsNull()), buy: Not(IsNull()), status: IsNull() },
       relations: ['bankTx', 'buy', 'buy.user', 'buy.user.wallet', 'buy.user.userData', 'buy.user.userData.users'],
     });
-
     if (entities.length === 0) return;
 
     this.logger.verbose(
@@ -308,7 +306,7 @@ export class BuyCryptoService {
         undefined,
         userFee,
         inputCurrency,
-        entity.outputAsset,
+        entity.target.asset,
       );
 
       const inputAssetEurPrice = await this.priceProviderService.getPrice(inputCurrency, fiatEur);
