@@ -29,4 +29,13 @@ export class Wallet extends IEntity {
 
   @Column({ length: 256, nullable: true })
   identMethod?: KycStatus;
+
+  @Column({ type: 'float', nullable: true })
+  buyFee: number;
+
+  @Column({ type: 'float', nullable: true })
+  sellFee: number;
+
+  @Column({ type: 'float', nullable: true })
+  cryptoFee: number;
 }
