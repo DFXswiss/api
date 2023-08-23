@@ -159,7 +159,7 @@ export class BankTxService {
     let newTxs = txList
       .filter((i) => !duplicates.includes(i.accountServiceRef))
       .map((tx) => {
-        tx.type = tx.name?.includes('DFX AG') || tx.name?.includes('Payward Ltd.') ? BankTxType.INTERNAL : null;
+        tx.type = this.getType(tx);
         tx.batch = batch;
 
         return tx;
@@ -178,6 +178,16 @@ export class BankTxService {
     });
 
     return batch;
+  }
+
+  private getType(tx: BankTx): BankTxType | null {
+    if (tx.name?.includes('DFX AG')) {
+      return BankTxType.INTERNAL;
+    } else if (tx.name?.includes('Payward Ltd.')) {
+      return BankTxType.KRAKEN;
+    }
+
+    return null;
   }
 
   //*** GETTERS ***//

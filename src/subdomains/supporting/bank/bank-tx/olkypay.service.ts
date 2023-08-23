@@ -116,7 +116,7 @@ export class OlkypayService {
         txRaw: JSON.stringify(tx),
         remittanceInfo: tx.line2,
         accountIban: bank.iban,
-        type: tx.codeInterbancaireInterne === TransactionType.BILLING ? BankTxType.INTERNAL : null,
+        type: tx.codeInterbancaireInterne === TransactionType.BILLING ? BankTxType.BANK_ACCOUNT_FEE : null,
       };
     } catch (e) {
       throw new Error(`Failed to parse transaction ${tx.idCtp}: ${e.message}`);
