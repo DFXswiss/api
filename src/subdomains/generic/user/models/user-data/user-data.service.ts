@@ -294,6 +294,8 @@ export class UserDataService {
       }),
     ]);
     if (!master.isDfxUser) throw new BadRequestException(`Master ${master.id} not allowed to merge. Wrong KYC type`);
+    if ([master.status, slave.status].includes(UserDataStatus.MERGED))
+      throw new BadRequestException('Master or slave is already merged');
 
     const bankAccountsToReassign = slave.bankAccounts.filter(
       (sba) => !master.bankAccounts.some((mba) => sba.iban === mba.iban),
