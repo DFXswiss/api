@@ -50,7 +50,7 @@ export class PayInNotificationService {
             input: {
               userData: entity.route.user.userData,
               title: `${MailTranslationKey.CRYPTO_RETURN}.title`,
-              prefix: { key: `${MailTranslationKey.CRYPTO_RETURN}.salutation` },
+              salutation: { key: `${MailTranslationKey.CRYPTO_RETURN}.salutation` },
               table: {
                 [`${MailTranslationKey.PAYMENT}.reimbursed`]: `${entity.amount} ${entity.asset.name}`,
                 [`${MailTranslationKey.PAYMENT}.blockchain`]: entity.asset.blockchain,

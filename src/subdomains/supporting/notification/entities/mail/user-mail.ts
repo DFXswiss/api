@@ -14,7 +14,7 @@ export interface UserMailTable {
   value: string;
 }
 
-export interface UserMailSuffix {
+export interface UserMailAffix {
   url?: {
     link: string;
     text: string;
@@ -45,8 +45,9 @@ export interface UserMailParamsNew {
   to: string;
   subject: string;
   salutation: string;
+  prefix: UserMailAffix[];
   table: UserMailTable[];
-  suffix: UserMailSuffix[];
+  suffix: UserMailAffix[];
   telegramUrl?: string;
   twitterUrl?: string;
   linkedinUrl?: string;

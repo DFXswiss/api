@@ -2,9 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Process } from 'src/config/config';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { Between, In, IsNull, Not } from 'typeorm';
@@ -19,15 +17,12 @@ import { StakingRepository } from '../repositories/staking.repository';
 
 @Injectable()
 export class StakingService {
-  private readonly logger = new DfxLogger(StakingService);
-
   constructor(
     private readonly stakingRewardRepo: StakingRewardRepository,
     private readonly stakingRefRewardRepo: StakingRefRewardRepository,
     private readonly cryptoStakingRepo: CryptoStakingRepository,
     private readonly stakingRepository: StakingRepository,
     private readonly payInService: PayInService,
-    private readonly notificationService: NotificationService,
   ) {}
 
   //*** JOBS ***//

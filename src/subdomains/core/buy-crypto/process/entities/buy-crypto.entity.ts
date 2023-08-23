@@ -1,9 +1,16 @@
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
-import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import {
+  KycStatus,
+  RiskState,
+  UserData,
+  UserDataStatus,
+} from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -370,6 +377,62 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
+  amlCheckAndFillUp(
+    eurPrice: Price,
+    chfPrice: Price,
+    totalFeeAmount: number,
+    userFee: number,
+    minFeeAmount: number,
+    minVolume: number,
+    monthlyAmountInEur: number,
+    bankDataUserData: UserData,
+  ): UpdateResult<BuyCrypto> {
+    const usedRef = this.user.getBuyUsedRef;
+    const amountInEur = eurPrice.convert(this.bankTx.txAmount, 2);
+
+    const update: Partial<BuyCrypto> = this.isAmlPass(minVolume, amountInEur, bankDataUserData?.id, monthlyAmountInEur)
+      ? {
+          inputAmount: this.bankTx.txAmount,
+          inputAsset: this.bankTx.txCurrency,
+          inputReferenceAmount: this.bankTx.txAmount,
+          inputReferenceAsset: this.bankTx.currency,
+          amountInChf: chfPrice.convert(this.bankTx.txAmount, 2),
+          amountInEur,
+          absoluteFeeAmount: 0,
+          percentFee: userFee,
+          percentFeeAmount: userFee * this.bankTx.txAmount,
+          minFeeAmount,
+          minFeeAmountFiat: minFeeAmount,
+          totalFeeAmount,
+          totalFeeAmountChf: chfPrice.convert(totalFeeAmount, 2),
+          inputReferenceAmountMinusFee: this.bankTx.txAmount - totalFeeAmount,
+          usedRef,
+          refProvision: usedRef === '000-000' ? 0 : this.user.refFeePercent,
+          refFactor: usedRef === '000-000' ? 0 : 1,
+          amlCheck: CheckStatus.PASS,
+        }
+      : { amlCheck: CheckStatus.GSHEET };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  isAmlPass(minVolume: number, amountInEur: number, bankDataUserDataId: number, monthlyAmountInEur: number): boolean {
+    return (
+      this.bankTx.currency === this.bankTx.txCurrency &&
+      this.target.asset.buyable &&
+      this.bankTx.txAmount >= minVolume &&
+      this.user.userData.annualBuyVolume + amountInEur < this.user.userData.depositLimit &&
+      bankDataUserDataId === this.user.userData.id &&
+      this.user.userData.kycStatus === KycStatus.COMPLETED &&
+      this.user.status === UserStatus.ACTIVE &&
+      this.user.userData.status === UserDataStatus.ACTIVE &&
+      this.user.userData.riskState === RiskState.C &&
+      monthlyAmountInEur <= Config.amlCheckMonthlyTradingLimit
+    );
+  }
+
   get isLightningOutput(): boolean {
     return this.target.asset.blockchain === Blockchain.LIGHTNING;
   }
@@ -383,10 +446,10 @@ export class BuyCrypto extends IEntity {
   }
 
   get exchangeRateString(): string {
-    return `${Util.roundByPrecision(
-      (this.outputAmount / this.inputReferenceAmountMinusFee) * (this.inputReferenceAmount / this.inputAmount),
-      5,
-    )} ${this.outputAsset.name}/${this.inputAsset}`;
+    const rate =
+      (this.inputAmount / this.inputReferenceAmount) * (this.inputReferenceAmountMinusFee / this.outputAmount);
+    const amount = this.isCryptoCryptoTransaction ? Util.roundByPrecision(rate, 5) : Util.round(rate, 2);
+    return `${amount} ${this.inputAsset}/${this.outputAsset.name}`;
   }
 
   get translationReturnMailKey(): MailTranslationKey {
@@ -438,3 +501,5 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.OLKY_NO_KYC,
   AmlReason.NAME_CHECK_WITHOUT_KYC,
 ];
+
+export const BuyCryptoEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET];
