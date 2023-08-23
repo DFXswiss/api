@@ -36,6 +36,7 @@ import { SettingService } from './models/setting/setting.service';
 import { RepositoryFactory } from './repositories/repository.factory';
 import { ApiKeyService } from './services/api-key.service';
 import { HttpService } from './services/http.service';
+import { IknaService } from './services/ikna.service';
 import { PaymentInfoService } from './services/payment-info.service';
 
 @Module({
@@ -69,6 +70,7 @@ import { PaymentInfoService } from './services/payment-info.service';
     ApiKeyService,
     PaymentInfoService,
     IpLogService,
+    IknaService,
   ],
   exports: [
     RepositoryFactory,
@@ -85,6 +87,7 @@ import { PaymentInfoService } from './services/payment-info.service';
     ApiKeyService,
     PaymentInfoService,
     IpLogService,
+    IknaService,
   ],
 })
 export class SharedModule {}
