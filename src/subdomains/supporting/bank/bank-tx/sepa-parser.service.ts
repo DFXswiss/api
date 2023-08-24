@@ -1,11 +1,11 @@
-import { SepaEntry } from './dto/sepa-entry.dto';
-import { SepaFile } from './dto/sepa-file.dto';
-import { SepaCdi, SepaAddress, ChargeRecord } from './dto/sepa.dto';
+import { Config } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { BankTxBatch } from './bank-tx-batch.entity';
 import { BankTx } from './bank-tx.entity';
-import { Config } from 'src/config/config';
-import { Util } from 'src/shared/utils/util';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { SepaEntry } from './dto/sepa-entry.dto';
+import { SepaFile } from './dto/sepa-file.dto';
+import { ChargeRecord, SepaAddress, SepaCdi } from './dto/sepa.dto';
 
 export class SepaParser {
   private static readonly logger = new DfxLogger(SepaParser);
@@ -123,10 +123,18 @@ export class SepaParser {
         ? { party: parties?.Dbtr, account: parties?.DbtrAcct, ultimateParty: parties?.UltmtDbtr }
         : { party: parties?.Cdtr, account: parties?.CdtrAcct, ultimateParty: parties?.UltmtCdtr };
 
+    const address = this.getAddress(party?.PstlAdr);
+    const ultimateAddress = this.getAddress(ultimateParty?.PstlAdr);
+
     return {
       name: this.toString(party?.Nm),
+      addressLine1: address.line1,
+      addressLine2: address.line2,
+      country: address.country,
       ultimateName: this.toString(ultimateParty?.Nm),
-      ...this.getAddress(party?.PstlAdr),
+      ultimateAddressLine1: ultimateAddress.line1,
+      ultimateAddressLine2: ultimateAddress.line2,
+      ultimateCountry: ultimateAddress.country,
       iban: this.toString(account?.Id?.IBAN ?? account?.Id?.Othr?.Id),
     };
   }
@@ -134,23 +142,24 @@ export class SepaParser {
   private static getRelatedAgentInfo(entry: SepaEntry): Partial<BankTx> {
     const agents = entry?.NtryDtls?.TxDtls?.RltdAgts;
     const agent = entry?.NtryDtls?.TxDtls?.CdtDbtInd === SepaCdi.CREDIT ? agents?.DbtrAgt : agents?.CdtrAgt;
+    const address = this.getAddress(agent?.FinInstnId?.PstlAdr);
 
     return {
       bic: this.toString(agent?.FinInstnId?.BICFI),
       clearingSystemId: this.toString(agent?.FinInstnId?.ClrSysMmbId?.ClrSysId?.Cd),
       memberId: this.toString(agent?.FinInstnId?.ClrSysMmbId?.MmbId),
       bankName: this.toString(agent?.FinInstnId?.Nm),
-      bankAddressLine1: this.toString(this.getAddress(agent?.FinInstnId?.PstlAdr)?.addressLine1),
-      bankAddressLine2: this.toString(this.getAddress(agent?.FinInstnId?.PstlAdr)?.addressLine2),
+      bankAddressLine1: this.toString(address.line1),
+      bankAddressLine2: this.toString(address.line2),
     };
   }
 
-  private static getAddress(address: SepaAddress): Partial<BankTx> {
+  private static getAddress(address: SepaAddress): { line1: string; line2: string; country: string } {
     return {
-      addressLine1:
+      line1:
         (Array.isArray(address?.AdrLine) ? address?.AdrLine[0] : address?.AdrLine) ??
         this.join([address?.StrtNm, address?.BldgNb]),
-      addressLine2:
+      line2:
         (Array.isArray(address?.AdrLine) ? address?.AdrLine[1] : undefined) ??
         this.join([address?.PstCd, address?.TwnNm]),
       country: this.toString(address?.Ctry),

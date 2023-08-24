@@ -51,6 +51,7 @@ export interface SepaEntry {
         };
         UltmtDbtr: {
           Nm: string;
+          PstlAdr: SepaAddress;
         };
         Cdtr: {
           Nm: string;
@@ -66,6 +67,7 @@ export interface SepaEntry {
         };
         UltmtCdtr: {
           Nm: string;
+          PstlAdr: SepaAddress;
         };
       };
       RltdAgts: {

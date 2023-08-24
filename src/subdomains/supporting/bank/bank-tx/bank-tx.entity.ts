@@ -112,9 +112,6 @@ export class BankTx extends IEntity {
   name?: string;
 
   @Column({ length: 256, nullable: true })
-  ultimateName?: string;
-
-  @Column({ length: 256, nullable: true })
   addressLine1?: string;
 
   @Column({ length: 256, nullable: true })
@@ -122,6 +119,18 @@ export class BankTx extends IEntity {
 
   @Column({ length: 256, nullable: true })
   country?: string;
+
+  @Column({ length: 256, nullable: true })
+  ultimateName?: string;
+
+  @Column({ length: 256, nullable: true })
+  ultimateAddressLine1?: string;
+
+  @Column({ length: 256, nullable: true })
+  ultimateAddressLine2?: string;
+
+  @Column({ length: 256, nullable: true })
+  ultimateCountry?: string;
 
   @Column({ length: 256, nullable: true })
   iban?: string;
