@@ -127,7 +127,7 @@ export class SepaParser {
       name: this.toString(party?.Nm),
       ultimateName: this.toString(ultimateParty?.Nm),
       ...this.getAddress(party?.PstlAdr),
-      iban: this.toString(account?.Id?.IBAN),
+      iban: this.toString(account?.Id?.IBAN ?? account?.Id?.Othr?.Id),
     };
   }
 

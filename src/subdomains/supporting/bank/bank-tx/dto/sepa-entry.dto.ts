@@ -44,6 +44,9 @@ export interface SepaEntry {
         DbtrAcct: {
           Id: {
             IBAN: string;
+            Othr: {
+              Id: string;
+            };
           };
         };
         UltmtDbtr: {
@@ -56,6 +59,9 @@ export interface SepaEntry {
         CdtrAcct: {
           Id: {
             IBAN: string;
+            Othr: {
+              Id: string;
+            };
           };
         };
         UltmtCdtr: {
