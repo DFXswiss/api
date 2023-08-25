@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
-import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
 import { SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
 import { Not } from 'typeorm';
@@ -19,6 +19,7 @@ export class BankDataService {
   async addBankData(userDataId: number, dto: CreateBankDataDto): Promise<UserData> {
     const userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['bankDatas'] });
     if (!userData) throw new NotFoundException('User data not found');
+    if (userData.status === UserDataStatus.MERGED) throw new BadRequestException('User data is merged');
 
     const bankData = this.bankDataRepo.create({ ...dto, userData });
     await this.bankDataRepo.save(bankData);

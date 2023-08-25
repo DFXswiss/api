@@ -44,10 +44,14 @@ export interface SepaEntry {
         DbtrAcct: {
           Id: {
             IBAN: string;
+            Othr: {
+              Id: string;
+            };
           };
         };
         UltmtDbtr: {
           Nm: string;
+          PstlAdr: SepaAddress;
         };
         Cdtr: {
           Nm: string;
@@ -56,10 +60,14 @@ export interface SepaEntry {
         CdtrAcct: {
           Id: {
             IBAN: string;
+            Othr: {
+              Id: string;
+            };
           };
         };
         UltmtCdtr: {
           Nm: string;
+          PstlAdr: SepaAddress;
         };
       };
       RltdAgts: {
