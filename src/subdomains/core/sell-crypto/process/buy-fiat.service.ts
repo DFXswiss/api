@@ -136,6 +136,18 @@ export class BuyFiatService {
     buyFiat.sell ? await this.webhookService.cryptoFiatUpdate(buyFiat.sell.user, buyFiat, state) : undefined;
   }
 
+  async resetAmlCheck(id: number): Promise<void> {
+    const entity = await this.buyFiatRepo.findOne({ where: { id }, relations: { fiatOutput: true } });
+    if (!entity) throw new NotFoundException('BuyFiat not found');
+    if (entity.isComplete || entity.fiatOutput.isComplete) throw new BadRequestException('BuyFiat is already complete');
+    if (!entity.amlCheck) throw new BadRequestException('BuyFiat amlcheck is not set');
+
+    const fiatOutputId = entity.fiatOutput.id;
+
+    await this.buyFiatRepo.update(...entity.resetAmlCheck());
+    await this.fiatOutputService.delete(fiatOutputId);
+  }
+
   async updateVolumes(): Promise<void> {
     const sellIds = await this.sellRepo.find().then((l) => l.map((b) => b.id));
     await this.updateSellVolume(sellIds);

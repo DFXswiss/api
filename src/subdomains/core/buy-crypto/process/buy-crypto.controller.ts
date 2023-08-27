@@ -1,11 +1,11 @@
-import { Controller, UseGuards, Put, Body, Param } from '@nestjs/common';
+import { Body, Controller, Param, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { UpdateBuyCryptoDto } from './dto/update-buy-crypto.dto';
 import { BuyCrypto } from './entities/buy-crypto.entity';
 import { BuyCryptoService } from './services/buy-crypto.service';
-import { UpdateBuyCryptoDto } from './dto/update-buy-crypto.dto';
 
 @ApiTags('buyCrypto')
 @Controller('buyCrypto')
@@ -34,5 +34,13 @@ export class BuyCryptoController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async update(@Param('id') id: string, @Body() dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
     return this.buyCryptoService.update(+id, dto);
+  }
+
+  @Put(':id/amlCheck/reset')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async resetAmlCheck(@Param('id') id: string): Promise<void> {
+    return this.buyCryptoService.resetAmlCheck(+id);
   }
 }

@@ -1,4 +1,4 @@
-import { Controller, Put, UseGuards, Body, Param } from '@nestjs/common';
+import { Body, Controller, Param, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -34,5 +34,13 @@ export class BuyFiatController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async update(@Param('id') id: string, @Body() dto: UpdateBuyFiatDto): Promise<BuyFiat> {
     return this.buyFiatService.update(+id, dto);
+  }
+
+  @Put(':id/amlCheck/reset')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async resetAmlCheck(@Param('id') id: string): Promise<void> {
+    return this.buyFiatService.resetAmlCheck(+id);
   }
 }

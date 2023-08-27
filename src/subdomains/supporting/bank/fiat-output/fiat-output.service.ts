@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
 import { BankTxService } from '../bank-tx/bank-tx.service';
 import { CreateFiatOutputDto } from './dto/create-fiat-output.dto';
@@ -36,6 +36,14 @@ export class FiatOutputService {
     }
 
     return this.fiatOutputRepo.save({ ...entity, ...dto });
+  }
+
+  async delete(id: number): Promise<void> {
+    const entity = await this.fiatOutputRepo.findOne({ where: { id }, relations: { buyFiat: true } });
+    if (!entity) throw new NotFoundException('FiatOutput not found');
+    if (entity.buyFiat) throw new BadRequestException('FiatOutput remaining buyFiat');
+
+    await this.fiatOutputRepo.delete(id);
   }
 
   async getFiatOutputByKey(key: string, value: any): Promise<FiatOutput> {
