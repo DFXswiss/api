@@ -11,6 +11,19 @@ export interface PersonalMailInput {
   displayName?: string;
 }
 
+export interface PersonalMailAffix {
+  url?: {
+    link: string;
+    text: string;
+    textAffix?: string;
+  };
+  mail?: {
+    address: string;
+    textAffix?: string;
+  };
+  text: string;
+}
+
 export interface PersonalMailParams {
   to: string;
   subject: string;
@@ -23,8 +36,25 @@ export interface PersonalMailParams {
   options?: NotificationOptions;
 }
 
+export interface PersonalMailParamsNew {
+  to: string;
+  subject: string;
+  prefix: PersonalMailAffix[];
+  banner: string;
+  from?: string;
+  displayName?: string;
+  metadata?: NotificationMetadata;
+  options?: NotificationOptions;
+}
+
 export class PersonalMail extends Mail {
   constructor(params: PersonalMailParams) {
     super({ ...params, template: 'personal', templateParams: params });
+  }
+}
+
+export class PersonalMailNew extends Mail {
+  constructor(params: PersonalMailParamsNew) {
+    super({ ...params, template: 'personalNew', templateParams: params });
   }
 }

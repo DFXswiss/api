@@ -5,7 +5,9 @@
         "support": "If you have any questions,<br>we are happy to help you at [mail:support@dfx.swiss].",
         "thanks": "Thank you very much for your trust",
         "happy_trading": "Happy Trading",
-        "welcome": "Hi {name}"
+        "welcome": "Hi {name},",
+        "personal_questions": "Please do not hesitate to contact me if you have any questions.",
+        "personal_closing": "Kind regards,<br>{closingName}"
     },
     "payment": {
         "buy_fiat": {
@@ -160,5 +162,18 @@
         "existing_address": "Existente endereço",
         "new_address": "Novo endereço",
         "message": "Se quiser ligar o seu novo endereço à sua conta existente e já verificada, por favor siga as instruções: [url:kliknij tutaj]"
+    },
+    "limit_request": {
+        "title": "Transaction volume approved",
+        "message": "Your request of {limitAmount} EUR transaction volume has been approved and is now freely available to you."
+    },
+    "black_squad": {
+        "title": "Invitation Black Squad",
+        "line1": "first of all I would like to introduce myself. My name is Oli and I am CMO at DFX.swiss.",
+        "line2": "For some time now, we have been maintaining a Telegram group for people with larger investments via DFX.swiss and would like to offer you with this group",
+        "line3": "- provide a direct mouthpiece to the C-Level of DFX<br>- provide a platform for discussions<br>- listen closely to your requests for new services<br>- and introduce you to new topics and services in advance",
+        "line4": "We would be pleased if you would like to join this group.",
+        "line5": "We have provided you with direct access to this group on your personal DFX Payment page. Just click on MyDFX in the DFX app and follow the link.",
+        "closing": "Thank you for your trust in us.<br>Oli"
     }
 }

@@ -26,6 +26,9 @@ export interface MailRequestInput {
   prefix?: TranslationItem[];
   table?: Record<string, string>;
   suffix?: TranslationItem[];
+  from?: string;
+  displayName?: string;
+  banner?: string;
 }
 
 export enum MailParamKey {
