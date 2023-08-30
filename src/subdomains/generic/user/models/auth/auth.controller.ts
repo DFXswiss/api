@@ -1,20 +1,23 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
-import { CreateUserDto } from 'src/subdomains/generic/user/models/user/dto/create-user.dto';
-import { AuthService } from './auth.service';
-import { AuthCredentialsDto } from './dto/auth-credentials.dto';
+import { Throttle } from '@nestjs/throttler';
+import { Request, Response } from 'express';
 import { RealIP } from 'nestjs-real-ip';
-import { SignMessageDto } from './dto/sign-message.dto';
-import { AuthResponseDto } from './dto/auth-response.dto';
-import { ChallengeDto } from './dto/challenge.dto';
 import { IpGuard } from 'src/shared/auth/ip.guard';
 import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
-import { Throttle } from '@nestjs/throttler';
+import { CreateUserDto } from 'src/subdomains/generic/user/models/user/dto/create-user.dto';
+import { AlbySignupDto } from '../user/dto/alby.dto';
+import { AuthAlbyService } from './auth-alby.service';
+import { AuthService } from './auth.service';
+import { AuthCredentialsDto } from './dto/auth-credentials.dto';
+import { AuthResponseDto } from './dto/auth-response.dto';
+import { ChallengeDto } from './dto/challenge.dto';
+import { SignMessageDto } from './dto/sign-message.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(private readonly authService: AuthService, private readonly albyService: AuthAlbyService) {}
 
   @Post('signUp')
   @UseGuards(RateLimitGuard, IpGuard)
@@ -41,5 +44,26 @@ export class AuthController {
   @ApiCreatedResponse({ type: ChallengeDto })
   companyChallenge(@Query('address') address: string): Promise<ChallengeDto> {
     return this.authService.getCompanyChallenge(address);
+  }
+
+  // --- ALBY --- //
+  @Get('alby')
+  @ApiCreatedResponse({ type: AuthResponseDto })
+  signInWithAlby(@Query() dto: AlbySignupDto, @Res() res: Response) {
+    const url = this.albyService.getOauthUrl(dto);
+    res.redirect(307, url);
+  }
+
+  @Get('alby/redirect/:id')
+  @ApiCreatedResponse({ type: AuthResponseDto })
+  async redirectAlby(
+    @Param('id') id: string,
+    @Query('code') code: string,
+    @RealIP() ip: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const url = await this.albyService.signIn(id, code, ip, req.url);
+    res.redirect(307, url);
   }
 }

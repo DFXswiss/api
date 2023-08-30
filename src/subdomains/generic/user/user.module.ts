@@ -9,6 +9,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { WalletRepository } from 'src/subdomains/generic/user/models/wallet/wallet.repository';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
+import { AuthAlbyService } from './models/auth/auth-alby.service';
 import { AuthController } from './models/auth/auth.controller';
 import { AuthService } from './models/auth/auth.service';
 import { BankDataController } from './models/bank-data/bank-data.controller';
@@ -82,6 +83,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     SpiderApiService,
     SpiderSyncService,
     AuthService,
+    AuthAlbyService,
     LimitRequestService,
     IdentService,
     LinkService,
