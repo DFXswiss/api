@@ -232,6 +232,16 @@ export class BuyCryptoService {
     await this.updateRefVolume(refs.map((r) => r.usedRef));
   }
 
+  async resetAmlCheck(id: number): Promise<void> {
+    const entity = await this.buyCryptoRepo.findOneBy({ id });
+    if (!entity) throw new NotFoundException('BuyCrypto not found');
+    if (entity.isComplete || entity.batch)
+      throw new BadRequestException('BuyCrypto is already complete or payout initiated');
+    if (!entity.amlCheck) throw new BadRequestException('BuyCrypto amlcheck is not set');
+
+    await this.buyCryptoRepo.update(...entity.resetAmlCheck());
+  }
+
   async getUserTransactions(
     userId: number,
     dateFrom: Date = new Date(0),
