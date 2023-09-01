@@ -26,6 +26,7 @@ interface AlbyUserResponse {
   lightning_address: string;
 }
 
+// TODO: remove
 @ApiTags('Alby')
 @Controller('alby')
 export class AlbyController {

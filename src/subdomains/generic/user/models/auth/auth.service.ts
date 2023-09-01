@@ -24,6 +24,7 @@ import { UserService } from '../user/user.service';
 import { Wallet } from '../wallet/wallet.entity';
 import { WalletService } from '../wallet/wallet.service';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
+import { AuthResponseDto } from './dto/auth-response.dto';
 import { ChallengeDto } from './dto/challenge.dto';
 import { SignMessageDto } from './dto/sign-message.dto';
 
@@ -57,7 +58,7 @@ export class AuthService {
 
   // --- AUTH METHODS --- //
 
-  async signUp(dto: CreateUserDto, userIp: string): Promise<{ accessToken: string }> {
+  async signUp(dto: CreateUserDto, userIp: string, isCustodial = false): Promise<AuthResponseDto> {
     const existingUser = await this.userRepo.getByAddress(dto.address, true);
     if (existingUser) throw new ConflictException('User already exists');
 
@@ -65,7 +66,7 @@ export class AuthService {
 
     if (wallet?.masterKey === dto.signature) {
       delete dto.signature;
-    } else if (!(await this.verifySignature(dto.address, dto.signature, dto.key)))
+    } else if (!(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key)))
       throw new BadRequestException('Invalid signature');
 
     const ref = await this.refService.get(userIp);
@@ -79,7 +80,7 @@ export class AuthService {
     return { accessToken: this.generateUserToken(user) };
   }
 
-  async signIn(dto: AuthCredentialsDto): Promise<{ accessToken: string }> {
+  async signIn(dto: AuthCredentialsDto, isCustodial = false): Promise<AuthResponseDto> {
     const isCompany = this.hasChallenge(dto.address);
     if (isCompany) return this.companySignIn(dto);
 
@@ -87,14 +88,14 @@ export class AuthService {
     if (!user || user.status == UserStatus.BLOCKED) throw new NotFoundException('User not found');
     if (
       user.wallet.masterKey != dto.signature &&
-      !(await this.verifySignature(dto.address, dto.signature, dto.key, user.signature))
+      !(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature))
     )
       throw new UnauthorizedException('Invalid credentials');
 
     return { accessToken: this.generateUserToken(user) };
   }
 
-  private async companySignIn(dto: AuthCredentialsDto): Promise<{ accessToken: string }> {
+  private async companySignIn(dto: AuthCredentialsDto): Promise<AuthResponseDto> {
     const wallet = await this.walletService.getByAddress(dto.address);
     if (!wallet?.isKycClient) throw new NotFoundException('Wallet not found');
 
@@ -115,7 +116,7 @@ export class AuthService {
     return { challenge: challenge };
   }
 
-  async changeUser(id: number, changeUser: LinkedUserInDto): Promise<{ accessToken: string }> {
+  async changeUser(id: number, changeUser: LinkedUserInDto): Promise<AuthResponseDto> {
     const user = await this.getLinkedUser(id, changeUser.address);
     if (!user) throw new NotFoundException('User not found');
     return { accessToken: this.generateUserToken(user) };
@@ -155,6 +156,7 @@ export class AuthService {
   private async verifySignature(
     address: string,
     signature: string,
+    isCustodial: boolean,
     key?: string,
     dbSignature?: string,
   ): Promise<boolean> {
@@ -163,7 +165,7 @@ export class AuthService {
     const blockchains = this.cryptoService.getBlockchainsBasedOn(address);
 
     if (blockchains.includes(Blockchain.LIGHTNING)) {
-      if (/^[a-z0-9]{140,146}$/.test(signature)) {
+      if (isCustodial) {
         // custodial Lightning wallet, only comparison check
         return !dbSignature || signature === dbSignature;
       }
