@@ -4,6 +4,7 @@ import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
+import { Util } from 'src/shared/utils/util';
 import { AlbySignupDto } from '../user/dto/alby.dto';
 import { UserRepository } from '../user/user.repository';
 import { AuthService } from './auth.service';
@@ -45,7 +46,7 @@ export class AuthAlbyService {
 
   getOauthUrl(dto: AlbySignupDto): string {
     // store the sign up data
-    const id = Math.random().toString(36).slice(2, 7);
+    const id = Util.randomId().toString(36);
     this.signUpData.set(id, dto);
 
     return `${this.albyUrl}/oauth?client_id=${Config.alby.clientId}&response_type=code&redirect_uri=${this.redirectUri(
