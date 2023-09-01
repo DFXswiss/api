@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
-import { ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiCreatedResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { RealIP } from 'nestjs-real-ip';
@@ -48,14 +48,14 @@ export class AuthController {
 
   // --- ALBY --- //
   @Get('alby')
-  @ApiCreatedResponse({ type: AuthResponseDto })
+  @ApiExcludeEndpoint()
   signInWithAlby(@Query() dto: AlbySignupDto, @Res() res: Response) {
     const url = this.albyService.getOauthUrl(dto);
     res.redirect(307, url);
   }
 
   @Get('alby/redirect/:id')
-  @ApiCreatedResponse({ type: AuthResponseDto })
+  @ApiExcludeEndpoint()
   async redirectAlby(
     @Param('id') id: string,
     @Query('code') code: string,
