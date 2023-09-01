@@ -433,6 +433,45 @@ export class BuyCrypto extends IEntity {
     );
   }
 
+  resetAmlCheck(): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
+      amlCheck: null,
+      amlReason: null,
+      mailSendDate: null,
+      inputAmount: null,
+      inputAsset: null,
+      inputReferenceAmount: null,
+      inputReferenceAsset: null,
+      amountInChf: null,
+      amountInEur: null,
+      absoluteFeeAmount: null,
+      percentFee: null,
+      percentFeeAmount: null,
+      minFeeAmount: null,
+      minFeeAmountFiat: null,
+      totalFeeAmount: null,
+      totalFeeAmountChf: null,
+      inputReferenceAmountMinusFee: null,
+      usedRef: null,
+      refProvision: null,
+      refFactor: null,
+      chargebackDate: null,
+      chargebackRemittanceInfo: null,
+      outputReferenceAmount: null,
+      outputReferenceAsset: null,
+      outputAmount: null,
+      outputAsset: null,
+      txId: null,
+      outputDate: null,
+      recipientMail: null,
+      status: null,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   get isLightningOutput(): boolean {
     return this.target.asset.blockchain === Blockchain.LIGHTNING;
   }

@@ -205,6 +205,48 @@ export class BuyFiat extends IEntity {
     return [this.id, { mail3SendDate: this.mail3SendDate }];
   }
 
+  resetAmlCheck(): UpdateResult<BuyFiat> {
+    const update: Partial<BuyFiat> = {
+      amlCheck: null,
+      amlReason: null,
+      mail2SendDate: null,
+      mail3SendDate: null,
+      percentFee: null,
+      inputReferenceAmountMinusFee: null,
+      percentFeeAmount: null,
+      absoluteFeeAmount: null,
+      amountInChf: null,
+      amountInEur: null,
+      outputReferenceAmount: null,
+      outputReferenceAsset: null,
+      outputAmount: null,
+      outputAsset: null,
+      minFeeAmount: null,
+      minFeeAmountFiat: null,
+      totalFeeAmount: null,
+      totalFeeAmountChf: null,
+      usedRef: null,
+      refProvision: null,
+      refFactor: null,
+      fiatOutput: null,
+      outputDate: null,
+      info: null,
+      bankFinishTimestamp: null,
+      bankStartTimestamp: null,
+      bankBatchId: null,
+      usedBank: null,
+      instantSepa: null,
+      remittanceInfo: null,
+      cryptoReturnTxId: null,
+      cryptoReturnDate: null,
+      mailReturnSendDate: null,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   get exchangeRateString(): string {
     return `${Util.round(
       (this.outputAmount / this.inputReferenceAmountMinusFee) * (this.inputReferenceAmount / this.inputAmount),

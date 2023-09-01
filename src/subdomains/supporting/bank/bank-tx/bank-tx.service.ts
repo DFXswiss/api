@@ -4,6 +4,7 @@ import { Config, Process } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
+import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
@@ -111,6 +112,8 @@ export class BankTxService {
           break;
       }
     }
+
+    Util.removeNullFields(dto);
 
     return this.bankTxRepo.save({ ...bankTx, ...dto });
   }
