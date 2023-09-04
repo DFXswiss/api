@@ -473,8 +473,8 @@ export class BuyCryptoService {
   ): Promise<BuyCrypto[]> {
     return this.buyCryptoRepo.find({
       where: [
-        { buy: { user: { id: In(userIds) } }, outputDate: Between(dateFrom, dateTo) },
-        { cryptoRoute: { user: { id: In(userIds) } }, outputDate: Between(dateFrom, dateTo) },
+        { buy: { user: { id: In(userIds) } }, bankTx: { created: Between(dateFrom, dateTo) } },
+        { cryptoRoute: { user: { id: In(userIds) } }, cryptoInput: { created: Between(dateFrom, dateTo) } },
       ],
       relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
       order: { id: 'DESC' },
