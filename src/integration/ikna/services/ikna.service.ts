@@ -23,7 +23,8 @@ export class IknaService {
 
   async doAddressBFS(address: string, blockchain: IknaBlockchain, depth = 1): Promise<number> {
     const resultId = Util.randomId();
-    this.saveBfsResult(resultId, address, blockchain, depth);
+    this.sanctionResults[resultId] = { testedAddress: address, isSanctioned: null };
+    void this.startAddressBFS(resultId, address, blockchain, depth);
     return resultId;
   }
 
@@ -43,23 +44,23 @@ export class IknaService {
     depth: number,
   ): Promise<IknaSanctionResult | undefined> {
     try {
-      const addressTag = await this.getAddressTags(address, blockchain);
+      const addressTags = await this.getAddressTags(address, blockchain);
 
-      if (this.hasExchangeTag(addressTag)) return { isSanctioned: false, testedAddress: address };
+      if (this.hasExchangeTag(addressTags)) return { isSanctioned: false, testedAddress: address };
 
-      if (this.hasSanctionTag(addressTag))
+      if (this.hasSanctionTag(addressTags))
         return {
           isSanctioned: true,
           testedAddress: address,
           sanctionedAddress: address,
-          sanctionedAddressTags: addressTag,
+          sanctionedAddressTags: addressTags,
         };
 
       if (depth < 1) return { isSanctioned: false, testedAddress: address };
 
       let neighborInfo: IknaAddressNeighborInfo;
 
-      while (neighborInfo === undefined || neighborInfo?.next_page) {
+      do {
         neighborInfo = await this.getAddressNeighbors(address, blockchain, neighborInfo?.next_page);
 
         for (const neighbor of neighborInfo?.neighbors) {
@@ -67,7 +68,7 @@ export class IknaService {
 
           if (recursiveResult?.isSanctioned) return recursiveResult;
         }
-      }
+      } while (neighborInfo?.next_page);
 
       return { isSanctioned: false, testedAddress: address };
     } catch (error) {
@@ -89,7 +90,7 @@ export class IknaService {
       nextPage ? `&page=${nextPage}` : ''
     }`;
 
-    return await this.http.get<IknaAddressNeighborInfo>(url, { headers: Config.ikna });
+    return this.http.get<IknaAddressNeighborInfo>(url, { headers: Config.ikna });
   }
 
   async getAddressTags(address: string, blockchain: IknaBlockchain): Promise<IknaAddressTag[]> {
@@ -104,8 +105,12 @@ export class IknaService {
 
   // --- HELPER METHODS --- //
 
-  private async saveBfsResult(resultId: number, address: string, blockchain: IknaBlockchain, depth = 1): Promise<void> {
-    this.sanctionResults[resultId] = { testedAddress: address, isSanctioned: null };
+  private async startAddressBFS(
+    resultId: number,
+    address: string,
+    blockchain: IknaBlockchain,
+    depth = 1,
+  ): Promise<void> {
     const result = await this.bfsAddressLevel(address, blockchain, depth);
     this.sanctionResults[resultId] = result;
   }

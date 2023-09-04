@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -13,11 +13,11 @@ import { IknaService } from '../services/ikna.service';
 export class IknaController {
   constructor(private readonly iknaService: IknaService) {}
 
-  @Get('bfs/address')
+  @Post('bfs/address')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getBfsAddressId(@Query() query: IknaBfsAddressQuery): Promise<number> {
+  async createBfsAddressRequest(@Query() query: IknaBfsAddressQuery): Promise<number> {
     return this.iknaService.doAddressBFS(query.address, query.blockchain, +query.depth);
   }
 

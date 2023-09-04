@@ -5,7 +5,7 @@ export interface IknaAddressNeighborInfo {
 
 export interface IknaAddressNeighbor {
   address: {
-    actors?: [{ id: string; label: string }];
+    actors?: { id: string; label: string }[];
     address: string;
     balance: IknaFiatValues;
     currency: string;
