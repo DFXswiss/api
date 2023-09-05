@@ -62,6 +62,8 @@ export class SepaParser {
         entry?.NtryDtls?.TxDtls?.Refs?.AcctSvcrRef ??
         `CUSTOM/${file.BkToCstmrStmt.Stmt?.Acct?.Id?.IBAN}/${entry.BookgDt.Dt}/${entry.AddtlNtryInf}`;
 
+      const creditDebitIndicator = this.toString(entry?.NtryDtls?.TxDtls?.CdtDbtInd);
+
       let data: Partial<BankTx> = {};
       try {
         data = {
@@ -73,7 +75,7 @@ export class SepaParser {
           txId: this.toString(entry?.NtryDtls?.TxDtls?.Refs?.TxId),
           amount: +entry?.NtryDtls?.TxDtls?.Amt?.['#text'],
           currency: this.toString(entry?.NtryDtls?.TxDtls?.Amt?.['@_Ccy']),
-          creditDebitIndicator: this.toString(entry?.NtryDtls?.TxDtls?.CdtDbtInd),
+          creditDebitIndicator,
           instructedAmount: +entry?.NtryDtls?.TxDtls?.AmtDtls?.InstdAmt?.Amt?.['#text'],
           instructedCurrency: this.toString(entry?.NtryDtls?.TxDtls?.AmtDtls?.InstdAmt?.Amt?.['@_Ccy']),
           txAmount: +entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.Amt?.['#text'],
@@ -81,7 +83,9 @@ export class SepaParser {
           exchangeSourceCurrency: this.toString(entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.CcyXchg?.SrcCcy),
           exchangeTargetCurrency: this.toString(entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.CcyXchg?.TrgtCcy),
           exchangeRate: +entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.CcyXchg?.XchgRate,
-          ...this.getTotalCharge(entry?.NtryDtls?.TxDtls?.Chrgs?.Rcrd),
+          ...this.getTotalCharge(
+            creditDebitIndicator === SepaCdi.CREDIT ? entry?.NtryDtls?.TxDtls?.Chrgs?.Rcrd : entry?.Chrgs?.Rcrd,
+          ),
           ...this.getRelatedPartyInfo(entry),
           ...this.getRelatedAgentInfo(entry),
           accountIban,
