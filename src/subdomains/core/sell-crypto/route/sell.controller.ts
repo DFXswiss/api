@@ -2,8 +2,7 @@ import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/comm
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { LightningService } from 'src/integration/lightning/services/lightning.service';
+import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -37,7 +36,7 @@ export class SellController {
     private readonly buyFiatService: BuyFiatService,
     private readonly paymentInfoService: PaymentInfoService,
     private readonly transactionHelper: TransactionHelper,
-    private readonly lightningService: LightningService,
+    private readonly cryptoService: CryptoService,
   ) {}
 
   @Get()
@@ -173,10 +172,7 @@ export class SellController {
       amount,
       currency: FiatDtoMapper.entityToDto(dto.currency),
       asset: AssetDtoMapper.entityToDto(dto.asset),
-      paymentRequest:
-        dto.asset.blockchain === Blockchain.LIGHTNING && isValid
-          ? await this.lightningService.getInvoiceByLnurlp(sell.deposit.address, amount)
-          : undefined,
+      paymentRequest: await this.cryptoService.getPaymentRequest(isValid, dto.asset, sell.deposit.address, amount),
       isValid,
     };
   }

@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/comm
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
+import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -33,6 +34,7 @@ export class CryptoRouteController {
     private readonly buyCryptoService: BuyCryptoService,
     private readonly paymentInfoService: PaymentInfoService,
     private readonly transactionHelper: TransactionHelper,
+    private readonly cryptoService: CryptoService,
   ) {}
 
   @Get()
@@ -185,6 +187,12 @@ export class CryptoRouteController {
       amount,
       targetAsset: AssetDtoMapper.entityToDto(dto.targetAsset),
       sourceAsset: AssetDtoMapper.entityToDto(dto.sourceAsset),
+      paymentRequest: await this.cryptoService.getPaymentRequest(
+        isValid,
+        dto.targetAsset,
+        cryptoRoute.deposit.address,
+        amount,
+      ),
       isValid,
     };
   }
