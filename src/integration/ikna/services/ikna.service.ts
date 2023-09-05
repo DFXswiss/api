@@ -86,11 +86,12 @@ export class IknaService {
     blockchain: IknaBlockchain,
     nextPage?: string,
   ): Promise<IknaAddressNeighborInfo | undefined> {
-    const url = `${this.baseUrl}/${blockchain}/addresses/${address}/neighbors?direction=in&pagesize=100${
-      nextPage ? `&page=${nextPage}` : ''
-    }`;
+    const url = `${this.baseUrl}/${blockchain}/addresses/${address}/neighbors`;
 
-    return this.http.get<IknaAddressNeighborInfo>(url, { headers: Config.ikna });
+    return this.http.get<IknaAddressNeighborInfo>(url, {
+      headers: Config.ikna,
+      params: { direction: 'in', pagesize: '100', page: nextPage },
+    });
   }
 
   async getAddressTags(address: string, blockchain: IknaBlockchain): Promise<IknaAddressTag[]> {
