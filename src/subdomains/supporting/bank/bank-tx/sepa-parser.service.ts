@@ -153,19 +153,21 @@ export class SepaParser {
       clearingSystemId: this.toString(agent?.FinInstnId?.ClrSysMmbId?.ClrSysId?.Cd),
       memberId: this.toString(agent?.FinInstnId?.ClrSysMmbId?.MmbId),
       bankName: this.toString(agent?.FinInstnId?.Nm),
-      bankAddressLine1: this.toString(address.line1),
-      bankAddressLine2: this.toString(address.line2),
+      bankAddressLine1: address.line1,
+      bankAddressLine2: address.line2,
     };
   }
 
   private static getAddress(address: SepaAddress): { line1: string; line2: string; country: string } {
     return {
-      line1:
+      line1: this.toString(
         (Array.isArray(address?.AdrLine) ? address?.AdrLine[0] : address?.AdrLine) ??
-        this.join([address?.StrtNm, address?.BldgNb]),
-      line2:
+          this.join([address?.StrtNm, address?.BldgNb]),
+      ),
+      line2: this.toString(
         (Array.isArray(address?.AdrLine) ? address?.AdrLine[1] : undefined) ??
-        this.join([address?.PstCd, address?.TwnNm]),
+          this.join([address?.PstCd, address?.TwnNm]),
+      ),
       country: this.toString(address?.Ctry),
     };
   }
