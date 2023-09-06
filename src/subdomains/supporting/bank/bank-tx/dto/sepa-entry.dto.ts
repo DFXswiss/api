@@ -7,6 +7,9 @@ export interface SepaEntry {
   ValDt: {
     Dt: string;
   };
+  Chrgs: {
+    Rcrd: ChargeRecord | ChargeRecord[];
+  };
   NtryDtls: {
     Btch: {
       NbOfTxs: string;

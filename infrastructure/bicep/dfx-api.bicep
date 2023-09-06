@@ -180,6 +180,9 @@ param albyClientSecret string
 @secure()
 param taliumApiKey string
 
+@secure()
+param iknaKey string
+
 // --- VARIABLES --- //
 var compName = 'dfx'
 var apiName = 'api'
@@ -864,6 +867,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'WEBSITE_RUN_FROM_PACKAGE'
           value: '1'
+        }
+        {
+          name: 'IKNA_KEY'
+          value: iknaKey
         }
       ]
     }

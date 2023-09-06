@@ -62,6 +62,8 @@ export class SepaParser {
         entry?.NtryDtls?.TxDtls?.Refs?.AcctSvcrRef ??
         `CUSTOM/${file.BkToCstmrStmt.Stmt?.Acct?.Id?.IBAN}/${entry.BookgDt.Dt}/${entry.AddtlNtryInf}`;
 
+      const creditDebitIndicator = this.toString(entry?.NtryDtls?.TxDtls?.CdtDbtInd);
+
       let data: Partial<BankTx> = {};
       try {
         data = {
@@ -73,7 +75,7 @@ export class SepaParser {
           txId: this.toString(entry?.NtryDtls?.TxDtls?.Refs?.TxId),
           amount: +entry?.NtryDtls?.TxDtls?.Amt?.['#text'],
           currency: this.toString(entry?.NtryDtls?.TxDtls?.Amt?.['@_Ccy']),
-          creditDebitIndicator: this.toString(entry?.NtryDtls?.TxDtls?.CdtDbtInd),
+          creditDebitIndicator,
           instructedAmount: +entry?.NtryDtls?.TxDtls?.AmtDtls?.InstdAmt?.Amt?.['#text'],
           instructedCurrency: this.toString(entry?.NtryDtls?.TxDtls?.AmtDtls?.InstdAmt?.Amt?.['@_Ccy']),
           txAmount: +entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.Amt?.['#text'],
@@ -81,7 +83,9 @@ export class SepaParser {
           exchangeSourceCurrency: this.toString(entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.CcyXchg?.SrcCcy),
           exchangeTargetCurrency: this.toString(entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.CcyXchg?.TrgtCcy),
           exchangeRate: +entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.CcyXchg?.XchgRate,
-          ...this.getTotalCharge(entry?.NtryDtls?.TxDtls?.Chrgs?.Rcrd),
+          ...this.getTotalCharge(
+            creditDebitIndicator === SepaCdi.CREDIT ? entry?.NtryDtls?.TxDtls?.Chrgs?.Rcrd : entry?.Chrgs?.Rcrd,
+          ),
           ...this.getRelatedPartyInfo(entry),
           ...this.getRelatedAgentInfo(entry),
           accountIban,
@@ -149,19 +153,21 @@ export class SepaParser {
       clearingSystemId: this.toString(agent?.FinInstnId?.ClrSysMmbId?.ClrSysId?.Cd),
       memberId: this.toString(agent?.FinInstnId?.ClrSysMmbId?.MmbId),
       bankName: this.toString(agent?.FinInstnId?.Nm),
-      bankAddressLine1: this.toString(address.line1),
-      bankAddressLine2: this.toString(address.line2),
+      bankAddressLine1: address.line1,
+      bankAddressLine2: address.line2,
     };
   }
 
   private static getAddress(address: SepaAddress): { line1: string; line2: string; country: string } {
     return {
-      line1:
+      line1: this.toString(
         (Array.isArray(address?.AdrLine) ? address?.AdrLine[0] : address?.AdrLine) ??
-        this.join([address?.StrtNm, address?.BldgNb]),
-      line2:
+          this.join([address?.StrtNm, address?.BldgNb]),
+      ),
+      line2: this.toString(
         (Array.isArray(address?.AdrLine) ? address?.AdrLine[1] : undefined) ??
-        this.join([address?.PstCd, address?.TwnNm]),
+          this.join([address?.PstCd, address?.TwnNm]),
+      ),
       country: this.toString(address?.Ctry),
     };
   }

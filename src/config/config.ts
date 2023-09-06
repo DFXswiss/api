@@ -414,6 +414,10 @@ export class Configuration {
     },
   };
 
+  ikna = {
+    Authorization: process.env.IKNA_KEY,
+  };
+
   bank = {
     dfxBankInfo: {
       name: 'DFX AG',
