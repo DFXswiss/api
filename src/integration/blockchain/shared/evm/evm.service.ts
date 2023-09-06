@@ -33,7 +33,7 @@ export abstract class EvmService {
   }
 
   async getPaymentRequest(address: string, asset: Asset, amount: number): Promise<string> {
-    const token = await this.client.getTokenByAddress(address);
+    const token = await this.client.getTokenByAddress(asset.chainId);
     return asset.type === AssetType.COIN
       ? `ethereum:${address}@${token.chainId}?value=${this.client.toWeiAmount(amount).toString()}`
       : `ethereum:${token.address}@${token.chainId}/transfer?address=${address}&uint256=${this.client

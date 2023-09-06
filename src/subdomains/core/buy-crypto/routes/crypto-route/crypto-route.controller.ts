@@ -189,7 +189,7 @@ export class CryptoRouteController {
       sourceAsset: AssetDtoMapper.entityToDto(dto.sourceAsset),
       paymentRequest: await this.cryptoService.getPaymentRequest(
         isValid,
-        dto.targetAsset,
+        dto.sourceAsset,
         cryptoRoute.deposit.address,
         amount,
       ),

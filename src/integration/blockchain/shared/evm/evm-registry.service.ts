@@ -18,19 +18,7 @@ export class EvmRegistryService {
   ) {}
 
   getClient(blockchain: Blockchain): EvmClient {
-    switch (blockchain) {
-      case Blockchain.ETHEREUM:
-        return this.ethereumService.getDefaultClient();
-      case Blockchain.BINANCE_SMART_CHAIN:
-        return this.bscService.getDefaultClient();
-      case Blockchain.ARBITRUM:
-        return this.arbitrumService.getDefaultClient();
-      case Blockchain.OPTIMISM:
-        return this.optimismService.getDefaultClient();
-
-      default:
-        throw new Error(`No evm client found for blockchain ${blockchain}`);
-    }
+    return this.getService(blockchain).getDefaultClient();
   }
 
   getService(blockchain: Blockchain): EvmService {
