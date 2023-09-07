@@ -1,4 +1,5 @@
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { MailAffix } from '../../interfaces';
 import { NotificationMetadata, NotificationOptions } from '../notification.entity';
 import { Mail } from './base/mail';
 
@@ -9,19 +10,6 @@ export interface PersonalMailInput {
   banner: string;
   from?: string;
   displayName?: string;
-}
-
-export interface PersonalMailAffix {
-  url?: {
-    link: string;
-    text: string;
-    textAffix?: string;
-  };
-  mail?: {
-    address: string;
-    textAffix?: string;
-  };
-  text: string;
 }
 
 export interface PersonalMailParams {
@@ -39,7 +27,7 @@ export interface PersonalMailParams {
 export interface PersonalMailParamsNew {
   to: string;
   subject: string;
-  prefix: PersonalMailAffix[];
+  prefix: MailAffix[];
   banner: string;
   from?: string;
   displayName?: string;

@@ -14,21 +14,42 @@ export interface MailRequest {
 
 export interface MailRequestNew {
   type: MailType;
-  input: MailRequestGenericInput | ErrorMonitoringMailInput | MailRequestInput;
+  input: MailRequestGenericInput | ErrorMonitoringMailInput | MailRequestUser | MailRequestPersonal;
   metadata?: NotificationMetadata;
   options?: NotificationOptions;
 }
 
-export interface MailRequestInput {
+export interface MailRequestUser {
   userData: UserData;
   title: string;
   salutation?: TranslationItem;
   prefix?: TranslationItem[];
   table?: Record<string, string>;
   suffix?: TranslationItem[];
+}
+
+export interface MailRequestPersonal {
+  userData: UserData;
+  title: string;
+  salutation?: TranslationItem;
+  prefix?: TranslationItem[];
   from?: string;
   displayName?: string;
   banner?: string;
+}
+
+export interface MailAffix {
+  url?: {
+    link: string;
+    text: string;
+    textSuffix?: string;
+  };
+  mail?: {
+    address: string;
+    textSuffix?: string;
+  };
+  style?: string;
+  text: string;
 }
 
 export enum MailParamKey {

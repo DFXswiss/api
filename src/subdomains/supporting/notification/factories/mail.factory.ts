@@ -6,14 +6,16 @@ import { AmlReason } from 'src/subdomains/core/buy-crypto/process/enums/aml-reas
 import { Mail, MailParams } from '../entities/mail/base/mail';
 import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
 import { KycSupportMail, KycSupportMailInput } from '../entities/mail/kyc-support-mail';
-import { PersonalMail, PersonalMailAffix, PersonalMailInput, PersonalMailNew } from '../entities/mail/personal-mail';
-import { UserMail, UserMailAffix, UserMailInput, UserMailNew, UserMailTable } from '../entities/mail/user-mail';
+import { PersonalMail, PersonalMailInput, PersonalMailNew } from '../entities/mail/personal-mail';
+import { UserMail, UserMailInput, UserMailNew, UserMailTable } from '../entities/mail/user-mail';
 import { MailType } from '../enums';
 import {
+  MailAffix,
   MailRequest,
   MailRequestGenericInput,
-  MailRequestInput,
   MailRequestNew,
+  MailRequestPersonal,
+  MailRequestUser,
   TranslationItem,
   TranslationParams,
 } from '../interfaces';
@@ -188,7 +190,7 @@ export class MailFactory {
 
   private createUserMailNew(request: MailRequestNew): UserMailNew {
     const { metadata, options } = request;
-    const { userData, title, salutation, prefix, suffix, table } = request.input as MailRequestInput;
+    const { userData, title, salutation, prefix, suffix, table } = request.input as MailRequestUser;
 
     const lang = userData.language?.symbol.toLowerCase();
 
@@ -196,9 +198,9 @@ export class MailFactory {
       to: userData.mail,
       subject: this.tNew(title, lang),
       salutation: salutation && this.tNew(salutation.key, lang, salutation.params),
-      prefix: prefix && this.getUserMailAffix(prefix, lang),
+      prefix: prefix && this.getMailAffix(prefix, lang),
       table: table && this.getTable(table, lang),
-      suffix: suffix && this.getUserMailAffix(suffix, lang),
+      suffix: suffix && this.getMailAffix(suffix, lang),
       metadata,
       options,
     });
@@ -229,7 +231,7 @@ export class MailFactory {
   }
 
   private createPersonalMailNew(request: MailRequestNew): PersonalMailNew {
-    const { userData, title, prefix, banner, from, displayName } = request.input as MailRequestInput;
+    const { userData, title, prefix, banner, from, displayName } = request.input as MailRequestPersonal;
     const { metadata, options } = request;
 
     const lang = userData.language?.symbol.toLowerCase();
@@ -237,7 +239,7 @@ export class MailFactory {
     return new PersonalMailNew({
       to: userData.mail,
       subject: this.tNew(title, lang),
-      prefix: prefix && this.getPersonalMailAffix(prefix, lang),
+      prefix: prefix && this.getMailAffix(prefix, lang),
       banner,
       from,
       displayName,
@@ -274,17 +276,12 @@ export class MailFactory {
     }));
   }
 
-  private getUserMailAffix(affix: TranslationItem[], lang: string): UserMailAffix[] {
+  private getMailAffix(affix: TranslationItem[], lang: string): MailAffix[] {
     Util.removeNullFields(affix);
-    return affix.map((element) => this.mapUserMailAffix(element, lang).flat()).flat();
+    return affix.map((element) => this.mapMailAffix(element, lang).flat()).flat();
   }
 
-  private getPersonalMailAffix(affix: TranslationItem[], lang: string): PersonalMailAffix[] {
-    Util.removeNullFields(affix);
-    return affix.map((element) => this.mapPersonalMailAffix(element, lang).flat()).flat();
-  }
-
-  private mapUserMailAffix(element: TranslationItem, lang: string): UserMailAffix[] {
+  private mapMailAffix(element: TranslationItem, lang: string): MailAffix[] {
     switch (element.key) {
       case MailKey.SPACE:
         return [DefaultEmptyLine];
@@ -322,34 +319,6 @@ export class MailFactory {
             mail:
               specialTag?.tag === 'mail' ? { address: specialTag.value, textSuffix: specialTag.textSuffix } : undefined,
             style: element.params?.style ?? UserMailDefaultStyle,
-            text: specialTag?.text ?? text,
-          },
-        ];
-    }
-  }
-
-  private mapPersonalMailAffix(element: TranslationItem, lang: string): PersonalMailAffix[] {
-    switch (element.key) {
-      case MailKey.SPACE:
-        return [DefaultEmptyLine];
-
-      default:
-        const translatedParams = this.translateParams(element.params, lang);
-        const text = this.tNew(element.key, lang, translatedParams);
-        const specialTag = this.parseSpecialTag(text);
-
-        return [
-          {
-            url:
-              specialTag?.tag === 'url' && element.params?.url
-                ? {
-                    link: element.params.url,
-                    text: specialTag.value,
-                    textAffix: specialTag.textSuffix,
-                  }
-                : undefined,
-            mail:
-              specialTag?.tag === 'mail' ? { address: specialTag.value, textAffix: specialTag.textSuffix } : undefined,
             text: specialTag?.text ?? text,
           },
         ];
