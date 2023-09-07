@@ -1,6 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { LightningService } from 'src/integration/lightning/services/lightning.service';
+import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
@@ -18,7 +18,7 @@ describe('SellController', () => {
   let buyFiatService: BuyFiatService;
   let paymentInfoService: PaymentInfoService;
   let transactionHelper: TransactionHelper;
-  let lightningService: LightningService;
+  let cryptoService: CryptoService;
 
   beforeEach(async () => {
     sellService = createMock<SellService>();
@@ -26,7 +26,7 @@ describe('SellController', () => {
     buyFiatService = createMock<BuyFiatService>();
     paymentInfoService = createMock<PaymentInfoService>();
     transactionHelper = createMock<TransactionHelper>();
-    lightningService = createMock<LightningService>();
+    cryptoService = createMock<CryptoService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -37,7 +37,7 @@ describe('SellController', () => {
         { provide: BuyFiatService, useValue: buyFiatService },
         { provide: PaymentInfoService, useValue: paymentInfoService },
         { provide: TransactionHelper, useValue: transactionHelper },
-        { provide: LightningService, useValue: lightningService },
+        { provide: CryptoService, useValue: cryptoService },
         TestUtil.provideConfig(),
       ],
     }).compile();

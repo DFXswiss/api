@@ -1,19 +1,30 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
+import { NodeService } from '../../node/node.service';
 
 describe('CryptoService', () => {
   let service: CryptoService;
 
   let lightningService: LightningService;
+  let nodeService: NodeService;
+  let evmRegistryService: EvmRegistryService;
 
   beforeEach(async () => {
     lightningService = createMock<LightningService>();
+    nodeService = createMock<NodeService>();
+    evmRegistryService = createMock<EvmRegistryService>();
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [CryptoService, { provide: LightningService, useValue: lightningService }],
+      providers: [
+        CryptoService,
+        { provide: LightningService, useValue: lightningService },
+        { provide: NodeService, useValue: nodeService },
+        { provide: EvmRegistryService, useValue: evmRegistryService },
+      ],
     }).compile();
 
     service = module.get<CryptoService>(CryptoService);
