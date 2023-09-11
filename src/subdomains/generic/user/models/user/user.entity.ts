@@ -50,9 +50,6 @@ export class User extends IEntity {
   @Column({ length: 256, nullable: true })
   ipCountry: string;
 
-  @Column({ length: 'MAX', nullable: true })
-  cfpVotes: string;
-
   @Column({ type: 'float', nullable: true })
   buyFee: number;
 
