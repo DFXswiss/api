@@ -349,7 +349,7 @@ export class Configuration {
         DFI: 0.01,
       },
     },
-    forwardFeeLimit: +(process.env.PAY_IN_FEE_LIMIT ?? 0.005),
+    forwardFeeLimit: +(process.env.PAY_IN_FEE_LIMIT ?? 0.001),
   };
 
   buy = {
