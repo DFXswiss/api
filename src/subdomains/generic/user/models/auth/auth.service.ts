@@ -86,11 +86,15 @@ export class AuthService {
 
     const user = await this.userRepo.getByAddress(dto.address, true);
     if (!user || user.status == UserStatus.BLOCKED) throw new NotFoundException('User not found');
-    if (
-      user.wallet.masterKey != dto.signature &&
-      !(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature))
-    )
-      throw new UnauthorizedException('Invalid credentials');
+
+    if (user.wallet.masterKey !== dto.signature) {
+      if (!(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature))) {
+        throw new UnauthorizedException('Invalid credentials');
+      } else if (!user.signature) {
+        // TODO: temporary code to update empty signatures
+        await this.userRepo.update({ address: dto.address }, { signature: dto.signature });
+      }
+    }
 
     return { accessToken: this.generateUserToken(user) };
   }
@@ -165,7 +169,7 @@ export class AuthService {
     const blockchains = this.cryptoService.getBlockchainsBasedOn(address);
 
     if (blockchains.includes(Blockchain.LIGHTNING)) {
-      if (isCustodial) {
+      if (isCustodial || /^[a-z0-9]{140,146}$/.test(signature)) {
         // custodial Lightning wallet, only comparison check
         return !dbSignature || signature === dbSignature;
       }

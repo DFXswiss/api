@@ -95,9 +95,6 @@ export class AuthAlbyService {
         throw e;
       });
 
-      // TODO: temporary code to update empty signatures
-      await this.userRepo.update({ address: session.address }, { signature: identifier });
-
       const url = new URL(returnUri);
       url.searchParams.set('session', accessToken);
 
