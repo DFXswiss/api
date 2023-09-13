@@ -5,6 +5,7 @@ import { EthereumService } from '../../ethereum/ethereum.service';
 import { OptimismService } from '../../optimism/optimism.service';
 import { Blockchain } from '../enums/blockchain.enum';
 import { EvmClient } from './evm-client';
+import { EvmService } from './evm.service';
 import { L2BridgeEvmClient } from './interfaces';
 
 @Injectable()
@@ -17,18 +18,22 @@ export class EvmRegistryService {
   ) {}
 
   getClient(blockchain: Blockchain): EvmClient {
+    return this.getService(blockchain).getDefaultClient();
+  }
+
+  getService(blockchain: Blockchain): EvmService {
     switch (blockchain) {
       case Blockchain.ETHEREUM:
-        return this.ethereumService.getDefaultClient();
+        return this.ethereumService;
       case Blockchain.BINANCE_SMART_CHAIN:
-        return this.bscService.getDefaultClient();
+        return this.bscService;
       case Blockchain.ARBITRUM:
-        return this.arbitrumService.getDefaultClient();
+        return this.arbitrumService;
       case Blockchain.OPTIMISM:
-        return this.optimismService.getDefaultClient();
+        return this.optimismService;
 
       default:
-        throw new Error(`No evm client found for blockchain ${blockchain}`);
+        throw new Error(`No evm service found for blockchain ${blockchain}`);
     }
   }
 

@@ -6,6 +6,9 @@ import { isEthereumAddress } from 'class-validator';
 import { verifyMessage } from 'ethers/lib/utils';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { NodeService } from '../../ain/node/node.service';
+import { EvmRegistryService } from '../evm/evm-registry.service';
 
 @Injectable()
 export class CryptoService {
@@ -19,7 +22,39 @@ export class CryptoService {
     Blockchain.POLYGON,
   ];
 
-  constructor(private lightningService: LightningService) {}
+  constructor(
+    private lightningService: LightningService,
+    private readonly nodeService: NodeService,
+    private readonly evmRegistryService: EvmRegistryService,
+  ) {}
+
+  // --- PAYMENT REQUEST --- //
+  async getPaymentRequest(
+    isValid: boolean,
+    asset: Asset,
+    address: string,
+    amount: number,
+  ): Promise<string | undefined> {
+    if (!isValid) return undefined;
+
+    switch (asset.blockchain) {
+      case Blockchain.LIGHTNING:
+        return this.lightningService.getInvoiceByLnurlp(address, amount);
+
+      case Blockchain.BITCOIN:
+        return this.nodeService.getBtcPaymentRequest(address, amount);
+
+      case Blockchain.ARBITRUM:
+      case Blockchain.OPTIMISM:
+      case Blockchain.BINANCE_SMART_CHAIN:
+      case Blockchain.ETHEREUM:
+        const evmService = this.evmRegistryService.getService(asset.blockchain);
+        return evmService.getPaymentRequest(address, asset, amount);
+
+      default:
+        return undefined;
+    }
+  }
 
   // --- ADDRESSES --- //
   public getBlockchainsBasedOn(address: string): Blockchain[] {

@@ -6,14 +6,16 @@ import { AmlReason } from 'src/subdomains/core/buy-crypto/process/enums/aml-reas
 import { Mail, MailParams } from '../entities/mail/base/mail';
 import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
 import { KycSupportMail, KycSupportMailInput } from '../entities/mail/kyc-support-mail';
-import { PersonalMail, PersonalMailInput } from '../entities/mail/personal-mail';
-import { UserMail, UserMailAffix, UserMailInput, UserMailNew, UserMailTable } from '../entities/mail/user-mail';
+import { PersonalMail, PersonalMailInput, PersonalMailNew } from '../entities/mail/personal-mail';
+import { UserMail, UserMailInput, UserMailNew, UserMailTable } from '../entities/mail/user-mail';
 import { MailType } from '../enums';
 import {
+  MailAffix,
   MailRequest,
   MailRequestGenericInput,
-  MailRequestInput,
   MailRequestNew,
+  MailRequestPersonal,
+  MailRequestUser,
   TranslationItem,
   TranslationParams,
 } from '../interfaces';
@@ -36,6 +38,8 @@ export enum MailTranslationKey {
   KYC_CHATBOT = 'translation.kyc.chatbot',
   KYC_REMINDER = 'translation.kyc.reminder',
   LINK_ADDRESS = 'translation.link_address',
+  LIMIT_REQUEST = 'translation.limit_request',
+  BLACK_SQUAD = 'translation.black_squad',
 }
 
 export enum MailKey {
@@ -50,8 +54,8 @@ interface SpecialTag {
   value: string;
 }
 
-const MailDefaultStyle = 'Open Sans,Helvetica,Arial,sans-serif';
-const MailDefaultEmptyLine = { text: '', style: `${MailDefaultStyle};padding:1px` };
+const UserMailDefaultStyle = 'Open Sans,Helvetica,Arial,sans-serif';
+const DefaultEmptyLine = { text: '', style: `${UserMailDefaultStyle};padding:1px` };
 
 @Injectable()
 export class MailFactory {
@@ -93,6 +97,10 @@ export class MailFactory {
     switch (request.type) {
       case MailType.USER: {
         return this.createUserMailNew(request);
+      }
+
+      case MailType.PERSONAL: {
+        return this.createPersonalMailNew(request);
       }
 
       default: {
@@ -182,7 +190,7 @@ export class MailFactory {
 
   private createUserMailNew(request: MailRequestNew): UserMailNew {
     const { metadata, options } = request;
-    const { userData, title, salutation, prefix, suffix, table } = request.input as MailRequestInput;
+    const { userData, title, salutation, prefix, suffix, table } = request.input as MailRequestUser;
 
     const lang = userData.language?.symbol.toLowerCase();
 
@@ -190,9 +198,9 @@ export class MailFactory {
       to: userData.mail,
       subject: this.tNew(title, lang),
       salutation: salutation && this.tNew(salutation.key, lang, salutation.params),
-      prefix: prefix && this.getAffix(prefix, lang),
+      prefix: prefix && this.getMailAffix(prefix, lang),
       table: table && this.getTable(table, lang),
-      suffix: suffix && this.getAffix(suffix, lang),
+      suffix: suffix && this.getMailAffix(suffix, lang),
       metadata,
       options,
     });
@@ -217,6 +225,24 @@ export class MailFactory {
       banner,
       displayName,
       from,
+      metadata,
+      options,
+    });
+  }
+
+  private createPersonalMailNew(request: MailRequestNew): PersonalMailNew {
+    const { userData, title, prefix, banner, from, displayName } = request.input as MailRequestPersonal;
+    const { metadata, options } = request;
+
+    const lang = userData.language?.symbol.toLowerCase();
+
+    return new PersonalMailNew({
+      to: userData.mail,
+      subject: this.tNew(title, lang),
+      prefix: prefix && this.getMailAffix(prefix, lang),
+      banner,
+      from,
+      displayName,
       metadata,
       options,
     });
@@ -250,28 +276,28 @@ export class MailFactory {
     }));
   }
 
-  private getAffix(affix: TranslationItem[], lang: string): UserMailAffix[] {
+  private getMailAffix(affix: TranslationItem[], lang: string): MailAffix[] {
     Util.removeNullFields(affix);
-    return affix.map((element) => this.mapAffix(element, lang).flat()).flat();
+    return affix.map((element) => this.mapMailAffix(element, lang).flat()).flat();
   }
 
-  private mapAffix(element: TranslationItem, lang: string): UserMailAffix[] {
+  private mapMailAffix(element: TranslationItem, lang: string): MailAffix[] {
     switch (element.key) {
       case MailKey.SPACE:
-        return [MailDefaultEmptyLine];
+        return [DefaultEmptyLine];
 
       case MailKey.DFX_TEAM_CLOSING:
         return [
-          MailDefaultEmptyLine,
-          MailDefaultEmptyLine,
+          DefaultEmptyLine,
+          DefaultEmptyLine,
           {
             text: this.tNew(`${MailTranslationKey.GENERAL}.dfx_team_closing`, lang),
-            style: MailDefaultStyle,
+            style: UserMailDefaultStyle,
           },
-          MailDefaultEmptyLine,
-          MailDefaultEmptyLine,
-          MailDefaultEmptyLine,
-          MailDefaultEmptyLine,
+          DefaultEmptyLine,
+          DefaultEmptyLine,
+          DefaultEmptyLine,
+          DefaultEmptyLine,
           { text: this.tNew(`${MailTranslationKey.GENERAL}.dfx_closing_message`, lang), style: 'Zapfino' },
         ];
 
@@ -292,7 +318,7 @@ export class MailFactory {
                 : undefined,
             mail:
               specialTag?.tag === 'mail' ? { address: specialTag.value, textSuffix: specialTag.textSuffix } : undefined,
-            style: element.params?.style ?? MailDefaultStyle,
+            style: element.params?.style ?? UserMailDefaultStyle,
             text: specialTag?.text ?? text,
           },
         ];

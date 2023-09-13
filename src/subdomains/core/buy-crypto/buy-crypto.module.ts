@@ -1,6 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AinModule } from 'src/integration/blockchain/ain/ain.module';
+import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { PaymentModule } from 'src/shared/payment/payment.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { CryptoRouteRepository } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.repository';
@@ -52,6 +53,7 @@ import { CryptoRouteService } from './routes/crypto-route/crypto-route.service';
     forwardRef(() => SellCryptoModule),
     forwardRef(() => AddressPoolModule),
     LiquidityManagementModule,
+    BlockchainModule,
   ],
   controllers: [BuyCryptoController, BuyController, CryptoRouteController],
   providers: [

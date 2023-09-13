@@ -1,5 +1,6 @@
 import { Config } from 'src/config/config';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { MailAffix } from '../../interfaces';
 import { NotificationMetadata, NotificationOptions } from '../notification.entity';
 import { Mail } from './base/mail';
 
@@ -12,20 +13,6 @@ export interface UserMailInput {
 export interface UserMailTable {
   text: string;
   value: string;
-}
-
-export interface UserMailAffix {
-  url?: {
-    link: string;
-    text: string;
-    textSuffix?: string;
-  };
-  mail?: {
-    address: string;
-    textSuffix?: string;
-  };
-  style: string;
-  text: string;
 }
 
 export interface UserMailParams {
@@ -45,9 +32,9 @@ export interface UserMailParamsNew {
   to: string;
   subject: string;
   salutation: string;
-  prefix: UserMailAffix[];
+  prefix: MailAffix[];
   table: UserMailTable[];
-  suffix: UserMailAffix[];
+  suffix: MailAffix[];
   telegramUrl?: string;
   twitterUrl?: string;
   linkedinUrl?: string;

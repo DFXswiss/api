@@ -143,7 +143,7 @@ export class CryptoInput extends IEntity {
     if (estimatedFee == null) throw new Error('No fee estimation provided');
     if (totalAmount === 0) throw new Error('Total forward amount cannot be zero');
 
-    const maxFee = Math.max(totalAmount * Config.payIn.forwardFeeLimit, minInputFee * 0.5);
+    const maxFee = Math.max(totalAmount * Config.payIn.forwardFeeLimit, minInputFee);
 
     if (estimatedFee > maxFee) {
       const feePercent = Util.round((estimatedFee / totalAmount) * 100, 1);
