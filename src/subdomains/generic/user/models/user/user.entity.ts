@@ -1,7 +1,7 @@
 import { Config } from 'src/config/config';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { IEntity } from 'src/shared/models/entity';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
@@ -155,5 +155,16 @@ export class User extends IEntity {
 
         return customCryptoFee != null ? Math.min(customCryptoFee, Config.crypto.fee) : Config.crypto.fee;
     }
+  }
+
+  blockUser(reason: string): UpdateResult<User> {
+    const update: Partial<User> = {
+      status: UserStatus.BLOCKED,
+      comment: `${reason}; Blocked at ${new Date().toISOString()}; ${this.comment ? this.comment : ''}`,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 }

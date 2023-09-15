@@ -247,6 +247,17 @@ export class UserData extends IEntity {
     ];
   }
 
+  blockUserData(): UpdateResult<UserData> {
+    const update: Partial<UserData> = {
+      status: UserDataStatus.BLOCKED,
+      kycStatus: KycStatus.TERMINATED,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   get isDfxUser(): boolean {
     return this.kycType === KycType.DFX;
   }
