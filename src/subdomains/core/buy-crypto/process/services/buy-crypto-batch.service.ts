@@ -64,6 +64,7 @@ export class BuyCryptoBatchService {
           'cryptoRoute.user',
           'cryptoRoute.user.wallet',
           'cryptoRoute.asset',
+          'cryptoInput',
         ],
       });
 

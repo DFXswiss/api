@@ -130,6 +130,16 @@ export class BuyFiatService {
       .getOne();
   }
 
+  async triggerWebhookManual(id: number): Promise<void> {
+    const buyFiat = await this.buyFiatRepo.findOne({
+      where: { id },
+      relations: ['sell', 'sell.user', 'sell.user.wallet', 'sell.user.userData'],
+    });
+    if (!buyFiat) throw new NotFoundException('BuyFiat not found');
+
+    await this.triggerWebhook(buyFiat);
+  }
+
   async triggerWebhook(buyFiat: BuyFiat): Promise<void> {
     // TODO add fiatFiatUpdate here
     const state = this.getWebhookState(buyFiat);

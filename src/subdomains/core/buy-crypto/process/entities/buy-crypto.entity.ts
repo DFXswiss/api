@@ -481,7 +481,7 @@ export class BuyCrypto extends IEntity {
   }
 
   get isCryptoCryptoTransaction(): boolean {
-    return this.cryptoInput !== null;
+    return this.cryptoInput != null;
   }
 
   get exchangeRateString(): string {

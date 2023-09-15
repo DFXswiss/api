@@ -1,16 +1,28 @@
-import { Body, Controller, Delete, Param, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UpdateBuyCryptoDto } from './dto/update-buy-crypto.dto';
 import { BuyCrypto } from './entities/buy-crypto.entity';
+import { BuyCryptoWebhookService } from './services/buy-crypto-webhook.service';
 import { BuyCryptoService } from './services/buy-crypto.service';
 
 @ApiTags('buyCrypto')
 @Controller('buyCrypto')
 export class BuyCryptoController {
-  constructor(private readonly buyCryptoService: BuyCryptoService) {}
+  constructor(
+    private readonly buyCryptoService: BuyCryptoService,
+    private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
+  ) {}
+
+  @Post(':id/webhook')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @ApiExcludeEndpoint()
+  async triggerWebhook(@Param('id') id: string): Promise<void> {
+    return this.buyCryptoWebhookService.triggerWebhookManual(+id);
+  }
 
   @Put('volumes')
   @ApiBearerAuth()
