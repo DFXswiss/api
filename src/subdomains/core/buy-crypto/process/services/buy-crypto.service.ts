@@ -96,6 +96,7 @@ export class BuyCryptoService {
         'cryptoRoute',
         'cryptoRoute.user',
         'cryptoRoute.user.wallet',
+        'cryptoInput',
         'bankTx',
       ],
     });

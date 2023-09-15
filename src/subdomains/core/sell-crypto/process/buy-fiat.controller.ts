@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Param, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -11,6 +11,14 @@ import { UpdateBuyFiatDto } from './dto/update-buy-fiat.dto';
 @Controller('buyFiat')
 export class BuyFiatController {
   constructor(private readonly buyFiatService: BuyFiatService) {}
+
+  @Post(':id/webhook')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @ApiExcludeEndpoint()
+  async triggerWebhook(@Param('id') id: string): Promise<void> {
+    return this.buyFiatService.triggerWebhookManual(+id);
+  }
 
   @Put('volumes')
   @ApiBearerAuth()
