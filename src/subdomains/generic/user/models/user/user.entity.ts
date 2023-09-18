@@ -160,7 +160,7 @@ export class User extends IEntity {
   blockUser(reason: string): UpdateResult<User> {
     const update: Partial<User> = {
       status: UserStatus.BLOCKED,
-      comment: `${reason}; Blocked at ${new Date().toISOString()}; ${this.comment ? this.comment : ''}`,
+      comment: `${reason} (${new Date().toISOString()}); ${this.comment ?? ''}`,
     };
 
     Object.assign(this, update);

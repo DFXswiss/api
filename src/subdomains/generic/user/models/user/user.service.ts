@@ -176,15 +176,15 @@ export class UserService {
   async blockUser(id: number, allUser = false): Promise<void> {
     const mainUser = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
     if (!mainUser) throw new NotFoundException('User not found');
+    if (mainUser.userData.status === UserDataStatus.BLOCKED)
+      throw new BadRequestException('User Account already blocked');
+    if (mainUser.status === UserStatus.BLOCKED) throw new BadRequestException('User already blocked');
 
     if (!allUser) {
-      if (mainUser.status === UserStatus.BLOCKED) throw new BadRequestException('User already blocked');
       await this.userRepo.update(...mainUser.blockUser('Manual user block'));
       return;
     }
 
-    if (mainUser.userData.status === UserDataStatus.BLOCKED)
-      throw new BadRequestException('User Account already blocked');
     await this.userDataService.blockUserData(mainUser.userData);
 
     for (const user of mainUser.userData.users) {
