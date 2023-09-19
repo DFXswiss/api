@@ -216,6 +216,10 @@ export class UserDataService {
     return { user, isKnownUser };
   }
 
+  async blockUserData(userData: UserData): Promise<void> {
+    await this.userDataRepo.update(...userData.blockUserData());
+  }
+
   private async updateSpiderIfNeeded(userData: UserData, dto: UpdateUserDto): Promise<UserData> {
     if ((dto.phone && dto.phone != userData.phone) || (dto.mail && dto.mail != userData.mail)) {
       await this.spiderService.updateCustomer(userData.id, {

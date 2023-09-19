@@ -1,23 +1,23 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards, Res, HttpStatus } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpStatus, Param, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiCreatedResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
-import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
-import { RoleGuard } from 'src/shared/auth/role.guard';
-import { UpdateUserDto } from './dto/update-user.dto';
-import { UserService } from './user.service';
-import { UserRole } from 'src/shared/auth/user-role.enum';
-import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
-import { User } from './user.entity';
-import { UserDetailDto, UserDto } from './dto/user.dto';
-import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
-import { ApiKeyDto } from './dto/api-key.dto';
-import { RefInfoQuery } from './dto/ref-info-query.dto';
-import { VolumeQuery } from './dto/volume-query.dto';
-import { LinkedUserInDto } from './dto/linked-user.dto';
-import { AuthService } from '../auth/auth.service';
-import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { Response } from 'express';
+import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserRole } from 'src/shared/auth/user-role.enum';
+import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
+import { AuthService } from '../auth/auth.service';
 import { AuthResponseDto } from '../auth/dto/auth-response.dto';
+import { ApiKeyDto } from './dto/api-key.dto';
+import { LinkedUserInDto } from './dto/linked-user.dto';
+import { RefInfoQuery } from './dto/ref-info-query.dto';
+import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { UserDetailDto, UserDto } from './dto/user.dto';
+import { VolumeQuery } from './dto/volume-query.dto';
+import { User } from './user.entity';
+import { UserService } from './user.service';
 
 @ApiTags('User')
 @Controller('user')
@@ -62,6 +62,22 @@ export class UserController {
   @ApiOkResponse({ type: AuthResponseDto })
   async changeUser(@GetJwt() jwt: JwtPayload, @Body() changeUser: LinkedUserInDto): Promise<AuthResponseDto> {
     return this.authService.changeUser(jwt.id, changeUser);
+  }
+
+  @Delete()
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse()
+  async deleteUser(@GetJwt() jwt: JwtPayload): Promise<void> {
+    return this.userService.blockUser(jwt.id);
+  }
+
+  @Delete('account')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse()
+  async deleteUserAccount(@GetJwt() jwt: JwtPayload): Promise<void> {
+    return this.userService.blockUser(jwt.id, true);
   }
 
   // --- API KEYS --- //
