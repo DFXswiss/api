@@ -4,6 +4,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
+import { TestUtil } from 'src/shared/utils/test.util';
 import { NodeService } from '../../node/node.service';
 
 describe('CryptoService', () => {
@@ -24,6 +25,7 @@ describe('CryptoService', () => {
         { provide: LightningService, useValue: lightningService },
         { provide: NodeService, useValue: nodeService },
         { provide: EvmRegistryService, useValue: evmRegistryService },
+        TestUtil.provideConfig(),
       ],
     }).compile();
 
@@ -44,6 +46,12 @@ describe('CryptoService', () => {
 
   it('should return Blockchain.BITCOIN for address 1Ka5c7Jpwxgqq9P2xRgZN5rQypzEUn1234', () => {
     expect(service.getBlockchainsBasedOn('1Ka5c7Jpwxgqq9P2xRgZN5rQypzEUn1234')).toEqual([Blockchain.BITCOIN]);
+  });
+
+  it('should return Blockchain.BITCOIN for address bc1qpzfx7v5fzkr77azkfklkc5n3al2tlt46z9zjj2xnjazncj9k9s0qmavnus', () => {
+    expect(service.getBlockchainsBasedOn('bc1qpzfx7v5fzkr77azkfklkc5n3al2tlt46z9zjj2xnjazncj9k9s0qmavnus')).toEqual([
+      Blockchain.BITCOIN,
+    ]);
   });
 
   it('should return Blockchain.ETHEREUM and Blockchain.BINANCE_SMART_CHAIN for address 0x2d84553B3A4753009A314106d58F0CC21f441234', () => {
