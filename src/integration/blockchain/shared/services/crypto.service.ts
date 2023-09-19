@@ -4,6 +4,7 @@ import { Injectable } from '@nestjs/common';
 import { verify } from 'bitcoinjs-message';
 import { isEthereumAddress } from 'class-validator';
 import { verifyMessage } from 'ethers/lib/utils';
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -73,15 +74,15 @@ export class CryptoService {
   }
 
   private isBitcoinAddress(address: string): boolean {
-    return /^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}$/.test(address);
+    return RegExp(`^(${Config.bitcoinAddressFormat})$`).test(address);
   }
 
   private isLightningAddress(address: string): boolean {
-    return /^((LNURL|LNDHUB)[A-Z0-9]{25,250}|LNNID[A-Z0-9]{66})$/.test(address);
+    return RegExp(`^(${Config.lightningAddressFormat})$`).test(address);
   }
 
   public static isCardanoAddress(address: string): boolean {
-    return /^stake([a-z0-9]{54})$/.test(address);
+    return new RegExp(`^(${Config.cardanoAddressFormat})$`).test(address);
   }
 
   // --- SIGNATURE VERIFICATION --- //
