@@ -184,9 +184,7 @@ export class BankTxService {
   }
 
   private getType(tx: BankTx): BankTxType | null {
-    if (tx.name?.includes('DFX AG')) {
-      return BankTxType.INTERNAL;
-    } else if (tx.name?.includes('Payward Ltd.')) {
+    if (tx.name?.includes('Payward Ltd.')) {
       return BankTxType.KRAKEN;
     }
 
