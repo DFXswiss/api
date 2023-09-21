@@ -45,7 +45,7 @@ export class LinkService {
 
     const linkAddress = await this.linkAddressRepo.save(LinkAddress.create(existingAddress, newAddress));
 
-    await this.notificationService.sendMailNew({
+    await this.notificationService.sendMail({
       type: MailType.USER,
       input: {
         userData: user,

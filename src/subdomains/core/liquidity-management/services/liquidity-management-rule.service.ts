@@ -1,28 +1,28 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { LiquidityManagementRuleRepository } from '../repositories/liquidity-management-rule.repository';
-import { LiquidityManagementRule } from '../entities/liquidity-management-rule.entity';
-import { LiquidityManagementRuleFactory } from '../factories/liquidity-management-rule.factory';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { Config, Process } from 'src/config/config';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { Asset } from 'src/shared/models/asset/asset.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { LiquidityManagementAction } from '../entities/liquidity-management-action.entity';
-import { LiquidityManagementActionDto } from '../dto/input/liquidity-management-action.dto';
-import { LiquidityManagementActionRepository } from '../repositories/liquidity-management-action.repository';
-import { LiquidityManagementRuleOutputDto } from '../dto/output/liquidity-management-rule-output.dto';
-import { LiquidityManagementRuleOutputDtoMapper } from '../dto/output/mappers/liquidity-management-rule-output-dto.mapper';
-import { LiquidityManagementRuleCreationDto } from '../dto/input/liquidity-management-rule-creation.dto';
-import { LiquidityActionIntegrationFactory } from '../factories/liquidity-action-integration.factory';
-import { LiquidityManagementRuleStatus } from '../enums';
-import { IsNull, Not } from 'typeorm';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import { LiquidityManagementRuleSettingsDto } from '../dto/input/liquidity-management-settings.dto';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
-import { Config, Process } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
+import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { IsNull, Not } from 'typeorm';
+import { LiquidityManagementActionDto } from '../dto/input/liquidity-management-action.dto';
+import { LiquidityManagementRuleCreationDto } from '../dto/input/liquidity-management-rule-creation.dto';
+import { LiquidityManagementRuleSettingsDto } from '../dto/input/liquidity-management-settings.dto';
+import { LiquidityManagementRuleOutputDto } from '../dto/output/liquidity-management-rule-output.dto';
+import { LiquidityManagementRuleOutputDtoMapper } from '../dto/output/mappers/liquidity-management-rule-output-dto.mapper';
+import { LiquidityManagementAction } from '../entities/liquidity-management-action.entity';
+import { LiquidityManagementRule } from '../entities/liquidity-management-rule.entity';
+import { LiquidityManagementRuleStatus } from '../enums';
+import { LiquidityActionIntegrationFactory } from '../factories/liquidity-action-integration.factory';
+import { LiquidityManagementRuleFactory } from '../factories/liquidity-management-rule.factory';
+import { LiquidityManagementActionRepository } from '../repositories/liquidity-management-action.repository';
+import { LiquidityManagementRuleRepository } from '../repositories/liquidity-management-rule.repository';
 
 @Injectable()
 export class LiquidityManagementRuleService {

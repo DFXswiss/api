@@ -1,22 +1,22 @@
 import { Injectable } from '@nestjs/common';
+import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { PriceMismatchException } from '../domain/exceptions/price-mismatch.exception';
 import { BinanceService } from '../../../../integration/exchange/services/binance.service';
 import { BitpandaService } from '../../../../integration/exchange/services/bitpanda.service';
 import { BitstampService } from '../../../../integration/exchange/services/bitstamp.service';
-import { CurrencyService } from './integration/currency.service';
-import { FixerService } from './integration/fixer.service';
-import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
 import { KrakenService } from '../../../../integration/exchange/services/kraken.service';
 import { BadPriceRequestException } from '../domain/exceptions/bad-price-request.exception';
 import { PathNotConfiguredException } from '../domain/exceptions/path-not-configured.exception';
+import { PriceMismatchException } from '../domain/exceptions/price-mismatch.exception';
 import { PriceRequest, PriceResult } from '../domain/interfaces';
 import { PricePath } from '../utils/price-path';
 import { PriceStep } from '../utils/price-step';
 import { PricingUtil } from '../utils/pricing.util';
+import { CurrencyService } from './integration/currency.service';
+import { FixerService } from './integration/fixer.service';
 import { PricingDeFiChainService } from './integration/pricing-defichain.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export enum PricingPathAlias {
   MATCHING_ASSETS = 'MatchingAssets',
