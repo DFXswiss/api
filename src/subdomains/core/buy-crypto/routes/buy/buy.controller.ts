@@ -164,7 +164,7 @@ export class BuyController {
       fee,
       dto.currency,
       dto.asset,
-      user.userData.tradingLimit,
+      user.userData.availableTradingLimit,
     );
     const bankInfo = await this.getBankInfo(buy, { ...dto, amount });
 

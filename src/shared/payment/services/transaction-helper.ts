@@ -7,7 +7,6 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { MinAmount } from 'src/shared/payment/dto/min-amount.dto';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { TradingLimit } from 'src/subdomains/generic/user/models/user/dto/user.dto';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { TargetEstimation, TransactionDetails } from '../entities/transaction-details';
@@ -117,7 +116,7 @@ export class TransactionHelper implements OnModuleInit {
     fee: number,
     from: Asset | Fiat,
     to: Asset | Fiat,
-    tradingLimit?: TradingLimit,
+    tradingLimit?: number,
   ): Promise<TransactionDetails> {
     const specs = this.getSpecs(from, to);
 
@@ -149,7 +148,7 @@ export class TransactionHelper implements OnModuleInit {
     minFee: number,
     from: Asset | Fiat,
     to: Asset | Fiat,
-    tradingLimit: TradingLimit | undefined,
+    tradingLimit: number | undefined,
   ): Promise<TargetEstimation> {
     const price = await this.priceProviderService.getPrice(from, to);
 
@@ -163,10 +162,10 @@ export class TransactionHelper implements OnModuleInit {
     const targetAmount = outputAmount != null ? outputAmount : price.convert(Math.max(inputAmount - feeAmount, 0));
     const sourceAmount = outputAmount != null ? price.invert().convert(outputAmount) + feeAmount : inputAmount;
 
-    const currentTradingLimit = tradingLimit ? tradingLimit.limit : Config.defaultDailyTradingLimit;
+    const currentTradingLimit = tradingLimit ? tradingLimit : Config.defaultDailyTradingLimit;
     const tradingLimitInSource = !tradingLimitPrice
       ? currentTradingLimit
-      : tradingLimitPrice.convert(currentTradingLimit * 0.99, 0); // -1% for the conversion
+      : tradingLimitPrice.convert(currentTradingLimit * 0.99, -1); // -1% for the conversion
 
     return {
       exchangeRate: this.round(price.price, from instanceof Fiat),

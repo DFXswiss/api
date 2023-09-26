@@ -276,6 +276,12 @@ export class UserData extends IEntity {
     }
   }
 
+  get availableTradingLimit(): number {
+    return this.tradingLimit.period === LimitPeriod.YEAR
+      ? this.tradingLimit.limit - this.annualBuyVolume - this.annualSellVolume - this.annualCryptoVolume
+      : this.tradingLimit.limit;
+  }
+
   set riskResult({ result, risks }: RiskResult) {
     this.riskState = result;
     this.riskRoots = result === 'c' ? null : JSON.stringify(risks);

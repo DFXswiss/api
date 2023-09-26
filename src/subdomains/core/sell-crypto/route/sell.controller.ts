@@ -167,7 +167,7 @@ export class SellController {
       fee,
       dto.asset,
       dto.currency,
-      user.userData.tradingLimit,
+      user.userData.availableTradingLimit,
     );
 
     return {

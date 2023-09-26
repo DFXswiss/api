@@ -181,7 +181,7 @@ export class CryptoRouteController {
       fee,
       dto.sourceAsset,
       dto.targetAsset,
-      user.userData.tradingLimit,
+      user.userData.availableTradingLimit,
     );
 
     return {
