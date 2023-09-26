@@ -88,6 +88,7 @@ export class UserService {
       .leftJoin('userData.users', 'linkedUser')
       .leftJoin('linkedUser.wallet', 'wallet')
       .where('user.id = :id AND wallet.isKycClient = 0', { id })
+      .andWhere('user.status != :blocked', { blocked: UserStatus.BLOCKED })
       .getRawMany<{ address: string }>();
 
     return linkedUsers.map((u) => ({
