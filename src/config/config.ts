@@ -62,7 +62,7 @@ export class Configuration {
   defaultTwitterUrl = 'https://twitter.com/DFX_Swiss';
   defaultVolumeDecimal = 2;
   defaultPercentageDecimal = 2;
-  defaultDailyTradingLimit = 990; // EUR
+  defaultDailyTradingLimit = 1000; // CHF
   apiKeyVersionCT = '0'; // single digit hex number
   azureIpSubstring = '169.254';
   amlCheckMonthlyTradingLimit = 50000; // EUR

@@ -13,6 +13,7 @@ import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { HistoryDto } from 'src/subdomains/core/history/dto/history.dto';
+import { FeeType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
 import { CryptoRoute } from './crypto-route.entity';
@@ -161,7 +162,8 @@ export class CryptoRouteController {
     cryptoRoute: CryptoRoute,
     dto: GetCryptoPaymentInfoDto,
   ): Promise<CryptoPaymentInfoDto> {
-    const fee = await this.userService.getUserCryptoFee(userId);
+    const user = await this.userService.getUser(userId, ['userData', 'wallet']);
+    const fee = user.getFee(FeeType.CRYPTO);
 
     const {
       minVolume,
@@ -170,8 +172,17 @@ export class CryptoRouteController {
       minFeeTarget,
       estimatedAmount,
       sourceAmount: amount,
+      tradingLimit,
       isValid,
-    } = await this.transactionHelper.getTxDetails(dto.amount, dto.targetAmount, fee, dto.sourceAsset, dto.targetAsset);
+      error,
+    } = await this.transactionHelper.getTxDetails(
+      dto.amount,
+      dto.targetAmount,
+      fee,
+      dto.sourceAsset,
+      dto.targetAsset,
+      user.userData.tradingLimit,
+    );
 
     return {
       routeId: cryptoRoute.id,
@@ -187,6 +198,7 @@ export class CryptoRouteController {
       amount,
       targetAsset: AssetDtoMapper.entityToDto(dto.targetAsset),
       sourceAsset: AssetDtoMapper.entityToDto(dto.sourceAsset),
+      tradingLimit,
       paymentRequest: await this.cryptoService.getPaymentRequest(
         isValid,
         dto.sourceAsset,
@@ -194,6 +206,7 @@ export class CryptoRouteController {
         amount,
       ),
       isValid,
+      error,
     };
   }
 }

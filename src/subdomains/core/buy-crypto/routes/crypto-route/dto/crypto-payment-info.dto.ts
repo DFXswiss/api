@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 import { MinAmount } from 'src/shared/payment/dto/min-amount.dto';
+import { TransactionError } from 'src/shared/payment/services/transaction-helper';
 
 export class CryptoPaymentInfoDto {
   @ApiProperty()
@@ -31,6 +32,9 @@ export class CryptoPaymentInfoDto {
   @ApiProperty({ type: AssetDto, description: 'Source asset' })
   sourceAsset: AssetDto;
 
+  @ApiProperty({ description: 'Trade limit in source asset' })
+  tradingLimit: number;
+
   @ApiProperty({ description: 'Minimum fee in target asset' })
   minFeeTarget: number;
 
@@ -48,4 +52,7 @@ export class CryptoPaymentInfoDto {
 
   @ApiProperty()
   isValid: boolean;
+
+  @ApiPropertyOptional({ enum: TransactionError, description: 'Error message in case isValid is false' })
+  error: TransactionError;
 }

@@ -1,11 +1,13 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { MinAmount } from 'src/shared/payment/dto/min-amount.dto';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
+import { TradingLimit } from 'src/subdomains/generic/user/models/user/dto/user.dto';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { TargetEstimation, TransactionDetails } from '../entities/transaction-details';
@@ -16,6 +18,11 @@ import { TransactionSpecificationRepository } from '../repositories/transaction-
 export enum ValidationError {
   PAY_IN_TOO_SMALL = 'PayInTooSmall',
   PAY_IN_NOT_SELLABLE = 'PayInNotSellable',
+}
+
+export enum TransactionError {
+  SOURCE_AMOUNT_TOO_LOW = 'SourceAmountTooLow',
+  SOURCE_AMOUNT_TOO_HIGH = 'SourceAmountTooHigh',
 }
 
 @Injectable()
@@ -110,13 +117,14 @@ export class TransactionHelper implements OnModuleInit {
     fee: number,
     from: Asset | Fiat,
     to: Asset | Fiat,
+    tradingLimit?: TradingLimit,
   ): Promise<TransactionDetails> {
     const specs = this.getSpecs(from, to);
 
     const { minVolume, minFee } = await this.convertToSource(from, specs);
     const { minVolume: minVolumeTarget, minFee: minFeeTarget } = await this.convertToTarget(to, specs);
 
-    const target = await this.getTargetEstimation(sourceAmount, targetAmount, fee, minFee, from, to);
+    const target = await this.getTargetEstimation(sourceAmount, targetAmount, fee, minFee, from, to, tradingLimit);
 
     return {
       ...target,
@@ -124,7 +132,13 @@ export class TransactionHelper implements OnModuleInit {
       minVolume,
       minFeeTarget,
       minVolumeTarget,
-      isValid: target.sourceAmount >= minVolume,
+      isValid: target.sourceAmount >= minVolume && target.sourceAmount <= target.tradingLimit,
+      error:
+        target.sourceAmount < minVolume
+          ? TransactionError.SOURCE_AMOUNT_TOO_LOW
+          : target.sourceAmount > target.tradingLimit
+          ? TransactionError.SOURCE_AMOUNT_TOO_HIGH
+          : undefined,
     };
   }
 
@@ -135,8 +149,12 @@ export class TransactionHelper implements OnModuleInit {
     minFee: number,
     from: Asset | Fiat,
     to: Asset | Fiat,
+    tradingLimit: TradingLimit | undefined,
   ): Promise<TargetEstimation> {
     const price = await this.priceProviderService.getPrice(from, to);
+
+    const fiatChf = from.name !== 'CHF' ? undefined : await this.fiatService.getFiatByName('CHF');
+    const tradingLimitPrice = from.name !== 'CHF' ? undefined : await this.priceProviderService.getPrice(fiatChf, from);
 
     const percentFeeAmount =
       outputAmount != null ? price.invert().convert((outputAmount * fee) / (1 - fee)) : inputAmount * fee;
@@ -145,11 +163,17 @@ export class TransactionHelper implements OnModuleInit {
     const targetAmount = outputAmount != null ? outputAmount : price.convert(Math.max(inputAmount - feeAmount, 0));
     const sourceAmount = outputAmount != null ? price.invert().convert(outputAmount) + feeAmount : inputAmount;
 
+    const currentTradingLimit = tradingLimit ? tradingLimit.limit : Config.defaultDailyTradingLimit;
+    const tradingLimitInSource = !tradingLimitPrice
+      ? currentTradingLimit
+      : tradingLimitPrice.convert(currentTradingLimit * 0.99, 0); // -1% for the conversion
+
     return {
       exchangeRate: this.round(price.price, from instanceof Fiat),
       feeAmount: this.round(feeAmount, from instanceof Fiat),
       estimatedAmount: this.round(targetAmount, to instanceof Fiat),
       sourceAmount: this.round(sourceAmount, from instanceof Fiat),
+      tradingLimit: tradingLimitInSource,
     };
   }
 

@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { MinAmount } from 'src/shared/payment/dto/min-amount.dto';
+import { TransactionError } from 'src/shared/payment/services/transaction-helper';
 
 export class BankInfoDto {
   @ApiProperty()
@@ -57,6 +58,9 @@ export class BuyPaymentInfoDto extends BankInfoDto {
   @ApiProperty({ type: FiatDto, description: 'Source currency' })
   currency: FiatDto;
 
+  @ApiProperty({ description: 'Trade limit in source currency' })
+  tradingLimit: number;
+
   @ApiProperty({ description: 'Minimum fee in target asset' })
   minFeeTarget: number;
 
@@ -74,4 +78,7 @@ export class BuyPaymentInfoDto extends BankInfoDto {
 
   @ApiProperty()
   isValid: boolean;
+
+  @ApiPropertyOptional({ enum: TransactionError, description: 'Error message in case isValid is false' })
+  error: TransactionError;
 }
