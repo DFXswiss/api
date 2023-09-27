@@ -1,6 +1,6 @@
 # DFX API
 
-API for DFX.swiss crypto exchange
+DFX is a crypto on- and off-ramp with an open API that can be integrated by anyone. This page explains the basic concepts of the API. If you don't want to bother with API calls, you can integrate our ready-to-use web widget with a few lines of code (see the [services repository](https://github.com/DFXswiss/services#dfx-services)) or use our [React API npm package](https://www.npmjs.com/package/@dfx.swiss/react).
 
 ## API Documentation
 
@@ -21,15 +21,17 @@ API for DFX.swiss crypto exchange
 
 ### Registration
 
+Each user who wants to use the service must be registered separately with their blockchain address and a signature to prove ownership.
+
 #### Initial Wallet Setup (optional)
 
-Contact [support](mailto:support@dfx.swiss) to register your wallet name. This is used to identify all users that signed up with your wallet.
+Contact [support](mailto:support@dfx.swiss) to register your wallet name. This is used to identify all users that signed up with your wallet. This step is optional.
 
 #### Sign Up
 
 1. Get the sign message from [sign-message endpoint](https://api.dfx.swiss/swagger/#/Auth/AuthController_getSignMessage) (with the user's address) and sign it with the corresponding private key
-1. Register the user with the [sign-up endpoint](https://api.dfx.swiss/swagger/#/Auth/AuthController_signUp)
-   - Use the `walletId` from step [initial setup](#initial-wallet-setup-optional)
+1. Register the user with the [sign-up endpoint](https://api.dfx.swiss/swagger/#/Auth/AuthController_signUp). `wallet` and `usedRef` are optional:
+   - Use the wallet name (`wallet`) from step [initial setup](#initial-wallet-setup-optional)
    - See [below](#referral-program) for more information on the referral program (`usedRef`)
 1. Now you can get your JWT access token (with address & signature) with the [sign-in endpoint](https://api.dfx.swiss/swagger/#/Auth/AuthController_signIn)
 

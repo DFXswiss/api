@@ -10,7 +10,6 @@ export class OptionalSignUpDto {
   @Matches(GetConfig().formats.ref)
   usedRef: string;
 
-  @ApiPropertyOptional()
   @IsOptional()
   @IsInt()
   walletId: number;
