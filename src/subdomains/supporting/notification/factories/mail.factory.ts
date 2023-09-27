@@ -96,7 +96,7 @@ export class MailFactory {
       ...{ date: new Date().getFullYear(), ...input },
       subject: title,
       salutation: salutation?.key,
-      prefix: prefix && this.getInternalMailAffix(prefix),
+      prefix: prefix && this.getMailAffix(prefix),
       metadata,
       options,
     });
@@ -196,14 +196,9 @@ export class MailFactory {
     }));
   }
 
-  private getMailAffix(affix: TranslationItem[], lang: string): MailAffix[] {
+  private getMailAffix(affix: TranslationItem[], lang = 'en'): MailAffix[] {
     Util.removeNullFields(affix);
     return affix.map((element) => this.mapMailAffix(element, lang).flat()).flat();
-  }
-
-  private getInternalMailAffix(affix: TranslationItem[]): MailAffix[] {
-    Util.removeNullFields(affix);
-    return affix.map((element) => this.mapInternalMailAffix(element).flat()).flat();
   }
 
   private mapMailAffix(element: TranslationItem, lang: string): MailAffix[] {
@@ -245,33 +240,6 @@ export class MailFactory {
               specialTag?.tag === 'mail' ? { address: specialTag.value, textSuffix: specialTag.textSuffix } : undefined,
             style: element.params?.style ?? UserMailDefaultStyle,
             text: specialTag?.text ?? text,
-          },
-        ];
-    }
-  }
-
-  private mapInternalMailAffix(element: TranslationItem): MailAffix[] {
-    switch (element.key) {
-      case MailKey.SPACE:
-        return [{ text: '' }];
-
-      default:
-        const specialTag = this.parseSpecialTag(element.key);
-
-        return [
-          {
-            url:
-              specialTag?.tag === 'url' && element.params?.url
-                ? {
-                    link: element.params.url,
-                    text: specialTag.value,
-                    textSuffix: specialTag.textSuffix,
-                  }
-                : undefined,
-            mail:
-              specialTag?.tag === 'mail' ? { address: specialTag.value, textSuffix: specialTag.textSuffix } : undefined,
-            style: element.params?.style ?? UserMailDefaultStyle,
-            text: specialTag?.text ?? element.key,
           },
         ];
     }
