@@ -77,7 +77,7 @@ export class KycProcessService {
 
     if (KycCompleted(status) && userData.isDfxUser) {
       if (userData.mail) {
-        await this.notificationService.sendMailNew({
+        await this.notificationService.sendMail({
           type: MailType.USER,
           input: {
             userData,
@@ -129,7 +129,7 @@ export class KycProcessService {
 
       if (userData.isDfxUser) {
         await this.notificationService
-          .sendMailNew({
+          .sendMail({
             type: MailType.USER,
             input: {
               userData,
@@ -214,7 +214,7 @@ export class KycProcessService {
 
     if (userData.isDfxUser) {
       await this.notificationService
-        .sendMailNew({
+        .sendMail({
           type: MailType.USER,
           input: {
             userData,
