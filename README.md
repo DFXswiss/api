@@ -12,7 +12,6 @@ DFX is a crypto on- and off-ramp with an open API that can be integrated by anyo
   - [Sell Crypto](#sell-crypto)
   - [Bank Accounts](#bank-accounts-optional)
 - [Integration Example](#integration-example)
-- [Appendix](#appendix)
 
 ### Swagger
 
@@ -41,13 +40,13 @@ If a user wants to get notified about ongoing transactions, he can register his 
 
 #### Referral Program
 
-- Basic information about the referral program can be found in the FAQ on our [homepage](https://dfx.swiss/defichain/)
+- Basic information about the referral program can be found in our [FAQ](https://docs.dfx.swiss/en/faq)
 - A referral code can only be set once during [user registration](#registration) (`usedRef` parameter)
 - Every user will receive his own referral code after the first successful transaction. It can be get from the [user detail endpoint](https://api.dfx.swiss/swagger/#/User/UserController_getUserDetail).
 
 ### KYC (optional)
 
-KYC is not required for a daily transaction volume up to 1000 EUR/CHF. To increase the transaction volume, the user needs to be verified with a KYC process, which can be done on the DFX KYC page.
+KYC is not required for a daily transaction volume up to 1000 CHF. To increase the transaction volume, the user needs to be verified with a KYC process, which can be done on the DFX KYC page.
 
 1. Get the user's KYC hash from [user endpoint](https://api.dfx.swiss/swagger/#/User/UserController_getUser)
 1. Open then link to the KYC page: `https://payment.dfx.swiss/kyc?code=<kyc-hash>`
@@ -112,67 +111,3 @@ _Get payment infos_
 ### Integration Example
 
 - DFX.swiss is integrated in the [DFX.swiss exchange](https://github.com/DFXswiss/exchange)
-
-### Appendix
-
-#### Login Example
-
-The following code snippet shows a way to generate login credentials for the DeFiChain blockchain.
-
-```ts
-import { MainNet, Network } from '@defichain/jellyfish-network';
-import { JellyfishWallet } from '@defichain/jellyfish-wallet';
-import { Bip32Options, MnemonicHdNodeProvider } from '@defichain/jellyfish-wallet-mnemonic';
-import { WhaleWalletAccountProvider } from '@defichain/whale-api-wallet';
-import { sign } from 'bitcoinjs-message';
-
-export class DfxLoginHelper {
-  private readonly network = MainNet;
-  private readonly seed = [
-    /* PUT YOUR SEED HERE */
-  ]; // 24 word mnemonic seed phrase
-
-  async generateCredentials(uniqueUserId: number): Promise<{ address: string; signature: string }> {
-    const { address, privateKey } = await this.getAccount(uniqueUserId);
-
-    const signMessage = await this.getSignMessage(address);
-    const signature = this.signMessage(signMessage, privateKey);
-
-    return { address, signature };
-  }
-
-  // --- HELPER METHODS --- //
-  private async getAccount(id: number): Promise<{ address: string; privateKey: Buffer }> {
-    const wallet = new JellyfishWallet(
-      MnemonicHdNodeProvider.fromWords(this.seed, this.bip32OptionsBasedOn(this.network)),
-      new WhaleWalletAccountProvider(undefined, this.network),
-      JellyfishWallet.COIN_TYPE_DFI,
-      JellyfishWallet.PURPOSE_LIGHT_WALLET,
-    );
-
-    return {
-      address: await wallet.get(id).getAddress(),
-      privateKey: await wallet.get(id).privateKey(),
-    };
-  }
-
-  private bip32OptionsBasedOn(network: Network): Bip32Options {
-    return {
-      bip32: {
-        public: network.bip32.publicPrefix,
-        private: network.bip32.privatePrefix,
-      },
-      wif: network.wifPrefix,
-    };
-  }
-
-  private async getSignMessage(address: string): Promise<string> {
-    // GET DFX SIGN MESSAGE WITH API CALL
-    return 'TODO';
-  }
-
-  private signMessage(message: string, privateKey: Buffer): string {
-    return sign(message, privateKey, true, this.network.messagePrefix).toString('base64');
-  }
-}
-```
