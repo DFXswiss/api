@@ -87,7 +87,9 @@ export class UserService {
       .leftJoin('user.userData', 'userData')
       .leftJoin('userData.users', 'linkedUser')
       .leftJoin('linkedUser.wallet', 'wallet')
-      .where('user.id = :id AND wallet.isKycClient = 0', { id })
+      .where('user.id = :id', { id })
+      .andWhere('wallet.isKycClient = 0')
+      .andWhere('linkedUser.status != :blocked', { blocked: UserStatus.BLOCKED })
       .getRawMany<{ address: string }>();
 
     return linkedUsers.map((u) => ({
@@ -171,6 +173,25 @@ export class UserService {
       throw new ForbiddenException('The country of IP address is not allowed');
 
     return ipCountry;
+  }
+
+  async blockUser(id: number, allUser = false): Promise<void> {
+    const mainUser = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
+    if (!mainUser) throw new NotFoundException('User not found');
+    if (mainUser.userData.status === UserDataStatus.BLOCKED)
+      throw new BadRequestException('User Account already blocked');
+    if (mainUser.status === UserStatus.BLOCKED) throw new BadRequestException('User already blocked');
+
+    if (!allUser) {
+      await this.userRepo.update(...mainUser.blockUser('Manual user block'));
+      return;
+    }
+
+    await this.userDataService.blockUserData(mainUser.userData);
+
+    for (const user of mainUser.userData.users) {
+      await this.userRepo.update(...user.blockUser('Manual user account block'));
+    }
   }
 
   // --- VOLUMES --- //

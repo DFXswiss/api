@@ -42,7 +42,7 @@ export class LimitRequestNotificationService {
     for (const entity of entities) {
       try {
         if (entity.userData.mail) {
-          await this.notificationService.sendMailNew({
+          await this.notificationService.sendMail({
             type: MailType.PERSONAL,
             input: {
               userData: entity.userData,

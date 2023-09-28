@@ -198,7 +198,7 @@ export class SpiderSyncService {
 
       if (userData.isDfxUser) {
         await this.notificationService
-          .sendMailNew({
+          .sendMail({
             type: MailType.USER,
             input: {
               userData,
@@ -233,7 +233,7 @@ export class SpiderSyncService {
     // send reminder
     if (userData.isDfxUser) {
       await this.notificationService
-        .sendMailNew({
+        .sendMail({
           type: MailType.USER,
           input: {
             userData,

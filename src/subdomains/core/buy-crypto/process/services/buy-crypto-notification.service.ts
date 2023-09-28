@@ -71,7 +71,7 @@ export class BuyCryptoNotificationService {
               ? ` (min. ${tx.minFeeAmountFiat} ${tx.cryptoInput ? 'EUR' : tx.inputReferenceAsset})`
               : '';
 
-            await this.notificationService.sendMailNew({
+            await this.notificationService.sendMail({
               type: MailType.USER,
               input: {
                 userData: tx.user.userData,
@@ -175,7 +175,7 @@ export class BuyCryptoNotificationService {
     for (const entity of entities) {
       try {
         if (entity.user.userData.mail) {
-          await this.notificationService.sendMailNew({
+          await this.notificationService.sendMail({
             type: MailType.USER,
             input: {
               userData: entity.user.userData,
@@ -253,7 +253,7 @@ export class BuyCryptoNotificationService {
     for (const entity of entities) {
       try {
         if (entity.user.userData.mail) {
-          await this.notificationService.sendMailNew({
+          await this.notificationService.sendMail({
             type: MailType.USER,
             input: {
               userData: entity.user.userData,

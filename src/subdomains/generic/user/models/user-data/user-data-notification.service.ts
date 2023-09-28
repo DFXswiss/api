@@ -41,7 +41,7 @@ export class UserDataNotificationService {
         const recipientMail = entity.mail;
 
         if (recipientMail) {
-          await this.notificationService.sendMailNew({
+          await this.notificationService.sendMail({
             type: MailType.PERSONAL,
             input: {
               userData: entity,
