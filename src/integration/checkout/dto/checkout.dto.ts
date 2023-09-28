@@ -1,0 +1,153 @@
+export interface HostedPayment {
+  id: string;
+  _links: {
+    redirect: { href: string };
+  };
+}
+
+export enum PaymentStatus {
+  PENDING = 'Pending',
+  AUTHORIZED = 'Authorized',
+  CARD_VERIFIED = 'Card Verified',
+  VOIDED = 'Voided',
+  PARTIALLY_CAPTURED = 'Partially Captured',
+  CAPTURED = 'Captured',
+  PARTIALLY_REFUNDED = 'Partially Refunded',
+  REFUNDED = 'Refunded',
+  DECLINED = 'Declined',
+  CANCELED = 'Canceled',
+  EXPIRED = 'Expired',
+  PAID = 'Paid',
+}
+
+export enum PaymentType {
+  REGULAR = 'Regular',
+  RECURRING = 'Recurring',
+  MOTO = 'MOTO',
+  INSTALLMENT = 'Installment',
+  UNSCHEDULED = 'Unscheduled',
+}
+
+export enum CardType {
+  CREDIT = 'Credit',
+  DEBIT = 'Debit',
+  PREPAID = 'Prepaid',
+  CHARGE = 'Charge',
+  DEFERRED_DEBIT = 'Deferred Debit',
+}
+
+export enum CardCategory {
+  CONSUMER = 'Consumer',
+  COMMERCIAL = 'Commercial',
+}
+
+export enum TdsEnrolled {
+  YES = 'Y',
+  NO = 'N',
+  UNKNOWN = 'U',
+}
+
+export enum TdsResponse {
+  Y = 'Y',
+  N = 'N',
+  U = 'U',
+  A = 'A',
+  C = 'C',
+  D = 'D',
+  R = 'R',
+  I = 'I',
+}
+
+export enum TdsExemption {
+  LOW_VALUE = 'low_value',
+  SECURE_CORPORATE_PAYMENT = 'secure_corporate_payment',
+  TRUSTED_LISTING = 'trusted_listing',
+  TRANSACTION_RISK_ASSESSMENT = 'transaction_risk_assessment',
+  TDS_OUTAGE = '3ds_outage',
+  SCA_DELEGATION = 'sca_delegation',
+  OUT_OF_SCA_SCOPE = 'out_of_sca_scope',
+  OTHER = 'other',
+  LOW_RISK_PROGRAM = 'low_risk_program',
+  NONE = 'none',
+}
+
+export interface Payment {
+  id: string;
+  requested_on: string;
+  source: {
+    id: string;
+    type: string;
+    billing_address: {
+      address_line1: string;
+      address_line2: string;
+      city: string;
+      state: string;
+      zip: string;
+      country: string;
+    };
+    phone: {
+      country_code: string;
+      number: string;
+    };
+    expiry_month: number;
+    expiry_year: number;
+    name: string;
+    scheme: string;
+    last4: string;
+    fingerprint: string;
+    bin: string;
+    card_type: CardType;
+    card_category: CardCategory;
+    issuer_country: string;
+    product_id: string;
+    product_type: string;
+    avs_check: string;
+    cvv_check: string;
+    payment_account_reference: string;
+  };
+  expires_on: string;
+  items: [];
+  amount: number;
+  currency: string;
+  payment_type: PaymentType;
+  reference: string;
+  status: PaymentStatus;
+  approved: boolean;
+  '3ds': {
+    downgraded: boolean;
+    enrolled: TdsEnrolled;
+    authentication_response: TdsResponse;
+    authentication_status_reason: string;
+    cryptogram: string;
+    xid: string;
+    version: string;
+    exemption: TdsExemption;
+    challenged: boolean;
+    exemption_applied: 'none';
+  };
+  balances: {
+    total_authorized: number;
+    total_voided: number;
+    available_to_void: number;
+    total_captured: number;
+    available_to_capture: number;
+    total_refunded: number;
+    available_to_refund: number;
+  };
+  risk: {
+    flagged: boolean;
+    score: number;
+  };
+  payment_ip: string;
+  metadata: Record<string, string | boolean>;
+  processing: Record<string, string | boolean>;
+  eci: string;
+  scheme_id: string;
+}
+
+export interface PagedResponse<T> {
+  total_count: number;
+  skip: number;
+  limit: number;
+  data: T[];
+}

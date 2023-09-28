@@ -188,8 +188,9 @@ export class Configuration {
     url: process.env.LETTER_URL,
   };
 
-  payment = {
-    url: process.env.PAYMENT_URL,
+  frontend = {
+    payment: process.env.PAYMENT_URL,
+    services: process.env.SERVICES_URL,
   };
 
   fixer = {

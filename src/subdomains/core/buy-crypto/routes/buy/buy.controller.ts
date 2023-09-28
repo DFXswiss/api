@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, Get, Param, Post, Put, UseGuards
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
+import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -36,6 +37,7 @@ export class BuyController {
     private readonly paymentInfoService: PaymentInfoService,
     private readonly bankService: BankService,
     private readonly transactionHelper: TransactionHelper,
+    private readonly checkoutService: CheckoutService,
   ) {}
 
   @Get()
@@ -171,7 +173,16 @@ export class BuyController {
       amount,
       asset: AssetDtoMapper.entityToDto(dto.asset),
       currency: FiatDtoMapper.entityToDto(dto.currency),
-      paymentRequest: this.generateGiroCode(buy, bankInfo, dto),
+      paymentRequest: isValid ? this.generateGiroCode(buy, bankInfo, dto) : undefined,
+      paymentLink: isValid
+        ? await this.checkoutService.createPaymentLink(
+            'test', // TODO
+            amount,
+            dto.currency,
+            estimatedAmount,
+            dto.asset,
+          )
+        : undefined,
       isValid,
     };
   }

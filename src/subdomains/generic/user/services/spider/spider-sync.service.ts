@@ -208,7 +208,7 @@ export class SpiderSyncService {
                 { key: MailKey.SPACE, params: { value: '1' } },
                 {
                   key: `${MailTranslationKey.KYC}.next_step`,
-                  params: { url: `${Config.payment.url}/kyc?code=${userData.kycHash}` },
+                  params: { url: `${Config.frontend.payment}/kyc?code=${userData.kycHash}` },
                 },
                 { key: MailKey.SPACE, params: { value: '2' } },
                 { key: `${MailTranslationKey.KYC}.last_step` },
@@ -248,7 +248,7 @@ export class SpiderSyncService {
               { key: MailKey.SPACE, params: { value: '2' } },
               {
                 key: `${MailTranslationKey.KYC}.next_step`,
-                params: { url: `${Config.payment.url}/kyc?code=${userData.kycHash}` },
+                params: { url: `${Config.frontend.payment}/kyc?code=${userData.kycHash}` },
               },
               { key: MailKey.SPACE, params: { value: '2' } },
               { key: `${MailTranslationKey.KYC}.last_step` },
