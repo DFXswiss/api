@@ -26,14 +26,14 @@ export class CryptoPaymentInfoDto {
   @ApiProperty({ description: 'Minimum volume in source asset' })
   minVolume: number;
 
+  @ApiProperty({ description: 'Maximum volume in source asset' })
+  maxVolume: number;
+
   @ApiProperty({ description: 'Amount in source asset' })
   amount: number;
 
   @ApiProperty({ type: AssetDto, description: 'Source asset' })
   sourceAsset: AssetDto;
-
-  @ApiProperty({ description: 'Trade limit in source asset' })
-  tradingLimit: number;
 
   @ApiProperty({ description: 'Minimum fee in target asset' })
   minFeeTarget: number;
@@ -54,5 +54,5 @@ export class CryptoPaymentInfoDto {
   isValid: boolean;
 
   @ApiPropertyOptional({ enum: TransactionError, description: 'Error message in case isValid is false' })
-  error: TransactionError;
+  error?: TransactionError;
 }

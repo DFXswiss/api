@@ -122,7 +122,9 @@ export class BuyController {
   }
 
   private async toDto(userId: number, buy: Buy): Promise<BuyDto> {
-    const fee = await this.userService.getUserBuyFee(userId, buy.asset);
+    const user = await this.userService.getUser(userId, { userData: true, wallet: true });
+    const fee = user.getFee(FeeType.BUY, buy.asset);
+
     const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
       'Fiat',
       undefined,
@@ -145,7 +147,7 @@ export class BuyController {
   }
 
   private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
-    const user = await this.userService.getUser(userId, ['userData', 'wallet']);
+    const user = await this.userService.getUser(userId, { userData: true, wallet: true });
     const fee = user.getFee(FeeType.BUY, buy.asset);
 
     const {
@@ -155,7 +157,7 @@ export class BuyController {
       minFeeTarget,
       estimatedAmount,
       sourceAmount: amount,
-      tradingLimit,
+      tradingLimit: maxVolume,
       isValid,
       error,
     } = await this.transactionHelper.getTxDetails(
@@ -183,7 +185,7 @@ export class BuyController {
       amount,
       asset: AssetDtoMapper.entityToDto(dto.asset),
       currency: FiatDtoMapper.entityToDto(dto.currency),
-      tradingLimit,
+      maxVolume,
       paymentRequest: this.generateGiroCode(buy, bankInfo, dto),
       isValid,
       error,

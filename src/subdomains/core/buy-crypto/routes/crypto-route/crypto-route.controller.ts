@@ -130,13 +130,13 @@ export class CryptoRouteController {
 
   // --- DTO --- //
   private async toDtoList(userId: number, cryptos: CryptoRoute[]): Promise<CryptoRouteDto[]> {
-    const fee = await this.userService.getUserCryptoFee(userId);
+    const fee = await this.getUserCryptoFee(userId);
 
     return Promise.all(cryptos.map((b) => this.toDto(userId, b, fee)));
   }
 
   private async toDto(userId: number, crypto: CryptoRoute, fee?: number): Promise<CryptoRouteDto> {
-    fee ??= await this.userService.getUserCryptoFee(userId);
+    fee ??= await this.getUserCryptoFee(userId);
     const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
       crypto.deposit.blockchain,
       undefined,
@@ -162,7 +162,7 @@ export class CryptoRouteController {
     cryptoRoute: CryptoRoute,
     dto: GetCryptoPaymentInfoDto,
   ): Promise<CryptoPaymentInfoDto> {
-    const user = await this.userService.getUser(userId, ['userData', 'wallet']);
+    const user = await this.userService.getUser(userId, { userData: true, wallet: true });
     const fee = user.getFee(FeeType.CRYPTO);
 
     const {
@@ -172,7 +172,7 @@ export class CryptoRouteController {
       minFeeTarget,
       estimatedAmount,
       sourceAmount: amount,
-      tradingLimit,
+      tradingLimit: maxVolume,
       isValid,
       error,
     } = await this.transactionHelper.getTxDetails(
@@ -198,7 +198,7 @@ export class CryptoRouteController {
       amount,
       targetAsset: AssetDtoMapper.entityToDto(dto.targetAsset),
       sourceAsset: AssetDtoMapper.entityToDto(dto.sourceAsset),
-      tradingLimit,
+      maxVolume,
       paymentRequest: await this.cryptoService.getPaymentRequest(
         isValid,
         dto.sourceAsset,
@@ -208,5 +208,10 @@ export class CryptoRouteController {
       isValid,
       error,
     };
+  }
+
+  private async getUserCryptoFee(userId: number): Promise<number> {
+    const user = await this.userService.getUser(userId, { userData: true, wallet: true });
+    return user.getFee(FeeType.CRYPTO);
   }
 }

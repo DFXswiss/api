@@ -11,7 +11,6 @@ import { DfiTaxService } from 'src/integration/blockchain/ain/services/dfi-tax.s
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
-import { Asset } from 'src/shared/models/asset/asset.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { Lock } from 'src/shared/utils/lock';
@@ -19,7 +18,7 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { Between, Not } from 'typeorm';
+import { Between, FindOptionsRelations, Not } from 'typeorm';
 import { KycService } from '../kyc/kyc.service';
 import { KycStatus, KycType, UserData, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
@@ -32,7 +31,7 @@ import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
-import { FeeType, User, UserStatus } from './user.entity';
+import { User, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
 
 @Injectable()
@@ -54,7 +53,7 @@ export class UserService {
     return this.userRepo.find();
   }
 
-  async getUser(userId: number, relations = []): Promise<User> {
+  async getUser(userId: number, relations: FindOptionsRelations<User> = {}): Promise<User> {
     return this.userRepo.findOne({ where: { id: userId }, relations });
   }
 
@@ -258,38 +257,6 @@ export class UserService {
       .getRawOne<{ sellVolume: number }>();
 
     return { buy: buyVolume ?? 0, sell: sellVolume ?? 0 };
-  }
-
-  // --- FEES --- //
-  async getUserBuyFee(userId: number, asset: Asset): Promise<number> {
-    const user = await this.userRepo.findOne({
-      select: ['id', 'buyFee', 'wallet', 'userData'],
-      where: { id: userId },
-      relations: ['wallet', 'userData'],
-    });
-
-    return user.getFee(FeeType.BUY, asset);
-  }
-
-  async getUserSellFee(userId: number, asset: Asset): Promise<number> {
-    const user = await this.userRepo.findOne({
-      select: ['id', 'sellFee', 'wallet', 'userData'],
-      where: { id: userId },
-      relations: ['wallet', 'userData'],
-    });
-
-    return user.getFee(FeeType.SELL, asset);
-  }
-
-  async getUserCryptoFee(userId: number): Promise<number> {
-    // fee
-    const user = await this.userRepo.findOne({
-      select: ['id', 'cryptoFee', 'wallet'],
-      where: { id: userId },
-      relations: ['wallet'],
-    });
-
-    return user.getFee(FeeType.CRYPTO);
   }
 
   // --- REF --- //

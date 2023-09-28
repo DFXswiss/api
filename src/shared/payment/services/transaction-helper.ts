@@ -1,6 +1,5 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -120,10 +119,21 @@ export class TransactionHelper implements OnModuleInit {
   ): Promise<TransactionDetails> {
     const specs = this.getSpecs(from, to);
 
-    const { minVolume, minFee } = await this.convertToSource(from, specs);
+    const {
+      minVolume,
+      minFee,
+      tradingLimit: tradingLimitInSource,
+    } = await this.convertToSource(from, specs, tradingLimit);
     const { minVolume: minVolumeTarget, minFee: minFeeTarget } = await this.convertToTarget(to, specs);
 
-    const target = await this.getTargetEstimation(sourceAmount, targetAmount, fee, minFee, from, to, tradingLimit);
+    const target = await this.getTargetEstimation(sourceAmount, targetAmount, fee, minFee, from, to);
+
+    const error =
+      target.sourceAmount < minVolume
+        ? TransactionError.SOURCE_AMOUNT_TOO_LOW
+        : target.sourceAmount > tradingLimitInSource
+        ? TransactionError.SOURCE_AMOUNT_TOO_HIGH
+        : undefined;
 
     return {
       ...target,
@@ -131,13 +141,9 @@ export class TransactionHelper implements OnModuleInit {
       minVolume,
       minFeeTarget,
       minVolumeTarget,
-      isValid: target.sourceAmount >= minVolume && target.sourceAmount <= target.tradingLimit,
-      error:
-        target.sourceAmount < minVolume
-          ? TransactionError.SOURCE_AMOUNT_TOO_LOW
-          : target.sourceAmount > target.tradingLimit
-          ? TransactionError.SOURCE_AMOUNT_TOO_HIGH
-          : undefined,
+      isValid: !tradingLimit || error == null,
+      tradingLimit: tradingLimitInSource,
+      error,
     };
   }
 
@@ -148,12 +154,8 @@ export class TransactionHelper implements OnModuleInit {
     minFee: number,
     from: Asset | Fiat,
     to: Asset | Fiat,
-    tradingLimit: number | undefined,
   ): Promise<TargetEstimation> {
     const price = await this.priceProviderService.getPrice(from, to);
-
-    const fiatChf = from.name !== 'CHF' ? undefined : await this.fiatService.getFiatByName('CHF');
-    const tradingLimitPrice = from.name !== 'CHF' ? undefined : await this.priceProviderService.getPrice(fiatChf, from);
 
     const percentFeeAmount =
       outputAmount != null ? price.invert().convert((outputAmount * fee) / (1 - fee)) : inputAmount * fee;
@@ -162,17 +164,11 @@ export class TransactionHelper implements OnModuleInit {
     const targetAmount = outputAmount != null ? outputAmount : price.convert(Math.max(inputAmount - feeAmount, 0));
     const sourceAmount = outputAmount != null ? price.invert().convert(outputAmount) + feeAmount : inputAmount;
 
-    const currentTradingLimit = tradingLimit ? tradingLimit : Config.defaultDailyTradingLimit;
-    const tradingLimitInSource = !tradingLimitPrice
-      ? currentTradingLimit
-      : tradingLimitPrice.convert(currentTradingLimit * 0.99, -1); // -1% for the conversion
-
     return {
       exchangeRate: this.round(price.price, from instanceof Fiat),
       feeAmount: this.round(feeAmount, from instanceof Fiat),
       estimatedAmount: this.round(targetAmount, to instanceof Fiat),
       sourceAmount: this.round(sourceAmount, from instanceof Fiat),
-      tradingLimit: tradingLimitInSource,
     };
   }
 
@@ -183,12 +179,30 @@ export class TransactionHelper implements OnModuleInit {
       : { system: param.blockchain, asset: param.dexName };
   }
 
-  private async convertToSource(from: Asset | Fiat, { minFee, minVolume }: TxSpec): Promise<TxSpec> {
+  private async convertToSource(
+    from: Asset | Fiat,
+    { minFee, minVolume }: TxSpec,
+    tradingLimit?: number | undefined,
+  ): Promise<TxSpec> {
     const price = await this.priceProviderService.getPrice(from, this.eur).then((p) => p.invert());
+
+    const fiatChf =
+      from.name === 'CHF' || tradingLimit == undefined ? undefined : await this.fiatService.getFiatByName('CHF');
+    const tradingLimitPrice =
+      from.name === 'CHF' || tradingLimit == undefined
+        ? undefined
+        : await this.priceProviderService.getPrice(fiatChf, from);
+
+    const tradingLimitInSource = !tradingLimit
+      ? undefined
+      : !tradingLimitPrice
+      ? tradingLimit
+      : tradingLimitPrice.convert(tradingLimit * 0.99, -1); // -1% for the conversion
 
     return {
       minFee: this.convert(minFee, price, from instanceof Fiat),
       minVolume: this.convert(minVolume, price, from instanceof Fiat),
+      tradingLimit: tradingLimitInSource,
     };
   }
 

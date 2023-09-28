@@ -52,14 +52,14 @@ export class BuyPaymentInfoDto extends BankInfoDto {
   @ApiProperty({ description: 'Minimum volume in source currency' })
   minVolume: number;
 
+  @ApiProperty({ description: 'Maximum volume in source currency' })
+  maxVolume: number;
+
   @ApiProperty({ description: 'Amount in source currency' })
   amount: number;
 
   @ApiProperty({ type: FiatDto, description: 'Source currency' })
   currency: FiatDto;
-
-  @ApiProperty({ description: 'Trade limit in source currency' })
-  tradingLimit: number;
 
   @ApiProperty({ description: 'Minimum fee in target asset' })
   minFeeTarget: number;
@@ -80,5 +80,5 @@ export class BuyPaymentInfoDto extends BankInfoDto {
   isValid: boolean;
 
   @ApiPropertyOptional({ enum: TransactionError, description: 'Error message in case isValid is false' })
-  error: TransactionError;
+  error?: TransactionError;
 }
