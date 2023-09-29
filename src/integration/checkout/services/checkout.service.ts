@@ -3,30 +3,34 @@ import { Checkout } from 'checkout-sdk-node';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { HostedPayment, PagedResponse, Payment } from '../dto/checkout.dto';
+import { Language } from 'src/shared/models/language/language.entity';
+import { HostedPayment, Languages, PagedResponse, Payment } from '../dto/checkout.dto';
 
 @Injectable()
 export class CheckoutService {
-  private checkout: Checkout;
+  private readonly reference = 'DFX';
+
+  private readonly checkout: Checkout;
 
   constructor() {
     this.checkout = new Checkout();
   }
 
   async createPaymentLink(
-    reference: string,
+    remittanceInfo: string,
     fiatAmount: number,
     currency: Fiat,
-    cryptoAmount: number,
     asset: Asset,
+    language: Language,
   ): Promise<string> {
     const amount = Math.round(fiatAmount * 100);
 
     return this.checkout.hostedPayments
       .create({
-        reference: reference,
+        reference: this.reference,
         amount: amount,
         currency: currency.name,
+        locale: Languages[language.symbol] ?? Languages.EN,
         billing: {
           address: {
             country: 'CH',
@@ -34,11 +38,12 @@ export class CheckoutService {
         },
         products: [
           {
-            name: `${cryptoAmount} ${asset.uniqueName}`,
+            name: asset.uniqueName,
             quantity: 1,
             price: amount,
           },
         ],
+        description: remittanceInfo,
         success_url: `${Config.frontend.services}/buy/success`,
         cancel_url: `${Config.frontend.services}/buy`,
         failure_url: `${Config.frontend.services}/buy`,
@@ -46,13 +51,16 @@ export class CheckoutService {
       .then((r: HostedPayment) => r._links.redirect.href);
   }
 
-  async getPayments(reference: string, since?: Date): Promise<Payment[]> {
-    let batch: PagedResponse<Payment> = await this.checkout.payments.getPaymentList({ reference, limit: 100 });
+  async getPayments(since?: Date): Promise<Payment[]> {
+    let batch: PagedResponse<Payment> = await this.checkout.payments.getPaymentList({
+      reference: this.reference,
+      limit: 100,
+    });
     const payments = batch.data;
 
     while (payments.length < batch.total_count && !(new Date(payments[payments.length - 1].requested_on) < since)) {
       batch = await this.checkout.payments.getPaymentList({
-        reference,
+        reference: this.reference,
         limit: batch.limit,
         skip: batch.skip + batch.limit,
       });

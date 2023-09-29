@@ -146,6 +146,7 @@ export class BuyController {
   }
 
   private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
+    const user = await this.userService.getUser(userId, true);
     const fee = await this.userService.getUserBuyFee(userId, buy.asset);
     const {
       minVolume,
@@ -176,11 +177,11 @@ export class BuyController {
       paymentRequest: isValid ? this.generateGiroCode(buy, bankInfo, dto) : undefined,
       paymentLink: isValid
         ? await this.checkoutService.createPaymentLink(
-            'test', // TODO
+            buy.bankUsage,
             amount,
             dto.currency,
-            estimatedAmount,
             dto.asset,
+            user.userData.language,
           )
         : undefined,
       isValid,

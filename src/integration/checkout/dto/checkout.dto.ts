@@ -151,3 +151,12 @@ export interface PagedResponse<T> {
   limit: number;
   data: T[];
 }
+
+export const Languages = {
+  EN: 'en-GB',
+  DE: 'de-DE',
+  FR: 'fr-FR',
+  IT: 'it-IT',
+  ES: 'es-ES',
+  PT: 'pt-PT',
+};
