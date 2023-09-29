@@ -1,11 +1,11 @@
-export interface HostedPayment {
+export interface CheckoutHostedPayment {
   id: string;
   _links: {
     redirect: { href: string };
   };
 }
 
-export enum PaymentStatus {
+export enum CheckoutPaymentStatus {
   PENDING = 'Pending',
   AUTHORIZED = 'Authorized',
   CARD_VERIFIED = 'Card Verified',
@@ -20,7 +20,7 @@ export enum PaymentStatus {
   PAID = 'Paid',
 }
 
-export enum PaymentType {
+export enum CheckoutPaymentType {
   REGULAR = 'Regular',
   RECURRING = 'Recurring',
   MOTO = 'MOTO',
@@ -28,7 +28,7 @@ export enum PaymentType {
   UNSCHEDULED = 'Unscheduled',
 }
 
-export enum CardType {
+export enum CheckoutCardType {
   CREDIT = 'Credit',
   DEBIT = 'Debit',
   PREPAID = 'Prepaid',
@@ -36,18 +36,18 @@ export enum CardType {
   DEFERRED_DEBIT = 'Deferred Debit',
 }
 
-export enum CardCategory {
+export enum CheckoutCardCategory {
   CONSUMER = 'Consumer',
   COMMERCIAL = 'Commercial',
 }
 
-export enum TdsEnrolled {
+export enum CheckoutTdsEnrolled {
   YES = 'Y',
   NO = 'N',
   UNKNOWN = 'U',
 }
 
-export enum TdsResponse {
+export enum CheckoutTdsResponse {
   Y = 'Y',
   N = 'N',
   U = 'U',
@@ -58,7 +58,7 @@ export enum TdsResponse {
   I = 'I',
 }
 
-export enum TdsExemption {
+export enum CheckoutTdsExemption {
   LOW_VALUE = 'low_value',
   SECURE_CORPORATE_PAYMENT = 'secure_corporate_payment',
   TRUSTED_LISTING = 'trusted_listing',
@@ -71,7 +71,7 @@ export enum TdsExemption {
   NONE = 'none',
 }
 
-export interface Payment {
+export interface CheckoutPayment {
   id: string;
   requested_on: string;
   source: {
@@ -96,8 +96,8 @@ export interface Payment {
     last4: string;
     fingerprint: string;
     bin: string;
-    card_type: CardType;
-    card_category: CardCategory;
+    card_type: CheckoutCardType;
+    card_category: CheckoutCardCategory;
     issuer_country: string;
     product_id: string;
     product_type: string;
@@ -109,19 +109,20 @@ export interface Payment {
   items: [];
   amount: number;
   currency: string;
-  payment_type: PaymentType;
+  payment_type: CheckoutPaymentType;
   reference: string;
-  status: PaymentStatus;
+  description: string;
+  status: CheckoutPaymentStatus;
   approved: boolean;
   '3ds': {
     downgraded: boolean;
-    enrolled: TdsEnrolled;
-    authentication_response: TdsResponse;
+    enrolled: CheckoutTdsEnrolled;
+    authentication_response: CheckoutTdsResponse;
     authentication_status_reason: string;
     cryptogram: string;
     xid: string;
     version: string;
-    exemption: TdsExemption;
+    exemption: CheckoutTdsExemption;
     challenged: boolean;
     exemption_applied: 'none';
   };
@@ -145,14 +146,14 @@ export interface Payment {
   scheme_id: string;
 }
 
-export interface PagedResponse<T> {
+export interface CheckoutPagedResponse<T> {
   total_count: number;
   skip: number;
   limit: number;
   data: T[];
 }
 
-export const Languages = {
+export const CheckoutLanguages = {
   EN: 'en-GB',
   DE: 'de-DE',
   FR: 'fr-FR',

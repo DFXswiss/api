@@ -4,7 +4,7 @@ import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
-import { HostedPayment, Languages, PagedResponse, Payment } from '../dto/checkout.dto';
+import { CheckoutHostedPayment, CheckoutLanguages, CheckoutPagedResponse, CheckoutPayment } from '../dto/checkout.dto';
 
 @Injectable()
 export class CheckoutService {
@@ -30,7 +30,7 @@ export class CheckoutService {
         reference: this.reference,
         amount: amount,
         currency: currency.name,
-        locale: Languages[language.symbol] ?? Languages.EN,
+        locale: CheckoutLanguages[language.symbol] ?? CheckoutLanguages.EN,
         billing: {
           address: {
             country: 'CH',
@@ -48,11 +48,11 @@ export class CheckoutService {
         cancel_url: `${Config.frontend.services}/buy`,
         failure_url: `${Config.frontend.services}/buy`,
       })
-      .then((r: HostedPayment) => r._links.redirect.href);
+      .then((r: CheckoutHostedPayment) => r._links.redirect.href);
   }
 
-  async getPayments(since?: Date): Promise<Payment[]> {
-    let batch: PagedResponse<Payment> = await this.checkout.payments.getPaymentList({
+  async getPayments(since?: Date): Promise<CheckoutPayment[]> {
+    let batch: CheckoutPagedResponse<CheckoutPayment> = await this.checkout.payments.getPaymentList({
       reference: this.reference,
       limit: 100,
     });
