@@ -231,7 +231,7 @@ export class Configuration {
         },
       },
     },
-    defaultMailTemplate: 'support',
+    defaultMailTemplate: 'generic',
     contact: {
       supportMail: process.env.SUPPORT_MAIL || 'support@dfx.swiss',
       monitoringMail: process.env.MONITORING_MAIL || 'monitoring@dfx.swiss',
