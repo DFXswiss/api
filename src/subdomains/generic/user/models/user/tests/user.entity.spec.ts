@@ -9,18 +9,18 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { TestUtil } from 'src/shared/utils/test.util';
-import { KycService } from '../kyc/kyc.service';
-import { createCustomUserData } from '../user-data/__mocks__/user-data.entity.mock';
-import { AccountType } from '../user-data/account-type.enum';
-import { UserDataRepository } from '../user-data/user-data.repository';
-import { UserDataService } from '../user-data/user-data.service';
-import { WalletService } from '../wallet/wallet.service';
-import { createCustomUser } from './__mocks__/user.entity.mock';
-import { FeeType } from './user.entity';
-import { UserRepository } from './user.repository';
-import { UserService } from './user.service';
+import { KycService } from '../../kyc/kyc.service';
+import { createCustomUserData } from '../../user-data/__mocks__/user-data.entity.mock';
+import { AccountType } from '../../user-data/account-type.enum';
+import { UserDataRepository } from '../../user-data/user-data.repository';
+import { UserDataService } from '../../user-data/user-data.service';
+import { WalletService } from '../../wallet/wallet.service';
+import { createCustomUser } from '../__mocks__/user.entity.mock';
+import { FeeType } from '../user.entity';
+import { UserRepository } from '../user.repository';
+import { UserService } from '../user.service';
 
-describe('UserService', () => {
+describe('User', () => {
   let service: UserService;
 
   let userRepo: UserRepository;
@@ -83,6 +83,14 @@ describe('UserService', () => {
 
     service = module.get<UserService>(UserService);
   });
+
+  //   beforeEach(async () => {
+  //     const module: TestingModule = await Test.createTestingModule({
+  //       providers: [CryptoService],
+  //     }).compile();
+
+  //     service = module.get<CryptoService>(CryptoService);
+  //   });
 
   it('should be defined', () => {
     expect(service).toBeDefined();

@@ -1,5 +1,8 @@
 export interface TxSpec {
   minVolume: number;
   minFee: number;
-  tradingLimit?: number;
+}
+
+export interface TxSpecExtended extends TxSpec {
+  maxVolume?: number;
 }

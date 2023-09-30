@@ -172,7 +172,8 @@ export class CryptoRouteController {
       minFeeTarget,
       estimatedAmount,
       sourceAmount: amount,
-      tradingLimit: maxVolume,
+      maxVolume,
+      maxVolumeTarget,
       isValid,
       error,
     } = await this.transactionHelper.getTxDetails(
@@ -199,6 +200,7 @@ export class CryptoRouteController {
       targetAsset: AssetDtoMapper.entityToDto(dto.targetAsset),
       sourceAsset: AssetDtoMapper.entityToDto(dto.sourceAsset),
       maxVolume,
+      maxVolumeTarget,
       paymentRequest: await this.cryptoService.getPaymentRequest(
         isValid,
         dto.sourceAsset,

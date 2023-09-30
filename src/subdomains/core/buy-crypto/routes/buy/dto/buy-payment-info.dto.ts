@@ -67,6 +67,9 @@ export class BuyPaymentInfoDto extends BankInfoDto {
   @ApiProperty({ description: 'Minimum volume in target asset' })
   minVolumeTarget: number;
 
+  @ApiProperty({ description: 'Maximum volume in target asset' })
+  maxVolumeTarget: number;
+
   @ApiProperty({ description: 'Estimated amount in target asset' })
   estimatedAmount: number;
 

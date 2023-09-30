@@ -157,7 +157,8 @@ export class BuyController {
       minFeeTarget,
       estimatedAmount,
       sourceAmount: amount,
-      tradingLimit: maxVolume,
+      maxVolume,
+      maxVolumeTarget,
       isValid,
       error,
     } = await this.transactionHelper.getTxDetails(
@@ -186,6 +187,7 @@ export class BuyController {
       asset: AssetDtoMapper.entityToDto(dto.asset),
       currency: FiatDtoMapper.entityToDto(dto.currency),
       maxVolume,
+      maxVolumeTarget,
       paymentRequest: this.generateGiroCode(buy, bankInfo, dto),
       isValid,
       error,

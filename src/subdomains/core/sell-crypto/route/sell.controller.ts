@@ -158,7 +158,8 @@ export class SellController {
       minFeeTarget,
       estimatedAmount: estimatedAmount,
       sourceAmount: amount,
-      tradingLimit: maxVolume,
+      maxVolume,
+      maxVolumeTarget,
       isValid,
       error,
     } = await this.transactionHelper.getTxDetails(
@@ -185,6 +186,7 @@ export class SellController {
       currency: FiatDtoMapper.entityToDto(dto.currency),
       asset: AssetDtoMapper.entityToDto(dto.asset),
       maxVolume,
+      maxVolumeTarget,
       paymentRequest: await this.cryptoService.getPaymentRequest(isValid, dto.asset, sell.deposit.address, amount),
       isValid,
       error,
