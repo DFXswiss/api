@@ -116,7 +116,8 @@ describe('BuyController', () => {
       estimatedAmount: 100,
       sourceAmount: 50,
       isValid: true,
-      tradingLimit: 90000,
+      maxVolume: 90000,
+      maxVolumeTarget: 0,
       error: undefined,
     });
 
