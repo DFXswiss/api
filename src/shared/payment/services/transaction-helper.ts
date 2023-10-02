@@ -19,8 +19,8 @@ export enum ValidationError {
 }
 
 export enum TransactionError {
-  SOURCE_AMOUNT_TOO_LOW = 'SourceAmountTooLow',
-  SOURCE_AMOUNT_TOO_HIGH = 'SourceAmountTooHigh',
+  AMOUNT_TOO_LOW = 'AmountTooLow',
+  AMOUNT_TOO_HIGH = 'AmountTooHigh',
 }
 
 @Injectable()
@@ -132,9 +132,9 @@ export class TransactionHelper implements OnModuleInit {
 
     const error =
       target.sourceAmount < minVolume
-        ? TransactionError.SOURCE_AMOUNT_TOO_LOW
+        ? TransactionError.AMOUNT_TOO_LOW
         : target.sourceAmount > maxVolume
-        ? TransactionError.SOURCE_AMOUNT_TOO_HIGH
+        ? TransactionError.AMOUNT_TOO_HIGH
         : undefined;
 
     return {
@@ -205,9 +205,9 @@ export class TransactionHelper implements OnModuleInit {
     { minFee, minVolume, maxVolume }: TxSpecExtended,
   ): Promise<TxSpecExtended> {
     const price = await this.priceProviderService.getPrice(this.eur, to);
-    const tradingLimitPrice = maxVolume && (await this.priceProviderService.getPrice(this.chf, to));
+    const maxVolumePrice = maxVolume && (await this.priceProviderService.getPrice(this.chf, to));
 
-    const maxVolumeTarget = maxVolume && (to.name === 'CHF' ? maxVolume : tradingLimitPrice.convert(maxVolume * 0.99)); // -1% for the conversion
+    const maxVolumeTarget = maxVolume && (to.name === 'CHF' ? maxVolume : maxVolumePrice.convert(maxVolume * 0.99)); // -1% for the conversion
 
     return {
       minFee: this.convert(minFee, price, to instanceof Fiat),
