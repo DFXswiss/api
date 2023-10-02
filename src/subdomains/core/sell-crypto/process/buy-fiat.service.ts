@@ -251,7 +251,7 @@ export class BuyFiatService {
     for (const id of sellIds) {
       const { volume } = await this.buyFiatRepo
         .createQueryBuilder('buyFiat')
-        .select('SUM(amountInEur)', 'volume')
+        .select('SUM(amountInChf)', 'volume')
         .where('sellId = :id', { id: id })
         .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
         .getRawOne<{ volume: number }>();
@@ -259,7 +259,7 @@ export class BuyFiatService {
       const newYear = new Date(new Date().getFullYear(), 0, 1);
       const { annualVolume } = await this.buyFiatRepo
         .createQueryBuilder('buyFiat')
-        .select('SUM(amountInEur)', 'annualVolume')
+        .select('SUM(amountInChf)', 'annualVolume')
         .leftJoin('buyFiat.cryptoInput', 'cryptoInput')
         .where('buyFiat.sellId = :id', { id: id })
         .andWhere('buyFiat.amlCheck = :check', { check: CheckStatus.PASS })

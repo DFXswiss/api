@@ -238,7 +238,7 @@ export class UserService {
   async getUserVolumes(query: VolumeQuery): Promise<{ buy: number; sell: number }> {
     const { buyVolume } = await this.userRepo
       .createQueryBuilder('user')
-      .select('SUM(buyCryptos.amountInEur)', 'buyVolume')
+      .select('SUM(buyCryptos.amountInChf)', 'buyVolume')
       .leftJoin('user.buys', 'buys')
       .leftJoin('buys.buyCryptos', 'buyCryptos')
       .where('buyCryptos.outputDate BETWEEN :from AND :to', { from: query.from, to: query.to })
@@ -248,7 +248,7 @@ export class UserService {
 
     const { sellVolume } = await this.userRepo
       .createQueryBuilder('user')
-      .select('SUM(buyFiats.amountInEur)', 'sellVolume')
+      .select('SUM(buyFiats.amountInChf)', 'sellVolume')
       .leftJoin('user.sells', 'sells')
       .leftJoin('sells.buyFiats', 'buyFiats')
       .where('buyFiats.outputDate BETWEEN :from AND :to', { from: query.from, to: query.to })
