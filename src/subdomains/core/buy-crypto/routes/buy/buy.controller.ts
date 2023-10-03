@@ -23,7 +23,7 @@ import { BankInfoDto, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
 import { BuyQuoteDto } from './dto/buy-quote.dto';
 import { BuyDto } from './dto/buy.dto';
 import { CreateBuyDto } from './dto/create-buy.dto';
-import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
+import { BuyPaymentMethod, GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
 import { GetBuyQuoteDto } from './dto/get-buy-quote.dto';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 
@@ -147,7 +147,10 @@ export class BuyController {
 
   private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
     const user = await this.userService.getUser(userId, true);
-    const fee = await this.userService.getUserBuyFee(userId, buy.asset);
+    const fee =
+      dto.paymentMethod === BuyPaymentMethod.CARD
+        ? Config.buy.fee.card
+        : await this.userService.getUserBuyFee(userId, buy.asset);
     const {
       minVolume,
       minFee,
@@ -161,9 +164,6 @@ export class BuyController {
 
     return {
       routeId: buy.id,
-      ...bankInfo,
-      sepaInstant: bankInfo.sepaInstant && buy.bankAccount?.sctInst,
-      remittanceInfo: buy.bankUsage,
       fee: Util.round(fee * 100, Config.defaultPercentageDecimal),
       minDeposit: { amount: minVolume, asset: dto.currency.name }, // TODO: remove
       minVolume,
@@ -174,17 +174,23 @@ export class BuyController {
       amount,
       asset: AssetDtoMapper.entityToDto(dto.asset),
       currency: FiatDtoMapper.entityToDto(dto.currency),
-      paymentRequest: isValid ? this.generateGiroCode(buy, bankInfo, dto) : undefined,
-      paymentLink: isValid
-        ? await this.checkoutService.createPaymentLink(
-            buy.bankUsage,
-            amount,
-            dto.currency,
-            dto.asset,
-            user.userData.language,
-          )
-        : undefined,
       isValid,
+      // bank info
+      ...bankInfo,
+      sepaInstant: bankInfo.sepaInstant && buy.bankAccount?.sctInst,
+      remittanceInfo: buy.bankUsage,
+      paymentRequest: isValid ? this.generateGiroCode(buy, bankInfo, dto) : undefined,
+      // card info
+      paymentLink:
+        isValid && dto.paymentMethod === BuyPaymentMethod.CARD
+          ? await this.checkoutService.createPaymentLink(
+              buy.bankUsage,
+              amount,
+              dto.currency,
+              dto.asset,
+              user.userData.language,
+            )
+          : undefined,
     };
   }
 
