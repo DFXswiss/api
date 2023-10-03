@@ -76,7 +76,7 @@ export class UserDetailDto extends UserDto implements UserDetails {
   @ApiPropertyOptional()
   refFeePercent?: number;
 
-  @ApiPropertyOptional({ description: 'refVolume in eur' })
+  @ApiPropertyOptional({ description: 'Referral volume in EUR' })
   refVolume?: number;
 
   @ApiPropertyOptional()
@@ -91,13 +91,13 @@ export class UserDetailDto extends UserDto implements UserDetails {
   @ApiPropertyOptional()
   refCountActive?: number;
 
-  @ApiProperty({ type: VolumeInformation, description: 'buyVolume in chf' })
+  @ApiProperty({ type: VolumeInformation, description: 'Buy volume in CHF' })
   buyVolume: VolumeInformation;
 
-  @ApiProperty({ type: VolumeInformation, description: 'sellVolume in chf' })
+  @ApiProperty({ type: VolumeInformation, description: 'Sell volume in CHF' })
   sellVolume: VolumeInformation;
 
-  @ApiProperty({ type: VolumeInformation, description: 'cryptoVolume in chf' })
+  @ApiProperty({ type: VolumeInformation, description: 'Crypto volume in CHF' })
   cryptoVolume: VolumeInformation;
 
   @ApiProperty()

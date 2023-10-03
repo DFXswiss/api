@@ -18,10 +18,10 @@ export class BuyDto {
   @ApiProperty()
   bankUsage: string;
 
-  @ApiProperty({ description: 'volume in chf' })
+  @ApiProperty({ description: 'Volume in CHF' })
   volume: number;
 
-  @ApiProperty({ description: 'annualVolume in chf' })
+  @ApiProperty({ description: 'Annual volume in CHF' })
   annualVolume: number;
 
   @ApiProperty()

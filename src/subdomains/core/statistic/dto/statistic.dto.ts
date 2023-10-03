@@ -21,7 +21,7 @@ export class SettingStatus {
 }
 
 export class StatisticDto {
-  @ApiProperty({ type: TotalVolumeStatistic, description: 'amount in chf' })
+  @ApiProperty({ type: TotalVolumeStatistic, description: 'Amount in CHF' })
   totalVolume: TotalVolumeStatistic;
 
   @ApiProperty({ type: TotalRewardsStatistic })
