@@ -32,8 +32,8 @@ export class AppController {
 
   private readonly appUrls = {
     [App.BTC]: {
-      [Manufacturer.APPLE]: `${this.appleStoreUrl}/id6443845399`,
-      [Manufacturer.GOOGLE]: `${this.googleStoreUrl}?id=com.defichain.app.dfx.bitcoin`,
+      [Manufacturer.APPLE]: `${this.appleStoreUrl}/id6466037617`,
+      [Manufacturer.GOOGLE]: `${this.googleStoreUrl}?id=swiss.dfx.bitcoin`,
     },
     [App.EXCHANGE]: 'https://exchange.dfx.swiss',
     [App.LIGHTNING]: 'https://lightning.dfx.swiss',
