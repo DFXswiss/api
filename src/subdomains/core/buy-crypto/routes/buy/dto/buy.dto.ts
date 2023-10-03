@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { MinAmount } from 'src/shared/payment/dto/min-amount.dto';
 import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
+import { MinAmount } from 'src/shared/payment/dto/min-amount.dto';
 
 export class BuyDto {
   @ApiProperty()
@@ -18,10 +18,10 @@ export class BuyDto {
   @ApiProperty()
   bankUsage: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'volume in chf' })
   volume: number;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'annualVolume in chf' })
   annualVolume: number;
 
   @ApiProperty()

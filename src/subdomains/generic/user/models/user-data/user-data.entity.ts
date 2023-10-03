@@ -202,22 +202,22 @@ export class UserData extends IEntity {
 
   // Volumes
   @Column({ type: 'float', default: 0 })
-  annualBuyVolume: number;
+  annualBuyVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
-  buyVolume: number;
+  buyVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
-  annualSellVolume: number;
+  annualSellVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
-  sellVolume: number;
+  sellVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
-  annualCryptoVolume: number;
+  annualCryptoVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
-  cryptoVolume: number;
+  cryptoVolume: number; // CHF
 
   // References
   @OneToMany(() => BankAccount, (bankAccount) => bankAccount.userData)

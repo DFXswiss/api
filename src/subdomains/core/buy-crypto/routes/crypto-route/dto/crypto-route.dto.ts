@@ -17,10 +17,10 @@ export class CryptoRouteDto {
   @ApiProperty({ type: DepositDto })
   deposit: DepositDto;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'volume in chf' })
   volume: number;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'annualVolume in chf' })
   annualVolume: number;
 
   @ApiProperty()

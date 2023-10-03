@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
+import { HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { AccountType } from '../../user-data/account-type.enum';
 import { KycState, KycStatus, LimitPeriod } from '../../user-data/user-data.entity';
 import { UserStatus } from '../user.entity';
@@ -76,7 +76,7 @@ export class UserDetailDto extends UserDto implements UserDetails {
   @ApiPropertyOptional()
   refFeePercent?: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'refVolume in eur' })
   refVolume?: number;
 
   @ApiPropertyOptional()
@@ -91,13 +91,13 @@ export class UserDetailDto extends UserDto implements UserDetails {
   @ApiPropertyOptional()
   refCountActive?: number;
 
-  @ApiProperty({ type: VolumeInformation })
+  @ApiProperty({ type: VolumeInformation, description: 'buyVolume in chf' })
   buyVolume: VolumeInformation;
 
-  @ApiProperty({ type: VolumeInformation })
+  @ApiProperty({ type: VolumeInformation, description: 'sellVolume in chf' })
   sellVolume: VolumeInformation;
 
-  @ApiProperty({ type: VolumeInformation })
+  @ApiProperty({ type: VolumeInformation, description: 'cryptoVolume in chf' })
   cryptoVolume: VolumeInformation;
 
   @ApiProperty()

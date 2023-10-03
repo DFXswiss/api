@@ -1,9 +1,9 @@
-import { Entity, Column, Index, ManyToOne, OneToMany } from 'typeorm';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { IEntity } from 'src/shared/models/entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Deposit } from 'src/subdomains/supporting/address-pool/deposit/deposit.entity';
-import { IEntity } from 'src/shared/models/entity';
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
+import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { BuyCrypto } from '../../process/entities/buy-crypto.entity';
 
 @Entity()
@@ -16,10 +16,10 @@ export class Buy extends IEntity {
   bankUsage: string;
 
   @Column({ type: 'float', default: 0 })
-  volume: number;
+  volume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
-  annualVolume: number;
+  annualVolume: number; // CHF
 
   @Column({ default: true })
   active: boolean;

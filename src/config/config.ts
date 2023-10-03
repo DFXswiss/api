@@ -176,7 +176,7 @@ export class Configuration {
     },
     blackSquad: {
       link: process.env.BS_LINK,
-      limit: 50000,
+      limit: 50000, // CHF
       mailName: process.env.BLACK_SQUAD_NAME,
       mailAddress: process.env.BLACK_SQUAD_MAIL,
       mailBanner: process.env.BLACK_SQUAD_BANNER,
