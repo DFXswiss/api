@@ -10,6 +10,8 @@ import { WalletRepository } from 'src/subdomains/generic/user/models/wallet/wall
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { AuthAlbyService } from './models/auth/auth-alby.service';
+import { AuthLnurlController } from './models/auth/auth-lnurl.controller';
+import { AuthLnUrlService } from './models/auth/auth-lnurl.service';
 import { AuthController } from './models/auth/auth.controller';
 import { AuthService } from './models/auth/auth.service';
 import { BankDataController } from './models/bank-data/bank-data.controller';
@@ -58,6 +60,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     UserDataController,
     BankDataController,
     AuthController,
+    AuthLnurlController,
     IdentController,
     KycClientController,
     KycController,
@@ -84,6 +87,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     SpiderSyncService,
     AuthService,
     AuthAlbyService,
+    AuthLnUrlService,
     LimitRequestService,
     IdentService,
     LinkService,
