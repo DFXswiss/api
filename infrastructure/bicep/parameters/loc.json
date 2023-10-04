@@ -272,6 +272,9 @@
     "paymentUrl": {
       "value": "http://localhost:19006"
     },
+    "servicesUrl": {
+      "value": "http://localhost:3001"
+    },
     "lockApiKey": {
       "value": "xxx"
     },
@@ -315,6 +318,12 @@
       "value": "xxx"
     },
     "iknaKey": {
+      "value": "xxx"
+    },
+    "ckoPublicKey": {
+      "value": "xxx"
+    },
+    "ckoSecretKey": {
       "value": "xxx"
     }
   }

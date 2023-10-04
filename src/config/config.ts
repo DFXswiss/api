@@ -188,8 +188,9 @@ export class Configuration {
     url: process.env.LETTER_URL,
   };
 
-  payment = {
-    url: process.env.PAYMENT_URL,
+  frontend = {
+    payment: process.env.PAYMENT_URL,
+    services: process.env.SERVICES_URL,
   };
 
   fixer = {
@@ -368,6 +369,7 @@ export class Configuration {
         [FeeTier.TIER3]: 0.0225,
         [FeeTier.TIER4]: 0.0299,
       },
+      card: 0.08,
       limit: +(process.env.BUY_CRYPTO_FEE_LIMIT ?? 0.005),
 
       get: (tier: FeeTier, accountType: AccountType) =>
