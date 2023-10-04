@@ -25,7 +25,7 @@ describe('LnurlAuth', () => {
   const checkSignature = async (signupDto) =>
     lnUrlAuthService.checkSignature('127.0.0.1', Config.url, Object.assign(new AuthLnurlSignupDto(), { ...signupDto }));
 
-  const getStatus = (signature, k1, key) => lnUrlAuthService.getStatus(signature, k1, key);
+  const getStatus = (k1, signature, key) => lnUrlAuthService.getStatus(k1, signature, key);
 
   beforeAll(async () => {
     const config = {
@@ -271,7 +271,7 @@ describe('LnurlAuth', () => {
     });
 
     it('returns an empty access token while not cached', async () => {
-      expect(getStatus(signupDto.sig, signupDto.k1, signupDto.key)).toStrictEqual('');
+      expect(getStatus(signupDto.k1, signupDto.sig, signupDto.key)).toStrictEqual('');
     });
 
     it('returns an empty access token while not verified', async () => {
@@ -281,14 +281,14 @@ describe('LnurlAuth', () => {
       const internalAuthCache = (lnUrlAuthService as any).authCache as Map<string, AuthCacheDto>;
       internalAuthCache.set(signupDto.k1, { k1: signupDto.k1, k1CreationTime: Date.now() });
 
-      expect(getStatus(signupDto.sig, signupDto.k1, signupDto.key)).toStrictEqual('');
+      expect(getStatus(signupDto.k1, signupDto.sig, signupDto.key)).toStrictEqual('');
     });
 
     it('returns an empty access token while not available', async () => {
       const internalAuthCache = (lnUrlAuthService as any).authCache as Map<string, AuthCacheDto>;
       internalAuthCache.set(signupDto.k1, { k1: signupDto.k1, k1CreationTime: Date.now() });
 
-      expect(getStatus(signupDto.sig, signupDto.k1, signupDto.key)).toStrictEqual('');
+      expect(getStatus(signupDto.k1, signupDto.sig, signupDto.key)).toStrictEqual('');
     });
 
     it('returns an access token', async () => {
@@ -301,7 +301,7 @@ describe('LnurlAuth', () => {
 
       await expect(checkSignature(signupDto)).resolves.toStrictEqual({ status: 'OK' });
 
-      expect(getStatus(signupDto.sig, signupDto.k1, signupDto.key)).toStrictEqual('HelloOtherWorldAccessToken');
+      expect(getStatus(signupDto.k1, signupDto.sig, signupDto.key)).toStrictEqual('HelloOtherWorldAccessToken');
     });
   });
 });
