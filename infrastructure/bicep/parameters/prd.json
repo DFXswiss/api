@@ -272,6 +272,9 @@
     "paymentUrl": {
       "value": "https://payment.dfx.swiss"
     },
+    "servicesUrl": {
+      "value": "https://services.dfx.swiss"
+    },
     "lockApiKey": {
       "value": "xxx"
     },
@@ -315,6 +318,12 @@
       "value": "xxx"
     },
     "iknaKey": {
+      "value": "xxx"
+    },
+    "ckoPublicKey": {
+      "value": "xxx"
+    },
+    "ckoSecretKey": {
       "value": "xxx"
     }
   }

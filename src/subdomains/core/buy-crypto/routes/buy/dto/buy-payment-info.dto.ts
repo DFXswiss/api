@@ -69,8 +69,10 @@ export class BuyPaymentInfoDto extends BankInfoDto {
   @ApiProperty({ type: AssetDto, description: 'Target asset' })
   asset: AssetDto;
 
-  @ApiProperty({ description: 'Payment request (e.g. GiroCode content)' })
-  paymentRequest: string;
+  @ApiPropertyOptional({ description: 'Payment request (e.g. GiroCode content)' })
+  paymentRequest?: string;
+
+  paymentLink?: string;
 
   @ApiProperty()
   isValid: boolean;
