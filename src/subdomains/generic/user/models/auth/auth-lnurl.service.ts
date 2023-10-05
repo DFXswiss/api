@@ -5,14 +5,15 @@ import { randomBytes } from 'crypto';
 import { Config, Process } from 'src/config/config';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { AuthService } from 'src/subdomains/generic/user/models/auth/auth.service';
 import {
-  AuthLnurlResponseDto,
+  AuthLnurlCreateLoginResponseDto,
   AuthLnurlResponseStatus,
+  AuthLnurlSignInResponseDto,
   AuthLnurlSignupDto,
+  AuthLnurlStatusResponseDto,
 } from 'src/subdomains/generic/user/models/auth/dto/auth-lnurl.dto';
 
 export interface AuthCacheDto {
@@ -24,8 +25,6 @@ export interface AuthCacheDto {
 
 @Injectable()
 export class AuthLnUrlService {
-  private readonly logger = new DfxLogger(AuthLnUrlService);
-
   private authCache: Map<string, AuthCacheDto> = new Map();
 
   constructor(private readonly authService: AuthService, private readonly ipLogService: IpLogService) {}
@@ -37,14 +36,11 @@ export class AuthLnUrlService {
 
     const before30SecTime = Util.secondsBefore(30).getTime();
 
-    const entriesToBeUpdated = [...this.authCache.entries()].filter(
-      (k) => k[1].accessTokenCreationTime < before30SecTime,
-    );
+    const keysToBeDeleted = [...this.authCache.entries()]
+      .filter((k) => k[1].accessTokenCreationTime < before30SecTime)
+      .map((k) => k[0]);
 
-    entriesToBeUpdated.forEach((e) => {
-      e[1].accessToken = undefined;
-      e[1].accessTokenCreationTime = undefined;
-    });
+    keysToBeDeleted.forEach((k) => this.authCache.delete(k));
   }
 
   @Cron(CronExpression.EVERY_5_MINUTES)
@@ -61,18 +57,23 @@ export class AuthLnUrlService {
     keysToBeDeleted.forEach((k) => this.authCache.delete(k));
   }
 
-  createLoginLnurl(): string {
+  createLoginLnurl(): AuthLnurlCreateLoginResponseDto {
     const k1 = Util.createHash(randomBytes(32));
     this.authCache.set(k1, { k1: k1, k1CreationTime: Date.now() });
 
-    return LightningHelper.encodeLnurl(`${Config.url}/lnurla?tag=login&k1=${k1}&action=login`);
+    const url = new URL(`${Config.url}/lnurla`);
+    url.searchParams.set('tag', 'login');
+    url.searchParams.set('action', 'login');
+    url.searchParams.set('k1', k1);
+
+    return { k1: k1, lnurl: LightningHelper.encodeLnurl(url.toString()) };
   }
 
   async checkSignature(
     userIp: string,
     requestUrl: string,
     signupDto: AuthLnurlSignupDto,
-  ): Promise<AuthLnurlResponseDto> {
+  ): Promise<AuthLnurlSignInResponseDto> {
     const ipLog = await this.ipLogService.create(userIp, requestUrl, signupDto.address);
     if (!ipLog.result) throw new ForbiddenException('The country of IP address is not allowed');
 
@@ -80,42 +81,31 @@ export class AuthLnUrlService {
     if (checkSignupResponse) return checkSignupResponse;
 
     try {
-      const k1 = signupDto.k1;
-      const signature = signupDto.sig;
-      const key = signupDto.key;
+      const { k1, sig, key } = signupDto;
 
-      const verifyResult = secp256k1.verify(signature, k1, key);
-      if (!verifyResult) return AuthLnurlResponseDto.createError('invalid auth signature');
+      const verifyResult = secp256k1.verify(sig, k1, key);
+      if (!verifyResult) return AuthLnurlSignInResponseDto.createError('invalid auth signature');
 
       const authCacheEntry = this.authCache.get(k1);
       authCacheEntry.accessToken = await this.signIn(signupDto, userIp);
       authCacheEntry.accessTokenCreationTime = Date.now();
 
-      return AuthLnurlResponseDto.createOk();
+      return AuthLnurlSignInResponseDto.createOk();
     } catch (e) {
-      this.logger.error('Failed to login with LNURL auth:', e);
-      return { status: AuthLnurlResponseStatus.ERROR, reason: 'invalid signature' };
+      return { status: AuthLnurlResponseStatus.ERROR, reason: e.message ?? 'invalid signup' };
     }
   }
 
-  private checkSignupDto(signupDto: AuthLnurlSignupDto): AuthLnurlResponseDto | undefined {
-    if ('login' !== signupDto.tag) return AuthLnurlResponseDto.createError('tag not found');
-    if ('login' !== signupDto.action) return AuthLnurlResponseDto.createError('action not found');
+  private checkSignupDto(signupDto: AuthLnurlSignupDto): AuthLnurlSignInResponseDto | undefined {
+    if ('login' !== signupDto.tag) return AuthLnurlSignInResponseDto.createError('tag not found');
+    if ('login' !== signupDto.action) return AuthLnurlSignInResponseDto.createError('action not found');
 
-    const k1 = signupDto.k1;
-    if (!k1) return AuthLnurlResponseDto.createError('challenge not found');
-
-    const signature = signupDto.sig;
-    if (!signature) return AuthLnurlResponseDto.createError('auth signature not found');
-
-    const key = signupDto.key;
-    if (!key) return AuthLnurlResponseDto.createError('key not found');
-
-    const authCacheEntry = this.authCache.get(k1);
-    if (!authCacheEntry) return AuthLnurlResponseDto.createError('challenge invalid');
+    const authCacheEntry = this.authCache.get(signupDto.k1);
+    if (!authCacheEntry) return AuthLnurlSignInResponseDto.createError('challenge invalid');
 
     const checkBeforeTime = Util.minutesBefore(5).getTime();
-    if (authCacheEntry.k1CreationTime < checkBeforeTime) return AuthLnurlResponseDto.createError('challenge expired');
+    if (authCacheEntry.k1CreationTime < checkBeforeTime)
+      return AuthLnurlSignInResponseDto.createError('challenge expired');
   }
 
   async signIn(signupDto: AuthLnurlSignupDto, userIp: string): Promise<string> {
@@ -131,13 +121,16 @@ export class AuthLnUrlService {
     return accessToken;
   }
 
-  getStatus(k1: string, signature: string, key: string): string {
+  getStatus(k1: string, signature: string, key: string): AuthLnurlStatusResponseDto {
     const authCacheEntry = this.authCache.get(k1);
-    if (!authCacheEntry) return '';
+    if (!authCacheEntry) throw new NotFoundException('k1 not found');
+    if (!authCacheEntry.accessToken) return { isComplete: false };
 
     const verifyResult = secp256k1.verify(signature, k1, key);
-    if (!verifyResult) return '';
+    if (!verifyResult) return { isComplete: false };
 
-    return authCacheEntry.accessToken ?? '';
+    this.authCache.delete(k1);
+
+    return { isComplete: true, accessToken: authCacheEntry.accessToken };
   }
 }

@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsString } from 'class-validator';
 import { OptionalSignUpDto } from '../../user/dto/create-user.dto';
 
@@ -44,18 +44,34 @@ export enum AuthLnurlResponseStatus {
   ERROR = 'ERROR',
 }
 
-export class AuthLnurlResponseDto {
-  static createOk(): AuthLnurlResponseDto {
+export class AuthLnurlSignInResponseDto {
+  static createOk(): AuthLnurlSignInResponseDto {
     return { status: AuthLnurlResponseStatus.OK };
   }
 
-  static createError(reason: string): AuthLnurlResponseDto {
+  static createError(reason: string): AuthLnurlSignInResponseDto {
     return { status: AuthLnurlResponseStatus.ERROR, reason: reason };
   }
 
   @ApiProperty({ enum: AuthLnurlResponseStatus })
   status: AuthLnurlResponseStatus;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   reason?: string;
+}
+
+export class AuthLnurlCreateLoginResponseDto {
+  @ApiProperty()
+  k1: string;
+
+  @ApiProperty()
+  lnurl: string;
+}
+
+export class AuthLnurlStatusResponseDto {
+  @ApiProperty()
+  isComplete: boolean;
+
+  @ApiPropertyOptional()
+  accessToken?: string;
 }

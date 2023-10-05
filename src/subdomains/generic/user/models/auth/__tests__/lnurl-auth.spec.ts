@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { mock } from 'jest-mock-extended';
 import { Config } from 'src/config/config';
@@ -9,8 +9,8 @@ import { TestUtil } from 'src/shared/utils/test.util';
 import { Util } from 'src/shared/utils/util';
 import { AuthService } from 'src/subdomains/generic/user/models/auth/auth.service';
 import { AuthLnurlSignupDto } from 'src/subdomains/generic/user/models/auth/dto/auth-lnurl.dto';
-import { AuthResponseDto } from 'src/subdomains/generic/user/models/auth/dto/auth-response.dto';
 import { AuthCacheDto, AuthLnUrlService } from '../auth-lnurl.service';
+import { AuthResponseDto } from '../dto/auth-response.dto';
 
 describe('LnurlAuth', () => {
   let lnUrlAuthService: AuthLnUrlService;
@@ -53,12 +53,12 @@ describe('LnurlAuth', () => {
   beforeEach(() => {
     const ipLog = new IpLog();
     ipLog.result = true;
-    jest.spyOn(ipLogServiceMock, 'create').mockResolvedValue(Promise.resolve(ipLog));
+    jest.spyOn(ipLogServiceMock, 'create').mockResolvedValue(ipLog);
 
     signupDto = createSignupDto();
 
     createLoginLnurl(lnUrlAuthService, maxLoop, k1Array);
-    expect(k1Array.length).toEqual(maxLoop);
+    expect(k1Array.length).toStrictEqual(maxLoop);
   });
 
   afterEach(() => {
@@ -71,14 +71,14 @@ describe('LnurlAuth', () => {
   describe('Auth', () => {
     it('checks authCache containing maxloop entries', async () => {
       const internalAuthCache = (lnUrlAuthService as any).authCache as Map<string, AuthCacheDto>;
-      expect(internalAuthCache.size).toEqual(maxLoop);
+      expect(internalAuthCache.size).toStrictEqual(maxLoop);
 
       const internalAuthCacheKeys = [...internalAuthCache.keys()];
-      expect(internalAuthCacheKeys.length).toEqual(maxLoop);
+      expect(internalAuthCacheKeys.length).toStrictEqual(maxLoop);
 
       internalAuthCacheKeys.forEach((k) => {
         const authCacheEntry = internalAuthCache.get(k);
-        expect(authCacheEntry.k1).toEqual(k);
+        expect(authCacheEntry.k1).toStrictEqual(k);
         expect(authCacheEntry.k1CreationTime).toBeDefined();
         expect(authCacheEntry.accessToken).toBeUndefined();
         expect(authCacheEntry.accessTokenCreationTime).toBeUndefined();
@@ -97,11 +97,11 @@ describe('LnurlAuth', () => {
       authCacheEntry0.k1CreationTime = before6MinTime;
       authCacheEntry5.k1CreationTime = before6MinTime;
 
-      expect(internalAuthCache.size).toEqual(maxLoop);
+      expect(internalAuthCache.size).toStrictEqual(maxLoop);
 
       lnUrlAuthService.processCleanupAuthCache();
 
-      expect(internalAuthCache.size).toEqual(maxLoop - 2);
+      expect(internalAuthCache.size).toStrictEqual(maxLoop - 2);
       expect(internalAuthCache.get(keys[0])).toBeUndefined();
       expect(internalAuthCache.get(keys[5])).toBeUndefined();
     });
@@ -129,23 +129,19 @@ describe('LnurlAuth', () => {
       authCacheEntry9.accessToken = 'VW567';
       authCacheEntry9.accessTokenCreationTime = Util.secondsBefore(33).getTime();
 
-      expect(internalAuthCache.size).toEqual(maxLoop);
+      expect(internalAuthCache.size).toStrictEqual(maxLoop);
 
       lnUrlAuthService.processCleanupAccessToken();
 
-      expect(internalAuthCache.size).toEqual(maxLoop);
+      expect(internalAuthCache.size).toStrictEqual(maxLoop - 3);
+      expect(internalAuthCache.get(keys[1])).toBeUndefined();
+      expect(internalAuthCache.get(keys[6])).toBeUndefined();
+      expect(internalAuthCache.get(keys[9])).toBeUndefined();
 
-      expect(internalAuthCache.get(keys[0]).accessToken).toEqual('BF120');
+      expect(internalAuthCache.get(keys[0]).accessToken).toStrictEqual('BF120');
       expect(internalAuthCache.get(keys[0]).accessTokenCreationTime).toBeDefined();
-      expect(internalAuthCache.get(keys[2]).accessToken).toEqual('CD345');
+      expect(internalAuthCache.get(keys[2]).accessToken).toStrictEqual('CD345');
       expect(internalAuthCache.get(keys[2]).accessTokenCreationTime).toBeDefined();
-
-      expect(internalAuthCache.get(keys[1]).accessToken).toBeUndefined();
-      expect(internalAuthCache.get(keys[1]).accessTokenCreationTime).toBeUndefined();
-      expect(internalAuthCache.get(keys[6]).accessToken).toBeUndefined();
-      expect(internalAuthCache.get(keys[6]).accessTokenCreationTime).toBeUndefined();
-      expect(internalAuthCache.get(keys[9]).accessToken).toBeUndefined();
-      expect(internalAuthCache.get(keys[9]).accessTokenCreationTime).toBeUndefined();
     });
 
     it('should throw an exception if ip address is not allowed', async () => {
@@ -173,33 +169,6 @@ describe('LnurlAuth', () => {
 
       signupDto.action = 'x';
       await expect(checkSignature(signupDto)).resolves.toStrictEqual({ status: 'ERROR', reason: 'action not found' });
-    });
-
-    it('should return an error if there is no challenge found', async () => {
-      signupDto.k1 = undefined;
-
-      await expect(checkSignature(signupDto)).resolves.toStrictEqual({
-        status: 'ERROR',
-        reason: 'challenge not found',
-      });
-    });
-
-    it('should return an error if there is no auth signature found', async () => {
-      signupDto.sig = undefined;
-
-      await expect(checkSignature(signupDto)).resolves.toStrictEqual({
-        status: 'ERROR',
-        reason: 'auth signature not found',
-      });
-    });
-
-    it('should return an error if there is no key found', async () => {
-      signupDto.key = undefined;
-
-      await expect(checkSignature(signupDto)).resolves.toStrictEqual({
-        status: 'ERROR',
-        reason: 'key not found',
-      });
     });
 
     it('should return an error if there is an unknown challenge given', async () => {
@@ -256,6 +225,18 @@ describe('LnurlAuth', () => {
       });
     });
 
+    it('should return an error while providing an internal signIn exception', async () => {
+      jest.spyOn(authServiceMock, 'signIn').mockRejectedValue(new ConflictException('User already exists'));
+
+      const internalAuthCache = (lnUrlAuthService as any).authCache as Map<string, AuthCacheDto>;
+      internalAuthCache.set(signupDto.k1, { k1: signupDto.k1, k1CreationTime: Date.now() });
+
+      await expect(checkSignature(signupDto)).resolves.toStrictEqual({
+        status: 'ERROR',
+        reason: 'User already exists',
+      });
+    });
+
     it('should create an access token and return ok', async () => {
       const authResponse = new AuthResponseDto();
       authResponse.accessToken = 'HelloWorldAccessToken';
@@ -267,31 +248,36 @@ describe('LnurlAuth', () => {
       await expect(checkSignature(signupDto)).resolves.toStrictEqual({ status: 'OK' });
 
       const authCacheEntry = internalAuthCache.get(signupDto.k1);
-      expect(authCacheEntry.accessToken).toEqual('HelloWorldAccessToken');
+      expect(authCacheEntry.accessToken).toStrictEqual('HelloWorldAccessToken');
     });
 
-    it('returns an empty access token while not cached', async () => {
-      expect(getStatus(signupDto.k1, signupDto.sig, signupDto.key)).toStrictEqual('');
+    it('should throw an exception while not cached', async () => {
+      const testCall = async (k1, signature, key) => lnUrlAuthService.getStatus(k1, signature, key);
+
+      await expect(testCall(signupDto.k1, signupDto.sig, signupDto.key)).rejects.toThrow(NotFoundException);
+      await expect(testCall(signupDto.k1, signupDto.sig, signupDto.key)).rejects.toThrowError('k1 not found');
     });
 
-    it('returns an empty access token while not verified', async () => {
+    it('should return an empty access token while not available', async () => {
+      const internalAuthCache = (lnUrlAuthService as any).authCache as Map<string, AuthCacheDto>;
+      internalAuthCache.set(signupDto.k1, { k1: signupDto.k1, k1CreationTime: Date.now() });
+
+      expect(getStatus(signupDto.k1, signupDto.sig, signupDto.key).isComplete).toStrictEqual(false);
+      expect(getStatus(signupDto.k1, signupDto.sig, signupDto.key).accessToken).toBeUndefined();
+    });
+
+    it('should return an empty access token while not verified', async () => {
       signupDto.sig =
         '304402203767faf494f110b139293d9bab3c50e07b3bf33c463d4aa767256cd09132dc5102205821f8efacdb5c595b92ada255876d9201e126e2f31a140d44561cc1f7e9e43e';
 
       const internalAuthCache = (lnUrlAuthService as any).authCache as Map<string, AuthCacheDto>;
       internalAuthCache.set(signupDto.k1, { k1: signupDto.k1, k1CreationTime: Date.now() });
 
-      expect(getStatus(signupDto.k1, signupDto.sig, signupDto.key)).toStrictEqual('');
+      expect(getStatus(signupDto.k1, signupDto.sig, signupDto.key).isComplete).toStrictEqual(false);
+      expect(getStatus(signupDto.k1, signupDto.sig, signupDto.key).accessToken).toBeUndefined();
     });
 
-    it('returns an empty access token while not available', async () => {
-      const internalAuthCache = (lnUrlAuthService as any).authCache as Map<string, AuthCacheDto>;
-      internalAuthCache.set(signupDto.k1, { k1: signupDto.k1, k1CreationTime: Date.now() });
-
-      expect(getStatus(signupDto.k1, signupDto.sig, signupDto.key)).toStrictEqual('');
-    });
-
-    it('returns an access token', async () => {
+    it('should return an access token', async () => {
       const authResponse = new AuthResponseDto();
       authResponse.accessToken = 'HelloOtherWorldAccessToken';
       jest.spyOn(authServiceMock, 'signIn').mockResolvedValue(Promise.resolve(authResponse));
@@ -299,9 +285,16 @@ describe('LnurlAuth', () => {
       const internalAuthCache = (lnUrlAuthService as any).authCache as Map<string, AuthCacheDto>;
       internalAuthCache.set(signupDto.k1, { k1: signupDto.k1, k1CreationTime: Date.now() });
 
+      expect(internalAuthCache.size).toStrictEqual(maxLoop + 1);
+
       await expect(checkSignature(signupDto)).resolves.toStrictEqual({ status: 'OK' });
 
-      expect(getStatus(signupDto.k1, signupDto.sig, signupDto.key)).toStrictEqual('HelloOtherWorldAccessToken');
+      const statusResponse = getStatus(signupDto.k1, signupDto.sig, signupDto.key);
+
+      expect(internalAuthCache.size).toStrictEqual(maxLoop);
+
+      expect(statusResponse.isComplete).toStrictEqual(true);
+      expect(statusResponse.accessToken).toStrictEqual('HelloOtherWorldAccessToken');
     });
   });
 });
@@ -320,18 +313,18 @@ function createSignupDto(): AuthLnurlSignupDto {
 
 function createLoginLnurl(lnUrlAuthService: AuthLnUrlService, maxLoop: number, k1Array: string[]) {
   for (let loop = 0; loop < maxLoop; loop++) {
-    const authLnurl = lnUrlAuthService.createLoginLnurl();
-    const authUrl = new URL(LightningHelper.decodeLnurl(authLnurl));
+    const createLoginResponse = lnUrlAuthService.createLoginLnurl();
+    const authUrl = new URL(LightningHelper.decodeLnurl(createLoginResponse.lnurl));
     const urlParams = authUrl.searchParams;
 
     const k1 = urlParams.get('k1');
     if (k1) k1Array.push(k1);
 
-    expect(authUrl.protocol).toEqual('https:');
-    expect(authUrl.hostname).toEqual('test.dfx.api');
-    expect(authUrl.port).toEqual('12345');
-    expect(authUrl.pathname).toEqual('/v0.1/lnurla');
-    expect(urlParams.get('tag')).toEqual('login');
-    expect(urlParams.get('action')).toEqual('login');
+    expect(authUrl.protocol).toStrictEqual('https:');
+    expect(authUrl.hostname).toStrictEqual('test.dfx.api');
+    expect(authUrl.port).toStrictEqual('12345');
+    expect(authUrl.pathname).toStrictEqual('/v0.1/lnurla');
+    expect(urlParams.get('tag')).toStrictEqual('login');
+    expect(urlParams.get('action')).toStrictEqual('login');
   }
 }
