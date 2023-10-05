@@ -100,6 +100,6 @@ export class LinkService {
   }
 
   private buildLinkUrl(authentication: string): string {
-    return `${Config.payment.url}/link?authentication=${authentication}`;
+    return `${Config.frontend.payment}/link?authentication=${authentication}`;
   }
 }
