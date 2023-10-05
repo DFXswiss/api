@@ -17,27 +17,19 @@ export class AuthLnurlController {
 
   @Post('lnurla')
   @ApiOkResponse({ type: AuthLnurlCreateLoginResponseDto })
-  async getLnurlAuth(): Promise<AuthLnurlCreateLoginResponseDto> {
-    return this.lnUrlService.createLoginLnurl();
+  async getLnurlAuth(@RealIP() ip: string, @Req() req: Request): Promise<AuthLnurlCreateLoginResponseDto> {
+    return this.lnUrlService.create(ip, req.url);
   }
 
   @Get('lnurla')
   @ApiOkResponse({ type: AuthLnurlSignInResponseDto })
-  async signInWithLnurlAuth(
-    @Query() signupDto: AuthLnurlSignupDto,
-    @RealIP() ip: string,
-    @Req() req: Request,
-  ): Promise<AuthLnurlSignInResponseDto> {
-    return this.lnUrlService.checkSignature(ip, req.url, signupDto);
+  async signInWithLnurlAuth(@Query() signupDto: AuthLnurlSignupDto): Promise<AuthLnurlSignInResponseDto> {
+    return this.lnUrlService.login(signupDto);
   }
 
   @Get('lnurla/status')
   @ApiOkResponse({ type: AuthLnurlStatusResponseDto })
-  async lnurlAuthStatus(
-    @Query('k1') k1: string,
-    @Query('signature') signature: string,
-    @Query('key') key: string,
-  ): Promise<AuthLnurlStatusResponseDto> {
-    return this.lnUrlService.getStatus(k1, signature, key);
+  async lnurlAuthStatus(@Query('k1') k1: string): Promise<AuthLnurlStatusResponseDto> {
+    return this.lnUrlService.status(k1);
   }
 }
