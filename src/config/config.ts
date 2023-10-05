@@ -13,6 +13,7 @@ import { MailOptions } from 'src/subdomains/supporting/notification/services/mai
 export enum Process {
   PAY_OUT = 'PayOut',
   PAY_IN = 'PayIn',
+  FIAT_PAY_IN = 'FiatPayIn',
   BUY_FIAT = 'BuyFiat',
   BUY_CRYPTO = 'BuyCrypto',
   LIMIT_REQUEST_MAIL = 'LimitRequestMail',
