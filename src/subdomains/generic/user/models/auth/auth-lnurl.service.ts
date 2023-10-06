@@ -78,8 +78,6 @@ export class AuthLnUrlService {
   }
 
   async login(signupDto: AuthLnurlSignupDto): Promise<AuthLnurlSignInResponseDto> {
-    signupDto.wallet = 'DFX Bitcoin';
-
     const checkSignupResponse = this.checkSignupDto(signupDto);
 
     if (checkSignupResponse) {
@@ -128,7 +126,11 @@ export class AuthLnUrlService {
     const session = { address: signupDto.address, signature: signupDto.signature };
 
     const { accessToken } = await this.authService.signIn(session, true).catch((e) => {
-      if (e instanceof NotFoundException) return this.authService.signUp(signupDto, servicesIp);
+      if (e instanceof NotFoundException)
+        return this.authService.signUp(
+          { ...session, usedRef: signupDto.usedRef, wallet: signupDto.wallet ?? 'DFX Bitcoin' },
+          servicesIp,
+        );
       throw e;
     });
 
