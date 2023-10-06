@@ -12,6 +12,7 @@ import { TransactionHelper } from 'src/shared/payment/services/transaction-helpe
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { BuyCryptoService } from '../../process/services/buy-crypto.service';
@@ -121,7 +122,7 @@ export class BuyController {
   }
 
   private async toDto(userId: number, buy: Buy): Promise<BuyDto> {
-    const fee = await this.userService.getUserBuyFee(userId, buy.asset);
+    const fee = await this.userService.getUserFee(userId, FeeDirectionType.BUY, buy.asset);
     const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
       'Fiat',
       undefined,
@@ -144,7 +145,7 @@ export class BuyController {
   }
 
   private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
-    const fee = await this.userService.getUserBuyFee(userId, buy.asset);
+    const fee = await this.userService.getUserFee(userId, FeeDirectionType.BUY, buy.asset);
     const {
       minVolume,
       minFee,

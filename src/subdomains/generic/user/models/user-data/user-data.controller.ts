@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Param, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { FeeService } from 'src/subdomains/core/fee/fee.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { KycService } from '../kyc/kyc.service';
@@ -20,6 +21,7 @@ export class UserDataController {
     private readonly bankDataService: BankDataService,
     private readonly userDataRepo: UserDataRepository,
     private readonly kycService: KycService,
+    private readonly feeService: FeeService,
   ) {}
 
   @Get()
@@ -76,6 +78,26 @@ export class UserDataController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async updateVolumes(@Param('id') id: string): Promise<void> {
     return this.userDataService.updateVolumes(+id);
+  }
+
+  // --- DISCOUNT CODES --- //
+
+  @Put(':id/fee')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async addDiscountCode(@Param('id') id: string, @Query('fee') feeId: string): Promise<void> {
+    const userData = await this.userDataService.getUserData(+id);
+    return this.feeService.addFeeInternal(userData, +feeId);
+  }
+
+  @Delete(':id/fee')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async removeDiscountCode(@Param('id') id: string, @Query('fee') feeId: string): Promise<void> {
+    const userData = await this.userDataService.getUserData(+id);
+    return this.userDataService.removeDiscountCode(userData, feeId);
   }
 
   // --- IDENT --- //

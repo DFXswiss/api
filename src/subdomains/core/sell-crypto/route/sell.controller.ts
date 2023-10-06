@@ -13,6 +13,7 @@ import { TransactionHelper } from 'src/shared/payment/services/transaction-helpe
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
 import { BuyFiatService } from '../process/buy-fiat.service';
@@ -147,7 +148,7 @@ export class SellController {
   }
 
   private async toPaymentInfoDto(userId: number, sell: Sell, dto: GetSellPaymentInfoDto): Promise<SellPaymentInfoDto> {
-    const fee = await this.userService.getUserSellFee(userId, dto.asset);
+    const fee = await this.userService.getUserFee(userId, FeeDirectionType.SELL, dto.asset);
     const {
       minVolume,
       minFee,

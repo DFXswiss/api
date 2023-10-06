@@ -19,6 +19,11 @@ export class OptionalSignUpDto {
   @IsOptional()
   @IsString()
   wallet: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  discountCode: string;
 }
 
 export class CreateUserDto extends OptionalSignUpDto {

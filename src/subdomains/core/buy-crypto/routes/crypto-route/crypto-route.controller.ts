@@ -13,6 +13,7 @@ import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { HistoryDto } from 'src/subdomains/core/history/dto/history.dto';
+import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
 import { CryptoRoute } from './crypto-route.entity';
@@ -129,13 +130,11 @@ export class CryptoRouteController {
 
   // --- DTO --- //
   private async toDtoList(userId: number, cryptos: CryptoRoute[]): Promise<CryptoRouteDto[]> {
-    const fee = await this.userService.getUserCryptoFee(userId);
-
-    return Promise.all(cryptos.map((b) => this.toDto(userId, b, fee)));
+    return Promise.all(cryptos.map((b) => this.toDto(userId, b)));
   }
 
   private async toDto(userId: number, crypto: CryptoRoute, fee?: number): Promise<CryptoRouteDto> {
-    fee ??= await this.userService.getUserCryptoFee(userId);
+    fee ??= await this.userService.getUserFee(userId, FeeDirectionType.CRYPTO, crypto.asset);
     const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
       crypto.deposit.blockchain,
       undefined,
@@ -161,7 +160,7 @@ export class CryptoRouteController {
     cryptoRoute: CryptoRoute,
     dto: GetCryptoPaymentInfoDto,
   ): Promise<CryptoPaymentInfoDto> {
-    const fee = await this.userService.getUserCryptoFee(userId);
+    const fee = await this.userService.getUserFee(userId, FeeDirectionType.CRYPTO, cryptoRoute.asset);
 
     const {
       minVolume,

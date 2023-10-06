@@ -6,6 +6,7 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { FeeService } from 'src/subdomains/core/fee/fee.service';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { AuthService } from '../auth/auth.service';
 import { AuthResponseDto } from '../auth/dto/auth-response.dto';
@@ -22,7 +23,11 @@ import { UserService } from './user.service';
 @ApiTags('User')
 @Controller('user')
 export class UserController {
-  constructor(private readonly userService: UserService, private readonly authService: AuthService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly authService: AuthService,
+    private readonly feeService: FeeService,
+  ) {}
 
   // --- USER --- //
   @Get()
@@ -54,6 +59,16 @@ export class UserController {
     if (isKnownUser) res.status(HttpStatus.ACCEPTED);
 
     return user;
+  }
+
+  @Put('discountCode/:code')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse()
+  async updateUserDiscountCode(@GetJwt() jwt: JwtPayload, @Param('code') code: string): Promise<void> {
+    const user = await this.userService.getUser(jwt.id, true);
+
+    return this.feeService.addDiscountCodeUser(user.userData, code);
   }
 
   @Post('change')

@@ -17,6 +17,7 @@ import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
+import { FeeService } from 'src/subdomains/core/fee/fee.service';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { Between, Not } from 'typeorm';
@@ -32,7 +33,7 @@ import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
-import { FeeType, User, UserStatus } from './user.entity';
+import { FeeDirectionType, User, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
 
 @Injectable()
@@ -48,6 +49,7 @@ export class UserService {
     private readonly geoLocationService: GeoLocationService,
     private readonly countryService: CountryService,
     private readonly cryptoService: CryptoService,
+    private readonly feeService: FeeService,
   ) {}
 
   async getAllUser(): Promise<User[]> {
@@ -117,6 +119,7 @@ export class UserService {
     userOrigin?: string,
     userData?: UserData,
     wallet?: Wallet,
+    discountCode?: string,
   ): Promise<User> {
     let user = this.userRepo.create({ address, signature });
 
@@ -127,6 +130,8 @@ export class UserService {
     user.origin = userOrigin;
     user.userData = userData ?? (await this.userDataService.createUserData(user.wallet.customKyc ?? KycType.DFX));
     user = await this.userRepo.save(user);
+
+    if (discountCode) await this.feeService.addDiscountCodeUser(user.userData, discountCode);
 
     const blockchains = this.cryptoService.getBlockchainsBasedOn(user.address);
     if (blockchains.includes(Blockchain.DEFICHAIN)) this.dfiTaxService.activateAddress(user.address);
@@ -261,35 +266,11 @@ export class UserService {
   }
 
   // --- FEES --- //
-  async getUserBuyFee(userId: number, asset: Asset): Promise<number> {
-    const user = await this.userRepo.findOne({
-      select: ['id', 'buyFee', 'wallet', 'userData'],
-      where: { id: userId },
-      relations: ['wallet', 'userData'],
-    });
+  async getUserFee(userId: number, direction: FeeDirectionType, asset: Asset, orderSize?: number): Promise<number> {
+    const user = await this.getUser(userId, true);
+    if (!user) throw new NotFoundException('User not found');
 
-    return user.getFee(FeeType.BUY, asset);
-  }
-
-  async getUserSellFee(userId: number, asset: Asset): Promise<number> {
-    const user = await this.userRepo.findOne({
-      select: ['id', 'sellFee', 'wallet', 'userData'],
-      where: { id: userId },
-      relations: ['wallet', 'userData'],
-    });
-
-    return user.getFee(FeeType.SELL, asset);
-  }
-
-  async getUserCryptoFee(userId: number): Promise<number> {
-    // fee
-    const user = await this.userRepo.findOne({
-      select: ['id', 'cryptoFee', 'wallet'],
-      where: { id: userId },
-      relations: ['wallet'],
-    });
-
-    return user.getFee(FeeType.CRYPTO);
+    return await this.feeService.getUserFee({ userData: user.userData, direction, asset, orderSize });
   }
 
   // --- REF --- //

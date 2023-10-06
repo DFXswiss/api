@@ -21,7 +21,7 @@ import { HistoryDto, PaymentStatusMapper } from 'src/subdomains/core/history/dto
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
-import { FeeType } from 'src/subdomains/generic/user/models/user/user.entity';
+import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
@@ -310,7 +310,7 @@ export class BuyCryptoService {
     for (const entity of entities) {
       const inputCurrency = await this.fiatService.getFiatByName(entity.bankTx.txCurrency);
 
-      const userFee = entity.user.getFee(FeeType.BUY, entity.target.asset);
+      const userFee = entity.user.getFee(FeeDirectionType.BUY, entity.target.asset);
 
       const { minVolume, minFee, feeAmount } = await this.transactionHelper.getTxDetails(
         entity.bankTx.txAmount,

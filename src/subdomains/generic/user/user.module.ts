@@ -1,7 +1,8 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { SharedModule } from 'src/shared/shared.module';
+import { FeeModule } from 'src/subdomains/core/fee/fee.module';
 import { ReferralModule } from 'src/subdomains/core/referral/referral.module';
 import { UserDataController } from 'src/subdomains/generic/user/models/user-data/user-data.controller';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
@@ -52,6 +53,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     NotificationModule,
     BlockchainModule,
     ReferralModule,
+    forwardRef(() => FeeModule),
   ],
   controllers: [
     UserController,

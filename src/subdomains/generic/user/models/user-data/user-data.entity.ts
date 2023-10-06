@@ -200,6 +200,10 @@ export class UserData extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   blackSquadMailSendDate: Date;
 
+  // Fee / Discounts
+  @Column({ length: 256, nullable: true })
+  discounts: string; // semicolon separated id's
+
   // Volumes
   @Column({ type: 'float', default: 0 })
   annualBuyVolume: number;
@@ -251,6 +255,29 @@ export class UserData extends IEntity {
     const update: Partial<UserData> = {
       status: UserDataStatus.BLOCKED,
       kycStatus: KycStatus.TERMINATED,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  addDiscountCode(discountCode: string): UpdateResult<UserData> {
+    const update: Partial<UserData> = {
+      discounts: !this.discounts ? discountCode : `${this.discounts};${discountCode}`,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  removeDiscountCode(feeId: string): UpdateResult<UserData> {
+    const update: Partial<UserData> = {
+      discounts: this.discounts
+        .split(';')
+        .filter((id) => id !== feeId)
+        .join(';'),
     };
 
     Object.assign(this, update);
