@@ -39,6 +39,7 @@
     "@nestjs/swagger": "^6.2.1",
     "@nestjs/throttler": "^4.0.0",
     "@nestjs/typeorm": "^9.0.1",
+    "@noble/curves": "^1.2.0",
     "@supercharge/request-ip": "^1.2.0",
     "@uniswap/sdk-core": "^4.0.3",
     "@uniswap/smart-order-router": "^3.13.5",
