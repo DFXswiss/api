@@ -128,7 +128,7 @@ export class AuthLnUrlService {
     const session = { address: signupDto.address, signature: signupDto.signature };
 
     const { accessToken } = await this.authService.signIn(session, true).catch((e) => {
-      if (e instanceof NotFoundException) return this.authService.signUp(signupDto, servicesIp, true);
+      if (e instanceof NotFoundException) return this.authService.signUp(signupDto, servicesIp);
       throw e;
     });
 
