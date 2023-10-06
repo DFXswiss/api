@@ -11,7 +11,7 @@ import {
 } from './dto/auth-lnurl.dto';
 
 @ApiTags('LNURL')
-@Controller('auth')
+@Controller('')
 export class AuthLnurlController {
   constructor(private readonly lnUrlService: AuthLnUrlService) {}
 
