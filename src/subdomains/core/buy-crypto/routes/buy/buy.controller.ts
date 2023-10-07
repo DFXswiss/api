@@ -150,7 +150,7 @@ export class BuyController {
 
   private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
     const user = await this.userService.getUser(userId, { userData: true, wallet: true });
-    const fee = user.getFee(FeeType.BUY, buy.asset);
+    const fee = dto.paymentMethod === BuyPaymentMethod.CARD ? Config.buy.fee.card : user.getFee(FeeType.BUY, buy.asset);
 
     const {
       minVolume,
