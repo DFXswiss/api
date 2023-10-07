@@ -159,6 +159,7 @@ param myDeFiChainUser string
 param myDeFiChainPassword string
 
 param paymentUrl string
+param servicesUrl string
 
 @secure()
 param lockApiKey string
@@ -182,6 +183,11 @@ param taliumApiKey string
 
 @secure()
 param iknaKey string
+
+@secure()
+param ckoPublicKey string
+@secure()
+param ckoSecretKey string
 
 // --- VARIABLES --- //
 var compName = 'dfx'
@@ -813,6 +819,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: paymentUrl
         }
         {
+          name: 'SERVICES_URL'
+          value: servicesUrl
+        }
+        {
           name: 'LOCK_API_KEY'
           value: lockApiKey
         }
@@ -865,12 +875,20 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: limitCheck
         }
         {
-          name: 'WEBSITE_RUN_FROM_PACKAGE'
-          value: '1'
-        }
-        {
           name: 'IKNA_KEY'
           value: iknaKey
+        }
+        {
+          name: 'CKO_PUBLIC_KEY'
+          value: ckoPublicKey
+        }
+        {
+          name: 'CKO_SECRET_KEY'
+          value: ckoSecretKey
+        }
+        {
+          name: 'WEBSITE_RUN_FROM_PACKAGE'
+          value: '1'
         }
       ]
     }

@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, Get, Param, Post, Put, UseGuards
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
+import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -23,7 +24,7 @@ import { BankInfoDto, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
 import { BuyQuoteDto } from './dto/buy-quote.dto';
 import { BuyDto } from './dto/buy.dto';
 import { CreateBuyDto } from './dto/create-buy.dto';
-import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
+import { BuyPaymentMethod, GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
 import { GetBuyQuoteDto } from './dto/get-buy-quote.dto';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 
@@ -37,6 +38,7 @@ export class BuyController {
     private readonly paymentInfoService: PaymentInfoService,
     private readonly bankService: BankService,
     private readonly transactionHelper: TransactionHelper,
+    private readonly checkoutService: CheckoutService,
   ) {}
 
   @Get()
@@ -173,9 +175,6 @@ export class BuyController {
 
     return {
       routeId: buy.id,
-      ...bankInfo,
-      sepaInstant: bankInfo.sepaInstant && buy.bankAccount?.sctInst,
-      remittanceInfo: buy.bankUsage,
       fee: Util.round(fee * 100, Config.defaultPercentageDecimal),
       minDeposit: { amount: minVolume, asset: dto.currency.name }, // TODO: remove
       minVolume,
@@ -186,11 +185,8 @@ export class BuyController {
       amount,
       asset: AssetDtoMapper.entityToDto(dto.asset),
       currency: FiatDtoMapper.entityToDto(dto.currency),
-      maxVolume,
-      maxVolumeTarget,
       paymentRequest: this.generateGiroCode(buy, bankInfo, dto),
       isValid,
-      error,
     };
   }
 

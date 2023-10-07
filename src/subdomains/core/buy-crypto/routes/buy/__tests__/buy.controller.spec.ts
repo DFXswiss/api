@@ -1,6 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -22,7 +23,7 @@ import { BuyCryptoService } from '../../../process/services/buy-crypto.service';
 import { createDefaultBuy } from '../__mocks__/buy.entity.mock';
 import { BuyController } from '../buy.controller';
 import { BuyService } from '../buy.service';
-import { GetBuyPaymentInfoDto } from '../dto/get-buy-payment-info.dto';
+import { BuyPaymentMethod, GetBuyPaymentInfoDto } from '../dto/get-buy-payment-info.dto';
 
 function createBuyPaymentInfoDto(
   amount = 1,
@@ -35,6 +36,7 @@ function createBuyPaymentInfoDto(
     amount: amount,
     targetAmount: targetAmount,
     currency: currency,
+    paymentMethod: BuyPaymentMethod.BANK,
   };
 }
 
@@ -59,6 +61,7 @@ describe('BuyController', () => {
   let paymentInfoService: PaymentInfoService;
   let transactionHelper: TransactionHelper;
   let priceProviderService: PriceProviderService;
+  let checkoutService: CheckoutService;
 
   beforeEach(async () => {
     buyService = createMock<BuyService>();
@@ -70,6 +73,7 @@ describe('BuyController', () => {
     paymentInfoService = createMock<PaymentInfoService>();
     transactionHelper = createMock<TransactionHelper>();
     priceProviderService = createMock<PriceProviderService>();
+    checkoutService = createMock<CheckoutService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -84,6 +88,7 @@ describe('BuyController', () => {
         { provide: PaymentInfoService, useValue: paymentInfoService },
         { provide: TransactionHelper, useValue: transactionHelper },
         { provide: PriceProviderService, useValue: priceProviderService },
+        { provide: CheckoutService, useValue: checkoutService },
 
         TestUtil.provideConfig(),
       ],

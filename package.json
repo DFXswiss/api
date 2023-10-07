@@ -51,6 +51,7 @@
     "bitcoinjs-message": "^2.2.0",
     "bolt11": "^1.4.1",
     "ccxt": "^3.0.43",
+    "checkout-sdk-node": "^2.2.5",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0",
     "coingecko-api-v3": "^0.0.25",

@@ -50,7 +50,7 @@ export class BuyFiatNotificationService {
         const recipientMail = entity.sell.user.userData.mail;
 
         if (recipientMail) {
-          await this.notificationService.sendMailNew({
+          await this.notificationService.sendMail({
             type: MailType.USER,
             input: {
               userData: entity.sell.user.userData,
@@ -107,7 +107,7 @@ export class BuyFiatNotificationService {
             ? ` (min. ${entity.minFeeAmountFiat} ${entity.outputReferenceAsset})`
             : '';
 
-          await this.notificationService.sendMailNew({
+          await this.notificationService.sendMail({
             type: MailType.USER,
             input: {
               userData: entity.sell.user.userData,
@@ -152,7 +152,7 @@ export class BuyFiatNotificationService {
     for (const entity of entities) {
       try {
         if (entity.sell.user.userData.mail) {
-          await this.notificationService.sendMailNew({
+          await this.notificationService.sendMail({
             type: MailType.USER,
             input: {
               userData: entity.sell.user.userData,
@@ -197,7 +197,7 @@ export class BuyFiatNotificationService {
     for (const entity of entities) {
       try {
         if (entity.sell.user.userData.mail) {
-          await this.notificationService.sendMailNew({
+          await this.notificationService.sendMail({
             type: MailType.USER,
             input: {
               userData: entity.sell.user.userData,
@@ -255,7 +255,7 @@ export class BuyFiatNotificationService {
     for (const entity of entities) {
       try {
         if (entity.sell.user.userData.mail) {
-          await this.notificationService.sendMailNew({
+          await this.notificationService.sendMail({
             type: MailType.USER,
             input: {
               userData: entity.sell.user.userData,
@@ -269,7 +269,7 @@ export class BuyFiatNotificationService {
                 { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line3` },
                 {
                   key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line4`,
-                  params: { url: `${Config.payment.url}/kyc?code=${entity.sell.user.userData.kycHash}` },
+                  params: { url: `${Config.frontend.payment}/kyc?code=${entity.sell.user.userData.kycHash}` },
                 },
                 { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line5` },
                 { key: MailKey.SPACE, params: { value: '1' } },

@@ -1,3 +1,17 @@
-<p>{{{body}}}</p>
-<p></p>
-<p><img src={{{banner}}} height=150px width=auto /></p>
+<html>
+  <body>
+    {{#each prefix}}
+      <p>
+        {{{this.text}}}
+        {{#if this.url}}<a style='color:white' href='{{this.url.link}}'>{{this.url.text}}</a>
+            {{#if this.url.textSuffix}}{{this.url.textSuffix}}{{/if}}
+        {{/if}}
+        {{#if this.mail}}<a style='color:white' href='mailto:{{this.mail.address}}'>{{this.mail.address}}</a>
+            {{#if this.mail.textSuffix}}{{this.mail.textSuffix}}{{/if}}
+        {{/if}}
+      </p>
+    {{/each}}
+    <p></p>
+    <p><img src={{{banner}}} height=150px width=auto /></p>
+  </body>
+</html>
