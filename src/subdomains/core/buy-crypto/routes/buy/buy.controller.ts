@@ -185,8 +185,26 @@ export class BuyController {
       amount,
       asset: AssetDtoMapper.entityToDto(dto.asset),
       currency: FiatDtoMapper.entityToDto(dto.currency),
-      paymentRequest: this.generateGiroCode(buy, bankInfo, dto),
+      maxVolume,
+      maxVolumeTarget,
       isValid,
+      error,
+      // bank info
+      ...bankInfo,
+      sepaInstant: bankInfo.sepaInstant && buy.bankAccount?.sctInst,
+      remittanceInfo: buy.bankUsage,
+      paymentRequest: isValid ? this.generateGiroCode(buy, bankInfo, dto) : undefined,
+      // card info
+      paymentLink:
+        isValid && dto.paymentMethod === BuyPaymentMethod.CARD
+          ? await this.checkoutService.createPaymentLink(
+              buy.bankUsage,
+              amount,
+              dto.currency,
+              dto.asset,
+              user.userData.language,
+            )
+          : undefined,
     };
   }
 
