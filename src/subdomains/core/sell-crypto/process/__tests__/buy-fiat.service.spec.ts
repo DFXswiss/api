@@ -1,23 +1,23 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
+import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
+import { BankTxRepository } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.repository';
+import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
+import { createCustomFiatOutput } from 'src/subdomains/supporting/bank-tx/fiat-output/__mocks__/fiat-output.entity.mock';
+import { FiatOutputService } from 'src/subdomains/supporting/bank-tx/fiat-output/fiat-output.service';
+import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
+import { createCustomSellHistory } from '../../route/dto/__mocks__/sell-history.dto.mock';
 import { SellRepository } from '../../route/sell.repository';
 import { SellService } from '../../route/sell.service';
+import { createCustomBuyFiat } from '../__mocks__/buy-fiat.entity.mock';
+import { BuyFiatRegistrationService } from '../buy-fiat-registration.service';
 import { BuyFiat } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatService } from '../buy-fiat.service';
-import { createCustomSellHistory } from '../../route/dto/__mocks__/sell-history.dto.mock';
-import { createCustomBuyFiat } from '../__mocks__/buy-fiat.entity.mock';
-import { BankTxRepository } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.repository';
-import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
-import { FiatOutputService } from 'src/subdomains/supporting/bank/fiat-output/fiat-output.service';
-import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
-import { BuyFiatRegistrationService } from '../buy-fiat-registration.service';
-import { SettingService } from 'src/shared/models/setting/setting.service';
-import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
-import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
-import { createCustomFiatOutput } from 'src/subdomains/supporting/bank/fiat-output/__mocks__/fiat-output.entity.mock';
 
 enum MockBuyData {
   DEFAULT,

@@ -1,4 +1,4 @@
-import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
+import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 import { DfxLogger } from '../services/dfx-logger';
 
 @Catch()
@@ -13,7 +13,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
 
     if (status >= 500) {
       // log server errors
-      this.logger.error(`Exception during request to '${request.url}':`, exception);
+      this.logger.error(`Exception during ${request.method} request to '${request.url}':`, exception);
     }
 
     response.status(status).json(

@@ -23,7 +23,7 @@ import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statist
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { FeeType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
+import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { Between, In, IsNull, Not } from 'typeorm';
 import { Buy } from '../../routes/buy/buy.entity';
