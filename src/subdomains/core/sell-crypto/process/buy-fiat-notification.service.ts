@@ -269,7 +269,7 @@ export class BuyFiatNotificationService {
                 { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line3` },
                 {
                   key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line4`,
-                  params: { url: `${Config.payment.url}/kyc?code=${entity.sell.user.userData.kycHash}` },
+                  params: { url: `${Config.frontend.payment}/kyc?code=${entity.sell.user.userData.kycHash}` },
                 },
                 { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line5` },
                 { key: MailKey.SPACE, params: { value: '1' } },
