@@ -1,7 +1,7 @@
 import { IEntity } from 'src/shared/models/entity';
+import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { Column, Entity, JoinColumn, OneToOne } from 'typeorm';
-import { BuyFiat } from '../../../core/sell-crypto/process/buy-fiat.entity';
-import { BankTx } from '../bank-tx/bank-tx.entity';
+import { BankTx } from '../bank-tx/bank-tx/bank-tx.entity';
 
 export enum TransactionCharge {
   BEN = 'BEN',

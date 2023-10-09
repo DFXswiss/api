@@ -7,8 +7,8 @@ import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service'
 import { BankTxRepeatService } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
-import { FiatOutputService } from 'src/subdomains/supporting/bank-tx/fiat-output/fiat-output.service';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
+import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { DataSource } from 'typeorm';
 import { UserData } from '../user/models/user-data/user-data.entity';

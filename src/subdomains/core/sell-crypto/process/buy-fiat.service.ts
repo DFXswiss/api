@@ -9,7 +9,7 @@ import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhoo
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
 import { Between, In, IsNull } from 'typeorm';
-import { FiatOutputService } from '../../../supporting/bank-tx/fiat-output/fiat-output.service';
+import { FiatOutputService } from '../../../supporting/fiat-output/fiat-output.service';
 import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
 import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
 import { PaymentStatus } from '../../history/dto/history.dto';
@@ -35,7 +35,6 @@ export class BuyFiatService {
     private readonly sellService: SellService,
     @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
-    @Inject(forwardRef(() => FiatOutputService))
     private readonly fiatOutputService: FiatOutputService,
     private readonly webhookService: WebhookService,
   ) {}

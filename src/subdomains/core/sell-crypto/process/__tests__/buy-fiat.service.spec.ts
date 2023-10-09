@@ -7,8 +7,8 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxRepository } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.repository';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
-import { createCustomFiatOutput } from 'src/subdomains/supporting/bank-tx/fiat-output/__mocks__/fiat-output.entity.mock';
-import { FiatOutputService } from 'src/subdomains/supporting/bank-tx/fiat-output/fiat-output.service';
+import { createCustomFiatOutput } from 'src/subdomains/supporting/fiat-output/__mocks__/fiat-output.entity.mock';
+import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 import { createCustomSellHistory } from '../../route/dto/__mocks__/sell-history.dto.mock';
 import { SellRepository } from '../../route/sell.repository';
