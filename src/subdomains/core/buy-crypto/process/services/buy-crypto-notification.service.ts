@@ -183,9 +183,10 @@ export class BuyCryptoNotificationService {
               salutation: { key: `${entity.translationReturnMailKey}.salutation` },
               table: {
                 [`${MailTranslationKey.PAYMENT}.reimbursed`]: `${entity.inputAmount} ${entity.inputAsset}`,
-                [`${MailTranslationKey.PAYMENT}.bank_account`]: !entity.isCryptoCryptoTransaction
-                  ? Util.blankStart(entity.bankTx.iban)
-                  : null,
+                [`${MailTranslationKey.PAYMENT}.bank_account`]:
+                  !entity.isCryptoCryptoTransaction && entity.isCreditInput
+                    ? Util.blankStart(entity.bankTx.iban)
+                    : null,
                 [`${MailTranslationKey.PAYMENT}.remittance_info`]: !entity.isCryptoCryptoTransaction
                   ? entity.chargebackRemittanceInfo?.split(' Zahlung')[0]
                   : null,

@@ -12,6 +12,7 @@ import {
 } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
+import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
@@ -41,6 +42,10 @@ export class BuyCrypto extends IEntity {
   @OneToOne(() => BankTx, { nullable: true })
   @JoinColumn()
   bankTx: BankTx;
+
+  @OneToOne(() => CheckoutTx, { nullable: true })
+  @JoinColumn()
+  checkoutTx: CheckoutTx;
 
   @ManyToOne(() => Buy, (buy) => buy.buyCryptos, { nullable: true })
   buy: Buy;
