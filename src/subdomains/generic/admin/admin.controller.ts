@@ -1,20 +1,20 @@
-import { Controller, Post, UseGuards, Body, Get, Query, Put } from '@nestjs/common';
+import { Body, Controller, Get, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { LetterService } from 'src/integration/letter/letter.service';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { LetterService } from 'src/integration/letter/letter.service';
 import { Customer, DocumentInfo } from 'src/subdomains/generic/user/services/spider/dto/spider.dto';
 import { SpiderApiService } from 'src/subdomains/generic/user/services/spider/spider-api.service';
 import { SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
+import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { AdminService } from './admin.service';
+import { PayoutRequestDto } from './dto/payout-request.dto';
 import { RenameRefDto } from './dto/rename-ref.dto';
 import { SendLetterDto } from './dto/send-letter.dto';
 import { SendMailDto } from './dto/send-mail.dto';
 import { UploadFileDto } from './dto/upload-file.dto';
-import { PayoutRequestDto } from './dto/payout-request.dto';
-import { AdminService } from './admin.service';
 
 @Controller('admin')
 export class AdminController {

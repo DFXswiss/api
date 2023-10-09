@@ -8,17 +8,16 @@ export class OptionalSignUpDto {
   @IsOptional()
   @IsString()
   @Matches(GetConfig().formats.ref)
-  usedRef: string;
+  usedRef?: string;
 
-  @ApiPropertyOptional()
   @IsOptional()
   @IsInt()
-  walletId: number;
+  walletId?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  wallet: string;
+  wallet?: string;
 }
 
 export class CreateUserDto extends OptionalSignUpDto {
