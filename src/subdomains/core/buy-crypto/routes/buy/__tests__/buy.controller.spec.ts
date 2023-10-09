@@ -12,7 +12,10 @@ import { TransactionHelper } from 'src/shared/payment/services/transaction-helpe
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { createDefaultUserData } from 'src/subdomains/generic/user/models/user-data/__mocks__/user-data.entity.mock';
+import { createCustomUser } from 'src/subdomains/generic/user/models/user/__mocks__/user.entity.mock';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { createDefaultWallet } from 'src/subdomains/generic/user/models/wallet/__mocks__/wallet.entity.mock';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
@@ -101,7 +104,13 @@ describe('BuyController', () => {
   it('should return DFX address info', async () => {
     jest.spyOn(buyService, 'createBuy').mockResolvedValue(createDefaultBuy());
     jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(createDefaultCountry());
-    jest.spyOn(userService, 'getUserBuyFee').mockResolvedValue(0.01);
+    jest.spyOn(userService, 'getUser').mockResolvedValue(
+      createCustomUser({
+        buyFee: 0.01,
+        wallet: createDefaultWallet(),
+        userData: createDefaultUserData(),
+      }),
+    );
     jest.spyOn(transactionHelper, 'getTxDetails').mockResolvedValue({
       minVolume: 0,
       minFee: 0,
@@ -112,6 +121,9 @@ describe('BuyController', () => {
       estimatedAmount: 100,
       sourceAmount: 50,
       isValid: true,
+      maxVolume: 90000,
+      maxVolumeTarget: 0,
+      error: undefined,
     });
 
     const dto = createBuyPaymentInfoDto();

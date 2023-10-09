@@ -10,7 +10,7 @@ import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { TargetEstimation, TransactionDetails } from '../entities/transaction-details';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
-import { TxSpec } from '../entities/tx-spec';
+import { TxSpec, TxSpecExtended } from '../entities/tx-spec';
 import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
 
 export enum ValidationError {
@@ -18,9 +18,15 @@ export enum ValidationError {
   PAY_IN_NOT_SELLABLE = 'PayInNotSellable',
 }
 
+export enum TransactionError {
+  AMOUNT_TOO_LOW = 'AmountTooLow',
+  AMOUNT_TOO_HIGH = 'AmountTooHigh',
+}
+
 @Injectable()
 export class TransactionHelper implements OnModuleInit {
   private eur: Fiat;
+  private chf: Fiat;
   private transactionSpecifications: TransactionSpecification[];
 
   constructor(
@@ -31,6 +37,7 @@ export class TransactionHelper implements OnModuleInit {
 
   onModuleInit() {
     void this.fiatService.getFiatByName('EUR').then((f) => (this.eur = f));
+    void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
     void this.updateCache();
   }
 
@@ -110,13 +117,25 @@ export class TransactionHelper implements OnModuleInit {
     fee: number,
     from: Asset | Fiat,
     to: Asset | Fiat,
+    tradingLimit?: number,
   ): Promise<TransactionDetails> {
     const specs = this.getSpecs(from, to);
 
-    const { minVolume, minFee } = await this.convertToSource(from, specs);
-    const { minVolume: minVolumeTarget, minFee: minFeeTarget } = await this.convertToTarget(to, specs);
+    const { minVolume, minFee, maxVolume } = await this.convertToSource(from, { ...specs, maxVolume: tradingLimit });
+    const {
+      minVolume: minVolumeTarget,
+      minFee: minFeeTarget,
+      maxVolume: maxVolumeTarget,
+    } = await this.convertToTarget(to, { ...specs, maxVolume: tradingLimit });
 
     const target = await this.getTargetEstimation(sourceAmount, targetAmount, fee, minFee, from, to);
+
+    const error =
+      target.sourceAmount < minVolume
+        ? TransactionError.AMOUNT_TOO_LOW
+        : target.sourceAmount > maxVolume
+        ? TransactionError.AMOUNT_TOO_HIGH
+        : undefined;
 
     return {
       ...target,
@@ -124,7 +143,10 @@ export class TransactionHelper implements OnModuleInit {
       minVolume,
       minFeeTarget,
       minVolumeTarget,
-      isValid: target.sourceAmount >= minVolume,
+      maxVolume,
+      maxVolumeTarget,
+      isValid: error == null,
+      error,
     };
   }
 
@@ -160,21 +182,37 @@ export class TransactionHelper implements OnModuleInit {
       : { system: param.blockchain, asset: param.dexName };
   }
 
-  private async convertToSource(from: Asset | Fiat, { minFee, minVolume }: TxSpec): Promise<TxSpec> {
+  private async convertToSource(
+    from: Asset | Fiat,
+    { minFee, minVolume, maxVolume }: TxSpecExtended,
+  ): Promise<TxSpecExtended> {
     const price = await this.priceProviderService.getPrice(from, this.eur).then((p) => p.invert());
+
+    const maxVolumePrice =
+      maxVolume && (await this.priceProviderService.getPrice(from, this.chf).then((p) => p.invert()));
+
+    const maxVolumeSource = maxVolume && (from.name === 'CHF' ? maxVolume : maxVolumePrice.convert(maxVolume * 0.99)); // -1% for the conversion
 
     return {
       minFee: this.convert(minFee, price, from instanceof Fiat),
       minVolume: this.convert(minVolume, price, from instanceof Fiat),
+      maxVolume: this.roundMaxAmount(maxVolumeSource, from instanceof Fiat),
     };
   }
 
-  private async convertToTarget(to: Asset | Fiat, { minFee, minVolume }: TxSpec): Promise<TxSpec> {
+  private async convertToTarget(
+    to: Asset | Fiat,
+    { minFee, minVolume, maxVolume }: TxSpecExtended,
+  ): Promise<TxSpecExtended> {
     const price = await this.priceProviderService.getPrice(this.eur, to);
+    const maxVolumePrice = maxVolume && (await this.priceProviderService.getPrice(this.chf, to));
+
+    const maxVolumeTarget = maxVolume && (to.name === 'CHF' ? maxVolume : maxVolumePrice.convert(maxVolume * 0.99)); // -1% for the conversion
 
     return {
       minFee: this.convert(minFee, price, to instanceof Fiat),
       minVolume: this.convert(minVolume, price, to instanceof Fiat),
+      maxVolume: this.roundMaxAmount(maxVolumeTarget, to instanceof Fiat),
     };
   }
 
@@ -185,5 +223,9 @@ export class TransactionHelper implements OnModuleInit {
 
   private round(amount: number, isFiat: boolean): number {
     return isFiat ? Util.round(amount, 2) : Util.roundByPrecision(amount, 5);
+  }
+
+  private roundMaxAmount(amount: number, isFiat: boolean): number {
+    return isFiat ? Util.round(amount, -1) : Util.roundByPrecision(amount, 3);
   }
 }

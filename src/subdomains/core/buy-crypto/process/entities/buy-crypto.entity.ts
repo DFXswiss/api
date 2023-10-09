@@ -388,16 +388,16 @@ export class BuyCrypto extends IEntity {
     bankDataUserData: UserData,
   ): UpdateResult<BuyCrypto> {
     const usedRef = this.user.getBuyUsedRef;
-    const amountInEur = eurPrice.convert(this.bankTx.txAmount, 2);
+    const amountInChf = chfPrice.convert(this.bankTx.txAmount, 2);
 
-    const update: Partial<BuyCrypto> = this.isAmlPass(minVolume, amountInEur, bankDataUserData?.id, monthlyAmountInEur)
+    const update: Partial<BuyCrypto> = this.isAmlPass(minVolume, amountInChf, bankDataUserData?.id, monthlyAmountInEur)
       ? {
           inputAmount: this.bankTx.txAmount,
           inputAsset: this.bankTx.txCurrency,
           inputReferenceAmount: this.bankTx.txAmount,
           inputReferenceAsset: this.bankTx.currency,
-          amountInChf: chfPrice.convert(this.bankTx.txAmount, 2),
-          amountInEur,
+          amountInChf,
+          amountInEur: eurPrice.convert(this.bankTx.txAmount, 2),
           absoluteFeeAmount: 0,
           percentFee: userFee,
           percentFeeAmount: userFee * this.bankTx.txAmount,
@@ -418,12 +418,12 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
-  isAmlPass(minVolume: number, amountInEur: number, bankDataUserDataId: number, monthlyAmountInEur: number): boolean {
+  isAmlPass(minVolume: number, amountInChf: number, bankDataUserDataId: number, monthlyAmountInEur: number): boolean {
     return (
       this.bankTx.currency === this.bankTx.txCurrency &&
       this.target.asset.buyable &&
       this.bankTx.txAmount >= minVolume &&
-      this.user.userData.annualBuyVolume + amountInEur < this.user.userData.depositLimit &&
+      this.user.userData.annualBuyVolume + amountInChf < this.user.userData.depositLimit &&
       bankDataUserDataId === this.user.userData.id &&
       this.user.userData.kycStatus === KycStatus.COMPLETED &&
       this.user.status === UserStatus.ACTIVE &&
