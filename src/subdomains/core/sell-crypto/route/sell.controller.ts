@@ -13,6 +13,7 @@ import { TransactionHelper } from 'src/shared/payment/services/transaction-helpe
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { FeeType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
 import { BuyFiatService } from '../process/buy-fiat.service';
@@ -147,7 +148,9 @@ export class SellController {
   }
 
   private async toPaymentInfoDto(userId: number, sell: Sell, dto: GetSellPaymentInfoDto): Promise<SellPaymentInfoDto> {
-    const fee = await this.userService.getUserSellFee(userId, dto.asset);
+    const user = await this.userService.getUser(userId, { userData: true, wallet: true });
+    const fee = user.getFee(FeeType.SELL, dto.asset);
+
     const {
       minVolume,
       minFee,
@@ -155,8 +158,18 @@ export class SellController {
       minFeeTarget,
       estimatedAmount: estimatedAmount,
       sourceAmount: amount,
+      maxVolume,
+      maxVolumeTarget,
       isValid,
-    } = await this.transactionHelper.getTxDetails(dto.amount, dto.targetAmount, fee, dto.asset, dto.currency);
+      error,
+    } = await this.transactionHelper.getTxDetails(
+      dto.amount,
+      dto.targetAmount,
+      fee,
+      dto.asset,
+      dto.currency,
+      user.userData.availableTradingLimit,
+    );
 
     return {
       routeId: sell.id,
@@ -172,8 +185,11 @@ export class SellController {
       amount,
       currency: FiatDtoMapper.entityToDto(dto.currency),
       asset: AssetDtoMapper.entityToDto(dto.asset),
+      maxVolume,
+      maxVolumeTarget,
       paymentRequest: await this.cryptoService.getPaymentRequest(isValid, dto.asset, sell.deposit.address, amount),
       isValid,
+      error,
     };
   }
 }

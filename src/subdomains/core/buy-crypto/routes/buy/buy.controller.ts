@@ -13,6 +13,7 @@ import { TransactionHelper } from 'src/shared/payment/services/transaction-helpe
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { FeeType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { BuyCryptoService } from '../../process/services/buy-crypto.service';
@@ -123,7 +124,9 @@ export class BuyController {
   }
 
   private async toDto(userId: number, buy: Buy): Promise<BuyDto> {
-    const fee = await this.userService.getUserBuyFee(userId, buy.asset);
+    const user = await this.userService.getUser(userId, { userData: true, wallet: true });
+    const fee = user.getFee(FeeType.BUY, buy.asset);
+
     const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
       'Fiat',
       undefined,
@@ -146,11 +149,9 @@ export class BuyController {
   }
 
   private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
-    const user = await this.userService.getUser(userId, true);
-    const fee =
-      dto.paymentMethod === BuyPaymentMethod.CARD
-        ? Config.buy.fee.card
-        : await this.userService.getUserBuyFee(userId, buy.asset);
+    const user = await this.userService.getUser(userId, { userData: true, wallet: true });
+    const fee = dto.paymentMethod === BuyPaymentMethod.CARD ? Config.buy.fee.card : user.getFee(FeeType.BUY, buy.asset);
+
     const {
       minVolume,
       minFee,
@@ -158,8 +159,18 @@ export class BuyController {
       minFeeTarget,
       estimatedAmount,
       sourceAmount: amount,
+      maxVolume,
+      maxVolumeTarget,
       isValid,
-    } = await this.transactionHelper.getTxDetails(dto.amount, dto.targetAmount, fee, dto.currency, dto.asset);
+      error,
+    } = await this.transactionHelper.getTxDetails(
+      dto.amount,
+      dto.targetAmount,
+      fee,
+      dto.currency,
+      dto.asset,
+      user.userData.availableTradingLimit,
+    );
     const bankInfo = await this.getBankInfo(buy, { ...dto, amount });
 
     return {
@@ -174,7 +185,10 @@ export class BuyController {
       amount,
       asset: AssetDtoMapper.entityToDto(dto.asset),
       currency: FiatDtoMapper.entityToDto(dto.currency),
+      maxVolume,
+      maxVolumeTarget,
       isValid,
+      error,
       // bank info
       ...bankInfo,
       sepaInstant: bankInfo.sepaInstant && buy.bankAccount?.sctInst,

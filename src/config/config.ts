@@ -64,7 +64,7 @@ export class Configuration {
   defaultTwitterUrl = 'https://twitter.com/DFX_Swiss';
   defaultVolumeDecimal = 2;
   defaultPercentageDecimal = 2;
-  defaultDailyTradingLimit = 990; // EUR
+  defaultDailyTradingLimit = 1000; // CHF
   apiKeyVersionCT = '0'; // single digit hex number
   azureIpSubstring = '169.254';
   amlCheckMonthlyTradingLimit = 50000; // EUR
@@ -178,7 +178,7 @@ export class Configuration {
     },
     blackSquad: {
       link: process.env.BS_LINK,
-      limit: 50000,
+      limit: 50000, // CHF
       mailName: process.env.BLACK_SQUAD_NAME,
       mailAddress: process.env.BLACK_SQUAD_MAIL,
       mailBanner: process.env.BLACK_SQUAD_BANNER,

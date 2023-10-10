@@ -10,6 +10,9 @@ import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.servic
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, IsNull } from 'typeorm';
+import { OlkypayService } from '../../../../integration/bank/services/olkypay.service';
+import { BankName } from '../../bank/bank/bank.entity';
+import { BankService } from '../../bank/bank/bank.service';
 import { BankTxRepeatService } from '../bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnService } from '../bank-tx-return/bank-tx-return.service';
 import { BankTxBatch } from './bank-tx-batch.entity';
@@ -17,7 +20,6 @@ import { BankTxBatchRepository } from './bank-tx-batch.repository';
 import { BankTx, BankTxType, BankTxTypeCompleted } from './bank-tx.entity';
 import { BankTxRepository } from './bank-tx.repository';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
-import { OlkypayService } from './olkypay.service';
 import { SepaParser } from './sepa-parser.service';
 
 @Injectable()
@@ -35,6 +37,7 @@ export class BankTxService {
     private readonly bankTxReturnService: BankTxReturnService,
     private readonly bankTxRepeatService: BankTxRepeatService,
     private readonly buyService: BuyService,
+    private readonly bankService: BankService,
   ) {}
 
   // --- TRANSACTION HANDLING --- //
@@ -53,8 +56,10 @@ export class BankTxService {
     const lastModificationTimeOlky = await this.settingService.get(settingKeyOlky, new Date(0).toISOString());
     const newModificationTime = new Date().toISOString();
 
+    const bank = await this.bankService.getBankInternal(BankName.OLKY, 'EUR');
+
     // Get bank transactions
-    const olkyTransactions = await this.olkyService.getOlkyTransactions(lastModificationTimeOlky);
+    const olkyTransactions = await this.olkyService.getOlkyTransactions(lastModificationTimeOlky, bank.iban);
     const allTransactions = olkyTransactions;
 
     for (const bankTx of allTransactions) {

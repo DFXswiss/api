@@ -13,8 +13,8 @@ import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
-import { BankTxRepository } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.repository';
-import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
+import { BankTxRepository } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.repository';
+import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { BuyRepository } from '../../../routes/buy/buy.repository';

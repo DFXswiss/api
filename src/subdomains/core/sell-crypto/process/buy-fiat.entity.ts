@@ -1,10 +1,10 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
-import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
+import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
-import { FiatOutput } from '../../../supporting/bank/fiat-output/fiat-output.entity';
+import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { AmlReason } from '../../buy-crypto/process/enums/aml-reason.enum';
 import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
 import { Sell } from '../route/sell.entity';

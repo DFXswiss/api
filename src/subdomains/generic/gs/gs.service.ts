@@ -1,21 +1,21 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
+import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { RefRewardService } from 'src/subdomains/core/referral/reward/ref-reward.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
+import { BankTxRepeatService } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.service';
+import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
+import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
-import { BankTxRepeatService } from 'src/subdomains/supporting/bank/bank-tx-repeat/bank-tx-repeat.service';
-import { BankTxType } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
-import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
-import { FiatOutputService } from 'src/subdomains/supporting/bank/fiat-output/fiat-output.service';
+import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
+import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
+import { DataSource } from 'typeorm';
 import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { UserService } from '../user/models/user/user.service';
 import { DbQueryBaseDto, DbQueryDto } from './dto/db-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
-import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
-import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
-import { DataSource } from 'typeorm';
 
 export enum SupportTable {
   USER_DATA = 'userData',
