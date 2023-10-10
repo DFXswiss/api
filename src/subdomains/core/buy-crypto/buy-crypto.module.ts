@@ -8,7 +8,6 @@ import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { AddressPoolModule } from 'src/subdomains/supporting/address-pool/address-pool.module';
 import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
 import { DexModule } from 'src/subdomains/supporting/dex/dex.module';
-import { FiatPayInModule } from 'src/subdomains/supporting/fiat-payin/fiat-payin.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PayInModule } from 'src/subdomains/supporting/payin/payin.module';
 import { PayoutModule } from 'src/subdomains/supporting/payout/payout.module';
@@ -53,7 +52,6 @@ import { CryptoRouteService } from './routes/crypto-route/crypto-route.service';
     forwardRef(() => AddressPoolModule),
     LiquidityManagementModule,
     IntegrationModule,
-    FiatPayInModule,
   ],
   controllers: [BuyCryptoController, BuyController, CryptoRouteController],
   providers: [

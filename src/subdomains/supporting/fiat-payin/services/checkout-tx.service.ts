@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
@@ -11,7 +11,6 @@ import { CheckoutTxRepository } from '../repositories/checkout-tx.repository';
 export class CheckoutTxService {
   constructor(
     private readonly checkoutTxRepo: CheckoutTxRepository,
-    @Inject(forwardRef(() => BuyCryptoService))
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyService: BuyService,
     private readonly notificationService: NotificationService,
@@ -23,7 +22,7 @@ export class CheckoutTxService {
     if (match) {
       const buy = await this.buyService.getByBankUsage(match[0]);
       if (buy) {
-        await this.buyCryptoService.createFromCheckoutTx(tx.id, buy.id);
+        await this.buyCryptoService.createFromCheckoutTx(tx, buy.id);
         return;
       }
 

@@ -23,8 +23,9 @@ import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statist
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { FeeType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
-import { CheckoutTxService } from 'src/subdomains/supporting/fiat-payin/services/checkout-tx.service';
+import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { Between, In, IsNull, Not } from 'typeorm';
 import { Buy } from '../../routes/buy/buy.entity';
@@ -54,8 +55,6 @@ export class BuyCryptoService {
     private readonly buyFiatService: BuyFiatService,
     @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
-    @Inject(forwardRef(() => CheckoutTxService))
-    private readonly checkoutTxService: CheckoutTxService,
     private readonly buyService: BuyService,
     private readonly cryptoRouteService: CryptoRouteService,
     private readonly buyCryptoBatchService: BuyCryptoBatchService,
@@ -72,15 +71,14 @@ export class BuyCryptoService {
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
   ) {}
 
-  async createFromBankTx(bankTxId: number, buyId: number): Promise<BuyCrypto> {
-    let entity = await this.buyCryptoRepo.findOneBy({ bankTx: { id: bankTxId } });
+  async createFromBankTx(bankTx: BankTx, buyId: number): Promise<BuyCrypto> {
+    let entity = await this.buyCryptoRepo.findOneBy({ bankTx: { id: bankTx.id } });
     if (entity) throw new ConflictException('There is already a buy-crypto for the specified bank TX');
 
     entity = this.buyCryptoRepo.create();
 
     // bank tx
-    entity.bankTx = await this.bankTxService.getBankTxRepo().findOneBy({ id: bankTxId });
-    if (!entity.bankTx) throw new BadRequestException('Bank TX not found');
+    entity.bankTx = bankTx;
 
     // buy
     if (buyId) entity.buy = await this.getBuy(buyId);
@@ -88,14 +86,14 @@ export class BuyCryptoService {
     return this.buyCryptoRepo.save(entity);
   }
 
-  async createFromCheckoutTx(checkoutTxId: number, buyId: number): Promise<BuyCrypto> {
-    let entity = await this.buyCryptoRepo.findOneBy({ checkoutTx: { id: checkoutTxId } });
+  async createFromCheckoutTx(checkoutTx: CheckoutTx, buyId: number): Promise<BuyCrypto> {
+    let entity = await this.buyCryptoRepo.findOneBy({ checkoutTx: { id: checkoutTx.id } });
     if (entity) throw new ConflictException('There is already a buy-crypto for the specified checkout TX');
 
     entity = this.buyCryptoRepo.create();
 
     // checkout tx
-    entity.checkoutTx = await this.checkoutTxService.getCheckoutTx(checkoutTxId);
+    entity.checkoutTx = checkoutTx;
 
     // buy
     if (buyId) entity.buy = await this.getBuy(buyId);
