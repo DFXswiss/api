@@ -240,7 +240,10 @@ export class BuyCryptoService {
       throw new BadRequestException('BuyCrypto is already complete or payout initiated');
     if (!entity.amlCheck) throw new BadRequestException('BuyCrypto amlcheck is not set');
 
+    const fee = entity.fee;
+
     await this.buyCryptoRepo.update(...entity.resetAmlCheck());
+    await this.buyCryptoRepo.deleteFee(fee);
   }
 
   async getUserTransactions(
