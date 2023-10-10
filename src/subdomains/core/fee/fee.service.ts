@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -18,6 +19,8 @@ export interface FeeRequest {
 
 @Injectable()
 export class FeeService {
+  private readonly logger = new DfxLogger(FeeService);
+
   constructor(
     private readonly feeRepo: FeeRepository,
     private readonly assetService: AssetService,
@@ -67,7 +70,7 @@ export class FeeService {
     const fee = await this.getFeeByDiscountCode(discountCode);
     if (this.isExpiredFee(fee, { userData })) throw new BadRequestException('Discount code is expired');
 
-    if (fee.maxUsages && this.hasMaxUsageExceeded(fee))
+    if (fee.maxUsages && (await this.hasMaxUsageExceeded(fee)))
       throw new BadRequestException('Max usages for discount code taken');
 
     await this.userDataService.addDiscountCode(userData, fee.id.toString());
@@ -77,7 +80,7 @@ export class FeeService {
     const fee = await this.feeRepo.findOneBy({ id: feeId });
     if (this.isExpiredFee(fee, { userData })) throw new BadRequestException('Discount code is expired');
 
-    if (fee.maxUsages && this.hasMaxUsageExceeded(fee))
+    if (fee.maxUsages && (await this.hasMaxUsageExceeded(fee)))
       throw new BadRequestException('Max usages for discount code taken');
 
     await this.userDataService.addDiscountCode(userData, fee.id.toString());
@@ -91,7 +94,7 @@ export class FeeService {
 
   async getUserFee(request: FeeRequest): Promise<number> {
     let userBaseFee = undefined;
-    let userCustomFee = 0;
+    let userCustomFee = undefined;
     let userDiscount = 0;
     const userFees = await this.getValidUserFees(request);
 
@@ -101,7 +104,7 @@ export class FeeService {
           if (!userBaseFee || userBaseFee > fee.value) userBaseFee = fee.value;
           break;
         case FeeType.CUSTOM:
-          if (userCustomFee < fee.value) userCustomFee = fee.value;
+          if (!userCustomFee || userCustomFee < fee.value) userCustomFee = fee.value;
           break;
         case FeeType.DISCOUNT:
           if (userDiscount < fee.value) userDiscount = fee.value;
@@ -110,8 +113,12 @@ export class FeeService {
     }
 
     if (!userBaseFee) throw new InternalServerErrorException('Base Fee is missing');
+    if (userBaseFee - userDiscount < 0) {
+      this.logger.warn(`UserDiscount higher userBaseFee! UserDataId: ${request.userData.id}`);
+      userDiscount = 0;
+    }
 
-    return userCustomFee ? userCustomFee : userBaseFee - userDiscount;
+    return userCustomFee ?? userBaseFee - userDiscount;
   }
 
   // --- HELPER METHODS --- //
@@ -127,8 +134,8 @@ export class FeeService {
 
     const discountCodes = request.userData.discounts?.split(';') ?? [];
 
-    for (const discountCode of discountCodes) {
-      const fee = await this.feeRepo.findOneBy({ discountCode });
+    for (const feeId of discountCodes) {
+      const fee = await this.feeRepo.findOneBy({ id: +feeId });
 
       if (this.isExpiredFee(fee, request)) {
         await this.userDataService.removeDiscountCode(request.userData, fee.id.toString());

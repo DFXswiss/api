@@ -275,7 +275,7 @@ export class UserData extends IEntity {
   removeDiscountCode(feeId: string): UpdateResult<UserData> {
     const update: Partial<UserData> = {
       discounts: this.discounts
-        .split(';')
+        ?.split(';')
         .filter((id) => id !== feeId)
         .join(';'),
     };
