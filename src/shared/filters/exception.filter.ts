@@ -16,13 +16,17 @@ export class ApiExceptionFilter implements ExceptionFilter {
       this.logger.error(`Exception during ${request.method} request to '${request.url}':`, exception);
     }
 
-    response.status(status).json(
-      exception instanceof HttpException
-        ? exception.getResponse()
-        : {
-            statusCode: status,
-            message: exception.message,
-          },
-    );
+    try {
+      response.status(status).json(
+        exception instanceof HttpException
+          ? exception.getResponse()
+          : {
+              statusCode: status,
+              message: exception.message,
+            },
+      );
+    } catch (e) {
+      this.logger.error(`Failed to set error response content:`, e);
+    }
   }
 }
