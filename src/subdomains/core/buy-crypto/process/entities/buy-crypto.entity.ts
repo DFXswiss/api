@@ -11,7 +11,8 @@ import {
   UserDataStatus,
 } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
-import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
+import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
+import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
@@ -41,6 +42,10 @@ export class BuyCrypto extends IEntity {
   @OneToOne(() => BankTx, { nullable: true })
   @JoinColumn()
   bankTx: BankTx;
+
+  @OneToOne(() => CheckoutTx, { nullable: true })
+  @JoinColumn()
+  checkoutTx: CheckoutTx;
 
   @ManyToOne(() => Buy, (buy) => buy.buyCryptos, { nullable: true })
   buy: Buy;
@@ -388,16 +393,16 @@ export class BuyCrypto extends IEntity {
     bankDataUserData: UserData,
   ): UpdateResult<BuyCrypto> {
     const usedRef = this.user.getBuyUsedRef;
-    const amountInEur = eurPrice.convert(this.bankTx.txAmount, 2);
+    const amountInChf = chfPrice.convert(this.bankTx.txAmount, 2);
 
-    const update: Partial<BuyCrypto> = this.isAmlPass(minVolume, amountInEur, bankDataUserData?.id, monthlyAmountInEur)
+    const update: Partial<BuyCrypto> = this.isAmlPass(minVolume, amountInChf, bankDataUserData?.id, monthlyAmountInEur)
       ? {
           inputAmount: this.bankTx.txAmount,
           inputAsset: this.bankTx.txCurrency,
           inputReferenceAmount: this.bankTx.txAmount,
           inputReferenceAsset: this.bankTx.currency,
-          amountInChf: chfPrice.convert(this.bankTx.txAmount, 2),
-          amountInEur,
+          amountInChf,
+          amountInEur: eurPrice.convert(this.bankTx.txAmount, 2),
           absoluteFeeAmount: 0,
           percentFee: userFee,
           percentFeeAmount: userFee * this.bankTx.txAmount,
@@ -418,12 +423,12 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
-  isAmlPass(minVolume: number, amountInEur: number, bankDataUserDataId: number, monthlyAmountInEur: number): boolean {
+  isAmlPass(minVolume: number, amountInChf: number, bankDataUserDataId: number, monthlyAmountInEur: number): boolean {
     return (
       this.bankTx.currency === this.bankTx.txCurrency &&
       this.target.asset.buyable &&
       this.bankTx.txAmount >= minVolume &&
-      this.user.userData.annualBuyVolume + amountInEur < this.user.userData.depositLimit &&
+      this.user.userData.annualBuyVolume + amountInChf < this.user.userData.depositLimit &&
       bankDataUserDataId === this.user.userData.id &&
       this.user.userData.kycStatus === KycStatus.COMPLETED &&
       this.user.status === UserStatus.ACTIVE &&
@@ -465,6 +470,7 @@ export class BuyCrypto extends IEntity {
       outputDate: null,
       recipientMail: null,
       status: null,
+      fee: null,
     };
 
     Object.assign(this, update);
@@ -482,6 +488,10 @@ export class BuyCrypto extends IEntity {
 
   get isCryptoCryptoTransaction(): boolean {
     return this.cryptoInput != null;
+  }
+
+  get isBankInput(): boolean {
+    return this.bankTx != null;
   }
 
   get exchangeRateString(): string {

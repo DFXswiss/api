@@ -5,9 +5,7 @@ import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
-import { Bank, BankName } from 'src/subdomains/supporting/bank/bank/bank.entity';
-import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
-import { BankTx, BankTxIndicator, BankTxType } from './bank-tx.entity';
+import { BankTx, BankTxIndicator, BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 
 interface Transaction {
   idCtp: number;
@@ -52,18 +50,16 @@ export class OlkypayService {
 
   private accessToken = 'access-token-will-be-updated';
 
-  constructor(private readonly http: HttpService, private readonly bankService: BankService) {}
+  constructor(private readonly http: HttpService) {}
 
-  async getOlkyTransactions(lastModificationTime: string): Promise<Partial<BankTx>[]> {
+  async getOlkyTransactions(lastModificationTime: string, accountIban: string): Promise<Partial<BankTx>[]> {
     if (!Config.bank.olkypay.credentials.clientId) return [];
 
     try {
       const transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1));
       if (!transactions) return [];
 
-      const bank = await this.bankService.getBankInternal(BankName.OLKY, 'EUR');
-
-      return transactions.map((t) => this.parseTransaction(t, bank));
+      return transactions.map((t) => this.parseTransaction(t, accountIban));
     } catch (e) {
       this.logger.error(`Failed to get Bank Olky transactions:`, e);
       return [];
@@ -88,7 +84,7 @@ export class OlkypayService {
   }
 
   // --- PARSING --- //
-  private parseTransaction(tx: Transaction, bank: Bank): Partial<BankTx> {
+  private parseTransaction(tx: Transaction, accountIban: string): Partial<BankTx> {
     if (tx.debit > 0 && tx.credit > 0)
       throw new Error(`Transaction ${tx.idCtp} with debit (${tx.debit} EUR) and credit (${tx.credit} EUR)`);
 
@@ -115,7 +111,7 @@ export class OlkypayService {
         txInfo: tx.line1,
         txRaw: JSON.stringify(tx),
         remittanceInfo: tx.line2,
-        accountIban: bank.iban,
+        accountIban: accountIban,
         type: tx.codeInterbancaireInterne === TransactionType.BILLING ? BankTxType.BANK_ACCOUNT_FEE : null,
       };
     } catch (e) {

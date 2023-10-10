@@ -93,7 +93,7 @@ export class BuyService {
 
     // create the entity
     const buy = this.buyRepo.create(dto);
-    buy.user = await this.userService.getUser(userId, true);
+    buy.user = await this.userService.getUser(userId, { userData: true });
     if (dto.iban) buy.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);
 
     // create hash

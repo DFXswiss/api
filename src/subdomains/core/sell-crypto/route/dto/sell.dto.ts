@@ -1,8 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { DepositDto } from '../../../../supporting/address-pool/deposit/dto/deposit.dto';
 import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { MinAmount } from '../../../../../shared/payment/dto/min-amount.dto';
+import { DepositDto } from '../../../../supporting/address-pool/deposit/dto/deposit.dto';
 
 export class SellDto {
   @ApiProperty()
@@ -23,10 +23,10 @@ export class SellDto {
   @ApiProperty({ type: FiatDto })
   currency: FiatDto;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Volume in CHF' })
   volume: number;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Annual volume in CHF' })
   annualVolume: number;
 
   @ApiProperty()

@@ -1,6 +1,6 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
-import { BankTxService } from '../bank-tx/bank-tx.service';
+import { BankTxService } from '../bank-tx/bank-tx/bank-tx.service';
 import { CreateFiatOutputDto } from './dto/create-fiat-output.dto';
 import { UpdateFiatOutputDto } from './dto/update-fiat-output.dto';
 import { FiatOutput } from './fiat-output.entity';

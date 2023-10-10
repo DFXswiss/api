@@ -2,7 +2,7 @@ import { IEntity } from 'src/shared/models/entity';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
-import { Entity, TableInheritance, OneToOne, JoinColumn, Column } from 'typeorm';
+import { Column, Entity, JoinColumn, OneToOne, TableInheritance } from 'typeorm';
 import { Deposit } from '../deposit/deposit.entity';
 
 export type DepositRouteType = Sell | Staking | CryptoRoute;
@@ -22,7 +22,7 @@ export class DepositRoute extends IEntity {
   active: boolean;
 
   @Column({ type: 'float', default: 0 })
-  volume: number;
+  volume: number; // CHF
 
   @OneToOne(() => Deposit, (deposit) => deposit.route, { eager: true, nullable: false })
   @JoinColumn()

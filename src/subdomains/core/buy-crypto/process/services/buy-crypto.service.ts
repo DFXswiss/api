@@ -23,7 +23,9 @@ import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statist
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { FeeType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
+import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
+import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
+import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { Between, In, IsNull, Not } from 'typeorm';
 import { Buy } from '../../routes/buy/buy.entity';
@@ -69,15 +71,23 @@ export class BuyCryptoService {
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
   ) {}
 
-  async createFromFiat(bankTxId: number, buyId: number): Promise<BuyCrypto> {
-    let entity = await this.buyCryptoRepo.findOneBy({ bankTx: { id: bankTxId } });
+  async createFromBankTx(bankTx: BankTx, buyId: number): Promise<BuyCrypto> {
+    let entity = await this.buyCryptoRepo.findOneBy({ bankTx: { id: bankTx.id } });
     if (entity) throw new ConflictException('There is already a buy-crypto for the specified bank TX');
 
-    entity = this.buyCryptoRepo.create();
+    entity = this.buyCryptoRepo.create({ bankTx });
 
-    // bank tx
-    entity.bankTx = await this.bankTxService.getBankTxRepo().findOneBy({ id: bankTxId });
-    if (!entity.bankTx) throw new BadRequestException('Bank TX not found');
+    // buy
+    if (buyId) entity.buy = await this.getBuy(buyId);
+
+    return this.buyCryptoRepo.save(entity);
+  }
+
+  async createFromCheckoutTx(checkoutTx: CheckoutTx, buyId: number): Promise<BuyCrypto> {
+    let entity = await this.buyCryptoRepo.findOneBy({ checkoutTx: { id: checkoutTx.id } });
+    if (entity) throw new ConflictException('There is already a buy-crypto for the specified checkout TX');
+
+    entity = this.buyCryptoRepo.create({ checkoutTx });
 
     // buy
     if (buyId) entity.buy = await this.getBuy(buyId);
@@ -240,7 +250,10 @@ export class BuyCryptoService {
       throw new BadRequestException('BuyCrypto is already complete or payout initiated');
     if (!entity.amlCheck) throw new BadRequestException('BuyCrypto amlcheck is not set');
 
+    const fee = entity.fee;
+
     await this.buyCryptoRepo.update(...entity.resetAmlCheck());
+    await this.buyCryptoRepo.deleteFee(fee);
   }
 
   async getUserTransactions(
@@ -390,7 +403,7 @@ export class BuyCryptoService {
     for (const id of buyIds) {
       const { volume } = await this.buyCryptoRepo
         .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInEur)', 'volume')
+        .select('SUM(amountInChf)', 'volume')
         .where('buyId = :id', { id: id })
         .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
         .getRawOne<{ volume: number }>();
@@ -398,7 +411,7 @@ export class BuyCryptoService {
       const newYear = new Date(new Date().getFullYear(), 0, 1);
       const { annualVolume } = await this.buyCryptoRepo
         .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInEur)', 'annualVolume')
+        .select('SUM(amountInChf)', 'annualVolume')
         .leftJoin('buyCrypto.bankTx', 'bankTx')
         .where('buyCrypto.buyId = :id', { id: id })
         .andWhere('buyCrypto.amlCheck = :check', { check: CheckStatus.PASS })
@@ -415,7 +428,7 @@ export class BuyCryptoService {
     for (const id of cryptoRouteIds) {
       const { volume } = await this.buyCryptoRepo
         .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInEur)', 'volume')
+        .select('SUM(amountInChf)', 'volume')
         .where('cryptoRouteId = :id', { id: id })
         .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
         .getRawOne<{ volume: number }>();
@@ -423,7 +436,7 @@ export class BuyCryptoService {
       const newYear = new Date(new Date().getFullYear(), 0, 1);
       const { annualVolume } = await this.buyCryptoRepo
         .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInEur)', 'annualVolume')
+        .select('SUM(amountInChf)', 'annualVolume')
         .leftJoin('buyCrypto.cryptoInput', 'cryptoInput')
         .where('buyCrypto.cryptoRouteId = :id', { id: id })
         .andWhere('buyCrypto.amlCheck = :check', { check: CheckStatus.PASS })
