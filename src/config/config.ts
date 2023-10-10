@@ -13,6 +13,7 @@ import { MailOptions } from 'src/subdomains/supporting/notification/services/mai
 export enum Process {
   PAY_OUT = 'PayOut',
   PAY_IN = 'PayIn',
+  FIAT_PAY_IN = 'FiatPayIn',
   BUY_FIAT = 'BuyFiat',
   BUY_CRYPTO = 'BuyCrypto',
   LIMIT_REQUEST_MAIL = 'LimitRequestMail',
@@ -33,6 +34,7 @@ export enum Process {
   REF_PAYOUT = 'RefPayout',
   PRICING = 'Pricing',
   BUY_CRYPTO_AML_CHECK = 'BuyCryptoAmlCheck',
+  LNURL_AUTH_CACHE = 'LnurlAuthCache',
 }
 
 export enum Environment {
@@ -62,7 +64,7 @@ export class Configuration {
   defaultTwitterUrl = 'https://twitter.com/DFX_Swiss';
   defaultVolumeDecimal = 2;
   defaultPercentageDecimal = 2;
-  defaultDailyTradingLimit = 990; // EUR
+  defaultDailyTradingLimit = 1000; // CHF
   apiKeyVersionCT = '0'; // single digit hex number
   azureIpSubstring = '169.254';
   amlCheckMonthlyTradingLimit = 50000; // EUR
@@ -176,7 +178,7 @@ export class Configuration {
     },
     blackSquad: {
       link: process.env.BS_LINK,
-      limit: 50000,
+      limit: 50000, // CHF
       mailName: process.env.BLACK_SQUAD_NAME,
       mailAddress: process.env.BLACK_SQUAD_MAIL,
       mailBanner: process.env.BLACK_SQUAD_BANNER,
@@ -188,8 +190,9 @@ export class Configuration {
     url: process.env.LETTER_URL,
   };
 
-  payment = {
-    url: process.env.PAYMENT_URL,
+  frontend = {
+    payment: process.env.PAYMENT_URL,
+    services: process.env.SERVICES_URL,
   };
 
   fixer = {
@@ -231,7 +234,7 @@ export class Configuration {
         },
       },
     },
-    defaultMailTemplate: 'support',
+    defaultMailTemplate: 'generic',
     contact: {
       supportMail: process.env.SUPPORT_MAIL || 'support@dfx.swiss',
       monitoringMail: process.env.MONITORING_MAIL || 'monitoring@dfx.swiss',
@@ -368,6 +371,7 @@ export class Configuration {
         [FeeTier.TIER3]: 0.0225,
         [FeeTier.TIER4]: 0.0299,
       },
+      card: 0.08,
       limit: +(process.env.BUY_CRYPTO_FEE_LIMIT ?? 0.005),
 
       get: (tier: FeeTier, accountType: AccountType) =>

@@ -125,6 +125,7 @@ export class AuthService {
   async changeUser(id: number, changeUser: LinkedUserInDto): Promise<AuthResponseDto> {
     const user = await this.getLinkedUser(id, changeUser.address);
     if (!user) throw new NotFoundException('User not found');
+    if (user.status === UserStatus.BLOCKED) throw new BadRequestException('User is blocked');
     return { accessToken: this.generateUserToken(user) };
   }
 

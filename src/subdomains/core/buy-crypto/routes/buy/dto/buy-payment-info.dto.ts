@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { MinAmount } from 'src/shared/payment/dto/min-amount.dto';
+import { TransactionError } from 'src/shared/payment/services/transaction-helper';
 
 export class BankInfoDto {
   @ApiProperty()
@@ -51,6 +52,9 @@ export class BuyPaymentInfoDto extends BankInfoDto {
   @ApiProperty({ description: 'Minimum volume in source currency' })
   minVolume: number;
 
+  @ApiProperty({ description: 'Maximum volume in source currency' })
+  maxVolume: number;
+
   @ApiProperty({ description: 'Amount in source currency' })
   amount: number;
 
@@ -63,15 +67,23 @@ export class BuyPaymentInfoDto extends BankInfoDto {
   @ApiProperty({ description: 'Minimum volume in target asset' })
   minVolumeTarget: number;
 
+  @ApiProperty({ description: 'Maximum volume in target asset' })
+  maxVolumeTarget: number;
+
   @ApiProperty({ description: 'Estimated amount in target asset' })
   estimatedAmount: number;
 
   @ApiProperty({ type: AssetDto, description: 'Target asset' })
   asset: AssetDto;
 
-  @ApiProperty({ description: 'Payment request (e.g. GiroCode content)' })
-  paymentRequest: string;
+  @ApiPropertyOptional({ description: 'Payment request (e.g. GiroCode content)' })
+  paymentRequest?: string;
+
+  paymentLink?: string;
 
   @ApiProperty()
   isValid: boolean;
+
+  @ApiPropertyOptional({ enum: TransactionError, description: 'Error message in case isValid is false' })
+  error?: TransactionError;
 }

@@ -45,7 +45,7 @@ export class RefRewardNotificationService {
         const recipientMail = entity.user.userData.mail;
 
         if (recipientMail) {
-          await this.notificationService.sendMailNew({
+          await this.notificationService.sendMail({
             type: MailType.USER,
             input: {
               userData: entity.user.userData,

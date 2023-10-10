@@ -65,9 +65,14 @@ export class LimitRequestService {
         type: MailType.INTERNAL,
         input: {
           to: 'liq@dfx.swiss',
-          subject: 'LimitRequest',
-          salutation: 'New LimitRequest',
-          body: `<p>Limit: ${entity.limit} EUR</p>Investment date: ${entity.investmentDate}<p>Fund origin: ${entity.fundOrigin}</p><p>UserData id: ${entity.userData.id}</p>`,
+          title: 'LimitRequest',
+          salutation: { key: 'New LimitRequest' },
+          prefix: [
+            { key: `Limit: ${entity.limit} EUR` },
+            { key: `Investment date: ${entity.investmentDate}` },
+            { key: `Fund origin: ${entity.fundOrigin}` },
+            { key: `UserData id: ${entity.userData.id}` },
+          ],
         },
       })
       .catch((error) => this.logger.error(`Failed to send limitRequest ${entity.id} created mail:`, error));

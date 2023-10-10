@@ -135,6 +135,7 @@ export class CryptoRouteController {
 
   private async toDto(userId: number, crypto: CryptoRoute, fee?: number): Promise<CryptoRouteDto> {
     fee ??= await this.userService.getUserFee(userId, FeeDirectionType.CRYPTO, crypto.asset);
+
     const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
       crypto.deposit.blockchain,
       undefined,
@@ -160,6 +161,7 @@ export class CryptoRouteController {
     cryptoRoute: CryptoRoute,
     dto: GetCryptoPaymentInfoDto,
   ): Promise<CryptoPaymentInfoDto> {
+    const user = await this.userService.getUser(userId, { userData: true, wallet: true });
     const fee = await this.userService.getUserFee(userId, FeeDirectionType.CRYPTO, cryptoRoute.asset);
 
     const {
@@ -169,8 +171,18 @@ export class CryptoRouteController {
       minFeeTarget,
       estimatedAmount,
       sourceAmount: amount,
+      maxVolume,
+      maxVolumeTarget,
       isValid,
-    } = await this.transactionHelper.getTxDetails(dto.amount, dto.targetAmount, fee, dto.sourceAsset, dto.targetAsset);
+      error,
+    } = await this.transactionHelper.getTxDetails(
+      dto.amount,
+      dto.targetAmount,
+      fee,
+      dto.sourceAsset,
+      dto.targetAsset,
+      user.userData.availableTradingLimit,
+    );
 
     return {
       routeId: cryptoRoute.id,
@@ -186,6 +198,8 @@ export class CryptoRouteController {
       amount,
       targetAsset: AssetDtoMapper.entityToDto(dto.targetAsset),
       sourceAsset: AssetDtoMapper.entityToDto(dto.sourceAsset),
+      maxVolume,
+      maxVolumeTarget,
       paymentRequest: await this.cryptoService.getPaymentRequest(
         isValid,
         dto.sourceAsset,
@@ -193,6 +207,7 @@ export class CryptoRouteController {
         amount,
       ),
       isValid,
+      error,
     };
   }
 }

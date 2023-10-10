@@ -1,5 +1,4 @@
 export enum Blockchain {
-  DEFICHAIN = 'DeFiChain',
   BITCOIN = 'Bitcoin',
   LIGHTNING = 'Lightning',
   ETHEREUM = 'Ethereum',
@@ -8,4 +7,5 @@ export enum Blockchain {
   ARBITRUM = 'Arbitrum',
   POLYGON = 'Polygon',
   CARDANO = 'Cardano',
+  DEFICHAIN = 'DeFiChain',
 }

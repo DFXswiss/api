@@ -23,7 +23,7 @@ import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statist
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
+import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { Between, In, IsNull, Not } from 'typeorm';
 import { Buy } from '../../routes/buy/buy.entity';
@@ -240,7 +240,10 @@ export class BuyCryptoService {
       throw new BadRequestException('BuyCrypto is already complete or payout initiated');
     if (!entity.amlCheck) throw new BadRequestException('BuyCrypto amlcheck is not set');
 
+    const fee = entity.fee;
+
     await this.buyCryptoRepo.update(...entity.resetAmlCheck());
+    await this.buyCryptoRepo.deleteFee(fee);
   }
 
   async getUserTransactions(
@@ -390,7 +393,7 @@ export class BuyCryptoService {
     for (const id of buyIds) {
       const { volume } = await this.buyCryptoRepo
         .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInEur)', 'volume')
+        .select('SUM(amountInChf)', 'volume')
         .where('buyId = :id', { id: id })
         .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
         .getRawOne<{ volume: number }>();
@@ -398,7 +401,7 @@ export class BuyCryptoService {
       const newYear = new Date(new Date().getFullYear(), 0, 1);
       const { annualVolume } = await this.buyCryptoRepo
         .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInEur)', 'annualVolume')
+        .select('SUM(amountInChf)', 'annualVolume')
         .leftJoin('buyCrypto.bankTx', 'bankTx')
         .where('buyCrypto.buyId = :id', { id: id })
         .andWhere('buyCrypto.amlCheck = :check', { check: CheckStatus.PASS })
@@ -415,7 +418,7 @@ export class BuyCryptoService {
     for (const id of cryptoRouteIds) {
       const { volume } = await this.buyCryptoRepo
         .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInEur)', 'volume')
+        .select('SUM(amountInChf)', 'volume')
         .where('cryptoRouteId = :id', { id: id })
         .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
         .getRawOne<{ volume: number }>();
@@ -423,7 +426,7 @@ export class BuyCryptoService {
       const newYear = new Date(new Date().getFullYear(), 0, 1);
       const { annualVolume } = await this.buyCryptoRepo
         .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInEur)', 'annualVolume')
+        .select('SUM(amountInChf)', 'annualVolume')
         .leftJoin('buyCrypto.cryptoInput', 'cryptoInput')
         .where('buyCrypto.cryptoRouteId = :id', { id: id })
         .andWhere('buyCrypto.amlCheck = :check', { check: CheckStatus.PASS })

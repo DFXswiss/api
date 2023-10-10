@@ -20,7 +20,7 @@ import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-
 import { FeeService } from 'src/subdomains/core/fee/fee.service';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { Between, Not } from 'typeorm';
+import { Between, FindOptionsRelations, Not } from 'typeorm';
 import { KycService } from '../kyc/kyc.service';
 import { KycStatus, KycType, UserData, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
@@ -56,8 +56,8 @@ export class UserService {
     return this.userRepo.find();
   }
 
-  async getUser(userId: number, loadUserData = false): Promise<User> {
-    return this.userRepo.findOne({ where: { id: userId }, relations: loadUserData ? ['userData'] : [] });
+  async getUser(userId: number, relations: FindOptionsRelations<User> = {}): Promise<User> {
+    return this.userRepo.findOne({ where: { id: userId }, relations });
   }
 
   async getUserByAddress(address: string): Promise<User> {
@@ -89,7 +89,9 @@ export class UserService {
       .leftJoin('user.userData', 'userData')
       .leftJoin('userData.users', 'linkedUser')
       .leftJoin('linkedUser.wallet', 'wallet')
-      .where('user.id = :id AND wallet.isKycClient = 0', { id })
+      .where('user.id = :id', { id })
+      .andWhere('wallet.isKycClient = 0')
+      .andWhere('linkedUser.status != :blocked', { blocked: UserStatus.BLOCKED })
       .getRawMany<{ address: string }>();
 
     return linkedUsers.map((u) => ({
@@ -244,7 +246,7 @@ export class UserService {
   async getUserVolumes(query: VolumeQuery): Promise<{ buy: number; sell: number }> {
     const { buyVolume } = await this.userRepo
       .createQueryBuilder('user')
-      .select('SUM(buyCryptos.amountInEur)', 'buyVolume')
+      .select('SUM(buyCryptos.amountInChf)', 'buyVolume')
       .leftJoin('user.buys', 'buys')
       .leftJoin('buys.buyCryptos', 'buyCryptos')
       .where('buyCryptos.outputDate BETWEEN :from AND :to', { from: query.from, to: query.to })
@@ -254,7 +256,7 @@ export class UserService {
 
     const { sellVolume } = await this.userRepo
       .createQueryBuilder('user')
-      .select('SUM(buyFiats.amountInEur)', 'sellVolume')
+      .select('SUM(buyFiats.amountInChf)', 'sellVolume')
       .leftJoin('user.sells', 'sells')
       .leftJoin('sells.buyFiats', 'buyFiats')
       .where('buyFiats.outputDate BETWEEN :from AND :to', { from: query.from, to: query.to })
@@ -267,7 +269,7 @@ export class UserService {
 
   // --- FEES --- //
   async getUserFee(userId: number, direction: FeeDirectionType, asset: Asset, orderSize?: number): Promise<number> {
-    const user = await this.getUser(userId, true);
+    const user = await this.getUser(userId, { userData: true });
     if (!user) throw new NotFoundException('User not found');
 
     return await this.feeService.getUserFee({ userData: user.userData, direction, asset, orderSize });

@@ -149,6 +149,8 @@ export class SellController {
 
   private async toPaymentInfoDto(userId: number, sell: Sell, dto: GetSellPaymentInfoDto): Promise<SellPaymentInfoDto> {
     const fee = await this.userService.getUserFee(userId, FeeDirectionType.SELL, dto.asset);
+    const user = await this.userService.getUser(userId, { userData: true, wallet: true });
+
     const {
       minVolume,
       minFee,
@@ -156,8 +158,18 @@ export class SellController {
       minFeeTarget,
       estimatedAmount: estimatedAmount,
       sourceAmount: amount,
+      maxVolume,
+      maxVolumeTarget,
       isValid,
-    } = await this.transactionHelper.getTxDetails(dto.amount, dto.targetAmount, fee, dto.asset, dto.currency);
+      error,
+    } = await this.transactionHelper.getTxDetails(
+      dto.amount,
+      dto.targetAmount,
+      fee,
+      dto.asset,
+      dto.currency,
+      user.userData.availableTradingLimit,
+    );
 
     return {
       routeId: sell.id,
@@ -173,8 +185,11 @@ export class SellController {
       amount,
       currency: FiatDtoMapper.entityToDto(dto.currency),
       asset: AssetDtoMapper.entityToDto(dto.asset),
+      maxVolume,
+      maxVolumeTarget,
       paymentRequest: await this.cryptoService.getPaymentRequest(isValid, dto.asset, sell.deposit.address, amount),
       isValid,
+      error,
     };
   }
 }

@@ -18,6 +18,7 @@ export enum BankTxType {
   TEST_FIAT_FIAT = 'TestFiatFiat',
   GSHEET = 'GSheet',
   KRAKEN = 'Kraken',
+  CHECKOUT_LTD = 'CheckoutLtd',
   BANK_ACCOUNT_FEE = 'BankAccountFee',
   EXTRAORDINARY_EXPENSES = 'ExtraordinaryExpenses',
   PENDING = 'Pending',

@@ -1,7 +1,7 @@
-<html>
-  <body>
+<h1>{{salutation}}</h1>
+<p>
     {{#each prefix}}
-      <p>
+        <p style='font-family:{{this.style}}'>
         {{{this.text}}}
         {{#if this.url}}<a style='color:white' href='{{this.url.link}}'>{{this.url.text}}</a>
             {{#if this.url.textSuffix}}{{this.url.textSuffix}}{{/if}}
@@ -9,9 +9,12 @@
         {{#if this.mail}}<a style='color:white' href='mailto:{{this.mail.address}}'>{{this.mail.address}}</a>
             {{#if this.mail.textSuffix}}{{this.mail.textSuffix}}{{/if}}
         {{/if}}
-      </p>
+        </p>
     {{/each}}
-    <p></p>
-    <p><img src={{{banner}}} height=150px width=auto /></p>
-  </body>
-</html>
+</p>
+<p></p>
+<p>Thanks,</p>
+<p>Your DFX team</p>
+<p></p>
+<p><img src='https://dfx.swiss/images/Logo_DFX/png/DFX_600px.png' height='100px' width='200px' /></p>
+<p>{{date}} DFX AG</p>

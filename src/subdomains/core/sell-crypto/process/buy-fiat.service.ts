@@ -7,9 +7,9 @@ import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
-import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
+import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
 import { Between, In, IsNull } from 'typeorm';
-import { FiatOutputService } from '../../../supporting/bank/fiat-output/fiat-output.service';
+import { FiatOutputService } from '../../../supporting/fiat-output/fiat-output.service';
 import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
 import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
 import { PaymentStatus } from '../../history/dto/history.dto';
@@ -251,7 +251,7 @@ export class BuyFiatService {
     for (const id of sellIds) {
       const { volume } = await this.buyFiatRepo
         .createQueryBuilder('buyFiat')
-        .select('SUM(amountInEur)', 'volume')
+        .select('SUM(amountInChf)', 'volume')
         .where('sellId = :id', { id: id })
         .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
         .getRawOne<{ volume: number }>();
@@ -259,7 +259,7 @@ export class BuyFiatService {
       const newYear = new Date(new Date().getFullYear(), 0, 1);
       const { annualVolume } = await this.buyFiatRepo
         .createQueryBuilder('buyFiat')
-        .select('SUM(amountInEur)', 'annualVolume')
+        .select('SUM(amountInChf)', 'annualVolume')
         .leftJoin('buyFiat.cryptoInput', 'cryptoInput')
         .where('buyFiat.sellId = :id', { id: id })
         .andWhere('buyFiat.amlCheck = :check', { check: CheckStatus.PASS })
