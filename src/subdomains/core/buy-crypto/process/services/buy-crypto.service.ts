@@ -75,10 +75,7 @@ export class BuyCryptoService {
     let entity = await this.buyCryptoRepo.findOneBy({ bankTx: { id: bankTx.id } });
     if (entity) throw new ConflictException('There is already a buy-crypto for the specified bank TX');
 
-    entity = this.buyCryptoRepo.create();
-
-    // bank tx
-    entity.bankTx = bankTx;
+    entity = this.buyCryptoRepo.create({ bankTx });
 
     // buy
     if (buyId) entity.buy = await this.getBuy(buyId);
@@ -90,10 +87,7 @@ export class BuyCryptoService {
     let entity = await this.buyCryptoRepo.findOneBy({ checkoutTx: { id: checkoutTx.id } });
     if (entity) throw new ConflictException('There is already a buy-crypto for the specified checkout TX');
 
-    entity = this.buyCryptoRepo.create();
-
-    // checkout tx
-    entity.checkoutTx = checkoutTx;
+    entity = this.buyCryptoRepo.create({ checkoutTx });
 
     // buy
     if (buyId) entity.buy = await this.getBuy(buyId);
