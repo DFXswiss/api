@@ -8,6 +8,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckoutTx } from '../entities/checkout-tx.entity';
 import { CheckoutTxRepository } from '../repositories/checkout-tx.repository';
+import { CheckoutTxService } from './checkout-tx.service';
 
 @Injectable()
 export class FiatPayInSyncService {
@@ -16,6 +17,7 @@ export class FiatPayInSyncService {
   constructor(
     private readonly checkoutService: CheckoutService,
     private readonly checkoutTxRepo: CheckoutTxRepository,
+    private readonly checkoutTxService: CheckoutTxService,
   ) {}
 
   // --- JOBS --- //
@@ -29,7 +31,10 @@ export class FiatPayInSyncService {
 
     for (const payment of payments) {
       try {
-        await this.createCheckoutTx(payment);
+        const checkoutTx = await this.createCheckoutTx(payment);
+
+        if (checkoutTx.approved && !checkoutTx.buyCrypto)
+          await this.checkoutTxService.createCheckoutBuyCrypto(checkoutTx);
       } catch (e) {
         this.logger.error(`Failed to import checkout transaction:`, e);
       }
@@ -39,7 +44,10 @@ export class FiatPayInSyncService {
   async createCheckoutTx(payment: CheckoutPayment): Promise<CheckoutTx> {
     const tx = this.mapCheckoutPayment(payment);
 
-    let entity = await this.checkoutTxRepo.findOneBy({ paymentId: tx.paymentId });
+    let entity = await this.checkoutTxRepo.findOne({
+      where: { paymentId: tx.paymentId },
+      relations: { buyCrypto: true },
+    });
     if (entity) {
       Object.assign(entity, tx);
     } else {

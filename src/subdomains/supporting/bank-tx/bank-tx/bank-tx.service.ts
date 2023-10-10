@@ -107,7 +107,7 @@ export class BankTxService {
 
       switch (dto.type) {
         case BankTxType.BUY_CRYPTO:
-          await this.buyCryptoService.createFromFiat(bankTxId, dto.buyId);
+          await this.buyCryptoService.createFromBankTx(bankTx, dto.buyId);
           break;
         case BankTxType.BANK_TX_RETURN:
           await this.bankTxReturnService.create(bankTx);
