@@ -489,6 +489,10 @@ export class BuyCrypto extends IEntity {
     return this.cryptoInput != null;
   }
 
+  get isBankInput(): boolean {
+    return this.bankTx != null;
+  }
+
   get exchangeRateString(): string {
     const rate =
       (this.inputAmount / this.inputReferenceAmount) * (this.inputReferenceAmountMinusFee / this.outputAmount);
