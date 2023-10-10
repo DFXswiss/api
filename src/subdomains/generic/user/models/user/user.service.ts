@@ -268,11 +268,11 @@ export class UserService {
   }
 
   // --- FEES --- //
-  async getUserFee(userId: number, direction: FeeDirectionType, asset: Asset, orderSize?: number): Promise<number> {
+  async getUserFee(userId: number, direction: FeeDirectionType, asset: Asset, txVolume?: number): Promise<number> {
     const user = await this.getUser(userId, { userData: true });
     if (!user) throw new NotFoundException('User not found');
 
-    return await this.feeService.getUserFee({ userData: user.userData, direction, asset, orderSize });
+    return await this.feeService.getUserFee({ userData: user.userData, direction, asset, txVolume });
   }
 
   // --- REF --- //

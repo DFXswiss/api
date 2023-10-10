@@ -6,6 +6,9 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { MinAmount } from 'src/shared/payment/dto/min-amount.dto';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
+import { FeeService } from 'src/subdomains/core/fee/fee.service';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { TargetEstimation, TransactionDetails } from '../entities/transaction-details';
@@ -33,6 +36,7 @@ export class TransactionHelper implements OnModuleInit {
     private readonly transactionSpecificationRepo: TransactionSpecificationRepository,
     private readonly priceProviderService: PriceProviderService,
     private readonly fiatService: FiatService,
+    private readonly feeService: FeeService,
   ) {}
 
   onModuleInit() {
@@ -114,19 +118,30 @@ export class TransactionHelper implements OnModuleInit {
   async getTxDetails(
     sourceAmount: number | undefined,
     targetAmount: number | undefined,
-    fee: number,
     from: Asset | Fiat,
     to: Asset | Fiat,
-    tradingLimit?: number,
+    direction?: FeeDirectionType,
+    userData?: UserData,
   ): Promise<TransactionDetails> {
     const specs = this.getSpecs(from, to);
 
-    const { minVolume, minFee, maxVolume } = await this.convertToSource(from, { ...specs, maxVolume: tradingLimit });
+    const { minVolume, minFee, maxVolume } = await this.convertToSource(from, {
+      ...specs,
+      maxVolume: userData.availableTradingLimit,
+    });
+
     const {
       minVolume: minVolumeTarget,
       minFee: minFeeTarget,
       maxVolume: maxVolumeTarget,
-    } = await this.convertToTarget(to, { ...specs, maxVolume: tradingLimit });
+    } = await this.convertToTarget(to, { ...specs, maxVolume: userData.availableTradingLimit });
+
+    const fee = await this.getTxFee(
+      userData,
+      direction,
+      to instanceof Asset ? to : from instanceof Asset ? from : undefined,
+      to instanceof Asset ? sourceAmount : targetAmount,
+    );
 
     const target = await this.getTargetEstimation(sourceAmount, targetAmount, fee, minFee, from, to);
 
@@ -145,9 +160,25 @@ export class TransactionHelper implements OnModuleInit {
       minVolumeTarget,
       maxVolume,
       maxVolumeTarget,
+      fee,
       isValid: error == null,
       error,
     };
+  }
+
+  private async getTxFee(
+    userData?: UserData,
+    direction?: FeeDirectionType,
+    asset?: Asset,
+    txVolume?: number,
+  ): Promise<number> {
+    const price = asset ? await this.priceProviderService.getPrice(asset, this.eur) : undefined;
+
+    const txVolumeInEur = price ? price.convert(txVolume) : undefined;
+
+    return userData
+      ? this.feeService.getUserFee({ userData, direction, asset: asset, txVolume: txVolumeInEur })
+      : this.feeService.getDefaultFee({ direction, asset: asset, txVolume: txVolumeInEur });
   }
 
   private async getTargetEstimation(

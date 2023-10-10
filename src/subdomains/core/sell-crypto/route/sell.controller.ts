@@ -79,7 +79,7 @@ export class SellController {
       feeAmount,
       estimatedAmount,
       sourceAmount: amount,
-    } = await this.transactionHelper.getTxDetails(sourceAmount, targetAmount, fee, asset, currency);
+    } = await this.transactionHelper.getTxDetails(sourceAmount, targetAmount, asset, currency, FeeDirectionType.SELL);
 
     return {
       feeAmount,
@@ -148,7 +148,6 @@ export class SellController {
   }
 
   private async toPaymentInfoDto(userId: number, sell: Sell, dto: GetSellPaymentInfoDto): Promise<SellPaymentInfoDto> {
-    const fee = await this.userService.getUserFee(userId, FeeDirectionType.SELL, dto.asset);
     const user = await this.userService.getUser(userId, { userData: true, wallet: true });
 
     const {
@@ -156,19 +155,20 @@ export class SellController {
       minFee,
       minVolumeTarget,
       minFeeTarget,
-      estimatedAmount: estimatedAmount,
-      sourceAmount: amount,
       maxVolume,
       maxVolumeTarget,
+      fee,
+      estimatedAmount: estimatedAmount,
+      sourceAmount: amount,
       isValid,
       error,
     } = await this.transactionHelper.getTxDetails(
       dto.amount,
       dto.targetAmount,
-      fee,
       dto.asset,
       dto.currency,
-      user.userData.availableTradingLimit,
+      FeeDirectionType.SELL,
+      user.userData,
     );
 
     return {

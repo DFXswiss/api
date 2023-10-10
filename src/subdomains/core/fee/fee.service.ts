@@ -3,18 +3,27 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
+import { IsNull } from 'typeorm';
 import { CreateFeeDto } from './dto/create-fee.dto';
 import { Fee, FeeType } from './fee.entity';
 import { FeeRepository } from './fee.repository';
 
-export interface FeeRequest {
+export interface UserFeeRequest extends FeeRequestBase {
   userData: UserData;
+}
+
+export interface FeeRequest extends FeeRequestBase {
+  accountType: AccountType;
+}
+
+export interface FeeRequestBase {
   direction?: FeeDirectionType;
   asset?: Asset;
-  orderSize?: number;
+  txVolume?: number;
 }
 
 @Injectable()
@@ -68,7 +77,8 @@ export class FeeService {
 
   async addDiscountCodeUser(userData: UserData, discountCode: string): Promise<void> {
     const fee = await this.getFeeByDiscountCode(discountCode);
-    if (this.isExpiredFee(fee, { userData })) throw new BadRequestException('Discount code is expired');
+    if (this.isExpiredFee(fee, { accountType: userData.accountType }))
+      throw new BadRequestException('Discount code is expired');
 
     if (fee.maxUsages && (await this.hasMaxUsageExceeded(fee)))
       throw new BadRequestException('Max usages for discount code taken');
@@ -78,7 +88,8 @@ export class FeeService {
 
   async addFeeInternal(userData: UserData, feeId: number): Promise<void> {
     const fee = await this.feeRepo.findOneBy({ id: feeId });
-    if (this.isExpiredFee(fee, { userData })) throw new BadRequestException('Discount code is expired');
+    if (this.isExpiredFee(fee, { accountType: userData.accountType }))
+      throw new BadRequestException('Discount code is expired');
 
     if (fee.maxUsages && (await this.hasMaxUsageExceeded(fee)))
       throw new BadRequestException('Max usages for discount code taken');
@@ -92,13 +103,27 @@ export class FeeService {
     return fee;
   }
 
-  async getUserFee(request: FeeRequest): Promise<number> {
+  async getUserFee(request: UserFeeRequest): Promise<number> {
+    const userFees = await this.getValidUserFees(request);
+
+    return this.calculateFee(userFees, request.userData.id);
+  }
+
+  async getDefaultFee(request: FeeRequestBase, accountType = AccountType.PERSONAL): Promise<number> {
+    const baseFees = await this.getBaseFees({ ...request, accountType });
+    const discounts = await this.getFreeDiscounts({ ...request, accountType });
+
+    return this.calculateFee([...baseFees, ...discounts]);
+  }
+
+  // --- HELPER METHODS --- //
+
+  private calculateFee(fees: Fee[], userDataId?: number): number {
     let userBaseFee = undefined;
     let userCustomFee = undefined;
     let userDiscount = 0;
-    const userFees = await this.getValidUserFees(request);
 
-    for (const fee of userFees) {
+    for (const fee of fees) {
       switch (fee.type) {
         case FeeType.BASE:
           if (!userBaseFee || userBaseFee > fee.value) userBaseFee = fee.value;
@@ -114,35 +139,31 @@ export class FeeService {
 
     if (!userBaseFee) throw new InternalServerErrorException('Base Fee is missing');
     if (userBaseFee - userDiscount < 0) {
-      this.logger.warn(`UserDiscount higher userBaseFee! UserDataId: ${request.userData.id}`);
+      this.logger.warn(`UserDiscount higher userBaseFee! UserDataId: ${userDataId}`);
       userDiscount = 0;
     }
 
     return userCustomFee ?? userBaseFee - userDiscount;
   }
 
-  // --- HELPER METHODS --- //
-
-  private async getValidUserFees(request: FeeRequest): Promise<Fee[]> {
+  private async getValidUserFees(request: UserFeeRequest): Promise<Fee[]> {
     const userFees: Fee[] = [];
+    const accountType = request.userData.accountType;
 
-    const baseFees = await this.feeRepo.findBy({ type: FeeType.BASE, accountType: request.userData.accountType });
-
-    baseFees.forEach((baseFee) => {
-      if (this.isValidFee(baseFee, request)) userFees.push(baseFee);
-    });
+    userFees.push(...(await this.getBaseFees({ ...request, accountType })));
+    userFees.push(...(await this.getFreeDiscounts({ ...request, accountType })));
 
     const discountCodes = request.userData.discounts?.split(';') ?? [];
 
     for (const feeId of discountCodes) {
       const fee = await this.feeRepo.findOneBy({ id: +feeId });
 
-      if (this.isExpiredFee(fee, request)) {
+      if (this.isExpiredFee(fee, { ...request, accountType })) {
         await this.userDataService.removeDiscountCode(request.userData, fee.id.toString());
         continue;
       }
 
-      if (!this.isValidFee(fee, request)) continue;
+      if (!this.isValidFee(fee, { ...request, accountType })) continue;
 
       userFees.push(fee);
     }
@@ -157,12 +178,28 @@ export class FeeService {
     });
   }
 
+  private async getBaseFees(request: FeeRequest): Promise<Fee[]> {
+    const baseFees = await this.feeRepo.findBy({ type: FeeType.BASE, accountType: request.accountType });
+
+    return baseFees.filter((baseFee) => this.isValidFee(baseFee, { ...request, accountType: request.accountType }));
+  }
+
+  private async getFreeDiscounts(request: FeeRequest): Promise<Fee[]> {
+    const discounts = await this.feeRepo.findBy({
+      type: FeeType.DISCOUNT,
+      accountType: request.accountType,
+      discountCode: IsNull(),
+    });
+
+    return discounts.filter((discount) => this.isValidFee(discount, { ...request, accountType: request.accountType }));
+  }
+
   private isValidFee(fee: Fee, request: FeeRequest): boolean {
     return !(
       this.isExpiredFee(fee, request) ||
       (fee.direction && fee.direction !== request.direction) ||
       (fee.assets?.length > 0 && request.asset && !fee.assets.split(';').includes(request.asset?.id.toString())) ||
-      (fee.maxTxVolume && fee.maxTxVolume < request.orderSize)
+      (fee.maxTxVolume && fee.maxTxVolume < request.txVolume)
     );
   }
 
@@ -170,7 +207,7 @@ export class FeeService {
     return (
       !fee ||
       (fee.expiryDate && fee.expiryDate < new Date()) ||
-      (fee.accountType && fee.accountType !== request.userData.accountType)
+      (fee.accountType && fee.accountType !== request.accountType)
     );
   }
 

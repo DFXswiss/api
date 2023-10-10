@@ -12,7 +12,6 @@ import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
-import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
@@ -71,14 +70,12 @@ export class BuyController {
   async getBuyQuote(@Body() dto: GetBuyQuoteDto): Promise<BuyQuoteDto> {
     const { amount: sourceAmount, currency, asset, targetAmount } = await this.paymentInfoService.buyCheck(dto);
 
-    const fee = Config.buy.fee.get(asset.feeTier, AccountType.PERSONAL);
-
     const {
       exchangeRate,
       feeAmount,
       estimatedAmount,
       sourceAmount: amount,
-    } = await this.transactionHelper.getTxDetails(sourceAmount, targetAmount, fee, currency, asset);
+    } = await this.transactionHelper.getTxDetails(sourceAmount, targetAmount, currency, asset, FeeDirectionType.BUY);
 
     return {
       feeAmount,
@@ -124,8 +121,7 @@ export class BuyController {
   }
 
   private async toDto(userId: number, buy: Buy): Promise<BuyDto> {
-    const user = await this.userService.getUser(userId, { userData: true, wallet: true });
-    const fee = user.getFee(FeeDirectionType.BUY, buy.asset);
+    const fee = await this.userService.getUserFee(userId, FeeDirectionType.BUY, buy.asset);
 
     const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
       'Fiat',
@@ -150,33 +146,35 @@ export class BuyController {
 
   private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
     const user = await this.userService.getUser(userId, { userData: true, wallet: true });
-    const fee =
-      dto.paymentMethod === BuyPaymentMethod.CARD ? Config.buy.fee.card : user.getFee(FeeDirectionType.BUY, buy.asset);
 
     const {
       minVolume,
       minFee,
       minVolumeTarget,
       minFeeTarget,
-      estimatedAmount,
-      sourceAmount: amount,
       maxVolume,
       maxVolumeTarget,
+      fee,
+      estimatedAmount,
+      sourceAmount: amount,
       isValid,
       error,
     } = await this.transactionHelper.getTxDetails(
       dto.amount,
       dto.targetAmount,
-      fee,
       dto.currency,
       dto.asset,
-      user.userData.availableTradingLimit,
+      FeeDirectionType.BUY,
+      user.userData,
     );
     const bankInfo = await this.getBankInfo(buy, { ...dto, amount });
 
     return {
       routeId: buy.id,
-      fee: Util.round(fee * 100, Config.defaultPercentageDecimal),
+      fee: Util.round(
+        (dto.paymentMethod === BuyPaymentMethod.CARD ? Config.buy.fee.card : fee) * 100,
+        Config.defaultPercentageDecimal,
+      ),
       minDeposit: { amount: minVolume, asset: dto.currency.name }, // TODO: remove
       minVolume,
       minFee,
