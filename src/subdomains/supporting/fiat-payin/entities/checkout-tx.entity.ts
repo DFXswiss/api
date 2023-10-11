@@ -1,6 +1,7 @@
 import { CheckoutPaymentStatus, CheckoutPaymentType } from 'src/integration/checkout/dto/checkout.dto';
 import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity } from 'typeorm';
+import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
+import { Column, Entity, OneToOne } from 'typeorm';
 
 @Entity()
 export class CheckoutTx extends IEntity {
@@ -51,4 +52,7 @@ export class CheckoutTx extends IEntity {
 
   @Column({ length: 'MAX' })
   raw: string;
+
+  @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.checkoutTx, { nullable: true })
+  buyCrypto?: BuyCrypto;
 }

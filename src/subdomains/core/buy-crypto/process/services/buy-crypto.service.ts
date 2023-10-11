@@ -22,7 +22,9 @@ import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
+import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { Between, In, IsNull, Not } from 'typeorm';
 import { Buy } from '../../routes/buy/buy.entity';
@@ -68,15 +70,23 @@ export class BuyCryptoService {
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
   ) {}
 
-  async createFromFiat(bankTxId: number, buyId: number): Promise<BuyCrypto> {
-    let entity = await this.buyCryptoRepo.findOneBy({ bankTx: { id: bankTxId } });
+  async createFromBankTx(bankTx: BankTx, buyId: number): Promise<BuyCrypto> {
+    let entity = await this.buyCryptoRepo.findOneBy({ bankTx: { id: bankTx.id } });
     if (entity) throw new ConflictException('There is already a buy-crypto for the specified bank TX');
 
-    entity = this.buyCryptoRepo.create();
+    entity = this.buyCryptoRepo.create({ bankTx });
 
-    // bank tx
-    entity.bankTx = await this.bankTxService.getBankTxRepo().findOneBy({ id: bankTxId });
-    if (!entity.bankTx) throw new BadRequestException('Bank TX not found');
+    // buy
+    if (buyId) entity.buy = await this.getBuy(buyId);
+
+    return this.buyCryptoRepo.save(entity);
+  }
+
+  async createFromCheckoutTx(checkoutTx: CheckoutTx, buyId: number): Promise<BuyCrypto> {
+    let entity = await this.buyCryptoRepo.findOneBy({ checkoutTx: { id: checkoutTx.id } });
+    if (entity) throw new ConflictException('There is already a buy-crypto for the specified checkout TX');
+
+    entity = this.buyCryptoRepo.create({ checkoutTx });
 
     // buy
     if (buyId) entity.buy = await this.getBuy(buyId);

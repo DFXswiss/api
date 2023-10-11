@@ -183,7 +183,7 @@ export class BuyCryptoNotificationService {
               salutation: { key: `${entity.translationReturnMailKey}.salutation` },
               table: {
                 [`${MailTranslationKey.PAYMENT}.reimbursed`]: `${entity.inputAmount} ${entity.inputAsset}`,
-                [`${MailTranslationKey.PAYMENT}.bank_account`]: !entity.isCryptoCryptoTransaction
+                [`${MailTranslationKey.PAYMENT}.bank_account`]: entity.isBankInput
                   ? Util.blankStart(entity.bankTx.iban)
                   : null,
                 [`${MailTranslationKey.PAYMENT}.remittance_info`]: !entity.isCryptoCryptoTransaction
