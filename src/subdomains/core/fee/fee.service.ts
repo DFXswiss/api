@@ -150,8 +150,10 @@ export class FeeService {
     const userFees: Fee[] = [];
     const accountType = request.userData.accountType;
 
-    userFees.push(...(await this.getBaseFees({ ...request, accountType })));
-    userFees.push(...(await this.getFreeDiscounts({ ...request, accountType })));
+    userFees.push(
+      ...(await this.getBaseFees({ ...request, accountType })),
+      ...(await this.getFreeDiscounts({ ...request, accountType })),
+    );
 
     const discountCodes = request.userData.discounts?.split(';') ?? [];
 

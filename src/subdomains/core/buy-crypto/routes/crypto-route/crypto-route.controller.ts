@@ -77,8 +77,6 @@ export class CryptoRouteController {
       targetAmount,
     } = await this.paymentInfoService.cryptoCheck(dto);
 
-    const fee = Config.crypto.fee;
-
     const {
       exchangeRate,
       feeAmount,

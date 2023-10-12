@@ -72,8 +72,6 @@ export class SellController {
   async getSellQuote(@Body() dto: GetSellQuoteDto): Promise<SellQuoteDto> {
     const { amount: sourceAmount, asset, currency, targetAmount } = await this.paymentInfoService.sellCheck(dto);
 
-    const fee = Config.sell.fee.get(asset.feeTier, AccountType.PERSONAL);
-
     const {
       exchangeRate,
       feeAmount,

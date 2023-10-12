@@ -238,17 +238,17 @@ export class UserDataService {
   async addDiscountCode(userData: UserData, feeId: string): Promise<void> {
     if (userData.discounts?.split(';').includes(feeId)) throw new BadRequestException('Discount code already used');
 
-    this.userDataRepo.update(...userData.addDiscountCode(feeId));
+    await this.userDataRepo.update(...userData.addDiscountCode(feeId));
   }
 
   async removeDiscountCode(userData: UserData, feeId: string): Promise<void> {
     if (!userData.discounts?.includes(feeId)) throw new BadRequestException('Discount code already removed');
 
-    this.userDataRepo.update(...userData.removeDiscountCode(feeId));
+    await this.userDataRepo.update(...userData.removeDiscountCode(feeId));
   }
 
   async getDiscountCodeUsages(discountCode: string): Promise<number> {
-    return await this.userDataRepo
+    return this.userDataRepo
       .createQueryBuilder('userData')
       .select('COUNT(id)', 'usages')
       .where(`userData.discounts LIKE :discountCode`, { discountCode })
