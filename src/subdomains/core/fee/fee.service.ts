@@ -181,17 +181,27 @@ export class FeeService {
   }
 
   private async getBaseFees(request: FeeRequest): Promise<Fee[]> {
-    const baseFees = await this.feeRepo.findBy({ type: FeeType.BASE, accountType: request.accountType });
+    const baseFees = await this.feeRepo.findBy([
+      { type: FeeType.BASE, accountType: request.accountType },
+      { type: FeeType.BASE, accountType: IsNull() },
+    ]);
 
     return baseFees.filter((baseFee) => this.isValidFee(baseFee, { ...request, accountType: request.accountType }));
   }
 
   private async getFreeDiscounts(request: FeeRequest): Promise<Fee[]> {
-    const discounts = await this.feeRepo.findBy({
-      type: FeeType.DISCOUNT,
-      accountType: request.accountType,
-      discountCode: IsNull(),
-    });
+    const discounts = await this.feeRepo.findBy([
+      {
+        type: FeeType.DISCOUNT,
+        accountType: request.accountType,
+        discountCode: IsNull(),
+      },
+      {
+        type: FeeType.DISCOUNT,
+        accountType: IsNull(),
+        discountCode: IsNull(),
+      },
+    ]);
 
     return discounts.filter((discount) => this.isValidFee(discount, { ...request, accountType: request.accountType }));
   }
