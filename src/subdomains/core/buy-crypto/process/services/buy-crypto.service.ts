@@ -253,7 +253,7 @@ export class BuyCryptoService {
     const fee = entity.fee;
 
     await this.buyCryptoRepo.update(...entity.resetAmlCheck());
-    await this.buyCryptoRepo.deleteFee(fee);
+    if (fee) await this.buyCryptoRepo.deleteFee(fee);
   }
 
   async getUserTransactions(
