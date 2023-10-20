@@ -52,27 +52,27 @@ export class FeeService {
       throw new BadRequestException('Base Fees must have an accountType');
 
     // create the entity
-    const buy = this.feeRepo.create(dto);
+    const fee = this.feeRepo.create(dto);
 
     if (dto.assetIds) {
       const assets = [];
 
       for (const assetId of dto.assetIds) {
-        const asset = await this.assetService.getAssetById(Number.parseInt(assetId));
+        const asset = await this.assetService.getAssetById(assetId);
         if (!asset) throw new NotFoundException(`Asset with id ${assetId} not found`);
         assets.push(asset.id);
       }
-      buy.assets = assets.join(';');
+      fee.assets = assets.join(';');
     }
 
     if (dto.createDiscountCode) {
       // create hash
-      const hash = Util.createHash(buy.label + buy.type).toUpperCase();
-      buy.discountCode = `${hash.slice(0, 4)}-${hash.slice(4, 8)}-${hash.slice(8, 12)}`;
+      const hash = Util.createHash(fee.label + fee.type).toUpperCase();
+      fee.discountCode = `${hash.slice(0, 4)}-${hash.slice(4, 8)}-${hash.slice(8, 12)}`;
     }
 
     // save
-    return this.feeRepo.save(buy);
+    return this.feeRepo.save(fee);
   }
 
   async addDiscountCodeUser(userData: UserData, discountCode: string): Promise<void> {
@@ -83,7 +83,7 @@ export class FeeService {
     if (fee.maxUsages && (await this.hasMaxUsageExceeded(fee)))
       throw new BadRequestException('Max usages for discount code taken');
 
-    await this.userDataService.addDiscountCode(userData, fee.id.toString());
+    await this.userDataService.addFee(userData, fee.id.toString());
   }
 
   async addFeeInternal(userData: UserData, feeId: number): Promise<void> {
@@ -94,7 +94,7 @@ export class FeeService {
     if (fee.maxUsages && (await this.hasMaxUsageExceeded(fee)))
       throw new BadRequestException('Max usages for discount code taken');
 
-    await this.userDataService.addDiscountCode(userData, fee.id.toString());
+    await this.userDataService.addFee(userData, fee.id.toString());
   }
 
   async getFeeByDiscountCode(discountCode: string): Promise<Fee> {
@@ -161,7 +161,7 @@ export class FeeService {
       const fee = await this.feeRepo.findOneBy({ id: +feeId });
 
       if (this.isExpiredFee(fee, { ...request, accountType })) {
-        await this.userDataService.removeDiscountCode(request.userData, fee.id.toString());
+        await this.userDataService.removeFee(request.userData, fee.id.toString());
         continue;
       }
 
@@ -170,14 +170,7 @@ export class FeeService {
       userFees.push(fee);
     }
 
-    return userFees.sort((a, b) => {
-      const TypeOrder: { [b in FeeType]: number } = {
-        [FeeType.CUSTOM]: 1,
-        [FeeType.BASE]: 2,
-        [FeeType.DISCOUNT]: 3,
-      };
-      return TypeOrder[a.type] - TypeOrder[b.type];
-    });
+    return userFees;
   }
 
   private async getBaseFees(request: FeeRequest): Promise<Fee[]> {
@@ -224,7 +217,7 @@ export class FeeService {
   }
 
   private async hasMaxUsageExceeded(fee: Fee): Promise<boolean> {
-    const usages = await this.userDataService.getDiscountCodeUsages(fee.id.toString());
+    const usages = await this.userDataService.getFeeUsages(fee.id);
     return usages >= fee.maxUsages;
   }
 }

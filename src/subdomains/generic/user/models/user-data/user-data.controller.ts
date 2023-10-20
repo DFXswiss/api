@@ -86,7 +86,7 @@ export class UserDataController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async addDiscountCode(@Param('id') id: string, @Query('fee') feeId: string): Promise<void> {
+  async addFee(@Param('id') id: string, @Query('fee') feeId: string): Promise<void> {
     const userData = await this.userDataService.getUserData(+id);
     return this.feeService.addFeeInternal(userData, +feeId);
   }
@@ -95,9 +95,9 @@ export class UserDataController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async removeDiscountCode(@Param('id') id: string, @Query('fee') feeId: string): Promise<void> {
+  async removeFee(@Param('id') id: string, @Query('fee') feeId: string): Promise<void> {
     const userData = await this.userDataService.getUserData(+id);
-    return this.userDataService.removeDiscountCode(userData, feeId);
+    return this.userDataService.removeFee(userData, feeId);
   }
 
   // --- IDENT --- //

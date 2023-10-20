@@ -12,8 +12,6 @@ import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
-import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
-import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
 import { BuyFiatService } from '../process/buy-fiat.service';
@@ -77,7 +75,7 @@ export class SellController {
       feeAmount,
       estimatedAmount,
       sourceAmount: amount,
-    } = await this.transactionHelper.getTxDetails(sourceAmount, targetAmount, asset, currency, FeeDirectionType.SELL);
+    } = await this.transactionHelper.getTxDetails(sourceAmount, targetAmount, asset, currency);
 
     return {
       feeAmount,
@@ -160,14 +158,7 @@ export class SellController {
       sourceAmount: amount,
       isValid,
       error,
-    } = await this.transactionHelper.getTxDetails(
-      dto.amount,
-      dto.targetAmount,
-      dto.asset,
-      dto.currency,
-      FeeDirectionType.SELL,
-      user.userData,
-    );
+    } = await this.transactionHelper.getTxDetails(dto.amount, dto.targetAmount, dto.asset, dto.currency, user.userData);
 
     return {
       routeId: sell.id,

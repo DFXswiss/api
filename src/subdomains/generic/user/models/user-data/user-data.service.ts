@@ -235,23 +235,23 @@ export class UserDataService {
     return userData;
   }
 
-  async addDiscountCode(userData: UserData, feeId: string): Promise<void> {
+  async addFee(userData: UserData, feeId: string): Promise<void> {
     if (userData.discounts?.split(';').includes(feeId)) throw new BadRequestException('Discount code already used');
 
-    await this.userDataRepo.update(...userData.addDiscountCode(feeId));
+    await this.userDataRepo.update(...userData.addFee(feeId));
   }
 
-  async removeDiscountCode(userData: UserData, feeId: string): Promise<void> {
+  async removeFee(userData: UserData, feeId: string): Promise<void> {
     if (!userData.discounts?.includes(feeId)) throw new BadRequestException('Discount code already removed');
 
-    await this.userDataRepo.update(...userData.removeDiscountCode(feeId));
+    await this.userDataRepo.update(...userData.removeFee(feeId));
   }
 
-  async getDiscountCodeUsages(discountCode: string): Promise<number> {
+  async getFeeUsages(feeId: number): Promise<number> {
     return this.userDataRepo
       .createQueryBuilder('userData')
       .select('COUNT(id)', 'usages')
-      .where(`userData.discounts LIKE :discountCode`, { discountCode })
+      .where(`userData.discounts LIKE :feeId`, { feeId })
       .getRawOne<{ usages: number }>()
       .then((result) => result.usages);
   }

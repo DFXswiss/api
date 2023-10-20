@@ -49,7 +49,7 @@ export class CreateFeeDto {
   @ApiProperty()
   @IsOptional()
   @IsArray()
-  assetIds: string[];
+  assetIds: number[];
 
   @ApiProperty()
   @IsOptional()

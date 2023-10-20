@@ -120,10 +120,10 @@ export class TransactionHelper implements OnModuleInit {
     targetAmount: number | undefined,
     from: Asset | Fiat,
     to: Asset | Fiat,
-    direction?: FeeDirectionType,
     userData?: UserData,
   ): Promise<TransactionDetails> {
     const specs = this.getSpecs(from, to);
+    const direction = this.getTxDirection(from, to);
 
     const { minVolume, minFee, maxVolume } = await this.convertToSource(from, {
       ...specs,
@@ -258,5 +258,11 @@ export class TransactionHelper implements OnModuleInit {
 
   private roundMaxAmount(amount: number, isFiat: boolean): number {
     return isFiat ? Util.round(amount, -1) : Util.roundByPrecision(amount, 3);
+  }
+
+  private getTxDirection(from: Asset | Fiat, to: Asset | Fiat): FeeDirectionType {
+    if (from instanceof Fiat && to instanceof Asset) return FeeDirectionType.BUY;
+    if (from instanceof Asset && to instanceof Fiat) return FeeDirectionType.SELL;
+    return FeeDirectionType.CRYPTO;
   }
 }

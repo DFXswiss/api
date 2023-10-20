@@ -262,7 +262,7 @@ export class UserData extends IEntity {
     return [this.id, update];
   }
 
-  addDiscountCode(discountCode: string): UpdateResult<UserData> {
+  addFee(discountCode: string): UpdateResult<UserData> {
     const update: Partial<UserData> = {
       discounts: !this.discounts ? discountCode : `${this.discounts};${discountCode}`,
     };
@@ -272,7 +272,7 @@ export class UserData extends IEntity {
     return [this.id, update];
   }
 
-  removeDiscountCode(feeId: string): UpdateResult<UserData> {
+  removeFee(feeId: string): UpdateResult<UserData> {
     const update: Partial<UserData> = {
       discounts: this.discounts
         ?.split(';')

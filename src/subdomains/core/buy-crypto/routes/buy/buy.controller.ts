@@ -75,7 +75,7 @@ export class BuyController {
       feeAmount,
       estimatedAmount,
       sourceAmount: amount,
-    } = await this.transactionHelper.getTxDetails(sourceAmount, targetAmount, currency, asset, FeeDirectionType.BUY);
+    } = await this.transactionHelper.getTxDetails(sourceAmount, targetAmount, currency, asset);
 
     return {
       feeAmount,
@@ -159,14 +159,7 @@ export class BuyController {
       sourceAmount: amount,
       isValid,
       error,
-    } = await this.transactionHelper.getTxDetails(
-      dto.amount,
-      dto.targetAmount,
-      dto.currency,
-      dto.asset,
-      FeeDirectionType.BUY,
-      user.userData,
-    );
+    } = await this.transactionHelper.getTxDetails(dto.amount, dto.targetAmount, dto.currency, dto.asset, user.userData);
     const bankInfo = await this.getBankInfo(buy, { ...dto, amount });
 
     return {
