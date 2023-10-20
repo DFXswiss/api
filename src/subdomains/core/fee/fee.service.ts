@@ -77,22 +77,14 @@ export class FeeService {
 
   async addDiscountCodeUser(userData: UserData, discountCode: string): Promise<void> {
     const fee = await this.getFeeByDiscountCode(discountCode);
-    if (this.isExpiredFee(fee, { accountType: userData.accountType }))
-      throw new BadRequestException('Discount code is expired');
-
-    if (fee.maxUsages && (await this.hasMaxUsageExceeded(fee)))
-      throw new BadRequestException('Max usages for discount code taken');
+    this.verifyFee(fee, userData.accountType);
 
     await this.userDataService.addFee(userData, fee.id.toString());
   }
 
   async addFeeInternal(userData: UserData, feeId: number): Promise<void> {
     const fee = await this.feeRepo.findOneBy({ id: feeId });
-    if (this.isExpiredFee(fee, { accountType: userData.accountType }))
-      throw new BadRequestException('Discount code is expired');
-
-    if (fee.maxUsages && (await this.hasMaxUsageExceeded(fee)))
-      throw new BadRequestException('Max usages for discount code taken');
+    this.verifyFee(fee, userData.accountType);
 
     await this.userDataService.addFee(userData, fee.id.toString());
   }
@@ -119,31 +111,18 @@ export class FeeService {
   // --- HELPER METHODS --- //
 
   private calculateFee(fees: Fee[], userDataId?: number): number {
-    let userBaseFee = undefined;
-    let userCustomFee = undefined;
-    let userDiscount = 0;
+    const customFee = Math.min(...fees.filter((f) => f.type === FeeType.CUSTOM).map((f) => f.value));
+    if (customFee !== Infinity) return customFee;
 
-    for (const fee of fees) {
-      switch (fee.type) {
-        case FeeType.BASE:
-          if (!userBaseFee || userBaseFee > fee.value) userBaseFee = fee.value;
-          break;
-        case FeeType.CUSTOM:
-          if (!userCustomFee || userCustomFee < fee.value) userCustomFee = fee.value;
-          break;
-        case FeeType.DISCOUNT:
-          if (userDiscount < fee.value) userDiscount = fee.value;
-          break;
-      }
-    }
-
-    if (!userBaseFee) throw new InternalServerErrorException('Base Fee is missing');
-    if (userBaseFee - userDiscount < 0) {
+    const baseFee = Math.min(...fees.filter((f) => f.type === FeeType.BASE).map((f) => f.value));
+    const discountFee = Math.max(...fees.filter((f) => f.type === FeeType.DISCOUNT).map((f) => f.value));
+    if (baseFee === Infinity) throw new InternalServerErrorException('Base fee is missing');
+    if (baseFee - discountFee < 0) {
       this.logger.warn(`UserDiscount higher userBaseFee! UserDataId: ${userDataId}`);
-      userDiscount = 0;
+      return baseFee;
     }
 
-    return userCustomFee ?? userBaseFee - userDiscount;
+    return baseFee - discountFee;
   }
 
   private async getValidUserFees(request: UserFeeRequest): Promise<Fee[]> {
@@ -155,7 +134,7 @@ export class FeeService {
       ...(await this.getFreeDiscounts({ ...request, accountType })),
     );
 
-    const discountCodes = request.userData.discounts?.split(';') ?? [];
+    const discountCodes = request.userData.individualFees?.split(';') ?? [];
 
     for (const feeId of discountCodes) {
       const fee = await this.feeRepo.findOneBy({ id: +feeId });
@@ -214,6 +193,13 @@ export class FeeService {
       (fee.expiryDate && fee.expiryDate < new Date()) ||
       (fee.accountType && fee.accountType !== request.accountType)
     );
+  }
+
+  private async verifyFee(fee: Fee, accountType: AccountType): Promise<void> {
+    if (this.isExpiredFee(fee, { accountType: accountType })) throw new BadRequestException('Discount code is expired');
+
+    if (fee.maxUsages && (await this.hasMaxUsageExceeded(fee)))
+      throw new BadRequestException('Max usages for discount code taken');
   }
 
   private async hasMaxUsageExceeded(fee: Fee): Promise<boolean> {

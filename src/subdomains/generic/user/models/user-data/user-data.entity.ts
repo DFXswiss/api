@@ -202,7 +202,7 @@ export class UserData extends IEntity {
 
   // Fee / Discounts
   @Column({ length: 256, nullable: true })
-  discounts: string; // semicolon separated id's
+  individualFees: string; // semicolon separated id's
 
   // Volumes
   @Column({ type: 'float', default: 0 })
@@ -264,7 +264,7 @@ export class UserData extends IEntity {
 
   addFee(discountCode: string): UpdateResult<UserData> {
     const update: Partial<UserData> = {
-      discounts: !this.discounts ? discountCode : `${this.discounts};${discountCode}`,
+      individualFees: !this.individualFees ? discountCode : `${this.individualFees};${discountCode}`,
     };
 
     Object.assign(this, update);
@@ -274,7 +274,7 @@ export class UserData extends IEntity {
 
   removeFee(feeId: string): UpdateResult<UserData> {
     const update: Partial<UserData> = {
-      discounts: this.discounts
+      individualFees: this.individualFees
         ?.split(';')
         .filter((id) => id !== feeId)
         .join(';'),
