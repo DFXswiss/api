@@ -1,7 +1,7 @@
 import { IEntity } from 'src/shared/models/entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
-import { Column, Entity } from 'typeorm';
+import { Column, Entity, Index } from 'typeorm';
 
 export enum FeeType {
   BASE = 'Base',
@@ -10,6 +10,7 @@ export enum FeeType {
 }
 
 @Entity()
+@Index((fee: Fee) => [fee.label, fee.direction], { unique: true })
 export class Fee extends IEntity {
   @Column({ length: 256 })
   label: string;

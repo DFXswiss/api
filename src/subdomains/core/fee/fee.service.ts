@@ -7,7 +7,7 @@ import { AccountType } from 'src/subdomains/generic/user/models/user-data/accoun
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
-import { IsNull } from 'typeorm';
+import { In, IsNull } from 'typeorm';
 import { CreateFeeDto } from './dto/create-fee.dto';
 import { Fee, FeeType } from './fee.entity';
 import { FeeRepository } from './fee.repository';
@@ -38,13 +38,10 @@ export class FeeService {
 
   async createFee(dto: CreateFeeDto): Promise<Fee> {
     // check if exists
-    const existing = await this.feeRepo.findOne({
-      where: {
-        label: dto.label,
-        direction: dto.direction,
-      },
+    const existing = await this.feeRepo.findOneBy({
+      label: dto.label,
+      direction: dto.direction,
     });
-
     if (existing) throw new BadRequestException('Fee already created');
     if (dto.type !== FeeType.DISCOUNT && dto.createDiscountCode)
       throw new BadRequestException('Only discount Fees can have a discountCode');
@@ -129,27 +126,20 @@ export class FeeService {
     const userFees: Fee[] = [];
     const accountType = request.userData.accountType;
 
+    const discountCodes = request.userData.individualFees?.split(';').map(Number) ?? [];
+
     userFees.push(
       ...(await this.getBaseFees({ ...request, accountType })),
       ...(await this.getFreeDiscounts({ ...request, accountType })),
+      ...(await this.feeRepo.findBy({ id: In(discountCodes) })),
     );
 
-    const discountCodes = request.userData.individualFees?.split(';') ?? [];
+    // remove ExpiredFee
+    userFees
+      .filter((fee) => this.isExpiredFee(fee, { ...request, accountType }))
+      .forEach((fee) => this.userDataService.removeFee(request.userData, fee.id.toString()));
 
-    for (const feeId of discountCodes) {
-      const fee = await this.feeRepo.findOneBy({ id: +feeId });
-
-      if (this.isExpiredFee(fee, { ...request, accountType })) {
-        await this.userDataService.removeFee(request.userData, fee.id.toString());
-        continue;
-      }
-
-      if (!this.isValidFee(fee, { ...request, accountType })) continue;
-
-      userFees.push(fee);
-    }
-
-    return userFees;
+    return userFees.filter((fee) => this.isValidFee(fee, { ...request, accountType }));
   }
 
   private async getBaseFees(request: FeeRequest): Promise<Fee[]> {
