@@ -235,15 +235,14 @@ export class UserDataService {
     return userData;
   }
 
-  async addFee(userData: UserData, feeId: string): Promise<void> {
-    if (userData.individualFees?.split(';').includes(feeId))
-      throw new BadRequestException('Discount code already used');
+  async addFee(userData: UserData, feeId: number): Promise<void> {
+    if (userData.individualFeeList?.includes(feeId)) throw new BadRequestException('Discount code already used');
 
     await this.userDataRepo.update(...userData.addFee(feeId));
   }
 
-  async removeFee(userData: UserData, feeId: string): Promise<void> {
-    if (!userData.individualFees?.includes(feeId)) throw new BadRequestException('Discount code already removed');
+  async removeFee(userData: UserData, feeId: number): Promise<void> {
+    if (!userData.individualFeeList?.includes(feeId)) throw new BadRequestException('Discount code already removed');
 
     await this.userDataRepo.update(...userData.removeFee(feeId));
   }

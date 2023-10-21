@@ -262,9 +262,9 @@ export class UserData extends IEntity {
     return [this.id, update];
   }
 
-  addFee(discountCode: string): UpdateResult<UserData> {
+  addFee(feeId: number): UpdateResult<UserData> {
     const update: Partial<UserData> = {
-      individualFees: !this.individualFees ? discountCode : `${this.individualFees};${discountCode}`,
+      individualFees: !this.individualFees ? feeId.toString() : `${this.individualFees};${feeId}`,
     };
 
     Object.assign(this, update);
@@ -272,12 +272,9 @@ export class UserData extends IEntity {
     return [this.id, update];
   }
 
-  removeFee(feeId: string): UpdateResult<UserData> {
+  removeFee(feeId: number): UpdateResult<UserData> {
     const update: Partial<UserData> = {
-      individualFees: this.individualFees
-        ?.split(';')
-        .filter((id) => id !== feeId)
-        .join(';'),
+      individualFees: this.individualFeeList.filter((id) => id !== feeId).join(';'),
     };
 
     Object.assign(this, update);
@@ -287,6 +284,10 @@ export class UserData extends IEntity {
 
   get isDfxUser(): boolean {
     return this.kycType === KycType.DFX;
+  }
+
+  get individualFeeList(): number[] {
+    return this.individualFees?.split(';')?.map(Number);
   }
 
   get hasActiveUser(): boolean {

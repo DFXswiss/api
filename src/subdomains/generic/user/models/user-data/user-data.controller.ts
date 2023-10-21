@@ -97,7 +97,7 @@ export class UserDataController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async removeFee(@Param('id') id: string, @Query('fee') feeId: string): Promise<void> {
     const userData = await this.userDataService.getUserData(+id);
-    return this.userDataService.removeFee(userData, feeId);
+    return this.userDataService.removeFee(userData, +feeId);
   }
 
   // --- IDENT --- //

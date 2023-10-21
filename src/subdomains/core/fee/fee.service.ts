@@ -76,14 +76,14 @@ export class FeeService {
     const fee = await this.getFeeByDiscountCode(discountCode);
     this.verifyFee(fee, userData.accountType);
 
-    await this.userDataService.addFee(userData, fee.id.toString());
+    await this.userDataService.addFee(userData, fee.id);
   }
 
   async addFeeInternal(userData: UserData, feeId: number): Promise<void> {
     const fee = await this.feeRepo.findOneBy({ id: feeId });
     this.verifyFee(fee, userData.accountType);
 
-    await this.userDataService.addFee(userData, fee.id.toString());
+    await this.userDataService.addFee(userData, fee.id);
   }
 
   async getFeeByDiscountCode(discountCode: string): Promise<Fee> {
@@ -126,7 +126,7 @@ export class FeeService {
     const userFees: Fee[] = [];
     const accountType = request.userData.accountType;
 
-    const discountCodes = request.userData.individualFees?.split(';').map(Number) ?? [];
+    const discountCodes = request.userData.individualFeeList ?? [];
 
     userFees.push(
       ...(await this.getBaseFees({ ...request, accountType })),
@@ -137,7 +137,7 @@ export class FeeService {
     // remove ExpiredFee
     userFees
       .filter((fee) => this.isExpiredFee(fee, { ...request, accountType }))
-      .forEach((fee) => this.userDataService.removeFee(request.userData, fee.id.toString()));
+      .forEach((fee) => this.userDataService.removeFee(request.userData, fee.id));
 
     return userFees.filter((fee) => this.isValidFee(fee, { ...request, accountType }));
   }
