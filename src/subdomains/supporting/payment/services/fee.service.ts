@@ -8,9 +8,9 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { In, IsNull } from 'typeorm';
-import { CreateFeeDto } from './dto/create-fee.dto';
-import { Fee, FeeType } from './fee.entity';
-import { FeeRepository } from './fee.repository';
+import { CreateFeeDto } from '../dto/create-fee.dto';
+import { Fee, FeeType } from '../entities/fee.entity';
+import { FeeRepository } from '../repositories/fee.repository';
 
 export interface UserFeeRequest extends FeeRequestBase {
   userData: UserData;

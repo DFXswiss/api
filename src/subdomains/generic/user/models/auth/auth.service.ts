@@ -15,9 +15,9 @@ import { LightningService } from 'src/integration/lightning/services/lightning.s
 import { JwtPayload, JwtPayloadBase } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Util } from 'src/shared/utils/util';
-import { FeeService } from 'src/subdomains/core/fee/fee.service';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
 import { CreateUserDto } from 'src/subdomains/generic/user/models/user/dto/create-user.dto';
+import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { LinkedUserInDto } from '../user/dto/linked-user.dto';
 import { User, UserStatus } from '../user/user.entity';
 import { UserRepository } from '../user/user.repository';

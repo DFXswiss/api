@@ -3,17 +3,17 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { MinAmount } from 'src/shared/payment/dto/min-amount.dto';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { FeeService } from 'src/subdomains/core/fee/fee.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
+import { MinAmount } from 'src/subdomains/supporting/payment/dto/min-amount.dto';
+import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
-import { TargetEstimation, TransactionDetails } from '../entities/transaction-details';
+import { TargetEstimation, TransactionDetails } from '../dto/transaction-details.dto';
+import { TxSpec, TxSpecExtended } from '../dto/tx-spec.dto';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
-import { TxSpec, TxSpecExtended } from '../entities/tx-spec';
 import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
 
 export enum ValidationError {

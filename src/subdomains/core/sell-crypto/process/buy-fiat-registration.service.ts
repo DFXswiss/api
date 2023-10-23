@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { TransactionHelper, ValidationError } from 'src/shared/payment/services/transaction-helper';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
+import { TransactionHelper, ValidationError } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { IsNull, Not } from 'typeorm';
 import { Sell } from '../route/sell.entity';
 import { SellRepository } from '../route/sell.repository';

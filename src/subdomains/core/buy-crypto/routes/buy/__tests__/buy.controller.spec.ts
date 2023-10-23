@@ -8,7 +8,6 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { createDefaultCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
@@ -18,6 +17,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { createDefaultWallet } from 'src/subdomains/generic/user/models/wallet/__mocks__/wallet.entity.mock';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { BuyCryptoService } from '../../../process/services/buy-crypto.service';
 import { createDefaultBuy } from '../__mocks__/buy.entity.mock';

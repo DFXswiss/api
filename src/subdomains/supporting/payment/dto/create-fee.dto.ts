@@ -3,7 +3,7 @@ import { Type } from 'class-transformer';
 import { IsArray, IsBoolean, IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
-import { FeeType } from '../fee.entity';
+import { FeeType } from '../entities/fee.entity';
 
 export class CreateFeeDto {
   @ApiProperty()

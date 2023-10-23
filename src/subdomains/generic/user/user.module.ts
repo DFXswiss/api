@@ -2,7 +2,6 @@ import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { SharedModule } from 'src/shared/shared.module';
-import { FeeModule } from 'src/subdomains/core/fee/fee.module';
 import { ReferralModule } from 'src/subdomains/core/referral/referral.module';
 import { UserDataController } from 'src/subdomains/generic/user/models/user-data/user-data.controller';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
@@ -10,6 +9,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { WalletRepository } from 'src/subdomains/generic/user/models/wallet/wallet.repository';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
+import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
 import { AuthAlbyService } from './models/auth/auth-alby.service';
 import { AuthLnurlController } from './models/auth/auth-lnurl.controller';
 import { AuthLnUrlService } from './models/auth/auth-lnurl.service';
@@ -55,7 +55,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     NotificationModule,
     BlockchainModule,
     ReferralModule,
-    forwardRef(() => FeeModule),
+    forwardRef(() => PaymentModule),
   ],
   controllers: [
     UserController,

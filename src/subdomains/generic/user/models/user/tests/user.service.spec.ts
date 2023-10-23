@@ -6,7 +6,7 @@ import { GeoLocationService } from 'src/integration/geolocation/geo-location.ser
 import { CountryService } from 'src/shared/models/country/country.service';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { TestUtil } from 'src/shared/utils/test.util';
-import { FeeService } from 'src/subdomains/core/fee/fee.service';
+import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { KycService } from '../../kyc/kyc.service';
 import { UserDataRepository } from '../../user-data/user-data.repository';
 import { UserDataService } from '../../user-data/user-data.service';
