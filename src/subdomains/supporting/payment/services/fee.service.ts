@@ -92,6 +92,15 @@ export class FeeService {
     return fee;
   }
 
+  async getAllUserFee(userDataId: number): Promise<{ buy: number; sell: number; crypto: number }> {
+    const userData = await this.userDataService.getUserData(userDataId);
+    return {
+      buy: await this.getUserFee({ userData, direction: FeeDirectionType.BUY }),
+      sell: await this.getUserFee({ userData, direction: FeeDirectionType.SELL }),
+      crypto: await this.getUserFee({ userData, direction: FeeDirectionType.CRYPTO }),
+    };
+  }
+
   async getUserFee(request: UserFeeRequest): Promise<number> {
     const userFees = await this.getValidUserFees(request);
 
