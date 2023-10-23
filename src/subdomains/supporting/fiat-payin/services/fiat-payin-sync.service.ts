@@ -61,7 +61,7 @@ export class FiatPayInSyncService {
     return this.checkoutTxRepo.create({
       paymentId: payment.id,
       requestedOn: new Date(payment.requested_on),
-      expiresOn: new Date(payment.expires_on),
+      expiresOn: payment.expires_on ? new Date(payment.expires_on) : undefined,
       amount: payment.amount / 100,
       currency: payment.currency,
       status: payment.status,
