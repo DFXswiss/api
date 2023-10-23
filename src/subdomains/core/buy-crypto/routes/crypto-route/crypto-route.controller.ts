@@ -12,7 +12,7 @@ import { TransactionHelper } from 'src/shared/payment/services/transaction-helpe
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
-import { HistoryDto } from 'src/subdomains/core/history/dto/history.dto';
+import { HistoryDtoDeprecated } from 'src/subdomains/core/history/dto/history.dto';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
 import { CryptoRoute } from './crypto-route.entity';
@@ -123,7 +123,7 @@ export class CryptoRouteController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
-  async getCryptoRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<HistoryDto[]> {
+  async getCryptoRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<HistoryDtoDeprecated[]> {
     return this.buyCryptoService.getCryptoHistory(jwt.id, +id);
   }
 
