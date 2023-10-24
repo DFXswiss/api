@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { SharedModule } from 'src/shared/shared.module';
+import { AlchemyModule } from './alchemy/alchemy.module';
 import { BankModule } from './bank/bank.module';
 import { BlockchainModule } from './blockchain/blockchain.module';
 import { ChainalysisModule } from './chainalysis/chainalysis.module';
@@ -19,6 +20,7 @@ import { LetterModule } from './letter/letter.module';
     LetterModule,
     IknaModule,
     CheckoutModule,
+    AlchemyModule,
   ],
   controllers: [],
   providers: [AzureService],

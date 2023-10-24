@@ -474,6 +474,11 @@ export class Configuration {
     clientSecret: process.env.ALBY_CLIENT_SECRET,
   };
 
+  alchemy = {
+    apiKey: process.env.ALCHEMY_API_KEY,
+    authToken: process.env.ALCHEMY_AUTH_TOKEN,
+  };
+
   request = {
     knownIps: process.env.REQUEST_KNOWN_IPS?.split(',') ?? [],
     limitCheck: process.env.REQUEST_LIMIT_CHECK === 'true',
