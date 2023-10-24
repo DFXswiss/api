@@ -161,7 +161,7 @@ export class FeeService {
       this.isExpiredFee(fee) ||
       (fee.accountType && fee.accountType !== request.accountType) ||
       (fee.direction && fee.direction !== request.direction) ||
-      (fee.assets?.length > 0 && request.asset && !fee.assets.split(';').includes(request.asset?.id.toString())) ||
+      (fee.assetList && request.asset && !fee.assetList.includes(request.asset?.id)) ||
       (fee.maxTxVolume && fee.maxTxVolume < request.txVolume)
     );
   }

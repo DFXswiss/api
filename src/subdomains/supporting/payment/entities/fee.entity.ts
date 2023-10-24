@@ -44,4 +44,10 @@ export class Fee extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   maxUsages: number;
+
+  //*** FACTORY METHODS ***//
+
+  get assetList(): number[] {
+    return this.assets.split(';')?.map(Number);
+  }
 }
