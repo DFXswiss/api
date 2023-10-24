@@ -20,6 +20,11 @@ export interface FeeRequest extends FeeRequestBase {
   accountType: AccountType;
 }
 
+export interface OptionalFeeRequest extends FeeRequestBase {
+  userData?: UserData;
+  accountType?: AccountType;
+}
+
 export interface FeeRequestBase {
   direction?: FeeDirectionType;
   asset?: Asset;
@@ -74,14 +79,14 @@ export class FeeService {
 
   async addDiscountCodeUser(userData: UserData, discountCode: string): Promise<void> {
     const fee = await this.getFeeByDiscountCode(discountCode);
-    this.verifyFee(fee, userData.accountType);
+    await this.verifyFee(fee, userData.accountType);
 
     await this.userDataService.addFee(userData, fee.id);
   }
 
   async addFeeInternal(userData: UserData, feeId: number): Promise<void> {
     const fee = await this.feeRepo.findOneBy({ id: feeId });
-    this.verifyFee(fee, userData.accountType);
+    await this.verifyFee(fee, userData.accountType);
 
     await this.userDataService.addFee(userData, fee.id);
   }
@@ -94,6 +99,8 @@ export class FeeService {
 
   async getAllUserFee(userDataId: number): Promise<{ buy: number; sell: number; crypto: number }> {
     const userData = await this.userDataService.getUserData(userDataId);
+    if (!userData) throw new NotFoundException('UserData not found');
+
     return {
       buy: await this.getUserFee({ userData, direction: FeeDirectionType.BUY }),
       sell: await this.getUserFee({ userData, direction: FeeDirectionType.SELL }),
@@ -108,10 +115,9 @@ export class FeeService {
   }
 
   async getDefaultFee(request: FeeRequestBase, accountType = AccountType.PERSONAL): Promise<number> {
-    const baseFees = await this.getBaseFees({ ...request, accountType });
-    const discounts = await this.getFreeDiscounts({ ...request, accountType });
+    const defaultFees = await this.getValidUserFees({ ...request, accountType });
 
-    return this.calculateFee([...baseFees, ...discounts]);
+    return this.calculateFee(defaultFees);
   }
 
   // --- HELPER METHODS --- //
@@ -131,71 +137,42 @@ export class FeeService {
     return baseFee - discountFee;
   }
 
-  private async getValidUserFees(request: UserFeeRequest): Promise<Fee[]> {
-    const userFees: Fee[] = [];
-    const accountType = request.userData.accountType;
+  private async getValidUserFees(request: OptionalFeeRequest): Promise<Fee[]> {
+    const accountType = request.userData ? request.userData.accountType : request.accountType;
 
-    const discountCodes = request.userData.individualFeeList ?? [];
+    const discountCodes = request.userData?.individualFeeList ?? [];
 
-    userFees.push(
-      ...(await this.getBaseFees({ ...request, accountType })),
-      ...(await this.getFreeDiscounts({ ...request, accountType })),
-      ...(await this.feeRepo.findBy({ id: In(discountCodes) })),
-    );
+    const userFees = await this.feeRepo.findBy([
+      { type: FeeType.BASE },
+      { type: FeeType.DISCOUNT, discountCode: IsNull() },
+      { id: In(discountCodes) },
+    ]);
 
     // remove ExpiredFee
     userFees
-      .filter((fee) => this.isExpiredFee(fee, { ...request, accountType }))
+      .filter((fee) => discountCodes.includes(fee.id) && this.isExpiredFee(fee))
       .forEach((fee) => this.userDataService.removeFee(request.userData, fee.id));
 
     return userFees.filter((fee) => this.isValidFee(fee, { ...request, accountType }));
   }
 
-  private async getBaseFees(request: FeeRequest): Promise<Fee[]> {
-    const baseFees = await this.feeRepo.findBy([
-      { type: FeeType.BASE, accountType: request.accountType },
-      { type: FeeType.BASE, accountType: IsNull() },
-    ]);
-
-    return baseFees.filter((baseFee) => this.isValidFee(baseFee, { ...request, accountType: request.accountType }));
-  }
-
-  private async getFreeDiscounts(request: FeeRequest): Promise<Fee[]> {
-    const discounts = await this.feeRepo.findBy([
-      {
-        type: FeeType.DISCOUNT,
-        accountType: request.accountType,
-        discountCode: IsNull(),
-      },
-      {
-        type: FeeType.DISCOUNT,
-        accountType: IsNull(),
-        discountCode: IsNull(),
-      },
-    ]);
-
-    return discounts.filter((discount) => this.isValidFee(discount, { ...request, accountType: request.accountType }));
-  }
-
   private isValidFee(fee: Fee, request: FeeRequest): boolean {
     return !(
-      this.isExpiredFee(fee, request) ||
+      this.isExpiredFee(fee) ||
+      (fee.accountType && fee.accountType !== request.accountType) ||
       (fee.direction && fee.direction !== request.direction) ||
       (fee.assets?.length > 0 && request.asset && !fee.assets.split(';').includes(request.asset?.id.toString())) ||
       (fee.maxTxVolume && fee.maxTxVolume < request.txVolume)
     );
   }
 
-  private isExpiredFee(fee: Fee, request: FeeRequest): boolean {
-    return (
-      !fee ||
-      (fee.expiryDate && fee.expiryDate < new Date()) ||
-      (fee.accountType && fee.accountType !== request.accountType)
-    );
+  private isExpiredFee(fee: Fee): boolean {
+    return !fee || (fee.expiryDate && fee.expiryDate < new Date());
   }
 
   private async verifyFee(fee: Fee, accountType: AccountType): Promise<void> {
-    if (this.isExpiredFee(fee, { accountType: accountType })) throw new BadRequestException('Discount code is expired');
+    if (this.isExpiredFee(fee)) throw new BadRequestException('Discount code is expired');
+    if (fee.accountType && fee.accountType !== accountType) throw new BadRequestException('Account Type not matching');
 
     if (fee.maxUsages && (await this.hasMaxUsageExceeded(fee)))
       throw new BadRequestException('Max usages for discount code taken');
