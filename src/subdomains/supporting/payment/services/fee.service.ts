@@ -49,9 +49,11 @@ export class FeeService {
     });
     if (existing) throw new BadRequestException('Fee already created');
     if (dto.type !== FeeType.DISCOUNT && dto.createDiscountCode)
-      throw new BadRequestException('Only discount Fees can have a discountCode');
-    if (dto.type === FeeType.BASE && !dto.accountType)
-      throw new BadRequestException('Base Fees must have an accountType');
+      throw new BadRequestException('Only discount fees can have a discountCode');
+    if (dto.type === FeeType.DISCOUNT && !dto.createDiscountCode && dto.maxUsages)
+      throw new BadRequestException('Discount fees without a code cannot have a maxUsage');
+    if (dto.type === FeeType.BASE && (!dto.accountType || !dto.assetIds))
+      throw new BadRequestException('Base fees must have an accountType and assetIds');
 
     // create the entity
     const fee = this.feeRepo.create(dto);
@@ -151,7 +153,7 @@ export class FeeService {
       this.isExpiredFee(fee) ||
       (fee.accountType && fee.accountType !== request.accountType) ||
       (fee.direction && fee.direction !== request.direction) ||
-      (fee.assetList.length && !fee.assetList.includes(request.asset?.id)) ||
+      (fee.assetList?.length && !fee.assetList.includes(request.asset?.id)) ||
       (fee.maxTxVolume && fee.maxTxVolume < request.txVolume)
     );
   }

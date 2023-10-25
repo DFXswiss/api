@@ -18,7 +18,7 @@ import { Util } from 'src/shared/utils/util';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { SpiderApiService } from 'src/subdomains/generic/user/services/spider/spider-api.service';
 import { ReferenceType, SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
-import { In, MoreThan, Not } from 'typeorm';
+import { In, IsNull, MoreThan, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { KycProcessService } from '../kyc/kyc-process.service';
@@ -248,12 +248,9 @@ export class UserDataService {
   }
 
   async getFeeUsages(feeId: number): Promise<number> {
-    return this.userDataRepo
-      .createQueryBuilder('userData')
-      .select('COUNT(id)', 'usages')
-      .where(`userData.discounts LIKE :feeId`, { feeId })
-      .getRawOne<{ usages: number }>()
-      .then((result) => result.usages);
+    const individualFeeEntities = await this.userDataRepo.findBy({ individualFees: Not(IsNull()) });
+
+    return individualFeeEntities.filter((userData) => userData.individualFeeList.includes(feeId)).length;
   }
 
   // --- VOLUMES --- //

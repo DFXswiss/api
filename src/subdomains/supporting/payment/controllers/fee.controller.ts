@@ -3,7 +3,6 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeController, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { CreateFeeDto } from '../dto/create-fee.dto';
 import { Fee } from '../entities/fee.entity';
 import { FeeService } from '../services/fee.service';
@@ -12,7 +11,7 @@ import { FeeService } from '../services/fee.service';
 @Controller('fee')
 @ApiExcludeController()
 export class FeeController {
-  constructor(private readonly feeService: FeeService, private readonly userDataService: UserDataService) {}
+  constructor(private readonly feeService: FeeService) {}
 
   @Post()
   @ApiBearerAuth()

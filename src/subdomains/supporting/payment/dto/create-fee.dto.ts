@@ -1,6 +1,16 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsArray, IsBoolean, IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsDate,
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  ValidateIf,
+} from 'class-validator';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { FeeType } from '../entities/fee.entity';
@@ -21,37 +31,39 @@ export class CreateFeeDto {
   @IsNumber()
   value: number;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
   createDiscountCode = false;
 
-  @ApiProperty({ enum: AccountType })
+  @ApiPropertyOptional({ enum: AccountType })
   @IsOptional()
   @IsEnum(AccountType)
   accountType: AccountType;
 
-  @ApiProperty({ enum: FeeDirectionType })
+  @ApiPropertyOptional({ enum: FeeDirectionType })
   @IsOptional()
   @IsEnum(FeeDirectionType)
   direction: FeeDirectionType;
 
+  @ApiPropertyOptional()
   @IsOptional()
   @IsDate()
   @Type(() => Date)
   expiryDate: Date;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   @IsOptional()
   @IsNumber()
   maxTxVolume: number; // EUR
 
-  @ApiProperty()
-  @IsOptional()
+  @ApiPropertyOptional()
+  @ValidateIf((dto: CreateFeeDto) => dto.type === FeeType.BASE)
+  @IsNotEmpty()
   @IsArray()
   assetIds: number[];
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   @IsOptional()
   @IsNumber()
   maxUsages: number;
