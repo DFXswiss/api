@@ -22,7 +22,8 @@ describe('LnurlAuth', () => {
   const maxLoop = 10;
   const k1Array: string[] = [];
 
-  const login = async (signupDto) => lnUrlAuthService.login(Object.assign(new AuthLnurlSignupDto(), { ...signupDto }));
+  const login = async (signupDto) =>
+    lnUrlAuthService.login(Object.assign(new AuthLnurlSignupDto(), { ...signupDto }), '127.0.0.0');
   const status = (k1) => lnUrlAuthService.status(k1);
 
   let internalAuthCache: Map<string, AuthCacheDto>;
@@ -146,7 +147,7 @@ describe('LnurlAuth', () => {
       ipLog.result = false;
       jest.spyOn(ipLogServiceMock, 'create').mockResolvedValue(Promise.resolve(ipLog));
 
-      const testCall = async () => lnUrlAuthService.login(signupDto);
+      const testCall = async () => lnUrlAuthService.login(signupDto, '127.0.0.0');
 
       insertCache(internalAuthCache, signupDto.k1);
       expect(internalAuthCache.size).toStrictEqual(maxLoop + 1);

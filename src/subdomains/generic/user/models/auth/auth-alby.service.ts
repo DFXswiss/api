@@ -89,7 +89,7 @@ export class AuthAlbyService {
       const ipLog = await this.ipLogService.create(userIp, requestUrl, session.address);
       if (!ipLog.result) throw new ForbiddenException('The country of IP address is not allowed');
 
-      const { accessToken } = await this.authService.signIn(session, true).catch((e) => {
+      const { accessToken } = await this.authService.signIn(session, userIp, true).catch((e) => {
         if (e instanceof NotFoundException) return this.authService.signUp({ ...dto, ...session }, userIp, true);
 
         throw e;
