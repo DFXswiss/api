@@ -3,7 +3,7 @@ import { ApiCreatedResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { RealIP } from 'nestjs-real-ip';
-import { IpGuard } from 'src/shared/auth/ip.guard';
+import { IpCountryGuard } from 'src/shared/auth/ip-country.guard';
 import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
 import { CreateUserDto } from 'src/subdomains/generic/user/models/user/dto/create-user.dto';
 import { AlbySignupDto } from '../user/dto/alby.dto';
@@ -20,7 +20,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService, private readonly albyService: AuthAlbyService) {}
 
   @Post('signUp')
-  @UseGuards(RateLimitGuard, IpGuard)
+  @UseGuards(RateLimitGuard, IpCountryGuard)
   @Throttle(20, 864000)
   @ApiCreatedResponse({ type: AuthResponseDto })
   signUp(@Body() dto: CreateUserDto, @RealIP() ip: string): Promise<AuthResponseDto> {
@@ -28,10 +28,10 @@ export class AuthController {
   }
 
   @Post('signIn')
-  @UseGuards(IpGuard)
+  @UseGuards(IpCountryGuard)
   @ApiCreatedResponse({ type: AuthResponseDto })
-  signIn(@Body() credentials: AuthCredentialsDto): Promise<AuthResponseDto> {
-    return this.authService.signIn(credentials);
+  signIn(@Body() credentials: AuthCredentialsDto, @RealIP() ip: string): Promise<AuthResponseDto> {
+    return this.authService.signIn(credentials, ip);
   }
 
   @Get('signMessage')

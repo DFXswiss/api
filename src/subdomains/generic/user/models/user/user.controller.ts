@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, HttpStatus, Param, Post, Put, Query, Res
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiCreatedResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
+import { RealIP } from 'nestjs-real-ip';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -60,8 +61,12 @@ export class UserController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: AuthResponseDto })
-  async changeUser(@GetJwt() jwt: JwtPayload, @Body() changeUser: LinkedUserInDto): Promise<AuthResponseDto> {
-    return this.authService.changeUser(jwt.id, changeUser);
+  async changeUser(
+    @GetJwt() jwt: JwtPayload,
+    @Body() changeUser: LinkedUserInDto,
+    @RealIP() ip: string,
+  ): Promise<AuthResponseDto> {
+    return this.authService.changeUser(jwt.id, changeUser, ip);
   }
 
   @Delete()

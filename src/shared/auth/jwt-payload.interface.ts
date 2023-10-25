@@ -5,6 +5,7 @@ export interface JwtPayloadBase {
   id: number;
   address: string;
   role: UserRole;
+  ip: string;
 }
 
 export interface JwtPayload extends JwtPayloadBase {
