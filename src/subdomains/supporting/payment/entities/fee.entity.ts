@@ -48,6 +48,6 @@ export class Fee extends IEntity {
   //*** FACTORY METHODS ***//
 
   get assetList(): number[] {
-    return this.assets.split(';')?.map(Number);
+    return this.assets?.split(';')?.map(Number);
   }
 }

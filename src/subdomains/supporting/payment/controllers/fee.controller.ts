@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeController, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -20,13 +20,5 @@ export class FeeController {
   @ApiExcludeEndpoint()
   async createFee(@Body() dto: CreateFeeDto): Promise<Fee> {
     return this.feeService.createFee(dto);
-  }
-
-  @Get()
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  @ApiExcludeEndpoint()
-  async getUserDataFeeAmount(@Query('userDataId') id: string): Promise<{ buy: number; sell: number; crypto: number }> {
-    return this.feeService.getAllUserFee(+id);
   }
 }

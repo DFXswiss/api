@@ -21,7 +21,7 @@ export enum UserStatus {
 export enum FeeDirectionType {
   BUY = 'buy',
   SELL = 'sell',
-  CRYPTO = 'crypto',
+  CONVERT = 'convert',
 }
 
 @Entity()
@@ -134,7 +134,7 @@ export class User extends IEntity {
   }
 
   getFee(type: FeeDirectionType.BUY | FeeDirectionType.SELL, asset: Asset): number;
-  getFee(type: FeeDirectionType.CRYPTO): number;
+  getFee(type: FeeDirectionType.CONVERT): number;
 
   getFee(type: FeeDirectionType, asset?: Asset): number {
     switch (type) {
@@ -150,7 +150,7 @@ export class User extends IEntity {
 
         return customSellFee != null ? Math.min(customSellFee, defaultSellFee) : defaultSellFee;
 
-      case FeeDirectionType.CRYPTO:
+      case FeeDirectionType.CONVERT:
         const customCryptoFee = this.cryptoFee ?? this.wallet.cryptoFee;
 
         return customCryptoFee != null ? Math.min(customCryptoFee, Config.crypto.fee) : Config.crypto.fee;

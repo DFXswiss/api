@@ -185,11 +185,11 @@ describe('User', () => {
   // crypto fee
   it('should return a fee of 0.0099 for crypto routes, if cryptoFee is not defined', async () => {
     const user = setup(AccountType.PERSONAL, undefined, undefined, undefined);
-    expect(user.getFee(FeeDirectionType.CRYPTO)).toStrictEqual(0.0099);
+    expect(user.getFee(FeeDirectionType.CONVERT)).toStrictEqual(0.0099);
   });
 
   it('should return custom fee for crypto routes, if cryptoFee is defined', async () => {
     const user = setup(AccountType.PERSONAL, undefined, undefined, 0.005);
-    expect(user.getFee(FeeDirectionType.CRYPTO)).toStrictEqual(0.005);
+    expect(user.getFee(FeeDirectionType.CONVERT)).toStrictEqual(0.005);
   });
 });

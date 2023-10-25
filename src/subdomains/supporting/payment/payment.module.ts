@@ -4,6 +4,7 @@ import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { SharedModule } from '../../../shared/shared.module';
 import { FeeController } from './controllers/fee.controller';
+import { Fee } from './entities/fee.entity';
 import { TransactionSpecification } from './entities/transaction-specification.entity';
 import { FeeRepository } from './repositories/fee.repository';
 import { TransactionSpecificationRepository } from './repositories/transaction-specification.repository';
@@ -14,7 +15,7 @@ import { TransactionHelper } from './services/transaction-helper';
   imports: [
     PricingModule,
     SharedModule,
-    TypeOrmModule.forFeature([TransactionSpecification]),
+    TypeOrmModule.forFeature([TransactionSpecification, Fee]),
     forwardRef(() => UserModule),
   ],
   controllers: [FeeController],

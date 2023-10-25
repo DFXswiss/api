@@ -167,9 +167,9 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   private async getTxFee(
-    userData?: UserData,
-    direction?: FeeDirectionType,
-    asset?: Asset,
+    userData: UserData,
+    direction: FeeDirectionType,
+    asset: Asset,
     txVolume?: number,
   ): Promise<number> {
     const price = asset ? await this.priceProviderService.getPrice(asset, this.eur) : undefined;
@@ -177,8 +177,8 @@ export class TransactionHelper implements OnModuleInit {
     const txVolumeInEur = price ? price.convert(txVolume) : undefined;
 
     return userData
-      ? this.feeService.getUserFee({ userData, direction, asset: asset, txVolume: txVolumeInEur })
-      : this.feeService.getDefaultFee({ direction, asset: asset, txVolume: txVolumeInEur });
+      ? this.feeService.getUserFee({ userData, direction, asset, txVolume: txVolumeInEur })
+      : this.feeService.getDefaultFee({ direction, asset, txVolume: txVolumeInEur });
   }
 
   private async getTargetEstimation(
@@ -263,6 +263,6 @@ export class TransactionHelper implements OnModuleInit {
   private getTxDirection(from: Asset | Fiat, to: Asset | Fiat): FeeDirectionType {
     if (from instanceof Fiat && to instanceof Asset) return FeeDirectionType.BUY;
     if (from instanceof Asset && to instanceof Fiat) return FeeDirectionType.SELL;
-    return FeeDirectionType.CRYPTO;
+    return FeeDirectionType.CONVERT;
   }
 }
