@@ -37,7 +37,7 @@ export class Fee extends IEntity {
   @Column({ type: 'float', nullable: true })
   maxTxVolume: number; // EUR
 
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 'MAX', nullable: true })
   assets: string; // semicolon separated id's
 
   // Acceptance columns
