@@ -19,9 +19,9 @@ export enum UserStatus {
 }
 
 export enum FeeDirectionType {
-  BUY = 'buy',
-  SELL = 'sell',
-  CONVERT = 'convert',
+  BUY = 'Buy',
+  SELL = 'Sell',
+  CONVERT = 'Convert',
 }
 
 @Entity()
