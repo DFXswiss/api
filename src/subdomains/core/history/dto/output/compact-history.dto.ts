@@ -3,25 +3,14 @@ import { BuyCrypto, BuyCryptoStatus } from 'src/subdomains/core/buy-crypto/proce
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { RefReward, RewardStatus } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
-
-export enum CompactHistoryTransactionType {
-  BUY = 'Buy',
-  SELL = 'Sell',
-  CRYPTO = 'Crypto',
-  REFERRAL = 'Referral',
-}
-
-export enum CompactHistoryStatus {
-  CREATED = 'Created',
-  PENDING = 'Pending',
-  FEE_TOO_HIGH = 'FeeTooHigh',
-  COMPLETE = 'Complete',
-  FAILED = 'Failed',
-}
+import { TransactionState, TransactionType } from '../transaction/transaction.dto';
 
 export class CompactHistoryDto {
-  @ApiProperty({ enum: CompactHistoryTransactionType })
-  type: CompactHistoryTransactionType;
+  @ApiProperty({ enum: TransactionType })
+  type: TransactionType;
+
+  @ApiProperty({ enum: TransactionState })
+  state: TransactionState;
 
   @ApiPropertyOptional()
   inputAmount?: number;
@@ -45,62 +34,66 @@ export class CompactHistoryDto {
   txId?: string;
 
   @ApiPropertyOptional()
-  txUrl: string;
+  txUrl?: string;
 
   @ApiProperty()
   date: Date;
-
-  @ApiProperty()
-  amlCheck: CheckStatus;
-
-  @ApiProperty({ enum: CompactHistoryStatus })
-  status: CompactHistoryStatus;
-
-  @ApiPropertyOptional()
-  amountInEur?: number;
 }
 
 export const BuyCryptoStatusMapper: {
-  [key in BuyCryptoStatus]: CompactHistoryStatus;
+  [key in BuyCryptoStatus]: TransactionState;
 } = {
-  [BuyCryptoStatus.BATCHED]: CompactHistoryStatus.CREATED,
-  [BuyCryptoStatus.CREATED]: CompactHistoryStatus.CREATED,
-  [BuyCryptoStatus.MISSING_LIQUIDITY]: CompactHistoryStatus.PENDING,
-  [BuyCryptoStatus.PAYING_OUT]: CompactHistoryStatus.PENDING,
-  [BuyCryptoStatus.PENDING_LIQUIDITY]: CompactHistoryStatus.PENDING,
-  [BuyCryptoStatus.PREPARED]: CompactHistoryStatus.PENDING,
-  [BuyCryptoStatus.PRICE_MISMATCH]: CompactHistoryStatus.PENDING,
-  [BuyCryptoStatus.PRICE_SLIPPAGE]: CompactHistoryStatus.PENDING,
-  [BuyCryptoStatus.READY_FOR_PAYOUT]: CompactHistoryStatus.PENDING,
-  [BuyCryptoStatus.COMPLETE]: CompactHistoryStatus.COMPLETE,
-  [BuyCryptoStatus.WAITING_FOR_LOWER_FEE]: CompactHistoryStatus.FEE_TOO_HIGH,
+  [BuyCryptoStatus.BATCHED]: TransactionState.PROCESSING,
+  [BuyCryptoStatus.CREATED]: TransactionState.PROCESSING,
+  [BuyCryptoStatus.MISSING_LIQUIDITY]: TransactionState.PROCESSING,
+  [BuyCryptoStatus.PAYING_OUT]: TransactionState.PROCESSING,
+  [BuyCryptoStatus.PENDING_LIQUIDITY]: TransactionState.PROCESSING,
+  [BuyCryptoStatus.PREPARED]: TransactionState.PROCESSING,
+  [BuyCryptoStatus.PRICE_MISMATCH]: TransactionState.PROCESSING,
+  [BuyCryptoStatus.PRICE_SLIPPAGE]: TransactionState.PROCESSING,
+  [BuyCryptoStatus.READY_FOR_PAYOUT]: TransactionState.PROCESSING,
+  [BuyCryptoStatus.COMPLETE]: TransactionState.COMPLETED,
+  [BuyCryptoStatus.WAITING_FOR_LOWER_FEE]: TransactionState.FEE_TOO_HIGH,
 };
 
 export const RefRewardStatusMapper: {
-  [key in RewardStatus]: CompactHistoryStatus;
+  [key in RewardStatus]: TransactionState;
 } = {
-  [RewardStatus.CREATED]: CompactHistoryStatus.CREATED,
-  [RewardStatus.PREPARED]: CompactHistoryStatus.CREATED,
-  [RewardStatus.PENDING_LIQUIDITY]: CompactHistoryStatus.PENDING,
-  [RewardStatus.READY_FOR_PAYOUT]: CompactHistoryStatus.PENDING,
-  [RewardStatus.PAYING_OUT]: CompactHistoryStatus.PENDING,
-  [RewardStatus.COMPLETE]: CompactHistoryStatus.COMPLETE,
+  [RewardStatus.CREATED]: TransactionState.CREATED,
+  [RewardStatus.PREPARED]: TransactionState.CREATED,
+  [RewardStatus.PENDING_LIQUIDITY]: TransactionState.PROCESSING,
+  [RewardStatus.READY_FOR_PAYOUT]: TransactionState.PROCESSING,
+  [RewardStatus.PAYING_OUT]: TransactionState.PROCESSING,
+  [RewardStatus.COMPLETE]: TransactionState.COMPLETED,
 };
 
-export function getStatus(entity: BuyFiat | BuyCrypto | RefReward): CompactHistoryStatus {
-  if (entity instanceof RefReward) return RefRewardStatusMapper[entity.status];
-  if (entity instanceof BuyCrypto && entity.status) return BuyCryptoStatusMapper[entity.status];
-  if (entity.outputDate) return CompactHistoryStatus.COMPLETE;
+export function getStatus(entity: BuyFiat | BuyCrypto | RefReward): TransactionState {
+  if (entity instanceof RefReward) {
+    return RefRewardStatusMapper[entity.status];
+  }
+
+  if (entity instanceof BuyCrypto) {
+    if (entity.chargebackDate) return TransactionState.RETURNED;
+    if (entity.status && entity.amlCheck === CheckStatus.PASS) return BuyCryptoStatusMapper[entity.status];
+  }
+
+  if (entity instanceof BuyFiat) {
+    if (entity.cryptoReturnDate) return TransactionState.RETURNED;
+  }
 
   switch (entity.amlCheck) {
     case CheckStatus.FAIL:
-      return CompactHistoryStatus.FAILED;
+      return TransactionState.FAILED;
 
     case CheckStatus.PENDING:
-    case CheckStatus.PASS:
-      return CompactHistoryStatus.PENDING;
+      return TransactionState.AML_PENDING;
 
-    default:
-      return CompactHistoryStatus.CREATED;
+    case CheckStatus.PASS:
+      if (entity.isComplete) return TransactionState.COMPLETED;
+      break;
   }
+
+  if (entity.outputReferenceAsset) return TransactionState.PROCESSING;
+
+  return TransactionState.CREATED;
 }

@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BuyCryptoStatus } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
-import { ExportType } from '../history.service';
+import { ExportType } from '../services/history.service';
 import { ChainReportCsvHistoryDto } from './output/chain-report-history.dto';
 import { CoinTrackingCsvHistoryDto } from './output/coin-tracking-history.dto';
 import { CompactHistoryDto } from './output/compact-history.dto';

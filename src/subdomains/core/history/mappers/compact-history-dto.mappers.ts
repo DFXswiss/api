@@ -2,16 +2,16 @@ import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { RefReward } from '../../referral/reward/ref-reward.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
-import { CompactHistoryDto, CompactHistoryTransactionType, getStatus } from '../dto/output/compact-history.dto';
+import { CompactHistoryDto,  getStatus } from '../dto/output/compact-history.dto';
+import { TransactionType } from '../dto/transaction/transaction.dto';
 
 export class CompactHistoryDtoMapper {
   static mapBuyCryptoTransactions(buyCryptos: BuyCrypto[]): CompactHistoryDto[] {
     return buyCryptos
       .map((buyCrypto) => [
         {
-          type: buyCrypto.isCryptoCryptoTransaction
-            ? CompactHistoryTransactionType.CRYPTO
-            : CompactHistoryTransactionType.BUY,
+          type: buyCrypto.isCryptoCryptoTransaction ? TransactionType.CONVERT : TransactionType.BUY,
+          state: getStatus(buyCrypto),
           inputAmount: buyCrypto.inputAmount,
           inputAsset: buyCrypto.inputAsset,
           outputAmount: buyCrypto.outputAmount,
@@ -21,9 +21,6 @@ export class CompactHistoryDtoMapper {
           txId: buyCrypto.txId,
           txUrl: txExplorerUrl(buyCrypto.target.asset.blockchain, buyCrypto.txId),
           date: buyCrypto.outputDate,
-          amlCheck: buyCrypto.amlCheck,
-          status: getStatus(buyCrypto),
-          amountInEur: buyCrypto.amountInEur,
         },
       ])
       .reduce((prev, curr) => prev.concat(curr), [])
@@ -34,7 +31,8 @@ export class CompactHistoryDtoMapper {
     return buyFiats
       .map((buyFiat) => [
         {
-          type: CompactHistoryTransactionType.SELL,
+          type: TransactionType.SELL,
+          state: getStatus(buyFiat),
           inputAmount: buyFiat.inputAmount,
           inputAsset: buyFiat.inputAsset,
           outputAmount: buyFiat.outputAmount,
@@ -44,9 +42,6 @@ export class CompactHistoryDtoMapper {
           txId: buyFiat.fiatOutput?.remittanceInfo,
           txUrl: null,
           date: buyFiat.outputDate,
-          amlCheck: buyFiat.amlCheck,
-          status: getStatus(buyFiat),
-          amountInEur: buyFiat.amountInEur,
         },
       ])
       .reduce((prev, curr) => prev.concat(curr), [])
@@ -57,7 +52,8 @@ export class CompactHistoryDtoMapper {
     return refRewards
       .map((refReward) => [
         {
-          type: CompactHistoryTransactionType.REFERRAL,
+          type: TransactionType.REFERRAL,
+          state: getStatus(refReward),
           inputAmount: null,
           inputAsset: null,
           outputAmount: refReward.outputAmount,
@@ -67,9 +63,6 @@ export class CompactHistoryDtoMapper {
           txId: refReward.txId,
           txUrl: txExplorerUrl(refReward.targetBlockchain, refReward.txId),
           date: refReward.outputDate,
-          amlCheck: null,
-          status: getStatus(refReward),
-          amountInEur: refReward.amountInEur,
         },
       ])
       .reduce((prev, curr) => prev.concat(curr), [])

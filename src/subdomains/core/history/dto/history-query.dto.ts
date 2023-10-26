@@ -1,19 +1,19 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsDate, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
-import { ExportType } from '../history.service';
+import { ExportType } from '../services/history.service';
 import { HistoryFilter } from './history-filter.dto';
 
-export enum ExportDataType {
+export enum ExportFormat {
   CSV = 'csv',
   JSON = 'json',
 }
 
 export class HistoryQuery extends HistoryFilter {
-  @ApiPropertyOptional({ enum: ExportDataType })
+  @ApiPropertyOptional({ enum: ExportFormat })
   @IsOptional()
-  @IsEnum(ExportDataType)
-  format: ExportDataType = ExportDataType.CSV;
+  @IsEnum(ExportFormat)
+  format: ExportFormat = ExportFormat.CSV;
 
   @ApiPropertyOptional()
   @IsOptional()

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
+import { TransactionState } from 'src/subdomains/core/history/dto/transaction/transaction.dto';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { CheckStatus } from '../enums/check-status.enum';
@@ -15,21 +15,21 @@ export class BuyCryptoWebhookService {
       : await this.webhookService.fiatCryptoUpdate(buyCrypto.user, buyCrypto, state);
   }
 
-  private getWebhookState(buyCrypto: BuyCrypto): PaymentWebhookState {
-    if (buyCrypto.chargebackDate) return PaymentWebhookState.RETURNED;
+  private getWebhookState(buyCrypto: BuyCrypto): TransactionState {
+    if (buyCrypto.chargebackDate) return TransactionState.RETURNED;
 
     switch (buyCrypto.amlCheck) {
       case CheckStatus.PENDING:
-        return PaymentWebhookState.AML_PENDING;
+        return TransactionState.AML_PENDING;
       case CheckStatus.FAIL:
-        return PaymentWebhookState.FAILED;
+        return TransactionState.FAILED;
       case CheckStatus.PASS:
-        if (buyCrypto.isComplete) return PaymentWebhookState.COMPLETED;
+        if (buyCrypto.isComplete) return TransactionState.COMPLETED;
         break;
     }
 
-    if (buyCrypto.outputReferenceAsset) return PaymentWebhookState.PROCESSING;
+    if (buyCrypto.outputReferenceAsset) return TransactionState.PROCESSING;
 
-    return PaymentWebhookState.CREATED;
+    return TransactionState.CREATED;
   }
 }

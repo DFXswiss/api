@@ -6,8 +6,8 @@ import { BuyCryptoModule } from '../buy-crypto/buy-crypto.module';
 import { ReferralModule } from '../referral/referral.module';
 import { SellCryptoModule } from '../sell-crypto/sell-crypto.module';
 import { StakingModule } from '../staking/staking.module';
-import { HistoryController } from './history.controller';
-import { HistoryService } from './history.service';
+import { HistoryController } from './controllers/history.controller';
+import { HistoryService } from './services/history.service';
 
 @Module({
   imports: [SharedModule, BuyCryptoModule, ReferralModule, SellCryptoModule, UserModule, AinModule, StakingModule],

@@ -1,4 +1,5 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
+import { CompactHistoryDto } from 'src/subdomains/core/history/dto/output/compact-history.dto';
 import { WebhookDto, WebhookType } from './webhook.dto';
 
 export enum PaymentWebhookType {
@@ -17,25 +18,7 @@ export enum PaymentWebhookState {
   RETURNED = 'Returned',
 }
 
-export class PaymentWebhookData {
-  @ApiProperty({ enum: PaymentWebhookType })
-  type: PaymentWebhookType;
-
-  @ApiProperty({ enum: PaymentWebhookState })
-  state: PaymentWebhookState;
-
-  @ApiProperty()
-  inputAmount: number;
-
-  @ApiProperty()
-  inputAsset: string;
-
-  @ApiPropertyOptional()
-  outputAmount: number;
-
-  @ApiPropertyOptional()
-  outputAsset: string;
-
+export class PaymentWebhookData extends CompactHistoryDto {
   @ApiProperty()
   paymentReference: string;
 

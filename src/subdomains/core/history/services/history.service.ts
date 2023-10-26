@@ -2,23 +2,23 @@ import { Injectable, NotFoundException, StreamableFile } from '@nestjs/common';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { Readable } from 'stream';
-import { BuyCrypto } from '../buy-crypto/process/entities/buy-crypto.entity';
-import { BuyCryptoService } from '../buy-crypto/process/services/buy-crypto.service';
-import { RefReward } from '../referral/reward/ref-reward.entity';
-import { RefRewardService } from '../referral/reward/ref-reward.service';
-import { BuyFiat } from '../sell-crypto/process/buy-fiat.entity';
-import { BuyFiatService } from '../sell-crypto/process/buy-fiat.service';
-import { CryptoStaking } from '../staking/entities/crypto-staking.entity';
-import { StakingRefReward } from '../staking/entities/staking-ref-reward.entity';
-import { StakingReward } from '../staking/entities/staking-reward.entity';
-import { StakingService } from '../staking/services/staking.service';
-import { ExportDataType, HistoryQueryUser } from './dto/history-query.dto';
-import { ChainReportCsvHistoryDto } from './dto/output/chain-report-history.dto';
-import { CoinTrackingCsvHistoryDto } from './dto/output/coin-tracking-history.dto';
-import { CompactHistoryDto } from './dto/output/compact-history.dto';
-import { ChainReportHistoryDtoMapper } from './mappers/chain-report-history-dto.mapper';
-import { CoinTrackingHistoryDtoMapper } from './mappers/coin-tracking-history-dto.mapper';
-import { CompactHistoryDtoMapper } from './mappers/compact-history-dto.mappers';
+import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
+import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
+import { RefReward } from '../../referral/reward/ref-reward.entity';
+import { RefRewardService } from '../../referral/reward/ref-reward.service';
+import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
+import { BuyFiatService } from '../../sell-crypto/process/buy-fiat.service';
+import { CryptoStaking } from '../../staking/entities/crypto-staking.entity';
+import { StakingRefReward } from '../../staking/entities/staking-ref-reward.entity';
+import { StakingReward } from '../../staking/entities/staking-reward.entity';
+import { StakingService } from '../../staking/services/staking.service';
+import { ExportFormat, HistoryQueryUser } from '../dto/history-query.dto';
+import { ChainReportCsvHistoryDto } from '../dto/output/chain-report-history.dto';
+import { CoinTrackingCsvHistoryDto } from '../dto/output/coin-tracking-history.dto';
+import { CompactHistoryDto } from '../dto/output/compact-history.dto';
+import { ChainReportHistoryDtoMapper } from '../mappers/chain-report-history-dto.mapper';
+import { CoinTrackingHistoryDtoMapper } from '../mappers/coin-tracking-history-dto.mapper';
+import { CompactHistoryDtoMapper } from '../mappers/compact-history-dto.mappers';
 
 export type HistoryDto<T> = T extends ExportType.COMPACT
   ? CompactHistoryDto
@@ -80,7 +80,7 @@ export class HistoryService {
       ...this.getRefRewards(refRewards, exportFormat),
     ].reduce((prev, curr) => prev.concat(curr), []);
 
-    return query.format === ExportDataType.CSV ? this.getHistoryCsv(txArray, exportFormat) : txArray;
+    return query.format === ExportFormat.CSV ? this.getHistoryCsv(txArray, exportFormat) : txArray;
   }
 
   // --- HELPER METHODS --- //

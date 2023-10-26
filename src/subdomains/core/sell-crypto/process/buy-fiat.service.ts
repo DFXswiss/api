@@ -5,7 +5,6 @@ import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
 import { Between, In, IsNull } from 'typeorm';
@@ -13,6 +12,7 @@ import { FiatOutputService } from '../../../supporting/bank/fiat-output/fiat-out
 import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
 import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
 import { PaymentStatus } from '../../history/dto/history.dto';
+import { TransactionState } from '../../history/dto/transaction/transaction.dto';
 import { TransactionDetailsDto } from '../../statistic/dto/statistic.dto';
 import { SellHistoryDto } from '../route/dto/sell-history.dto';
 import { Sell } from '../route/sell.entity';
@@ -67,7 +67,7 @@ export class BuyFiatService {
   async update(id: number, dto: UpdateBuyFiatDto): Promise<BuyFiat> {
     let entity = await this.buyFiatRepo.findOne({
       where: { id },
-      relations: ['sell', 'sell.user', 'sell.user.wallet', 'sell.user.userData'],
+      relations: ['sell', 'sell.user', 'sell.user.wallet', 'sell.user.userData', 'fiatOutput'],
     });
     if (!entity) throw new NotFoundException('Buy-fiat not found');
 
@@ -194,22 +194,22 @@ export class BuyFiatService {
 
   // --- HELPER METHODS --- //
 
-  private getWebhookState(buyFiat: BuyFiat): PaymentWebhookState {
-    if (buyFiat.cryptoReturnDate) return PaymentWebhookState.RETURNED;
+  private getWebhookState(buyFiat: BuyFiat): TransactionState {
+    if (buyFiat.cryptoReturnDate) return TransactionState.RETURNED;
 
     switch (buyFiat.amlCheck) {
       case CheckStatus.PENDING:
-        return PaymentWebhookState.AML_PENDING;
+        return TransactionState.AML_PENDING;
       case CheckStatus.FAIL:
-        return PaymentWebhookState.FAILED;
+        return TransactionState.FAILED;
       case CheckStatus.PASS:
-        if (buyFiat.isComplete) return PaymentWebhookState.COMPLETED;
+        if (buyFiat.isComplete) return TransactionState.COMPLETED;
         break;
     }
 
-    if (buyFiat.outputReferenceAsset) return PaymentWebhookState.PROCESSING;
+    if (buyFiat.outputReferenceAsset) return TransactionState.PROCESSING;
 
-    return PaymentWebhookState.CREATED;
+    return TransactionState.CREATED;
   }
 
   private toHistoryDto(buyFiat: BuyFiat): SellHistoryDto {
