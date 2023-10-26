@@ -104,7 +104,7 @@ export class CryptoService {
   private verifyEthereumBased(message: string, address: string, signature: string): boolean {
     // there are signatures out there, which do not have '0x' in the beginning, but for verification this is needed
     const signatureToUse = signature.startsWith('0x') ? signature : '0x' + signature;
-    return verifyMessage(message, signatureToUse) === address;
+    return verifyMessage(message, signatureToUse).toLowerCase() === address.toLowerCase();
   }
 
   private verifyBitcoinBased(message: string, address: string, signature: string, prefix: string | null): boolean {

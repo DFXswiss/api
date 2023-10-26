@@ -11,8 +11,8 @@ export class CheckoutTx extends IEntity {
   @Column({ type: 'datetime2' })
   requestedOn: Date;
 
-  @Column({ type: 'datetime2' })
-  expiresOn: Date;
+  @Column({ type: 'datetime2', nullable: true })
+  expiresOn?: Date;
 
   @Column({ type: 'float' })
   amount: number;

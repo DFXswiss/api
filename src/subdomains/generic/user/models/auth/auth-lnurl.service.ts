@@ -77,7 +77,7 @@ export class AuthLnUrlService {
     return { k1: k1, lnurl: LightningHelper.encodeLnurl(url.toString()) };
   }
 
-  async login(signupDto: AuthLnurlSignupDto): Promise<AuthLnurlSignInResponseDto> {
+  async login(signupDto: AuthLnurlSignupDto, userIp: string): Promise<AuthLnurlSignInResponseDto> {
     const checkSignupResponse = this.checkSignupDto(signupDto);
 
     if (checkSignupResponse) {
@@ -101,7 +101,7 @@ export class AuthLnUrlService {
       const verifyResult = secp256k1.verify(sig, k1, key);
       if (!verifyResult) return AuthLnurlSignInResponseDto.createError('invalid auth signature');
 
-      authCacheEntry.accessToken = await this.signIn(signupDto, servicesIp);
+      authCacheEntry.accessToken = await this.signIn(signupDto, servicesIp, userIp);
       authCacheEntry.accessTokenCreationTime = Date.now();
 
       return AuthLnurlSignInResponseDto.createOk();
@@ -122,10 +122,10 @@ export class AuthLnUrlService {
       return AuthLnurlSignInResponseDto.createError('challenge expired');
   }
 
-  async signIn(signupDto: AuthLnurlSignupDto, servicesIp: string): Promise<string> {
+  async signIn(signupDto: AuthLnurlSignupDto, servicesIp: string, userIp: string): Promise<string> {
     const session = { address: signupDto.address, signature: signupDto.signature };
 
-    const { accessToken } = await this.authService.signIn(session, true).catch((e) => {
+    const { accessToken } = await this.authService.signIn(session, userIp, true).catch((e) => {
       if (e instanceof NotFoundException)
         return this.authService.signUp(
           { ...session, usedRef: signupDto.usedRef, wallet: signupDto.wallet ?? 'DFX Bitcoin' },

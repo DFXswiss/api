@@ -23,8 +23,11 @@ export class AuthLnurlController {
 
   @Get()
   @ApiOkResponse({ type: AuthLnurlSignInResponseDto })
-  async signInWithLnurlAuth(@Query() signupDto: AuthLnurlSignupDto): Promise<AuthLnurlSignInResponseDto> {
-    return this.lnUrlService.login(signupDto);
+  async signInWithLnurlAuth(
+    @Query() signupDto: AuthLnurlSignupDto,
+    @RealIP() ip: string,
+  ): Promise<AuthLnurlSignInResponseDto> {
+    return this.lnUrlService.login(signupDto, ip);
   }
 
   @Get('status')

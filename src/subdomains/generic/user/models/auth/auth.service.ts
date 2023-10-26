@@ -80,9 +80,9 @@ export class AuthService {
     return { accessToken: this.generateUserToken(user) };
   }
 
-  async signIn(dto: AuthCredentialsDto, isCustodial = false): Promise<AuthResponseDto> {
+  async signIn(dto: AuthCredentialsDto, ip: string, isCustodial = false): Promise<AuthResponseDto> {
     const isCompany = this.hasChallenge(dto.address);
-    if (isCompany) return this.companySignIn(dto);
+    if (isCompany) return this.companySignIn(dto, ip);
 
     const user = await this.userRepo.getByAddress(dto.address, true);
     if (!user || user.status == UserStatus.BLOCKED) throw new NotFoundException('User not found');
@@ -101,14 +101,14 @@ export class AuthService {
     return { accessToken: this.generateUserToken(user) };
   }
 
-  private async companySignIn(dto: AuthCredentialsDto): Promise<AuthResponseDto> {
+  private async companySignIn(dto: AuthCredentialsDto, ip: string): Promise<AuthResponseDto> {
     const wallet = await this.walletService.getByAddress(dto.address);
     if (!wallet?.isKycClient) throw new NotFoundException('Wallet not found');
 
     if (!(await this.verifyCompanySignature(dto.address, dto.signature, dto.key)))
       throw new UnauthorizedException('Invalid credentials');
 
-    return { accessToken: this.generateCompanyToken(wallet) };
+    return { accessToken: this.generateCompanyToken(wallet, ip) };
   }
 
   async getCompanyChallenge(address: string): Promise<ChallengeDto> {
@@ -122,11 +122,11 @@ export class AuthService {
     return { challenge: challenge };
   }
 
-  async changeUser(id: number, changeUser: LinkedUserInDto): Promise<AuthResponseDto> {
+  async changeUser(id: number, changeUser: LinkedUserInDto, ip: string): Promise<AuthResponseDto> {
     const user = await this.getLinkedUser(id, changeUser.address);
     if (!user) throw new NotFoundException('User not found');
     if (user.status === UserStatus.BLOCKED) throw new BadRequestException('User is blocked');
-    return { accessToken: this.generateUserToken(user) };
+    return { accessToken: this.generateUserToken(user, ip) };
   }
 
   // --- SIGN MESSAGES --- //
@@ -198,21 +198,23 @@ export class AuthService {
     return this.challengeList.has(address);
   }
 
-  private generateUserToken(user: User): string {
+  private generateUserToken(user: User, ip: string): string {
     const payload: JwtPayload = {
       id: user.id,
       address: user.address,
       role: user.role,
       blockchains: this.getBlockchains(user),
+      ip,
     };
     return this.jwtService.sign(payload);
   }
 
-  private generateCompanyToken(wallet: Wallet): string {
+  private generateCompanyToken(wallet: Wallet, ip: string): string {
     const payload: JwtPayloadBase = {
       id: wallet.id,
       address: wallet.address,
       role: UserRole.KYC_CLIENT_COMPANY,
+      ip,
     };
     return this.jwtService.sign(payload, { expiresIn: Config.auth.company.signOptions.expiresIn });
   }

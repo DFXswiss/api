@@ -46,6 +46,7 @@ function createJwt(): JwtPayload {
     address: '',
     role: UserRole.USER,
     blockchains: [Blockchain.DEFICHAIN],
+    ip: '127.0.0.0',
   };
 }
 
