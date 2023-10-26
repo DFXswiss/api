@@ -17,6 +17,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Util } from 'src/shared/utils/util';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
 import { CreateUserDto } from 'src/subdomains/generic/user/models/user/dto/create-user.dto';
+import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { LinkedUserInDto } from '../user/dto/linked-user.dto';
 import { User, UserStatus } from '../user/user.entity';
 import { UserRepository } from '../user/user.repository';
@@ -45,6 +46,7 @@ export class AuthService {
     private readonly cryptoService: CryptoService,
     private readonly lightningService: LightningService,
     private readonly refService: RefService,
+    private readonly feeService: FeeService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -70,13 +72,11 @@ export class AuthService {
       throw new BadRequestException('Invalid signature');
 
     const ref = await this.refService.get(userIp);
-    if (ref) {
-      dto.usedRef ??= ref.ref;
-    }
+    if (ref) dto.usedRef ??= ref.ref;
 
     if (dto.key) dto.signature = [dto.signature, dto.key].join(';');
 
-    const user = await this.userService.createUser(dto, userIp, ref?.origin, undefined, wallet);
+    const user = await this.userService.createUser(dto, userIp, ref?.origin, undefined, wallet, dto.discountCode);
     return { accessToken: this.generateUserToken(user, userIp) };
   }
 
@@ -95,6 +95,8 @@ export class AuthService {
         await this.userRepo.update({ address: dto.address }, { signature: dto.signature });
       }
     }
+
+    if (dto.discountCode) await this.feeService.addDiscountCodeUser(user.userData, dto.discountCode);
 
     return { accessToken: this.generateUserToken(user, ip) };
   }

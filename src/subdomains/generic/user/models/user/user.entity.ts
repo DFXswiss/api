@@ -18,10 +18,10 @@ export enum UserStatus {
   BLOCKED = 'Blocked',
 }
 
-export enum FeeType {
+export enum FeeDirectionType {
   BUY = 'buy',
   SELL = 'sell',
-  CRYPTO = 'crypto',
+  CONVERT = 'convert',
 }
 
 @Entity()
@@ -133,24 +133,24 @@ export class User extends IEntity {
     return this.buyFee ? '000-000' : this.usedRef;
   }
 
-  getFee(type: FeeType.BUY | FeeType.SELL, asset: Asset): number;
-  getFee(type: FeeType.CRYPTO): number;
+  getFee(type: FeeDirectionType.BUY | FeeDirectionType.SELL, asset: Asset): number;
+  getFee(type: FeeDirectionType.CONVERT): number;
 
-  getFee(type: FeeType, asset?: Asset): number {
+  getFee(type: FeeDirectionType, asset?: Asset): number {
     switch (type) {
-      case FeeType.BUY:
+      case FeeDirectionType.BUY:
         const defaultBuyFee = Config.buy.fee.get(asset.feeTier, this.userData.accountType);
         const customBuyFee = this.buyFee ?? this.wallet.buyFee;
 
         return customBuyFee != null ? Math.min(customBuyFee, defaultBuyFee) : defaultBuyFee;
 
-      case FeeType.SELL:
+      case FeeDirectionType.SELL:
         const defaultSellFee = Config.sell.fee.get(asset.feeTier, this.userData.accountType);
         const customSellFee = this.sellFee ?? this.wallet.sellFee;
 
         return customSellFee != null ? Math.min(customSellFee, defaultSellFee) : defaultSellFee;
 
-      case FeeType.CRYPTO:
+      case FeeDirectionType.CONVERT:
         const customCryptoFee = this.cryptoFee ?? this.wallet.cryptoFee;
 
         return customCryptoFee != null ? Math.min(customCryptoFee, Config.crypto.fee) : Config.crypto.fee;

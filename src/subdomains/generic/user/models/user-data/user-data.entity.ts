@@ -200,6 +200,10 @@ export class UserData extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   blackSquadMailSendDate: Date;
 
+  // Fee / Discounts
+  @Column({ length: 256, nullable: true })
+  individualFees: string; // semicolon separated id's
+
   // Volumes
   @Column({ type: 'float', default: 0 })
   annualBuyVolume: number; // CHF
@@ -258,8 +262,32 @@ export class UserData extends IEntity {
     return [this.id, update];
   }
 
+  addFee(feeId: number): UpdateResult<UserData> {
+    const update: Partial<UserData> = {
+      individualFees: !this.individualFees ? feeId.toString() : `${this.individualFees};${feeId}`,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  removeFee(feeId: number): UpdateResult<UserData> {
+    const update: Partial<UserData> = {
+      individualFees: this.individualFeeList.filter((id) => id !== feeId).join(';'),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   get isDfxUser(): boolean {
     return this.kycType === KycType.DFX;
+  }
+
+  get individualFeeList(): number[] {
+    return this.individualFees?.split(';')?.map(Number);
   }
 
   get hasActiveUser(): boolean {

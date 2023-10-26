@@ -14,6 +14,7 @@ export interface TransactionDetails extends TargetEstimation {
   minVolumeTarget: number;
   maxVolume: number;
   maxVolumeTarget: number;
+  fee: number;
   isValid: boolean;
   error?: TransactionError;
 }
