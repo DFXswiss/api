@@ -77,7 +77,7 @@ export class AuthService {
     if (dto.key) dto.signature = [dto.signature, dto.key].join(';');
 
     const user = await this.userService.createUser(dto, userIp, ref?.origin, undefined, wallet, dto.discountCode);
-    return { accessToken: this.generateUserToken(user) };
+    return { accessToken: this.generateUserToken(user, userIp) };
   }
 
   async signIn(dto: AuthCredentialsDto, ip: string, isCustodial = false): Promise<AuthResponseDto> {
@@ -98,7 +98,7 @@ export class AuthService {
 
     if (dto.discountCode) await this.feeService.addDiscountCodeUser(user.userData, dto.discountCode);
 
-    return { accessToken: this.generateUserToken(user) };
+    return { accessToken: this.generateUserToken(user, ip) };
   }
 
   private async companySignIn(dto: AuthCredentialsDto, ip: string): Promise<AuthResponseDto> {
