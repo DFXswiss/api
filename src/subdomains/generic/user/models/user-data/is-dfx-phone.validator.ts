@@ -1,5 +1,6 @@
 import {
   registerDecorator,
+  ValidationArguments,
   ValidationOptions,
   ValidatorConstraint,
   ValidatorConstraintInterface,
@@ -12,17 +13,15 @@ export class IsDfxPhoneValidator implements ValidatorConstraintInterface {
     try {
       const phoneUtil = libphonenumber.PhoneNumberUtil.getInstance();
       return (
-        phoneNumber &&
-        phoneNumber.match(/^\+/) &&
-        phoneUtil.isValidNumber(phoneUtil.parseAndKeepRawInput(phoneNumber))
+        phoneNumber && phoneNumber.match(/^\+/) && phoneUtil.isValidNumber(phoneUtil.parseAndKeepRawInput(phoneNumber))
       );
     } catch (_) {
       return false;
     }
   }
 
-  defaultMessage() {
-    return `Phone number not valid`;
+  defaultMessage(args: ValidationArguments) {
+    return `${args.property} not valid`;
   }
 }
 
