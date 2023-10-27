@@ -161,27 +161,10 @@ export class KycService {
   }
 
   isDataComplete(user: UserData): boolean {
-    const requiredFields = [
-      'mail',
-      'phone',
-      'firstname',
-      'surname',
-      'street',
-      'houseNumber',
-      'location',
-      'zip',
-      'country',
-    ].concat(
+    const requiredFields = ['mail', 'phone', 'firstname', 'surname', 'street', 'location', 'zip', 'country'].concat(
       user?.accountType === AccountType.PERSONAL
         ? []
-        : [
-            'organizationName',
-            'organizationStreet',
-            'organizationHouseNumber',
-            'organizationLocation',
-            'organizationZip',
-            'organizationCountry',
-          ],
+        : ['organizationName', 'organizationStreet', 'organizationLocation', 'organizationZip', 'organizationCountry'],
     );
     return requiredFields.filter((f) => !user[f]).length === 0;
   }
