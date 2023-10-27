@@ -3,6 +3,7 @@ import { TransactionError } from '../services/transaction-helper';
 export interface TargetEstimation {
   sourceAmount: number;
   exchangeRate: number;
+  rate: number;
   feeAmount: number;
   estimatedAmount: number;
 }
