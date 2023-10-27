@@ -2,21 +2,13 @@ import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { SettingService } from 'src/shared/models/setting/setting.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
-import { CryptoRouteRepository } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.repository';
 import { CryptoRouteService } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.service';
 import { createCustomHistory } from 'src/subdomains/core/history/dto/__mocks__/history.dto.mock';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
-import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
-import { BankTxRepository } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.repository';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
-import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
-import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { BuyRepository } from '../../../routes/buy/buy.repository';
 import { BuyService } from '../../../routes/buy/buy.service';
 import { createCustomBuyHistory } from '../../../routes/buy/dto/__mocks__/buy-history.dto.mock';
@@ -27,6 +19,7 @@ import { BuyCryptoBatchService } from '../buy-crypto-batch.service';
 import { BuyCryptoDexService } from '../buy-crypto-dex.service';
 import { BuyCryptoNotificationService } from '../buy-crypto-notification.service';
 import { BuyCryptoOutService } from '../buy-crypto-out.service';
+import { BuyCryptoPreparationService } from '../buy-crypto-preparation.service';
 import { BuyCryptoRegistrationService } from '../buy-crypto-registration.service';
 import { BuyCryptoWebhookService } from '../buy-crypto-webhook.service';
 import { BuyCryptoService } from '../buy-crypto.service';
@@ -44,11 +37,8 @@ describe('BuyCryptoService', () => {
   let service: BuyCryptoService;
 
   let buyCryptoRepo: BuyCryptoRepository;
-  let bankTxRepo: BankTxRepository;
   let bankTxService: BankTxService;
-  let cryptoRouteRepo: CryptoRouteRepository;
   let buyRepo: BuyRepository;
-  let settingService: SettingService;
   let buyService: BuyService;
   let cryptoRouteService: CryptoRouteService;
   let buyCryptoBatchService: BuyCryptoBatchService;
@@ -58,21 +48,14 @@ describe('BuyCryptoService', () => {
   let buyCryptoNotificationService: BuyCryptoNotificationService;
   let userService: UserService;
   let buyFiatService: BuyFiatService;
-  let webhookService: WebhookService;
-  let transactionHelper: TransactionHelper;
-  let priceProviderService: PriceProviderService;
-  let fiatService: FiatService;
-  let bankDataService: BankDataService;
   let buyCryptoWebhookService: BuyCryptoWebhookService;
   let assetService: AssetService;
+  let buyCryptoPreparationService: BuyCryptoPreparationService;
 
   beforeEach(async () => {
     buyCryptoRepo = createMock<BuyCryptoRepository>();
-    bankTxRepo = createMock<BankTxRepository>();
     bankTxService = createMock<BankTxService>();
-    cryptoRouteRepo = createMock<CryptoRouteRepository>();
     buyRepo = createMock<BuyRepository>();
-    settingService = createMock<SettingService>();
     buyService = createMock<BuyService>();
     cryptoRouteService = createMock<CryptoRouteService>();
     buyCryptoBatchService = createMock<BuyCryptoBatchService>();
@@ -82,24 +65,17 @@ describe('BuyCryptoService', () => {
     buyCryptoRegistrationService = createMock<BuyCryptoRegistrationService>();
     userService = createMock<UserService>();
     buyFiatService = createMock<BuyFiatService>();
-    webhookService = createMock<WebhookService>();
-    transactionHelper = createMock<TransactionHelper>();
-    priceProviderService = createMock<PriceProviderService>();
-    fiatService = createMock<FiatService>();
-    bankDataService = createMock<BankDataService>();
     buyCryptoWebhookService = createMock<BuyCryptoWebhookService>();
     assetService = createMock<AssetService>();
+    buyCryptoPreparationService = createMock<BuyCryptoPreparationService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
       providers: [
         BuyCryptoService,
         { provide: BuyCryptoRepository, useValue: buyCryptoRepo },
-        { provide: BankTxRepository, useValue: bankTxRepo },
         { provide: BankTxService, useValue: bankTxService },
-        { provide: CryptoRouteRepository, useValue: cryptoRouteRepo },
         { provide: BuyRepository, useValue: buyRepo },
-        { provide: SettingService, useValue: settingService },
         { provide: BuyService, useValue: buyService },
         { provide: CryptoRouteService, useValue: cryptoRouteService },
         { provide: BuyCryptoBatchService, useValue: buyCryptoBatchService },
@@ -109,13 +85,9 @@ describe('BuyCryptoService', () => {
         { provide: BuyCryptoRegistrationService, useValue: buyCryptoRegistrationService },
         { provide: UserService, useValue: userService },
         { provide: BuyFiatService, useValue: buyFiatService },
-        { provide: WebhookService, useValue: webhookService },
-        { provide: TransactionHelper, useValue: transactionHelper },
-        { provide: PriceProviderService, useValue: priceProviderService },
-        { provide: FiatService, useValue: fiatService },
-        { provide: BankDataService, useValue: bankDataService },
         { provide: BuyCryptoWebhookService, useValue: buyCryptoWebhookService },
         { provide: AssetService, useValue: assetService },
+        { provide: BuyCryptoPreparationService, useValue: buyCryptoPreparationService },
       ],
     }).compile();
 
