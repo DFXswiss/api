@@ -99,6 +99,9 @@ export class BuyFiat extends IEntity {
   @Column({ type: 'float', nullable: true })
   totalFeeAmountChf: number;
 
+  @Column({ type: 'datetime2', nullable: true })
+  payoutConfirmationDate: Date;
+
   //Fail
   @Column({ length: 256, nullable: true })
   cryptoReturnTxId: string;
@@ -173,6 +176,19 @@ export class BuyFiat extends IEntity {
     this.mail1SendDate = new Date();
 
     return [this.id, { recipientMail: this.recipientMail, mail1SendDate: this.mail1SendDate }];
+  }
+
+  setFeeAndPrice(fee: number, feeAmount: number): UpdateResult<BuyFiat> {
+    const update: Partial<BuyFiat> = {
+      percentFee: fee,
+      inputReferenceAmountMinusFee: this.inputReferenceAmount - feeAmount,
+      percentFeeAmount: feeAmount,
+      payoutConfirmationDate: null,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   pendingMail(): UpdateResult<BuyFiat> {

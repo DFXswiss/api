@@ -127,20 +127,20 @@ export class TransactionHelper implements OnModuleInit {
 
     const { minVolume, minFee, maxVolume } = await this.convertToSource(from, {
       ...specs,
-      maxVolume: userData.availableTradingLimit,
+      maxVolume: userData?.availableTradingLimit,
     });
 
     const {
       minVolume: minVolumeTarget,
       minFee: minFeeTarget,
       maxVolume: maxVolumeTarget,
-    } = await this.convertToTarget(to, { ...specs, maxVolume: userData.availableTradingLimit });
+    } = await this.convertToTarget(to, { ...specs, maxVolume: userData?.availableTradingLimit });
 
     const fee = await this.getTxFee(
       userData,
       direction,
       to instanceof Asset ? to : from instanceof Asset ? from : undefined,
-      to instanceof Asset ? sourceAmount : targetAmount,
+      to instanceof Asset ? targetAmount : sourceAmount,
     );
 
     const target = await this.getTargetEstimation(sourceAmount, targetAmount, fee, minFee, from, to);

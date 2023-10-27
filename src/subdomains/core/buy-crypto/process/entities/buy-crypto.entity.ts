@@ -153,6 +153,9 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 256, nullable: true })
   chargebackCryptoTxId: string;
 
+  @Column({ type: 'datetime2', nullable: true })
+  payoutConfirmationDate: Date;
+
   @OneToOne(() => BankTx, { nullable: true })
   @JoinColumn()
   chargebackBankTx: BankTx;
@@ -351,6 +354,19 @@ export class BuyCrypto extends IEntity {
   setTxId(payoutTxId: string): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       txId: payoutTxId,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  setFeeAndPrice(fee: number, feeAmount: number): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
+      percentFee: fee,
+      inputReferenceAmountMinusFee: this.inputReferenceAmount - feeAmount,
+      percentFeeAmount: feeAmount,
+      payoutConfirmationDate: null,
     };
 
     Object.assign(this, update);
