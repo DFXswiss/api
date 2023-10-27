@@ -202,6 +202,7 @@ export class TransactionHelper implements OnModuleInit {
 
     return {
       exchangeRate: this.round(price.price, from instanceof Fiat),
+      rate: this.round(sourceAmount / targetAmount, from instanceof Fiat),
       feeAmount: this.round(feeAmount, from instanceof Fiat),
       estimatedAmount: this.round(targetAmount, to instanceof Fiat),
       sourceAmount: this.round(sourceAmount, from instanceof Fiat),
