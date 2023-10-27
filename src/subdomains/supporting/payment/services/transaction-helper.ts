@@ -140,7 +140,8 @@ export class TransactionHelper implements OnModuleInit {
       userData,
       direction,
       to instanceof Asset ? to : from instanceof Asset ? from : undefined,
-      to instanceof Asset ? targetAmount : sourceAmount,
+      targetAmount ? to : from,
+      targetAmount ? targetAmount : sourceAmount,
     );
 
     const target = await this.getTargetEstimation(sourceAmount, targetAmount, fee, minFee, from, to);
@@ -170,9 +171,10 @@ export class TransactionHelper implements OnModuleInit {
     userData: UserData,
     direction: FeeDirectionType,
     asset: Asset,
-    txVolume?: number,
+    txAsset: Asset | Fiat,
+    txVolume: number,
   ): Promise<number> {
-    const price = asset ? await this.priceProviderService.getPrice(asset, this.eur) : undefined;
+    const price = txAsset ? await this.priceProviderService.getPrice(txAsset, this.eur) : undefined;
 
     const txVolumeInEur = price ? price.convert(txVolume) : undefined;
 
