@@ -127,20 +127,21 @@ export class TransactionHelper implements OnModuleInit {
 
     const { minVolume, minFee, maxVolume } = await this.convertToSource(from, {
       ...specs,
-      maxVolume: userData.availableTradingLimit,
+      maxVolume: userData?.availableTradingLimit,
     });
 
     const {
       minVolume: minVolumeTarget,
       minFee: minFeeTarget,
       maxVolume: maxVolumeTarget,
-    } = await this.convertToTarget(to, { ...specs, maxVolume: userData.availableTradingLimit });
+    } = await this.convertToTarget(to, { ...specs, maxVolume: userData?.availableTradingLimit });
 
     const fee = await this.getTxFee(
       userData,
       direction,
       to instanceof Asset ? to : from instanceof Asset ? from : undefined,
-      to instanceof Asset ? sourceAmount : targetAmount,
+      targetAmount ? to : from,
+      targetAmount ? targetAmount : sourceAmount,
     );
 
     const target = await this.getTargetEstimation(sourceAmount, targetAmount, fee, minFee, from, to);
@@ -170,9 +171,10 @@ export class TransactionHelper implements OnModuleInit {
     userData: UserData,
     direction: FeeDirectionType,
     asset: Asset,
-    txVolume?: number,
+    txAsset: Asset | Fiat,
+    txVolume: number,
   ): Promise<number> {
-    const price = asset ? await this.priceProviderService.getPrice(asset, this.eur) : undefined;
+    const price = txAsset ? await this.priceProviderService.getPrice(txAsset, this.eur) : undefined;
 
     const txVolumeInEur = price ? price.convert(txVolume) : undefined;
 
@@ -227,7 +229,7 @@ export class TransactionHelper implements OnModuleInit {
     return {
       minFee: this.convert(minFee, price, from instanceof Fiat),
       minVolume: this.convert(minVolume, price, from instanceof Fiat),
-      maxVolume: this.roundMaxAmount(maxVolumeSource, from instanceof Fiat),
+      maxVolume: maxVolumeSource && this.roundMaxAmount(maxVolumeSource, from instanceof Fiat),
     };
   }
 
@@ -243,7 +245,7 @@ export class TransactionHelper implements OnModuleInit {
     return {
       minFee: this.convert(minFee, price, to instanceof Fiat),
       minVolume: this.convert(minVolume, price, to instanceof Fiat),
-      maxVolume: this.roundMaxAmount(maxVolumeTarget, to instanceof Fiat),
+      maxVolume: maxVolumeTarget && this.roundMaxAmount(maxVolumeTarget, to instanceof Fiat),
     };
   }
 
