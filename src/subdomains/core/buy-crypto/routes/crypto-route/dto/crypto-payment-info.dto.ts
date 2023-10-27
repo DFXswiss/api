@@ -47,7 +47,7 @@ export class CryptoPaymentInfoDto {
   @ApiProperty({ description: 'Exchange rate in source/target' })
   exchangeRate: number;
 
-  @ApiProperty({ description: 'Rate in sourceAmount/targetAmount' })
+  @ApiProperty({ description: 'Final rate (incl. fees) in source/target' })
   rate: number;
 
   @ApiProperty({ description: 'Estimated amount in target asset' })
