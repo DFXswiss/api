@@ -11,6 +11,7 @@ import { DfiTaxService } from 'src/integration/blockchain/ain/services/dfi-tax.s
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { Lock } from 'src/shared/utils/lock';
@@ -18,6 +19,7 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
 import { KycService } from '../kyc/kyc.service';
 import { KycStatus, KycType, UserData, UserDataStatus } from '../user-data/user-data.entity';
@@ -31,7 +33,7 @@ import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
-import { User, UserStatus } from './user.entity';
+import { FeeDirectionType, User, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
 
 @Injectable()
@@ -47,6 +49,7 @@ export class UserService {
     private readonly geoLocationService: GeoLocationService,
     private readonly countryService: CountryService,
     private readonly cryptoService: CryptoService,
+    private readonly feeService: FeeService,
   ) {}
 
   async getAllUser(): Promise<User[]> {
@@ -118,6 +121,7 @@ export class UserService {
     userOrigin?: string,
     userData?: UserData,
     wallet?: Wallet,
+    discountCode?: string,
   ): Promise<User> {
     let user = this.userRepo.create({ address, signature });
 
@@ -128,6 +132,8 @@ export class UserService {
     user.origin = userOrigin;
     user.userData = userData ?? (await this.userDataService.createUserData(user.wallet.customKyc ?? KycType.DFX));
     user = await this.userRepo.save(user);
+
+    if (discountCode) await this.feeService.addDiscountCodeUser(user.userData, discountCode);
 
     const blockchains = this.cryptoService.getBlockchainsBasedOn(user.address);
     if (blockchains.includes(Blockchain.DEFICHAIN)) this.dfiTaxService.activateAddress(user.address);
@@ -259,6 +265,14 @@ export class UserService {
       .getRawOne<{ sellVolume: number }>();
 
     return { buy: buyVolume ?? 0, sell: sellVolume ?? 0 };
+  }
+
+  // --- FEES --- //
+  async getUserFee(userId: number, direction: FeeDirectionType, asset: Asset, txVolume?: number): Promise<number> {
+    const user = await this.getUser(userId, { userData: true });
+    if (!user) throw new NotFoundException('User not found');
+
+    return this.feeService.getUserFee({ userData: user.userData, direction, asset, txVolume });
   }
 
   // --- REF --- //

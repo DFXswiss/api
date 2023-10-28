@@ -3,14 +3,17 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { MinAmount } from 'src/shared/payment/dto/min-amount.dto';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
+import { MinAmount } from 'src/subdomains/supporting/payment/dto/min-amount.dto';
+import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
-import { TargetEstimation, TransactionDetails } from '../entities/transaction-details';
+import { TargetEstimation, TransactionDetails } from '../dto/transaction-details.dto';
+import { TxSpec, TxSpecExtended } from '../dto/tx-spec.dto';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
-import { TxSpec, TxSpecExtended } from '../entities/tx-spec';
 import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
 
 export enum ValidationError {
@@ -33,6 +36,7 @@ export class TransactionHelper implements OnModuleInit {
     private readonly transactionSpecificationRepo: TransactionSpecificationRepository,
     private readonly priceProviderService: PriceProviderService,
     private readonly fiatService: FiatService,
+    private readonly feeService: FeeService,
   ) {}
 
   onModuleInit() {
@@ -114,19 +118,31 @@ export class TransactionHelper implements OnModuleInit {
   async getTxDetails(
     sourceAmount: number | undefined,
     targetAmount: number | undefined,
-    fee: number,
     from: Asset | Fiat,
     to: Asset | Fiat,
-    tradingLimit?: number,
+    userData?: UserData,
   ): Promise<TransactionDetails> {
     const specs = this.getSpecs(from, to);
+    const direction = this.getTxDirection(from, to);
 
-    const { minVolume, minFee, maxVolume } = await this.convertToSource(from, { ...specs, maxVolume: tradingLimit });
+    const { minVolume, minFee, maxVolume } = await this.convertToSource(from, {
+      ...specs,
+      maxVolume: userData?.availableTradingLimit,
+    });
+
     const {
       minVolume: minVolumeTarget,
       minFee: minFeeTarget,
       maxVolume: maxVolumeTarget,
-    } = await this.convertToTarget(to, { ...specs, maxVolume: tradingLimit });
+    } = await this.convertToTarget(to, { ...specs, maxVolume: userData?.availableTradingLimit });
+
+    const fee = await this.getTxFee(
+      userData,
+      direction,
+      to instanceof Asset ? to : from instanceof Asset ? from : undefined,
+      targetAmount ? to : from,
+      targetAmount ? targetAmount : sourceAmount,
+    );
 
     const target = await this.getTargetEstimation(sourceAmount, targetAmount, fee, minFee, from, to);
 
@@ -145,9 +161,26 @@ export class TransactionHelper implements OnModuleInit {
       minVolumeTarget,
       maxVolume,
       maxVolumeTarget,
+      fee,
       isValid: error == null,
       error,
     };
+  }
+
+  private async getTxFee(
+    userData: UserData,
+    direction: FeeDirectionType,
+    asset: Asset,
+    txAsset: Asset | Fiat,
+    txVolume: number,
+  ): Promise<number> {
+    const price = txAsset ? await this.priceProviderService.getPrice(txAsset, this.eur) : undefined;
+
+    const txVolumeInEur = price ? price.convert(txVolume) : undefined;
+
+    return userData
+      ? this.feeService.getUserFee({ userData, direction, asset, txVolume: txVolumeInEur })
+      : this.feeService.getDefaultFee({ direction, asset, txVolume: txVolumeInEur });
   }
 
   private async getTargetEstimation(
@@ -169,6 +202,7 @@ export class TransactionHelper implements OnModuleInit {
 
     return {
       exchangeRate: this.round(price.price, from instanceof Fiat),
+      rate: this.round(sourceAmount / targetAmount, from instanceof Fiat),
       feeAmount: this.round(feeAmount, from instanceof Fiat),
       estimatedAmount: this.round(targetAmount, to instanceof Fiat),
       sourceAmount: this.round(sourceAmount, from instanceof Fiat),
@@ -196,7 +230,7 @@ export class TransactionHelper implements OnModuleInit {
     return {
       minFee: this.convert(minFee, price, from instanceof Fiat),
       minVolume: this.convert(minVolume, price, from instanceof Fiat),
-      maxVolume: this.roundMaxAmount(maxVolumeSource, from instanceof Fiat),
+      maxVolume: maxVolumeSource && this.roundMaxAmount(maxVolumeSource, from instanceof Fiat),
     };
   }
 
@@ -212,7 +246,7 @@ export class TransactionHelper implements OnModuleInit {
     return {
       minFee: this.convert(minFee, price, to instanceof Fiat),
       minVolume: this.convert(minVolume, price, to instanceof Fiat),
-      maxVolume: this.roundMaxAmount(maxVolumeTarget, to instanceof Fiat),
+      maxVolume: maxVolumeTarget && this.roundMaxAmount(maxVolumeTarget, to instanceof Fiat),
     };
   }
 
@@ -227,5 +261,11 @@ export class TransactionHelper implements OnModuleInit {
 
   private roundMaxAmount(amount: number, isFiat: boolean): number {
     return isFiat ? Util.round(amount, -1) : Util.roundByPrecision(amount, 3);
+  }
+
+  private getTxDirection(from: Asset | Fiat, to: Asset | Fiat): FeeDirectionType {
+    if (from instanceof Fiat && to instanceof Asset) return FeeDirectionType.BUY;
+    if (from instanceof Asset && to instanceof Fiat) return FeeDirectionType.SELL;
+    return FeeDirectionType.CONVERT;
   }
 }

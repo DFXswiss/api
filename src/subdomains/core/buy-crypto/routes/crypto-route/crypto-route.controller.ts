@@ -9,14 +9,14 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
-import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { HistoryDto } from 'src/subdomains/core/history/dto/history.dto';
-import { FeeType } from 'src/subdomains/generic/user/models/user/user.entity';
+import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { CryptoRoute } from './crypto-route.entity';
 import { CryptoRouteService } from './crypto-route.service';
 import { CreateCryptoRouteDto } from './dto/create-crypto-route.dto';
@@ -78,14 +78,12 @@ export class CryptoRouteController {
       targetAmount,
     } = await this.paymentInfoService.cryptoCheck(dto);
 
-    const fee = Config.crypto.fee;
-
     const {
       exchangeRate,
       feeAmount,
       estimatedAmount,
       sourceAmount: amount,
-    } = await this.transactionHelper.getTxDetails(sourceAmount, targetAmount, fee, sourceAsset, targetAsset);
+    } = await this.transactionHelper.getTxDetails(sourceAmount, targetAmount, sourceAsset, targetAsset);
 
     return {
       feeAmount,
@@ -131,13 +129,12 @@ export class CryptoRouteController {
 
   // --- DTO --- //
   private async toDtoList(userId: number, cryptos: CryptoRoute[]): Promise<CryptoRouteDto[]> {
-    const fee = await this.getUserCryptoFee(userId);
-
-    return Promise.all(cryptos.map((b) => this.toDto(userId, b, fee)));
+    return Promise.all(cryptos.map((b) => this.toDto(userId, b)));
   }
 
-  private async toDto(userId: number, crypto: CryptoRoute, fee?: number): Promise<CryptoRouteDto> {
-    fee ??= await this.getUserCryptoFee(userId);
+  private async toDto(userId: number, crypto: CryptoRoute): Promise<CryptoRouteDto> {
+    const fee = await this.userService.getUserFee(userId, FeeDirectionType.CONVERT, crypto.asset);
+
     const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
       crypto.deposit.blockchain,
       undefined,
@@ -164,26 +161,27 @@ export class CryptoRouteController {
     dto: GetCryptoPaymentInfoDto,
   ): Promise<CryptoPaymentInfoDto> {
     const user = await this.userService.getUser(userId, { userData: true, wallet: true });
-    const fee = user.getFee(FeeType.CRYPTO);
 
     const {
       minVolume,
       minFee,
       minVolumeTarget,
       minFeeTarget,
-      estimatedAmount,
-      sourceAmount: amount,
       maxVolume,
       maxVolumeTarget,
+      fee,
+      exchangeRate,
+      rate,
+      estimatedAmount,
+      sourceAmount: amount,
       isValid,
       error,
     } = await this.transactionHelper.getTxDetails(
       dto.amount,
       dto.targetAmount,
-      fee,
       dto.sourceAsset,
       dto.targetAsset,
-      user.userData.availableTradingLimit,
+      user.userData,
     );
 
     return {
@@ -196,6 +194,8 @@ export class CryptoRouteController {
       minFee,
       minVolumeTarget,
       minFeeTarget,
+      exchangeRate,
+      rate,
       estimatedAmount,
       amount,
       targetAsset: AssetDtoMapper.entityToDto(dto.targetAsset),
@@ -211,10 +211,5 @@ export class CryptoRouteController {
       isValid,
       error,
     };
-  }
-
-  private async getUserCryptoFee(userId: number): Promise<number> {
-    const user = await this.userService.getUser(userId, { userData: true, wallet: true });
-    return user.getFee(FeeType.CRYPTO);
   }
 }
