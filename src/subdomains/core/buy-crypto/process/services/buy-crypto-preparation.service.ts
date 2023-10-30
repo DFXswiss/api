@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -6,8 +7,11 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { Between, In, IsNull, Not } from 'typeorm';
+import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
+import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { CheckStatus } from '../enums/check-status.enum';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
+import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 
 @Injectable()
 export class BuyCryptoPreparationService {
@@ -19,6 +23,8 @@ export class BuyCryptoPreparationService {
     private readonly priceProviderService: PriceProviderService,
     private readonly fiatService: FiatService,
     private readonly bankDataService: BankDataService,
+    private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
+    private readonly assetService: AssetService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
@@ -119,7 +125,91 @@ export class BuyCryptoPreparationService {
     }
   }
 
+  async prepareTransactions(): Promise<void> {
+    try {
+      const txInput = await this.buyCryptoRepo.find({
+        where: {
+          inputReferenceAmountMinusFee: Not(IsNull()),
+          outputReferenceAsset: IsNull(),
+          outputAsset: IsNull(),
+          batch: IsNull(),
+          payoutConfirmationDate: Not(IsNull()),
+        },
+        relations: [
+          'bankTx',
+          'buy',
+          'buy.user',
+          'buy.user.wallet',
+          'buy.asset',
+          'batch',
+          'cryptoRoute',
+          'cryptoRoute.user',
+          'cryptoRoute.user.wallet',
+          'cryptoRoute.asset',
+          'cryptoInput',
+        ],
+      });
+
+      if (txInput.length === 0) return;
+
+      this.logger.verbose(
+        `Buy-crypto transaction input. Processing ${txInput.length} transaction(s). Transaction ID(s): ${txInput.map(
+          (t) => t.id,
+        )}`,
+      );
+
+      const txWithAssets = await this.defineAssetPair(txInput);
+      const txWithFeeConstraints = this.setFeeConstraints(txWithAssets);
+
+      for (const tx of txWithFeeConstraints) {
+        await this.buyCryptoRepo.save(tx);
+        await this.buyCryptoWebhookService.triggerWebhook(tx);
+      }
+    } catch (e) {
+      this.logger.error('Error during buy-crypto preparation:', e);
+    }
+  }
+
   // --- HELPER METHODS --- //
+
+  private async defineAssetPair(transactions: BuyCrypto[]): Promise<BuyCrypto[]> {
+    for (const tx of transactions) {
+      try {
+        const outputReferenceAssetToFetch = tx.defineAssetExchangePair();
+
+        if (outputReferenceAssetToFetch) {
+          const { outputReferenceAssetName, type } = outputReferenceAssetToFetch;
+
+          const outputReferenceAsset = await this.assetService.getAssetByQuery({
+            dexName: outputReferenceAssetName,
+            blockchain: tx.outputAsset.blockchain,
+            type,
+          });
+
+          if (!outputReferenceAsset) {
+            throw new Error(
+              `Asset with name ${outputReferenceAssetName}, type: ${type}, blockchain: ${tx.outputAsset.blockchain} not found by asset service.`,
+            );
+          }
+
+          tx.setOutputReferenceAsset(outputReferenceAsset);
+        }
+      } catch (e) {
+        this.logger.error('Error while defining buy-crypto asset pair:', e);
+      }
+    }
+
+    return transactions.filter((tx) => tx.outputReferenceAsset && tx.outputAsset);
+  }
+
+  private setFeeConstraints(transactions: BuyCrypto[]): BuyCrypto[] {
+    for (const tx of transactions) {
+      const fee = BuyCryptoFee.create(tx);
+      tx.setFeeConstraints(fee);
+    }
+
+    return transactions;
+  }
 
   private async getUserVolume(
     userIds: number[],

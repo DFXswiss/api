@@ -146,4 +146,9 @@ export class UpdateBuyCryptoDto {
   @IsOptional()
   @IsNumber()
   allowedTotalFeePercent: number;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  payoutConfirmationDate: Date;
 }
