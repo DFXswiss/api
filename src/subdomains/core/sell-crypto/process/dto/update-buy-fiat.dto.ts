@@ -175,4 +175,9 @@ export class UpdateBuyFiatDto {
   @IsOptional()
   @IsNumber()
   refFactor: number;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  payoutConfirmationDate: Date;
 }
