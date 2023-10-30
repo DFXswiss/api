@@ -20,7 +20,6 @@ import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
 import { BuyCryptoBatchService } from '../buy-crypto-batch.service';
 import { BuyCryptoNotificationService } from '../buy-crypto-notification.service';
 import { BuyCryptoPricingService } from '../buy-crypto-pricing.service';
-import { BuyCryptoWebhookService } from '../buy-crypto-webhook.service';
 
 describe('BuyCryptoBatchService', () => {
   let service: BuyCryptoBatchService;
@@ -36,7 +35,6 @@ describe('BuyCryptoBatchService', () => {
   let payoutService: PayoutService;
   let buyCryptoNotificationService: BuyCryptoNotificationService;
   let liquidityManagementService: LiquidityManagementService;
-  let buyCryptoWebhookService: BuyCryptoWebhookService;
 
   /*** Spies ***/
 
@@ -47,34 +45,6 @@ describe('BuyCryptoBatchService', () => {
   beforeEach(async () => {
     await setupMocks();
     setupSpies();
-  });
-
-  describe('#prepareTransactions(...)', () => {
-    it('returns early when there is no input transactions', async () => {
-      jest.spyOn(buyCryptoRepo, 'find').mockImplementation(async () => []);
-
-      const result = await service.prepareTransactions();
-
-      expect(result).toBeUndefined();
-      expect(buyCryptoBatchRepoSave).toBeCalledTimes(0);
-    });
-
-    it('defines asset pair', async () => {
-      const transactions = [createCustomBuyCrypto({ outputReferenceAsset: null })];
-      const defineAssetExchangePairSpy = jest.spyOn(transactions[0], 'defineAssetExchangePair');
-      jest
-        .spyOn(assetService, 'getAssetByQuery')
-        .mockImplementation(async ({ dexName }) => createCustomAsset({ dexName }));
-
-      jest.spyOn(buyCryptoRepo, 'find').mockImplementation(async () => transactions);
-
-      expect(transactions[0].outputReferenceAsset).toBe(null);
-
-      await service.prepareTransactions();
-
-      expect(defineAssetExchangePairSpy).toBeCalledTimes(1);
-      expect(transactions[0].outputReferenceAsset.dexName).toBe('BTC');
-    });
   });
 
   describe('#batchAndOptimizeTransactions(...)', () => {
@@ -238,7 +208,6 @@ describe('BuyCryptoBatchService', () => {
     payoutService = mock<PayoutService>();
     buyCryptoNotificationService = mock<BuyCryptoNotificationService>();
     liquidityManagementService = mock<LiquidityManagementService>();
-    buyCryptoWebhookService = mock<BuyCryptoWebhookService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -252,7 +221,6 @@ describe('BuyCryptoBatchService', () => {
         { provide: PayoutService, useValue: payoutService },
         { provide: BuyCryptoNotificationService, useValue: buyCryptoNotificationService },
         { provide: LiquidityManagementService, useValue: liquidityManagementService },
-        { provide: BuyCryptoWebhookService, useValue: buyCryptoWebhookService },
         TestUtil.provideConfig(),
       ],
     }).compile();
