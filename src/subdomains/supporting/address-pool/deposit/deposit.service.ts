@@ -1,6 +1,7 @@
 import { AddressType } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
 import { NodeClient } from 'src/integration/blockchain/ain/node/node-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -25,6 +26,7 @@ export class DepositService {
   constructor(
     private readonly depositRepo: DepositRepository,
     private readonly cryptoService: CryptoService,
+    private readonly alchemyService: AlchemyService,
     nodeService: NodeService,
     lightningService: LightningService,
   ) {
@@ -82,6 +84,8 @@ export class DepositService {
   }
 
   private async createEvmDeposits(blockchain: Blockchain, count: number) {
+    const addresses: string[] = [];
+
     const nextDepositIndex = await this.getNextDepositIndex(this.cryptoService.EthereumBasedChains);
 
     for (let i = 0; i < count; i++) {
@@ -90,7 +94,11 @@ export class DepositService {
       const wallet = EvmUtil.createWallet(Config.blockchain.evm.walletAccount(accountIndex));
       const deposit = Deposit.create(wallet.address, blockchain, accountIndex);
       await this.depositRepo.save(deposit);
+
+      addresses.push(deposit.address);
     }
+
+    await this.alchemyService.createAddressWebhook({ blockchain: blockchain, addresses: addresses });
   }
 
   private async createLightningDeposits(blockchain: Blockchain, count: number) {

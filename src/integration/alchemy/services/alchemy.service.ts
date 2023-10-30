@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { AddressActivityWebhook, Alchemy, WebhookType } from 'alchemy-sdk';
+import {
+  AddressActivityResponse,
+  AddressActivityWebhook,
+  Alchemy,
+  GetAllWebhooksResponse,
+  WebhookType,
+} from 'alchemy-sdk';
 import { GetConfig } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { AlchemyNetworkMapper } from '../alchemy-network-mapper';
@@ -18,6 +24,14 @@ export class AlchemyService {
     };
 
     this.alchemy = new Alchemy(settings);
+  }
+
+  async getAllWebhooks(): Promise<GetAllWebhooksResponse> {
+    return this.alchemy.notify.getAllWebhooks();
+  }
+
+  async getWebhookAddresses(webhookId: string): Promise<AddressActivityResponse> {
+    return this.alchemy.notify.getAddresses(webhookId);
   }
 
   async createAddressWebhook(dto: CreateWebhookDto): Promise<AddressActivityWebhook[]> {
