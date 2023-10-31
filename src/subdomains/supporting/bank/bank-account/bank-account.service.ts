@@ -40,7 +40,7 @@ export class BankAccountService {
       .leftJoinAndSelect('bankAccount.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('users.wallet', 'wallet')
-      .where(`bankAccount.${key} = :param`, { param: value })
+      .where(`${key.includes('.') ? key : `bankAccount.${key}`} = :param`, { param: value })
       .getOne();
   }
 
