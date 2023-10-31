@@ -127,8 +127,8 @@ export class PriceStep {
 
   private defineMatchThreshold(fromCurrency: string, toCurrency: string): number {
     if (
-      PricingUtil.isUsdStablecoin(fromCurrency) ||
-      PricingUtil.isUsdStablecoin(toCurrency) ||
+      PricingUtil.isUsdStableCoin(fromCurrency) ||
+      PricingUtil.isUsdStableCoin(toCurrency) ||
       fromCurrency === Fiat.USD ||
       toCurrency === Fiat.USD
     ) {

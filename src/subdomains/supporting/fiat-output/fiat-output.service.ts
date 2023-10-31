@@ -56,7 +56,7 @@ export class FiatOutputService {
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('users.wallet', 'wallet')
-      .where(`fiatOutput.${key} = :param`, { param: value })
+      .where(`${key.includes('.') ? key : `fiatOutput.${key}`} = :param`, { param: value })
       .getOne();
   }
 }
