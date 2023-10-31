@@ -55,3 +55,7 @@ export enum Altcoin {
   INCH = '1INCH',
   SUSHI = 'SUSHI',
 }
+
+export enum Specialcoin {
+  FOX = 'FOX',
+}

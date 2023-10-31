@@ -16,6 +16,7 @@ import { PriceStep } from '../utils/price-step';
 import { PricingUtil } from '../utils/pricing.util';
 import { CurrencyService } from './integration/currency.service';
 import { FixerService } from './integration/fixer.service';
+import { PricingCoinGeckoService } from './integration/pricing-coin-gecko.service';
 import { PricingDeFiChainService } from './integration/pricing-defichain.service';
 
 export enum PricingPathAlias {
@@ -25,6 +26,7 @@ export enum PricingPathAlias {
   FIAT_TO_ALTCOIN = 'FiatToAltcoin',
   ALTCOIN_TO_ALTCOIN = 'AltcoinToAltcoin',
   BTC_TO_ALTCOIN = 'BTCToAltcoin',
+  FIAT_TO_SPECIALCOIN = 'FiatToSpecialcoin',
   BTC_TO_USD_STABLE_COIN = 'BTCToUSDStableCoin',
   MATCHING_FIAT_TO_STABLE_COIN = 'MatchingFiatToStableCoin',
   NON_MATCHING_FIAT_TO_USD_STABLE_COIN = 'NonMatchingFiatToUSDStableCoin',
@@ -51,6 +53,7 @@ export class PricingService {
     private readonly currencyService: CurrencyService,
     private readonly fixerService: FixerService,
     private readonly defichainService: PricingDeFiChainService,
+    private readonly coinGeckoService: PricingCoinGeckoService,
   ) {
     this.configurePaths();
   }
@@ -208,6 +211,16 @@ export class PricingService {
     );
 
     this.addPath(
+      new PricePath(PricingPathAlias.FIAT_TO_SPECIALCOIN, [
+        new PriceStep({
+          primary: {
+            providers: [this.coinGeckoService],
+          },
+        }),
+      ]),
+    );
+
+    this.addPath(
       new PricePath(PricingPathAlias.MATCHING_FIAT_TO_STABLE_COIN, [
         new PriceStep({
           fixedPrice: 1,
@@ -305,6 +318,8 @@ export class PricingService {
     if (PricingUtil.isBTC(from) && PricingUtil.isAltcoin(to)) return PricingPathAlias.BTC_TO_ALTCOIN;
 
     if (PricingUtil.isBTC(from) && PricingUtil.isBTC(to)) return PricingPathAlias.BTC_TO_ALTCOIN;
+
+    if (PricingUtil.isFiat(from) && PricingUtil.isSpecialCoin(to)) return PricingPathAlias.FIAT_TO_SPECIALCOIN;
 
     if (PricingUtil.isBTC(from) && PricingUtil.isUsdStablecoin(to)) return PricingPathAlias.BTC_TO_USD_STABLE_COIN;
 
