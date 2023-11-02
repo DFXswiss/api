@@ -2,7 +2,7 @@ import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { RefReward } from '../../referral/reward/ref-reward.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
-import { CompactHistoryDto,  getStatus } from '../dto/output/compact-history.dto';
+import { CompactHistoryDto, getStatus } from '../dto/output/compact-history.dto';
 import { TransactionType } from '../dto/transaction/transaction.dto';
 
 export class CompactHistoryDtoMapper {
@@ -14,8 +14,10 @@ export class CompactHistoryDtoMapper {
           state: getStatus(buyCrypto),
           inputAmount: buyCrypto.inputAmount,
           inputAsset: buyCrypto.inputAsset,
+          inputBlockchain: buyCrypto.cryptoInput?.asset.blockchain,
           outputAmount: buyCrypto.outputAmount,
           outputAsset: buyCrypto.outputAsset?.name,
+          outputBlockchain: buyCrypto.target.asset.blockchain,
           feeAmount: buyCrypto.percentFee,
           feeAsset: buyCrypto.percentFee ? buyCrypto.inputReferenceAsset : null,
           txId: buyCrypto.txId,
@@ -35,8 +37,10 @@ export class CompactHistoryDtoMapper {
           state: getStatus(buyFiat),
           inputAmount: buyFiat.inputAmount,
           inputAsset: buyFiat.inputAsset,
+          inputBlockchain: buyFiat.cryptoInput?.asset.blockchain,
           outputAmount: buyFiat.outputAmount,
           outputAsset: buyFiat.outputAsset,
+          outputBlockchain: null,
           feeAmount: buyFiat.percentFee,
           feeAsset: buyFiat.percentFee ? buyFiat.inputReferenceAsset : null,
           txId: buyFiat.fiatOutput?.remittanceInfo,
@@ -56,8 +60,10 @@ export class CompactHistoryDtoMapper {
           state: getStatus(refReward),
           inputAmount: null,
           inputAsset: null,
+          inputBlockchain: null,
           outputAmount: refReward.outputAmount,
           outputAsset: refReward.outputAsset,
+          outputBlockchain: refReward.targetBlockchain,
           feeAmount: null,
           feeAsset: null,
           txId: refReward.txId,

@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BuyCrypto, BuyCryptoStatus } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { RefReward, RewardStatus } from 'src/subdomains/core/referral/reward/ref-reward.entity';
@@ -18,11 +19,17 @@ export class CompactHistoryDto {
   @ApiPropertyOptional()
   inputAsset?: string;
 
+  @ApiPropertyOptional({ enum: Blockchain })
+  inputBlockchain?: Blockchain;
+
   @ApiPropertyOptional()
   outputAmount?: number;
 
   @ApiPropertyOptional()
   outputAsset?: string;
+
+  @ApiPropertyOptional({ enum: Blockchain })
+  outputBlockchain?: Blockchain;
 
   @ApiPropertyOptional()
   feeAmount?: number;
@@ -36,7 +43,7 @@ export class CompactHistoryDto {
   @ApiPropertyOptional()
   txUrl?: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: Date })
   date: Date;
 }
 
