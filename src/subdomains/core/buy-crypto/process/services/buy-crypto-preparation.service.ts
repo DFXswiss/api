@@ -90,6 +90,8 @@ export class BuyCryptoPreparationService {
         status: IsNull(),
         isComplete: false,
         percentFee: IsNull(),
+        cryptoInput: IsNull(),
+        inputReferenceAmount: Not(IsNull()),
       },
       relations: [
         'bankTx',
@@ -105,9 +107,6 @@ export class BuyCryptoPreparationService {
     });
 
     for (const entity of entities) {
-      // Skip convert buyCrypto
-      if (entity.cryptoInput) continue;
-
       const inputReferenceCurrency = await this.fiatService.getFiatByName(entity.inputReferenceAsset);
 
       const { feeAmount, fee, minFee } = await this.transactionHelper.getTxDetails(
@@ -122,7 +121,7 @@ export class BuyCryptoPreparationService {
       const inputAssetChfPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatChf);
 
       await this.buyCryptoRepo.update(
-        ...entity.setFeeAndPrice(fee, minFee, feeAmount, inputAssetChfPrice.convert(feeAmount, 2)),
+        ...entity.setFee(fee, minFee, minFee, feeAmount, inputAssetChfPrice.convert(feeAmount, 2)),
       );
     }
   }

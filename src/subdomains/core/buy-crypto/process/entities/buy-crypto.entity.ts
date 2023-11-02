@@ -382,9 +382,10 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
-  setFeeAndPrice(
+  setFee(
     fee: number,
     minFeeAmount: number,
+    minFeeAmountFiat: number,
     totalFeeAmount: number,
     totalFeeAmountChf: number,
   ): UpdateResult<BuyCrypto> {
@@ -393,7 +394,7 @@ export class BuyCrypto extends IEntity {
       percentFee: fee,
       percentFeeAmount: fee * this.inputReferenceAmount,
       minFeeAmount,
-      minFeeAmountFiat: minFeeAmount,
+      minFeeAmountFiat,
       totalFeeAmount,
       totalFeeAmountChf,
       inputReferenceAmountMinusFee: this.inputReferenceAmount - totalFeeAmount,
