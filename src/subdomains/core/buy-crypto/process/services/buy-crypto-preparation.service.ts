@@ -28,6 +28,8 @@ export class BuyCryptoPreparationService {
   ) {}
 
   async doAmlCheck(): Promise<void> {
+    // Atm only for bankTx BuyCrypto
+
     const entities = await this.buyCryptoRepo.find({
       where: { amlCheck: IsNull(), amlReason: IsNull(), bankTx: Not(IsNull()), buy: Not(IsNull()), status: IsNull() },
       relations: ['bankTx', 'buy', 'buy.user', 'buy.user.wallet', 'buy.user.userData', 'buy.user.userData.users'],
@@ -72,7 +74,7 @@ export class BuyCryptoPreparationService {
           fee,
           minFee,
           minVolume,
-          userDataVolume.buy,
+          userDataVolume.buy + userDataVolume.checkout, // + convert?
           bankData?.userData,
         ),
       );
@@ -80,15 +82,18 @@ export class BuyCryptoPreparationService {
   }
 
   async refreshFeeAndPrice(): Promise<void> {
+    // Atm only for bankTx/checkoutTx BuyCrypto
+
     const entities = await this.buyCryptoRepo.find({
       where: {
         amlCheck: CheckStatus.PASS,
         status: IsNull(),
         isComplete: false,
-        payoutConfirmationDate: IsNull(),
+        percentFee: IsNull(),
       },
       relations: [
         'bankTx',
+        'checkoutTx',
         'buy',
         'buy.user',
         'buy.user.userData',
@@ -100,28 +105,25 @@ export class BuyCryptoPreparationService {
     });
 
     for (const entity of entities) {
-      const inputCurrency = entity.bankTx
-        ? await this.fiatService.getFiatByName(entity.bankTx.txCurrency)
-        : entity.cryptoInput.asset;
+      // Skip convert buyCrypto
+      if (entity.cryptoInput) continue;
 
-      const { feeAmount, fee } = await this.transactionHelper.getTxDetails(
-        entity.bankTx.txAmount,
+      const inputReferenceCurrency = await this.fiatService.getFiatByName(entity.inputReferenceAsset);
+
+      const { feeAmount, fee, minFee } = await this.transactionHelper.getTxDetails(
+        entity.inputReferenceAmount,
         undefined,
-        inputCurrency,
+        inputReferenceCurrency,
         entity.target.asset,
         entity.user.userData,
       );
 
-      if (entity.inputAsset != entity.inputReferenceAsset) {
-        const inputReferenceCurrency = await this.fiatService.getFiatByName(entity.inputReferenceAsset);
-        const price = await this.priceProviderService.getPrice(inputCurrency, inputReferenceCurrency);
+      const fiatChf = await this.fiatService.getFiatByName('CHF');
+      const inputAssetChfPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatChf);
 
-        await this.buyCryptoRepo.update(...entity.setFeeAndPrice(fee, price.convert(feeAmount, 2)));
-
-        continue;
-      }
-
-      await this.buyCryptoRepo.update(...entity.setFeeAndPrice(fee, feeAmount));
+      await this.buyCryptoRepo.update(
+        ...entity.setFeeAndPrice(fee, minFee, feeAmount, inputAssetChfPrice.convert(feeAmount, 2)),
+      );
     }
   }
 
@@ -130,10 +132,10 @@ export class BuyCryptoPreparationService {
       const txInput = await this.buyCryptoRepo.find({
         where: {
           inputReferenceAmountMinusFee: Not(IsNull()),
+          percentFee: Not(IsNull()),
           outputReferenceAsset: IsNull(),
           outputAsset: IsNull(),
           batch: IsNull(),
-          payoutConfirmationDate: Not(IsNull()),
         },
         relations: [
           'bankTx',
@@ -215,7 +217,7 @@ export class BuyCryptoPreparationService {
     userIds: number[],
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
-  ): Promise<{ buy: number; convert: number }> {
+  ): Promise<{ buy: number; convert: number; checkout: number }> {
     const buyVolume = await this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
       .select('COUNT(amountInEur)', 'volume')
@@ -240,6 +242,18 @@ export class BuyCryptoPreparationService {
       .getRawOne<{ volume: number }>()
       .then((result) => result.volume);
 
-    return { buy: buyVolume, convert: convertVolume };
+    const checkoutVolume = await this.buyCryptoRepo
+      .createQueryBuilder('buyCrypto')
+      .select('COUNT(amountInEur)', 'volume')
+      .leftJoin('buyCrypto.checkoutTx', 'checkoutTx')
+      .leftJoin('buyCrypto.buy', 'buy')
+      .leftJoin('buy.user', 'user')
+      .where(`user.id = :userId`, { userId: In(userIds) })
+      .andWhere('checkoutTx.requestedOn = :date', { date: Between(dateFrom, dateTo) })
+      .andWhere('buyCrypto.amlCheck = :amlCheck', { amlCheck: CheckStatus.PASS })
+      .getRawOne<{ volume: number }>()
+      .then((result) => result.volume);
+
+    return { buy: buyVolume, convert: convertVolume, checkout: checkoutVolume };
   }
 }

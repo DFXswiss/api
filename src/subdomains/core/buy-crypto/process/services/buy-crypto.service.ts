@@ -148,9 +148,6 @@ export class BuyCryptoService {
       ...(BuyCryptoEditableAmlCheck.includes(entity.amlCheck) && update?.amlCheck !== entity.amlCheck
         ? { amlCheck: update.amlCheck, mailSendDate: null, amlReason: update.amlReason }
         : undefined),
-      ...((dto.percentFee || dto.inputReferenceAmountMinusFee) && !entity.payoutConfirmationDate && !entity.isComplete
-        ? { percentFee: dto.percentFee, inputReferenceAmountMinusFee: dto.inputReferenceAmountMinusFee }
-        : undefined),
       isComplete: dto.isComplete,
     };
 

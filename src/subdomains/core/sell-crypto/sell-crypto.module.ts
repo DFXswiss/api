@@ -13,7 +13,6 @@ import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module'
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { BuyCryptoModule } from '../buy-crypto/buy-crypto.module';
 import { BuyFiatNotificationService } from './process/buy-fiat-notification.service';
-import { BuyFiatPreparationService } from './process/buy-fiat-preparation.service';
 import { BuyFiatRegistrationService } from './process/buy-fiat-registration.service';
 import { BuyFiatController } from './process/buy-fiat.controller';
 import { BuyFiat } from './process/buy-fiat.entity';
@@ -49,7 +48,6 @@ import { SellService } from './route/sell.service';
     BuyFiatRegistrationService,
     BuyFiatService,
     SellService,
-    BuyFiatPreparationService,
   ],
   exports: [SellController, BuyFiatService, SellService],
 })

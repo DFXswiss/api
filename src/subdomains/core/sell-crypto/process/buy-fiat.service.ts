@@ -18,7 +18,6 @@ import { SellHistoryDto } from '../route/dto/sell-history.dto';
 import { Sell } from '../route/sell.entity';
 import { SellRepository } from '../route/sell.repository';
 import { SellService } from '../route/sell.service';
-import { BuyFiatPreparationService } from './buy-fiat-preparation.service';
 import { BuyFiatRegistrationService } from './buy-fiat-registration.service';
 import { BuyFiat } from './buy-fiat.entity';
 import { BuyFiatRepository } from './buy-fiat.repository';
@@ -38,7 +37,6 @@ export class BuyFiatService {
     private readonly bankTxService: BankTxService,
     private readonly fiatOutputService: FiatOutputService,
     private readonly webhookService: WebhookService,
-    private readonly buyFiatPreparationService: BuyFiatPreparationService,
   ) {}
 
   // --- CHECK BUY FIAT --- //
@@ -64,7 +62,6 @@ export class BuyFiatService {
   async checkCryptoPayIn() {
     if (Config.processDisabled(Process.BUY_FIAT)) return;
     await this.buyFiatRegistrationService.registerSellPayIn();
-    await this.buyFiatPreparationService.refreshFeeAndPrice();
   }
 
   async update(id: number, dto: UpdateBuyFiatDto): Promise<BuyFiat> {
@@ -95,9 +92,6 @@ export class BuyFiatService {
       ...(entity.amlCheck === CheckStatus.PENDING && update.amlCheck && update.amlCheck !== CheckStatus.PENDING
         ? { amlCheck: update.amlCheck, mailSendDate: null }
         : undefined),
-        ...((dto.percentFee || dto.inputReferenceAmountMinusFee) && !entity.payoutConfirmationDate && !entity.isComplete
-          ? { percentFee: dto.percentFee, inputReferenceAmountMinusFee: dto.inputReferenceAmountMinusFee }
-          : undefined),
       isComplete: dto.isComplete,
     };
     entity = await this.buyFiatRepo.save(Object.assign(new BuyFiat(), { ...update, ...entity, ...forceUpdate }));

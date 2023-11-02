@@ -153,9 +153,6 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 256, nullable: true })
   chargebackCryptoTxId: string;
 
-  @Column({ type: 'datetime2', nullable: true })
-  payoutConfirmationDate: Date;
-
   @OneToOne(() => BankTx, { nullable: true })
   @JoinColumn()
   chargebackBankTx: BankTx;
@@ -361,19 +358,6 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
-  setFeeAndPrice(fee: number, feeAmount: number): UpdateResult<BuyCrypto> {
-    const update: Partial<BuyCrypto> = {
-      percentFee: fee,
-      inputReferenceAmountMinusFee: this.inputReferenceAmount - feeAmount,
-      percentFeeAmount: feeAmount,
-      payoutConfirmationDate: null,
-    };
-
-    Object.assign(this, update);
-
-    return [this.id, update];
-  }
-
   complete(payoutFee: number): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       outputDate: new Date(),
@@ -391,6 +375,28 @@ export class BuyCrypto extends IEntity {
     const update: Partial<BuyCrypto> = {
       recipientMail: this.user.userData.mail,
       mailSendDate: new Date(),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  setFeeAndPrice(
+    fee: number,
+    minFeeAmount: number,
+    totalFeeAmount: number,
+    totalFeeAmountChf: number,
+  ): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
+      absoluteFeeAmount: 0,
+      percentFee: fee,
+      percentFeeAmount: fee * this.inputReferenceAmount,
+      minFeeAmount,
+      minFeeAmountFiat: minFeeAmount,
+      totalFeeAmount,
+      totalFeeAmountChf,
+      inputReferenceAmountMinusFee: this.inputReferenceAmount - totalFeeAmount,
     };
 
     Object.assign(this, update);
