@@ -1,10 +1,12 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
+import { BuyPaymentMethod } from 'src/subdomains/core/buy-crypto/routes/buy/dto/get-buy-payment-info.dto';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/min-amount.dto';
@@ -121,6 +123,7 @@ export class TransactionHelper implements OnModuleInit {
     from: Asset | Fiat,
     to: Asset | Fiat,
     userData?: UserData,
+    paymentMethod?: BuyPaymentMethod,
   ): Promise<TransactionDetails> {
     const specs = this.getSpecs(from, to);
     const direction = this.getTxDirection(from, to);
@@ -142,6 +145,7 @@ export class TransactionHelper implements OnModuleInit {
       to instanceof Asset ? to : from instanceof Asset ? from : undefined,
       targetAmount ? to : from,
       targetAmount ? targetAmount : sourceAmount,
+      paymentMethod,
     );
 
     const target = await this.getTargetEstimation(sourceAmount, targetAmount, fee, minFee, from, to);
@@ -173,12 +177,15 @@ export class TransactionHelper implements OnModuleInit {
     asset: Asset,
     txAsset: Asset | Fiat,
     txVolume: number,
+    paymentMethod: BuyPaymentMethod,
   ): Promise<number> {
     const price = txAsset ? await this.priceProviderService.getPrice(txAsset, this.eur) : undefined;
 
     const txVolumeInEur = price ? price.convert(txVolume) : undefined;
 
-    return userData
+    return paymentMethod === BuyPaymentMethod.CARD
+      ? Config.buy.fee.card
+      : userData
       ? this.feeService.getUserFee({ userData, direction, asset, txVolume: txVolumeInEur })
       : this.feeService.getDefaultFee({ direction, asset, txVolume: txVolumeInEur });
   }
