@@ -11,6 +11,7 @@ import { Sell } from '../route/sell.entity';
 
 @Entity()
 export class BuyFiat extends IEntity {
+  // References
   @OneToOne(() => CryptoInput, { nullable: false })
   @JoinColumn()
   cryptoInput: CryptoInput;
@@ -26,7 +27,7 @@ export class BuyFiat extends IEntity {
   @JoinColumn()
   bankTx: BankTx;
 
-  //Mail
+  // Mail
   @Column({ length: 256, nullable: true })
   recipientMail: string;
 
@@ -39,7 +40,7 @@ export class BuyFiat extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   mail3SendDate: Date;
 
-  //Pricing
+  // Pricing
   @Column({ type: 'float', nullable: true })
   inputAmount: number;
 
@@ -68,13 +69,17 @@ export class BuyFiat extends IEntity {
   @Column({ type: 'float', nullable: true })
   refFactor: number;
 
-  //Check
+  // Check
   @Column({ length: 256, nullable: true })
   amlCheck: CheckStatus;
 
   @Column({ length: 256, nullable: true })
   amlReason: AmlReason;
 
+  @Column({ nullable: true })
+  highRisk: boolean;
+
+  // Fee
   @Column({ type: 'float', nullable: true })
   percentFee: number;
 
@@ -99,7 +104,7 @@ export class BuyFiat extends IEntity {
   @Column({ type: 'float', nullable: true })
   totalFeeAmountChf: number;
 
-  //Fail
+  // Fail
   @Column({ length: 256, nullable: true })
   cryptoReturnTxId: string;
 
@@ -122,7 +127,7 @@ export class BuyFiat extends IEntity {
   @Column({ length: 256, nullable: true })
   outputAsset: string;
 
-  //
+  // Transaction details
   @Column({ length: 256, nullable: true })
   remittanceInfo: string;
 
@@ -147,7 +152,6 @@ export class BuyFiat extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   outputDate: Date;
 
-  //
   @Column({ default: false })
   isComplete: boolean;
 

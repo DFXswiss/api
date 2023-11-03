@@ -39,6 +39,7 @@ export enum BuyCryptoStatus {
 
 @Entity()
 export class BuyCrypto extends IEntity {
+  // References
   @OneToOne(() => BankTx, { nullable: true })
   @JoinColumn()
   bankTx: BankTx;
@@ -60,6 +61,21 @@ export class BuyCrypto extends IEntity {
   @ManyToOne(() => BuyCryptoBatch, (batch) => batch.transactions, { eager: true, nullable: true })
   batch: BuyCryptoBatch;
 
+  @OneToOne(() => BankTx, { nullable: true })
+  @JoinColumn()
+  chargebackBankTx: BankTx;
+
+  @OneToOne(() => BuyCryptoFee, (fee) => fee.buyCrypto, { eager: true, cascade: true })
+  fee: BuyCryptoFee;
+
+  // Mail
+  @Column({ length: 256, nullable: true })
+  recipientMail: string;
+
+  @Column({ type: 'datetime2', nullable: true })
+  mailSendDate: Date;
+
+  // Pricing
   @Column({ type: 'float', nullable: true })
   inputAmount: number;
 
@@ -78,12 +94,27 @@ export class BuyCrypto extends IEntity {
   @Column({ type: 'float', nullable: true })
   amountInEur: number;
 
+  // Ref
+  @Column({ length: 256, nullable: true })
+  usedRef: string;
+
+  @Column({ type: 'float', nullable: true })
+  refProvision: number;
+
+  @Column({ type: 'float', nullable: true })
+  refFactor: number;
+
+  // Check
   @Column({ length: 256, nullable: true })
   amlCheck: CheckStatus;
 
   @Column({ length: 256, nullable: true })
   amlReason: AmlReason;
 
+  @Column({ nullable: true })
+  highRisk: boolean;
+
+  // Fee
   @Column({ type: 'float', nullable: true })
   percentFee: number;
 
@@ -108,6 +139,17 @@ export class BuyCrypto extends IEntity {
   @Column({ type: 'float', nullable: true })
   inputReferenceAmountMinusFee: number;
 
+  // Fail
+  @Column({ type: 'datetime2', nullable: true })
+  chargebackDate: Date;
+
+  @Column({ length: 256, nullable: true })
+  chargebackRemittanceInfo: string;
+
+  @Column({ length: 256, nullable: true })
+  chargebackCryptoTxId: string;
+
+  // Pass
   @Column({ type: 'float', nullable: true })
   outputReferenceAmount: number;
 
@@ -120,48 +162,18 @@ export class BuyCrypto extends IEntity {
   @ManyToOne(() => Asset, { eager: true, nullable: true })
   outputAsset: Asset;
 
+  // Transaction details
   @Column({ length: 256, nullable: true })
   txId: string;
-
-  @Column({ default: false })
-  isComplete: boolean;
 
   @Column({ type: 'datetime2', nullable: true })
   outputDate: Date;
 
   @Column({ length: 256, nullable: true })
-  recipientMail: string;
-
-  @Column({ type: 'datetime2', nullable: true })
-  mailSendDate: Date;
-
-  @Column({ length: 256, nullable: true })
-  usedRef: string;
-
-  @Column({ type: 'float', nullable: true })
-  refProvision: number;
-
-  @Column({ type: 'float', nullable: true })
-  refFactor: number;
-
-  @Column({ type: 'datetime2', nullable: true })
-  chargebackDate: Date;
-
-  @Column({ length: 256, nullable: true })
-  chargebackRemittanceInfo: string;
-
-  @Column({ length: 256, nullable: true })
-  chargebackCryptoTxId: string;
-
-  @OneToOne(() => BankTx, { nullable: true })
-  @JoinColumn()
-  chargebackBankTx: BankTx;
-
-  @OneToOne(() => BuyCryptoFee, (fee) => fee.buyCrypto, { eager: true, cascade: true })
-  fee: BuyCryptoFee;
-
-  @Column({ length: 256, nullable: true })
   status: BuyCryptoStatus;
+
+  @Column({ default: false })
+  isComplete: boolean;
 
   //*** FACTORY METHODS ***//
 

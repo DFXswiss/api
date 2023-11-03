@@ -71,6 +71,10 @@ export class UserData extends IEntity {
   @Column({ default: AccountType.PERSONAL, length: 256 })
   accountType: AccountType;
 
+  @Column({ length: 256, default: UserDataStatus.NA })
+  status: UserDataStatus;
+
+  // KYC
   @Column({ length: 256, nullable: true })
   mail: string;
 
@@ -128,9 +132,6 @@ export class UserData extends IEntity {
   @ManyToOne(() => Fiat, { eager: true })
   currency: Fiat;
 
-  @Column({ length: 256, default: UserDataStatus.NA })
-  status: UserDataStatus;
-
   @Column({ length: 256, nullable: true })
   riskState: RiskState;
 
@@ -178,20 +179,24 @@ export class UserData extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   letterSentDate: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
-  amlListAddedDate: Date;
-
   @Column({ length: 256, nullable: true })
   identificationType: KycIdentificationType;
-
-  @Column({ length: 256, nullable: true })
-  internalAmlNote: string;
 
   @Column({ nullable: true })
   pep: boolean;
 
   @Column({ length: 256, nullable: true })
   bankTransactionVerification: CheckStatus;
+
+  // Aml
+  @Column({ type: 'datetime2', nullable: true })
+  amlListAddedDate: Date;
+
+  @Column({ length: 256, nullable: true })
+  internalAmlNote: string;
+
+  @Column({ length: 256, nullable: true })
+  amlAccountType: string;
 
   //Mail
   @Column({ length: 256, nullable: true })

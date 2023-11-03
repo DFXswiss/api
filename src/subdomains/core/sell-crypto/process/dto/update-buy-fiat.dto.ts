@@ -175,4 +175,8 @@ export class UpdateBuyFiatDto {
   @IsOptional()
   @IsNumber()
   refFactor: number;
+
+  @IsOptional()
+  @IsBoolean()
+  highRisk: boolean;
 }
