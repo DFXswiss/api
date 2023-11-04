@@ -1,6 +1,6 @@
 import { IsArray, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
-export class UpdateFeeMapperDto {
+export class UpdateCustomSignUpFeesDto {
   @IsNotEmpty()
   @IsString()
   label: string;
@@ -11,16 +11,16 @@ export class UpdateFeeMapperDto {
 
   @IsOptional()
   @IsArray()
-  fee: number[];
+  fees: number[];
 
   @IsOptional()
   @IsNumber()
   wallet: number;
 }
 
-export class FeeMapper {
+export class CustomSignUpFees {
   label: string;
   ref: string;
-  fee: number[];
+  fees: number[];
   wallet: number;
 }

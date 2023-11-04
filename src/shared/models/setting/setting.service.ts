@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { CakeFlowDto, CakeSettings } from './dto/cake-flow.dto';
-import { FeeMapper, UpdateFeeMapperDto } from './dto/fee-mapper.dto';
+import { CustomSignUpFees, UpdateCustomSignUpFeesDto } from './dto/custom-sign-up-fees.dto';
 import { Setting } from './setting.entity';
 import { SettingRepository } from './setting.repository';
 
@@ -28,17 +28,19 @@ export class SettingService {
     await this.setObj<CakeSettings>('cake', cakeSettings);
   }
 
-  async updateFeeMapper(dto: UpdateFeeMapperDto): Promise<void> {
-    const feeMapperArray = await this.getObj<FeeMapper[]>('feeMapper');
+  async updateCustomSignUpFees(dto: UpdateCustomSignUpFeesDto): Promise<void> {
+    const customSignUpFeesArray = await this.getObj<CustomSignUpFees[]>('customSignUpFees');
 
-    const feeMapper = feeMapperArray.find((feeMapper) => feeMapper.label === dto.label);
-    feeMapper ? Object.assign(feeMapper, dto) : feeMapperArray.push(Object.assign(new FeeMapper(), dto));
+    const customSignUpFee = customSignUpFeesArray.find((customSignUpFee) => customSignUpFee.label === dto.label);
+    customSignUpFee
+      ? Object.assign(customSignUpFee, dto)
+      : customSignUpFeesArray.push(Object.assign(new CustomSignUpFees(), dto));
 
-    await this.setObj<FeeMapper[]>('feeMapper', feeMapperArray);
+    await this.setObj<CustomSignUpFees[]>('customSignUpFees', customSignUpFeesArray);
   }
 
-  async getFeeWithMapper(ref?: string | undefined, walletId?: number | undefined): Promise<number[]> {
-    return [].concat(await this.getFeeWithRefMapper(ref), await this.getFeeWithWalletMapper(walletId));
+  async getCustomSignUpFees(ref?: string | undefined, walletId?: number | undefined): Promise<number[]> {
+    return [].concat(await this.getCustomSignUpFeesWithRef(ref), await this.getCustomSignUpFeesWithWallet(walletId));
   }
 
   async getObj<T>(key: string, defaultValue?: T): Promise<T | undefined> {
@@ -50,15 +52,15 @@ export class SettingService {
   }
 
   // --- HELPER METHODS --- //
-  private async getFeeWithRefMapper(ref: string): Promise<number[]> {
-    const feeMapper = await this.getObj<FeeMapper[]>('feeMapper');
+  private async getCustomSignUpFeesWithRef(ref: string): Promise<number[]> {
+    const customSignUpFees = await this.getObj<CustomSignUpFees[]>('customSignUpFees');
 
-    return feeMapper.find((fee) => fee.ref === ref)?.fee ?? [];
+    return customSignUpFees.find((fee) => fee.ref === ref)?.fees ?? [];
   }
 
-  private async getFeeWithWalletMapper(walletId: number): Promise<number[]> {
-    const feeMapper = await this.getObj<FeeMapper[]>('feeMapper');
+  private async getCustomSignUpFeesWithWallet(walletId: number): Promise<number[]> {
+    const customSignUpFees = await this.getObj<CustomSignUpFees[]>('customSignUpFees');
 
-    return feeMapper.find((fee) => fee.wallet === walletId)?.fee ?? [];
+    return customSignUpFees.find((fee) => fee.wallet === walletId)?.fees ?? [];
   }
 }

@@ -81,11 +81,15 @@ export class FeeService {
     return this.feeRepo.save(fee);
   }
 
-  async addFeeByMapper(userData: UserData, ref?: string | undefined, walletId?: number | undefined): Promise<void> {
-    const mappedFees = await this.settingService.getFeeWithMapper(ref, walletId);
-    if (mappedFees.length == 0) return;
+  async addCustomSignUpFees(
+    userData: UserData,
+    ref?: string | undefined,
+    walletId?: number | undefined,
+  ): Promise<void> {
+    const customSignUpFees = await this.settingService.getCustomSignUpFees(ref, walletId);
+    if (customSignUpFees.length == 0) return;
 
-    for (const feeId of mappedFees) {
+    for (const feeId of customSignUpFees) {
       try {
         await this.addFeeInternal(userData, feeId);
       } catch (e) {

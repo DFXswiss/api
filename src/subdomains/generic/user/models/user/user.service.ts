@@ -133,7 +133,7 @@ export class UserService {
     user = await this.userRepo.save(user);
 
     if (discountCode) await this.feeService.addDiscountCodeUser(user.userData, discountCode);
-    if (usedRef || wallet) await this.feeService.addFeeByMapper(user.userData, usedRef, wallet?.id);
+    if (usedRef || wallet) await this.feeService.addCustomSignUpFees(user.userData, usedRef, wallet?.id);
 
     const blockchains = this.cryptoService.getBlockchainsBasedOn(user.address);
     if (blockchains.includes(Blockchain.DEFICHAIN)) this.dfiTaxService.activateAddress(user.address);
