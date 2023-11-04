@@ -10,7 +10,14 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiCreatedResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiExcludeEndpoint,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -20,23 +27,23 @@ import { ExportFormat, HistoryQueryExportType, HistoryQueryUser } from '../dto/h
 import { HistoryDto } from '../dto/history.dto';
 import { ChainReportCsvHistoryDto } from '../dto/output/chain-report-history.dto';
 import { CoinTrackingCsvHistoryDto } from '../dto/output/coin-tracking-history.dto';
-import { CompactHistoryDto } from '../dto/output/compact-history.dto';
+import { TransactionDto } from '../dto/output/transaction.dto';
 import { ExportType, HistoryService } from '../services/history.service';
 
 @ApiTags('Transaction')
 @Controller('transaction')
-export class HistoryController {
-  private files: { [key: number]: StreamableFile } = {};
+export class TransactionController {
+  private files: { [key: string]: StreamableFile } = {};
 
   constructor(private readonly historyService: HistoryService) {}
 
-  @Get('compact')
-  @ApiOkResponse({ type: CompactHistoryDto, isArray: true })
+  @Get()
+  @ApiOkResponse({ type: TransactionDto, isArray: true })
   async getCsvCompact(
     @Query() query: HistoryQueryUser,
     @Response({ passthrough: true }) res,
-  ): Promise<CompactHistoryDto[] | StreamableFile> {
-    query.format = ExportFormat.JSON;
+  ): Promise<TransactionDto[] | StreamableFile> {
+    if (!query.format) query.format = ExportFormat.JSON;
     return this.getHistoryData(query, ExportType.COMPACT, res);
   }
 
@@ -47,6 +54,7 @@ export class HistoryController {
     @Query() query: HistoryQueryUser,
     @Response({ passthrough: true }) res,
   ): Promise<CoinTrackingCsvHistoryDto[] | StreamableFile> {
+    if (!query.format) query.format = ExportFormat.CSV;
     return this.getHistoryData(query, ExportType.COIN_TRACKING, res);
   }
 
@@ -57,17 +65,18 @@ export class HistoryController {
     @Query() query: HistoryQueryUser,
     @Response({ passthrough: true }) res,
   ): Promise<ChainReportCsvHistoryDto[] | StreamableFile> {
+    if (!query.format) query.format = ExportFormat.CSV;
     return this.getHistoryData(query, ExportType.CHAIN_REPORT, res);
   }
 
   @Post('csv')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiExcludeEndpoint()
   @ApiCreatedResponse()
-  async createCsv(@GetJwt() jwt: JwtPayload, @Query() query: HistoryQueryExportType): Promise<number> {
+  @ApiOperation({ description: 'Initiate csv history export' })
+  async createCsv(@GetJwt() jwt: JwtPayload, @Query() query: HistoryQueryExportType): Promise<string> {
     const csvFile = await this.historyService.getCsvHistory({ ...query, userAddress: jwt.address }, query.type);
-    const fileKey = Util.randomId();
+    const fileKey = Util.randomId().toString();
     this.files[fileKey] = csvFile;
 
     return fileKey;
@@ -76,11 +85,11 @@ export class HistoryController {
   @Get('csv')
   @ApiBearerAuth()
   @ApiOkResponse({ type: StreamableFile })
-  @ApiExcludeEndpoint()
+  @ApiOperation({ description: 'Get initiated csv history export' })
   async getCsv(@Query('key') key: string, @Res({ passthrough: true }) res): Promise<StreamableFile> {
-    const csvFile = this.files[+key];
+    const csvFile = this.files[key];
     if (!csvFile) throw new NotFoundException('File not found');
-    delete this.files[+key];
+    delete this.files[key];
 
     res.set({
       'Content-Type': 'text/csv',

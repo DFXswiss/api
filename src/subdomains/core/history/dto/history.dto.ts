@@ -4,7 +4,7 @@ import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
 import { ExportType } from '../services/history.service';
 import { ChainReportCsvHistoryDto } from './output/chain-report-history.dto';
 import { CoinTrackingCsvHistoryDto } from './output/coin-tracking-history.dto';
-import { CompactHistoryDto } from './output/compact-history.dto';
+import { TransactionDto } from './output/transaction.dto';
 
 export enum HistoryTransactionType {
   BUY = 'Buy',
@@ -19,7 +19,7 @@ export enum PaymentStatus {
 }
 
 export type HistoryDto<T> = T extends ExportType.COMPACT
-  ? CompactHistoryDto
+  ? TransactionDto
   : T extends ExportType.COIN_TRACKING
   ? CoinTrackingCsvHistoryDto
   : ChainReportCsvHistoryDto;

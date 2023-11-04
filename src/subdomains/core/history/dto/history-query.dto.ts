@@ -13,7 +13,7 @@ export class HistoryQuery extends HistoryFilter {
   @ApiPropertyOptional({ enum: ExportFormat })
   @IsOptional()
   @IsEnum(ExportFormat)
-  format: ExportFormat = ExportFormat.CSV;
+  format: ExportFormat;
 
   @ApiPropertyOptional()
   @IsOptional()

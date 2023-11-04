@@ -15,13 +15,13 @@ import { StakingService } from '../../staking/services/staking.service';
 import { ExportFormat, HistoryQueryUser } from '../dto/history-query.dto';
 import { ChainReportCsvHistoryDto } from '../dto/output/chain-report-history.dto';
 import { CoinTrackingCsvHistoryDto } from '../dto/output/coin-tracking-history.dto';
-import { CompactHistoryDto } from '../dto/output/compact-history.dto';
+import { TransactionDto } from '../dto/output/transaction.dto';
 import { ChainReportHistoryDtoMapper } from '../mappers/chain-report-history-dto.mapper';
 import { CoinTrackingHistoryDtoMapper } from '../mappers/coin-tracking-history-dto.mapper';
-import { CompactHistoryDtoMapper } from '../mappers/compact-history-dto.mappers';
+import { TransactionDtoMapper } from '../mappers/transaction-dto.mapper';
 
 export type HistoryDto<T> = T extends ExportType.COMPACT
-  ? CompactHistoryDto
+  ? TransactionDto
   : T extends ExportType.COIN_TRACKING
   ? CoinTrackingCsvHistoryDto
   : ChainReportCsvHistoryDto;
@@ -122,7 +122,7 @@ export class HistoryService {
         ]).sort((tx1, tx2) => (tx1.timestamp.getTime() > tx2.timestamp.getTime() ? -1 : 1)) as HistoryDto<T>[];
 
       case ExportType.COMPACT:
-        return CompactHistoryDtoMapper.mapBuyCryptoTransactions(buyCryptos).sort((tx1, tx2) =>
+        return TransactionDtoMapper.mapBuyCryptoTransactions(buyCryptos).sort((tx1, tx2) =>
           tx1.date.getTime() > tx2.date.getTime() ? -1 : 1,
         ) as HistoryDto<T>[];
     }
@@ -141,7 +141,7 @@ export class HistoryService {
         ) as HistoryDto<T>[];
 
       case ExportType.COMPACT:
-        return CompactHistoryDtoMapper.mapBuyFiatTransactions(buyFiats).sort((tx1, tx2) =>
+        return TransactionDtoMapper.mapBuyFiatTransactions(buyFiats).sort((tx1, tx2) =>
           tx1.date.getTime() > tx2.date.getTime() ? -1 : 1,
         ) as HistoryDto<T>[];
     }
@@ -196,37 +196,37 @@ export class HistoryService {
   private getRefRewards<T>(refRewards: RefReward[], exportFormat: T): HistoryDto<T>[] {
     switch (exportFormat) {
       case ExportType.COIN_TRACKING:
-        return this.fixDuplicateTxCT(CoinTrackingHistoryDtoMapper.mapRefRewards(refRewards)).sort((tx1, tx2) =>
-          tx1.date.getTime() > tx2.date.getTime() ? -1 : 1,
+        return this.fixDuplicateTxCT(CoinTrackingHistoryDtoMapper.mapRefRewards(refRewards)).sort(
+          (tx1, tx2) => tx2.date.getTime() - tx1.date.getTime(),
         ) as HistoryDto<T>[];
 
       case ExportType.CHAIN_REPORT:
-        return this.fixDuplicateTxCR(ChainReportHistoryDtoMapper.mapRefRewards(refRewards)).sort((tx1, tx2) =>
-          tx1.timestamp.getTime() > tx2.timestamp.getTime() ? -1 : 1,
+        return this.fixDuplicateTxCR(ChainReportHistoryDtoMapper.mapRefRewards(refRewards)).sort(
+          (tx1, tx2) => tx2.timestamp.getTime() - tx1.timestamp.getTime(),
         ) as HistoryDto<T>[];
 
       case ExportType.COMPACT:
-        return CompactHistoryDtoMapper.mapReferralRewards(refRewards).sort((tx1, tx2) =>
-          tx1.date.getTime() > tx2.date.getTime() ? -1 : 1,
+        return TransactionDtoMapper.mapReferralRewards(refRewards).sort(
+          (tx1, tx2) => tx2.date.getTime() - tx1.date.getTime(),
         ) as HistoryDto<T>[];
     }
   }
 
-  private fixDuplicateTxCT(rewards: CoinTrackingCsvHistoryDto[]): CoinTrackingCsvHistoryDto[] {
-    Array.from(Util.groupBy(rewards, 'txId'))
+  private fixDuplicateTxCT(historyDto: CoinTrackingCsvHistoryDto[]): CoinTrackingCsvHistoryDto[] {
+    Array.from(Util.groupBy(historyDto, 'txId'))
       .map(([_, rewards]) => rewards)
       .filter((r) => r.length > 1)
       .forEach((rewards) => rewards.forEach((r, i) => (r.txId += i > 0 ? i : '')));
 
-    return rewards;
+    return historyDto;
   }
 
-  private fixDuplicateTxCR(rewards: ChainReportCsvHistoryDto[]): ChainReportCsvHistoryDto[] {
-    Array.from(Util.groupBy(rewards, 'txId'))
+  private fixDuplicateTxCR(historyDto: ChainReportCsvHistoryDto[]): ChainReportCsvHistoryDto[] {
+    Array.from(Util.groupBy(historyDto, 'txId'))
       .map(([_, rewards]) => rewards)
       .filter((r) => r.length > 1)
       .forEach((rewards) => rewards.forEach((r, i) => (r.txId += i > 0 ? i : '')));
 
-    return rewards;
+    return historyDto;
   }
 }
