@@ -13,7 +13,7 @@ export function createCustomPricePath(customValues: { alias?: PricingPathAlias; 
   const keys = Object.keys(customValues);
 
   return {
-    alias: keys.includes('alias') ? alias : PricingPathAlias.ALTCOIN_TO_ALTCOIN,
+    alias: keys.includes('alias') ? alias : PricingPathAlias.ALT_COIN_TO_ALT_COIN,
     _steps: keys.includes('steps') ? steps : [createDefaultPriceStep()],
   } as unknown as PricePath;
 }

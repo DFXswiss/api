@@ -90,7 +90,7 @@ export class UserDataService {
       .select('userData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('users.wallet', 'wallet')
-      .where(`userData.${key} = :param`, { param: value })
+      .where(`${key.includes('.') ? key : `userData.${key}`} = :param`, { param: value })
       .andWhere(`userData.status != :status`, { status: UserDataStatus.MERGED })
       .getOne();
   }
@@ -236,7 +236,7 @@ export class UserDataService {
   }
 
   async addFee(userData: UserData, feeId: number): Promise<void> {
-    if (userData.individualFeeList?.includes(feeId)) throw new BadRequestException('Discount code already used');
+    if (userData.individualFeeList?.includes(feeId)) return;
 
     await this.userDataRepo.update(...userData.addFee(feeId));
   }

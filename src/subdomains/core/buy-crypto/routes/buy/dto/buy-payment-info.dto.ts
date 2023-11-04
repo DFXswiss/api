@@ -70,6 +70,12 @@ export class BuyPaymentInfoDto extends BankInfoDto {
   @ApiProperty({ description: 'Maximum volume in target asset' })
   maxVolumeTarget: number;
 
+  @ApiProperty({ description: 'Exchange rate in source/target' })
+  exchangeRate: number;
+
+  @ApiProperty({ description: 'Final rate (incl. fees) in source/target' })
+  rate: number;
+
   @ApiProperty({ description: 'Estimated amount in target asset' })
   estimatedAmount: number;
 

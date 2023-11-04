@@ -27,7 +27,7 @@ export enum Bitcoin {
   WBTC = 'WBTC',
 }
 
-export enum Altcoin {
+export enum AltCoin {
   ETH = 'ETH',
   BNB = 'BNB',
   MATIC = 'MATIC',
@@ -54,4 +54,8 @@ export enum Altcoin {
   GMX = 'GMX',
   INCH = '1INCH',
   SUSHI = 'SUSHI',
+}
+
+export enum SpecialCoin {
+  FOX = 'FOX',
 }

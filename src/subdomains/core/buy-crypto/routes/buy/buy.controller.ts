@@ -156,24 +156,32 @@ export class BuyController {
       maxVolume,
       maxVolumeTarget,
       fee,
+      exchangeRate,
+      rate,
       estimatedAmount,
       sourceAmount: amount,
       isValid,
       error,
-    } = await this.transactionHelper.getTxDetails(dto.amount, dto.targetAmount, dto.currency, dto.asset, user.userData);
+    } = await this.transactionHelper.getTxDetails(
+      dto.amount,
+      dto.targetAmount,
+      dto.currency,
+      dto.asset,
+      user.userData,
+      dto.paymentMethod,
+    );
     const bankInfo = await this.getBankInfo(buy, { ...dto, amount });
 
     return {
       routeId: buy.id,
-      fee: Util.round(
-        (dto.paymentMethod === BuyPaymentMethod.CARD ? Config.buy.fee.card : fee) * 100,
-        Config.defaultPercentageDecimal,
-      ),
+      fee: Util.round(fee * 100, Config.defaultPercentageDecimal),
       minDeposit: { amount: minVolume, asset: dto.currency.name }, // TODO: remove
       minVolume,
       minFee,
       minVolumeTarget,
       minFeeTarget,
+      exchangeRate,
+      rate,
       estimatedAmount,
       amount,
       asset: AssetDtoMapper.entityToDto(dto.asset),

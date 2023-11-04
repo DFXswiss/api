@@ -40,7 +40,7 @@ export class SellService {
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('users.wallet', 'wallet')
-      .where(`sell.${key} = :param`, { param: value })
+      .where(`${key.includes('.') ? key : `sell.${key}`} = :param`, { param: value })
       .getOne();
   }
 
