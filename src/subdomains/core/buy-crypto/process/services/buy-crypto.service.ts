@@ -212,7 +212,7 @@ export class BuyCryptoService {
   async process() {
     if (Config.processDisabled(Process.BUY_CRYPTO)) return;
     if (!Config.processDisabled(Process.BUY_CRYPTO_AML_CHECK)) await this.buyCryptoPreparationService.doAmlCheck();
-    await this.buyCryptoPreparationService.refreshFeeAndPrice();
+    if (!Config.processDisabled(Process.BUY_CRYPTO_SET_FEE)) await this.buyCryptoPreparationService.refreshFee();
     await this.buyCryptoPreparationService.prepareTransactions();
     await this.buyCryptoBatchService.batchAndOptimizeTransactions();
     await this.buyCryptoDexService.secureLiquidity();

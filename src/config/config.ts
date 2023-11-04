@@ -34,6 +34,7 @@ export enum Process {
   REF_PAYOUT = 'RefPayout',
   PRICING = 'Pricing',
   BUY_CRYPTO_AML_CHECK = 'BuyCryptoAmlCheck',
+  BUY_CRYPTO_SET_FEE = 'BuyCryptoSetFee',
   LNURL_AUTH_CACHE = 'LnurlAuthCache',
 }
 

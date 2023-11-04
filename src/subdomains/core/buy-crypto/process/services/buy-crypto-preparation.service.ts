@@ -81,7 +81,7 @@ export class BuyCryptoPreparationService {
     }
   }
 
-  async refreshFeeAndPrice(): Promise<void> {
+  async refreshFee(): Promise<void> {
     // Atm only for bankTx/checkoutTx BuyCrypto
 
     const entities = await this.buyCryptoRepo.find({
