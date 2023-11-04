@@ -10,10 +10,7 @@ import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import {
-  createCustomBuyCryptoBatch,
-  createDefaultBuyCryptoBatch,
-} from '../../entities/__mocks__/buy-crypto-batch.entity.mock';
+import { createCustomBuyCryptoBatch } from '../../entities/__mocks__/buy-crypto-batch.entity.mock';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../../entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCryptoBatchRepository } from '../../repositories/buy-crypto-batch.repository';
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
@@ -38,7 +35,6 @@ describe('BuyCryptoBatchService', () => {
 
   /*** Spies ***/
 
-  let buyCryptoBatchRepoSave: jest.SpyInstance;
   let exchangeUtilityServiceGetMatchingPrice: jest.SpyInstance;
   let dexServiceCheckLiquidity: jest.SpyInstance;
 
@@ -232,10 +228,6 @@ describe('BuyCryptoBatchService', () => {
     jest.spyOn(buyCryptoRepo, 'find').mockImplementation(async () => [createDefaultBuyCrypto()]);
 
     jest.spyOn(buyCryptoBatchRepo, 'findOneBy').mockImplementation(async () => null);
-
-    buyCryptoBatchRepoSave = jest
-      .spyOn(buyCryptoBatchRepo, 'save')
-      .mockImplementation(async () => createDefaultBuyCryptoBatch());
 
     jest.spyOn(buyCryptoBatchRepo, 'create').mockImplementation(() => createCustomBuyCryptoBatch({ id: undefined }));
 
