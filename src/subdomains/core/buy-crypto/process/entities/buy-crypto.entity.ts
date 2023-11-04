@@ -394,6 +394,29 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
+  setFee(
+    fee: number,
+    minFeeAmount: number,
+    minFeeAmountFiat: number,
+    totalFeeAmount: number,
+    totalFeeAmountChf: number,
+  ): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
+      absoluteFeeAmount: 0,
+      percentFee: fee,
+      percentFeeAmount: fee * this.inputReferenceAmount,
+      minFeeAmount,
+      minFeeAmountFiat,
+      totalFeeAmount,
+      totalFeeAmountChf,
+      inputReferenceAmountMinusFee: this.inputReferenceAmount - totalFeeAmount,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   amlCheckAndFillUp(
     eurPrice: Price,
     chfPrice: Price,
