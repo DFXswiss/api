@@ -82,20 +82,16 @@ export class FeeService {
   }
 
   async addFeeByMapper(userData: UserData, ref?: string | undefined, walletId?: number | undefined): Promise<void> {
-    const mappedFee = await this.settingService.getFeeWithMapper(ref, walletId);
-    if (mappedFee.length == 0) return;
+    const mappedFees = await this.settingService.getFeeWithMapper(ref, walletId);
+    if (mappedFees.length == 0) return;
 
-    for (const feeId of mappedFee) {
-      const fee = await this.feeRepo.findOneBy({ id: feeId });
-
+    for (const feeId of mappedFees) {
       try {
-        await this.verifyFee(fee, userData.accountType);
+        await this.addFeeInternal(userData, feeId);
       } catch (e) {
         this.logger.warn(`Fee mapping error: ${e}; userDataId: ${userData.id}; feeId: ${feeId}`);
         continue;
       }
-
-      await this.userDataService.addFee(userData, fee.id);
     }
   }
 
