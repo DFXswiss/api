@@ -153,4 +153,8 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsEnum(CheckStatus)
   bankTransactionVerification: CheckStatus;
+
+  @IsOptional()
+  @IsString()
+  amlAccountType: string;
 }
