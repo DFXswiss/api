@@ -106,8 +106,13 @@ export class BuyCryptoPreparationService {
       ],
     });
 
+    // CHF/EUR Price
+    const fiatEur = await this.fiatService.getFiatByName('EUR');
+    const fiatChf = await this.fiatService.getFiatByName('CHF');
+
     for (const entity of entities) {
-      const inputReferenceCurrency = await this.fiatService.getFiatByName(entity.inputReferenceAsset);
+      // Only for bankTx/checkoutTx BuyCrypto
+      const inputReferenceCurrency = await this.fiatService.getFiatByName(entity.inputReference.currency);
 
       const { feeAmount, fee, minFee } = await this.transactionHelper.getTxDetails(
         entity.inputReferenceAmount,
@@ -117,11 +122,19 @@ export class BuyCryptoPreparationService {
         entity.user.userData,
       );
 
-      const fiatChf = await this.fiatService.getFiatByName('CHF');
-      const inputAssetChfPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatChf);
+      const referenceEurPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatEur);
+      const referenceChfPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatChf);
 
       await this.buyCryptoRepo.update(
-        ...entity.setFee(fee, minFee, minFee, feeAmount, inputAssetChfPrice.convert(feeAmount, 2)),
+        ...entity.setFeeAndFiatReference(
+          referenceEurPrice.convert(entity.inputReference.amount, 2),
+          referenceChfPrice.convert(entity.inputReference.amount, 2),
+          fee,
+          minFee,
+          minFee,
+          feeAmount,
+          referenceChfPrice.convert(feeAmount, 2),
+        ),
       );
     }
   }

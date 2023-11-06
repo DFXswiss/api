@@ -394,7 +394,9 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
-  setFee(
+  setFeeAndFiatReference(
+    amountInEur: number,
+    amountInChf: number,
     fee: number,
     minFeeAmount: number,
     minFeeAmountFiat: number,
@@ -410,6 +412,8 @@ export class BuyCrypto extends IEntity {
       totalFeeAmount,
       totalFeeAmountChf,
       inputReferenceAmountMinusFee: this.inputReferenceAmount - totalFeeAmount,
+      amountInEur,
+      amountInChf,
     };
 
     Object.assign(this, update);
@@ -556,6 +560,14 @@ export class BuyCrypto extends IEntity {
           asset: this.cryptoRoute.asset,
           trimmedReturnAddress: this.cryptoRoute?.user?.address ? Util.blankStart(this.cryptoRoute.user.address) : null,
         };
+  }
+
+  get inputReference(): { amount: number; currency: string } {
+    return this.bankTx
+      ? { amount: this.bankTx.txAmount, currency: this.bankTx.txCurrency }
+      : this.checkoutTx
+      ? { amount: this.checkoutTx.amount, currency: this.checkoutTx.currency }
+      : { amount: this.cryptoInput.amount, currency: this.cryptoInput.asset.dexName };
   }
 
   //*** HELPER METHODS ***//
