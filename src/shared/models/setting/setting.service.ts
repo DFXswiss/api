@@ -31,7 +31,7 @@ export class SettingService {
   async updateCustomSignUpFees(dto: CustomSignUpFeesDto): Promise<void> {
     const customSignUpFeesArray = await this.getObj<CustomSignUpFeesDto[]>('customSignUpFees');
 
-    const customSignUpFee = customSignUpFeesArray.find((customSignUpFee) => customSignUpFee.label === dto.label);
+    const customSignUpFee = customSignUpFeesArray?.find((customSignUpFee) => customSignUpFee.label === dto.label);
     customSignUpFee ? Object.assign(customSignUpFee, dto) : customSignUpFeesArray.push(dto);
 
     await this.setObj<CustomSignUpFeesDto[]>('customSignUpFees', customSignUpFeesArray);
@@ -39,7 +39,7 @@ export class SettingService {
 
   async getCustomSignUpFees(ref?: string | undefined, walletId?: number | undefined): Promise<number[]> {
     const customSignUpFees = await this.getObj<CustomSignUpFeesDto[]>('customSignUpFees');
-    return customSignUpFees.find((fee) => fee.ref === ref || fee.wallet === walletId)?.fees ?? [];
+    return customSignUpFees?.find((fee) => fee.ref === ref || fee.wallet === walletId)?.fees ?? [];
   }
 
   async getObj<T>(key: string, defaultValue?: T): Promise<T | undefined> {
