@@ -29,7 +29,7 @@ export class SettingService {
   }
 
   async updateCustomSignUpFees(dto: CustomSignUpFeesDto): Promise<void> {
-    const customSignUpFeesArray = await this.getObj<CustomSignUpFeesDto[]>('customSignUpFees');
+    const customSignUpFeesArray = (await this.getObj<CustomSignUpFeesDto[]>('customSignUpFees')) ?? [];
 
     const customSignUpFee = customSignUpFeesArray?.find((customSignUpFee) => customSignUpFee.label === dto.label);
     customSignUpFee ? Object.assign(customSignUpFee, dto) : customSignUpFeesArray.push(dto);
