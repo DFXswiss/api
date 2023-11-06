@@ -30,112 +30,120 @@ export class BuyCryptoPreparationService {
   async doAmlCheck(): Promise<void> {
     // Atm only for bankTx BuyCrypto
 
-    const entities = await this.buyCryptoRepo.find({
-      where: { amlCheck: IsNull(), amlReason: IsNull(), bankTx: Not(IsNull()), buy: Not(IsNull()), status: IsNull() },
-      relations: ['bankTx', 'buy', 'buy.user', 'buy.user.wallet', 'buy.user.userData', 'buy.user.userData.users'],
-    });
-    if (entities.length === 0) return;
+    try {
+      const entities = await this.buyCryptoRepo.find({
+        where: { amlCheck: IsNull(), amlReason: IsNull(), bankTx: Not(IsNull()), buy: Not(IsNull()), status: IsNull() },
+        relations: ['bankTx', 'buy', 'buy.user', 'buy.user.wallet', 'buy.user.userData', 'buy.user.userData.users'],
+      });
+      if (entities.length === 0) return;
 
-    this.logger.verbose(
-      `AmlCheck for ${entities.length} buy-crypto transaction(s). Transaction ID(s): ${entities.map((t) => t.id)}`,
-    );
-
-    // CHF/EUR Price
-    const fiatEur = await this.fiatService.getFiatByName('EUR');
-    const fiatChf = await this.fiatService.getFiatByName('CHF');
-
-    for (const entity of entities) {
-      const inputCurrency = await this.fiatService.getFiatByName(entity.bankTx.txCurrency);
-
-      const { minVolume, minFee, feeAmount, fee } = await this.transactionHelper.getTxDetails(
-        entity.bankTx.txAmount,
-        undefined,
-        inputCurrency,
-        entity.target.asset,
+      this.logger.verbose(
+        `AmlCheck for ${entities.length} buy-crypto transaction(s). Transaction ID(s): ${entities.map((t) => t.id)}`,
       );
 
-      const inputAssetEurPrice = await this.priceProviderService.getPrice(inputCurrency, fiatEur);
-      const inputAssetChfPrice = await this.priceProviderService.getPrice(inputCurrency, fiatChf);
+      // CHF/EUR Price
+      const fiatEur = await this.fiatService.getFiatByName('EUR');
+      const fiatChf = await this.fiatService.getFiatByName('CHF');
 
-      const bankData = await this.bankDataService.getActiveBankDataWithIban(entity.bankTx.iban);
+      for (const entity of entities) {
+        const inputCurrency = await this.fiatService.getFiatByName(entity.bankTx.txCurrency);
 
-      const dateFrom = Util.daysBefore(30);
+        const { minVolume, minFee, feeAmount, fee } = await this.transactionHelper.getTxDetails(
+          entity.bankTx.txAmount,
+          undefined,
+          inputCurrency,
+          entity.target.asset,
+        );
 
-      const userDataVolume = await this.getUserVolume(
-        entity.user.userData.users.map((user) => user.id),
-        dateFrom,
-      );
+        const inputAssetEurPrice = await this.priceProviderService.getPrice(inputCurrency, fiatEur);
+        const inputAssetChfPrice = await this.priceProviderService.getPrice(inputCurrency, fiatChf);
 
-      await this.buyCryptoRepo.update(
-        ...entity.amlCheckAndFillUp(
-          inputAssetEurPrice,
-          inputAssetChfPrice,
-          feeAmount,
-          fee,
-          minFee,
-          minVolume,
-          userDataVolume.buy + userDataVolume.checkout, // + convert?
-          bankData?.userData,
-        ),
-      );
+        const bankData = await this.bankDataService.getActiveBankDataWithIban(entity.bankTx.iban);
+
+        const dateFrom = Util.daysBefore(30);
+
+        const userDataVolume = await this.getUserVolume(
+          entity.user.userData.users.map((user) => user.id),
+          dateFrom,
+        );
+
+        await this.buyCryptoRepo.update(
+          ...entity.amlCheckAndFillUp(
+            inputAssetEurPrice,
+            inputAssetChfPrice,
+            feeAmount,
+            fee,
+            minFee,
+            minVolume,
+            userDataVolume.buy + userDataVolume.checkout, // + convert?
+            bankData?.userData,
+          ),
+        );
+      }
+    } catch (e) {
+      this.logger.error('Error during buy-crypto AML check:', e);
     }
   }
 
   async refreshFee(): Promise<void> {
     // Atm only for bankTx/checkoutTx BuyCrypto
 
-    const entities = await this.buyCryptoRepo.find({
-      where: {
-        amlCheck: CheckStatus.PASS,
-        status: IsNull(),
-        isComplete: false,
-        percentFee: IsNull(),
-        cryptoInput: IsNull(),
-        inputReferenceAmount: Not(IsNull()),
-      },
-      relations: [
-        'bankTx',
-        'checkoutTx',
-        'buy',
-        'buy.user',
-        'buy.user.userData',
-        'cryptoInput',
-        'cryptoRoute',
-        'cryptoRoute.user',
-        'cryptoRoute.user.userData',
-      ],
-    });
+    try {
+      const entities = await this.buyCryptoRepo.find({
+        where: {
+          amlCheck: CheckStatus.PASS,
+          status: IsNull(),
+          isComplete: false,
+          percentFee: IsNull(),
+          cryptoInput: IsNull(),
+          inputReferenceAmount: Not(IsNull()),
+        },
+        relations: [
+          'bankTx',
+          'checkoutTx',
+          'buy',
+          'buy.user',
+          'buy.user.userData',
+          'cryptoInput',
+          'cryptoRoute',
+          'cryptoRoute.user',
+          'cryptoRoute.user.userData',
+        ],
+      });
 
-    // CHF/EUR Price
-    const fiatEur = await this.fiatService.getFiatByName('EUR');
-    const fiatChf = await this.fiatService.getFiatByName('CHF');
+      // CHF/EUR Price
+      const fiatEur = await this.fiatService.getFiatByName('EUR');
+      const fiatChf = await this.fiatService.getFiatByName('CHF');
 
-    for (const entity of entities) {
-      // Only for bankTx/checkoutTx BuyCrypto
-      const inputReferenceCurrency = await this.fiatService.getFiatByName(entity.inputReference.currency);
+      for (const entity of entities) {
+        // Only for bankTx/checkoutTx BuyCrypto
+        const inputReferenceCurrency = await this.fiatService.getFiatByName(entity.inputReference.currency);
 
-      const { feeAmount, fee, minFee } = await this.transactionHelper.getTxDetails(
-        entity.inputReferenceAmount,
-        undefined,
-        inputReferenceCurrency,
-        entity.target.asset,
-        entity.user.userData,
-      );
+        const { feeAmount, fee, minFee } = await this.transactionHelper.getTxDetails(
+          entity.inputReferenceAmount,
+          undefined,
+          inputReferenceCurrency,
+          entity.target.asset,
+          entity.user.userData,
+        );
 
-      const referenceEurPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatEur);
-      const referenceChfPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatChf);
+        const referenceEurPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatEur);
+        const referenceChfPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatChf);
 
-      await this.buyCryptoRepo.update(
-        ...entity.setFeeAndFiatReference(
-          referenceEurPrice.convert(entity.inputReference.amount, 2),
-          referenceChfPrice.convert(entity.inputReference.amount, 2),
-          fee,
-          minFee,
-          minFee,
-          feeAmount,
-          referenceChfPrice.convert(feeAmount, 2),
-        ),
-      );
+        await this.buyCryptoRepo.update(
+          ...entity.setFeeAndFiatReference(
+            referenceEurPrice.convert(entity.inputReference.amount, 2),
+            referenceChfPrice.convert(entity.inputReference.amount, 2),
+            fee,
+            minFee,
+            minFee,
+            feeAmount,
+            referenceChfPrice.convert(feeAmount, 2),
+          ),
+        );
+      }
+    } catch (e) {
+      this.logger.error('Error during buy-crypto fee and fiat reference refresh:', e);
     }
   }
 
