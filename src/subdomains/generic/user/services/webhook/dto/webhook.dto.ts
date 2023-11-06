@@ -7,7 +7,7 @@ export enum WebhookType {
 }
 
 export class WebhookDto<T> {
-  @ApiProperty()
+  @ApiProperty({ description: 'User address' })
   id: string;
 
   @ApiProperty({ enum: WebhookType })
