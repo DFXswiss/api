@@ -179,7 +179,7 @@ export class FeeService {
   }
 
   private isExpiredFee(fee: Fee): boolean {
-    return !fee || (fee.expiryDate && fee.expiryDate < new Date());
+    return !fee || !fee.active || (fee.expiryDate && fee.expiryDate < new Date());
   }
 
   private async verifyFee(fee: Fee, accountType: AccountType): Promise<void> {
