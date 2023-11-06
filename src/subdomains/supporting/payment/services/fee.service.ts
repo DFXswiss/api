@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
@@ -39,6 +40,7 @@ export class FeeService {
     private readonly feeRepo: FeeRepository,
     private readonly assetService: AssetService,
     private readonly userDataService: UserDataService,
+    private readonly settingService: SettingService,
   ) {}
 
   async createFee(dto: CreateFeeDto): Promise<Fee> {
@@ -77,6 +79,24 @@ export class FeeService {
 
     // save
     return this.feeRepo.save(fee);
+  }
+
+  async addCustomSignUpFees(
+    userData: UserData,
+    ref?: string | undefined,
+    walletId?: number | undefined,
+  ): Promise<void> {
+    const customSignUpFees = await this.settingService.getCustomSignUpFees(ref, walletId);
+    if (customSignUpFees.length == 0) return;
+
+    for (const feeId of customSignUpFees) {
+      try {
+        await this.addFeeInternal(userData, feeId);
+      } catch (e) {
+        this.logger.warn(`Fee mapping error: ${e}; userDataId: ${userData.id}; feeId: ${feeId}`);
+        continue;
+      }
+    }
   }
 
   async addDiscountCodeUser(userData: UserData, discountCode: string): Promise<void> {

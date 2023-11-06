@@ -22,7 +22,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
 import { KycService } from '../kyc/kyc.service';
-import { KycStatus, KycType, UserData, UserDataStatus } from '../user-data/user-data.entity';
+import { KycStatus, KycType, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { Wallet } from '../wallet/wallet.entity';
 import { WalletService } from '../wallet/wallet.service';
@@ -119,7 +119,6 @@ export class UserService {
     { address, signature, usedRef }: CreateUserDto,
     userIp: string,
     userOrigin?: string,
-    userData?: UserData,
     wallet?: Wallet,
     discountCode?: string,
   ): Promise<User> {
@@ -130,10 +129,11 @@ export class UserService {
     user.wallet = wallet ?? (await this.walletService.getDefault());
     user.usedRef = await this.checkRef(user, usedRef);
     user.origin = userOrigin;
-    user.userData = userData ?? (await this.userDataService.createUserData(user.wallet.customKyc ?? KycType.DFX));
+    user.userData = await this.userDataService.createUserData(user.wallet.customKyc ?? KycType.DFX);
     user = await this.userRepo.save(user);
 
     if (discountCode) await this.feeService.addDiscountCodeUser(user.userData, discountCode);
+    if (usedRef || wallet) await this.feeService.addCustomSignUpFees(user.userData, usedRef, wallet?.id);
 
     const blockchains = this.cryptoService.getBlockchainsBasedOn(user.address);
     if (blockchains.includes(Blockchain.DEFICHAIN)) this.dfiTaxService.activateAddress(user.address);

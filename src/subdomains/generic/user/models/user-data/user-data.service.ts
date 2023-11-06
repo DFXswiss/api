@@ -96,13 +96,13 @@ export class UserDataService {
   }
 
   async createUserData(kycType: KycType): Promise<UserData> {
-    const userData = await this.userDataRepo.save({
+    const userData = this.userDataRepo.create({
       language: await this.languageService.getLanguageBySymbol(Config.defaultLanguage),
       currency: await this.fiatService.getFiatByName(Config.defaultCurrency),
       kycType: kycType,
     });
 
-    return userData;
+    return this.userDataRepo.save(userData);
   }
 
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
