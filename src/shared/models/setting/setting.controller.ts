@@ -4,7 +4,7 @@ import { ApiBearerAuth, ApiExcludeController, ApiExcludeEndpoint, ApiTags } from
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CakeFlowDto, CakeSettings } from './dto/cake-flow.dto';
-import { UpdateCustomSignUpFeesDto } from './dto/custom-sign-up-fees.dto';
+import { CustomSignUpFeesDto } from './dto/custom-sign-up-fees.dto';
 import { Setting } from './setting.entity';
 import { SettingService } from './setting.service';
 
@@ -40,7 +40,7 @@ export class SettingController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateCustomSignUpFees(@Body() dto: UpdateCustomSignUpFeesDto): Promise<void> {
+  async updateCustomSignUpFees(@Body() dto: CustomSignUpFeesDto): Promise<void> {
     return this.settingService.updateCustomSignUpFees(dto);
   }
 
