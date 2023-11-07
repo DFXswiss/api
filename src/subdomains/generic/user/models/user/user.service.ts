@@ -139,7 +139,7 @@ export class UserService {
       if (discountCode) await this.feeService.addDiscountCodeUser(user.userData, discountCode);
       if (usedRef || wallet) await this.feeService.addCustomSignUpFees(user.userData, user.usedRef, wallet?.id);
     } catch (e) {
-      this.logger.warn(`Error while adding discountCode to new user ${user.id}`, e);
+      this.logger.warn(`Error while adding discountCode to new user ${user.id}:`, e);
     }
 
     const blockchains = this.cryptoService.getBlockchainsBasedOn(user.address);
