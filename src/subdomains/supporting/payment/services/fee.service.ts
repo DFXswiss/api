@@ -138,7 +138,9 @@ export class FeeService {
     if (customFee !== Infinity) return customFee;
 
     const baseFee = Math.min(...fees.filter((f) => f.type === FeeType.BASE).map((f) => f.value));
-    const discountFee = Math.max(...fees.filter((f) => f.type === FeeType.DISCOUNT).map((f) => f.value), 0);
+    const positiveDiscountFee = Math.max(...fees.filter((f) => f.type === FeeType.DISCOUNT).map((f) => f.value), 0);
+    const negativeDiscountFee = Math.min(...fees.filter((f) => f.type === FeeType.DISCOUNT).map((f) => f.value), 0);
+    const discountFee = positiveDiscountFee + negativeDiscountFee;
 
     if (baseFee === Infinity) throw new InternalServerErrorException('Base fee is missing');
     if (baseFee - discountFee < 0) {
