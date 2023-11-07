@@ -7,13 +7,13 @@ export class CustomSignUpFeesDto {
 
   @IsOptional()
   @IsString()
-  ref: string;
+  ref?: string;
 
   @IsOptional()
   @IsArray()
-  fees: number[];
+  fees?: number[];
 
   @IsOptional()
   @IsNumber()
-  wallet: number;
+  wallet?: number;
 }

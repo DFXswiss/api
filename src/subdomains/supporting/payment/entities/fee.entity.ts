@@ -21,6 +21,9 @@ export class Fee extends IEntity {
   @Column({ type: 'float' })
   value: number;
 
+  @Column({ default: true })
+  active: boolean;
+
   // Filter columns
   @Column({ length: 256, nullable: true })
   discountCode: string;
