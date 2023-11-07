@@ -36,8 +36,9 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     gatewayUrl: string,
     privateKey: string,
     chainId: ChainId,
+    alchemyNetwork: string,
   ) {
-    super(http, scanApiUrl, scanApiKey, chainId, gatewayUrl, privateKey);
+    super(http, scanApiUrl, scanApiKey, chainId, gatewayUrl, privateKey, alchemyNetwork);
 
     const { ethGatewayUrl, ethApiKey, ethWalletPrivateKey } = GetConfig().blockchain.ethereum;
     const ethereumGateway = `${ethGatewayUrl}/${ethApiKey ?? ''}`;

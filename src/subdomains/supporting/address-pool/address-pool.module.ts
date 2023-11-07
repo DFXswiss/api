@@ -1,6 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
+import { AlchemyModule } from 'src/integration/alchemy/alchemy.module';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.module';
@@ -20,9 +20,10 @@ import { RouteController } from './route/route.controller';
     forwardRef(() => SellCryptoModule),
     SharedModule,
     BlockchainModule,
+    AlchemyModule,
   ],
   controllers: [RouteController, DepositController],
-  providers: [DepositRepository, DepositRouteRepository, DepositService, AlchemyService],
+  providers: [DepositRepository, DepositRouteRepository, DepositService],
   exports: [DepositService],
 })
 export class AddressPoolModule {}

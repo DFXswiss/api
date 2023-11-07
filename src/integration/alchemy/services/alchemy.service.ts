@@ -6,6 +6,7 @@ import {
   GetAllWebhooksResponse,
   WebhookType,
 } from 'alchemy-sdk';
+import { Observable, Subject } from 'rxjs';
 import { GetConfig } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { AlchemyNetworkMapper } from '../alchemy-network-mapper';
@@ -14,6 +15,8 @@ import { CreateWebhookDto } from '../dto/alchemy-create-webhook.dto';
 @Injectable()
 export class AlchemyService {
   private alchemy: Alchemy;
+
+  private addressWebhookSubject: Subject<any>;
 
   constructor() {
     const config = GetConfig();
@@ -24,6 +27,8 @@ export class AlchemyService {
     };
 
     this.alchemy = new Alchemy(settings);
+
+    this.addressWebhookSubject = new Subject<any>();
   }
 
   async getAllWebhooks(): Promise<GetAllWebhooksResponse> {
@@ -57,5 +62,13 @@ export class AlchemyService {
         50000,
       )
     ).flat();
+  }
+
+  getAddressWebhookObservable(): Observable<any> {
+    return this.addressWebhookSubject.asObservable();
+  }
+
+  processAddressWebhook(webhookData: any): void {
+    this.addressWebhookSubject.next(webhookData);
   }
 }

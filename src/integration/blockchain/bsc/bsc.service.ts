@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { GetConfig } from 'src/config/config';
-import { BscClient } from './bsc-client';
-import { EvmService } from '../shared/evm/evm.service';
 import { HttpService } from 'src/shared/services/http.service';
+import { EvmService } from '../shared/evm/evm.service';
+import { BscClient } from './bsc-client';
 
 @Injectable()
 export class BscService extends EvmService {

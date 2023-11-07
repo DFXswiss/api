@@ -6,6 +6,6 @@ import { AlchemyService } from './services/alchemy.service';
   imports: [],
   controllers: [AlchemyController],
   providers: [AlchemyService],
-  exports: [],
+  exports: [AlchemyService],
 })
 export class AlchemyModule {}

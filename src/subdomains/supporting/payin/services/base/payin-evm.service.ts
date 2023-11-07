@@ -1,3 +1,4 @@
+import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmService } from 'src/integration/blockchain/shared/evm/evm.service';
@@ -7,7 +8,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 export abstract class PayInEvmService {
   #client: EvmClient;
 
-  constructor(protected readonly service: EvmService) {
+  constructor(protected readonly service: EvmService, private readonly alchemyService: AlchemyService) {
     this.#client = service.getDefaultClient();
   }
 
@@ -36,6 +37,17 @@ export abstract class PayInEvmService {
   async getHistory(address: string, fromBlock: number): Promise<[EvmCoinHistoryEntry[], EvmTokenHistoryEntry[]]> {
     const allCoinTransactions = await this.#client.getNativeCoinTransactions(address, fromBlock);
     const allTokenTransactions = await this.#client.getERC20Transactions(address, fromBlock);
+
+    console.log('--------------------------------------------------------------------------------');
+    console.log(`Address: ${address} / Block: ${fromBlock}`);
+
+    console.log('--------------------------------------------------------------------------------');
+    console.log('allCoinTransactions:');
+    console.log(JSON.stringify(allCoinTransactions));
+    console.log('--------------------------------------------------------------------------------');
+    console.log('allTokenTransactions:');
+    console.log(JSON.stringify(allTokenTransactions));
+    console.log('--------------------------------------------------------------------------------');
 
     return [allCoinTransactions, allTokenTransactions];
   }

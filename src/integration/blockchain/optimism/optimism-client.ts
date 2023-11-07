@@ -31,8 +31,9 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
     gatewayUrl: string,
     privateKey: string,
     chainId: ChainId,
+    alchemyNetwork: string,
   ) {
-    super(http, scanApiUrl, scanApiKey, chainId, gatewayUrl, privateKey);
+    super(http, scanApiUrl, scanApiKey, chainId, gatewayUrl, privateKey, alchemyNetwork);
 
     const { ethGatewayUrl, ethApiKey, ethWalletPrivateKey, ethChainId } = GetConfig().blockchain.ethereum;
     const { optimismChainId } = GetConfig().blockchain.optimism;

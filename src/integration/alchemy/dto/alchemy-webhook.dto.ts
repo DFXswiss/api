@@ -1,4 +1,4 @@
-export interface AlchemyWebhook {
+export interface AlchemyWebhookDto {
   webhookId: string;
   id: string;
   createdAt: string;
@@ -14,6 +14,10 @@ export interface AlchemyWebhook {
         value: number;
         asset: string;
         category: string;
+        rawContract: {
+          rawValue: string;
+          decimals: number;
+        };
       },
     ];
   };

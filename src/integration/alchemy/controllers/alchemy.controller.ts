@@ -1,7 +1,6 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AddressActivityResponse, GetAllWebhooksResponse } from 'alchemy-sdk';
-import fs from 'fs';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CreateWebhookDto } from '../dto/alchemy-create-webhook.dto';
 import { AlchemyService } from '../services/alchemy.service';
@@ -29,15 +28,8 @@ export class AlchemyController {
   }
 
   @Post('addressWebhook')
-  async addressWebhook(@Body() webhookData: any) {
-    this.logger.info('alchemyAddressWebhook()');
-    this.logger.info(JSON.stringify(webhookData));
-
-    const timestamp = Date.now();
-
-    fs.writeFileSync(
-      `C:/Data/Entwicklung/workspace-2022/tmp/addressWebhook-${timestamp}.json`,
-      JSON.stringify(webhookData),
-    );
+  //@ApiExcludeEndpoint()
+  async addressWebhook(@Body() webhookData: any): Promise<void> {
+    this.alchemyService.processAddressWebhook(webhookData);
   }
 }

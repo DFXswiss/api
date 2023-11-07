@@ -1,8 +1,10 @@
+import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
+import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
@@ -15,14 +17,22 @@ import { PayInEvmService } from '../../../../services/base/payin-evm.service';
 import { PayInInputLog, RegisterStrategy } from './register.strategy';
 
 export abstract class EvmStrategy extends RegisterStrategy {
+  private readonly messageQueue: QueueHandler;
+
   constructor(
     protected readonly nativeCoin: string,
     protected readonly payInEvmService: PayInEvmService,
     protected readonly payInRepository: PayInRepository,
     protected readonly assetService: AssetService,
     private readonly repos: RepositoryFactory,
+    readonly alchemyService: AlchemyService,
   ) {
     super(payInRepository);
+
+    if (nativeCoin === 'ETH') {
+      this.messageQueue = new QueueHandler();
+      alchemyService.getAddressWebhookObservable().subscribe(() => this.processMessageQueue());
+    }
   }
 
   protected abstract getOwnAddresses(): string[];
@@ -31,7 +41,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
 
   protected async processNewPayInEntries(): Promise<void> {
     const addresses: string[] = await this.getPayInAddresses();
-    const lastCheckedBlockHeight = await this.getLastCheckedBlockHeight();
+    const lastCheckedBlockHeight = 9067331; //await this.getLastCheckedBlockHeight();
 
     await this.getTransactionsAndCreatePayIns(addresses, lastCheckedBlockHeight);
   }
@@ -164,5 +174,13 @@ export abstract class EvmStrategy extends RegisterStrategy {
     await this.addReferenceAmounts(newEntries);
 
     await this.createPayInsAndSave(newEntries, log);
+  }
+
+  private processMessageQueue(): void {
+    this.messageQueue
+      .handle<void>(async () => this.checkPayInEntries())
+      .catch((e) => {
+        this.logger.error('Error while process new payin entries', e);
+      });
   }
 }

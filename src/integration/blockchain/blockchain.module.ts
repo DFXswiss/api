@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { AinModule } from 'src/integration/blockchain/ain/ain.module';
-import { AlchemyModule } from '../alchemy/alchemy.module';
 import { LightningModule } from '../lightning/lightning.module';
 import { ArbitrumModule } from './arbitrum/arbitrum.module';
 import { BscModule } from './bsc/bsc.module';
@@ -11,7 +10,7 @@ import { CryptoService } from './shared/services/crypto.service';
 
 @Module({
   providers: [EvmRegistryService, CryptoService],
-  imports: [AinModule, BscModule, EthereumModule, OptimismModule, ArbitrumModule, LightningModule, AlchemyModule],
+  imports: [AinModule, BscModule, EthereumModule, OptimismModule, ArbitrumModule, LightningModule],
   exports: [
     AinModule,
     BscModule,
@@ -20,7 +19,6 @@ import { CryptoService } from './shared/services/crypto.service';
     ArbitrumModule,
     EvmRegistryService,
     LightningModule,
-    AlchemyModule,
     CryptoService,
   ],
 })

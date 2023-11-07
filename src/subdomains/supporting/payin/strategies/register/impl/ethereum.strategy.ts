@@ -1,12 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
+import { Config } from 'src/config/config';
+import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Lock } from 'src/shared/utils/lock';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInEthereumService } from '../../../services/payin-ethereum.service';
 import { EvmStrategy } from './base/evm.strategy';
@@ -20,8 +19,9 @@ export class EthereumStrategy extends EvmStrategy {
     payInRepository: PayInRepository,
     assetService: AssetService,
     repos: RepositoryFactory,
+    alchemyService: AlchemyService,
   ) {
-    super('ETH', ethereumService, payInRepository, assetService, repos);
+    super('ETH', ethereumService, payInRepository, assetService, repos, alchemyService);
   }
 
   get blockchain(): Blockchain {
@@ -62,11 +62,8 @@ export class EthereumStrategy extends EvmStrategy {
 
   //*** JOBS ***//
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(7200)
   async checkPayInEntries(): Promise<void> {
-    if (Config.processDisabled(Process.PAY_IN)) return;
-
+    this.logger.info('Ethereum checkPayInEntries() ...');
     await this.processNewPayInEntries();
   }
 }

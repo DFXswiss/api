@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AlchemyModule } from 'src/integration/alchemy/alchemy.module';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { ChainalysisModule } from 'src/integration/chainalysis/chainalysis.module';
 import { PaymentModule } from 'src/shared/payment/payment.module';
@@ -54,6 +55,7 @@ import { OptimismTokenStrategy as OptimismTokenStrategyS } from './strategies/se
     forwardRef(() => SellCryptoModule),
     PaymentModule,
     NotificationModule,
+    AlchemyModule,
   ],
   controllers: [],
   providers: [

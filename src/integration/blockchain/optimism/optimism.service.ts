@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { GetConfig } from 'src/config/config';
-import { OptimismClient } from './optimism-client';
-import { EvmService } from '../shared/evm/evm.service';
 import { HttpService } from 'src/shared/services/http.service';
+import { EvmService } from '../shared/evm/evm.service';
+import { OptimismClient } from './optimism-client';
 
 @Injectable()
 export class OptimismService extends EvmService {
@@ -14,6 +14,7 @@ export class OptimismService extends EvmService {
       optimismApiKey,
       optimismWalletPrivateKey,
       optimismChainId,
+      optimismAlchemyNetwork,
     } = GetConfig().blockchain.optimism;
 
     super(
@@ -25,6 +26,7 @@ export class OptimismService extends EvmService {
       optimismWalletPrivateKey,
       optimismChainId,
       OptimismClient,
+      optimismAlchemyNetwork,
     );
   }
 }

@@ -1,16 +1,32 @@
 import { ChainId, CurrencyAmount, Percent, Token, TradeType } from '@uniswap/sdk-core';
 import { AlphaRouter, SwapType } from '@uniswap/smart-order-router';
+import {
+  Alchemy,
+  Network as AlchemyNetwork,
+  Utils as AlchemyUtils,
+  AssetTransfersCategory,
+  AssetTransfersWithMetadataResponse,
+  AssetTransfersWithMetadataResult,
+} from 'alchemy-sdk';
 import BigNumber from 'bignumber.js';
 import { BigNumberish, Contract, BigNumber as EthersNumber, ethers } from 'ethers';
+import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
+import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import ERC20_ABI from './abi/erc20.abi.json';
 import { WalletAccount } from './domain/wallet-account';
-import { ScanApiResponse } from './dto/scan-api-response.dto';
 import { EvmUtil } from './evm.util';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
+
+interface AssetTransfersParams {
+  fromAddress?: string;
+  toAddress?: string;
+  fromBlock: number;
+  categories: AssetTransfersCategory[];
+  pageKey?: string;
+}
 
 export abstract class EvmClient {
   protected provider: ethers.providers.JsonRpcProvider;
@@ -19,6 +35,7 @@ export abstract class EvmClient {
   protected nonce = new Map<string, number>();
   protected tokens = new AsyncCache<Token>();
   private router: AlphaRouter;
+  private alchemy: Alchemy;
 
   constructor(
     protected http: HttpService,
@@ -27,6 +44,7 @@ export abstract class EvmClient {
     protected chainId: ChainId,
     gatewayUrl: string,
     privateKey: string,
+    alchemyNetwork?: string,
   ) {
     this.provider = new ethers.providers.JsonRpcProvider(gatewayUrl);
     this.wallet = new ethers.Wallet(privateKey, this.provider);
@@ -35,16 +53,35 @@ export abstract class EvmClient {
       chainId: this.chainId,
       provider: this.provider,
     });
+
+    if (alchemyNetwork) this.setupAlchemy(alchemyNetwork);
+  }
+
+  private setupAlchemy(alchemyNetwork: string) {
+    const network = Util.stringToEnum(AlchemyNetwork, alchemyNetwork);
+    if (!network) throw new Error(`Unknown alchemy network: ${alchemyNetwork}`);
+
+    const alchemySettings = {
+      apiKey: Config.alchemy.apiKey,
+      authToken: Config.alchemy.authToken,
+      network: network,
+    };
+
+    this.alchemy = new Alchemy(alchemySettings);
   }
 
   // --- PUBLIC API - GETTERS --- //
 
   async getNativeCoinTransactions(walletAddress: string, fromBlock: number): Promise<EvmCoinHistoryEntry[]> {
-    return this.getHistory(walletAddress, fromBlock, 'txlist');
+    const category = [AlchemyNetwork.ETH_MAINNET, AlchemyNetwork.ETH_GOERLI].includes(this.alchemy.config.network)
+      ? [AssetTransfersCategory.EXTERNAL, AssetTransfersCategory.INTERNAL]
+      : [AssetTransfersCategory.EXTERNAL];
+
+    return this.getHistory(walletAddress, fromBlock, category);
   }
 
   async getERC20Transactions(walletAddress: string, fromBlock: number): Promise<EvmTokenHistoryEntry[]> {
-    return this.getHistory(walletAddress, fromBlock, 'tokentx');
+    return this.getHistory(walletAddress, fromBlock, [AssetTransfersCategory.ERC20]);
   }
 
   async getNativeCoinBalance(): Promise<number> {
@@ -339,38 +376,66 @@ export abstract class EvmClient {
     return currentNonce;
   }
 
-  private async getHistory<T>(walletAddress: string, fromBlock: number, type: string): Promise<T[]> {
-    const params = {
-      module: 'account',
-      address: walletAddress,
-      startblock: fromBlock,
-      apikey: this.scanApiKey,
-      sort: 'asc',
-      action: type,
+  private async getHistory<T>(
+    walletAddress: string,
+    fromBlock: number,
+    categories: AssetTransfersCategory[],
+  ): Promise<T[]> {
+    const params: AssetTransfersParams = {
+      fromAddress: walletAddress,
+      toAddress: undefined,
+      fromBlock: fromBlock,
+      categories: categories,
     };
 
-    const { result, message } = await this.callScanApi({ method: 'GET', params });
+    const assetTransferResult = await this.getAssetTransfers(params);
 
-    if (!Array.isArray(result)) throw new Error(`Failed to get ${type} transactions: ${result ?? message}`);
+    params.fromAddress = undefined;
+    params.toAddress = walletAddress;
 
-    return result;
+    assetTransferResult.push(...(await this.getAssetTransfers(params)));
+
+    assetTransferResult.sort((atr1, atr2) => Number(atr1.blockNum) - Number(atr2.blockNum));
+
+    return <T[]>assetTransferResult.map((atr) => ({
+      blockNumber: Number(atr.blockNum).toString(),
+      timeStamp: Number(new Date(atr.metadata.blockTimestamp).getTime() / 1000).toString(),
+      hash: atr.hash,
+      from: atr.from,
+      to: atr.to,
+      value: Number(atr.rawContract.value).toString(),
+      contractAddress: atr.rawContract.address ?? '',
+      tokenName: atr.asset,
+      tokenDecimal: Number(atr.rawContract.decimal).toString(),
+    }));
   }
 
-  private async callScanApi<T>(config: HttpRequestConfig, nthTry = 10): Promise<ScanApiResponse<T>> {
-    const requestConfig = { url: this.scanApiUrl, ...config };
+  private async getAssetTransfers(params: AssetTransfersParams): Promise<AssetTransfersWithMetadataResult[]> {
+    let assetTransfersResponse = await this.alchemyGetAssetTransfers(params);
+    params.pageKey = assetTransfersResponse.pageKey;
 
-    try {
-      const response = await this.http.request<ScanApiResponse<T>>(requestConfig);
-      if (response.status === '0' && typeof response.result === 'string') throw new Error(response.result);
+    const assetTransferResult = assetTransfersResponse.transfers;
 
-      return response;
-    } catch (e) {
-      if (nthTry > 1 && (e.message?.includes('Max rate limit reached') || e.response?.status === 429)) {
-        await Util.delay(1000);
-        return this.callScanApi(requestConfig, nthTry - 1);
-      }
-
-      throw e;
+    while (params.pageKey) {
+      assetTransfersResponse = await this.alchemyGetAssetTransfers(params);
+      params.pageKey = assetTransfersResponse.pageKey;
+      assetTransferResult.push(...assetTransfersResponse.transfers);
     }
+
+    return assetTransferResult;
+  }
+
+  private async alchemyGetAssetTransfers(params: AssetTransfersParams): Promise<AssetTransfersWithMetadataResponse> {
+    if (!this.alchemy) throw new Error('Alchemy not available');
+
+    return this.alchemy.core.getAssetTransfers({
+      fromBlock: AlchemyUtils.hexlify(params.fromBlock),
+      fromAddress: params.fromAddress,
+      toAddress: params.toAddress,
+      category: params.categories,
+      excludeZeroValue: false,
+      pageKey: params.pageKey,
+      withMetadata: true,
+    });
   }
 }

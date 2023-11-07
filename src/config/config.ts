@@ -299,6 +299,7 @@ export class Configuration {
       ethGatewayUrl: process.env.ETH_GATEWAY_URL,
       ethApiKey: process.env.ETH_API_KEY,
       ethChainId: +process.env.ETH_CHAIN_ID,
+      ethAlchemyNetwork: process.env.ETH_ALCHEMY_NETWORK,
     },
     bsc: {
       bscScanApiUrl: process.env.BSC_SCAN_API_URL,
@@ -317,6 +318,7 @@ export class Configuration {
       optimismGatewayUrl: process.env.OPTIMISM_GATEWAY_URL,
       optimismApiKey: process.env.OPTIMISM_API_KEY,
       optimismChainId: +process.env.OPTIMISM_CHAIN_ID,
+      optimismAlchemyNetwork: process.env.OPTIMISM_ALCHEMY_NETWORK,
     },
     arbitrum: {
       arbitrumScanApiUrl: process.env.ARBITRUM_SCAN_API_URL,
@@ -326,6 +328,7 @@ export class Configuration {
       arbitrumGatewayUrl: process.env.ARBITRUM_GATEWAY_URL,
       arbitrumApiKey: process.env.ARBITRUM_API_KEY,
       arbitrumChainId: +process.env.ARBITRUM_CHAIN_ID,
+      arbitrumAlchemyNetwork: process.env.ARBITRUM_ALCHEMY_NETWORK,
     },
     lightning: {
       lnbits: {

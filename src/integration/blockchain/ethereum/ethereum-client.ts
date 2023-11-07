@@ -10,7 +10,8 @@ export class EthereumClient extends EvmClient {
     gatewayUrl: string,
     privateKey: string,
     chainId: ChainId,
+    alchemyNetwork: string,
   ) {
-    super(http, scanApiUrl, scanApiKey, chainId, gatewayUrl, privateKey);
+    super(http, scanApiUrl, scanApiKey, chainId, gatewayUrl, privateKey, alchemyNetwork);
   }
 }
