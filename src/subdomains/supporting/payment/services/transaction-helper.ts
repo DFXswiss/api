@@ -13,6 +13,7 @@ import { MinAmount } from 'src/subdomains/supporting/payment/dto/min-amount.dto'
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
+import { FeeDto } from '../dto/fee.dto';
 import { TargetEstimation, TransactionDetails } from '../dto/transaction-details.dto';
 import { TxSpec, TxSpecExtended } from '../dto/tx-spec.dto';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
@@ -165,7 +166,8 @@ export class TransactionHelper implements OnModuleInit {
       minVolumeTarget,
       maxVolume,
       maxVolumeTarget,
-      fee,
+      fee: fee.percentAmount,
+      additionalFee: fee.additionalAmount,
       isValid: error == null,
       error,
     };
@@ -178,13 +180,13 @@ export class TransactionHelper implements OnModuleInit {
     txAsset: Asset | Fiat,
     txVolume: number,
     paymentMethod: BuyPaymentMethod,
-  ): Promise<number> {
+  ): Promise<FeeDto> {
     const price = txAsset ? await this.priceProviderService.getPrice(txAsset, this.eur) : undefined;
 
     const txVolumeInEur = price ? price.convert(txVolume) : undefined;
 
     return paymentMethod === BuyPaymentMethod.CARD
-      ? Config.buy.fee.card
+      ? { percentAmount: Config.buy.fee.card, additionalAmount: 0 }
       : userData
       ? this.feeService.getUserFee({ userData, direction, asset, txVolume: txVolumeInEur })
       : this.feeService.getDefaultFee({ direction, asset, txVolume: txVolumeInEur });
@@ -193,7 +195,7 @@ export class TransactionHelper implements OnModuleInit {
   private async getTargetEstimation(
     inputAmount: number | undefined,
     outputAmount: number | undefined,
-    fee: number,
+    fee: FeeDto,
     minFee: number,
     from: Asset | Fiat,
     to: Asset | Fiat,
@@ -201,7 +203,9 @@ export class TransactionHelper implements OnModuleInit {
     const price = await this.priceProviderService.getPrice(from, to);
 
     const percentFeeAmount =
-      outputAmount != null ? price.invert().convert((outputAmount * fee) / (1 - fee)) : inputAmount * fee;
+      outputAmount != null
+        ? price.invert().convert((outputAmount * fee.percentAmount) / (1 - fee.percentAmount))
+        : inputAmount * fee.percentAmount;
     const feeAmount = Math.max(percentFeeAmount, minFee);
 
     const targetAmount = outputAmount != null ? outputAmount : price.convert(Math.max(inputAmount - feeAmount, 0));

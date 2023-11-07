@@ -10,6 +10,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { In, IsNull } from 'typeorm';
 import { CreateFeeDto } from '../dto/create-fee.dto';
+import { FeeDto } from '../dto/fee.dto';
 import { Fee, FeeType } from '../entities/fee.entity';
 import { FeeRepository } from '../repositories/fee.repository';
 
@@ -56,6 +57,8 @@ export class FeeService {
       throw new BadRequestException('Discount fees without a code cannot have a maxUsage');
     if (dto.type === FeeType.BASE && (!dto.accountType || !dto.assetIds))
       throw new BadRequestException('Base fees must have an accountType and assetIds');
+    if (dto.type !== FeeType.CUSTOM && dto.additionalFee)
+      throw new BadRequestException('Only custom fee can have additionalFee');
 
     // create the entity
     const fee = this.feeRepo.create(dto);
@@ -119,13 +122,13 @@ export class FeeService {
     return fee;
   }
 
-  async getUserFee(request: UserFeeRequest): Promise<number> {
+  async getUserFee(request: UserFeeRequest): Promise<FeeDto> {
     const userFees = await this.getValidFees(request);
 
     return this.calculateFee(userFees, request.userData.id);
   }
 
-  async getDefaultFee(request: FeeRequestBase, accountType = AccountType.PERSONAL): Promise<number> {
+  async getDefaultFee(request: FeeRequestBase, accountType = AccountType.PERSONAL): Promise<FeeDto> {
     const defaultFees = await this.getValidFees({ ...request, accountType });
 
     return this.calculateFee(defaultFees);
@@ -133,22 +136,43 @@ export class FeeService {
 
   // --- HELPER METHODS --- //
 
-  private calculateFee(fees: Fee[], userDataId?: number): number {
-    const customFee = Math.min(...fees.filter((f) => f.type === FeeType.CUSTOM).map((f) => f.value));
-    if (customFee !== Infinity) return customFee;
+  private calculateFee(fees: Fee[], userDataId?: number): FeeDto {
+    // filter customFee with min. value
+    const customFee = fees
+      .filter((fee) => fee.type === FeeType.CUSTOM)
+      .reduce((minFee, fee) => (fee.value > minFee?.value ? minFee : fee), undefined);
+    if (customFee) return { percentAmount: customFee.value, additionalAmount: customFee.additionalFee ?? 0 };
 
-    const baseFee = Math.min(...fees.filter((f) => f.type === FeeType.BASE).map((f) => f.value));
-    const positiveDiscountFee = Math.max(...fees.filter((f) => f.type === FeeType.DISCOUNT).map((f) => f.value), 0);
-    const negativeDiscountFee = Math.min(...fees.filter((f) => f.type === FeeType.DISCOUNT).map((f) => f.value), 0);
-    const discountFee = positiveDiscountFee + negativeDiscountFee;
+    // filter baseFee with min. value
+    const baseFee = fees
+      .filter((fee) => fee.type === FeeType.BASE)
+      .reduce((minFee, fee) => (fee.value > minFee?.value ? minFee : fee), undefined);
 
-    if (baseFee === Infinity) throw new InternalServerErrorException('Base fee is missing');
-    if (baseFee - discountFee < 0) {
+    // filter discount > 0 with max. value
+    const positiveDiscountFee = fees
+      .filter((fee) => fee.type === FeeType.DISCOUNT && fee.value > 0)
+      .reduce((minFee, fee) => (fee.value < minFee?.value ? minFee : fee), undefined);
+
+    // filter discount < 0 with min. value
+    const negativeDiscountFee = fees
+      .filter((fee) => fee.type === FeeType.DISCOUNT && fee.value < 0)
+      .reduce((minFee, fee) => (fee.value > minFee?.value ? minFee : fee), undefined);
+
+    const discountFee = {
+      fee: (positiveDiscountFee?.value ?? 0) + (negativeDiscountFee?.value ?? 0),
+      additionalFee: (positiveDiscountFee?.additionalFee ?? 0) + (negativeDiscountFee?.additionalFee ?? 0),
+    };
+
+    if (!baseFee) throw new InternalServerErrorException('Base fee is missing');
+    if (baseFee.value - discountFee.fee < 0) {
       this.logger.warn(`UserDiscount higher userBaseFee! UserDataId: ${userDataId}`);
-      return baseFee;
+      return { percentAmount: baseFee.value, additionalAmount: baseFee.additionalFee };
     }
 
-    return baseFee - discountFee;
+    return {
+      percentAmount: baseFee.value - discountFee.fee,
+      additionalAmount: baseFee.additionalFee - discountFee.additionalFee,
+    };
   }
 
   private async getValidFees(request: OptionalFeeRequest): Promise<Fee[]> {

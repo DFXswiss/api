@@ -398,13 +398,14 @@ export class BuyCrypto extends IEntity {
     amountInEur: number,
     amountInChf: number,
     fee: number,
+    absoluteFeeAmount: number,
     minFeeAmount: number,
     minFeeAmountFiat: number,
     totalFeeAmount: number,
     totalFeeAmountChf: number,
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
-      absoluteFeeAmount: 0,
+      absoluteFeeAmount,
       percentFee: fee,
       percentFeeAmount: fee * this.inputReferenceAmount,
       minFeeAmount,

@@ -21,6 +21,9 @@ export class Fee extends IEntity {
   @Column({ type: 'float' })
   value: number;
 
+  @Column({ type: 'float', nullable: true })
+  additionalFee: number;
+
   @Column({ default: true })
   active: boolean;
 
