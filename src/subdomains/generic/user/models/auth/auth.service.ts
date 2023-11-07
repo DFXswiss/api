@@ -14,6 +14,7 @@ import { CryptoService } from 'src/integration/blockchain/shared/services/crypto
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { JwtPayload, JwtPayloadBase } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
 import { CreateUserDto } from 'src/subdomains/generic/user/models/user/dto/create-user.dto';
@@ -36,6 +37,7 @@ export interface ChallengeData {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new DfxLogger(AuthService);
   private challengeList: Map<string, ChallengeData> = new Map<string, ChallengeData>();
 
   constructor(
@@ -96,7 +98,11 @@ export class AuthService {
       }
     }
 
-    if (dto.discountCode) await this.feeService.addDiscountCodeUser(user.userData, dto.discountCode);
+    try {
+      if (dto.discountCode) await this.feeService.addDiscountCodeUser(user.userData, dto.discountCode);
+    } catch (e) {
+      this.logger.warn(`Error while adding discountCode in user signIn ${user.id}`, e);
+    }
 
     return { accessToken: this.generateUserToken(user, ip) };
   }
