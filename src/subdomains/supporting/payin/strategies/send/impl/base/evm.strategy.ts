@@ -138,11 +138,11 @@ export abstract class EvmStrategy extends SendStrategy {
   }
 
   protected getTotalGroupAmount(payInGroup: SendGroup): number {
-    return Util.sumObj<CryptoInput>(payInGroup.payIns, 'amount');
+    return Util.sumObjValue<CryptoInput>(payInGroup.payIns, 'amount');
   }
 
   protected getTotalSendFee(payInGroup: SendGroup): number {
-    return Util.sumObj<CryptoInput>(payInGroup.payIns, 'forwardFeeAmount');
+    return Util.sumObjValue<CryptoInput>(payInGroup.payIns, 'forwardFeeAmount');
   }
 
   protected topUpCoin(payInGroup: SendGroup, amount: number): Promise<string> {

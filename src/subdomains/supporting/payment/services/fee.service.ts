@@ -138,25 +138,29 @@ export class FeeService {
 
   private calculateFee(fees: Fee[], userDataId?: number): FeeDto {
     // filter customFee with min. value
-    const customFee = fees
-      .filter((fee) => fee.type === FeeType.CUSTOM)
-      .reduce((minFee, fee) => (fee.value > minFee?.value ? minFee : fee), undefined);
+    const customFee = Util.minObj(
+      fees.filter((fee) => fee.type === FeeType.CUSTOM),
+      'value',
+    );
     if (customFee) return { percentAmount: customFee.value, additionalAmount: customFee.additionalFee ?? 0 };
 
     // filter baseFee with min. value
-    const baseFee = fees
-      .filter((fee) => fee.type === FeeType.BASE)
-      .reduce((minFee, fee) => (fee.value > minFee?.value ? minFee : fee), undefined);
+    const baseFee = Util.minObj(
+      fees.filter((fee) => fee.type === FeeType.BASE),
+      'value',
+    );
 
     // filter discount > 0 with max. value
-    const positiveDiscountFee = fees
-      .filter((fee) => fee.type === FeeType.DISCOUNT && fee.value > 0)
-      .reduce((minFee, fee) => (fee.value < minFee?.value ? minFee : fee), undefined);
+    const positiveDiscountFee = Util.maxObj(
+      fees.filter((fee) => fee.type === FeeType.DISCOUNT && fee.value > 0),
+      'value',
+    );
 
     // filter discount < 0 with min. value
-    const negativeDiscountFee = fees
-      .filter((fee) => fee.type === FeeType.DISCOUNT && fee.value < 0)
-      .reduce((minFee, fee) => (fee.value > minFee?.value ? minFee : fee), undefined);
+    const negativeDiscountFee = Util.minObj(
+      fees.filter((fee) => fee.type === FeeType.DISCOUNT && fee.value < 0),
+      'value',
+    );
 
     const discountFee = {
       fee: (positiveDiscountFee?.value ?? 0) + (negativeDiscountFee?.value ?? 0),

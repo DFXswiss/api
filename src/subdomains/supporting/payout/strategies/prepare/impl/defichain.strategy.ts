@@ -165,7 +165,7 @@ export class DeFiChainStrategy extends PrepareStrategy {
 
     return {
       asset: orders[0].asset,
-      amount: Util.round(Util.sumObj(orders, 'amount'), 8),
+      amount: Util.round(Util.sumObjValue(orders, 'amount'), 8),
     };
   }
 }
