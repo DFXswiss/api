@@ -5,6 +5,7 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
+import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/document-storage.service';
 import { IdentResultDto } from 'src/subdomains/generic/user/models/ident/dto/ident-result.dto';
 import { KycProcessService } from 'src/subdomains/generic/user/models/kyc/kyc-process.service';
 import { SpiderDataRepository } from 'src/subdomains/generic/user/models/spider-data/spider-data.repository';
@@ -44,6 +45,7 @@ export class SpiderSyncService {
     private readonly spiderService: SpiderService,
     private readonly settingService: SettingService,
     private readonly spiderDataRepo: SpiderDataRepository,
+    private readonly documentStorageService: DocumentStorageService,
   ) {}
 
   @Cron(CronExpression.EVERY_2_HOURS)
@@ -160,6 +162,8 @@ export class SpiderSyncService {
       await this.spiderDataRepo.save(userData.spiderData);
     }
 
+    await this.syncKycFiles(userData);
+
     // force sync (chatbot and ident result)
     if (forceSync) {
       userData = await this.kycProcess.storeChatbotResult(userData);
@@ -169,6 +173,48 @@ export class SpiderSyncService {
     }
 
     await this.userDataRepo.save(userData);
+  }
+
+  public async syncKycFiles(userData: UserData): Promise<void> {
+    const allStorageFiles = await this.documentStorageService.listFiles(userData.id);
+    const allSpiderFiles = await this.spiderApi.getDocumentInfos(userData.id, false);
+
+    const notSynchedFiles = allSpiderFiles.filter((spiderFile) => {
+      return !allStorageFiles.some(
+        (f) => f.metadata.part === spiderFile.part && f.metadata.version === spiderFile.version,
+      );
+    });
+
+    for (const document of notSynchedFiles) {
+      const data = await this.spiderApi.getBinaryDocument(
+        userData.id,
+        false,
+        document.document,
+        document.version,
+        document.part,
+      );
+
+      await this.documentStorageService.uploadFile(
+        userData.id,
+        document.document,
+        document.version,
+        document.fileName,
+        data,
+        document.contentType,
+        {
+          document: document.document.toString(),
+          version: document.version,
+          part: document.part,
+          state: document.state.toString(),
+          creationTime: document.creationTime.toISOString(),
+          modificationTime: document.modificationTime.toISOString(),
+          label: document.label,
+          fileName: document.fileName,
+          contentType: document.contentType.toString(),
+          url: document.url,
+        },
+      );
+    }
   }
 
   public async checkKycProgress(userData: UserData): Promise<UserData> {

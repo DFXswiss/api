@@ -6,6 +6,7 @@ export interface Blob {
   contentType: string;
   created: Date;
   updated: Date;
+  metadata: { [propertyName: string]: string };
 }
 
 export interface BlobContent {
@@ -23,7 +24,7 @@ export class AzureStorageService {
   }
 
   async listBlobs(prefix?: string): Promise<Blob[]> {
-    const iterator = this.client.listBlobsFlat({ prefix }).byPage({ maxPageSize: 100 });
+    const iterator = this.client.listBlobsFlat({ prefix, includeMetadata: true }).byPage({ maxPageSize: 100 });
 
     const blobs: Blob[] = [];
 
@@ -36,6 +37,7 @@ export class AzureStorageService {
         contentType: i.properties.contentType,
         created: i.properties.createdOn,
         updated: i.properties.lastModified,
+        metadata: i.metadata,
       }));
       if (items) blobs.push(...items);
 
@@ -51,7 +53,9 @@ export class AzureStorageService {
     return { contentType: contentType, data: await blobClient.downloadToBuffer() };
   }
 
-  async uploadBlob(name: string, data: Buffer, type: string) {
-    await this.client.getBlockBlobClient(name).uploadData(data, { blobHTTPHeaders: { blobContentType: type } });
+  async uploadBlob(name: string, data: Buffer, type: string, metadata: { [propertyName: string]: string }) {
+    await this.client
+      .getBlockBlobClient(name)
+      .uploadData(data, { blobHTTPHeaders: { blobContentType: type }, metadata });
   }
 }
