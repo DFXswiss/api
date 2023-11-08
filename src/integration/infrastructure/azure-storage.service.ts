@@ -1,4 +1,5 @@
 import { BlobServiceClient, ContainerClient } from '@azure/storage-blob';
+import { GetConfig } from 'src/config/config';
 
 export interface Blob {
   name: string;
@@ -13,12 +14,12 @@ export interface BlobContent {
 }
 
 export class AzureStorageService {
-  private readonly blobConnectionString = 'TODO';
-
   private readonly client: ContainerClient;
 
   constructor(container: string) {
-    this.client = BlobServiceClient.fromConnectionString(this.blobConnectionString).getContainerClient(container);
+    this.client = BlobServiceClient.fromConnectionString(GetConfig().azure.storageConnectionString).getContainerClient(
+      container,
+    );
   }
 
   async listBlobs(prefix?: string): Promise<Blob[]> {

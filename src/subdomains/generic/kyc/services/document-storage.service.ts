@@ -4,7 +4,10 @@ import { AzureStorageService, BlobContent } from 'src/integration/infrastructure
 // TODO: move to separate file
 export enum KycFileType {
   NAME_CHECK = 'NameCheck',
-  // TODO
+  USER_INFORMATION = 'UserInformation',
+  IDENTIFICATION = 'Identification',
+  USER_NOTES = 'UserNotes',
+  TRANSACTION_NOTES = 'TransactionNotes',
 }
 
 export enum KycContentType {
