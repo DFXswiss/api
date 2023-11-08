@@ -188,10 +188,6 @@ export class Util {
     return Uint8Array.from(Buffer.from(value, encoding));
   }
 
-  static stringToEnum<T>(enumObj: T, str: string): T[keyof T] | undefined {
-    return Object.keys(enumObj).find((k) => k === str) ?? Object.values(enumObj).find((v) => v === str);
-  }
-
   // --- MISC --- //
 
   static async readFileFromDisk(fileName: string): Promise<string> {

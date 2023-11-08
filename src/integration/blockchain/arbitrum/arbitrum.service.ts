@@ -14,7 +14,6 @@ export class ArbitrumService extends EvmService {
       arbitrumApiKey,
       arbitrumWalletPrivateKey,
       arbitrumChainId,
-      arbitrumAlchemyNetwork,
     } = GetConfig().blockchain.arbitrum;
 
     super(
@@ -26,7 +25,6 @@ export class ArbitrumService extends EvmService {
       arbitrumWalletPrivateKey,
       arbitrumChainId,
       ArbitrumClient,
-      arbitrumAlchemyNetwork,
     );
   }
 }

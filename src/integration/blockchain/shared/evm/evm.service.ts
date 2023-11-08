@@ -22,20 +22,10 @@ export abstract class EvmService {
         gatewayUrl: string,
         privateKey: string,
         chainId: ChainId,
-        alchemyNetwork: string,
       ): EvmClient;
     },
-    alchemyNetwork?: string,
   ) {
-    this.client = new client(
-      http,
-      scanApiUrl,
-      scanApiKey,
-      `${gatewayUrl}/${apiKey ?? ''}`,
-      walletPrivateKey,
-      chainId,
-      alchemyNetwork,
-    );
+    this.client = new client(http, scanApiUrl, scanApiKey, `${gatewayUrl}/${apiKey ?? ''}`, walletPrivateKey, chainId);
   }
 
   getDefaultClient<T extends EvmClient>(): T {

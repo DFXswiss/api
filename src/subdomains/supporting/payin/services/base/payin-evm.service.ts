@@ -1,4 +1,3 @@
-import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmService } from 'src/integration/blockchain/shared/evm/evm.service';
@@ -8,7 +7,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 export abstract class PayInEvmService {
   #client: EvmClient;
 
-  constructor(protected readonly service: EvmService, private readonly alchemyService: AlchemyService) {
+  constructor(protected readonly service: EvmService) {
     this.#client = service.getDefaultClient();
   }
 

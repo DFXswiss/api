@@ -1,5 +1,4 @@
 import { mock } from 'jest-mock-extended';
-import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ChainalysisService } from 'src/integration/chainalysis/services/chainalysis.service';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
@@ -54,7 +53,6 @@ describe('RegisterStrategyRegistry', () => {
       mock<PayInRepository>(),
       mock<AssetService>(),
       mock<RepositoryFactory>(),
-      mock<AlchemyService>(),
     );
 
     bscStrategy = new BscStrategy(
@@ -62,7 +60,6 @@ describe('RegisterStrategyRegistry', () => {
       mock<PayInRepository>(),
       mock<AssetService>(),
       mock<RepositoryFactory>(),
-      mock<AlchemyService>(),
     );
 
     arbitrumStrategy = new ArbitrumStrategy(
@@ -70,7 +67,6 @@ describe('RegisterStrategyRegistry', () => {
       mock<PayInRepository>(),
       mock<AssetService>(),
       mock<RepositoryFactory>(),
-      mock<AlchemyService>(),
     );
 
     optimismStrategy = new OptimismStrategy(
@@ -78,7 +74,6 @@ describe('RegisterStrategyRegistry', () => {
       mock<PayInRepository>(),
       mock<AssetService>(),
       mock<RepositoryFactory>(),
-      mock<AlchemyService>(),
     );
 
     registry = new RegisterStrategyRegistryWrapper(

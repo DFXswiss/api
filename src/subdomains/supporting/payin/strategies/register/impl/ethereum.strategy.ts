@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -19,9 +18,8 @@ export class EthereumStrategy extends EvmStrategy {
     payInRepository: PayInRepository,
     assetService: AssetService,
     repos: RepositoryFactory,
-    alchemyService: AlchemyService,
   ) {
-    super('ETH', ethereumService, payInRepository, assetService, repos, alchemyService);
+    super('ETH', ethereumService, payInRepository, assetService, repos);
   }
 
   get blockchain(): Blockchain {

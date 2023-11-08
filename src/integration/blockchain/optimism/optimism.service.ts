@@ -14,7 +14,6 @@ export class OptimismService extends EvmService {
       optimismApiKey,
       optimismWalletPrivateKey,
       optimismChainId,
-      optimismAlchemyNetwork,
     } = GetConfig().blockchain.optimism;
 
     super(
@@ -26,7 +25,6 @@ export class OptimismService extends EvmService {
       optimismWalletPrivateKey,
       optimismChainId,
       OptimismClient,
-      optimismAlchemyNetwork,
     );
   }
 }

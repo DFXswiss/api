@@ -1,3 +1,4 @@
+import { Inject, OnModuleInit } from '@nestjs/common';
 import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
@@ -16,8 +17,11 @@ import { PayInRepository } from '../../../../repositories/payin.repository';
 import { PayInEvmService } from '../../../../services/base/payin-evm.service';
 import { PayInInputLog, RegisterStrategy } from './register.strategy';
 
-export abstract class EvmStrategy extends RegisterStrategy {
-  private readonly messageQueue: QueueHandler;
+export abstract class EvmStrategy extends RegisterStrategy implements OnModuleInit {
+  private messageQueue: QueueHandler;
+
+  @Inject()
+  private readonly alchemyService: AlchemyService;
 
   constructor(
     protected readonly nativeCoin: string,
@@ -25,13 +29,14 @@ export abstract class EvmStrategy extends RegisterStrategy {
     protected readonly payInRepository: PayInRepository,
     protected readonly assetService: AssetService,
     private readonly repos: RepositoryFactory,
-    readonly alchemyService: AlchemyService,
   ) {
     super(payInRepository);
+  }
 
-    if (nativeCoin === 'ETH') {
+  onModuleInit() {
+    if (this.nativeCoin === 'ETH') {
       this.messageQueue = new QueueHandler();
-      alchemyService.getAddressWebhookObservable().subscribe(() => this.processMessageQueue());
+      this.alchemyService.getAddressWebhookObservable().subscribe(() => this.processMessageQueue());
     }
   }
 

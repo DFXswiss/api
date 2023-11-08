@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Process } from 'src/config/config';
-import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -21,9 +20,8 @@ export class BscStrategy extends EvmStrategy {
     payInRepository: PayInRepository,
     assetService: AssetService,
     repos: RepositoryFactory,
-    alchemyService: AlchemyService,
   ) {
-    super('BNB', bscService, payInRepository, assetService, repos, alchemyService);
+    super('BNB', bscService, payInRepository, assetService, repos);
   }
 
   get blockchain(): Blockchain {

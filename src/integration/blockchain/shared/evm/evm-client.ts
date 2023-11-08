@@ -11,6 +11,7 @@ import {
 import BigNumber from 'bignumber.js';
 import { BigNumberish, Contract, BigNumber as EthersNumber, ethers } from 'ethers';
 import { Config } from 'src/config/config';
+import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-mapper';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
@@ -44,7 +45,6 @@ export abstract class EvmClient {
     protected chainId: ChainId,
     gatewayUrl: string,
     privateKey: string,
-    alchemyNetwork?: string,
   ) {
     this.provider = new ethers.providers.JsonRpcProvider(gatewayUrl);
     this.wallet = new ethers.Wallet(privateKey, this.provider);
@@ -54,17 +54,18 @@ export abstract class EvmClient {
       provider: this.provider,
     });
 
-    if (alchemyNetwork) this.setupAlchemy(alchemyNetwork);
+    const alchemyNetwork = AlchemyNetworkMapper.toAlchemyNetworkByChainId(chainId);
+
+    if (alchemyNetwork) {
+      this.setupAlchemy(alchemyNetwork);
+    }
   }
 
-  private setupAlchemy(alchemyNetwork: string) {
-    const network = Util.stringToEnum(AlchemyNetwork, alchemyNetwork);
-    if (!network) throw new Error(`Unknown alchemy network: ${alchemyNetwork}`);
-
+  private setupAlchemy(alchemyNetwork: AlchemyNetwork) {
     const alchemySettings = {
       apiKey: Config.alchemy.apiKey,
       authToken: Config.alchemy.authToken,
-      network: network,
+      network: alchemyNetwork,
     };
 
     this.alchemy = new Alchemy(alchemySettings);

@@ -40,7 +40,7 @@ export class AlchemyService {
   }
 
   async createAddressWebhook(dto: CreateWebhookDto): Promise<AddressActivityWebhook[]> {
-    const network = AlchemyNetworkMapper.toAlchemyNetwork(dto.blockchain);
+    const network = AlchemyNetworkMapper.toAlchemyNetworkByBlockchain(dto.blockchain);
     if (!network) return;
 
     const allWebhooks = await this.alchemy.notify.getAllWebhooks();
