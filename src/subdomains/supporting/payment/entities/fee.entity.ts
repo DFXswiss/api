@@ -22,7 +22,7 @@ export class Fee extends IEntity {
   value: number;
 
   @Column({ type: 'float', nullable: true })
-  additionalFee: number;
+  fixedFee: number;
 
   @Column({ default: true })
   active: boolean;

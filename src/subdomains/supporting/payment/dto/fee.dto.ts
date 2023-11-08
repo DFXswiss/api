@@ -1,4 +1,4 @@
 export class FeeDto {
-  percentAmount: number;
-  additionalAmount: number;
+  rate: number;
+  fixed: number;
 }

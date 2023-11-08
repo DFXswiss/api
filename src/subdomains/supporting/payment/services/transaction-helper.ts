@@ -166,8 +166,8 @@ export class TransactionHelper implements OnModuleInit {
       minVolumeTarget,
       maxVolume,
       maxVolumeTarget,
-      fee: fee.percentAmount,
-      additionalFee: fee.additionalAmount,
+      fee: fee.rate,
+      additionalFee: fee.fixed,
       isValid: error == null,
       error,
     };
@@ -186,7 +186,7 @@ export class TransactionHelper implements OnModuleInit {
     const txVolumeInEur = price ? price.convert(txVolume) : undefined;
 
     return paymentMethod === BuyPaymentMethod.CARD
-      ? { percentAmount: Config.buy.fee.card, additionalAmount: 0 }
+      ? { rate: Config.buy.fee.card, fixed: 0 }
       : userData
       ? this.feeService.getUserFee({ userData, direction, asset, txVolume: txVolumeInEur })
       : this.feeService.getDefaultFee({ direction, asset, txVolume: txVolumeInEur });
@@ -204,8 +204,8 @@ export class TransactionHelper implements OnModuleInit {
 
     const percentFeeAmount =
       outputAmount != null
-        ? price.invert().convert((outputAmount * fee.percentAmount) / (1 - fee.percentAmount))
-        : inputAmount * fee.percentAmount;
+        ? price.invert().convert((outputAmount * fee.rate) / (1 - fee.rate))
+        : inputAmount * fee.rate;
     const feeAmount = Math.max(percentFeeAmount, minFee);
 
     const targetAmount = outputAmount != null ? outputAmount : price.convert(Math.max(inputAmount - feeAmount, 0));

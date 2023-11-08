@@ -139,7 +139,7 @@ export class BuyController {
       annualVolume: buy.annualVolume,
       bankUsage: buy.bankUsage,
       asset: AssetDtoMapper.entityToDto(buy.asset),
-      fee: Util.round(fee.percentAmount * 100, Config.defaultPercentageDecimal),
+      fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposits: [minDeposit],
       minFee,
     };

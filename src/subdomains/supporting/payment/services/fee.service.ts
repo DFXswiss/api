@@ -142,7 +142,7 @@ export class FeeService {
       fees.filter((fee) => fee.type === FeeType.CUSTOM),
       'value',
     );
-    if (customFee) return { percentAmount: customFee.value, additionalAmount: customFee.additionalFee ?? 0 };
+    if (customFee) return { rate: customFee.value, fixed: customFee.fixedFee ?? 0 };
 
     // filter baseFee with min. value
     const baseFee = Util.minObj(
@@ -163,19 +163,19 @@ export class FeeService {
     );
 
     const discountFee = {
-      fee: (positiveDiscountFee?.value ?? 0) + (negativeDiscountFee?.value ?? 0),
-      additionalFee: (positiveDiscountFee?.additionalFee ?? 0) + (negativeDiscountFee?.additionalFee ?? 0),
+      rate: (positiveDiscountFee?.value ?? 0) + (negativeDiscountFee?.value ?? 0),
+      fixed: (positiveDiscountFee?.fixedFee ?? 0) + (negativeDiscountFee?.fixedFee ?? 0),
     };
 
     if (!baseFee) throw new InternalServerErrorException('Base fee is missing');
-    if (baseFee.value - discountFee.fee < 0) {
+    if (baseFee.value - discountFee.rate < 0) {
       this.logger.warn(`UserDiscount higher userBaseFee! UserDataId: ${userDataId}`);
-      return { percentAmount: baseFee.value, additionalAmount: baseFee.additionalFee };
+      return { rate: baseFee.value, fixed: baseFee.fixedFee };
     }
 
     return {
-      percentAmount: baseFee.value - discountFee.fee,
-      additionalAmount: baseFee.additionalFee - discountFee.additionalFee,
+      rate: baseFee.value - discountFee.rate,
+      fixed: discountFee.fixed > baseFee.fixedFee ? 0 : baseFee.fixedFee - discountFee.fixed,
     };
   }
 
