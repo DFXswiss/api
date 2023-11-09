@@ -5,20 +5,21 @@ export interface AlchemyWebhookDto {
   type: string;
   event: {
     network: string;
-    activity: [
-      {
-        fromAddress: string;
-        toAddress: string;
-        blockNum: string;
-        hash: string;
-        value: number;
-        asset: string;
-        category: string;
-        rawContract: {
-          rawValue: string;
-          decimals: number;
-        };
-      },
-    ];
+    activity: AlchemyWebhookActivityDto[];
+  };
+}
+
+export interface AlchemyWebhookActivityDto {
+  fromAddress: string;
+  toAddress: string;
+  blockNum: string;
+  hash: string;
+  value: number;
+  asset: string;
+  category: string;
+  rawContract: {
+    rawValue: string;
+    decimals: number;
+    address: string;
   };
 }

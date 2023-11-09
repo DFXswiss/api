@@ -3,6 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { AddressActivityResponse, GetAllWebhooksResponse } from 'alchemy-sdk';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CreateWebhookDto } from '../dto/alchemy-create-webhook.dto';
+import { AlchemyWebhookDto } from '../dto/alchemy-webhook.dto';
 import { AlchemyService } from '../services/alchemy.service';
 
 @ApiTags('Alchemy')
@@ -29,7 +30,7 @@ export class AlchemyController {
 
   @Post('addressWebhook')
   //@ApiExcludeEndpoint()
-  async addressWebhook(@Body() webhookData: any): Promise<void> {
-    this.alchemyService.processAddressWebhook(webhookData);
+  async addressWebhook(@Body() dto: AlchemyWebhookDto): Promise<void> {
+    this.alchemyService.processAddressWebhook(dto);
   }
 }

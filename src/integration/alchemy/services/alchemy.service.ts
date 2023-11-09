@@ -11,12 +11,13 @@ import { GetConfig } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { AlchemyNetworkMapper } from '../alchemy-network-mapper';
 import { CreateWebhookDto } from '../dto/alchemy-create-webhook.dto';
+import { AlchemyWebhookDto } from '../dto/alchemy-webhook.dto';
 
 @Injectable()
 export class AlchemyService {
   private alchemy: Alchemy;
 
-  private addressWebhookSubject: Subject<any>;
+  private addressWebhookSubject: Subject<AlchemyWebhookDto>;
 
   constructor() {
     const config = GetConfig();
@@ -28,7 +29,7 @@ export class AlchemyService {
 
     this.alchemy = new Alchemy(settings);
 
-    this.addressWebhookSubject = new Subject<any>();
+    this.addressWebhookSubject = new Subject<AlchemyWebhookDto>();
   }
 
   async getAllWebhooks(): Promise<GetAllWebhooksResponse> {
@@ -64,11 +65,11 @@ export class AlchemyService {
     ).flat();
   }
 
-  getAddressWebhookObservable(): Observable<any> {
+  getAddressWebhookObservable(): Observable<AlchemyWebhookDto> {
     return this.addressWebhookSubject.asObservable();
   }
 
-  processAddressWebhook(webhookData: any): void {
-    this.addressWebhookSubject.next(webhookData);
+  processAddressWebhook(dto: AlchemyWebhookDto): void {
+    this.addressWebhookSubject.next(dto);
   }
 }

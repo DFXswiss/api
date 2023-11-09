@@ -1,16 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Network } from 'alchemy-sdk';
+import { filter } from 'rxjs';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInEthereumService } from '../../../services/payin-ethereum.service';
 import { EvmStrategy } from './base/evm.strategy';
 
 @Injectable()
-export class EthereumStrategy extends EvmStrategy {
+export class EthereumStrategy extends EvmStrategy implements OnModuleInit {
   protected readonly logger = new DfxLogger(EthereumStrategy);
 
   constructor(
@@ -20,6 +23,15 @@ export class EthereumStrategy extends EvmStrategy {
     repos: RepositoryFactory,
   ) {
     super('ETH', ethereumService, payInRepository, assetService, repos);
+  }
+
+  onModuleInit() {
+    this.addressWebhookMessageQueue = new QueueHandler();
+
+    this.alchemyService
+      .getAddressWebhookObservable()
+      .pipe(filter((data) => [Network.ETH_MAINNET, Network.ETH_GOERLI].includes(Network[data.event.network])))
+      .subscribe((dto) => this.processAddressWebhookMessageQueue(dto));
   }
 
   get blockchain(): Blockchain {
