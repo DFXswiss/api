@@ -174,7 +174,7 @@ export class BuyController {
 
     return {
       routeId: buy.id,
-      fee: Util.round(fee * 100, Config.defaultPercentageDecimal),
+      fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposit: { amount: minVolume, asset: dto.currency.name }, // TODO: remove
       minVolume,
       minFee,

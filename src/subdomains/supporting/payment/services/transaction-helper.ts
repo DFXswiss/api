@@ -166,8 +166,7 @@ export class TransactionHelper implements OnModuleInit {
       minVolumeTarget,
       maxVolume,
       maxVolumeTarget,
-      fee: fee.rate,
-      additionalFee: fee.fixed,
+      fee,
       isValid: error == null,
       error,
     };
@@ -206,7 +205,7 @@ export class TransactionHelper implements OnModuleInit {
       outputAmount != null
         ? price.invert().convert((outputAmount * fee.rate) / (1 - fee.rate))
         : inputAmount * fee.rate;
-    const feeAmount = Math.max(percentFeeAmount, minFee);
+    const feeAmount = Math.max(percentFeeAmount + fee.fixed, minFee);
 
     const targetAmount = outputAmount != null ? outputAmount : price.convert(Math.max(inputAmount - feeAmount, 0));
     const sourceAmount = outputAmount != null ? price.invert().convert(outputAmount) + feeAmount : inputAmount;

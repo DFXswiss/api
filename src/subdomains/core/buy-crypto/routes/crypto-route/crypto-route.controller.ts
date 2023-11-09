@@ -186,7 +186,7 @@ export class CryptoRouteController {
 
     return {
       routeId: cryptoRoute.id,
-      fee: Util.round(fee * 100, Config.defaultPercentageDecimal),
+      fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       depositAddress: cryptoRoute.deposit.address,
       blockchain: cryptoRoute.deposit.blockchain,
       minDeposit: { amount: minVolume, asset: dto.sourceAsset.dexName },

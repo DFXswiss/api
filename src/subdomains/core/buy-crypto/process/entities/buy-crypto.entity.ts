@@ -15,6 +15,7 @@ import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { Buy } from '../../routes/buy/buy.entity';
@@ -397,17 +398,16 @@ export class BuyCrypto extends IEntity {
   setFeeAndFiatReference(
     amountInEur: number,
     amountInChf: number,
-    fee: number,
-    absoluteFeeAmount: number,
+    fee: FeeDto,
     minFeeAmount: number,
     minFeeAmountFiat: number,
     totalFeeAmount: number,
     totalFeeAmountChf: number,
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
-      absoluteFeeAmount,
-      percentFee: fee,
-      percentFeeAmount: fee * this.inputReferenceAmount,
+      absoluteFeeAmount: fee.fixed,
+      percentFee: fee.rate,
+      percentFeeAmount: fee.rate * this.inputReferenceAmount,
       minFeeAmount,
       minFeeAmountFiat,
       totalFeeAmount,
@@ -426,7 +426,7 @@ export class BuyCrypto extends IEntity {
     eurPrice: Price,
     chfPrice: Price,
     totalFeeAmount: number,
-    userFee: number,
+    fee: FeeDto,
     minFeeAmount: number,
     minVolume: number,
     monthlyAmountInEur: number,
@@ -443,9 +443,9 @@ export class BuyCrypto extends IEntity {
           inputReferenceAsset: this.bankTx.currency,
           amountInChf,
           amountInEur: eurPrice.convert(this.bankTx.txAmount, 2),
-          absoluteFeeAmount: 0,
-          percentFee: userFee,
-          percentFeeAmount: userFee * this.bankTx.txAmount,
+          absoluteFeeAmount: fee.fixed,
+          percentFee: fee.rate,
+          percentFeeAmount: fee.rate * this.bankTx.txAmount,
           minFeeAmount,
           minFeeAmountFiat: minFeeAmount,
           totalFeeAmount,

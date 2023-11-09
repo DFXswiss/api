@@ -57,8 +57,6 @@ export class FeeService {
       throw new BadRequestException('Discount fees without a code cannot have a maxUsage');
     if (dto.type === FeeType.BASE && (!dto.accountType || !dto.assetIds))
       throw new BadRequestException('Base fees must have an accountType and assetIds');
-    if (dto.type !== FeeType.CUSTOM && dto.additionalFee)
-      throw new BadRequestException('Only custom fee can have additionalFee');
 
     // create the entity
     const fee = this.feeRepo.create(dto);
@@ -137,45 +135,45 @@ export class FeeService {
   // --- HELPER METHODS --- //
 
   private calculateFee(fees: Fee[], userDataId?: number): FeeDto {
-    // filter customFee with min. value
+    // get min custom fee
     const customFee = Util.minObj(
       fees.filter((fee) => fee.type === FeeType.CUSTOM),
-      'value',
+      'rate',
     );
-    if (customFee) return { rate: customFee.value, fixed: customFee.fixedFee ?? 0 };
+    if (customFee) return { rate: customFee.rate, fixed: customFee.fixed ?? 0 };
 
-    // filter baseFee with min. value
+    // get min base fee
     const baseFee = Util.minObj(
       fees.filter((fee) => fee.type === FeeType.BASE),
-      'value',
+      'rate',
     );
 
-    // filter discount > 0 with max. value
+    // get max discount > 0
     const positiveDiscountFee = Util.maxObj(
-      fees.filter((fee) => fee.type === FeeType.DISCOUNT && fee.value > 0),
-      'value',
+      fees.filter((fee) => fee.type === FeeType.DISCOUNT && fee.rate > 0),
+      'rate',
     );
 
-    // filter discount < 0 with min. value
+    // get min discount < 0
     const negativeDiscountFee = Util.minObj(
-      fees.filter((fee) => fee.type === FeeType.DISCOUNT && fee.value < 0),
-      'value',
+      fees.filter((fee) => fee.type === FeeType.DISCOUNT && fee.rate < 0),
+      'rate',
     );
 
     const discountFee = {
-      rate: (positiveDiscountFee?.value ?? 0) + (negativeDiscountFee?.value ?? 0),
-      fixed: (positiveDiscountFee?.fixedFee ?? 0) + (negativeDiscountFee?.fixedFee ?? 0),
+      rate: (positiveDiscountFee?.rate ?? 0) + (negativeDiscountFee?.rate ?? 0),
+      fixed: (positiveDiscountFee?.fixed ?? 0) + (negativeDiscountFee?.fixed ?? 0),
     };
 
     if (!baseFee) throw new InternalServerErrorException('Base fee is missing');
-    if (baseFee.value - discountFee.rate < 0) {
+    if (baseFee.rate - discountFee.rate < 0) {
       this.logger.warn(`UserDiscount higher userBaseFee! UserDataId: ${userDataId}`);
-      return { rate: baseFee.value, fixed: baseFee.fixedFee };
+      return { rate: baseFee.rate, fixed: baseFee.fixed };
     }
 
     return {
-      rate: baseFee.value - discountFee.rate,
-      fixed: discountFee.fixed > baseFee.fixedFee ? 0 : baseFee.fixedFee - discountFee.fixed,
+      rate: baseFee.rate - discountFee.rate,
+      fixed: Math.max(baseFee.fixed - discountFee.fixed, 0),
     };
   }
 

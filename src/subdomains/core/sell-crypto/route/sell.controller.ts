@@ -165,7 +165,7 @@ export class SellController {
 
     return {
       routeId: sell.id,
-      fee: Util.round(fee * 100, Config.defaultPercentageDecimal),
+      fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       depositAddress: sell.deposit.address,
       blockchain: sell.deposit.blockchain,
       minDeposit: { amount: minVolume, asset: dto.asset.dexName },

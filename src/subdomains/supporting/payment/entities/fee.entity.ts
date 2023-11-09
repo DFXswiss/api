@@ -19,10 +19,10 @@ export class Fee extends IEntity {
   type: FeeType;
 
   @Column({ type: 'float' })
-  value: number;
+  rate: number;
 
-  @Column({ type: 'float', nullable: true })
-  fixedFee: number;
+  @Column({ type: 'float', default: 0 })
+  fixed: number;
 
   @Column({ default: true })
   active: boolean;

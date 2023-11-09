@@ -119,7 +119,7 @@ export class BuyCryptoPreparationService {
       try {
         const inputReferenceCurrency = await this.fiatService.getFiatByName(entity.inputReference.currency);
 
-        const { feeAmount, fee, additionalFee, minFee } = await this.transactionHelper.getTxDetails(
+        const { feeAmount, fee, minFee } = await this.transactionHelper.getTxDetails(
           entity.inputReferenceAmount,
           undefined,
           inputReferenceCurrency,
@@ -135,7 +135,6 @@ export class BuyCryptoPreparationService {
             referenceEurPrice.convert(entity.inputReference.amount, 2),
             referenceChfPrice.convert(entity.inputReference.amount, 2),
             fee,
-            additionalFee,
             minFee,
             minFee,
             feeAmount,
