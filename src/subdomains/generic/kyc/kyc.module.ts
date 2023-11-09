@@ -5,6 +5,6 @@ import { DocumentStorageService } from './services/document-storage.service';
   imports: [],
   controllers: [],
   providers: [DocumentStorageService],
-  exports: [DocumentStorageService],
+  exports: [],
 })
 export class KycModule {}

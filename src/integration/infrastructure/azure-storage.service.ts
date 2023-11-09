@@ -6,7 +6,7 @@ export interface Blob {
   contentType: string;
   created: Date;
   updated: Date;
-  metadata: { [propertyName: string]: string };
+  metadata: Record<string, string>;
 }
 
 export interface BlobContent {
@@ -53,7 +53,7 @@ export class AzureStorageService {
     return { contentType: contentType, data: await blobClient.downloadToBuffer() };
   }
 
-  async uploadBlob(name: string, data: Buffer, type: string, metadata: { [propertyName: string]: string }) {
+  async uploadBlob(name: string, data: Buffer, type: string, metadata?: Record<string, string>) {
     await this.client
       .getBlockBlobClient(name)
       .uploadData(data, { blobHTTPHeaders: { blobContentType: type }, metadata });

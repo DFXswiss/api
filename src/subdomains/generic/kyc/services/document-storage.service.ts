@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { AzureStorageService, BlobContent } from 'src/integration/infrastructure/azure-storage.service';
-import { KycContentType, KycDocument } from '../../user/services/spider/dto/spider.dto';
 
 // TODO: move to separate file
 export enum KycFileType {
@@ -11,14 +10,18 @@ export enum KycFileType {
   TRANSACTION_NOTES = 'TransactionNotes',
 }
 
+export enum KycContentType {
+  TEXT = 'text/plain',
+  // TODO
+}
+
 export interface KycFile {
   type: KycFileType;
   name: string;
-  version: string;
   contentType: KycContentType;
   created: Date;
   updated: Date;
-  metadata: { [propertyName: string]: string };
+  metadata: Record<string, string>;
 }
 
 @Injectable()
@@ -30,12 +33,11 @@ export class DocumentStorageService {
   }
 
   async listFiles(userDataId: number): Promise<KycFile[]> {
-    const blobs = await this.storageService.listBlobs(`${userDataId}`);
+    const blobs = await this.storageService.listBlobs(`${userDataId}/`);
     return blobs.map((b) => {
-      const [_, type, version, name] = b.name.split('/');
+      const [_, type, name] = this.fromFileId(b.name);
       return {
         name,
-        version,
         type: type as KycFileType,
         contentType: b.contentType as KycContentType,
         created: b.created,
@@ -47,22 +49,26 @@ export class DocumentStorageService {
 
   async uploadFile(
     userDataId: number,
-    type: KycDocument,
-    version: string,
+    type: KycFileType,
     name: string,
     data: Buffer,
     contentType: KycContentType,
-    metadata: any,
+    metadata?: Record<string, string>,
   ): Promise<void> {
-    await this.storageService.uploadBlob(this.fileId(userDataId, type, version, name), data, contentType, metadata);
+    await this.storageService.uploadBlob(this.toFileId(userDataId, type, name), data, contentType, metadata);
   }
 
-  async downloadFile(userDataId: number, type: KycDocument, version: string, name: string): Promise<BlobContent> {
-    return this.storageService.getBlob(this.fileId(userDataId, type, name, version));
+  async downloadFile(userDataId: number, type: KycFileType, name: string): Promise<BlobContent> {
+    return this.storageService.getBlob(this.toFileId(userDataId, type, name));
   }
 
   // --- HELPER METHODS --- //
-  private fileId(userDataId: number, type: KycDocument, version: string, name: string): string {
-    return `${userDataId}/${type}/${version}/${name.split('/').join('_')}`;
+  private toFileId(userDataId: number, type: KycFileType, name: string): string {
+    return `${userDataId}/${type}/${name}`;
+  }
+
+  private fromFileId(fileId: string): [number, KycFileType, string] {
+    const [userDataId, type, name] = fileId.split('/');
+    return [+userDataId, type as KycFileType, name];
   }
 }

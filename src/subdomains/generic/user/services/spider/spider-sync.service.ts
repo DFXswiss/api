@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Process } from 'src/config/config';
+import { AzureStorageService } from 'src/integration/infrastructure/azure-storage.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/document-storage.service';
 import { IdentResultDto } from 'src/subdomains/generic/user/models/ident/dto/ident-result.dto';
 import { KycProcessService } from 'src/subdomains/generic/user/models/kyc/kyc-process.service';
 import { SpiderDataRepository } from 'src/subdomains/generic/user/models/spider-data/spider-data.repository';
@@ -31,6 +31,8 @@ import { DocumentState, SpiderService } from './spider.service';
 export class SpiderSyncService {
   private readonly logger = new DfxLogger(SpiderSyncService);
 
+  private readonly storageService: AzureStorageService;
+
   private readonly kycStatusTranslation = {
     [KycStatus.CHATBOT]: 'Chatbot',
     [KycStatus.ONLINE_ID]: 'Online ID',
@@ -45,8 +47,9 @@ export class SpiderSyncService {
     private readonly spiderService: SpiderService,
     private readonly settingService: SettingService,
     private readonly spiderDataRepo: SpiderDataRepository,
-    private readonly documentStorageService: DocumentStorageService,
-  ) {}
+  ) {
+    this.storageService = new AzureStorageService('kyc');
+  }
 
   @Cron(CronExpression.EVERY_2_HOURS)
   @Lock()
@@ -176,7 +179,7 @@ export class SpiderSyncService {
   }
 
   public async syncKycFiles(userData: UserData): Promise<void> {
-    const allStorageFiles = await this.documentStorageService.listFiles(userData.id);
+    const allStorageFiles = await this.listStorageFiles(userData.id);
     const allSpiderFiles = await this.spiderApi.getDocumentInfos(userData.id, false);
 
     const notSynchedFiles = allSpiderFiles.filter((spiderFile) => {
@@ -194,7 +197,7 @@ export class SpiderSyncService {
         document.part,
       );
 
-      await this.documentStorageService.uploadFile(
+      await this.uploadFileToStorage(
         userData.id,
         document.document,
         document.version,
@@ -401,5 +404,29 @@ export class SpiderSyncService {
     if (!part) return null;
 
     return { document, version: version.name, part };
+  }
+
+  // --- STORAGE METHODS -- //
+  async listStorageFiles(
+    userDataId: number,
+  ): Promise<{ document: KycDocument; version: string; name: string; metadata: Record<string, string> }[]> {
+    const blobs = await this.storageService.listBlobs(`Spider/${userDataId}/`);
+    return blobs.map((b) => {
+      const [_s, _u, document, version, name] = b.name.split('/');
+      return { name, document: document as KycDocument, version, metadata: b.metadata };
+    });
+  }
+
+  async uploadFileToStorage(
+    userDataId: number,
+    document: KycDocument,
+    version: string,
+    name: string,
+    data: Buffer,
+    contentType: KycContentType,
+    metadata: Record<string, string>,
+  ) {
+    const blobName = `Spider/${userDataId}/${document}/${version}/${name.split('/').join('_')}`;
+    await this.storageService.uploadBlob(blobName, data, contentType, metadata);
   }
 }
