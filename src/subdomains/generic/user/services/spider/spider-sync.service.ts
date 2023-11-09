@@ -165,7 +165,7 @@ export class SpiderSyncService {
       await this.spiderDataRepo.save(userData.spiderData);
     }
 
-    await this.syncKycFiles(userData);
+    await this.syncKycFiles(userData.id);
 
     // force sync (chatbot and ident result)
     if (forceSync) {
@@ -178,9 +178,9 @@ export class SpiderSyncService {
     await this.userDataRepo.save(userData);
   }
 
-  public async syncKycFiles(userData: UserData): Promise<void> {
-    const allStorageFiles = await this.listStorageFiles(userData.id);
-    const allSpiderFiles = await this.spiderApi.getDocumentInfos(userData.id, false);
+  public async syncKycFiles(userDataId: number): Promise<void> {
+    const allStorageFiles = await this.listStorageFiles(userDataId);
+    const allSpiderFiles = await this.spiderApi.getDocumentInfos(userDataId, false);
 
     const notSynchedFiles = allSpiderFiles.filter((spiderFile) => {
       return !allStorageFiles.some(
@@ -190,7 +190,7 @@ export class SpiderSyncService {
 
     for (const document of notSynchedFiles) {
       const data = await this.spiderApi.getBinaryDocument(
-        userData.id,
+        userDataId,
         false,
         document.document,
         document.version,
@@ -198,7 +198,7 @@ export class SpiderSyncService {
       );
 
       await this.uploadFileToStorage(
-        userData.id,
+        userDataId,
         document.document,
         document.version,
         document.fileName,
