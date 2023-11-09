@@ -200,12 +200,16 @@ export class TransactionHelper implements OnModuleInit {
     to: Asset | Fiat,
   ): Promise<TargetEstimation> {
     const price = await this.priceProviderService.getPrice(from, to);
+    const eurSourcePrice = await this.priceProviderService.getPrice(this.eur, from);
+
+    const fixedFeeInSource = eurSourcePrice.convert(fee.fixed);
+    const fixedFeeInTarget = price.convert(eurSourcePrice.convert(fee.fixed));
 
     const percentFeeAmount =
       outputAmount != null
-        ? price.invert().convert((outputAmount * fee.rate) / (1 - fee.rate))
+        ? price.invert().convert(((outputAmount + fixedFeeInTarget) * fee.rate) / (1 - fee.rate))
         : inputAmount * fee.rate;
-    const feeAmount = Math.max(percentFeeAmount + fee.fixed, minFee);
+    const feeAmount = Math.max(percentFeeAmount + fixedFeeInSource, minFee);
 
     const targetAmount = outputAmount != null ? outputAmount : price.convert(Math.max(inputAmount - feeAmount, 0));
     const sourceAmount = outputAmount != null ? price.invert().convert(outputAmount) + feeAmount : inputAmount;

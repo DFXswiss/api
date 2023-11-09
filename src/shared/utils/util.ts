@@ -38,11 +38,11 @@ export class Util {
   }
 
   static minObj<T>(list: T[], key: KeyType<T, number>): T {
-    return list.reduce((i, j) => (i && j[key] > i[key] ? i : j), undefined);
+    return list.reduce((i, j) => (i && j[key] >= i[key] ? i : j), undefined);
   }
 
   static maxObj<T>(list: T[], key: KeyType<T, number>): T {
-    return list.reduce((i, j) => (i && j[key] < i[key] ? i : j), undefined);
+    return list.reduce((i, j) => (i && j[key] <= i[key] ? i : j), undefined);
   }
 
   static avg(list: number[]): number {
