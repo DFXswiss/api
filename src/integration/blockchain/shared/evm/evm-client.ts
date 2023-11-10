@@ -2,11 +2,13 @@ import { ChainId, CurrencyAmount, Percent, Token, TradeType } from '@uniswap/sdk
 import { AlphaRouter, SwapType } from '@uniswap/smart-order-router';
 import {
   Alchemy,
+  BigNumber as AlchemyBigNumber,
   Network as AlchemyNetwork,
   Utils as AlchemyUtils,
   AssetTransfersCategory,
   AssetTransfersWithMetadataResponse,
   AssetTransfersWithMetadataResult,
+  OwnedToken,
 } from 'alchemy-sdk';
 import BigNumber from 'bignumber.js';
 import { BigNumberish, Contract, BigNumber as EthersNumber, ethers } from 'ethers';
@@ -26,7 +28,6 @@ interface AssetTransfersParams {
   toAddress?: string;
   fromBlock: number;
   categories: AssetTransfersCategory[];
-  pageKey?: string;
 }
 
 export abstract class EvmClient {
@@ -413,20 +414,24 @@ export abstract class EvmClient {
 
   private async getAssetTransfers(params: AssetTransfersParams): Promise<AssetTransfersWithMetadataResult[]> {
     let assetTransfersResponse = await this.alchemyGetAssetTransfers(params);
-    params.pageKey = assetTransfersResponse.pageKey;
+    let pageKey = assetTransfersResponse.pageKey;
 
     const assetTransferResult = assetTransfersResponse.transfers;
 
-    while (params.pageKey) {
-      assetTransfersResponse = await this.alchemyGetAssetTransfers(params);
-      params.pageKey = assetTransfersResponse.pageKey;
+    while (pageKey) {
+      assetTransfersResponse = await this.alchemyGetAssetTransfers(params, pageKey);
+      pageKey = assetTransfersResponse.pageKey;
+
       assetTransferResult.push(...assetTransfersResponse.transfers);
     }
 
     return assetTransferResult;
   }
 
-  private async alchemyGetAssetTransfers(params: AssetTransfersParams): Promise<AssetTransfersWithMetadataResponse> {
+  private async alchemyGetAssetTransfers(
+    params: AssetTransfersParams,
+    pageKey?: string,
+  ): Promise<AssetTransfersWithMetadataResponse> {
     if (!this.alchemy) throw new Error('Alchemy not available');
 
     return this.alchemy.core.getAssetTransfers({
@@ -435,8 +440,32 @@ export abstract class EvmClient {
       toAddress: params.toAddress,
       category: params.categories,
       excludeZeroValue: false,
-      pageKey: params.pageKey,
+      pageKey: pageKey,
       withMetadata: true,
     });
+  }
+
+  async getNativeCoinBalanceByAlchemy(): Promise<AlchemyBigNumber> {
+    if (!this.alchemy) throw new Error('Alchemy not available');
+
+    return this.alchemy.core.getBalance(this.dfxAddress, 'latest');
+  }
+
+  async getTokenBalanceByAlchemy(): Promise<OwnedToken[]> {
+    if (!this.alchemy) throw new Error('Alchemy not available');
+
+    let tokensForOwnerResponse = await this.alchemy.core.getTokensForOwner(this.dfxAddress);
+    let pageKey = tokensForOwnerResponse.pageKey;
+
+    const ownedTokens = tokensForOwnerResponse.tokens;
+
+    while (pageKey) {
+      tokensForOwnerResponse = await this.alchemy.core.getTokensForOwner(this.dfxAddress, { pageKey: pageKey });
+      pageKey = tokensForOwnerResponse.pageKey;
+
+      ownedTokens.push(...tokensForOwnerResponse.tokens);
+    }
+
+    return ownedTokens;
   }
 }

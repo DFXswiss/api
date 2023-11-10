@@ -4,9 +4,10 @@ import {
   AddressActivityWebhook,
   Alchemy,
   GetAllWebhooksResponse,
+  Network,
   WebhookType,
 } from 'alchemy-sdk';
-import { Observable, Subject } from 'rxjs';
+import { Observable, Subject, filter } from 'rxjs';
 import { GetConfig } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { AlchemyNetworkMapper } from '../alchemy-network-mapper';
@@ -14,7 +15,7 @@ import { CreateWebhookDto } from '../dto/alchemy-create-webhook.dto';
 import { AlchemyWebhookDto } from '../dto/alchemy-webhook.dto';
 
 @Injectable()
-export class AlchemyService {
+export class AlchemyWebhookService {
   private alchemy: Alchemy;
 
   private addressWebhookSubject: Subject<AlchemyWebhookDto>;
@@ -65,8 +66,10 @@ export class AlchemyService {
     ).flat();
   }
 
-  getAddressWebhookObservable(): Observable<AlchemyWebhookDto> {
-    return this.addressWebhookSubject.asObservable();
+  getAddressWebhookObservable(networks: Network[]): Observable<AlchemyWebhookDto> {
+    return this.addressWebhookSubject
+      .asObservable()
+      .pipe(filter((data) => networks.includes(Network[data.event.network])));
   }
 
   processAddressWebhook(dto: AlchemyWebhookDto): void {

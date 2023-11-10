@@ -1,6 +1,5 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Network } from 'alchemy-sdk';
-import { filter } from 'rxjs';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
@@ -28,9 +27,8 @@ export class ArbitrumStrategy extends EvmStrategy implements OnModuleInit {
   onModuleInit() {
     this.addressWebhookMessageQueue = new QueueHandler();
 
-    this.alchemyService
-      .getAddressWebhookObservable()
-      .pipe(filter((data) => [Network.ARB_MAINNET, Network.ARB_GOERLI].includes(Network[data.event.network])))
+    this.alchemyWebhookService
+      .getAddressWebhookObservable([Network.ARB_MAINNET, Network.ARB_GOERLI])
       .subscribe((dto) => this.processAddressWebhookMessageQueue(dto));
   }
 

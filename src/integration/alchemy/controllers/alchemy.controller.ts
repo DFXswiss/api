@@ -4,33 +4,33 @@ import { AddressActivityResponse, GetAllWebhooksResponse } from 'alchemy-sdk';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CreateWebhookDto } from '../dto/alchemy-create-webhook.dto';
 import { AlchemyWebhookDto } from '../dto/alchemy-webhook.dto';
-import { AlchemyService } from '../services/alchemy.service';
+import { AlchemyWebhookService } from '../services/alchemy-webhook.service';
 
 @ApiTags('Alchemy')
 @Controller('alchemy')
 export class AlchemyController {
   private readonly logger = new DfxLogger(AlchemyController);
 
-  constructor(private readonly alchemyService: AlchemyService) {}
+  constructor(private readonly alchemyWebhookService: AlchemyWebhookService) {}
 
   @Get('webhooks')
   async getAllWebhooks(): Promise<GetAllWebhooksResponse> {
-    return this.alchemyService.getAllWebhooks();
+    return this.alchemyWebhookService.getAllWebhooks();
   }
 
   @Get('webhookAddresses/:id')
   async getWebhookAddresses(@Param('id') id: string): Promise<AddressActivityResponse> {
-    return this.alchemyService.getWebhookAddresses(id);
+    return this.alchemyWebhookService.getWebhookAddresses(id);
   }
 
   @Post('createAddressWebhook')
   async createAddressWebhook(@Body() dto: CreateWebhookDto) {
-    return this.alchemyService.createAddressWebhook(dto);
+    return this.alchemyWebhookService.createAddressWebhook(dto);
   }
 
   @Post('addressWebhook')
   //@ApiExcludeEndpoint()
   async addressWebhook(@Body() dto: AlchemyWebhookDto): Promise<void> {
-    this.alchemyService.processAddressWebhook(dto);
+    this.alchemyWebhookService.processAddressWebhook(dto);
   }
 }

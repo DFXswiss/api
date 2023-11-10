@@ -1,6 +1,6 @@
 import { Inject } from '@nestjs/common';
 import { AlchemyWebhookActivityDto, AlchemyWebhookDto } from 'src/integration/alchemy/dto/alchemy-webhook.dto';
-import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
+import { AlchemyWebhookService } from 'src/integration/alchemy/services/alchemy-webhook.service';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -22,7 +22,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
   protected addressWebhookMessageQueue: QueueHandler;
 
   @Inject()
-  protected readonly alchemyService: AlchemyService;
+  protected readonly alchemyWebhookService: AlchemyWebhookService;
 
   constructor(
     protected readonly nativeCoin: string,

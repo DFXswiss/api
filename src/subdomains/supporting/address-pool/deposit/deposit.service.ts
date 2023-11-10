@@ -1,7 +1,7 @@
 import { AddressType } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
+import { AlchemyWebhookService } from 'src/integration/alchemy/services/alchemy-webhook.service';
 import { NodeClient } from 'src/integration/blockchain/ain/node/node-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -26,7 +26,7 @@ export class DepositService {
   constructor(
     private readonly depositRepo: DepositRepository,
     private readonly cryptoService: CryptoService,
-    private readonly alchemyService: AlchemyService,
+    private readonly alchemyWebhookService: AlchemyWebhookService,
     nodeService: NodeService,
     lightningService: LightningService,
   ) {
@@ -98,7 +98,7 @@ export class DepositService {
       addresses.push(deposit.address);
     }
 
-    await this.alchemyService.createAddressWebhook({ blockchain: blockchain, addresses: addresses });
+    await this.alchemyWebhookService.createAddressWebhook({ blockchain: blockchain, addresses: addresses });
   }
 
   private async createLightningDeposits(blockchain: Blockchain, count: number) {

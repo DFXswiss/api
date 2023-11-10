@@ -93,10 +93,13 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
           break;
 
         case Blockchain.ETHEREUM:
-        case Blockchain.BINANCE_SMART_CHAIN:
         case Blockchain.OPTIMISM:
         case Blockchain.ARBITRUM:
           await this.getForEvm(assets);
+          break;
+
+        case Blockchain.BINANCE_SMART_CHAIN:
+          await this.getForBsc(assets);
           break;
 
         default:
@@ -149,6 +152,36 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
   }
 
   private async getForEvm(assets: Asset[]): Promise<void> {
+    if (assets.length === 0) return;
+
+    const blockchain = assets[0].blockchain;
+    const client = this.evmRegistryService.getClient(blockchain);
+
+    const assetsToUpdate = assets.filter((a) => a.type === AssetType.COIN || !this.balanceCache.has(a.id));
+
+    const coinBalance = await client.getNativeCoinBalanceByAlchemy();
+    const tokenBalances = await client.getTokenBalanceByAlchemy();
+
+    const tokenToBalanceMap = new Map<string, number>(
+      tokenBalances.filter((t) => t.symbol).map((t) => [t.symbol.toUpperCase(), t.balance ? Number(t.balance) : 0]),
+    );
+
+    for (const asset of assetsToUpdate) {
+      try {
+        const balance =
+          asset.type === AssetType.COIN
+            ? client.fromWeiAmount(coinBalance)
+            : tokenToBalanceMap.get(asset.dexName.toUpperCase()) ?? 0;
+
+        this.balanceCache.set(asset.id, balance);
+      } catch (e) {
+        this.logger.error(`Failed to update liquidity management balance for ${asset.uniqueName}:`, e);
+        this.invalidateCacheFor([asset]);
+      }
+    }
+  }
+
+  private async getForBsc(assets: Asset[]): Promise<void> {
     if (assets.length === 0) return;
 
     const blockchain = assets[0].blockchain;
