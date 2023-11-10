@@ -157,16 +157,14 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     const blockchain = assets[0].blockchain;
     const client = this.evmRegistryService.getClient(blockchain);
 
-    const assetsToUpdate = assets.filter((a) => a.type === AssetType.COIN || !this.balanceCache.has(a.id));
-
     const coinBalance = await client.getNativeCoinBalanceByAlchemy();
-    const tokenBalances = await client.getTokenBalanceByAlchemy();
+    const tokenBalances = await client.getTokenBalancesByAlchemy();
 
     const tokenToBalanceMap = new Map<string, number>(
       tokenBalances.filter((t) => t.symbol).map((t) => [t.symbol.toUpperCase(), t.balance ? Number(t.balance) : 0]),
     );
 
-    for (const asset of assetsToUpdate) {
+    for (const asset of assets) {
       try {
         const balance =
           asset.type === AssetType.COIN

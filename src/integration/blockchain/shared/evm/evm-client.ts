@@ -451,7 +451,7 @@ export abstract class EvmClient {
     return this.alchemy.core.getBalance(this.dfxAddress, 'latest');
   }
 
-  async getTokenBalanceByAlchemy(): Promise<OwnedToken[]> {
+  async getTokenBalancesByAlchemy(): Promise<OwnedToken[]> {
     if (!this.alchemy) throw new Error('Alchemy not available');
 
     let tokensForOwnerResponse = await this.alchemy.core.getTokensForOwner(this.dfxAddress);
