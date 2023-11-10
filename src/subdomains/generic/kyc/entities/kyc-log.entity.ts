@@ -18,19 +18,22 @@ export class KycLog extends IEntity {
   @Column({ length: 256 })
   eventType: string;
 
-  @Column({ length: 'MAX' })
+  @Column({ length: 'MAX', nullable: true })
   result: string;
 
-  @Column({ length: 256 })
+  @Column({ length: 256, nullable: true })
   pdfUrl: string;
 
   @Column({ length: 256 })
   riskRate: RiskRate;
 
-  @Column({ length: 256 })
+  @Column({ length: 256, nullable: true })
   manualRiskRate: ManualRiskRate;
 
-  @Column({ length: 'MAX' })
+  @Column({ type: 'datetime2', nullable: true })
+  manualRateTimestamp: Date;
+
+  @Column({ length: 'MAX', nullable: true })
   comment: string;
 
   @ManyToOne(() => UserData, { nullable: false })
