@@ -58,4 +58,5 @@ export enum AltCoin {
 
 export enum SpecialCoin {
   FOX = 'FOX',
+  BGB = 'BGB',
 }
