@@ -38,7 +38,7 @@ export class DocumentStorageService {
       const [_, type, name] = this.fromFileId(b.name);
       return {
         name,
-        type: type as KycFileType,
+        type,
         contentType: b.contentType as KycContentType,
         created: b.created,
         updated: b.updated,
