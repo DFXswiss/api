@@ -1,9 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
 import fs from 'fs';
 import readline from 'readline';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Lock } from 'src/shared/utils/lock';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { DilisenseData } from '../dto/dilisense-data.dto';
 import { RiskRate } from '../entities/kyc-log.entity';
@@ -18,12 +16,6 @@ export class NameCheckService {
 
   constructor(private kycLogService: KycLogService) {
     this.reloadSanctionList();
-  }
-
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(1800)
-  async sendNotificationMails(): Promise<void> {
-    await this.doNameCheck(null, 'PEDROs Ricardo', 'Alves');
   }
 
   async doNameCheck(userData: UserData, firstname: string, surname: string): Promise<RiskRate> {
