@@ -100,7 +100,8 @@ export class KycService {
   }
 
   async syncKycFiles(userDataId: number): Promise<void> {
-    await this.spiderSyncService.syncKycFiles(userDataId);
+    const userData = await this.userDataService.getUserData(userDataId);
+    await this.spiderSyncService.syncKycFiles(userData);
   }
 
   async getKycCountries(code: string, userId?: number): Promise<Country[]> {
