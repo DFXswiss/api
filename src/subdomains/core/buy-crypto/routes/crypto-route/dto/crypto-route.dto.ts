@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 import { DepositDto } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit.dto';
-import { MinAmount } from '../../../../../../shared/payment/dto/min-amount.dto';
+import { MinAmount } from '../../../../../supporting/payment/dto/min-amount.dto';
 
 export class CryptoRouteDto {
   @ApiProperty()
@@ -17,10 +17,10 @@ export class CryptoRouteDto {
   @ApiProperty({ type: DepositDto })
   deposit: DepositDto;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Volume in CHF' })
   volume: number;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Annual volume in CHF' })
   annualVolume: number;
 
   @ApiProperty()

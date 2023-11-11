@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  IsEnum,
   IsNotEmpty,
   IsNotEmptyObject,
   IsNumber,
@@ -16,6 +17,11 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
 import { XOR } from 'src/shared/validators/xor.validator';
 import { IsDfxIban } from 'src/subdomains/supporting/bank/bank-account/is-dfx-iban.validator';
+
+export enum BuyPaymentMethod {
+  BANK = 'Bank',
+  CARD = 'Card',
+}
 
 export class GetBuyPaymentInfoDto {
   @ApiPropertyOptional()
@@ -50,4 +56,8 @@ export class GetBuyPaymentInfoDto {
   @Validate(XOR, ['amount'])
   @IsNumber()
   targetAmount: number;
+
+  @IsNotEmpty()
+  @IsEnum(BuyPaymentMethod)
+  paymentMethod: BuyPaymentMethod = BuyPaymentMethod.BANK;
 }

@@ -1,13 +1,16 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
-import { PaymentModule } from 'src/shared/payment/payment.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { AddressPoolModule } from 'src/subdomains/supporting/address-pool/address-pool.module';
+import { BankTxModule } from 'src/subdomains/supporting/bank-tx/bank-tx.module';
 import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
+import { FiatOutputModule } from 'src/subdomains/supporting/fiat-output/fiat-output.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PayInModule } from 'src/subdomains/supporting/payin/payin.module';
+import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
+import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { BuyCryptoModule } from '../buy-crypto/buy-crypto.module';
 import { BuyFiatNotificationService } from './process/buy-fiat-notification.service';
 import { BuyFiatRegistrationService } from './process/buy-fiat-registration.service';
@@ -29,9 +32,12 @@ import { SellService } from './route/sell.service';
     PaymentModule,
     BlockchainModule,
     forwardRef(() => BankModule),
+    forwardRef(() => BankTxModule),
     forwardRef(() => PayInModule),
     forwardRef(() => BuyCryptoModule),
     forwardRef(() => AddressPoolModule),
+    FiatOutputModule,
+    PricingModule,
   ],
   controllers: [BuyFiatController, SellController],
   providers: [

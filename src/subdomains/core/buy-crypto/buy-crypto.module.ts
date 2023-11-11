@@ -1,16 +1,16 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AinModule } from 'src/integration/blockchain/ain/ain.module';
-import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
-import { PaymentModule } from 'src/shared/payment/payment.module';
+import { IntegrationModule } from 'src/integration/integration.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { CryptoRouteRepository } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.repository';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { AddressPoolModule } from 'src/subdomains/supporting/address-pool/address-pool.module';
+import { BankTxModule } from 'src/subdomains/supporting/bank-tx/bank-tx.module';
 import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
 import { DexModule } from 'src/subdomains/supporting/dex/dex.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PayInModule } from 'src/subdomains/supporting/payin/payin.module';
+import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
 import { PayoutModule } from 'src/subdomains/supporting/payout/payout.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { LiquidityManagementModule } from '../liquidity-management/liquidity-management.module';
@@ -25,6 +25,7 @@ import { BuyCryptoBatchService } from './process/services/buy-crypto-batch.servi
 import { BuyCryptoDexService } from './process/services/buy-crypto-dex.service';
 import { BuyCryptoNotificationService } from './process/services/buy-crypto-notification.service';
 import { BuyCryptoOutService } from './process/services/buy-crypto-out.service';
+import { BuyCryptoPreparationService } from './process/services/buy-crypto-preparation.service';
 import { BuyCryptoPricingService } from './process/services/buy-crypto-pricing.service';
 import { BuyCryptoRegistrationService } from './process/services/buy-crypto-registration.service';
 import { BuyCryptoWebhookService } from './process/services/buy-crypto-webhook.service';
@@ -48,12 +49,12 @@ import { CryptoRouteService } from './routes/crypto-route/crypto-route.service';
     NotificationModule,
     UserModule,
     BankModule,
-    AinModule,
+    BankTxModule,
     PaymentModule,
     forwardRef(() => SellCryptoModule),
     forwardRef(() => AddressPoolModule),
     LiquidityManagementModule,
-    BlockchainModule,
+    IntegrationModule,
   ],
   controllers: [BuyCryptoController, BuyController, CryptoRouteController],
   providers: [
@@ -73,6 +74,7 @@ import { CryptoRouteService } from './routes/crypto-route/crypto-route.service';
     BuyService,
     CryptoRouteService,
     BuyCryptoWebhookService,
+    BuyCryptoPreparationService,
   ],
   exports: [BuyController, CryptoRouteController, BuyCryptoService, BuyService],
 })

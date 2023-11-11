@@ -4,6 +4,7 @@ import { Injectable } from '@nestjs/common';
 import { verify } from 'bitcoinjs-message';
 import { isEthereumAddress } from 'class-validator';
 import { verifyMessage } from 'ethers/lib/utils';
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -73,15 +74,15 @@ export class CryptoService {
   }
 
   private isBitcoinAddress(address: string): boolean {
-    return /^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}$/.test(address);
+    return RegExp(`^(${Config.bitcoinAddressFormat})$`).test(address);
   }
 
   private isLightningAddress(address: string): boolean {
-    return /^((LNURL|LNDHUB)[A-Z0-9]{25,250}|LNNID[A-Z0-9]{66})$/.test(address);
+    return RegExp(`^(${Config.lightningAddressFormat})$`).test(address);
   }
 
   public static isCardanoAddress(address: string): boolean {
-    return /^stake([a-z0-9]{54})$/.test(address);
+    return new RegExp(`^(${Config.cardanoAddressFormat})$`).test(address);
   }
 
   // --- SIGNATURE VERIFICATION --- //
@@ -103,7 +104,7 @@ export class CryptoService {
   private verifyEthereumBased(message: string, address: string, signature: string): boolean {
     // there are signatures out there, which do not have '0x' in the beginning, but for verification this is needed
     const signatureToUse = signature.startsWith('0x') ? signature : '0x' + signature;
-    return verifyMessage(message, signatureToUse) === address;
+    return verifyMessage(message, signatureToUse).toLowerCase() === address.toLowerCase();
   }
 
   private verifyBitcoinBased(message: string, address: string, signature: string, prefix: string | null): boolean {

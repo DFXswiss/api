@@ -14,14 +14,16 @@ import { GeoLocationService } from 'src/integration/geolocation/geo-location.ser
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { Between, Not } from 'typeorm';
+import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
+import { Between, FindOptionsRelations, Not } from 'typeorm';
 import { KycService } from '../kyc/kyc.service';
-import { KycStatus, KycType, UserData, UserDataStatus } from '../user-data/user-data.entity';
+import { KycStatus, KycType, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { Wallet } from '../wallet/wallet.entity';
 import { WalletService } from '../wallet/wallet.service';
@@ -32,11 +34,13 @@ import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
-import { FeeType, User, UserStatus } from './user.entity';
+import { FeeDirectionType, User, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
 
 @Injectable()
 export class UserService {
+  private readonly logger = new DfxLogger(UserService);
+
   constructor(
     private readonly userRepo: UserRepository,
     private readonly userDataRepo: UserDataRepository,
@@ -48,14 +52,15 @@ export class UserService {
     private readonly geoLocationService: GeoLocationService,
     private readonly countryService: CountryService,
     private readonly cryptoService: CryptoService,
+    private readonly feeService: FeeService,
   ) {}
 
   async getAllUser(): Promise<User[]> {
     return this.userRepo.find();
   }
 
-  async getUser(userId: number, loadUserData = false): Promise<User> {
-    return this.userRepo.findOne({ where: { id: userId }, relations: loadUserData ? ['userData'] : [] });
+  async getUser(userId: number, relations: FindOptionsRelations<User> = {}): Promise<User> {
+    return this.userRepo.findOne({ where: { id: userId }, relations });
   }
 
   async getUserByAddress(address: string): Promise<User> {
@@ -69,7 +74,7 @@ export class UserService {
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('users.wallet', 'wallet')
-      .where(`user.${key} = :param`, { param: value })
+      .where(`${key.includes('.') ? key : `user.${key}`} = :param`, { param: value })
       .getOne();
   }
 
@@ -87,7 +92,9 @@ export class UserService {
       .leftJoin('user.userData', 'userData')
       .leftJoin('userData.users', 'linkedUser')
       .leftJoin('linkedUser.wallet', 'wallet')
-      .where('user.id = :id AND wallet.isKycClient = 0', { id })
+      .where('user.id = :id', { id })
+      .andWhere('wallet.isKycClient = 0')
+      .andWhere('linkedUser.status != :blocked', { blocked: UserStatus.BLOCKED })
       .getRawMany<{ address: string }>();
 
     return linkedUsers.map((u) => ({
@@ -115,8 +122,8 @@ export class UserService {
     { address, signature, usedRef }: CreateUserDto,
     userIp: string,
     userOrigin?: string,
-    userData?: UserData,
     wallet?: Wallet,
+    discountCode?: string,
   ): Promise<User> {
     let user = this.userRepo.create({ address, signature });
 
@@ -125,8 +132,15 @@ export class UserService {
     user.wallet = wallet ?? (await this.walletService.getDefault());
     user.usedRef = await this.checkRef(user, usedRef);
     user.origin = userOrigin;
-    user.userData = userData ?? (await this.userDataService.createUserData(user.wallet.customKyc ?? KycType.DFX));
+    user.userData = await this.userDataService.createUserData(user.wallet.customKyc ?? KycType.DFX);
     user = await this.userRepo.save(user);
+
+    try {
+      if (discountCode) await this.feeService.addDiscountCodeUser(user.userData, discountCode);
+      if (usedRef || wallet) await this.feeService.addCustomSignUpFees(user.userData, user.usedRef, wallet?.id);
+    } catch (e) {
+      this.logger.warn(`Error while adding discountCode to new user ${user.id}:`, e);
+    }
 
     const blockchains = this.cryptoService.getBlockchainsBasedOn(user.address);
     if (blockchains.includes(Blockchain.DEFICHAIN)) this.dfiTaxService.activateAddress(user.address);
@@ -171,6 +185,25 @@ export class UserService {
       throw new ForbiddenException('The country of IP address is not allowed');
 
     return ipCountry;
+  }
+
+  async blockUser(id: number, allUser = false): Promise<void> {
+    const mainUser = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
+    if (!mainUser) throw new NotFoundException('User not found');
+    if (mainUser.userData.status === UserDataStatus.BLOCKED)
+      throw new BadRequestException('User Account already blocked');
+    if (mainUser.status === UserStatus.BLOCKED) throw new BadRequestException('User already blocked');
+
+    if (!allUser) {
+      await this.userRepo.update(...mainUser.blockUser('Manual user block'));
+      return;
+    }
+
+    await this.userDataService.blockUserData(mainUser.userData);
+
+    for (const user of mainUser.userData.users) {
+      await this.userRepo.update(...user.blockUser('Manual user account block'));
+    }
   }
 
   // --- VOLUMES --- //
@@ -220,7 +253,7 @@ export class UserService {
   async getUserVolumes(query: VolumeQuery): Promise<{ buy: number; sell: number }> {
     const { buyVolume } = await this.userRepo
       .createQueryBuilder('user')
-      .select('SUM(buyCryptos.amountInEur)', 'buyVolume')
+      .select('SUM(buyCryptos.amountInChf)', 'buyVolume')
       .leftJoin('user.buys', 'buys')
       .leftJoin('buys.buyCryptos', 'buyCryptos')
       .where('buyCryptos.outputDate BETWEEN :from AND :to', { from: query.from, to: query.to })
@@ -230,7 +263,7 @@ export class UserService {
 
     const { sellVolume } = await this.userRepo
       .createQueryBuilder('user')
-      .select('SUM(buyFiats.amountInEur)', 'sellVolume')
+      .select('SUM(buyFiats.amountInChf)', 'sellVolume')
       .leftJoin('user.sells', 'sells')
       .leftJoin('sells.buyFiats', 'buyFiats')
       .where('buyFiats.outputDate BETWEEN :from AND :to', { from: query.from, to: query.to })
@@ -242,35 +275,11 @@ export class UserService {
   }
 
   // --- FEES --- //
-  async getUserBuyFee(userId: number, asset: Asset): Promise<number> {
-    const user = await this.userRepo.findOne({
-      select: ['id', 'buyFee', 'wallet', 'userData'],
-      where: { id: userId },
-      relations: ['wallet', 'userData'],
-    });
+  async getUserFee(userId: number, direction: FeeDirectionType, asset: Asset, txVolume?: number): Promise<number> {
+    const user = await this.getUser(userId, { userData: true });
+    if (!user) throw new NotFoundException('User not found');
 
-    return user.getFee(FeeType.BUY, asset);
-  }
-
-  async getUserSellFee(userId: number, asset: Asset): Promise<number> {
-    const user = await this.userRepo.findOne({
-      select: ['id', 'sellFee', 'wallet', 'userData'],
-      where: { id: userId },
-      relations: ['wallet', 'userData'],
-    });
-
-    return user.getFee(FeeType.SELL, asset);
-  }
-
-  async getUserCryptoFee(userId: number): Promise<number> {
-    // fee
-    const user = await this.userRepo.findOne({
-      select: ['id', 'cryptoFee', 'wallet'],
-      where: { id: userId },
-      relations: ['wallet'],
-    });
-
-    return user.getFee(FeeType.CRYPTO);
+    return this.feeService.getUserFee({ userData: user.userData, direction, asset, txVolume });
   }
 
   // --- REF --- //

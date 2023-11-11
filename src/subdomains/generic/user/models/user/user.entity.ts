@@ -1,7 +1,7 @@
 import { Config } from 'src/config/config';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { IEntity } from 'src/shared/models/entity';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
@@ -18,10 +18,10 @@ export enum UserStatus {
   BLOCKED = 'Blocked',
 }
 
-export enum FeeType {
-  BUY = 'buy',
-  SELL = 'sell',
-  CRYPTO = 'crypto',
+export enum FeeDirectionType {
+  BUY = 'Buy',
+  SELL = 'Sell',
+  CONVERT = 'Convert',
 }
 
 @Entity()
@@ -50,9 +50,6 @@ export class User extends IEntity {
   @Column({ length: 256, nullable: true })
   ipCountry: string;
 
-  @Column({ length: 'MAX', nullable: true })
-  cfpVotes: string;
-
   @Column({ type: 'float', nullable: true })
   buyFee: number;
 
@@ -73,22 +70,22 @@ export class User extends IEntity {
   apiFilterCT: string;
 
   @Column({ type: 'float', default: 0 })
-  annualBuyVolume: number;
+  annualBuyVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
-  buyVolume: number;
+  buyVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
-  annualSellVolume: number;
+  annualSellVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
-  sellVolume: number;
+  sellVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
-  annualCryptoVolume: number;
+  annualCryptoVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
-  cryptoVolume: number;
+  cryptoVolume: number; // CHF
 
   @OneToMany(() => Buy, (buy) => buy.user)
   buys: Buy[];
@@ -114,13 +111,13 @@ export class User extends IEntity {
   refFeePercent: number;
 
   @Column({ type: 'float', default: 0 })
-  refVolume: number;
+  refVolume: number; // EUR
 
   @Column({ type: 'float', default: 0 })
-  refCredit: number;
+  refCredit: number; // EUR
 
   @Column({ type: 'float', nullable: false, default: 0 })
-  paidRefCredit: number;
+  paidRefCredit: number; // EUR
 
   @OneToMany(() => RefReward, (reward) => reward.user)
   refRewards: RefReward[];
@@ -136,27 +133,38 @@ export class User extends IEntity {
     return this.buyFee ? '000-000' : this.usedRef;
   }
 
-  getFee(type: FeeType.BUY | FeeType.SELL, asset: Asset): number;
-  getFee(type: FeeType.CRYPTO): number;
+  getFee(type: FeeDirectionType.BUY | FeeDirectionType.SELL, asset: Asset): number;
+  getFee(type: FeeDirectionType.CONVERT): number;
 
-  getFee(type: FeeType, asset?: Asset): number {
+  getFee(type: FeeDirectionType, asset?: Asset): number {
     switch (type) {
-      case FeeType.BUY:
+      case FeeDirectionType.BUY:
         const defaultBuyFee = Config.buy.fee.get(asset.feeTier, this.userData.accountType);
         const customBuyFee = this.buyFee ?? this.wallet.buyFee;
 
         return customBuyFee != null ? Math.min(customBuyFee, defaultBuyFee) : defaultBuyFee;
 
-      case FeeType.SELL:
+      case FeeDirectionType.SELL:
         const defaultSellFee = Config.sell.fee.get(asset.feeTier, this.userData.accountType);
         const customSellFee = this.sellFee ?? this.wallet.sellFee;
 
         return customSellFee != null ? Math.min(customSellFee, defaultSellFee) : defaultSellFee;
 
-      case FeeType.CRYPTO:
+      case FeeDirectionType.CONVERT:
         const customCryptoFee = this.cryptoFee ?? this.wallet.cryptoFee;
 
         return customCryptoFee != null ? Math.min(customCryptoFee, Config.crypto.fee) : Config.crypto.fee;
     }
+  }
+
+  blockUser(reason: string): UpdateResult<User> {
+    const update: Partial<User> = {
+      status: UserStatus.BLOCKED,
+      comment: `${reason} (${new Date().toISOString()}); ${this.comment ?? ''}`,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 }

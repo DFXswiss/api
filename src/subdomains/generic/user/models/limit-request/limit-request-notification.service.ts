@@ -1,13 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { CronExpression, Cron } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Process } from 'src/config/config';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
+import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { IsNull, Not } from 'typeorm';
 import { LimitRequestDecision } from './limit-request.entity';
 import { LimitRequestRepository } from './limit-request.repository';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class LimitRequestNotificationService {
@@ -45,15 +46,32 @@ export class LimitRequestNotificationService {
             type: MailType.PERSONAL,
             input: {
               userData: entity.userData,
-              translationKey: 'mail.limitRequest.manualApproved',
-              translationParams: {
-                firstname: entity.userData.firstname,
-                limitAmount:
-                  entity.userData.language.symbol === 'DE'
-                    ? entity.limit.toLocaleString('de-DE')
-                    : entity.limit.toLocaleString('en-US'),
-                mailName: Config.support.limitRequest.mailName.split(' ')[0],
-              },
+              title: `${MailTranslationKey.LIMIT_REQUEST}.title`,
+              prefix: [
+                {
+                  key: `${MailTranslationKey.GENERAL}.welcome`,
+                  params: { name: entity.userData.firstname },
+                },
+                { key: MailKey.SPACE, params: { value: '2' } },
+                {
+                  key: `${MailTranslationKey.LIMIT_REQUEST}.message`,
+                  params: {
+                    limitAmount:
+                      entity.userData.language.symbol === 'DE'
+                        ? entity.limit.toLocaleString('de-DE')
+                        : entity.limit.toLocaleString('en-US'),
+                  },
+                },
+                { key: MailKey.SPACE, params: { value: '4' } },
+                { key: `${MailTranslationKey.GENERAL}.thanks` },
+                { key: MailKey.SPACE, params: { value: '2' } },
+                { key: `${MailTranslationKey.GENERAL}.personal_questions` },
+                { key: MailKey.SPACE, params: { value: '2' } },
+                {
+                  key: `${MailTranslationKey.GENERAL}.personal_closing`,
+                  params: { closingName: Config.support.limitRequest.mailName.split(' ')[0] },
+                },
+              ],
               from: Config.support.limitRequest.mailAddress,
               displayName: Config.support.limitRequest.mailName,
               banner: Config.support.limitRequest.mailBanner,

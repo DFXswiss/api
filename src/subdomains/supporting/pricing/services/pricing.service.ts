@@ -1,30 +1,32 @@
 import { Injectable } from '@nestjs/common';
+import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { PriceMismatchException } from '../domain/exceptions/price-mismatch.exception';
 import { BinanceService } from '../../../../integration/exchange/services/binance.service';
 import { BitpandaService } from '../../../../integration/exchange/services/bitpanda.service';
 import { BitstampService } from '../../../../integration/exchange/services/bitstamp.service';
-import { CurrencyService } from './integration/currency.service';
-import { FixerService } from './integration/fixer.service';
-import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
 import { KrakenService } from '../../../../integration/exchange/services/kraken.service';
 import { BadPriceRequestException } from '../domain/exceptions/bad-price-request.exception';
 import { PathNotConfiguredException } from '../domain/exceptions/path-not-configured.exception';
+import { PriceMismatchException } from '../domain/exceptions/price-mismatch.exception';
 import { PriceRequest, PriceResult } from '../domain/interfaces';
 import { PricePath } from '../utils/price-path';
 import { PriceStep } from '../utils/price-step';
 import { PricingUtil } from '../utils/pricing.util';
+import { CurrencyService } from './integration/currency.service';
+import { FixerService } from './integration/fixer.service';
+import { PricingCoinGeckoService } from './integration/pricing-coin-gecko.service';
 import { PricingDeFiChainService } from './integration/pricing-defichain.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export enum PricingPathAlias {
   MATCHING_ASSETS = 'MatchingAssets',
   FIAT_TO_BTC = 'FiatToBTC',
-  ALTCOIN_TO_BTC = 'AltcoinToBTC',
-  FIAT_TO_ALTCOIN = 'FiatToAltcoin',
-  ALTCOIN_TO_ALTCOIN = 'AltcoinToAltcoin',
-  BTC_TO_ALTCOIN = 'BTCToAltcoin',
+  ALT_COIN_TO_BTC = 'AltCoinToBTC',
+  FIAT_TO_ALT_COIN = 'FiatToAltCoin',
+  ALT_COIN_TO_ALT_COIN = 'AltCoinToAltCoin',
+  BTC_TO_ALT_COIN = 'BTCToAltCoin',
+  FIAT_TO_SPECIAL_COIN = 'FiatToSpecialCoin',
   BTC_TO_USD_STABLE_COIN = 'BTCToUSDStableCoin',
   MATCHING_FIAT_TO_STABLE_COIN = 'MatchingFiatToStableCoin',
   NON_MATCHING_FIAT_TO_USD_STABLE_COIN = 'NonMatchingFiatToUSDStableCoin',
@@ -51,6 +53,7 @@ export class PricingService {
     private readonly currencyService: CurrencyService,
     private readonly fixerService: FixerService,
     private readonly defichainService: PricingDeFiChainService,
+    private readonly coinGeckoService: PricingCoinGeckoService,
   ) {
     this.configurePaths();
   }
@@ -121,7 +124,7 @@ export class PricingService {
     );
 
     this.addPath(
-      new PricePath(PricingPathAlias.ALTCOIN_TO_BTC, [
+      new PricePath(PricingPathAlias.ALT_COIN_TO_BTC, [
         new PriceStep({
           primary: {
             fallback: 'BTC',
@@ -136,7 +139,7 @@ export class PricingService {
     );
 
     this.addPath(
-      new PricePath(PricingPathAlias.FIAT_TO_ALTCOIN, [
+      new PricePath(PricingPathAlias.FIAT_TO_ALT_COIN, [
         new PriceStep({
           to: 'BTC',
           primary: {
@@ -159,7 +162,7 @@ export class PricingService {
     );
 
     this.addPath(
-      new PricePath(PricingPathAlias.ALTCOIN_TO_ALTCOIN, [
+      new PricePath(PricingPathAlias.ALT_COIN_TO_ALT_COIN, [
         new PriceStep({
           to: 'BTC',
           primary: {
@@ -182,7 +185,7 @@ export class PricingService {
     );
 
     this.addPath(
-      new PricePath(PricingPathAlias.BTC_TO_ALTCOIN, [
+      new PricePath(PricingPathAlias.BTC_TO_ALT_COIN, [
         new PriceStep({
           primary: {
             providers: [this.binanceService],
@@ -202,6 +205,16 @@ export class PricingService {
           },
           reference: {
             providers: [this.binanceService, this.bitstampService],
+          },
+        }),
+      ]),
+    );
+
+    this.addPath(
+      new PricePath(PricingPathAlias.FIAT_TO_SPECIAL_COIN, [
+        new PriceStep({
+          primary: {
+            providers: [this.coinGeckoService],
           },
         }),
       ]),
@@ -296,27 +309,29 @@ export class PricingService {
 
     if (PricingUtil.isFiat(from) && PricingUtil.isBTC(to)) return PricingPathAlias.FIAT_TO_BTC;
 
-    if (PricingUtil.isAltcoin(from) && PricingUtil.isBTC(to)) return PricingPathAlias.ALTCOIN_TO_BTC;
+    if (PricingUtil.isAltCoin(from) && PricingUtil.isBTC(to)) return PricingPathAlias.ALT_COIN_TO_BTC;
 
-    if (PricingUtil.isFiat(from) && PricingUtil.isAltcoin(to)) return PricingPathAlias.FIAT_TO_ALTCOIN;
+    if (PricingUtil.isFiat(from) && PricingUtil.isAltCoin(to)) return PricingPathAlias.FIAT_TO_ALT_COIN;
 
-    if (PricingUtil.isAltcoin(from) && PricingUtil.isAltcoin(to)) return PricingPathAlias.ALTCOIN_TO_ALTCOIN;
+    if (PricingUtil.isAltCoin(from) && PricingUtil.isAltCoin(to)) return PricingPathAlias.ALT_COIN_TO_ALT_COIN;
 
-    if (PricingUtil.isBTC(from) && PricingUtil.isAltcoin(to)) return PricingPathAlias.BTC_TO_ALTCOIN;
+    if (PricingUtil.isBTC(from) && PricingUtil.isAltCoin(to)) return PricingPathAlias.BTC_TO_ALT_COIN;
 
-    if (PricingUtil.isBTC(from) && PricingUtil.isBTC(to)) return PricingPathAlias.BTC_TO_ALTCOIN;
+    if (PricingUtil.isBTC(from) && PricingUtil.isBTC(to)) return PricingPathAlias.BTC_TO_ALT_COIN;
 
-    if (PricingUtil.isBTC(from) && PricingUtil.isUsdStablecoin(to)) return PricingPathAlias.BTC_TO_USD_STABLE_COIN;
+    if (PricingUtil.isFiat(from) && PricingUtil.isSpecialCoin(to)) return PricingPathAlias.FIAT_TO_SPECIAL_COIN;
 
-    if (from === 'USD' && PricingUtil.isUsdStablecoin(to)) return PricingPathAlias.MATCHING_FIAT_TO_STABLE_COIN;
-    if (from === 'CHF' && PricingUtil.isChfStablecoin(to)) return PricingPathAlias.MATCHING_FIAT_TO_STABLE_COIN;
+    if (PricingUtil.isBTC(from) && PricingUtil.isUsdStableCoin(to)) return PricingPathAlias.BTC_TO_USD_STABLE_COIN;
 
-    if (PricingUtil.isFiat(from) && PricingUtil.isUsdStablecoin(to))
+    if (from === 'USD' && PricingUtil.isUsdStableCoin(to)) return PricingPathAlias.MATCHING_FIAT_TO_STABLE_COIN;
+    if (from === 'CHF' && PricingUtil.isChfStableCoin(to)) return PricingPathAlias.MATCHING_FIAT_TO_STABLE_COIN;
+
+    if (PricingUtil.isFiat(from) && PricingUtil.isUsdStableCoin(to))
       return PricingPathAlias.NON_MATCHING_FIAT_TO_USD_STABLE_COIN;
-    if (PricingUtil.isFiat(from) && PricingUtil.isChfStablecoin(to))
+    if (PricingUtil.isFiat(from) && PricingUtil.isChfStableCoin(to))
       return PricingPathAlias.NON_MATCHING_FIAT_TO_CHF_STABLE_COIN;
 
-    if (PricingUtil.isUsdStablecoin(from) && PricingUtil.isUsdStablecoin(to)) {
+    if (PricingUtil.isUsdStableCoin(from) && PricingUtil.isUsdStableCoin(to)) {
       return PricingPathAlias.MATCHING_ASSETS;
     }
 

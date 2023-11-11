@@ -45,7 +45,7 @@ export class PayInNotificationService {
     for (const entity of entities) {
       try {
         if (entity.route.user.userData.mail) {
-          await this.notificationService.sendMailNew({
+          await this.notificationService.sendMail({
             type: MailType.USER,
             input: {
               userData: entity.route.user.userData,

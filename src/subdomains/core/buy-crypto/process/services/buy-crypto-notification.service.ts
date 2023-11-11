@@ -71,7 +71,7 @@ export class BuyCryptoNotificationService {
               ? ` (min. ${tx.minFeeAmountFiat} ${tx.cryptoInput ? 'EUR' : tx.inputReferenceAsset})`
               : '';
 
-            await this.notificationService.sendMailNew({
+            await this.notificationService.sendMail({
               type: MailType.USER,
               input: {
                 userData: tx.user.userData,
@@ -175,7 +175,7 @@ export class BuyCryptoNotificationService {
     for (const entity of entities) {
       try {
         if (entity.user.userData.mail) {
-          await this.notificationService.sendMailNew({
+          await this.notificationService.sendMail({
             type: MailType.USER,
             input: {
               userData: entity.user.userData,
@@ -183,7 +183,7 @@ export class BuyCryptoNotificationService {
               salutation: { key: `${entity.translationReturnMailKey}.salutation` },
               table: {
                 [`${MailTranslationKey.PAYMENT}.reimbursed`]: `${entity.inputAmount} ${entity.inputAsset}`,
-                [`${MailTranslationKey.PAYMENT}.bank_account`]: !entity.isCryptoCryptoTransaction
+                [`${MailTranslationKey.PAYMENT}.bank_account`]: entity.isBankInput
                   ? Util.blankStart(entity.bankTx.iban)
                   : null,
                 [`${MailTranslationKey.PAYMENT}.remittance_info`]: !entity.isCryptoCryptoTransaction
@@ -253,7 +253,7 @@ export class BuyCryptoNotificationService {
     for (const entity of entities) {
       try {
         if (entity.user.userData.mail) {
-          await this.notificationService.sendMailNew({
+          await this.notificationService.sendMail({
             type: MailType.USER,
             input: {
               userData: entity.user.userData,
@@ -267,7 +267,7 @@ export class BuyCryptoNotificationService {
                 { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line3` },
                 {
                   key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line4`,
-                  params: { url: `${Config.payment.url}/kyc?code=${entity.user.userData.kycHash}` },
+                  params: { url: `${Config.frontend.payment}/kyc?code=${entity.user.userData.kycHash}` },
                 },
                 { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line5` },
                 { key: MailKey.SPACE, params: { value: '1' } },

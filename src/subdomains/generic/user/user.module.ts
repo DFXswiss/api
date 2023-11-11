@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { SharedModule } from 'src/shared/shared.module';
@@ -9,7 +9,10 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { WalletRepository } from 'src/subdomains/generic/user/models/wallet/wallet.repository';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
+import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
 import { AuthAlbyService } from './models/auth/auth-alby.service';
+import { AuthLnurlController } from './models/auth/auth-lnurl.controller';
+import { AuthLnUrlService } from './models/auth/auth-lnurl.service';
 import { AuthController } from './models/auth/auth.controller';
 import { AuthService } from './models/auth/auth.service';
 import { BankDataController } from './models/bank-data/bank-data.controller';
@@ -52,12 +55,14 @@ import { WebhookService } from './services/webhook/webhook.service';
     NotificationModule,
     BlockchainModule,
     ReferralModule,
+    forwardRef(() => PaymentModule),
   ],
   controllers: [
     UserController,
     UserDataController,
     BankDataController,
     AuthController,
+    AuthLnurlController,
     IdentController,
     KycClientController,
     KycController,
@@ -84,6 +89,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     SpiderSyncService,
     AuthService,
     AuthAlbyService,
+    AuthLnUrlService,
     LimitRequestService,
     IdentService,
     LinkService,

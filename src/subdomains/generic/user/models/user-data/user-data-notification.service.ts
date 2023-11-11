@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { UserDataRepository } from './user-data.repository';
-import { Lock } from 'src/shared/utils/lock';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { Config, Process } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
+import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { UserDataRepository } from './user-data.repository';
 
 @Injectable()
 export class UserDataNotificationService {
@@ -44,10 +45,20 @@ export class UserDataNotificationService {
             type: MailType.PERSONAL,
             input: {
               userData: entity,
-              translationKey: 'mail.blackSquad.invitation',
-              translationParams: {
-                firstname: entity.firstname,
-              },
+              title: `${MailTranslationKey.BLACK_SQUAD}.title`,
+              prefix: [
+                {
+                  key: `${MailTranslationKey.GENERAL}.welcome`,
+                  params: { name: entity.firstname },
+                },
+                { key: MailKey.SPACE, params: { value: '1' } },
+                { key: `${MailTranslationKey.BLACK_SQUAD}.line1` },
+                { key: `${MailTranslationKey.BLACK_SQUAD}.line2` },
+                { key: `${MailTranslationKey.BLACK_SQUAD}.line3` },
+                { key: `${MailTranslationKey.BLACK_SQUAD}.line4` },
+                { key: `${MailTranslationKey.BLACK_SQUAD}.line5` },
+                { key: `${MailTranslationKey.BLACK_SQUAD}.closing` },
+              ],
               from: Config.support.blackSquad.mailAddress,
               displayName: Config.support.blackSquad.mailName,
               banner: Config.support.blackSquad.mailBanner,

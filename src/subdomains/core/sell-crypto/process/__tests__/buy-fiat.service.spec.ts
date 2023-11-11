@@ -1,23 +1,21 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
+import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
+import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
+import { createCustomFiatOutput } from 'src/subdomains/supporting/fiat-output/__mocks__/fiat-output.entity.mock';
+import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
+import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
+import { createCustomSellHistory } from '../../route/dto/__mocks__/sell-history.dto.mock';
 import { SellRepository } from '../../route/sell.repository';
 import { SellService } from '../../route/sell.service';
+import { createCustomBuyFiat } from '../__mocks__/buy-fiat.entity.mock';
+import { BuyFiatRegistrationService } from '../buy-fiat-registration.service';
 import { BuyFiat } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatService } from '../buy-fiat.service';
-import { createCustomSellHistory } from '../../route/dto/__mocks__/sell-history.dto.mock';
-import { createCustomBuyFiat } from '../__mocks__/buy-fiat.entity.mock';
-import { BankTxRepository } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.repository';
-import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
-import { FiatOutputService } from 'src/subdomains/supporting/bank/fiat-output/fiat-output.service';
-import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
-import { BuyFiatRegistrationService } from '../buy-fiat-registration.service';
-import { SettingService } from 'src/shared/models/setting/setting.service';
-import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
-import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
-import { createCustomFiatOutput } from 'src/subdomains/supporting/bank/fiat-output/__mocks__/fiat-output.entity.mock';
 
 enum MockBuyData {
   DEFAULT,
@@ -33,12 +31,10 @@ describe('BuyFiatService', () => {
   let userService: UserService;
   let sellRepo: SellRepository;
   let sellService: SellService;
-  let bankTxRepo: BankTxRepository;
   let bankTxService: BankTxService;
   let fiatOutputService: FiatOutputService;
   let buyCryptoService: BuyCryptoService;
   let buyFiatRegistrationService: BuyFiatRegistrationService;
-  let settingService: SettingService;
   let webhookService: WebhookService;
 
   beforeEach(async () => {
@@ -46,12 +42,10 @@ describe('BuyFiatService', () => {
     userService = createMock<UserService>();
     sellRepo = createMock<SellRepository>();
     sellService = createMock<SellService>();
-    bankTxRepo = createMock<BankTxRepository>();
     bankTxService = createMock<BankTxService>();
     fiatOutputService = createMock<FiatOutputService>();
     buyCryptoService = createMock<BuyCryptoService>();
     buyFiatRegistrationService = createMock<BuyFiatRegistrationService>();
-    settingService = createMock<SettingService>();
     webhookService = createMock<WebhookService>();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -62,12 +56,10 @@ describe('BuyFiatService', () => {
         { provide: UserService, useValue: userService },
         { provide: SellRepository, useValue: sellRepo },
         { provide: SellService, useValue: sellService },
-        { provide: BankTxRepository, useValue: bankTxRepo },
         { provide: BankTxService, useValue: bankTxService },
         { provide: FiatOutputService, useValue: fiatOutputService },
         { provide: BuyCryptoService, useValue: buyCryptoService },
         { provide: BuyFiatRegistrationService, useValue: buyFiatRegistrationService },
-        { provide: SettingService, useValue: settingService },
         { provide: WebhookService, useValue: webhookService },
       ],
     }).compile();

@@ -93,7 +93,7 @@ export class BuyService {
 
     // create the entity
     const buy = this.buyRepo.create(dto);
-    buy.user = await this.userService.getUser(userId, true);
+    buy.user = await this.userService.getUser(userId, { userData: true });
     if (dto.iban) buy.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);
 
     // create hash
@@ -120,7 +120,7 @@ export class BuyService {
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('users.wallet', 'wallet')
-      .where(`buy.${key} = :param`, { param: value })
+      .where(`${key.includes('.') ? key : `buy.${key}`} = :param`, { param: value })
       .getOne();
   }
 

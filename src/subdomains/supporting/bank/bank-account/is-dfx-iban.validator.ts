@@ -18,11 +18,11 @@ export class IsDfxIbanValidator implements ValidatorConstraintInterface {
   defaultMessage(args: ValidationArguments): string | undefined {
     // IBAN tools
     const { valid } = ibantools.validateIBAN(args.value);
-    if (!valid) return 'IBAN not valid';
+    if (!valid) return `${args.property} not valid`;
 
     // check blocked IBANs
     const isBlocked = this.blockedIban.some((i) => args.value.toLowerCase().match(i.toLowerCase()) != null);
-    if (isBlocked) return 'IBAN not allowed';
+    if (isBlocked) return `${args.property} not allowed`;
   }
 }
 

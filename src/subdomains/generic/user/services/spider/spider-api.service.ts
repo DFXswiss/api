@@ -2,6 +2,7 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Method, ResponseType } from 'axios';
 import { createHash } from 'crypto';
 import { Config } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { HttpError, HttpService } from '../../../../../shared/services/http.service';
 import {
@@ -26,6 +27,8 @@ import {
 
 @Injectable()
 export class SpiderApiService {
+  private readonly logger = new DfxLogger(SpiderApiService);
+
   private readonly baseUrl = 'https://kyc.eurospider.com/kyc-v8-api/rest';
   private readonly baseVersion = '2.0.0';
 
@@ -403,7 +406,8 @@ export class SpiderApiService {
         return null;
       }
 
-      throw new ServiceUnavailableException(e.response);
+      this.logger.verbose(`Error during Spider request ${method} ${url}: ${e.response?.status} ${e.response?.data}`);
+      throw new ServiceUnavailableException({ status: e.response?.status, data: e.response?.data });
     });
   }
 

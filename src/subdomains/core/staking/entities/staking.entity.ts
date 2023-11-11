@@ -1,9 +1,9 @@
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { StakingReward } from 'src/subdomains/core/staking/entities/staking-reward.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Deposit } from 'src/subdomains/supporting/address-pool/deposit/deposit.entity';
 import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
-import { StakingReward } from 'src/subdomains/core/staking/entities/staking-reward.entity';
-import { Asset } from 'src/shared/models/asset/asset.entity';
-import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { ManyToOne, ChildEntity, Column, OneToMany } from 'typeorm';
+import { ChildEntity, Column, ManyToOne, OneToMany } from 'typeorm';
 
 @ChildEntity()
 export class Staking extends DepositRoute {
@@ -23,7 +23,7 @@ export class Staking extends DepositRoute {
   user: User;
 
   @Column({ type: 'float', default: 0 })
-  rewardVolume: number;
+  rewardVolume: number; // EUR
 
   @OneToMany(() => StakingReward, (reward) => reward.staking)
   rewards: StakingReward[];

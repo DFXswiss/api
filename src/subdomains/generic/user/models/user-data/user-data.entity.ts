@@ -71,6 +71,10 @@ export class UserData extends IEntity {
   @Column({ default: AccountType.PERSONAL, length: 256 })
   accountType: AccountType;
 
+  @Column({ length: 256, default: UserDataStatus.NA })
+  status: UserDataStatus;
+
+  // KYC
   @Column({ length: 256, nullable: true })
   mail: string;
 
@@ -128,9 +132,6 @@ export class UserData extends IEntity {
   @ManyToOne(() => Fiat, { eager: true })
   currency: Fiat;
 
-  @Column({ length: 256, default: UserDataStatus.NA })
-  status: UserDataStatus;
-
   @Column({ length: 256, nullable: true })
   riskState: RiskState;
 
@@ -178,20 +179,24 @@ export class UserData extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   letterSentDate: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
-  amlListAddedDate: Date;
-
   @Column({ length: 256, nullable: true })
   identificationType: KycIdentificationType;
-
-  @Column({ length: 256, nullable: true })
-  internalAmlNote: string;
 
   @Column({ nullable: true })
   pep: boolean;
 
   @Column({ length: 256, nullable: true })
   bankTransactionVerification: CheckStatus;
+
+  // Aml
+  @Column({ type: 'datetime2', nullable: true })
+  amlListAddedDate: Date;
+
+  @Column({ length: 256, nullable: true })
+  internalAmlNote: string;
+
+  @Column({ length: 256, nullable: true })
+  amlAccountType: string;
 
   //Mail
   @Column({ length: 256, nullable: true })
@@ -200,24 +205,28 @@ export class UserData extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   blackSquadMailSendDate: Date;
 
+  // Fee / Discounts
+  @Column({ length: 256, nullable: true })
+  individualFees: string; // semicolon separated id's
+
   // Volumes
   @Column({ type: 'float', default: 0 })
-  annualBuyVolume: number;
+  annualBuyVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
-  buyVolume: number;
+  buyVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
-  annualSellVolume: number;
+  annualSellVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
-  sellVolume: number;
+  sellVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
-  annualCryptoVolume: number;
+  annualCryptoVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
-  cryptoVolume: number;
+  cryptoVolume: number; // CHF
 
   // References
   @OneToMany(() => BankAccount, (bankAccount) => bankAccount.userData)
@@ -247,8 +256,43 @@ export class UserData extends IEntity {
     ];
   }
 
+  blockUserData(): UpdateResult<UserData> {
+    const update: Partial<UserData> = {
+      status: UserDataStatus.BLOCKED,
+      kycStatus: KycStatus.TERMINATED,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  addFee(feeId: number): UpdateResult<UserData> {
+    const update: Partial<UserData> = {
+      individualFees: !this.individualFees ? feeId.toString() : `${this.individualFees};${feeId}`,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  removeFee(feeId: number): UpdateResult<UserData> {
+    const update: Partial<UserData> = {
+      individualFees: this.individualFeeList.filter((id) => id !== feeId).join(';'),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   get isDfxUser(): boolean {
     return this.kycType === KycType.DFX;
+  }
+
+  get individualFeeList(): number[] {
+    return this.individualFees?.split(';')?.map(Number);
   }
 
   get hasActiveUser(): boolean {
@@ -263,6 +307,12 @@ export class UserData extends IEntity {
     } else {
       return { limit: Config.defaultDailyTradingLimit, period: LimitPeriod.DAY };
     }
+  }
+
+  get availableTradingLimit(): number {
+    return this.tradingLimit.period === LimitPeriod.YEAR
+      ? this.tradingLimit.limit - this.annualBuyVolume - this.annualSellVolume - this.annualCryptoVolume
+      : this.tradingLimit.limit;
   }
 
   set riskResult({ result, risks }: RiskResult) {

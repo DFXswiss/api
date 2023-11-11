@@ -1,14 +1,14 @@
 import { Injectable, NotImplementedException, OnModuleInit } from '@nestjs/common';
-import { CoinGeckoService } from './integration/coin-gecko.service';
-import { PriceProviderDeFiChainService } from './integration/price-provider-defichain.service';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Price } from '../domain/entities/price';
-import { MetadataNotFoundException } from '../domain/exceptions/metadata-not-found.exception';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { CurrencyService } from './integration/currency.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { Price } from '../domain/entities/price';
+import { MetadataNotFoundException } from '../domain/exceptions/metadata-not-found.exception';
+import { CoinGeckoService } from './integration/coin-gecko.service';
+import { CurrencyService } from './integration/currency.service';
+import { PriceProviderDeFiChainService } from './integration/price-provider-defichain.service';
 
 /**
  * Price provider service - use this service for indicative prices
@@ -19,6 +19,7 @@ export class PriceProviderService implements OnModuleInit {
   private readonly refAssetMap = new Map<Blockchain, Asset>();
 
   private usd: Fiat;
+  private eur: Fiat;
 
   constructor(
     private readonly assetService: AssetService,
@@ -30,11 +31,14 @@ export class PriceProviderService implements OnModuleInit {
 
   onModuleInit() {
     void this.fiatService.getFiatByName('USD').then((a) => (this.usd = a));
+    void this.fiatService.getFiatByName('EUR').then((a) => (this.eur = a));
   }
 
   async getPrice(from: Asset | Fiat, to: Asset | Fiat): Promise<Price> {
     if (this.isFiat(from)) {
-      return this.isFiat(to) ? this.fiatFiat(from, to) : this.fiatCrypto(from, to);
+      if (this.isFiat(to)) return this.fiatFiat(from, to);
+
+      return this.isCustom(to) ? this.fiatCustom(from, to) : this.fiatCrypto(from, to);
     } else {
       return this.isFiat(to) ? this.cryptoFiat(from, to) : this.cryptoCrypto(from, to);
     }
@@ -95,9 +99,19 @@ export class PriceProviderService implements OnModuleInit {
     return this.currencyService.getPrice(from.name, to.name);
   }
 
+  private async fiatCustom(from: Fiat, to: Asset): Promise<Price> {
+    if (to.blockchain === ('Talium' as Blockchain)) return this.currencyService.getPrice(from.name, this.eur.name);
+
+    throw new Error(`No price available for custom asset ${to.uniqueName}`);
+  }
+
   // --- HELPER METHODS --- //
   private isFiat(item: Asset | Fiat): item is Fiat {
     return item instanceof Fiat;
+  }
+
+  private isCustom(item: Asset): boolean {
+    return item.type === AssetType.CUSTOM;
   }
 
   private async getFiatReferenceAssetFor(blockchain: Blockchain): Promise<Asset> {

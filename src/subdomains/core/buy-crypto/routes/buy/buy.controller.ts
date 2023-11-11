@@ -2,18 +2,20 @@ import { BadRequestException, Body, Controller, Get, Param, Post, Put, UseGuards
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
+import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { IpGuard } from 'src/shared/auth/ip.guard';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
-import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
-import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { BuyCryptoService } from '../../process/services/buy-crypto.service';
 import { Buy } from './buy.entity';
 import { BuyService } from './buy.service';
@@ -22,7 +24,7 @@ import { BankInfoDto, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
 import { BuyQuoteDto } from './dto/buy-quote.dto';
 import { BuyDto } from './dto/buy.dto';
 import { CreateBuyDto } from './dto/create-buy.dto';
-import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
+import { BuyPaymentMethod, GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
 import { GetBuyQuoteDto } from './dto/get-buy-quote.dto';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 
@@ -36,6 +38,7 @@ export class BuyController {
     private readonly paymentInfoService: PaymentInfoService,
     private readonly bankService: BankService,
     private readonly transactionHelper: TransactionHelper,
+    private readonly checkoutService: CheckoutService,
   ) {}
 
   @Get()
@@ -68,14 +71,12 @@ export class BuyController {
   async getBuyQuote(@Body() dto: GetBuyQuoteDto): Promise<BuyQuoteDto> {
     const { amount: sourceAmount, currency, asset, targetAmount } = await this.paymentInfoService.buyCheck(dto);
 
-    const fee = Config.buy.fee.get(asset.feeTier, AccountType.PERSONAL);
-
     const {
       exchangeRate,
       feeAmount,
       estimatedAmount,
       sourceAmount: amount,
-    } = await this.transactionHelper.getTxDetails(sourceAmount, targetAmount, fee, currency, asset);
+    } = await this.transactionHelper.getTxDetails(sourceAmount, targetAmount, currency, asset);
 
     return {
       feeAmount,
@@ -87,7 +88,7 @@ export class BuyController {
 
   @Put('/paymentInfos')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
   @ApiOkResponse({ type: BuyPaymentInfoDto })
   async createBuyWithPaymentInfo(
     @GetJwt() jwt: JwtPayload,
@@ -121,7 +122,8 @@ export class BuyController {
   }
 
   private async toDto(userId: number, buy: Buy): Promise<BuyDto> {
-    const fee = await this.userService.getUserBuyFee(userId, buy.asset);
+    const fee = await this.userService.getUserFee(userId, FeeDirectionType.BUY, buy.asset);
+
     const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
       'Fiat',
       undefined,
@@ -144,35 +146,66 @@ export class BuyController {
   }
 
   private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
-    const fee = await this.userService.getUserBuyFee(userId, buy.asset);
+    const user = await this.userService.getUser(userId, { userData: true, wallet: true });
+
     const {
       minVolume,
       minFee,
       minVolumeTarget,
       minFeeTarget,
+      maxVolume,
+      maxVolumeTarget,
+      fee,
+      exchangeRate,
+      rate,
       estimatedAmount,
       sourceAmount: amount,
       isValid,
-    } = await this.transactionHelper.getTxDetails(dto.amount, dto.targetAmount, fee, dto.currency, dto.asset);
+      error,
+    } = await this.transactionHelper.getTxDetails(
+      dto.amount,
+      dto.targetAmount,
+      dto.currency,
+      dto.asset,
+      user.userData,
+      dto.paymentMethod,
+    );
     const bankInfo = await this.getBankInfo(buy, { ...dto, amount });
 
     return {
       routeId: buy.id,
-      ...bankInfo,
-      sepaInstant: bankInfo.sepaInstant && buy.bankAccount?.sctInst,
-      remittanceInfo: buy.bankUsage,
       fee: Util.round(fee * 100, Config.defaultPercentageDecimal),
       minDeposit: { amount: minVolume, asset: dto.currency.name }, // TODO: remove
       minVolume,
       minFee,
       minVolumeTarget,
       minFeeTarget,
+      exchangeRate,
+      rate,
       estimatedAmount,
       amount,
       asset: AssetDtoMapper.entityToDto(dto.asset),
       currency: FiatDtoMapper.entityToDto(dto.currency),
-      paymentRequest: this.generateGiroCode(buy, bankInfo, dto),
+      maxVolume,
+      maxVolumeTarget,
       isValid,
+      error,
+      // bank info
+      ...bankInfo,
+      sepaInstant: bankInfo.sepaInstant && buy.bankAccount?.sctInst,
+      remittanceInfo: buy.bankUsage,
+      paymentRequest: isValid ? this.generateGiroCode(buy, bankInfo, dto) : undefined,
+      // card info
+      paymentLink:
+        isValid && dto.paymentMethod === BuyPaymentMethod.CARD
+          ? await this.checkoutService.createPaymentLink(
+              buy.bankUsage,
+              amount,
+              dto.currency,
+              dto.asset,
+              user.userData.language,
+            )
+          : undefined,
     };
   }
 

@@ -45,7 +45,7 @@ export class LinkService {
 
     const linkAddress = await this.linkAddressRepo.save(LinkAddress.create(existingAddress, newAddress));
 
-    await this.notificationService.sendMailNew({
+    await this.notificationService.sendMail({
       type: MailType.USER,
       input: {
         userData: user,
@@ -100,6 +100,6 @@ export class LinkService {
   }
 
   private buildLinkUrl(authentication: string): string {
-    return `${Config.payment.url}/link?authentication=${authentication}`;
+    return `${Config.frontend.payment}/link?authentication=${authentication}`;
   }
 }

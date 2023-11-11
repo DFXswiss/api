@@ -62,9 +62,7 @@ export class LightningClient {
   async getBalance(): Promise<number> {
     const channels = await this.getChannels();
 
-    const balances = channels
-      .filter((c) => c.active)
-      .map((c) => +c.local_balance - +c.commit_fee - +c.local_chan_reserve_sat);
+    const balances = channels.map((c) => +c.local_balance);
 
     return LightningHelper.satToBtc(Util.sum(balances));
   }

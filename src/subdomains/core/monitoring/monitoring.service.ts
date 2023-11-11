@@ -1,12 +1,12 @@
-import { cloneDeep, isEqual } from 'lodash';
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { cloneDeep, isEqual } from 'lodash';
 import { BehaviorSubject, debounceTime, pairwise } from 'rxjs';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MetricObserver } from './metric.observer';
 import { Metric, MetricName, SubsystemName, SubsystemState, SystemState } from './system-state-snapshot.entity';
 import { SystemStateSnapshotRepository } from './system-state-snapshot.repository';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 type SubsystemObservers = Map<MetricName, MetricObserver<unknown>>;
 
