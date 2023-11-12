@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { TransactionState } from 'src/subdomains/core/history/dto/transaction/transaction.dto';
+import { TransactionState } from 'src/subdomains/core/history/dto/output/transaction.dto';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { CheckStatus } from '../enums/check-status.enum';

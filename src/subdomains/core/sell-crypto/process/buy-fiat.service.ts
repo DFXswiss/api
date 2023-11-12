@@ -12,7 +12,7 @@ import { FiatOutputService } from '../../../supporting/fiat-output/fiat-output.s
 import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
 import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
 import { PaymentStatus } from '../../history/dto/history.dto';
-import { TransactionState } from '../../history/dto/transaction/transaction.dto';
+import { TransactionState } from '../../history/dto/output/transaction.dto';
 import { TransactionDetailsDto } from '../../statistic/dto/statistic.dto';
 import { SellHistoryDto } from '../route/dto/sell-history.dto';
 import { Sell } from '../route/sell.entity';

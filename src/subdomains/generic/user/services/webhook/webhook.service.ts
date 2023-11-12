@@ -3,7 +3,7 @@ import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
-import { TransactionState, TransactionType } from 'src/subdomains/core/history/dto/transaction/transaction.dto';
+import { TransactionState, TransactionType } from 'src/subdomains/core/history/dto/output/transaction.dto';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -134,8 +134,10 @@ export class WebhookService {
       outputAsset: payment.outputAsset,
       feeAmount: payment.percentFee,
       feeAsset: payment.percentFee ? payment.inputReferenceAsset : null,
-      txId: payment.fiatOutput?.remittanceInfo,
-      txUrl: null,
+      inputTxId: payment.cryptoInput.inTxId,
+      inputTxUrl: txExplorerUrl(payment.cryptoInput.asset.blockchain, payment.cryptoInput.inTxId),
+      outputTxId: payment.fiatOutput?.remittanceInfo,
+      outputTxUrl: null,
       date: payment.outputDate,
       paymentReference: payment.sell.deposit.address,
     };
@@ -152,8 +154,8 @@ export class WebhookService {
       outputAsset: payment.outputAsset,
       feeAmount: payment.percentFee,
       feeAsset: payment.percentFee ? payment.inputReferenceAsset : null,
-      txId: payment.fiatOutput?.remittanceInfo,
-      txUrl: null,
+      outputTxId: payment.fiatOutput?.remittanceInfo,
+      outputTxUrl: null,
       date: payment.outputDate,
       //TODO add PaymentReference for FiatFiat
       paymentReference: null,
@@ -171,8 +173,10 @@ export class WebhookService {
       outputAsset: payment.outputAsset?.name,
       feeAmount: payment.percentFee,
       feeAsset: payment.percentFee ? payment.inputReferenceAsset : null,
-      txId: payment.txId,
-      txUrl: txExplorerUrl(payment.target.asset.blockchain, payment.txId),
+      inputTxId: payment.cryptoInput.inTxId,
+      inputTxUrl: txExplorerUrl(payment.cryptoInput.asset.blockchain, payment.cryptoInput.inTxId),
+      outputTxId: payment.txId,
+      outputTxUrl: txExplorerUrl(payment.target.asset.blockchain, payment.txId),
       date: payment.outputDate,
       paymentReference: payment.cryptoRoute?.deposit.address,
     };
@@ -189,8 +193,8 @@ export class WebhookService {
       outputAsset: payment.outputAsset?.name,
       feeAmount: payment.percentFee,
       feeAsset: payment.percentFee ? payment.inputReferenceAsset : null,
-      txId: payment.txId,
-      txUrl: txExplorerUrl(payment.target.asset.blockchain, payment.txId),
+      outputTxId: payment.txId,
+      outputTxUrl: txExplorerUrl(payment.target.asset.blockchain, payment.txId),
       date: payment.outputDate,
       paymentReference: payment.buy.bankUsage,
     };

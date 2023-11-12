@@ -1,6 +1,22 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { TransactionState, TransactionType } from '../transaction/transaction.dto';
+
+export enum TransactionType {
+  BUY = 'Buy',
+  SELL = 'Sell',
+  CONVERT = 'Convert',
+  REFERRAL = 'Referral',
+}
+
+export enum TransactionState {
+  CREATED = 'Created',
+  PROCESSING = 'Processing',
+  AML_PENDING = 'AmlPending',
+  FEE_TOO_HIGH = 'FeeTooHigh',
+  COMPLETED = 'Completed',
+  FAILED = 'Failed',
+  RETURNED = 'Returned',
+}
 
 export class TransactionDto {
   @ApiProperty({ enum: TransactionType })
@@ -34,10 +50,16 @@ export class TransactionDto {
   feeAsset?: string;
 
   @ApiPropertyOptional()
-  txId?: string;
+  inputTxId?: string;
 
   @ApiPropertyOptional()
-  txUrl?: string;
+  inputTxUrl?: string;
+
+  @ApiPropertyOptional()
+  outputTxId?: string;
+
+  @ApiPropertyOptional()
+  outputTxUrl?: string;
 
   @ApiProperty({ type: Date })
   date: Date;

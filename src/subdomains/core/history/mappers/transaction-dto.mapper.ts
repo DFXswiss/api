@@ -4,8 +4,7 @@ import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-c
 import { RefReward, RewardStatus } from '../../referral/reward/ref-reward.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from '../../sell-crypto/process/buy-fiat.service';
-import { TransactionDto } from '../dto/output/transaction.dto';
-import { TransactionState, TransactionType } from '../dto/transaction/transaction.dto';
+import { TransactionDto, TransactionState, TransactionType } from '../dto/output/transaction.dto';
 
 export class TransactionDtoMapper {
   static mapBuyCryptoTransactions(buyCryptos: BuyCrypto[]): TransactionDto[] {
@@ -22,8 +21,10 @@ export class TransactionDtoMapper {
           outputBlockchain: buyCrypto.target.asset.blockchain,
           feeAmount: buyCrypto.percentFee,
           feeAsset: buyCrypto.percentFee ? buyCrypto.inputReferenceAsset : null,
-          txId: buyCrypto.txId,
-          txUrl: txExplorerUrl(buyCrypto.target.asset.blockchain, buyCrypto.txId),
+          inputTxId: buyCrypto.bankTx.remittanceInfo,
+          inputTxUrl: null,
+          outputTxId: buyCrypto.txId,
+          outputTxUrl: buyCrypto.txId ? txExplorerUrl(buyCrypto.target.asset.blockchain, buyCrypto.txId) : null,
           date: buyCrypto.outputDate,
         },
       ])
@@ -45,8 +46,10 @@ export class TransactionDtoMapper {
           outputBlockchain: null,
           feeAmount: buyFiat.percentFee,
           feeAsset: buyFiat.percentFee ? buyFiat.inputReferenceAsset : null,
-          txId: buyFiat.fiatOutput?.remittanceInfo,
-          txUrl: null,
+          inputTxId: buyFiat.cryptoInput.inTxId,
+          inputTxUrl: txExplorerUrl(buyFiat.cryptoInput.asset.blockchain, buyFiat.cryptoInput.inTxId),
+          outputTxId: buyFiat.fiatOutput?.remittanceInfo,
+          outputTxUrl: null,
           date: buyFiat.outputDate,
         },
       ])
@@ -68,8 +71,10 @@ export class TransactionDtoMapper {
           outputBlockchain: refReward.targetBlockchain,
           feeAmount: null,
           feeAsset: null,
-          txId: refReward.txId,
-          txUrl: txExplorerUrl(refReward.targetBlockchain, refReward.txId),
+          inputTxId: null,
+          inputTxUrl: null,
+          outputTxId: refReward.txId,
+          outputTxUrl: refReward.txId ? txExplorerUrl(refReward.targetBlockchain, refReward.txId) : null,
           date: refReward.outputDate,
         },
       ])
