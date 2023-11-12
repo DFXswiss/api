@@ -142,7 +142,7 @@ export class BuyFiatService {
 
   async triggerWebhook(buyFiat: BuyFiat): Promise<void> {
     // TODO add fiatFiatUpdate here
-    const state = this.getWebhookState(buyFiat);
+    const state = BuyFiatService.getWebhookState(buyFiat);
     buyFiat.sell ? await this.webhookService.cryptoFiatUpdate(buyFiat.sell.user, buyFiat, state) : undefined;
   }
 
@@ -204,7 +204,7 @@ export class BuyFiatService {
 
   // --- HELPER METHODS --- //
 
-  private getWebhookState(buyFiat: BuyFiat): TransactionState {
+  static getWebhookState(buyFiat: BuyFiat): TransactionState {
     if (buyFiat.cryptoReturnDate) return TransactionState.RETURNED;
 
     switch (buyFiat.amlCheck) {

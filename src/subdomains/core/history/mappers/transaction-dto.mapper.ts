@@ -1,8 +1,9 @@
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
-import { BuyCrypto, BuyCryptoStatus } from '../../buy-crypto/process/entities/buy-crypto.entity';
-import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
+import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
+import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-crypto-webhook.service';
 import { RefReward, RewardStatus } from '../../referral/reward/ref-reward.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
+import { BuyFiatService } from '../../sell-crypto/process/buy-fiat.service';
 import { TransactionDto } from '../dto/output/transaction.dto';
 import { TransactionState, TransactionType } from '../dto/transaction/transaction.dto';
 
@@ -77,22 +78,6 @@ export class TransactionDtoMapper {
   }
 }
 
-export const BuyCryptoStatusMapper: {
-  [key in BuyCryptoStatus]: TransactionState;
-} = {
-  [BuyCryptoStatus.BATCHED]: TransactionState.PROCESSING,
-  [BuyCryptoStatus.CREATED]: TransactionState.PROCESSING,
-  [BuyCryptoStatus.MISSING_LIQUIDITY]: TransactionState.PROCESSING,
-  [BuyCryptoStatus.PAYING_OUT]: TransactionState.PROCESSING,
-  [BuyCryptoStatus.PENDING_LIQUIDITY]: TransactionState.PROCESSING,
-  [BuyCryptoStatus.PREPARED]: TransactionState.PROCESSING,
-  [BuyCryptoStatus.PRICE_MISMATCH]: TransactionState.PROCESSING,
-  [BuyCryptoStatus.PRICE_SLIPPAGE]: TransactionState.PROCESSING,
-  [BuyCryptoStatus.READY_FOR_PAYOUT]: TransactionState.PROCESSING,
-  [BuyCryptoStatus.COMPLETE]: TransactionState.COMPLETED,
-  [BuyCryptoStatus.WAITING_FOR_LOWER_FEE]: TransactionState.FEE_TOO_HIGH,
-};
-
 export const RefRewardStatusMapper: {
   [key in RewardStatus]: TransactionState;
 } = {
@@ -110,27 +95,10 @@ export function getStatus(entity: BuyFiat | BuyCrypto | RefReward): TransactionS
   }
 
   if (entity instanceof BuyCrypto) {
-    if (entity.chargebackDate) return TransactionState.RETURNED;
-    if (entity.status && entity.amlCheck === CheckStatus.PASS) return BuyCryptoStatusMapper[entity.status];
+    return BuyCryptoWebhookService.getWebhookState(entity);
   }
 
   if (entity instanceof BuyFiat) {
-    if (entity.cryptoReturnDate) return TransactionState.RETURNED;
+    return BuyFiatService.getWebhookState(entity);
   }
-
-  switch (entity.amlCheck) {
-    case CheckStatus.FAIL:
-      return TransactionState.FAILED;
-
-    case CheckStatus.PENDING:
-      return TransactionState.AML_PENDING;
-
-    case CheckStatus.PASS:
-      if (entity.isComplete) return TransactionState.COMPLETED;
-      break;
-  }
-
-  if (entity.outputReferenceAsset) return TransactionState.PROCESSING;
-
-  return TransactionState.CREATED;
 }
