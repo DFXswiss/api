@@ -27,6 +27,6 @@ export class DexLightningService {
       targetAsset: { dexName: 'BTC', blockchain: Blockchain.LIGHTNING },
     });
 
-    return Util.sumObj<LiquidityOrder>(pendingOrders, 'estimatedTargetAmount');
+    return Util.sumObjValue<LiquidityOrder>(pendingOrders, 'estimatedTargetAmount');
   }
 }

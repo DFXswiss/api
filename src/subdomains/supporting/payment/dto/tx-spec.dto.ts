@@ -5,4 +5,5 @@ export interface TxSpec {
 
 export interface TxSpecExtended extends TxSpec {
   maxVolume?: number;
+  fixedFee?: number;
 }
