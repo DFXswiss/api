@@ -412,6 +412,17 @@ export class Configuration {
   };
   exchangeTxSyncLimit = +(process.env.EXCHANGE_TX_SYNC_LIMIT ?? 720); // minutes
 
+  dilisense = {
+    jsonPath: process.env.DILISENSE_JSON_PATH,
+    config: {
+      tryCount: 3,
+      headers: {
+        Accept: 'application/json',
+        'x-api-key': process.env.DILISENSE_KEY,
+      },
+    },
+  };
+
   sepaTools = {
     auth: {
       username: process.env.SEPA_TOOLS_USER,

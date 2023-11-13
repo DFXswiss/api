@@ -26,7 +26,7 @@ export class CheckoutTxService {
 
     if (match) {
       const buy = await this.buyService.getByBankUsage(match[0]);
-      const nameCheck = await this.userDataService.nameCheck(buy.user.userData);
+      const nameCheck = await this.userDataService.isSanctioned(buy.user.userData);
 
       if (buy && nameCheck) {
         await this.buyCryptoService.createFromCheckoutTx(tx, buy.id);

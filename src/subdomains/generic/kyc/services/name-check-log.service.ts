@@ -1,26 +1,24 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
-import fs from 'fs';
-import readline from 'readline';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { CreateNameCheckLogDto } from '../dto/create-name-check-log.dto';
-import { DilisenseData } from '../dto/dilisense-data.dto';
 import { UpdateNameCheckLogDto } from '../dto/update-name-check-log.dto';
-import { RiskRate } from '../entities/kyc-log.entity';
-import { ManualRiskRate, NameCheckLog } from '../entities/name-check-log.entity';
+import { ManualRiskRate, NameCheckLog, RiskStatus } from '../entities/name-check-log.entity';
 import { NameCheckLogRepository } from '../repositories/name-check-log.repository';
+import { DilisenseService } from './dilisense.service';
 
 @Injectable()
-export class NameCheckLogService implements OnModuleInit {
-  private readonly logger = new DfxLogger(NameCheckLogService);
+export class NameCheckService implements OnModuleInit {
+  // private readonly logger = new DfxLogger(NameCheckService);
 
-  private readonly sanctionListPath = 'src/subdomains/generic/kyc/data/dilisense_consolidated_data_file.jsonl';
-  private sanctionData: DilisenseData[] = [];
+  // private sanctionData: DilisenseJsonData[] = [];
 
-  constructor(private readonly nameCheckLogRepo: NameCheckLogRepository) {}
+  constructor(
+    private readonly nameCheckLogRepo: NameCheckLogRepository,
+    private readonly dilisenseService: DilisenseService,
+  ) {}
 
   onModuleInit() {
-    void this.reloadSanctionList();
+    // void this.reloadSanctionList();
   }
 
   async create(dto: CreateNameCheckLogDto): Promise<NameCheckLog> {
@@ -29,46 +27,49 @@ export class NameCheckLogService implements OnModuleInit {
     return this.nameCheckLogRepo.save(entity);
   }
 
-  async update(id: number, dto: UpdateNameCheckLogDto): Promise<NameCheckLog> {
+  async updateLog(id: number, dto: UpdateNameCheckLogDto): Promise<NameCheckLog> {
     const entity = await this.nameCheckLogRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('NameCheckLog not found');
 
     return this.nameCheckLogRepo.save({ ...entity, ...dto, manualRateTimestamp: new Date() });
   }
 
-  async doNameCheck(userData: UserData): Promise<RiskRate> {
+  async getRiskStatus(userData: UserData): Promise<RiskStatus> {
     const entities = await this.nameCheckLogRepo.find({
       where: { userData: { id: userData.id } },
       relations: { userData: true },
     });
-    if (entities.length == 0) return this.refreshNameCheck(userData);
+    if (entities.length == 0) return this.refreshRiskStatus(userData);
 
-    const riskEntities = entities.filter(
+    return entities.some(
       (risk) =>
-        risk.riskRate === RiskRate.SANCTIONED &&
-        (!risk.manualRiskRate || risk.manualRiskRate === ManualRiskRate.RISK_CONFIRMED),
-    );
-
-    if (riskEntities.length != 0) return RiskRate.SANCTIONED;
-
-    return RiskRate.NOT_SANCTIONED;
+        risk.riskRate === RiskStatus.SANCTIONED &&
+        (!risk.manualRiskRate || risk.manualRiskRate === ManualRiskRate.CONFIRMED),
+    )
+      ? RiskStatus.SANCTIONED
+      : RiskStatus.NOT_SANCTIONED;
   }
 
-  async refreshNameCheck(userData: UserData): Promise<RiskRate> {
-    const sanctionData = this.sanctionData.filter((data) =>
-      this.isSanctioned(data, userData.firstname.toLowerCase(), userData.surname.toLowerCase()),
+  async refreshRiskStatus(userData: UserData): Promise<RiskStatus> {
+    // const sanctionData = this.sanctionData.filter((data) =>
+    //   this.isSanctionedData(data, userData.firstname.toLowerCase(), userData.surname.toLowerCase()),
+    // );
+    const sanctionData = await this.dilisenseService.getRiskData(
+      `${userData.firstname} ${userData.surname}`,
+      userData.birthday,
     );
-    if (sanctionData.length == 0) {
-      await this.createNameCheckLog(userData, null, RiskRate.NOT_SANCTIONED);
-      return RiskRate.NOT_SANCTIONED;
+
+    if (sanctionData.total_hits == 0) {
+      await this.createNameCheckLog(userData, JSON.stringify(sanctionData), RiskStatus.NOT_SANCTIONED);
+      return RiskStatus.NOT_SANCTIONED;
     }
 
-    for (const sanction of sanctionData) {
+    for (const sanction of sanctionData.found_records) {
       if (this.logExists(userData, JSON.stringify(sanction))) continue;
-      await this.createNameCheckLog(userData, JSON.stringify(sanction), RiskRate.SANCTIONED);
+      await this.createNameCheckLog(userData, JSON.stringify(sanction), RiskStatus.SANCTIONED);
     }
 
-    return RiskRate.SANCTIONED;
+    return RiskStatus.SANCTIONED;
   }
 
   // --- HELPER METHODS --- //
@@ -81,53 +82,49 @@ export class NameCheckLogService implements OnModuleInit {
     return entities.length > 0;
   }
 
-  private async createNameCheckLog(userData: UserData, result: string, riskRate: RiskRate): Promise<void> {
-    // TODO create pdf and upload to GDrive
-
-    await this.create({
-      eventType: 'NameCheck',
-      pdfUrl: undefined,
+  private async createNameCheckLog(userData: UserData, result: string, riskRate: RiskStatus): Promise<void> {
+    const entity = this.nameCheckLogRepo.create({
+      type: 'NameCheck',
       result,
       riskRate,
       userData,
     });
+
+    await this.nameCheckLogRepo.save(entity);
   }
 
-  private isSanctioned(data: DilisenseData, firstname: string, surname: string): boolean {
-    return (
-      //data.lastNames?.map((name) => name).includes(surname) &&
-      (data.name?.includes(firstname) && data.name?.includes(surname)) ||
-      (data.givenNames?.includes(firstname) && data.givenNames?.includes(surname)) ||
-      (data.aliasNames?.includes(firstname) && data.aliasNames?.includes(surname))
-    );
-  }
+  // TODO Dilisense JSON solution
 
-  private async reloadSanctionList(): Promise<void> {
-    this.sanctionData = [];
+  // private isSanctionedData(data: DilisenseJsonData, firstname: string, surname: string): boolean {
+  //   return (
+  //     //data.lastNames?.map((name) => name).includes(surname) &&
+  //     (data.name?.includes(firstname) && data.name?.includes(surname)) ||
+  //     (data.givenNames?.includes(firstname) && data.givenNames?.includes(surname)) ||
+  //     (data.aliasNames?.includes(firstname) && data.aliasNames?.includes(surname))
+  //   );
+  // }
 
-    const dataInput = readline.createInterface({
-      input: fs.createReadStream(this.sanctionListPath),
-      output: process.stdout,
-      terminal: false,
-    });
+  // private async reloadSanctionList(): Promise<void> {
+  //   this.sanctionData = [];
 
-    for await (const line of dataInput) {
-      try {
-        const data: DilisenseData = JSON.parse(line);
-        this.sanctionData.push(this.mapSanctionDataLowerCase(data));
-      } catch (error) {
-        this.logger.critical(`Error reading sanction data line ${line}:`, error);
-      }
-    }
-  }
+  //   const file = await Util.readFileFromDisk(Config.dilisense.jsonPath);
+  //   for (const line of file.split('\n')) {
+  //     try {
+  //       const data: DilisenseJsonData = JSON.parse(line);
+  //       this.sanctionData.push(this.mapSanctionDataLowerCase(data));
+  //     } catch (e) {
+  //       this.logger.critical(`Error reading sanction data line ${line}:`, e);
+  //     }
+  //   }
+  // }
 
-  private mapSanctionDataLowerCase(data: DilisenseData): DilisenseData {
-    return {
-      ...data,
-      name: data.name.toLowerCase(),
-      lastNames: data.lastNames?.map((name) => name.toLowerCase()),
-      givenNames: data.givenNames?.map((name) => name.toLowerCase()),
-      aliasNames: data.aliasNames?.map((name) => name.toLowerCase()),
-    };
-  }
+  // private mapSanctionDataLowerCase(data: DilisenseJsonData): DilisenseJsonData {
+  //   return {
+  //     ...data,
+  //     name: data.name.toLowerCase(),
+  //     lastNames: data.lastNames?.map((name) => name.toLowerCase()),
+  //     givenNames: data.givenNames?.map((name) => name.toLowerCase()),
+  //     aliasNames: data.aliasNames?.map((name) => name.toLowerCase()),
+  //   };
+  // }
 }

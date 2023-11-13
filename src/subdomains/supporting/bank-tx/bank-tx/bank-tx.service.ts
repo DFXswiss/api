@@ -83,8 +83,8 @@ export class BankTxService {
 
       if (match) {
         const buy = await this.buyService.getByBankUsage(match[0]);
-        const nameCheck = await this.userDataService.nameCheck(buy.user.userData);
-        
+        const nameCheck = await this.userDataService.isSanctioned(buy.user.userData);
+
         if (buy && nameCheck) {
           await this.update(tx.id, { type: BankTxType.BUY_CRYPTO, buyId: buy.id });
           continue;

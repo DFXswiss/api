@@ -1,25 +1,9 @@
-import { IsEnum, IsNotEmpty, IsNumber, IsString } from 'class-validator';
 import { UserData } from '../../user/models/user-data/user-data.entity';
-import { RiskRate } from '../entities/kyc-log.entity';
+import { RiskStatus } from '../entities/name-check-log.entity';
 
 export class CreateNameCheckLogDto {
-  @IsNotEmpty()
-  @IsString()
   eventType: string;
-
-  @IsNotEmpty()
-  @IsString()
   result: string;
-
-  @IsNotEmpty()
-  @IsString()
-  pdfUrl: string;
-
-  @IsNotEmpty()
-  @IsEnum(RiskRate)
-  riskRate: RiskRate;
-
-  @IsNotEmpty()
-  @IsNumber()
+  riskRate: RiskStatus;
   userData: UserData;
 }
