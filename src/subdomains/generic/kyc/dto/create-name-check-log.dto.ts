@@ -2,7 +2,7 @@ import { IsEnum, IsNotEmpty, IsNumber, IsString } from 'class-validator';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { RiskRate } from '../entities/kyc-log.entity';
 
-export class CreateKycLogDto {
+export class CreateNameCheckLogDto {
   @IsNotEmpty()
   @IsString()
   eventType: string;

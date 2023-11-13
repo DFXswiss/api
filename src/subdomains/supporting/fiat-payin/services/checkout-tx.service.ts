@@ -3,6 +3,7 @@ import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { MailType } from '../../notification/enums';
 import { NotificationService } from '../../notification/services/notification.service';
 import { CheckoutTx } from '../entities/checkout-tx.entity';
@@ -17,6 +18,7 @@ export class CheckoutTxService {
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyService: BuyService,
     private readonly notificationService: NotificationService,
+    private readonly userDataService: UserDataService,
   ) {}
 
   async createCheckoutBuyCrypto(tx: CheckoutTx): Promise<void> {
@@ -24,7 +26,9 @@ export class CheckoutTxService {
 
     if (match) {
       const buy = await this.buyService.getByBankUsage(match[0]);
-      if (buy) {
+      const nameCheck = await this.userDataService.nameCheck(buy.user.userData);
+
+      if (buy && nameCheck) {
         await this.buyCryptoService.createFromCheckoutTx(tx, buy.id);
         return;
       }

@@ -47,6 +47,7 @@ import { SpiderApiService } from './services/spider/spider-api.service';
 import { SpiderSyncService } from './services/spider/spider-sync.service';
 import { SpiderService } from './services/spider/spider.service';
 import { WebhookService } from './services/webhook/webhook.service';
+import { KycModule } from '../kyc/kyc.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     BlockchainModule,
     ReferralModule,
     forwardRef(() => PaymentModule),
+    KycModule,
   ],
   controllers: [
     UserController,

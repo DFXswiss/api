@@ -1,14 +1,16 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SharedModule } from 'src/shared/shared.module';
-import { KycLogRepository } from './repositories/kyc-log.repository';
-import { KycLogService } from './services/kyc-log.service';
-import { NameCheckService } from './services/name-check.service';
+import { NameCheckLogController } from './controllers/name-check-log.controller';
+import { KycLog } from './entities/kyc-log.entity';
+import { NameCheckLog } from './entities/name-check-log.entity';
+import { NameCheckLogRepository } from './repositories/name-check-log.repository';
+import { NameCheckLogService } from './services/name-check-log.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([]), SharedModule],
-  controllers: [],
-  providers: [NameCheckService, KycLogService, KycLogRepository],
-  exports: [],
+  imports: [TypeOrmModule.forFeature([KycLog, NameCheckLog]), SharedModule],
+  controllers: [NameCheckLogController],
+  providers: [NameCheckLogService, NameCheckLogRepository],
+  exports: [NameCheckLogService],
 })
 export class KycModule {}

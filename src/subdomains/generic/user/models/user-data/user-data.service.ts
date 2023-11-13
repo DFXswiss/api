@@ -15,6 +15,8 @@ import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
+import { RiskRate } from 'src/subdomains/generic/kyc/entities/kyc-log.entity';
+import { NameCheckLogService } from 'src/subdomains/generic/kyc/services/name-check-log.service';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { SpiderApiService } from 'src/subdomains/generic/user/services/spider/spider-api.service';
 import { ReferenceType, SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
@@ -54,6 +56,7 @@ export class UserDataService {
     private readonly spiderApiService: SpiderApiService,
     private readonly kycProcessService: KycProcessService,
     private readonly webhookService: WebhookService,
+    private readonly nameCheckLogService: NameCheckLogService,
     @Inject(forwardRef(() => LinkService)) private readonly linkService: LinkService,
   ) {}
 
@@ -220,6 +223,16 @@ export class UserDataService {
     await this.userDataRepo.update(...userData.blockUserData());
   }
 
+  async nameCheck(userData: UserData): Promise<boolean> {
+    if (Util.daysDiff(userData.lastCheckedTimestamp) <= 1) return true;
+
+    const nameCheck = await this.nameCheckLogService.doNameCheck(userData);
+    if (nameCheck === RiskRate.SANCTIONED) return false;
+
+    await this.userDataRepo.update(...userData.refreshLastCheckedTimestamp());
+    return true;
+  }
+
   private async updateSpiderIfNeeded(userData: UserData, dto: UpdateUserDto): Promise<UserData> {
     if ((dto.phone && dto.phone != userData.phone) || (dto.mail && dto.mail != userData.mail)) {
       await this.spiderService.updateCustomer(userData.id, {
@@ -234,6 +247,8 @@ export class UserDataService {
 
     return userData;
   }
+
+  // --- FEES --- //
 
   async addFee(userData: UserData, feeId: number): Promise<void> {
     if (userData.individualFeeList?.includes(feeId)) return;

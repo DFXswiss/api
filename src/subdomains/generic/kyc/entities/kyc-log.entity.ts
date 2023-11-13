@@ -1,6 +1,6 @@
 import { IEntity } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity, ManyToOne, TableInheritance } from 'typeorm';
 
 export enum RiskRate {
   SANCTIONED = 'Sanctioned',
@@ -14,6 +14,7 @@ export enum ManualRiskRate {
 }
 
 @Entity()
+@TableInheritance({ column: { type: 'nvarchar', name: 'eventType' } })
 export class KycLog extends IEntity {
   @Column({ length: 256 })
   eventType: string;
@@ -23,15 +24,6 @@ export class KycLog extends IEntity {
 
   @Column({ length: 256, nullable: true })
   pdfUrl: string;
-
-  @Column({ length: 256 })
-  riskRate: RiskRate;
-
-  @Column({ length: 256, nullable: true })
-  manualRiskRate: ManualRiskRate;
-
-  @Column({ type: 'datetime2', nullable: true })
-  manualRateTimestamp: Date;
 
   @Column({ length: 'MAX', nullable: true })
   comment: string;
