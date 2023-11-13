@@ -18,6 +18,7 @@ export enum KycContentType {
 export interface KycFile {
   type: KycFileType;
   name: string;
+  url: string;
   contentType: KycContentType;
   created: Date;
   updated: Date;
@@ -37,8 +38,9 @@ export class DocumentStorageService {
     return blobs.map((b) => {
       const [_, type, name] = this.fromFileId(b.name);
       return {
-        name,
         type,
+        name,
+        url: b.url,
         contentType: b.contentType as KycContentType,
         created: b.created,
         updated: b.updated,
@@ -54,8 +56,8 @@ export class DocumentStorageService {
     data: Buffer,
     contentType: KycContentType,
     metadata?: Record<string, string>,
-  ): Promise<void> {
-    await this.storageService.uploadBlob(this.toFileId(userDataId, type, name), data, contentType, metadata);
+  ): Promise<string> {
+    return this.storageService.uploadBlob(this.toFileId(userDataId, type, name), data, contentType, metadata);
   }
 
   async downloadFile(userDataId: number, type: KycFileType, name: string): Promise<BlobContent> {
