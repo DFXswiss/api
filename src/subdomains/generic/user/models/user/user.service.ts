@@ -14,6 +14,7 @@ import { GeoLocationService } from 'src/integration/geolocation/geo-location.ser
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
@@ -38,6 +39,8 @@ import { UserRepository } from './user.repository';
 
 @Injectable()
 export class UserService {
+  private readonly logger = new DfxLogger(UserService);
+
   constructor(
     private readonly userRepo: UserRepository,
     private readonly userDataRepo: UserDataRepository,
@@ -132,8 +135,12 @@ export class UserService {
     user.userData = await this.userDataService.createUserData(user.wallet.customKyc ?? KycType.DFX);
     user = await this.userRepo.save(user);
 
-    if (discountCode) await this.feeService.addDiscountCodeUser(user.userData, discountCode);
-    if (usedRef || wallet) await this.feeService.addCustomSignUpFees(user.userData, usedRef, wallet?.id);
+    try {
+      if (discountCode) await this.feeService.addDiscountCodeUser(user.userData, discountCode);
+      if (usedRef || wallet) await this.feeService.addCustomSignUpFees(user.userData, user.usedRef, wallet?.id);
+    } catch (e) {
+      this.logger.warn(`Error while adding discountCode to new user ${user.id}:`, e);
+    }
 
     const blockchains = this.cryptoService.getBlockchainsBasedOn(user.address);
     if (blockchains.includes(Blockchain.DEFICHAIN)) this.dfiTaxService.activateAddress(user.address);

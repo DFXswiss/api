@@ -82,8 +82,10 @@ export function IdentSucceeded(update: IdentResultDto): boolean {
   return [IdentResult.SUCCESS, IdentResult.SUCCESS_DATA_CHANGED].includes(update?.identificationprocess?.result);
 }
 
+export function IdentAborted(update: IdentResultDto): boolean {
+  return [IdentResult.ABORTED, IdentResult.CANCELED].includes(update?.identificationprocess?.result);
+}
+
 export function IdentFailed(update: IdentResultDto): boolean {
-  return [IdentResult.ABORTED, IdentResult.CANCELED, IdentResult.FRAUD_SUSPICION_CONFIRMED].includes(
-    update?.identificationprocess?.result,
-  );
+  return [IdentResult.FRAUD_SUSPICION_CONFIRMED].includes(update?.identificationprocess?.result);
 }

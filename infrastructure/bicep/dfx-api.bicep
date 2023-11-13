@@ -173,6 +173,8 @@ param azureTenantId string
 param azureClientId string
 @secure()
 param azureClientSecret string
+@secure()
+param azureStorageConnectionString string
 
 param albyClientId string
 @secure()
@@ -201,6 +203,7 @@ var vmNsgName = 'nsg-${compName}-vm-${env}'
 
 var storageAccountName = replace('st-${compName}-${apiName}-${env}', '-', '')
 var dbBackupContainerName = 'db-bak'
+var kycDocumentContainerName = 'kyc'
 
 var sqlServerName = 'sql-${compName}-${apiName}-${env}'
 var sqlDbName = 'sqldb-${compName}-${apiName}-${env}'
@@ -320,6 +323,10 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2021-04-01' = {
 
 resource dbBackupContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2021-04-01' = {
   name: '${storageAccount.name}/default/${dbBackupContainerName}'
+}
+
+resource kycDocumentContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2021-04-01' = {
+  name: '${storageAccount.name}/default/${kycDocumentContainerName}'
 }
 
 // SQL Database
@@ -853,6 +860,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'AZURE_CLIENT_SECRET'
           value: azureClientSecret
+        }
+        {
+          name: 'AZURE_STORAGE_CONNECTION_STRING'
+          value: azureStorageConnectionString
         }
         {
           name: 'ALBY_CLIENT_ID'
