@@ -128,6 +128,14 @@ export class UserDataController {
     return this.kycService.resyncKycData(+id);
   }
 
+  @Put(':id/fileSync')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async syncKycFiles(@Param('id') id: string): Promise<void> {
+    return this.kycService.syncKycFiles(+id);
+  }
+
   @Put(':id/kycStatus')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()

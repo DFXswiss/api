@@ -299,6 +299,9 @@
     "azureClientSecret": {
       "value": "xxx"
     },
+    "azureStorageConnectionString": {
+      "value": "xxx"
+    },
     "albyClientId": {
       "value": "xxx"
     },
