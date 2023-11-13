@@ -1,9 +1,7 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
 import fs from 'fs';
 import readline from 'readline';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Lock } from 'src/shared/utils/lock';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { CreateNameCheckLogDto } from '../dto/create-name-check-log.dto';
 import { DilisenseData } from '../dto/dilisense-data.dto';
@@ -25,12 +23,6 @@ export class NameCheckLogService implements OnModuleInit {
     void this.reloadSanctionList();
   }
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(1800)
-  async sendNotificationMails(): Promise<void> {
-    await this.refreshNameCheck(null, 'PEDROs Ricardo', 'Alves');
-  }
-
   async create(dto: CreateNameCheckLogDto): Promise<NameCheckLog> {
     const entity = this.nameCheckLogRepo.create(dto);
 
@@ -49,7 +41,7 @@ export class NameCheckLogService implements OnModuleInit {
       where: { userData: { id: userData.id } },
       relations: { userData: true },
     });
-    if (entities.length == 0) return RiskRate.NOT_SANCTIONED;
+    if (entities.length == 0) return this.refreshNameCheck(userData);
 
     const riskEntities = entities.filter(
       (risk) =>
@@ -62,9 +54,9 @@ export class NameCheckLogService implements OnModuleInit {
     return RiskRate.NOT_SANCTIONED;
   }
 
-  async refreshNameCheck(userData: UserData, firstname: string, surname: string): Promise<RiskRate> {
+  async refreshNameCheck(userData: UserData): Promise<RiskRate> {
     const sanctionData = this.sanctionData.filter((data) =>
-      this.isSanctioned(data, firstname.toLowerCase(), surname.toLowerCase()),
+      this.isSanctioned(data, userData.firstname.toLowerCase(), userData.surname.toLowerCase()),
     );
     if (sanctionData.length == 0) {
       await this.createNameCheckLog(userData, null, RiskRate.NOT_SANCTIONED);
