@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { IdentInProgress } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { UserDataRepository } from '../user-data/user-data.repository';
-import { IdentFailed, IdentPending, IdentResultDto, IdentSucceeded } from './dto/ident-result.dto';
-import { KycProcessService } from '../kyc/kyc-process.service';
-import { Like } from 'typeorm';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { IdentInProgress } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { Like } from 'typeorm';
+import { KycProcessService } from '../kyc/kyc-process.service';
+import { UserDataRepository } from '../user-data/user-data.repository';
+import { IdentAborted, IdentFailed, IdentPending, IdentResultDto, IdentSucceeded } from './dto/ident-result.dto';
 
 @Injectable()
 export class IdentService {
@@ -47,6 +47,8 @@ export class IdentService {
       user = await this.kycProcess.identCompleted(user, result);
     } else if (IdentPending(result)) {
       user = await this.kycProcess.identInReview(user, result);
+    } else if (IdentAborted(result)) {
+      this.logger.info(`Ident cancelled for user ${user.id}: ${result.identificationprocess.result}`);
     } else if (IdentFailed(result)) {
       user = await this.kycProcess.identFailed(user, result);
     } else {

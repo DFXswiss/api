@@ -1,18 +1,18 @@
+import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { DeFiChainUtil } from 'src/integration/blockchain/ain/utils/defichain.util';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Config } from 'src/config/config';
 import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { ChainSwapId, LiquidityOrder } from '../entities/liquidity-order.entity';
 import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
 import { PriceSlippageException } from '../exceptions/price-slippage.exception';
-import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
-import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { TransactionNotFoundException } from '../exceptions/transaction-not-found.exception';
+import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
 
 export interface DexDeFiChainLiquidityResult {
   targetAmount: number;
@@ -179,7 +179,7 @@ export class DexDeFiChainService {
     const pendingOrders = (await this.liquidityOrderRepo.findBy({ isComplete: false })).filter(
       (o) => o.targetAsset.dexName === asset.dexName && o.targetAsset.blockchain === Blockchain.DEFICHAIN,
     );
-    const pendingAmount = Util.sumObj<LiquidityOrder>(pendingOrders, 'estimatedTargetAmount');
+    const pendingAmount = Util.sumObjValue<LiquidityOrder>(pendingOrders, 'estimatedTargetAmount');
     const availableAmount = await this.deFiChainUtil.getAvailableTokenAmount(asset.dexName, this.#dexClient);
 
     // adding a small cap to pendingAmount in case testSwap results got slightly outdated by the moment current check is done

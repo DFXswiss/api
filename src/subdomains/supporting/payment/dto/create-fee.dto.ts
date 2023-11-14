@@ -29,7 +29,12 @@ export class CreateFeeDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsNumber()
-  value: number;
+  rate: number;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsNumber()
+  fixed: number;
 
   @ApiPropertyOptional()
   @IsOptional()

@@ -13,6 +13,7 @@ import { MinAmount } from 'src/subdomains/supporting/payment/dto/min-amount.dto'
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
+import { FeeDto } from '../dto/fee.dto';
 import { TargetEstimation, TransactionDetails } from '../dto/transaction-details.dto';
 import { TxSpec, TxSpecExtended } from '../dto/tx-spec.dto';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
@@ -125,19 +126,8 @@ export class TransactionHelper implements OnModuleInit {
     userData?: UserData,
     paymentMethod?: BuyPaymentMethod,
   ): Promise<TransactionDetails> {
-    const specs = this.getSpecs(from, to);
+    // get fee
     const direction = this.getTxDirection(from, to);
-
-    const { minVolume, minFee, maxVolume } = await this.convertToSource(from, {
-      ...specs,
-      maxVolume: userData?.availableTradingLimit,
-    });
-
-    const {
-      minVolume: minVolumeTarget,
-      minFee: minFeeTarget,
-      maxVolume: maxVolumeTarget,
-    } = await this.convertToTarget(to, { ...specs, maxVolume: userData?.availableTradingLimit });
 
     const fee = await this.getTxFee(
       userData,
@@ -148,23 +138,42 @@ export class TransactionHelper implements OnModuleInit {
       paymentMethod,
     );
 
-    const target = await this.getTargetEstimation(sourceAmount, targetAmount, fee, minFee, from, to);
+    // get specs
+    const specs = this.getSpecs(from, to);
+    const extendedSpecs = {
+      ...specs,
+      maxVolume: userData?.availableTradingLimit,
+      fixedFee: fee.fixed,
+    };
+
+    const txSpecSource = await this.convertToSource(from, extendedSpecs);
+    const txSpecTarget = await this.convertToTarget(to, extendedSpecs);
+
+    // target estimation
+    const target = await this.getTargetEstimation(
+      sourceAmount,
+      targetAmount,
+      fee.rate,
+      txSpecSource.minFee,
+      txSpecSource.fixedFee,
+      from,
+      to,
+    );
 
     const error =
-      target.sourceAmount < minVolume
+      target.sourceAmount < txSpecSource.minVolume
         ? TransactionError.AMOUNT_TOO_LOW
-        : target.sourceAmount > maxVolume
+        : target.sourceAmount > txSpecSource.maxVolume
         ? TransactionError.AMOUNT_TOO_HIGH
         : undefined;
 
     return {
       ...target,
-      minFee,
-      minVolume,
-      minFeeTarget,
-      minVolumeTarget,
-      maxVolume,
-      maxVolumeTarget,
+      ...txSpecSource,
+      maxVolume: txSpecSource.maxVolume ?? undefined,
+      minFeeTarget: txSpecTarget.minFee,
+      maxVolumeTarget: txSpecTarget.maxVolume ?? undefined,
+      minVolumeTarget: txSpecTarget.minVolume,
       fee,
       isValid: error == null,
       error,
@@ -178,13 +187,13 @@ export class TransactionHelper implements OnModuleInit {
     txAsset: Asset | Fiat,
     txVolume: number,
     paymentMethod: BuyPaymentMethod,
-  ): Promise<number> {
+  ): Promise<FeeDto> {
     const price = txAsset ? await this.priceProviderService.getPrice(txAsset, this.eur) : undefined;
 
     const txVolumeInEur = price ? price.convert(txVolume) : undefined;
 
     return paymentMethod === BuyPaymentMethod.CARD
-      ? Config.buy.fee.card
+      ? { rate: Config.buy.fee.card, fixed: 0 }
       : userData
       ? this.feeService.getUserFee({ userData, direction, asset, txVolume: txVolumeInEur })
       : this.feeService.getDefaultFee({ direction, asset, txVolume: txVolumeInEur });
@@ -193,16 +202,19 @@ export class TransactionHelper implements OnModuleInit {
   private async getTargetEstimation(
     inputAmount: number | undefined,
     outputAmount: number | undefined,
-    fee: number,
-    minFee: number,
+    feeRate: number,
+    minFeeSource: number,
+    fixedFeeSource = 0,
     from: Asset | Fiat,
     to: Asset | Fiat,
   ): Promise<TargetEstimation> {
     const price = await this.priceProviderService.getPrice(from, to);
 
     const percentFeeAmount =
-      outputAmount != null ? price.invert().convert((outputAmount * fee) / (1 - fee)) : inputAmount * fee;
-    const feeAmount = Math.max(percentFeeAmount, minFee);
+      outputAmount != null
+        ? ((price.invert().convert(outputAmount) + fixedFeeSource) * feeRate) / (1 - feeRate)
+        : inputAmount * feeRate;
+    const feeAmount = Math.max(percentFeeAmount + fixedFeeSource, minFeeSource);
 
     const targetAmount = outputAmount != null ? outputAmount : price.convert(Math.max(inputAmount - feeAmount, 0));
     const sourceAmount = outputAmount != null ? price.invert().convert(outputAmount) + feeAmount : inputAmount;
@@ -225,7 +237,7 @@ export class TransactionHelper implements OnModuleInit {
 
   private async convertToSource(
     from: Asset | Fiat,
-    { minFee, minVolume, maxVolume }: TxSpecExtended,
+    { minFee, minVolume, maxVolume, fixedFee }: TxSpecExtended,
   ): Promise<TxSpecExtended> {
     const price = await this.priceProviderService.getPrice(from, this.eur).then((p) => p.invert());
 
@@ -238,12 +250,13 @@ export class TransactionHelper implements OnModuleInit {
       minFee: this.convert(minFee, price, from instanceof Fiat),
       minVolume: this.convert(minVolume, price, from instanceof Fiat),
       maxVolume: maxVolumeSource && this.roundMaxAmount(maxVolumeSource, from instanceof Fiat),
+      fixedFee: fixedFee && this.convert(fixedFee, price, from instanceof Fiat),
     };
   }
 
   private async convertToTarget(
     to: Asset | Fiat,
-    { minFee, minVolume, maxVolume }: TxSpecExtended,
+    { minFee, minVolume, maxVolume, fixedFee }: TxSpecExtended,
   ): Promise<TxSpecExtended> {
     const price = await this.priceProviderService.getPrice(this.eur, to);
     const maxVolumePrice = maxVolume && (await this.priceProviderService.getPrice(this.chf, to));
@@ -254,6 +267,7 @@ export class TransactionHelper implements OnModuleInit {
       minFee: this.convert(minFee, price, to instanceof Fiat),
       minVolume: this.convert(minVolume, price, to instanceof Fiat),
       maxVolume: maxVolumeTarget && this.roundMaxAmount(maxVolumeTarget, to instanceof Fiat),
+      fixedFee: fixedFee && this.convert(fixedFee, price, to instanceof Fiat),
     };
   }
 

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Process } from 'src/config/config';
+import { AzureStorageService } from 'src/integration/infrastructure/azure-storage.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
@@ -22,6 +23,7 @@ import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, LessThan } from 'typeorm';
+import { AccountType } from '../../models/user-data/account-type.enum';
 import { DocumentVersionPart, KycContentType, KycDocument, KycDocumentState, KycDocuments } from './dto/spider.dto';
 import { SpiderApiService } from './spider-api.service';
 import { DocumentState, SpiderService } from './spider.service';
@@ -29,6 +31,8 @@ import { DocumentState, SpiderService } from './spider.service';
 @Injectable()
 export class SpiderSyncService {
   private readonly logger = new DfxLogger(SpiderSyncService);
+
+  private readonly storageService: AzureStorageService;
 
   private readonly kycStatusTranslation = {
     [KycStatus.CHATBOT]: 'Chatbot',
@@ -44,7 +48,9 @@ export class SpiderSyncService {
     private readonly spiderService: SpiderService,
     private readonly settingService: SettingService,
     private readonly spiderDataRepo: SpiderDataRepository,
-  ) {}
+  ) {
+    this.storageService = new AzureStorageService('kyc');
+  }
 
   @Cron(CronExpression.EVERY_2_HOURS)
   @Lock()
@@ -136,7 +142,9 @@ export class SpiderSyncService {
       this.spiderApi.getCustomer(userData.id),
       this.spiderApi.getCheckResult(userData.id),
     ]);
-    userData.kycCustomerId = customer?.id;
+    if (!customer) return;
+
+    userData.kycCustomerId = customer.id;
     userData.riskResult = risks;
 
     // check KYC progress
@@ -159,6 +167,8 @@ export class SpiderSyncService {
 
       await this.spiderDataRepo.save(userData.spiderData);
     }
+
+    await this.syncKycFiles(userData);
 
     // force sync (chatbot and ident result)
     if (forceSync) {
@@ -355,5 +365,84 @@ export class SpiderSyncService {
     if (!part) return null;
 
     return { document, version: version.name, part };
+  }
+
+  // --- FILE SYNC METHODS -- //
+  public async syncKycFiles(userData: UserData): Promise<void> {
+    await this.syncKycFilesFor(userData.id, false);
+    if (userData.accountType !== AccountType.PERSONAL) await this.syncKycFilesFor(userData.id, true);
+  }
+
+  private async syncKycFilesFor(userDataId: number, isOrganization: boolean): Promise<void> {
+    const allStorageFiles = await this.listStorageFiles(userDataId, isOrganization);
+    const allSpiderFiles = await this.spiderApi.getDocumentInfos(userDataId, isOrganization);
+
+    const notSynchedFiles = allSpiderFiles.filter((spiderFile) => {
+      return !allStorageFiles.some(
+        (f) =>
+          f.document === spiderFile.document &&
+          f.metadata.version === spiderFile.version &&
+          f.metadata.part === spiderFile.part,
+      );
+    });
+
+    for (const document of notSynchedFiles) {
+      const data = await this.spiderApi.getBinaryDocument(
+        userDataId,
+        false,
+        document.document,
+        document.version,
+        document.part,
+      );
+
+      await this.uploadFileToStorage(
+        userDataId,
+        isOrganization,
+        document.document,
+        document.version,
+        document.fileName,
+        data,
+        document.contentType,
+        {
+          document: document.document.toString(),
+          version: document.version,
+          part: document.part,
+          state: document.state.toString(),
+          creationTime: document.creationTime.toISOString(),
+          modificationTime: document.modificationTime.toISOString(),
+          label: document.label,
+          fileName: document.fileName,
+          contentType: document.contentType.toString(),
+          url: document.url,
+        },
+      );
+    }
+  }
+
+  async listStorageFiles(
+    userDataId: number,
+    isOrganization: boolean,
+  ): Promise<{ document: KycDocument; version: string; name: string; metadata: Record<string, string> }[]> {
+    const blobs = await this.storageService.listBlobs(`Spider/${userDataId}${isOrganization ? '-organization' : ''}/`);
+    return blobs.map((b) => {
+      const [_s, _u, document, version, name] = b.name.split('/');
+      return { name, document: document as KycDocument, version, metadata: b.metadata };
+    });
+  }
+
+  async uploadFileToStorage(
+    userDataId: number,
+    isOrganization: boolean,
+    document: KycDocument,
+    version: string,
+    name: string,
+    data: Buffer,
+    contentType: KycContentType,
+    metadata: Record<string, string>,
+  ) {
+    const blobName = `Spider/${userDataId}${isOrganization ? '-organization' : ''}/${document}/${version}/${name
+      .split('/')
+      .join('_')}`;
+    await this.storageService.uploadBlob(blobName, data, contentType, metadata);
   }
 }
