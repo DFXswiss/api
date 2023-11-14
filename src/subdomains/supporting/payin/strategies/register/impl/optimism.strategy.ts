@@ -71,9 +71,4 @@ export class OptimismStrategy extends EvmStrategy implements OnModuleInit {
   protected getOwnAddresses(): string[] {
     return [Config.blockchain.optimism.optimismWalletAddress];
   }
-
-  //*** JOBS ***//
-  async checkPayInEntries(): Promise<void> {
-    await this.processNewPayInEntries();
-  }
 }

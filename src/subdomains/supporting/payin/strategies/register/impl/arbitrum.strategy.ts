@@ -71,10 +71,4 @@ export class ArbitrumStrategy extends EvmStrategy implements OnModuleInit {
   protected getOwnAddresses(): string[] {
     return [Config.blockchain.arbitrum.arbitrumWalletAddress];
   }
-
-  //*** JOBS ***//
-
-  async checkPayInEntries(): Promise<void> {
-    await this.processNewPayInEntries();
-  }
 }

@@ -67,10 +67,4 @@ export class EthereumStrategy extends EvmStrategy implements OnModuleInit {
   protected getOwnAddresses(): string[] {
     return [Config.blockchain.ethereum.ethWalletAddress];
   }
-
-  //*** JOBS ***//
-
-  async checkPayInEntries(): Promise<void> {
-    await this.processNewPayInEntries();
-  }
 }
