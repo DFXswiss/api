@@ -7,8 +7,12 @@ export enum KycFileType {
 }
 
 export enum KycContentType {
+  PNG = 'image/png',
+  JPEG = 'image/jpeg',
+  JSON = 'application/json',
+  PDF = 'application/pdf',
   TEXT = 'text/plain',
-  // TODO
+  XML = 'text/xml',
 }
 
 export interface KycFile {

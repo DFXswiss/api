@@ -4,6 +4,7 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UploadFileDto } from 'src/subdomains/generic/admin/dto/upload-file.dto';
+import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/document-storage.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -23,6 +24,7 @@ export class UserDataController {
     private readonly userDataRepo: UserDataRepository,
     private readonly kycService: KycService,
     private readonly feeService: FeeService,
+    private readonly storageService: DocumentStorageService,
   ) {}
 
   @Get()
@@ -145,11 +147,22 @@ export class UserDataController {
     return this.kycService.updateKycStatus(+id, dto);
   }
 
-  @Post(':id/upload')
+  @Post(':id/kycFile')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async uploadKycFile(@Param('id') id: string, @Body() uploadFileDto: UploadFileDto): Promise<string> {
-    return this.kycService.uploadKycDocument(id, uploadFileDto);
+    return this.storageService.uploadFile(
+      +id,
+      uploadFileDto.documentType,
+      uploadFileDto.originalName,
+      Buffer.from(uploadFileDto.data, 'base64'),
+      uploadFileDto.contentType,
+      {
+        document: uploadFileDto.documentType.toString(),
+        creationTime: new Date().toISOString(),
+        fileName: uploadFileDto.originalName,
+      },
+    );
   }
 }

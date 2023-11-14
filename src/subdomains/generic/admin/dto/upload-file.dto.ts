@@ -1,5 +1,5 @@
 import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
-import { KycFileType } from '../../kyc/services/kyc-file.dto';
+import { KycContentType, KycFileType } from '../../kyc/services/kyc-file.dto';
 
 export class UploadFileDto {
   @IsNotEmpty()
@@ -12,7 +12,7 @@ export class UploadFileDto {
 
   @IsNotEmpty()
   @IsString()
-  contentType: string;
+  contentType: KycContentType;
 
   @IsNotEmpty()
   @IsString()

@@ -11,7 +11,6 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
-import { UploadFileDto } from 'src/subdomains/generic/admin/dto/upload-file.dto';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import {
   Blank,
@@ -107,23 +106,6 @@ export class KycService {
   async syncKycFiles(userDataId: number): Promise<void> {
     const userData = await this.userDataService.getUserData(userDataId);
     await this.spiderSyncService.syncKycFiles(userData);
-  }
-
-  async uploadKycDocument(userDataId: string, uploadFileDto: UploadFileDto): Promise<string> {
-    const blobName = `user-${userDataId}/${uploadFileDto.documentType}/${uploadFileDto.originalName
-      .split('/')
-      .join('_')}`;
-
-    return this.storageService.uploadBlob(
-      blobName,
-      Buffer.from(uploadFileDto.data, 'base64'),
-      uploadFileDto.contentType,
-      {
-        document: uploadFileDto.documentType.toString(),
-        creationTime: new Date().toISOString(),
-        fileName: uploadFileDto.originalName,
-      },
-    );
   }
 
   async getKycCountries(code: string, userId?: number): Promise<Country[]> {
