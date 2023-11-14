@@ -10,6 +10,7 @@ import { WalletRepository } from 'src/subdomains/generic/user/models/wallet/wall
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
+import { KycModule } from '../kyc/kyc.module';
 import { AuthAlbyService } from './models/auth/auth-alby.service';
 import { AuthLnurlController } from './models/auth/auth-lnurl.controller';
 import { AuthLnUrlService } from './models/auth/auth-lnurl.service';
@@ -47,7 +48,6 @@ import { SpiderApiService } from './services/spider/spider-api.service';
 import { SpiderSyncService } from './services/spider/spider-sync.service';
 import { SpiderService } from './services/spider/spider.service';
 import { WebhookService } from './services/webhook/webhook.service';
-import { KycModule } from '../kyc/kyc.module';
 
 @Module({
   imports: [
@@ -57,7 +57,7 @@ import { KycModule } from '../kyc/kyc.module';
     BlockchainModule,
     ReferralModule,
     forwardRef(() => PaymentModule),
-    KycModule,
+    forwardRef(() => KycModule),
   ],
   controllers: [
     UserController,

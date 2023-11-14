@@ -1,8 +1,11 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { IsNull } from 'typeorm';
+import { BankData } from '../../user/models/bank-data/bank-data.entity';
 import { UserData } from '../../user/models/user-data/user-data.entity';
+import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { CreateNameCheckLogDto } from '../dto/create-name-check-log.dto';
 import { UpdateNameCheckLogDto } from '../dto/update-name-check-log.dto';
-import { ManualRiskRate, NameCheckLog, RiskStatus } from '../entities/name-check-log.entity';
+import { NameCheckLog, RiskStatus } from '../entities/name-check-log.entity';
 import { NameCheckLogRepository } from '../repositories/name-check-log.repository';
 import { DilisenseService } from './dilisense.service';
 
@@ -15,6 +18,7 @@ export class NameCheckService implements OnModuleInit {
   constructor(
     private readonly nameCheckLogRepo: NameCheckLogRepository,
     private readonly dilisenseService: DilisenseService,
+    private readonly userDataService: UserDataService,
   ) {}
 
   onModuleInit() {
@@ -28,45 +32,30 @@ export class NameCheckService implements OnModuleInit {
   }
 
   async updateLog(id: number, dto: UpdateNameCheckLogDto): Promise<NameCheckLog> {
-    const entity = await this.nameCheckLogRepo.findOneBy({ id });
+    const entity = await this.nameCheckLogRepo.findOne({ where: { id }, relations: { userData: true } });
     if (!entity) throw new NotFoundException('NameCheckLog not found');
 
-    return this.nameCheckLogRepo.save({ ...entity, ...dto, manualRateTimestamp: new Date() });
+    const updatedEntity = await this.nameCheckLogRepo.save({ ...entity, ...dto, manualRateTimestamp: new Date() });
+
+    !(await this.hasOpenNameChecks(entity.userData)) &&
+      (await this.userDataService.refreshLastNameCheckDate(entity.userData));
+
+    return updatedEntity;
   }
 
-  async getRiskStatus(userData: UserData): Promise<RiskStatus> {
-    const entities = await this.nameCheckLogRepo.find({
-      where: { userData: { id: userData.id } },
-      relations: { userData: true },
-    });
-    if (entities.length == 0) return this.refreshRiskStatus(userData);
-
-    return entities.some(
-      (risk) =>
-        risk.riskRate === RiskStatus.SANCTIONED &&
-        (!risk.manualRiskRate || risk.manualRiskRate === ManualRiskRate.CONFIRMED),
-    )
-      ? RiskStatus.SANCTIONED
-      : RiskStatus.NOT_SANCTIONED;
-  }
-
-  async refreshRiskStatus(userData: UserData): Promise<RiskStatus> {
+  async refreshRiskStatus(bankData: BankData): Promise<RiskStatus> {
     // const sanctionData = this.sanctionData.filter((data) =>
     //   this.isSanctionedData(data, userData.firstname.toLowerCase(), userData.surname.toLowerCase()),
     // );
-    const sanctionData = await this.dilisenseService.getRiskData(
-      `${userData.firstname} ${userData.surname}`,
-      userData.birthday,
-    );
+    const sanctionData = await this.dilisenseService.getRiskData(bankData.name, bankData.userData.birthday);
 
     if (sanctionData.total_hits == 0) {
-      await this.createNameCheckLog(userData, JSON.stringify(sanctionData), RiskStatus.NOT_SANCTIONED);
+      await this.createNameCheckLog(bankData, JSON.stringify(sanctionData), RiskStatus.NOT_SANCTIONED);
       return RiskStatus.NOT_SANCTIONED;
     }
 
     for (const sanction of sanctionData.found_records) {
-      if (this.logExists(userData, JSON.stringify(sanction))) continue;
-      await this.createNameCheckLog(userData, JSON.stringify(sanction), RiskStatus.SANCTIONED);
+      await this.createNameCheckLog(bankData, JSON.stringify(sanction), RiskStatus.SANCTIONED);
     }
 
     return RiskStatus.SANCTIONED;
@@ -74,23 +63,36 @@ export class NameCheckService implements OnModuleInit {
 
   // --- HELPER METHODS --- //
 
-  private async logExists(userData: UserData, result: string): Promise<boolean> {
-    const entities = await this.nameCheckLogRepo.find({
-      where: { userData: { id: userData.id }, result },
-      relations: { userData: true },
+  private async createNameCheckLog(bankData: BankData, result: string, riskRate: RiskStatus): Promise<void> {
+    const existing = await this.nameCheckLogRepo.findOne({
+      where: { userData: { id: bankData.userData.id }, result },
+      relations: { userData: true, bankData: true },
     });
-    return entities.length > 0;
-  }
 
-  private async createNameCheckLog(userData: UserData, result: string, riskRate: RiskStatus): Promise<void> {
     const entity = this.nameCheckLogRepo.create({
       type: 'NameCheck',
       result,
       riskRate,
-      userData,
+      userData: bankData.userData,
+      bankData,
+      manualRateTimestamp: existing?.manualRateTimestamp,
+      manualRiskRate: existing?.manualRiskRate,
+      comment: existing?.comment,
     });
 
     await this.nameCheckLogRepo.save(entity);
+
+    !(await this.hasOpenNameChecks(entity.userData)) &&
+      (await this.userDataService.refreshLastNameCheckDate(bankData.userData));
+  }
+
+  private async hasOpenNameChecks(userData: UserData): Promise<boolean> {
+    const existing = await this.nameCheckLogRepo.findOne({
+      where: { userData: { id: userData.id }, manualRiskRate: IsNull(), riskRate: RiskStatus.SANCTIONED },
+      relations: { userData: true },
+    });
+
+    return !!existing;
   }
 
   // TODO Dilisense JSON solution

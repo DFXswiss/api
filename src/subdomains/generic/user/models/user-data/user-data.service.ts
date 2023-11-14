@@ -15,8 +15,6 @@ import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { RiskStatus } from 'src/subdomains/generic/kyc/entities/name-check-log.entity';
-import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check-log.service';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { SpiderApiService } from 'src/subdomains/generic/user/services/spider/spider-api.service';
 import { ReferenceType, SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
@@ -56,7 +54,6 @@ export class UserDataService {
     private readonly spiderApiService: SpiderApiService,
     private readonly kycProcessService: KycProcessService,
     private readonly webhookService: WebhookService,
-    private readonly nameCheckLogService: NameCheckService,
     @Inject(forwardRef(() => LinkService)) private readonly linkService: LinkService,
   ) {}
 
@@ -223,14 +220,8 @@ export class UserDataService {
     await this.userDataRepo.update(...userData.blockUserData());
   }
 
-  async isSanctioned(userData: UserData): Promise<boolean> {
-    if (Util.daysDiff(userData.lastCheckedTimestamp) <= 1) return true;
-
-    const nameCheck = await this.nameCheckLogService.getRiskStatus(userData);
-    if (nameCheck === RiskStatus.SANCTIONED) return false;
-
+  async refreshLastNameCheckDate(userData: UserData): Promise<void> {
     await this.userDataRepo.update(...userData.refreshLastCheckedTimestamp());
-    return true;
   }
 
   private async updateSpiderIfNeeded(userData: UserData, dto: UpdateUserDto): Promise<UserData> {

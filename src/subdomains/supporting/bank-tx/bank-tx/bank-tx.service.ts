@@ -7,7 +7,6 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
-import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, IsNull } from 'typeorm';
@@ -39,7 +38,6 @@ export class BankTxService {
     private readonly bankTxRepeatService: BankTxRepeatService,
     private readonly buyService: BuyService,
     private readonly bankService: BankService,
-    private readonly userDataService: UserDataService,
   ) {}
 
   // --- TRANSACTION HANDLING --- //
@@ -83,9 +81,8 @@ export class BankTxService {
 
       if (match) {
         const buy = await this.buyService.getByBankUsage(match[0]);
-        const nameCheck = await this.userDataService.isSanctioned(buy.user.userData);
 
-        if (buy && nameCheck) {
+        if (buy) {
           await this.update(tx.id, { type: BankTxType.BUY_CRYPTO, buyId: buy.id });
           continue;
         }
