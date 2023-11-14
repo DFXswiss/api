@@ -168,7 +168,7 @@ export class SpiderSyncService {
       await this.spiderDataRepo.save(userData.spiderData);
     }
 
-    await this.syncKycFiles(userData);
+    await this.syncKycFiles(userData, true);
 
     // force sync (chatbot and ident result)
     if (forceSync) {
@@ -368,23 +368,25 @@ export class SpiderSyncService {
   }
 
   // --- FILE SYNC METHODS -- //
-  public async syncKycFiles(userData: UserData): Promise<void> {
-    await this.syncKycFilesFor(userData.id, false);
-    if (userData.accountType !== AccountType.PERSONAL) await this.syncKycFilesFor(userData.id, true);
+  public async syncKycFiles(userData: UserData, ignoreNameChecks: boolean): Promise<void> {
+    await this.syncKycFilesFor(userData.id, ignoreNameChecks, false);
+    if (userData.accountType !== AccountType.PERSONAL) await this.syncKycFilesFor(userData.id, ignoreNameChecks, true);
   }
 
-  private async syncKycFilesFor(userDataId: number, isOrganization: boolean): Promise<void> {
+  private async syncKycFilesFor(userDataId: number, ignoreNameChecks: boolean, isOrganization: boolean): Promise<void> {
     const allStorageFiles = await this.listStorageFiles(userDataId, isOrganization);
     const allSpiderFiles = await this.spiderApi.getDocumentInfos(userDataId, isOrganization);
 
-    const notSynchedFiles = allSpiderFiles.filter((spiderFile) => {
-      return !allStorageFiles.some(
-        (f) =>
-          f.document === spiderFile.document &&
-          f.metadata.version === spiderFile.version &&
-          f.metadata.part === spiderFile.part,
-      );
-    });
+    const notSynchedFiles = allSpiderFiles
+      .filter((f) => !ignoreNameChecks || f.document !== KycDocument.CHECK)
+      .filter((spiderFile) => {
+        return !allStorageFiles.some(
+          (f) =>
+            f.document === spiderFile.document &&
+            f.metadata.version === spiderFile.version &&
+            f.metadata.part === spiderFile.part,
+        );
+      });
 
     for (const document of notSynchedFiles) {
       const data = await this.spiderApi.getBinaryDocument(

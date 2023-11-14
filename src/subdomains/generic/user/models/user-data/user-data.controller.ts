@@ -135,8 +135,8 @@ export class UserDataController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async syncKycFiles(@Param('id') id: string): Promise<void> {
-    return this.kycService.syncKycFiles(+id);
+  async syncKycFiles(@Param('id') id: string, @Query('ignoreNameChecks') ignoreNameChecks: string): Promise<void> {
+    return this.kycService.syncKycFiles(+id, ignoreNameChecks === 'true');
   }
 
   @Put(':id/kycStatus')
