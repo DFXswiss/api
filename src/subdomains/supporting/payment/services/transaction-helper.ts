@@ -126,7 +126,7 @@ export class TransactionHelper implements OnModuleInit {
     userData?: UserData,
     paymentMethod?: BuyPaymentMethod,
   ): Promise<TransactionDetails> {
-    const specs = this.getSpecs(from, to);
+    // get fee
     const direction = this.getTxDirection(from, to);
 
     const fee = await this.getTxFee(
@@ -138,24 +138,24 @@ export class TransactionHelper implements OnModuleInit {
       paymentMethod,
     );
 
-    const txSpecSource = await this.convertToSource(from, {
+    // get specs
+    const specs = this.getSpecs(from, to);
+    const extendedSpecs = {
       ...specs,
       maxVolume: userData?.availableTradingLimit,
       fixedFee: fee.fixed,
-    });
+    };
 
-    const txSpecTarget = await this.convertToTarget(to, {
-      ...specs,
-      maxVolume: userData?.availableTradingLimit,
-      fixedFee: fee.fixed,
-    });
+    const txSpecSource = await this.convertToSource(from, extendedSpecs);
+    const txSpecTarget = await this.convertToTarget(to, extendedSpecs);
 
+    // target estimation
     const target = await this.getTargetEstimation(
       sourceAmount,
       targetAmount,
-      fee,
-      txSpecSource,
-      txSpecTarget,
+      fee.rate,
+      txSpecSource.minFee,
+      txSpecSource.fixedFee,
       from,
       to,
     );
@@ -202,9 +202,9 @@ export class TransactionHelper implements OnModuleInit {
   private async getTargetEstimation(
     inputAmount: number | undefined,
     outputAmount: number | undefined,
-    fee: FeeDto,
-    { minFee: minFeeSource, fixedFee: fixedFeeSource }: TxSpecExtended,
-    { fixedFee: fixedFeeTarget }: TxSpecExtended,
+    feeRate: number,
+    minFeeSource: number,
+    fixedFeeSource = 0,
     from: Asset | Fiat,
     to: Asset | Fiat,
   ): Promise<TargetEstimation> {
@@ -212,8 +212,8 @@ export class TransactionHelper implements OnModuleInit {
 
     const percentFeeAmount =
       outputAmount != null
-        ? price.invert().convert(((outputAmount + fixedFeeTarget) * fee.rate) / (1 - fee.rate))
-        : inputAmount * fee.rate;
+        ? ((price.invert().convert(outputAmount) + fixedFeeSource) * feeRate) / (1 - feeRate)
+        : inputAmount * feeRate;
     const feeAmount = Math.max(percentFeeAmount + fixedFeeSource, minFeeSource);
 
     const targetAmount = outputAmount != null ? outputAmount : price.convert(Math.max(inputAmount - feeAmount, 0));
