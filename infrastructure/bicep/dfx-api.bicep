@@ -49,9 +49,6 @@ param ethGatewayUrl string
 @secure()
 param ethApiKey string
 param ethChainId string
-param ethScanApiUrl string
-@secure()
-param ethScanApiKey string
 
 param optimismWalletAddress string
 @secure()
@@ -60,9 +57,6 @@ param optimismGatewayUrl string
 @secure()
 param optimismApiKey string
 param optimismChainId string
-param optimismScanApiUrl string
-@secure()
-param optimismScanApiKey string
 
 param arbitrumWalletAddress string
 @secure()
@@ -71,9 +65,6 @@ param arbitrumGatewayUrl string
 @secure()
 param arbitrumApiKey string
 param arbitrumChainId string
-param arbitrumScanApiUrl string
-@secure()
-param arbitrumScanApiKey string
 
 param bscWalletAddress string
 @secure()
@@ -567,14 +558,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: ethChainId
         }
         {
-          name: 'ETH_SCAN_API_URL'
-          value: ethScanApiUrl
-        }
-        {
-          name: 'ETH_SCAN_API_KEY'
-          value: ethScanApiKey
-        }
-        {
           name: 'OPTIMISM_WALLET_ADDRESS'
           value: optimismWalletAddress
         }
@@ -595,14 +578,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: optimismChainId
         }
         {
-          name: 'OPTIMISM_SCAN_API_URL'
-          value: optimismScanApiUrl
-        }
-        {
-          name: 'OPTIMISM_SCAN_API_KEY'
-          value: optimismScanApiKey
-        }
-        {
           name: 'ARBITRUM_WALLET_ADDRESS'
           value: arbitrumWalletAddress
         }
@@ -621,14 +596,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'ARBITRUM_CHAIN_ID'
           value: arbitrumChainId
-        }
-        {
-          name: 'ARBITRUM_SCAN_API_URL'
-          value: arbitrumScanApiUrl
-        }
-        {
-          name: 'ARBITRUM_SCAN_API_KEY'
-          value: arbitrumScanApiKey
         }
         {
           name: 'BSC_WALLET_ADDRESS'
