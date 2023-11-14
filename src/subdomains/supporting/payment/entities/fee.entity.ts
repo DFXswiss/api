@@ -25,6 +25,9 @@ export class Fee extends IEntity {
   fixed: number; // EUR
 
   @Column({ default: true })
+  payoutRefBonus: boolean;
+
+  @Column({ default: true })
   active: boolean;
 
   // Filter columns
