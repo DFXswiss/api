@@ -7,7 +7,7 @@ export class BankData extends IEntity {
   @Column({ length: 256 })
   name: string;
 
-  @Column({ default: true })
+  @Column({ nullable: true })
   active: boolean;
 
   @Column({ length: 256 })
