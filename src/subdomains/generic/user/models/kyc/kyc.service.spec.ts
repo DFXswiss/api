@@ -34,6 +34,7 @@ import { KycService } from './kyc.service';
 
 describe('KycService', () => {
   let service: KycService;
+
   let userDataService: UserDataService;
   let userDataRepo: UserDataRepository;
   let spiderService: SpiderService;

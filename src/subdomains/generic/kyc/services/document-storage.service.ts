@@ -47,7 +47,7 @@ export class DocumentStorageService {
   }
 
   private fromFileId(fileId: string): [number, KycFileType, string] {
-    const [_user, userDataId, type, name] = fileId.split('/');
+    const [_, userDataId, type, name] = fileId.split('/');
     return [+userDataId, type as KycFileType, name];
   }
 }

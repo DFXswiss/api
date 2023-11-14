@@ -5,7 +5,6 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { AzureStorageService } from 'src/integration/infrastructure/azure-storage.service';
 import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
@@ -43,7 +42,6 @@ import { KycProcessService } from './kyc-process.service';
 @Injectable()
 export class KycService {
   private readonly logger = new DfxLogger(KycService);
-  private readonly storageService: AzureStorageService;
 
   constructor(
     private readonly userDataService: UserDataService,
@@ -58,9 +56,7 @@ export class KycService {
     private readonly kycProcess: KycProcessService,
     private readonly http: HttpService,
     private readonly webhookService: WebhookService,
-  ) {
-    this.storageService = new AzureStorageService('kyc');
-  }
+  ) {}
 
   // --- ADMIN/SUPPORT --- //
   async doNameCheck(userDataId: number): Promise<string> {
