@@ -389,35 +389,41 @@ export class SpiderSyncService {
       });
 
     for (const document of notSynchedFiles) {
-      const data = await this.spiderApi.getBinaryDocument(
-        userDataId,
-        false,
-        document.document,
-        document.version,
-        document.part,
-      );
+      try {
+        const data = await this.spiderApi.getBinaryDocument(
+          userDataId,
+          isOrganization,
+          document.document,
+          document.version,
+          document.part,
+        );
 
-      await this.uploadFileToStorage(
-        userDataId,
-        isOrganization,
-        document.document,
-        document.version,
-        document.fileName,
-        data,
-        document.contentType,
-        {
-          document: document.document.toString(),
-          version: document.version,
-          part: document.part,
-          state: document.state.toString(),
-          creationTime: document.creationTime.toISOString(),
-          modificationTime: document.modificationTime.toISOString(),
-          label: document.label,
-          fileName: document.fileName,
-          contentType: document.contentType.toString(),
-          url: document.url,
-        },
-      );
+        await this.uploadFileToStorage(
+          userDataId,
+          isOrganization,
+          document.document,
+          document.version,
+          document.fileName,
+          data,
+          document.contentType,
+          {
+            document: document.document.toString(),
+            version: document.version,
+            part: document.part,
+            state: document.state.toString(),
+            creationTime: document.creationTime.toISOString(),
+            modificationTime: document.modificationTime.toISOString(),
+            label: document.label,
+            fileName: document.fileName,
+            contentType: document.contentType.toString(),
+            url: document.url,
+          },
+        );
+      } catch (e) {
+        throw new Error(
+          `Failed to sync KYC file (${document.document}-${document.version}-${document.part}) for user ${userDataId}: ${e.message}`,
+        );
+      }
     }
   }
 
