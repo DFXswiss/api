@@ -1,8 +1,9 @@
-import { Body, Controller, Delete, Get, Param, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { UploadFileDto } from 'src/subdomains/generic/admin/dto/upload-file.dto';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -142,5 +143,13 @@ export class UserDataController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async updateKycStatus(@Param('id') id: string, @Body() dto: UpdateKycStatusDto): Promise<void> {
     return this.kycService.updateKycStatus(+id, dto);
+  }
+
+  @Post(':id/upload')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async uploadKycFile(@Param('id') id: string, @Body() uploadFileDto: UploadFileDto): Promise<string> {
+    return this.kycService.uploadKycDocument(id, uploadFileDto);
   }
 }
