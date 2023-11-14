@@ -10,6 +10,7 @@ export class DilisenseService {
   constructor(private readonly http: HttpService) {}
 
   async getRiskData(name: string, dob: Date): Promise<DilisenseApiData> {
+    // TODO fix date String
     const url = `${this.baseUrl}?names=${name}&fuzzy_search=0&dob=${dob.toISOString}`;
 
     try {

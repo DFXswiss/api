@@ -5,7 +5,7 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UpdateNameCheckLogDto } from '../dto/update-name-check-log.dto';
 import { NameCheckLog } from '../entities/name-check-log.entity';
-import { NameCheckService } from '../services/name-check-log.service';
+import { NameCheckService } from '../services/name-check.service';
 
 @ApiTags('Kyc')
 @Controller('kyc/admin')

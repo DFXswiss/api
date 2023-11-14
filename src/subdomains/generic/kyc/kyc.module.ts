@@ -8,7 +8,7 @@ import { NameCheckLog } from './entities/name-check-log.entity';
 import { NameCheckLogRepository } from './repositories/name-check-log.repository';
 import { DilisenseService } from './services/dilisense.service';
 import { DocumentStorageService } from './services/document-storage.service';
-import { NameCheckService } from './services/name-check-log.service';
+import { NameCheckService } from './services/name-check.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([KycLog, NameCheckLog]), SharedModule, forwardRef(() => UserModule)],

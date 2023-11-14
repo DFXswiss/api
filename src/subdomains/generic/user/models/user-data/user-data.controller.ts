@@ -4,6 +4,8 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/document-storage.service';
+import { KycFileType } from 'src/subdomains/generic/kyc/services/kyc-file.dto';
+import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UploadFileDto } from 'src/subdomains/generic/user/models/user-data/dto/upload-file.dto';
@@ -25,6 +27,7 @@ export class UserDataController {
     private readonly kycService: KycService,
     private readonly feeService: FeeService,
     private readonly storageService: DocumentStorageService,
+    private readonly nameCheckService: NameCheckService,
   ) {}
 
   @Get()
@@ -152,7 +155,7 @@ export class UserDataController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async uploadKycFile(@Param('id') id: string, @Body() dto: UploadFileDto): Promise<string> {
-    return this.storageService.uploadFile(
+    const url = await this.storageService.uploadFile(
       +id,
       dto.documentType,
       dto.originalName,
@@ -164,5 +167,9 @@ export class UserDataController {
         fileName: dto.originalName,
       },
     );
+
+    if (dto.documentType === KycFileType.NAME_CHECK) await this.nameCheckService.updatePdfUrl(dto.nameCheckLogId, url);
+
+    return url;
   }
 }

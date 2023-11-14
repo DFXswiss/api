@@ -4,7 +4,7 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RiskStatus } from 'src/subdomains/generic/kyc/entities/name-check-log.entity';
-import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check-log.service';
+import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { BankData } from './bank-data.entity';
 import { UpdateBankDataDto } from './dto/update-bank-data.dto';
