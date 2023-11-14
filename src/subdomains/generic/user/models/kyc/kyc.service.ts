@@ -121,9 +121,7 @@ export class KycService {
       {
         document: uploadFileDto.documentType.toString(),
         creationTime: new Date().toISOString(),
-        modificationTime: new Date().toISOString(),
         fileName: uploadFileDto.originalName,
-        contentType: uploadFileDto.contentType.toString(),
       },
     );
   }
