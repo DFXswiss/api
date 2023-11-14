@@ -168,7 +168,7 @@ export class SpiderSyncService {
       await this.spiderDataRepo.save(userData.spiderData);
     }
 
-    await this.syncKycFiles(userData);
+    await this.syncKycFiles(userData, true);
 
     // force sync (chatbot and ident result)
     if (forceSync) {
@@ -368,54 +368,62 @@ export class SpiderSyncService {
   }
 
   // --- FILE SYNC METHODS -- //
-  public async syncKycFiles(userData: UserData): Promise<void> {
-    await this.syncKycFilesFor(userData.id, false);
-    if (userData.accountType !== AccountType.PERSONAL) await this.syncKycFilesFor(userData.id, true);
+  public async syncKycFiles(userData: UserData, ignoreNameChecks: boolean): Promise<void> {
+    await this.syncKycFilesFor(userData.id, ignoreNameChecks, false);
+    if (userData.accountType !== AccountType.PERSONAL) await this.syncKycFilesFor(userData.id, ignoreNameChecks, true);
   }
 
-  private async syncKycFilesFor(userDataId: number, isOrganization: boolean): Promise<void> {
+  private async syncKycFilesFor(userDataId: number, ignoreNameChecks: boolean, isOrganization: boolean): Promise<void> {
     const allStorageFiles = await this.listStorageFiles(userDataId, isOrganization);
     const allSpiderFiles = await this.spiderApi.getDocumentInfos(userDataId, isOrganization);
 
-    const notSynchedFiles = allSpiderFiles.filter((spiderFile) => {
-      return !allStorageFiles.some(
-        (f) =>
-          f.document === spiderFile.document &&
-          f.metadata.version === spiderFile.version &&
-          f.metadata.part === spiderFile.part,
-      );
-    });
+    const notSynchedFiles = allSpiderFiles
+      .filter((f) => !ignoreNameChecks || f.document !== KycDocument.CHECK)
+      .filter((spiderFile) => {
+        return !allStorageFiles.some(
+          (f) =>
+            f.document === spiderFile.document &&
+            f.metadata.version === spiderFile.version &&
+            f.metadata.part === spiderFile.part,
+        );
+      });
 
     for (const document of notSynchedFiles) {
-      const data = await this.spiderApi.getBinaryDocument(
-        userDataId,
-        false,
-        document.document,
-        document.version,
-        document.part,
-      );
+      try {
+        const data = await this.spiderApi.getBinaryDocument(
+          userDataId,
+          isOrganization,
+          document.document,
+          document.version,
+          document.part,
+        );
 
-      await this.uploadFileToStorage(
-        userDataId,
-        isOrganization,
-        document.document,
-        document.version,
-        document.fileName,
-        data,
-        document.contentType,
-        {
-          document: document.document.toString(),
-          version: document.version,
-          part: document.part,
-          state: document.state.toString(),
-          creationTime: document.creationTime.toISOString(),
-          modificationTime: document.modificationTime.toISOString(),
-          label: document.label,
-          fileName: document.fileName,
-          contentType: document.contentType.toString(),
-          url: document.url,
-        },
-      );
+        await this.uploadFileToStorage(
+          userDataId,
+          isOrganization,
+          document.document,
+          document.version,
+          document.fileName,
+          data,
+          document.contentType,
+          {
+            document: document.document.toString(),
+            version: document.version,
+            part: document.part,
+            state: document.state.toString(),
+            creationTime: document.creationTime.toISOString(),
+            modificationTime: document.modificationTime.toISOString(),
+            label: document.label,
+            fileName: document.fileName,
+            contentType: document.contentType.toString(),
+            url: document.url,
+          },
+        );
+      } catch (e) {
+        throw new Error(
+          `Failed to sync KYC file (${document.document}-${document.version}-${document.part}) for user ${userDataId}: ${e.message}`,
+        );
+      }
     }
   }
 
@@ -423,7 +431,7 @@ export class SpiderSyncService {
     userDataId: number,
     isOrganization: boolean,
   ): Promise<{ document: KycDocument; version: string; name: string; metadata: Record<string, string> }[]> {
-    const blobs = await this.storageService.listBlobs(`Spider/${userDataId}${isOrganization ? '-organization' : ''}/`);
+    const blobs = await this.storageService.listBlobs(`spider/${userDataId}${isOrganization ? '-organization' : ''}/`);
     return blobs.map((b) => {
       const [_s, _u, document, version, name] = b.name.split('/');
       return { name, document: document as KycDocument, version, metadata: b.metadata };
@@ -440,7 +448,7 @@ export class SpiderSyncService {
     contentType: KycContentType,
     metadata: Record<string, string>,
   ) {
-    const blobName = `Spider/${userDataId}${isOrganization ? '-organization' : ''}/${document}/${version}/${name
+    const blobName = `spider/${userDataId}${isOrganization ? '-organization' : ''}/${document}/${version}/${name
       .split('/')
       .join('_')}`;
     await this.storageService.uploadBlob(blobName, data, contentType, metadata);

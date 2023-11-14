@@ -1,10 +1,12 @@
-import { Body, Controller, Delete, Get, Param, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/document-storage.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
+import { UploadFileDto } from 'src/subdomains/generic/user/models/user-data/dto/upload-file.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { KycService } from '../kyc/kyc.service';
 import { UpdateKycStatusDto } from './dto/update-kyc-status.dto';
@@ -22,6 +24,7 @@ export class UserDataController {
     private readonly userDataRepo: UserDataRepository,
     private readonly kycService: KycService,
     private readonly feeService: FeeService,
+    private readonly storageService: DocumentStorageService,
   ) {}
 
   @Get()
@@ -132,8 +135,8 @@ export class UserDataController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async syncKycFiles(@Param('id') id: string): Promise<void> {
-    return this.kycService.syncKycFiles(+id);
+  async syncKycFiles(@Param('id') id: string, @Query('ignoreNameChecks') ignoreNameChecks: string): Promise<void> {
+    return this.kycService.syncKycFiles(+id, ignoreNameChecks === 'true');
   }
 
   @Put(':id/kycStatus')
@@ -142,5 +145,24 @@ export class UserDataController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async updateKycStatus(@Param('id') id: string, @Body() dto: UpdateKycStatusDto): Promise<void> {
     return this.kycService.updateKycStatus(+id, dto);
+  }
+
+  @Post(':id/kycFile')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async uploadKycFile(@Param('id') id: string, @Body() dto: UploadFileDto): Promise<string> {
+    return this.storageService.uploadFile(
+      +id,
+      dto.documentType,
+      dto.originalName,
+      Buffer.from(dto.data, 'base64'),
+      dto.contentType,
+      {
+        document: dto.documentType.toString(),
+        creationTime: new Date().toISOString(),
+        fileName: dto.originalName,
+      },
+    );
   }
 }
