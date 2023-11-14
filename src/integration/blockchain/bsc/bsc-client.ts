@@ -15,13 +15,13 @@ export class BscClient extends EvmClient {
 
   constructor(
     http: HttpService,
-    scanApiUrl: string,
-    scanApiKey: string,
     gatewayUrl: string,
     privateKey: string,
     chainId: ChainId,
+    private scanApiUrl: string,
+    private scanApiKey: string,
   ) {
-    super(http, scanApiUrl, scanApiKey, chainId, gatewayUrl, privateKey);
+    super(http, gatewayUrl, privateKey, chainId);
 
     // old v2 router
     this.routerV2 = new ethers.Contract(

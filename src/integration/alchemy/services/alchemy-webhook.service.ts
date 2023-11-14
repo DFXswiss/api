@@ -8,7 +8,7 @@ import {
   WebhookType,
 } from 'alchemy-sdk';
 import { Observable, Subject, filter } from 'rxjs';
-import { GetConfig } from 'src/config/config';
+import { Config, GetConfig } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { AlchemyNetworkMapper } from '../alchemy-network-mapper';
 import { CreateWebhookDto } from '../dto/alchemy-create-webhook.dto';
@@ -50,8 +50,7 @@ export class AlchemyWebhookService {
       allWebhooks.webhooks.filter((wh) => wh.network === network).map((wh) => this.alchemy.notify.deleteWebhook(wh.id)),
     );
 
-    //const url = `${Config.url}/alchemy/addressWebhook`;
-    const url = 'https://dev.api.dfx.swiss/v1/alchemy/addressWebhook';
+    const url = `${Config.url}/alchemy/addressWebhook`;
 
     return (
       await Util.doInBatches(
@@ -66,10 +65,8 @@ export class AlchemyWebhookService {
     ).flat();
   }
 
-  getAddressWebhookObservable(networks: Network[]): Observable<AlchemyWebhookDto> {
-    return this.addressWebhookSubject
-      .asObservable()
-      .pipe(filter((data) => networks.includes(Network[data.event.network])));
+  getAddressWebhookObservable(network: Network): Observable<AlchemyWebhookDto> {
+    return this.addressWebhookSubject.asObservable().pipe(filter((data) => network === Network[data.event.network]));
   }
 
   processAddressWebhook(dto: AlchemyWebhookDto): void {

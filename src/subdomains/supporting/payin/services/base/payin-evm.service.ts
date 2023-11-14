@@ -37,17 +37,6 @@ export abstract class PayInEvmService {
     const allCoinTransactions = await this.#client.getNativeCoinTransactions(address, fromBlock);
     const allTokenTransactions = await this.#client.getERC20Transactions(address, fromBlock);
 
-    console.log('--------------------------------------------------------------------------------');
-    console.log(`Address: ${address} / Block: ${fromBlock}`);
-
-    console.log('--------------------------------------------------------------------------------');
-    console.log('allCoinTransactions:');
-    console.log(JSON.stringify(allCoinTransactions));
-    console.log('--------------------------------------------------------------------------------');
-    console.log('allTokenTransactions:');
-    console.log(JSON.stringify(allTokenTransactions));
-    console.log('--------------------------------------------------------------------------------');
-
     return [allCoinTransactions, allTokenTransactions];
   }
 

@@ -39,14 +39,7 @@ export abstract class EvmClient {
   private router: AlphaRouter;
   private alchemy: Alchemy;
 
-  constructor(
-    protected http: HttpService,
-    protected scanApiUrl: string,
-    protected scanApiKey: string,
-    protected chainId: ChainId,
-    gatewayUrl: string,
-    privateKey: string,
-  ) {
+  constructor(protected http: HttpService, gatewayUrl: string, privateKey: string, protected chainId: ChainId) {
     this.provider = new ethers.providers.JsonRpcProvider(gatewayUrl);
     this.wallet = new ethers.Wallet(privateKey, this.provider);
 

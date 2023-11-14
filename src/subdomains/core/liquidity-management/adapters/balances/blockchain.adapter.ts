@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { BigNumber as AlchemyBigNumber, OwnedToken } from 'alchemy-sdk';
 import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
 import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
@@ -157,25 +158,29 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     const blockchain = assets[0].blockchain;
     const client = this.evmRegistryService.getClient(blockchain);
 
-    const coinBalance = await client.getNativeCoinBalanceByAlchemy();
-    const tokenBalances = await client.getTokenBalancesByAlchemy();
+    let coinBalance: AlchemyBigNumber;
+    let tokenBalances: OwnedToken[];
+
+    try {
+      coinBalance = await client.getNativeCoinBalanceByAlchemy();
+      tokenBalances = await client.getTokenBalancesByAlchemy();
+    } catch (e) {
+      this.logger.error('Failed to update liquidity management balance for all assets:', e);
+      this.invalidateCacheFor(assets);
+      return;
+    }
 
     const tokenToBalanceMap = new Map<string, number>(
       tokenBalances.filter((t) => t.symbol).map((t) => [t.symbol.toUpperCase(), t.balance ? Number(t.balance) : 0]),
     );
 
     for (const asset of assets) {
-      try {
-        const balance =
-          asset.type === AssetType.COIN
-            ? client.fromWeiAmount(coinBalance)
-            : tokenToBalanceMap.get(asset.dexName.toUpperCase()) ?? 0;
+      const balance =
+        asset.type === AssetType.COIN
+          ? client.fromWeiAmount(coinBalance)
+          : tokenToBalanceMap.get(asset.dexName.toUpperCase()) ?? 0;
 
-        this.balanceCache.set(asset.id, balance);
-      } catch (e) {
-        this.logger.error(`Failed to update liquidity management balance for ${asset.uniqueName}:`, e);
-        this.invalidateCacheFor([asset]);
-      }
+      this.balanceCache.set(asset.id, balance);
     }
   }
 

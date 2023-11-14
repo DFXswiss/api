@@ -292,8 +292,6 @@ export class Configuration {
       }),
     },
     ethereum: {
-      ethScanApiUrl: process.env.ETH_SCAN_API_URL,
-      ethScanApiKey: process.env.ETH_SCAN_API_KEY,
       ethWalletAddress: process.env.ETH_WALLET_ADDRESS,
       ethWalletPrivateKey: process.env.ETH_WALLET_PRIVATE_KEY,
       ethGatewayUrl: process.env.ETH_GATEWAY_URL,
@@ -310,8 +308,6 @@ export class Configuration {
       pancakeRouterAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
     },
     optimism: {
-      optimismScanApiUrl: process.env.OPTIMISM_SCAN_API_URL,
-      optimismScanApiKey: process.env.OPTIMISM_SCAN_API_KEY,
       optimismWalletAddress: process.env.OPTIMISM_WALLET_ADDRESS,
       optimismWalletPrivateKey: process.env.OPTIMISM_WALLET_PRIVATE_KEY,
       optimismGatewayUrl: process.env.OPTIMISM_GATEWAY_URL,
@@ -319,8 +315,6 @@ export class Configuration {
       optimismChainId: +process.env.OPTIMISM_CHAIN_ID,
     },
     arbitrum: {
-      arbitrumScanApiUrl: process.env.ARBITRUM_SCAN_API_URL,
-      arbitrumScanApiKey: process.env.ARBITRUM_SCAN_API_KEY,
       arbitrumWalletAddress: process.env.ARBITRUM_WALLET_ADDRESS,
       arbitrumWalletPrivateKey: process.env.ARBITRUM_WALLET_PRIVATE_KEY,
       arbitrumGatewayUrl: process.env.ARBITRUM_GATEWAY_URL,

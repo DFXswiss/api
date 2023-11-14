@@ -1,8 +1,6 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
-import { AddressActivityResponse, GetAllWebhooksResponse } from 'alchemy-sdk';
+import { Body, Controller, Post } from '@nestjs/common';
+import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { CreateWebhookDto } from '../dto/alchemy-create-webhook.dto';
 import { AlchemyWebhookDto } from '../dto/alchemy-webhook.dto';
 import { AlchemyWebhookService } from '../services/alchemy-webhook.service';
 
@@ -13,23 +11,8 @@ export class AlchemyController {
 
   constructor(private readonly alchemyWebhookService: AlchemyWebhookService) {}
 
-  @Get('webhooks')
-  async getAllWebhooks(): Promise<GetAllWebhooksResponse> {
-    return this.alchemyWebhookService.getAllWebhooks();
-  }
-
-  @Get('webhookAddresses/:id')
-  async getWebhookAddresses(@Param('id') id: string): Promise<AddressActivityResponse> {
-    return this.alchemyWebhookService.getWebhookAddresses(id);
-  }
-
-  @Post('createAddressWebhook')
-  async createAddressWebhook(@Body() dto: CreateWebhookDto) {
-    return this.alchemyWebhookService.createAddressWebhook(dto);
-  }
-
   @Post('addressWebhook')
-  //@ApiExcludeEndpoint()
+  @ApiExcludeEndpoint()
   async addressWebhook(@Body() dto: AlchemyWebhookDto): Promise<void> {
     this.alchemyWebhookService.processAddressWebhook(dto);
   }

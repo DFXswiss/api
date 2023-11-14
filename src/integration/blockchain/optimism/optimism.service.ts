@@ -7,24 +7,9 @@ import { OptimismClient } from './optimism-client';
 @Injectable()
 export class OptimismService extends EvmService {
   constructor(http: HttpService) {
-    const {
-      optimismScanApiUrl,
-      optimismScanApiKey,
-      optimismGatewayUrl,
-      optimismApiKey,
-      optimismWalletPrivateKey,
-      optimismChainId,
-    } = GetConfig().blockchain.optimism;
+    const { optimismGatewayUrl, optimismApiKey, optimismWalletPrivateKey, optimismChainId } =
+      GetConfig().blockchain.optimism;
 
-    super(
-      http,
-      optimismScanApiUrl,
-      optimismScanApiKey,
-      optimismGatewayUrl,
-      optimismApiKey,
-      optimismWalletPrivateKey,
-      optimismChainId,
-      OptimismClient,
-    );
+    super(http, optimismGatewayUrl, optimismApiKey, optimismWalletPrivateKey, optimismChainId, OptimismClient);
   }
 }

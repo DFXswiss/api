@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { Network } from 'alchemy-sdk';
 import { Config } from 'src/config/config';
+import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-mapper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -28,7 +28,7 @@ export class ArbitrumStrategy extends EvmStrategy implements OnModuleInit {
     this.addressWebhookMessageQueue = new QueueHandler();
 
     this.alchemyWebhookService
-      .getAddressWebhookObservable([Network.ARB_MAINNET, Network.ARB_GOERLI])
+      .getAddressWebhookObservable(AlchemyNetworkMapper.toAlchemyNetworkByBlockchain(this.blockchain))
       .subscribe((dto) => this.processAddressWebhookMessageQueue(dto));
   }
 
@@ -75,7 +75,6 @@ export class ArbitrumStrategy extends EvmStrategy implements OnModuleInit {
   //*** JOBS ***//
 
   async checkPayInEntries(): Promise<void> {
-    this.logger.info('Arbitrum checkPayInEntries() ...');
     await this.processNewPayInEntries();
   }
 }
