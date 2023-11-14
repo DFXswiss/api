@@ -2,7 +2,7 @@ version: '3.7'
 
 services:
   testnet-node:
-    image: defi/defichain:3.2.8
+    image: defi/defichain:4.0.0
     restart: always
     ports:
       - '8000:18554'
