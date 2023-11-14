@@ -165,7 +165,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
       coinBalance = await client.getNativeCoinBalanceByAlchemy();
       tokenBalances = await client.getTokenBalancesByAlchemy();
     } catch (e) {
-      this.logger.error('Failed to update liquidity management balance for all assets:', e);
+      this.logger.error(`Failed to update liquidity management balance for all assets of blockchain ${blockchain}:`, e);
       this.invalidateCacheFor(assets);
       return;
     }
