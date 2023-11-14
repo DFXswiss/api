@@ -415,9 +415,7 @@ export class BuyCrypto extends IEntity {
       inputReferenceAmountMinusFee: this.inputReferenceAmount - totalFeeAmount,
       amountInEur,
       amountInChf,
-      usedRef: fee.payoutRefBonus ? this.usedRef : '000-000', // maybe remove this line?
-      refProvision: fee.payoutRefBonus ? this.user.refFeePercent : 0,
-      refFactor: fee.payoutRefBonus ? 1 : 0,
+      refFactor: fee.payoutRefBonus ? this.refFactor : 0,
     };
 
     Object.assign(this, update);
