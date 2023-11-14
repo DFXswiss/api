@@ -423,7 +423,7 @@ export class SpiderSyncService {
     userDataId: number,
     isOrganization: boolean,
   ): Promise<{ document: KycDocument; version: string; name: string; metadata: Record<string, string> }[]> {
-    const blobs = await this.storageService.listBlobs(`Spider/${userDataId}${isOrganization ? '-organization' : ''}/`);
+    const blobs = await this.storageService.listBlobs(`spider/${userDataId}${isOrganization ? '-organization' : ''}/`);
     return blobs.map((b) => {
       const [_s, _u, document, version, name] = b.name.split('/');
       return { name, document: document as KycDocument, version, metadata: b.metadata };
@@ -440,7 +440,7 @@ export class SpiderSyncService {
     contentType: KycContentType,
     metadata: Record<string, string>,
   ) {
-    const blobName = `Spider/${userDataId}${isOrganization ? '-organization' : ''}/${document}/${version}/${name
+    const blobName = `spider/${userDataId}${isOrganization ? '-organization' : ''}/${document}/${version}/${name
       .split('/')
       .join('_')}`;
     await this.storageService.uploadBlob(blobName, data, contentType, metadata);

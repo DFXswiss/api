@@ -43,11 +43,11 @@ export class DocumentStorageService {
 
   // --- HELPER METHODS --- //
   private toFileId(userDataId: number, type: KycFileType, name: string): string {
-    return `${userDataId}/${type}/${name}`;
+    return `user/${userDataId}/${type}/${name}`;
   }
 
   private fromFileId(fileId: string): [number, KycFileType, string] {
-    const [userDataId, type, name] = fileId.split('/');
+    const [_user, userDataId, type, name] = fileId.split('/');
     return [+userDataId, type as KycFileType, name];
   }
 }
