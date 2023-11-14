@@ -119,7 +119,7 @@ describe('BuyController', () => {
       minFeeTarget: 0,
       exchangeRate: 10,
       feeAmount: 3,
-      fee: { rate: 2.9, fixed: 0 },
+      fee: { rate: 2.9, fixed: 0, payoutRefBonus: true },
       rate: 0.2,
       estimatedAmount: 100,
       sourceAmount: 50,
