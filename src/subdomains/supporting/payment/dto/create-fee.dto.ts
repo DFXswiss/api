@@ -29,7 +29,12 @@ export class CreateFeeDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsNumber()
-  value: number;
+  rate: number;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsNumber()
+  fixed: number;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -72,4 +77,9 @@ export class CreateFeeDto {
   @IsOptional()
   @IsBoolean()
   active = true;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  payoutRefBonus: boolean;
 }

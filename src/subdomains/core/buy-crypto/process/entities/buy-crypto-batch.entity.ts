@@ -155,7 +155,7 @@ export class BuyCryptoBatch extends IEntity {
   }
 
   get smallestTransactionReferenceAmount(): number {
-    return Util.minObj<BuyCrypto>(this.transactions, 'outputReferenceAmount');
+    return Util.minObjValue<BuyCrypto>(this.transactions, 'outputReferenceAmount');
   }
 
   //*** HELPER METHODS ***//

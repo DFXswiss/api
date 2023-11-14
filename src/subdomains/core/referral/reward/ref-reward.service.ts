@@ -20,7 +20,7 @@ import { RefRewardRepository } from './ref-reward.repository';
 
 // min. payout limits (EUR), undefined -> payout disabled
 const PayoutLimits: { [k in Blockchain]: number } = {
-  [Blockchain.DEFICHAIN]: 1,
+  [Blockchain.DEFICHAIN]: undefined,
   [Blockchain.ARBITRUM]: 10,
   [Blockchain.BITCOIN]: 100,
   [Blockchain.LIGHTNING]: undefined,

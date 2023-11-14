@@ -1,28 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AzureStorageService, BlobContent } from 'src/integration/infrastructure/azure-storage.service';
-
-// TODO: move to separate file
-export enum KycFileType {
-  NAME_CHECK = 'NameCheck',
-  USER_INFORMATION = 'UserInformation',
-  IDENTIFICATION = 'Identification',
-  USER_NOTES = 'UserNotes',
-  TRANSACTION_NOTES = 'TransactionNotes',
-}
-
-export enum KycContentType {
-  TEXT = 'text/plain',
-  // TODO
-}
-
-export interface KycFile {
-  type: KycFileType;
-  name: string;
-  contentType: KycContentType;
-  created: Date;
-  updated: Date;
-  metadata: Record<string, string>;
-}
+import { KycContentType, KycFile, KycFileType } from './kyc-file.dto';
 
 @Injectable()
 export class DocumentStorageService {
@@ -37,8 +15,9 @@ export class DocumentStorageService {
     return blobs.map((b) => {
       const [_, type, name] = this.fromFileId(b.name);
       return {
-        name,
         type,
+        name,
+        url: b.url,
         contentType: b.contentType as KycContentType,
         created: b.created,
         updated: b.updated,
@@ -54,8 +33,8 @@ export class DocumentStorageService {
     data: Buffer,
     contentType: KycContentType,
     metadata?: Record<string, string>,
-  ): Promise<void> {
-    await this.storageService.uploadBlob(this.toFileId(userDataId, type, name), data, contentType, metadata);
+  ): Promise<string> {
+    return this.storageService.uploadBlob(this.toFileId(userDataId, type, name), data, contentType, metadata);
   }
 
   async downloadFile(userDataId: number, type: KycFileType, name: string): Promise<BlobContent> {
@@ -64,11 +43,11 @@ export class DocumentStorageService {
 
   // --- HELPER METHODS --- //
   private toFileId(userDataId: number, type: KycFileType, name: string): string {
-    return `${userDataId}/${type}/${name}`;
+    return `user/${userDataId}/${type}/${name}`;
   }
 
   private fromFileId(fileId: string): [number, KycFileType, string] {
-    const [userDataId, type, name] = fileId.split('/');
+    const [_, userDataId, type, name] = fileId.split('/');
     return [+userDataId, type as KycFileType, name];
   }
 }

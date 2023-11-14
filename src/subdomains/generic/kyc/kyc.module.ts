@@ -14,6 +14,6 @@ import { NameCheckService } from './services/name-check-log.service';
   imports: [TypeOrmModule.forFeature([KycLog, NameCheckLog]), SharedModule, forwardRef(() => UserModule)],
   controllers: [KycAdminController],
   providers: [DocumentStorageService, NameCheckService, NameCheckLogRepository, DilisenseService],
-  exports: [NameCheckService],
+  exports: [NameCheckService, DocumentStorageService],
 })
 export class KycModule {}

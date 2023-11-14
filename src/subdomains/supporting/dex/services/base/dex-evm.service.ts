@@ -93,6 +93,6 @@ export abstract class DexEvmService {
       (o) => o.targetAsset.dexName === assetName && o.targetAsset.blockchain === this.blockchain,
     );
 
-    return Util.sumObj<LiquidityOrder>(pendingOrders, 'estimatedTargetAmount');
+    return Util.sumObjValue<LiquidityOrder>(pendingOrders, 'estimatedTargetAmount');
   }
 }

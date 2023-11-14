@@ -75,7 +75,7 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
     payoutTxId: string,
   ): Promise<void> {
     const [isComplete, totalPayoutFee] = await this.jellyfishService.getPayoutCompletionData(context, payoutTxId);
-    const totalPayoutAmount = Util.sumObj<PayoutOrder>(orders, 'amount');
+    const totalPayoutAmount = Util.sumObjValue<PayoutOrder>(orders, 'amount');
 
     if (isComplete) {
       for (const order of orders) {
@@ -159,7 +159,7 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
   }
 
   private fixRoundingMismatch(orders: PayoutOrder[], roundedPayouts: PayoutGroup): PayoutGroup {
-    const payoutTotal = Util.round(Util.sumObj(orders, 'amount'), 8);
+    const payoutTotal = Util.round(Util.sumObjValue(orders, 'amount'), 8);
 
     return Util.fixRoundingMismatch(roundedPayouts, 'amount', payoutTotal);
   }

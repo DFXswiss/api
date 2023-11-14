@@ -479,7 +479,12 @@ export class Configuration {
     tenantId: process.env.AZURE_TENANT_ID,
     clientId: process.env.AZURE_CLIENT_ID,
     clientSecret: process.env.AZURE_CLIENT_SECRET,
-    storageConnectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
+    storage: {
+      url: process.env.AZURE_STORAGE_CONNECTION_STRING?.split(';')
+        .find((p) => p.includes('BlobEndpoint'))
+        ?.replace('BlobEndpoint=', ''),
+      connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
+    },
   };
 
   alby = {

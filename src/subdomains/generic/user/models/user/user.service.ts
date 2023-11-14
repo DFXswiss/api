@@ -20,6 +20,7 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
 import { KycService } from '../kyc/kyc.service';
@@ -275,7 +276,7 @@ export class UserService {
   }
 
   // --- FEES --- //
-  async getUserFee(userId: number, direction: FeeDirectionType, asset: Asset, txVolume?: number): Promise<number> {
+  async getUserFee(userId: number, direction: FeeDirectionType, asset: Asset, txVolume?: number): Promise<FeeDto> {
     const user = await this.getUser(userId, { userData: true });
     if (!user) throw new NotFoundException('User not found');
 
