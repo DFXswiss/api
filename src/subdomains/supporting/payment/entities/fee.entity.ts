@@ -1,7 +1,9 @@
+import { BadRequestException } from '@nestjs/common';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Column, Entity, Index } from 'typeorm';
+import { FeeRequest } from '../services/fee.service';
 
 export enum FeeType {
   BASE = 'Base',
@@ -65,7 +67,9 @@ export class Fee extends IEntity {
 
   //*** FACTORY METHODS ***//
 
-  increaseUsage(): UpdateResult<Fee> {
+  increaseUsage(accountType: AccountType): UpdateResult<Fee> {
+    this.verifyFeeForUser(accountType);
+
     const update: Partial<Fee> = {
       usages: this.usages++,
     };
@@ -76,6 +80,8 @@ export class Fee extends IEntity {
   }
 
   increaseTxUsage(): UpdateResult<Fee> {
+    if (this.isExpiredFee()) throw new BadRequestException('Fee is expired - increaseTxUsage forbidden');
+
     const update: Partial<Fee> = {
       txUsages: this.txUsages++,
     };
@@ -83,6 +89,34 @@ export class Fee extends IEntity {
     Object.assign(this, update);
 
     return [this.id, update];
+  }
+
+  verifyFeeForTx(request: FeeRequest): boolean {
+    return !(
+      this.isExpiredFee() ||
+      (this.accountType && this.accountType !== request.accountType) ||
+      (this.direction && this.direction !== request.direction) ||
+      (this.assetList?.length && !this.assetList.includes(request.asset?.id)) ||
+      (this.maxTxVolume && this.maxTxVolume < request.txVolume)
+    );
+  }
+
+  isExpiredFee(): boolean {
+    return (
+      !this ||
+      !this.active ||
+      (this.expiryDate && this.expiryDate < new Date()) ||
+      (this.maxTxUsages && this.txUsages >= this.maxTxUsages)
+    );
+  }
+
+  verifyFeeForUser(accountType: AccountType): void {
+    if (this.isExpiredFee()) throw new BadRequestException('Discount code is expired');
+    if (this.accountType && this.accountType !== accountType)
+      throw new BadRequestException('Account Type not matching');
+
+    if (this.maxUsages && this.usages >= this.maxUsages)
+      throw new BadRequestException('Max usages for discount code taken');
   }
 
   get assetList(): number[] {

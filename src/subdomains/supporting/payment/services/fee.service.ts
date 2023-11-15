@@ -102,20 +102,24 @@ export class FeeService {
 
   async addDiscountCodeUser(userData: UserData, discountCode: string): Promise<void> {
     const fee = await this.getFeeByDiscountCode(discountCode);
-    this.verifyFee(fee, userData.accountType);
 
-    await this.feeRepo.update(...fee.increaseUsage());
+    await this.feeRepo.update(...fee.increaseUsage(userData.accountType));
 
     await this.userDataService.addFee(userData, fee.id);
   }
 
   async addFeeInternal(userData: UserData, feeId: number): Promise<void> {
     const fee = await this.feeRepo.findOneBy({ id: feeId });
-    this.verifyFee(fee, userData.accountType);
 
-    await this.feeRepo.update(...fee.increaseUsage());
+    await this.feeRepo.update(...fee.increaseUsage(userData.accountType));
 
     await this.userDataService.addFee(userData, fee.id);
+  }
+
+  async increaseTxUsage(feeId: number): Promise<void> {
+    const fee = await this.feeRepo.findOneBy({ id: feeId });
+
+    await this.feeRepo.update(...fee.increaseTxUsage());
   }
 
   async getFeeByDiscountCode(discountCode: string): Promise<Fee> {
@@ -134,14 +138,6 @@ export class FeeService {
     const defaultFees = await this.getValidFees({ ...request, accountType });
 
     return this.calculateFee(defaultFees);
-  }
-
-  async increaseTxUsage(feeId: number): Promise<void> {
-    const fee = await this.feeRepo.findOneBy({ id: feeId });
-
-    if (this.isExpiredFee(fee)) throw new BadRequestException('Fee is expired - increaseTxUsage forbidden');
-
-    await this.feeRepo.update(...fee.increaseTxUsage());
   }
 
   // --- HELPER METHODS --- //
@@ -212,36 +208,9 @@ export class FeeService {
 
     // remove ExpiredFee
     userFees
-      .filter((fee) => discountFeeIds.includes(fee.id) && this.isExpiredFee(fee))
+      .filter((fee) => discountFeeIds.includes(fee.id) && fee.isExpiredFee())
       .forEach((fee) => this.userDataService.removeFee(request.userData, fee.id));
 
-    return userFees.filter((fee) => this.isValidFee(fee, { ...request, accountType }));
-  }
-
-  private isValidFee(fee: Fee, request: FeeRequest): boolean {
-    return !(
-      this.isExpiredFee(fee) ||
-      (fee.accountType && fee.accountType !== request.accountType) ||
-      (fee.direction && fee.direction !== request.direction) ||
-      (fee.assetList?.length && !fee.assetList.includes(request.asset?.id)) ||
-      (fee.maxTxVolume && fee.maxTxVolume < request.txVolume)
-    );
-  }
-
-  private isExpiredFee(fee: Fee): boolean {
-    return (
-      !fee ||
-      !fee.active ||
-      (fee.expiryDate && fee.expiryDate < new Date()) ||
-      (fee.maxTxUsages && fee.txUsages >= fee.maxTxUsages)
-    );
-  }
-
-  private verifyFee(fee: Fee, accountType: AccountType): void {
-    if (this.isExpiredFee(fee)) throw new BadRequestException('Discount code is expired');
-    if (fee.accountType && fee.accountType !== accountType) throw new BadRequestException('Account Type not matching');
-
-    if (fee.maxUsages && fee.usages >= fee.maxUsages)
-      throw new BadRequestException('Max usages for discount code taken');
+    return userFees.filter((fee) => fee.verifyFeeForTx({ ...request, accountType }));
   }
 }
