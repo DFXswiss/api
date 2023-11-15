@@ -51,16 +51,16 @@ export class Fee extends IEntity {
 
   // Acceptance columns
 
-  @Column({ type: 'float', nullable: true })
+  @Column({ type: 'integer', nullable: true })
   maxUsages: number;
 
-  @Column({ type: 'float', default: 0 })
+  @Column({ type: 'integer', default: 0 })
   usages: number;
 
-  @Column({ type: 'float', nullable: true })
+  @Column({ type: 'integer', nullable: true })
   maxTxUsages: number;
 
-  @Column({ type: 'float', default: 0 })
+  @Column({ type: 'integer', default: 0 })
   txUsages: number;
 
   //*** FACTORY METHODS ***//

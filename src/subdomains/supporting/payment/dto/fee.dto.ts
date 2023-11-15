@@ -1,5 +1,5 @@
 export class FeeDto {
-  feeIds: string; // Semicolon separated id's
+  feeIds: number[];
   rate: number;
   fixed: number;
   payoutRefBonus: boolean;

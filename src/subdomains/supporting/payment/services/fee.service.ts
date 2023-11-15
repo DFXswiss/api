@@ -147,7 +147,7 @@ export class FeeService {
     if (customFee) {
       await this.feeRepo.update(...customFee.increaseTxUsage());
       return {
-        feeIds: customFee.id.toString(),
+        feeIds: [customFee.id],
         rate: customFee.rate,
         fixed: customFee.fixed ?? 0,
         payoutRefBonus: customFee.payoutRefBonus,
@@ -173,9 +173,7 @@ export class FeeService {
     );
 
     const discountFee: FeeDto = {
-      feeIds:
-        (positiveDiscountFee ? `;${positiveDiscountFee?.id}` : '') +
-        (negativeDiscountFee ? `;${negativeDiscountFee?.id}` : ''),
+      feeIds: [positiveDiscountFee?.id, negativeDiscountFee?.id],
       rate: (positiveDiscountFee?.rate ?? 0) + (negativeDiscountFee?.rate ?? 0),
       fixed: (positiveDiscountFee?.fixed ?? 0) + (negativeDiscountFee?.fixed ?? 0),
       payoutRefBonus: (positiveDiscountFee?.payoutRefBonus ?? true) && (negativeDiscountFee?.payoutRefBonus ?? true),
@@ -184,14 +182,14 @@ export class FeeService {
     if (!baseFee) throw new InternalServerErrorException('Base fee is missing');
     if (baseFee.rate - discountFee.rate < 0) {
       this.logger.warn(`UserDiscount higher userBaseFee! UserDataId: ${userDataId}`);
-      return { feeIds: baseFee.id.toString(), rate: baseFee.rate, fixed: baseFee.fixed, payoutRefBonus: true };
+      return { feeIds: [baseFee.id], rate: baseFee.rate, fixed: baseFee.fixed, payoutRefBonus: true };
     }
 
     positiveDiscountFee && (await this.feeRepo.update(...positiveDiscountFee.increaseTxUsage()));
     negativeDiscountFee && (await this.feeRepo.update(...negativeDiscountFee.increaseTxUsage()));
 
     return {
-      feeIds: `${baseFee.id}${discountFee.feeIds}`,
+      feeIds: [baseFee.id, ...discountFee.feeIds],
       rate: baseFee.rate - discountFee.rate,
       fixed: Math.max(baseFee.fixed - discountFee.fixed, 0),
       payoutRefBonus: baseFee.payoutRefBonus && discountFee.payoutRefBonus,

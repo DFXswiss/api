@@ -117,7 +117,7 @@ export class BuyCrypto extends IEntity {
 
   // Fee
   @Column({ length: 256, nullable: true })
-  usedFeeIds: string;
+  usedFees: string; // Semicolon separated id's
 
   @Column({ type: 'float', nullable: true })
   percentFee: number;
@@ -407,6 +407,8 @@ export class BuyCrypto extends IEntity {
     totalFeeAmount: number,
     totalFeeAmountChf: number,
   ): UpdateResult<BuyCrypto> {
+    Util.removeNullFields(fee.feeIds);
+
     const update: Partial<BuyCrypto> = {
       absoluteFeeAmount: fee.fixed,
       percentFee: fee.rate,
@@ -419,7 +421,7 @@ export class BuyCrypto extends IEntity {
       amountInEur,
       amountInChf,
       refFactor: fee.payoutRefBonus ? this.refFactor : 0,
-      usedFeeIds: fee.feeIds,
+      usedFees: fee.feeIds?.join(';'),
     };
 
     Object.assign(this, update);
