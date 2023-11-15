@@ -4,6 +4,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { Between, In, IsNull, Not } from 'typeorm';
@@ -25,6 +26,7 @@ export class BuyCryptoPreparationService {
     private readonly bankDataService: BankDataService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly assetService: AssetService,
+    private readonly feeService: FeeService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
@@ -129,6 +131,10 @@ export class BuyCryptoPreparationService {
 
         const referenceEurPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatEur);
         const referenceChfPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatChf);
+
+        for(const feeId of fee.feeIds) {
+          await this.feeService.increaseTxUsage(feeId);
+        }
 
         await this.buyCryptoRepo.update(
           ...entity.setFeeAndFiatReference(

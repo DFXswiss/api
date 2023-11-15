@@ -136,6 +136,14 @@ export class FeeService {
     return this.calculateFee(defaultFees);
   }
 
+  async increaseTxUsage(feeId: number): Promise<void> {
+    const fee = await this.feeRepo.findOneBy({ id: feeId });
+
+    if (this.isExpiredFee(fee)) throw new BadRequestException('Fee is expired - increaseTxUsage forbidden');
+
+    await this.feeRepo.update(...fee.increaseTxUsage());
+  }
+
   // --- HELPER METHODS --- //
 
   private async calculateFee(fees: Fee[], userDataId?: number): Promise<FeeDto> {
@@ -144,15 +152,13 @@ export class FeeService {
       fees.filter((fee) => fee.type === FeeType.CUSTOM),
       'rate',
     );
-    if (customFee) {
-      await this.feeRepo.update(...customFee.increaseTxUsage());
+    if (customFee)
       return {
         feeIds: [customFee.id],
         rate: customFee.rate,
         fixed: customFee.fixed ?? 0,
         payoutRefBonus: customFee.payoutRefBonus,
       };
-    }
 
     // get min base fee
     const baseFee = Util.minObj(
@@ -184,9 +190,6 @@ export class FeeService {
       this.logger.warn(`UserDiscount higher userBaseFee! UserDataId: ${userDataId}`);
       return { feeIds: [baseFee.id], rate: baseFee.rate, fixed: baseFee.fixed, payoutRefBonus: true };
     }
-
-    positiveDiscountFee && (await this.feeRepo.update(...positiveDiscountFee.increaseTxUsage()));
-    negativeDiscountFee && (await this.feeRepo.update(...negativeDiscountFee.increaseTxUsage()));
 
     return {
       feeIds: [baseFee.id, ...discountFee.feeIds],
