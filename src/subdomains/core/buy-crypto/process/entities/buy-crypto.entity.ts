@@ -116,6 +116,9 @@ export class BuyCrypto extends IEntity {
   highRisk: boolean;
 
   // Fee
+  @Column({ length: 256, nullable: true })
+  usedFeeIds: string;
+
   @Column({ type: 'float', nullable: true })
   percentFee: number;
 
@@ -416,6 +419,7 @@ export class BuyCrypto extends IEntity {
       amountInEur,
       amountInChf,
       refFactor: fee.payoutRefBonus ? this.refFactor : 0,
+      usedFeeIds: fee.feeIds,
     };
 
     Object.assign(this, update);

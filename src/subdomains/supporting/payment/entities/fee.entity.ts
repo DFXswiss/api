@@ -1,4 +1,4 @@
-import { IEntity } from 'src/shared/models/entity';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Column, Entity, Index } from 'typeorm';
@@ -54,7 +54,36 @@ export class Fee extends IEntity {
   @Column({ type: 'float', nullable: true })
   maxUsages: number;
 
+  @Column({ type: 'float', default: 0 })
+  usages: number;
+
+  @Column({ type: 'float', nullable: true })
+  maxTxUsages: number;
+
+  @Column({ type: 'float', default: 0 })
+  txUsages: number;
+
   //*** FACTORY METHODS ***//
+
+  increaseUsage(): UpdateResult<Fee> {
+    const update: Partial<Fee> = {
+      usages: this.usages++,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  increaseTxUsage(): UpdateResult<Fee> {
+    const update: Partial<Fee> = {
+      txUsages: this.txUsages++,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
 
   get assetList(): number[] {
     return this.assets?.split(';')?.map(Number);

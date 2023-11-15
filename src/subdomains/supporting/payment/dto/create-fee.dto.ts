@@ -75,6 +75,11 @@ export class CreateFeeDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsNumber()
+  maxTxUsages: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsBoolean()
   active = true;
 

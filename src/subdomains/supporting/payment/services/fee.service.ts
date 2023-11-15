@@ -102,14 +102,18 @@ export class FeeService {
 
   async addDiscountCodeUser(userData: UserData, discountCode: string): Promise<void> {
     const fee = await this.getFeeByDiscountCode(discountCode);
-    await this.verifyFee(fee, userData.accountType);
+    this.verifyFee(fee, userData.accountType);
+
+    await this.feeRepo.update(...fee.increaseUsage());
 
     await this.userDataService.addFee(userData, fee.id);
   }
 
   async addFeeInternal(userData: UserData, feeId: number): Promise<void> {
     const fee = await this.feeRepo.findOneBy({ id: feeId });
-    await this.verifyFee(fee, userData.accountType);
+    this.verifyFee(fee, userData.accountType);
+
+    await this.feeRepo.update(...fee.increaseUsage());
 
     await this.userDataService.addFee(userData, fee.id);
   }
@@ -134,14 +138,21 @@ export class FeeService {
 
   // --- HELPER METHODS --- //
 
-  private calculateFee(fees: Fee[], userDataId?: number): FeeDto {
+  private async calculateFee(fees: Fee[], userDataId?: number): Promise<FeeDto> {
     // get min custom fee
     const customFee = Util.minObj(
       fees.filter((fee) => fee.type === FeeType.CUSTOM),
       'rate',
     );
-    if (customFee)
-      return { rate: customFee.rate, fixed: customFee.fixed ?? 0, payoutRefBonus: customFee.payoutRefBonus };
+    if (customFee) {
+      await this.feeRepo.update(...customFee.increaseTxUsage());
+      return {
+        feeIds: customFee.id.toString(),
+        rate: customFee.rate,
+        fixed: customFee.fixed ?? 0,
+        payoutRefBonus: customFee.payoutRefBonus,
+      };
+    }
 
     // get min base fee
     const baseFee = Util.minObj(
@@ -162,6 +173,9 @@ export class FeeService {
     );
 
     const discountFee: FeeDto = {
+      feeIds:
+        (positiveDiscountFee ? `;${positiveDiscountFee?.id}` : '') +
+        (negativeDiscountFee ? `;${negativeDiscountFee?.id}` : ''),
       rate: (positiveDiscountFee?.rate ?? 0) + (negativeDiscountFee?.rate ?? 0),
       fixed: (positiveDiscountFee?.fixed ?? 0) + (negativeDiscountFee?.fixed ?? 0),
       payoutRefBonus: (positiveDiscountFee?.payoutRefBonus ?? true) && (negativeDiscountFee?.payoutRefBonus ?? true),
@@ -170,10 +184,14 @@ export class FeeService {
     if (!baseFee) throw new InternalServerErrorException('Base fee is missing');
     if (baseFee.rate - discountFee.rate < 0) {
       this.logger.warn(`UserDiscount higher userBaseFee! UserDataId: ${userDataId}`);
-      return { rate: baseFee.rate, fixed: baseFee.fixed, payoutRefBonus: true };
+      return { feeIds: baseFee.id.toString(), rate: baseFee.rate, fixed: baseFee.fixed, payoutRefBonus: true };
     }
 
+    positiveDiscountFee && (await this.feeRepo.update(...positiveDiscountFee.increaseTxUsage()));
+    negativeDiscountFee && (await this.feeRepo.update(...negativeDiscountFee.increaseTxUsage()));
+
     return {
+      feeIds: `${baseFee.id}${discountFee.feeIds}`,
       rate: baseFee.rate - discountFee.rate,
       fixed: Math.max(baseFee.fixed - discountFee.fixed, 0),
       payoutRefBonus: baseFee.payoutRefBonus && discountFee.payoutRefBonus,
@@ -210,19 +228,19 @@ export class FeeService {
   }
 
   private isExpiredFee(fee: Fee): boolean {
-    return !fee || !fee.active || (fee.expiryDate && fee.expiryDate < new Date());
+    return (
+      !fee ||
+      !fee.active ||
+      (fee.expiryDate && fee.expiryDate < new Date()) ||
+      (fee.maxTxUsages && fee.txUsages >= fee.maxTxUsages)
+    );
   }
 
-  private async verifyFee(fee: Fee, accountType: AccountType): Promise<void> {
+  private verifyFee(fee: Fee, accountType: AccountType): void {
     if (this.isExpiredFee(fee)) throw new BadRequestException('Discount code is expired');
     if (fee.accountType && fee.accountType !== accountType) throw new BadRequestException('Account Type not matching');
 
-    if (fee.maxUsages && (await this.hasMaxUsageExceeded(fee)))
+    if (fee.maxUsages && fee.usages >= fee.maxUsages)
       throw new BadRequestException('Max usages for discount code taken');
-  }
-
-  private async hasMaxUsageExceeded(fee: Fee): Promise<boolean> {
-    const usages = await this.userDataService.getFeeUsages(fee.id);
-    return usages >= fee.maxUsages;
   }
 }
