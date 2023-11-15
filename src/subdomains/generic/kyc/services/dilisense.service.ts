@@ -10,11 +10,16 @@ export class DilisenseService {
   constructor(private readonly http: HttpService) {}
 
   async getRiskData(name: string, dob: Date): Promise<DilisenseApiData> {
-    // TODO fix date String
-    const url = `${this.baseUrl}?names=${name}&fuzzy_search=0&dob=${dob.toISOString}`;
+    const url = `${this.baseUrl}?names=${name}&dob=${dob.toLocaleDateString('en-GB')}`;
 
     try {
-      return this.http.get<DilisenseApiData>(url, Config.dilisense.config);
+      return await this.http.get<DilisenseApiData>(url, {
+        tryCount: 3,
+        headers: {
+          Accept: 'application/json',
+          'x-api-key': Config.dilisense.key,
+        },
+      });
     } catch (e) {
       throw new ServiceUnavailableException(e);
     }

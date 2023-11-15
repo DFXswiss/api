@@ -79,11 +79,11 @@ export class NameCheckService implements OnModuleInit {
     const entity = this.nameCheckLogRepo.create({
       type: 'NameCheck',
       result,
-      riskRate,
+      riskStatus: riskRate,
       userData: bankData.userData,
       bankData,
-      manualRateTimestamp: existing?.manualRateTimestamp,
-      manualRiskRate: existing?.manualRiskRate,
+      riskEvaluationDate: existing?.riskEvaluationDate,
+      riskEvaluation: existing?.riskEvaluation,
       comment: existing?.comment,
     });
 
@@ -97,7 +97,7 @@ export class NameCheckService implements OnModuleInit {
 
   private async hasOpenNameChecks(userData: UserData): Promise<boolean> {
     const existing = await this.nameCheckLogRepo.findOne({
-      where: { userData: { id: userData.id }, manualRiskRate: IsNull(), riskRate: RiskStatus.SANCTIONED },
+      where: { userData: { id: userData.id }, riskEvaluation: IsNull(), riskStatus: RiskStatus.SANCTIONED },
       relations: { userData: true },
     });
 

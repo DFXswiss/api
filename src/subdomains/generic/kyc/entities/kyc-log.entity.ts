@@ -1,9 +1,9 @@
-import { IEntity } from 'src/shared/models/entity';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Column, Entity, ManyToOne, TableInheritance } from 'typeorm';
 
 @Entity()
-@TableInheritance({ column: { type: 'nvarchar', name: 'eventType' } })
+@TableInheritance({ column: { type: 'nvarchar', name: 'type' } })
 export class KycLog extends IEntity {
   @Column({ length: 256 })
   type: string;
@@ -19,4 +19,15 @@ export class KycLog extends IEntity {
 
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;
+
+  // --- ENTITY METHODS --- //
+  setPdfUrl(pdfUrl: string): UpdateResult<KycLog> {
+    const update: Partial<KycLog> = {
+      pdfUrl,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
 }

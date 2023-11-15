@@ -5,7 +5,7 @@ import { RiskStatus } from '../entities/name-check-log.entity';
 export class CreateNameCheckLogDto {
   eventType: string;
   result: string;
-  riskRate: RiskStatus;
+  riskStatus: RiskStatus;
   userData: UserData;
   bankData: BankData;
 }

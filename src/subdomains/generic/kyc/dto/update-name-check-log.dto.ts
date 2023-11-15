@@ -1,10 +1,10 @@
 import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
-import { ManualRiskRate } from '../entities/name-check-log.entity';
+import { RiskEvaluation } from '../entities/name-check-log.entity';
 
 export class UpdateNameCheckLogDto {
   @IsNotEmpty()
-  @IsEnum(ManualRiskRate)
-  manualRiskRate: ManualRiskRate;
+  @IsEnum(RiskEvaluation)
+  riskEvaluation: RiskEvaluation;
 
   @IsNotEmpty()
   @IsString()

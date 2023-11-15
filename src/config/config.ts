@@ -414,13 +414,7 @@ export class Configuration {
 
   dilisense = {
     jsonPath: process.env.DILISENSE_JSON_PATH,
-    config: {
-      tryCount: 3,
-      headers: {
-        Accept: 'application/json',
-        'x-api-key': process.env.DILISENSE_KEY,
-      },
-    },
+    key: process.env.DILISENSE_KEY,
   };
 
   sepaTools = {
