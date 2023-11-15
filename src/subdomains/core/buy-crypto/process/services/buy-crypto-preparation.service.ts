@@ -132,7 +132,8 @@ export class BuyCryptoPreparationService {
         const referenceEurPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatEur);
         const referenceChfPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatChf);
 
-        for(const feeId of fee.feeIds) {
+        Util.removeNullFields(fee.fees);
+        for (const feeId of fee.fees) {
           await this.feeService.increaseTxUsage(feeId);
         }
 

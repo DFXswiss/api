@@ -193,7 +193,7 @@ export class TransactionHelper implements OnModuleInit {
     const txVolumeInEur = price ? price.convert(txVolume) : undefined;
 
     return paymentMethod === BuyPaymentMethod.CARD
-      ? { feeIds: undefined, rate: Config.buy.fee.card, fixed: 0, payoutRefBonus: true }
+      ? { fees: undefined, rate: Config.buy.fee.card, fixed: 0, payoutRefBonus: true }
       : userData
       ? this.feeService.getUserFee({ userData, direction, asset, txVolume: txVolumeInEur })
       : this.feeService.getDefaultFee({ direction, asset, txVolume: txVolumeInEur });

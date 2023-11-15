@@ -1,5 +1,7 @@
+import { Fee } from '../entities/fee.entity';
+
 export class FeeDto {
-  feeIds: number[];
+  fees: Fee[];
   rate: number;
   fixed: number;
   payoutRefBonus: boolean;

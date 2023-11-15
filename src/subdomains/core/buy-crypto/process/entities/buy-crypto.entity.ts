@@ -407,8 +407,6 @@ export class BuyCrypto extends IEntity {
     totalFeeAmount: number,
     totalFeeAmountChf: number,
   ): UpdateResult<BuyCrypto> {
-    Util.removeNullFields(fee.feeIds);
-
     const update: Partial<BuyCrypto> = {
       absoluteFeeAmount: fee.fixed,
       percentFee: fee.rate,
@@ -421,7 +419,7 @@ export class BuyCrypto extends IEntity {
       amountInEur,
       amountInChf,
       refFactor: fee.payoutRefBonus ? this.refFactor : 0,
-      usedFees: fee.feeIds?.join(';'),
+      usedFees: fee.fees?.map((fee) => fee.id).join(';'),
     };
 
     Object.assign(this, update);
