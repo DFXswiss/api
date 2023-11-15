@@ -14,7 +14,7 @@ import { PayoutRequestDto } from './dto/payout-request.dto';
 import { RenameRefDto } from './dto/rename-ref.dto';
 import { SendLetterDto } from './dto/send-letter.dto';
 import { SendMailDto } from './dto/send-mail.dto';
-import { UploadFileDto } from './dto/upload-file.dto';
+import { UploadSpiderFileDto } from './dto/upload-spider-file.dto';
 
 @Controller('admin')
 export class AdminController {
@@ -76,7 +76,7 @@ export class AdminController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async uploadFile(@Body() uploadFileDto: UploadFileDto): Promise<boolean> {
+  async uploadFile(@Body() uploadFileDto: UploadSpiderFileDto): Promise<boolean> {
     return this.spiderService.uploadDocument(
       uploadFileDto.userDataId,
       false,

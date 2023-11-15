@@ -77,4 +77,9 @@ export class CreateFeeDto {
   @IsOptional()
   @IsBoolean()
   active = true;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  payoutRefBonus: boolean;
 }

@@ -2,8 +2,10 @@ import { createMock } from '@golevelup/ts-jest';
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Config } from 'src/config/config';
-import { CountryService } from 'src/shared/models/country/country.service';
 import { createDefaultCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
+import { CountryService } from 'src/shared/models/country/country.service';
+import { createDefaultLanguage } from 'src/shared/models/language/__mocks__/language.entity.mock';
+import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { HttpService } from 'src/shared/services/http.service';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { SpiderSyncService } from 'src/subdomains/generic/user/services/spider/spider-sync.service';
@@ -11,16 +13,16 @@ import { SpiderService } from 'src/subdomains/generic/user/services/spider/spide
 import { SpiderApiService } from '../../services/spider/spider-api.service';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { LinkService } from '../link/link.service';
+import {
+  MockUserData,
+  createUserDataFor,
+  kycHashFor,
+  userDataIdFor,
+} from '../user-data/__mocks__/user-data.entity.mock';
 import { AccountType } from '../user-data/account-type.enum';
 import { KycState, KycStatus, LimitPeriod, UserData } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { UserDataService } from '../user-data/user-data.service';
-import {
-  createUserDataFor,
-  kycHashFor,
-  MockUserData,
-  userDataIdFor,
-} from '../user-data/__mocks__/user-data.entity.mock';
 import { TradingLimit } from '../user/dto/user.dto';
 import { UserRepository } from '../user/user.repository';
 import { WalletRepository } from '../wallet/wallet.repository';
@@ -29,8 +31,6 @@ import { KycInfo } from './dto/kyc-info.dto';
 import { KycUserDataDto } from './dto/kyc-user-data.dto';
 import { KycProcessService } from './kyc-process.service';
 import { KycService } from './kyc.service';
-import { createDefaultLanguage } from 'src/shared/models/language/__mocks__/language.entity.mock';
-import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 
 describe('KycService', () => {
   let service: KycService;
