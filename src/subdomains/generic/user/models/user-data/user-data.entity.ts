@@ -189,7 +189,7 @@ export class UserData extends IEntity {
   bankTransactionVerification: CheckStatus;
 
   @Column({ type: 'datetime2', nullable: true })
-  lastCheckedTimestamp: Date;
+  lastNameCheckDate: Date;
 
   // Aml
   @Column({ type: 'datetime2', nullable: true })
@@ -248,7 +248,7 @@ export class UserData extends IEntity {
   @OneToOne(() => SpiderData, (c) => c.userData, { nullable: true })
   spiderData: SpiderData;
 
-  //*** FACTORY METHODS ***//
+  // --- ENTITY METHODS --- //
   sendMail(): UpdateResult<UserData> {
     this.blackSquadRecipientMail = this.mail;
     this.blackSquadMailSendDate = new Date();
@@ -292,7 +292,7 @@ export class UserData extends IEntity {
 
   refreshLastCheckedTimestamp(): UpdateResult<UserData> {
     const update: Partial<UserData> = {
-      lastCheckedTimestamp: new Date(),
+      lastNameCheckDate: new Date(),
     };
 
     Object.assign(this, update);

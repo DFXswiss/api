@@ -3,7 +3,6 @@ import { IsNull } from 'typeorm';
 import { BankData } from '../../user/models/bank-data/bank-data.entity';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
-import { CreateNameCheckLogDto } from '../dto/create-name-check-log.dto';
 import { UpdateNameCheckLogDto } from '../dto/update-name-check-log.dto';
 import { NameCheckLog, RiskStatus } from '../entities/name-check-log.entity';
 import { NameCheckLogRepository } from '../repositories/name-check-log.repository';
@@ -25,17 +24,11 @@ export class NameCheckService implements OnModuleInit {
     // void this.reloadSanctionList();
   }
 
-  async create(dto: CreateNameCheckLogDto): Promise<NameCheckLog> {
-    const entity = this.nameCheckLogRepo.create(dto);
-
-    return this.nameCheckLogRepo.save(entity);
-  }
-
   async updateLog(id: number, dto: UpdateNameCheckLogDto): Promise<NameCheckLog> {
     const entity = await this.nameCheckLogRepo.findOne({ where: { id }, relations: { userData: true } });
     if (!entity) throw new NotFoundException('NameCheckLog not found');
 
-    const updatedEntity = await this.nameCheckLogRepo.save({ ...entity, ...dto, manualRateTimestamp: new Date() });
+    const updatedEntity = await this.nameCheckLogRepo.save({ ...entity, ...dto, riskEvaluationDate: new Date() });
 
     !(await this.hasOpenNameChecks(entity.userData)) &&
       (await this.userDataService.refreshLastNameCheckDate(entity.userData));
@@ -89,19 +82,15 @@ export class NameCheckService implements OnModuleInit {
 
     await this.nameCheckLogRepo.save(entity);
 
-    // Upload
-
     !(await this.hasOpenNameChecks(entity.userData)) &&
       (await this.userDataService.refreshLastNameCheckDate(bankData.userData));
   }
 
   private async hasOpenNameChecks(userData: UserData): Promise<boolean> {
-    const existing = await this.nameCheckLogRepo.findOne({
+    return this.nameCheckLogRepo.exist({
       where: { userData: { id: userData.id }, riskEvaluation: IsNull(), riskStatus: RiskStatus.SANCTIONED },
       relations: { userData: true },
     });
-
-    return !!existing;
   }
 
   // TODO Dilisense JSON solution
