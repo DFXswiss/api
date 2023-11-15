@@ -140,7 +140,7 @@ export class FeeService {
 
   // --- HELPER METHODS --- //
 
-  private async calculateFee(fees: Fee[], userDataId?: number): Promise<FeeDto> {
+  private calculateFee(fees: Fee[], userDataId?: number): FeeDto {
     // get min custom fee
     const customFee = Util.minObj(
       fees.filter((fee) => fee.type === FeeType.CUSTOM),
@@ -185,6 +185,8 @@ export class FeeService {
       return { fees: [baseFee], rate: baseFee.rate, fixed: baseFee.fixed, payoutRefBonus: true };
     }
 
+    Util.removeNullFields(discountFee.fees);
+
     return {
       fees: [baseFee, ...discountFee.fees],
       rate: baseFee.rate - discountFee.rate,
@@ -206,9 +208,9 @@ export class FeeService {
 
     // remove ExpiredFee
     userFees
-      .filter((fee) => discountFeeIds.includes(fee.id) && fee.isExpiredFee())
+      .filter((fee) => discountFeeIds.includes(fee.id) && fee.isExpired())
       .forEach((fee) => this.userDataService.removeFee(request.userData, fee.id));
 
-    return userFees.filter((fee) => fee.verifyFeeForTx({ ...request, accountType }));
+    return userFees.filter((fee) => fee.verifyForTx({ ...request, accountType }));
   }
 }

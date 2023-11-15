@@ -68,7 +68,7 @@ export class Fee extends IEntity {
   //*** FACTORY METHODS ***//
 
   increaseUsage(accountType: AccountType): UpdateResult<Fee> {
-    this.verifyFeeForUser(accountType);
+    this.verifyForUser(accountType);
 
     const update: Partial<Fee> = {
       usages: this.usages++,
@@ -80,7 +80,7 @@ export class Fee extends IEntity {
   }
 
   increaseTxUsage(): UpdateResult<Fee> {
-    if (this.isExpiredFee()) throw new BadRequestException('Fee is expired - increaseTxUsage forbidden');
+    if (this.isExpired()) throw new BadRequestException('Fee is expired - increaseTxUsage forbidden');
 
     const update: Partial<Fee> = {
       txUsages: this.txUsages++,
@@ -91,9 +91,9 @@ export class Fee extends IEntity {
     return [this.id, update];
   }
 
-  verifyFeeForTx(request: FeeRequest): boolean {
+  verifyForTx(request: FeeRequest): boolean {
     return !(
-      this.isExpiredFee() ||
+      this.isExpired() ||
       (this.accountType && this.accountType !== request.accountType) ||
       (this.direction && this.direction !== request.direction) ||
       (this.assetList?.length && !this.assetList.includes(request.asset?.id)) ||
@@ -101,7 +101,7 @@ export class Fee extends IEntity {
     );
   }
 
-  isExpiredFee(): boolean {
+  isExpired(): boolean {
     return (
       !this ||
       !this.active ||
@@ -110,8 +110,8 @@ export class Fee extends IEntity {
     );
   }
 
-  verifyFeeForUser(accountType: AccountType): void {
-    if (this.isExpiredFee()) throw new BadRequestException('Discount code is expired');
+  verifyForUser(accountType: AccountType): void {
+    if (this.isExpired()) throw new BadRequestException('Discount code is expired');
     if (this.accountType && this.accountType !== accountType)
       throw new BadRequestException('Account Type not matching');
 
