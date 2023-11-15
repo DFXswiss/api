@@ -1,10 +1,13 @@
+import { BadRequestException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
+import { KycStepName, KycStepStatus } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
@@ -23,6 +26,16 @@ export enum KycStatus {
   COMPLETED = 'Completed',
   REJECTED = 'Rejected',
   TERMINATED = 'Terminated',
+}
+
+export enum KycStatusNew {
+  NA = 'NA',
+  IN_PROGRESS = 'InProgress',
+  PAUSED = 'Paused',
+  CHECK = 'Check',
+  Light = 'Light',
+  FULL = 'Full',
+  REJECTED = 'Rejected',
 }
 
 export enum KycState {
@@ -69,6 +82,8 @@ export enum UserDataStatus {
 
 @Entity()
 export class UserData extends IEntity {
+  private readonly logger = new DfxLogger(UserData);
+
   @Column({ default: AccountType.PERSONAL, length: 256 })
   accountType: AccountType;
 
@@ -160,6 +175,9 @@ export class UserData extends IEntity {
   @Column({ type: 'integer', nullable: true })
   kycCustomerId: number;
 
+  @Column({ length: 256, default: KycStatusNew.NA })
+  kycStatusNew: KycStatusNew;
+
   @Column()
   @Generated('uuid')
   @Index({ unique: true })
@@ -250,6 +268,7 @@ export class UserData extends IEntity {
   spiderData: SpiderData;
 
   // Methods
+
   sendMail(): UpdateResult<UserData> {
     this.blackSquadRecipientMail = this.mail;
     this.blackSquadMailSendDate = new Date();
@@ -289,6 +308,72 @@ export class UserData extends IEntity {
     Object.assign(this, update);
 
     return [this.id, update];
+  }
+
+  // --- KYC PROCESS --- //
+  setData(intrumReference: number, accountType: AccountType): this {
+    //TODO set id?
+    this.accountType = accountType;
+
+    return this;
+  }
+
+  completeStep(kycStep: KycStep): this {
+    kycStep.complete();
+
+    this.logger.verbose(`User ${this.id} completes step ${kycStep.name} (${kycStep.id})`);
+
+    return this;
+  }
+
+  failStep(kycStep: KycStep): this {
+    kycStep.fail();
+
+    if (!this.hasStepsInProgress) this.kycStatusNew = KycStatusNew.PAUSED;
+
+    this.logger.verbose(`User ${this.id} fails step ${kycStep.name} (${kycStep.id})`);
+
+    return this;
+  }
+
+  nextStep(kycStep: KycStepName): this {
+    this.kycSteps.push(KycStep.create(kycStep, this));
+    this.kycStatusNew = KycStatusNew.IN_PROGRESS;
+
+    this.logger.verbose(`UserData ${this.id} starts step ${kycStep}`);
+
+    return this;
+  }
+
+  kycCompleted(): this {
+    this.kycStatus = KycStatus.COMPLETED;
+
+    this.logger.verbose(`UserData ${this.id} completes`);
+
+    return this;
+  }
+
+  getPendingStep(name: KycStepName): KycStep | undefined {
+    return this.kycSteps.find((s) => s.name === name && s.status === KycStepStatus.IN_PROGRESS);
+  }
+
+  getPendingStepOrThrow(name: KycStepName): KycStep {
+    const step = this.getPendingStep(name);
+    if (!step) throw new BadRequestException(`Step ${name} not in progress`);
+
+    return step;
+  }
+
+  get hasStepsInProgress(): boolean {
+    return this.kycSteps.some((s) => s.status == KycStepStatus.IN_PROGRESS);
+  }
+
+  get hasAllStepsCompleted(): boolean {
+    return this.kycSteps.every((s) => s.status == KycStepStatus.COMPLETED);
+  }
+
+  get isPersonal(): boolean {
+    return !this.accountType || this.accountType === AccountType.PERSONAL;
   }
 
   get isDfxUser(): boolean {
