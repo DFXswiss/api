@@ -161,5 +161,5 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsDate()
   @Type(() => Date)
-  lastCheckedTimestamp: Date;
+  lastNameCheckDate: Date;
 }

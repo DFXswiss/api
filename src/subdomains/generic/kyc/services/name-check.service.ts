@@ -36,13 +36,6 @@ export class NameCheckService implements OnModuleInit {
     return updatedEntity;
   }
 
-  async updatePdfUrl(id: number, url: string): Promise<void> {
-    const entity = await this.nameCheckLogRepo.findOneBy({ id });
-    if (!entity) throw new NotFoundException('NameCheckLog not found');
-
-    await this.nameCheckLogRepo.update(...entity.setPdfUrl(url));
-  }
-
   async refreshRiskStatus(bankData: BankData): Promise<RiskStatus> {
     // const sanctionData = this.sanctionData.filter((data) =>
     //   this.isSanctionedData(data, userData.firstname.toLowerCase(), userData.surname.toLowerCase()),
