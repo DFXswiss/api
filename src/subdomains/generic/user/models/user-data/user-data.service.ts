@@ -220,6 +220,10 @@ export class UserDataService {
     await this.userDataRepo.update(...userData.blockUserData());
   }
 
+  async refreshLastNameCheckDate(userData: UserData): Promise<void> {
+    await this.userDataRepo.update(...userData.refreshLastCheckedTimestamp());
+  }
+
   private async updateSpiderIfNeeded(userData: UserData, dto: UpdateUserDto): Promise<UserData> {
     if ((dto.phone && dto.phone != userData.phone) || (dto.mail && dto.mail != userData.mail)) {
       await this.spiderService.updateCustomer(userData.id, {
@@ -234,6 +238,8 @@ export class UserDataService {
 
     return userData;
   }
+
+  // --- FEES --- //
 
   async addFee(userData: UserData, feeId: number): Promise<void> {
     if (userData.individualFeeList?.includes(feeId)) return;

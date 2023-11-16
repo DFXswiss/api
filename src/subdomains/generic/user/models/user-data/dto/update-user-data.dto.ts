@@ -157,4 +157,9 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsString()
   amlAccountType: string;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  lastNameCheckDate: Date;
 }
