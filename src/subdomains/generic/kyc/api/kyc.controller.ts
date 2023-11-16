@@ -1,7 +1,7 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { KycInfoDto, KycStepDto } from '../dto/kyc-info.dto';
-import { KycStepName } from '../enums/kyc.enum';
+import { KycStepName, KycStepType } from '../enums/kyc.enum';
 import { KycService } from '../services/kyc.service';
 
 @ApiTags('KYC')
@@ -19,8 +19,12 @@ export class KycController {
 
   @Get(':code/:step')
   @ApiExcludeEndpoint()
-  async getStep(@Param('code') code: string, @Param('step') stepName: KycStepName): Promise<KycStepDto> {
+  async getStep(
+    @Param('code') code: string,
+    @Param('step') stepName: KycStepName,
+    @Query('type') stepType?: KycStepType,
+  ): Promise<KycStepDto> {
     // TODO: return more step info (different DTOs: ident -> URL, financial -> questions)
-    return this.kycService.getOrCreateStep(code, stepName);
+    return this.kycService.getOrCreateStep(code, stepName, stepType);
   }
 }

@@ -7,7 +7,7 @@ import { Language } from 'src/shared/models/language/language.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
-import { KycStepName, KycStepStatus } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycStepName, KycStepStatus, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
@@ -381,8 +381,10 @@ export class UserData extends IEntity {
     return this;
   }
 
-  getPendingStep(name: KycStepName): KycStep | undefined {
-    return this.kycSteps.find((s) => s.name === name && s.status === KycStepStatus.IN_PROGRESS);
+  getPendingStep(name: KycStepName, type?: KycStepType): KycStep | undefined {
+    return this.kycSteps.find(
+      (s) => s.name === name && (!type || s.type === type) && s.status === KycStepStatus.IN_PROGRESS,
+    );
   }
 
   getPendingStepOrThrow(name: KycStepName): KycStep {

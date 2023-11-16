@@ -5,7 +5,7 @@ import { KycInfoDto, KycStepDto } from '../dto/kyc-info.dto';
 import { KycInfoMapper } from '../dto/kyc-info.mapper';
 import { KycStepMapper } from '../dto/kyc-step.mapper';
 import { KycStep } from '../entities/kyc-step.entity';
-import { KycStepName } from '../enums/kyc.enum';
+import { KycStepName, KycStepType } from '../enums/kyc.enum';
 import { IntrumService } from './integration/intrum.service';
 
 @Injectable()
@@ -19,31 +19,37 @@ export class KycService {
 
   // --- STEPPING METHODS --- //
 
-  async getOrCreateStep(kycHash: string, stepName: KycStepName): Promise<KycStepDto> {
+  async getOrCreateStep(kycHash: string, stepName: KycStepName, stepType?: KycStepType): Promise<KycStepDto> {
     const userData = await this.userDataService.getUserDataByKycHash(kycHash);
 
-    let step = userData.getPendingStep(stepName);
+    let step = userData.getPendingStep(stepName, stepType);
     if (!step) {
-      step = await this.initiateStep(userData, stepName);
+      step = await this.initiateStep(userData, stepName, stepType);
       userData.nextStep(step);
     }
 
     return KycStepMapper.entityToDto(step);
   }
 
-  private async initiateStep(userData: UserData, step: KycStepName): Promise<KycStep> {
-    switch (step) {
+  private async initiateStep(userData: UserData, stepName: KycStepName, stepType?: KycStepType): Promise<KycStep> {
+    switch (stepName) {
       case KycStepName.USER_DATA:
-        // TODO
+        // TODO: create entity
         break;
 
       case KycStepName.IDENT:
-        // TODO: trigger Intrum
+        // TODO: trigger Intrum => create entity
         // TODO: verify 2FA
+        // TODO: stepType is required
         break;
 
       case KycStepName.FINANCIAL:
-        // TODO
+        // TODO: create entity
+        break;
+
+      case KycStepName.DOCUMENT_UPLOAD:
+        // TODO: create entity
+        // TODO: stepType is required
         break;
     }
 

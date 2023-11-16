@@ -2,6 +2,7 @@ export enum KycStepName {
   USER_DATA = 'UserData',
   IDENT = 'Ident',
   FINANCIAL = 'Financial',
+  DOCUMENT_UPLOAD = 'DocumentUpload',
 }
 
 export enum KycStepType {
@@ -9,6 +10,8 @@ export enum KycStepType {
   AUTO = 'Auto',
   VIDEO = 'Video',
   MANUAL = 'Manual',
+  // document
+  // TODO
 }
 
 export enum KycStepStatus {
