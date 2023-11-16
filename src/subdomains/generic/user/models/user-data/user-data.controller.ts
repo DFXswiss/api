@@ -3,7 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/document-storage.service';
+import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UploadFileDto } from 'src/subdomains/generic/user/models/user-data/dto/upload-file.dto';

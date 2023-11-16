@@ -5,7 +5,8 @@ import { KycInfoDto } from './kyc-info.dto';
 export class KycInfoMapper {
   static toDto(userData: UserData): KycInfoDto {
     const dto: KycInfoDto = {
-      kycStatus: userData.kycStatus,
+      kycStatus: userData.kycStatusNew,
+      tradingLimit: userData.tradingLimit,
       kycSteps: KycStepMapper.entitiesToDto(userData),
     };
 

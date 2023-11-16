@@ -1,7 +1,7 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, ManyToOne } from 'typeorm';
 import { UserData } from '../../user/models/user-data/user-data.entity';
-import { KycStepName, KycStepStatus } from '../enums/kyc.enum';
+import { KycStepName, KycStepStatus, KycStepType } from '../enums/kyc.enum';
 
 @Entity()
 export class KycStep extends IEntity {
@@ -11,18 +11,32 @@ export class KycStep extends IEntity {
   @Column()
   name: KycStepName;
 
+  @Column({ nullable: true })
+  type?: KycStepType;
+
   @Column()
   status: KycStepStatus;
+
+  @Column({ type: 'integer' })
+  sequenceNumber: number;
 
   @Column({ nullable: true })
   sessionId?: string;
 
   // --- FACTORY --- //
-  static create(name: KycStepName, userData: UserData, sessionId?: string): KycStep {
+  static create(
+    userData: UserData,
+    name: KycStepName,
+    sequenceNumber: number,
+    type?: KycStepType,
+    sessionId?: string,
+  ): KycStep {
     return Object.assign(new KycStep(), {
-      name,
       userData,
+      name,
+      type,
       status: KycStepStatus.IN_PROGRESS,
+      sequenceNumber,
       sessionId,
     });
   }

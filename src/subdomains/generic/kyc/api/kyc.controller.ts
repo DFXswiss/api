@@ -1,26 +1,27 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
-import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
-import { KycInfoDto } from '../dto/kyc-info.dto';
+import { Controller, Get, Param } from '@nestjs/common';
+import { ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { KycInfoDto, KycStepDto } from '../dto/kyc-info.dto';
 import { KycStepName } from '../enums/kyc.enum';
 import { KycService } from '../services/kyc.service';
 
-@ApiTags('kyc')
+@ApiTags('KYC')
 @Controller('kyc')
-export class UserDataController {
+export class KycController {
   constructor(private readonly kycService: KycService) {}
 
+  // TODO: how to avoid path clashes with existing routes? Use v2?
+  // TODO: use code in body? Query param?
+
   @Get(':code')
-  @UseGuards(AuthGuard())
   @ApiOkResponse({ type: KycInfoDto })
   async getKycInfo(@Param('code') code: string): Promise<KycInfoDto> {
-    return this.kycService.getKycInfo(code);
+    return this.kycService.getInfo(code);
   }
 
-  @Get(':code/:state')
-  @UseGuards(AuthGuard())
-  @ApiOkResponse({ type: KycInfoDto })
-  async getStep(@Param('code') code: string, @Param('step') stepName: KycStepName): Promise<KycInfoDto> {
-    return this.kycService.getOrCreate(code, stepName);
+  @Get(':code/:step')
+  @ApiExcludeEndpoint()
+  async getStep(@Param('code') code: string, @Param('step') stepName: KycStepName): Promise<KycStepDto> {
+    // TODO: return more step info (different DTOs: ident -> URL, financial -> questions)
+    return this.kycService.getOrCreateStep(code, stepName);
   }
 }

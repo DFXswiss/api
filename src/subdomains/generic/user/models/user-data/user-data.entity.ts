@@ -31,11 +31,12 @@ export enum KycStatus {
 export enum KycStatusNew {
   NA = 'NA',
   IN_PROGRESS = 'InProgress',
-  PAUSED = 'Paused',
-  CHECK = 'Check',
+  IN_REVIEW = 'InReview',
   Light = 'Light',
   FULL = 'Full',
+  PAUSED = 'Paused',
   REJECTED = 'Rejected',
+  TERMINATED = 'Terminated',
 }
 
 export enum KycState {
@@ -310,72 +311,6 @@ export class UserData extends IEntity {
     return [this.id, update];
   }
 
-  // --- KYC PROCESS --- //
-  setData(intrumReference: number, accountType: AccountType): this {
-    //TODO set id?
-    this.accountType = accountType;
-
-    return this;
-  }
-
-  completeStep(kycStep: KycStep): this {
-    kycStep.complete();
-
-    this.logger.verbose(`User ${this.id} completes step ${kycStep.name} (${kycStep.id})`);
-
-    return this;
-  }
-
-  failStep(kycStep: KycStep): this {
-    kycStep.fail();
-
-    if (!this.hasStepsInProgress) this.kycStatusNew = KycStatusNew.PAUSED;
-
-    this.logger.verbose(`User ${this.id} fails step ${kycStep.name} (${kycStep.id})`);
-
-    return this;
-  }
-
-  nextStep(kycStep: KycStepName): this {
-    this.kycSteps.push(KycStep.create(kycStep, this));
-    this.kycStatusNew = KycStatusNew.IN_PROGRESS;
-
-    this.logger.verbose(`UserData ${this.id} starts step ${kycStep}`);
-
-    return this;
-  }
-
-  kycCompleted(): this {
-    this.kycStatus = KycStatus.COMPLETED;
-
-    this.logger.verbose(`UserData ${this.id} completes`);
-
-    return this;
-  }
-
-  getPendingStep(name: KycStepName): KycStep | undefined {
-    return this.kycSteps.find((s) => s.name === name && s.status === KycStepStatus.IN_PROGRESS);
-  }
-
-  getPendingStepOrThrow(name: KycStepName): KycStep {
-    const step = this.getPendingStep(name);
-    if (!step) throw new BadRequestException(`Step ${name} not in progress`);
-
-    return step;
-  }
-
-  get hasStepsInProgress(): boolean {
-    return this.kycSteps.some((s) => s.status == KycStepStatus.IN_PROGRESS);
-  }
-
-  get hasAllStepsCompleted(): boolean {
-    return this.kycSteps.every((s) => s.status == KycStepStatus.COMPLETED);
-  }
-
-  get isPersonal(): boolean {
-    return !this.accountType || this.accountType === AccountType.PERSONAL;
-  }
-
   get isDfxUser(): boolean {
     return this.kycType === KycType.DFX;
   }
@@ -407,6 +342,62 @@ export class UserData extends IEntity {
   set riskResult({ result, risks }: RiskResult) {
     this.riskState = result;
     this.riskRoots = result === 'c' ? null : JSON.stringify(risks);
+  }
+
+  // --- KYC PROCESS --- //
+
+  completeStep(kycStep: KycStep): this {
+    kycStep.complete();
+
+    this.logger.verbose(`User ${this.id} completes step ${kycStep.name} (${kycStep.id})`);
+
+    return this;
+  }
+
+  failStep(kycStep: KycStep): this {
+    kycStep.fail();
+
+    if (!this.hasStepsInProgress) this.kycStatusNew = KycStatusNew.PAUSED;
+
+    this.logger.verbose(`User ${this.id} fails step ${kycStep.name} (${kycStep.id})`);
+
+    return this;
+  }
+
+  nextStep(kycStep: KycStep): this {
+    this.kycSteps.push(kycStep);
+    this.kycStatusNew = KycStatusNew.IN_PROGRESS;
+
+    this.logger.verbose(`UserData ${this.id} starts step ${kycStep}`);
+
+    return this;
+  }
+
+  kycInReview(): this {
+    this.kycStatusNew = KycStatusNew.IN_REVIEW;
+
+    this.logger.verbose(`UserData ${this.id} in review`);
+
+    return this;
+  }
+
+  getPendingStep(name: KycStepName): KycStep | undefined {
+    return this.kycSteps.find((s) => s.name === name && s.status === KycStepStatus.IN_PROGRESS);
+  }
+
+  getPendingStepOrThrow(name: KycStepName): KycStep {
+    const step = this.getPendingStep(name);
+    if (!step) throw new BadRequestException(`Step ${name} not in progress`);
+
+    return step;
+  }
+
+  get hasStepsInProgress(): boolean {
+    return this.kycSteps.some((s) => s.status === KycStepStatus.IN_PROGRESS);
+  }
+
+  get hasAllStepsCompleted(): boolean {
+    return this.kycSteps.every((s) => s.status === KycStepStatus.COMPLETED);
   }
 }
 

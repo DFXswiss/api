@@ -1,21 +1,28 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { KycStepName, KycStepStatus } from 'src/subdomains/generic/kyc/enums/kyc.enum';
-import { KycStatus } from '../../user/models/user-data/user-data.entity';
+import { KycStepName, KycStepStatus, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycStatusNew } from '../../user/models/user-data/user-data.entity';
+import { TradingLimit } from '../../user/models/user/dto/user.dto';
 
 export class KycStepDto {
   @ApiProperty({ enum: KycStepName })
   name: KycStepName;
 
+  @ApiPropertyOptional({ enum: KycStepType })
+  type?: KycStepType;
+
   @ApiProperty({ enum: KycStepStatus })
   status: KycStepStatus;
 
-  @ApiPropertyOptional()
-  sessionId?: string;
+  @ApiProperty()
+  sequenceNumber: number;
 }
 
 export class KycInfoDto {
-  @ApiProperty({ enum: KycStatus })
-  kycStatus: KycStatus;
+  @ApiProperty({ enum: KycStatusNew })
+  kycStatus: KycStatusNew;
+
+  @ApiProperty({ type: TradingLimit })
+  tradingLimit: TradingLimit;
 
   @ApiProperty({ type: KycStepDto, isArray: true })
   kycSteps: KycStepDto[];

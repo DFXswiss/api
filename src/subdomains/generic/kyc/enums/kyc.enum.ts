@@ -1,8 +1,14 @@
 export enum KycStepName {
   USER_DATA = 'UserData',
-  CHATBOT = 'Chatbot',
-  ONLINE_ID = 'OnlineId',
-  VIDEO_ID = 'VideoId',
+  IDENT = 'Ident',
+  FINANCIAL = 'Financial',
+}
+
+export enum KycStepType {
+  // ident
+  AUTO = 'Auto',
+  VIDEO = 'Video',
+  MANUAL = 'Manual',
 }
 
 export enum KycStepStatus {

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AzureStorageService, BlobContent } from 'src/integration/infrastructure/azure-storage.service';
-import { KycContentType, KycFile, KycFileType } from './kyc-file.dto';
+import { KycContentType, KycFile, KycFileType } from '../../dto/kyc-file.dto';
 
 @Injectable()
 export class DocumentStorageService {
