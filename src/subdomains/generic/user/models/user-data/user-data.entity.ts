@@ -10,6 +10,7 @@ import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.e
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
 import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { RiskResult } from '../../services/spider/dto/spider.dto';
+import { Organization } from '../organization/organization.entity';
 import { SpiderData } from '../spider-data/spider-data.entity';
 import { TradingLimit } from '../user/dto/user.dto';
 import { AccountType } from './account-type.enum';
@@ -65,6 +66,15 @@ export enum UserDataStatus {
   ACTIVE = 'Active',
   BLOCKED = 'Blocked',
   MERGED = 'Merged',
+}
+
+export enum OrganizationRole {
+  ADMINISTRATOR = 'Administrator',
+  BENEFICIAL_OWNER = 'BeneficialOwner',
+  CONTRACTING_PARTNER = 'ContractingPartner',
+  CONTROLLER = 'Controller',
+  CONVERSION_PARTNER = 'ConversionPartner',
+  INACTIVE = 'Inactive',
 }
 
 @Entity()
@@ -123,6 +133,9 @@ export class UserData extends IEntity {
 
   @ManyToOne(() => Country, { eager: true })
   organizationCountry: Country;
+
+  @Column({ length: 256, nullable: true })
+  organizationRole: OrganizationRole;
 
   @Column({ length: 256, nullable: true })
   phone: string;
@@ -251,6 +264,9 @@ export class UserData extends IEntity {
 
   @OneToOne(() => SpiderData, (c) => c.userData, { nullable: true })
   spiderData: SpiderData;
+
+  @ManyToOne(() => Organization, { nullable: true })
+  organization: Organization;
 
   // --- ENTITY METHODS --- //
   sendMail(): UpdateResult<UserData> {

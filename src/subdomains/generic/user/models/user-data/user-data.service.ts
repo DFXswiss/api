@@ -23,6 +23,7 @@ import { WebhookService } from '../../services/webhook/webhook.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { KycProcessService } from '../kyc/kyc-process.service';
 import { LinkService } from '../link/link.service';
+import { OrganizationService } from '../organization/organization.service';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { UserRepository } from '../user/user.repository';
 import { AccountType } from './account-type.enum';
@@ -54,6 +55,7 @@ export class UserDataService {
     private readonly spiderApiService: SpiderApiService,
     private readonly kycProcessService: KycProcessService,
     private readonly webhookService: WebhookService,
+    private readonly organizationService: OrganizationService,
     @Inject(forwardRef(() => LinkService)) private readonly linkService: LinkService,
   ) {}
 
@@ -106,7 +108,10 @@ export class UserDataService {
   }
 
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
-    let userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['users', 'users.wallet'] });
+    let userData = await this.userDataRepo.findOne({
+      where: { id: userDataId },
+      relations: ['users', 'users.wallet', 'organization'],
+    });
     if (!userData) throw new NotFoundException('User data not found');
 
     userData = await this.updateSpiderIfNeeded(userData, dto);
@@ -119,11 +124,6 @@ export class UserDataService {
     if (dto.nationality) {
       userData.nationality = await this.countryService.getCountry(dto.nationality.id);
       if (!userData.nationality) throw new BadRequestException('Nationality not found');
-    }
-
-    if (dto.organizationCountryId) {
-      userData.organizationCountry = await this.countryService.getCountry(dto.organizationCountryId);
-      if (!userData.organizationCountry) throw new BadRequestException('Country not found');
     }
 
     if (dto.mainBankDataId) {
@@ -151,6 +151,16 @@ export class UserDataService {
     if (dto.kycStatus && userData.kycStatus != dto.kycStatus) {
       userData = await this.kycProcessService.goToStatus(userData, dto.kycStatus);
     }
+
+    if (dto.accountType === AccountType.BUSINESS && !userData.organization)
+      userData.organization = await this.organizationService.createOrganization({
+        name: dto.organizationName,
+        street: dto.organizationStreet,
+        location: dto.organizationLocation,
+        houseNumber: dto.organizationHouseNumber,
+        zip: dto.organizationZip,
+        countryId: dto.organizationCountryId,
+      });
 
     // Columns are not updatable
     if (userData.letterSentDate) dto.letterSentDate = userData.letterSentDate;

@@ -34,6 +34,8 @@ import { LinkAddress } from './models/link/link-address.entity';
 import { LinkAddressRepository } from './models/link/link-address.repository';
 import { LinkController } from './models/link/link.controller';
 import { LinkService } from './models/link/link.service';
+import { OrganizationRepository } from './models/organization/organization.repository';
+import { OrganizationService } from './models/organization/organization.service';
 import { SpiderData } from './models/spider-data/spider-data.entity';
 import { SpiderDataRepository } from './models/spider-data/spider-data.repository';
 import { UserDataNotificationService } from './models/user-data/user-data-notification.service';
@@ -80,6 +82,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     BankDataRepository,
     LimitRequestRepository,
     LinkAddressRepository,
+    OrganizationRepository,
     UserService,
     WalletService,
     UserDataService,
@@ -98,6 +101,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     WebhookService,
     LimitRequestNotificationService,
     UserDataNotificationService,
+    OrganizationService,
   ],
   exports: [
     UserService,
