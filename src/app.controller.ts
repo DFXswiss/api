@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, Redirect, Req, Res } from '@nestjs/common';
+import { Controller, Get, Param, Query, Redirect, Req, Res, VERSION_NEUTRAL, Version } from '@nestjs/common';
 import { ApiExcludeEndpoint } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { UserAgent } from 'express-useragent';
@@ -48,6 +48,7 @@ export class AppController {
   @Get()
   @Redirect('swagger')
   @ApiExcludeEndpoint()
+  @Version(VERSION_NEUTRAL)
   async home(): Promise<any> {
     // nothing to do (redirect to Swagger UI)
   }

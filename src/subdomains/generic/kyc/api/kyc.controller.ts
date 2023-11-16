@@ -5,11 +5,10 @@ import { KycStepName } from '../enums/kyc.enum';
 import { KycService } from '../services/kyc.service';
 
 @ApiTags('KYC')
-@Controller('kyc')
+@Controller({ path: 'kyc', version: ['2'] })
 export class KycController {
   constructor(private readonly kycService: KycService) {}
 
-  // TODO: how to avoid path clashes with existing routes? Use v2?
   // TODO: use code in body? Query param?
 
   @Get(':code')

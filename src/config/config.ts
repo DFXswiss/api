@@ -53,7 +53,7 @@ export function GetConfig(): Configuration {
 export class Configuration {
   port = process.env.PORT ?? 3000;
   environment = process.env.ENVIRONMENT as Environment;
-  version = 'v1';
+  defaultVersion = 'v1';
   network = process.env.NETWORK as NetworkName;
   githubToken = process.env.GH_TOKEN;
   defaultLanguage = 'en';
@@ -489,8 +489,10 @@ export class Configuration {
   // --- GETTERS --- //
   get url(): string {
     return this.environment === Environment.LOC
-      ? `http://localhost:${this.port}/${this.version}`
-      : `https://${this.environment === Environment.PRD ? '' : this.environment + '.'}api.dfx.swiss/${this.version}`;
+      ? `http://localhost:${this.port}/${this.defaultVersion}`
+      : `https://${this.environment === Environment.PRD ? '' : this.environment + '.'}api.dfx.swiss/${
+          this.defaultVersion
+        }`;
   }
 
   get kraken(): ExchangeConfig {
