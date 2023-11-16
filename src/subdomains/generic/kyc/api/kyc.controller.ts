@@ -9,12 +9,20 @@ import { KycService } from '../services/kyc.service';
 export class KycController {
   constructor(private readonly kycService: KycService) {}
 
-  // TODO: use code in body? Query param?
+  // TODO: use code in header?
 
   @Get(':code')
   @ApiOkResponse({ type: KycInfoDto })
   async getKycInfo(@Param('code') code: string): Promise<KycInfoDto> {
     return this.kycService.getInfo(code);
+  }
+
+  // TODO: return more step info for endpoints below (different DTOs: ident -> URL, financial -> questions)
+
+  @Get(':code/next')
+  @ApiOkResponse({ type: KycInfoDto })
+  async getNextStep(@Param('code') code: string): Promise<KycStepDto> {
+    return this.kycService.getNextStep(code);
   }
 
   @Get(':code/:step')
@@ -24,7 +32,6 @@ export class KycController {
     @Param('step') stepName: KycStepName,
     @Query('type') stepType?: KycStepType,
   ): Promise<KycStepDto> {
-    // TODO: return more step info (different DTOs: ident -> URL, financial -> questions)
     return this.kycService.getOrCreateStep(code, stepName, stepType);
   }
 }

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { KycInfoDto, KycStepDto } from '../dto/kyc-info.dto';
@@ -13,14 +13,24 @@ export class KycService {
   constructor(private readonly userDataService: UserDataService, private readonly intrumService: IntrumService) {}
 
   async getInfo(kycHash: string): Promise<KycInfoDto> {
-    const userData = await this.userDataService.getUserDataByKycHash(kycHash);
+    const userData = await this.getUserOrThrow(kycHash);
     return KycInfoMapper.toDto(userData);
   }
 
   // --- STEPPING METHODS --- //
+  async getNextStep(kycHash: string): Promise<KycStepDto> {
+    const userData = await this.getUserOrThrow(kycHash);
+
+    let step = userData.getPendingStep();
+    if (!step) {
+      // TODO: create next step
+    }
+
+    return KycStepMapper.entityToDto(step);
+  }
 
   async getOrCreateStep(kycHash: string, stepName: KycStepName, stepType?: KycStepType): Promise<KycStepDto> {
-    const userData = await this.userDataService.getUserDataByKycHash(kycHash);
+    const userData = await this.getUserOrThrow(kycHash);
 
     let step = userData.getPendingStep(stepName, stepType);
     if (!step) {
@@ -54,5 +64,13 @@ export class KycService {
     }
 
     throw new Error('Not implemented');
+  }
+
+  // --- HELPER METHODS --- //
+  async getUserOrThrow(kycHash: string): Promise<UserData> {
+    const userData = await this.userDataService.getUserDataByKycHash(kycHash);
+    if (!userData) throw new NotFoundException('User not found');
+
+    return userData;
   }
 }

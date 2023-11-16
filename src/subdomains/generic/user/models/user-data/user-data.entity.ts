@@ -381,25 +381,21 @@ export class UserData extends IEntity {
     return this;
   }
 
-  getPendingStep(name: KycStepName, type?: KycStepType): KycStep | undefined {
+  getPendingStep(name?: KycStepName, type?: KycStepType): KycStep | undefined {
     return this.kycSteps.find(
-      (s) => s.name === name && (!type || s.type === type) && s.status === KycStepStatus.IN_PROGRESS,
+      (s) => (!name || s.name === name) && (!type || s.type === type) && s.status === KycStepStatus.IN_PROGRESS,
     );
   }
 
-  getPendingStepOrThrow(name: KycStepName): KycStep {
-    const step = this.getPendingStep(name);
-    if (!step) throw new BadRequestException(`Step ${name} not in progress`);
+  getPendingStepOrThrow(name: KycStepName, type?: KycStepType): KycStep {
+    const step = this.getPendingStep(name, type);
+    if (!step) throw new BadRequestException(`Step ${name}${type ? ' - ' + type : ''} not in progress`);
 
     return step;
   }
 
   get hasStepsInProgress(): boolean {
     return this.kycSteps.some((s) => s.status === KycStepStatus.IN_PROGRESS);
-  }
-
-  get hasAllStepsCompleted(): boolean {
-    return this.kycSteps.every((s) => s.status === KycStepStatus.COMPLETED);
   }
 }
 
