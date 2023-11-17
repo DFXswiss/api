@@ -21,6 +21,10 @@ export class DbQueryBaseDto {
 
   @IsNotEmpty()
   @IsString()
+  sortColumn = 'id';
+
+  @IsNotEmpty()
+  @IsString()
   sorting: 'ASC' | 'DESC' = 'ASC';
 
   @IsOptional()
