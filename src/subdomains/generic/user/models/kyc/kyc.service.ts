@@ -127,13 +127,11 @@ export class KycService {
     const dfxUser = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
     if (!dfxUser) throw new NotFoundException('DFX user not found');
     if (!KycCompleted(dfxUser.userData.kycStatus)) throw new ConflictException('KYC required');
-
-    const apiKey = this.walletService.getApiKeyInternal(wallet.name);
-    if (!apiKey) throw new Error(`ApiKey for wallet ${wallet.name} not available`);
+    if (!wallet.apiKey) throw new Error(`ApiKey for wallet ${wallet.name} not available`);
 
     try {
       result = await this.http.get<{ kycId: string }>(`${wallet.apiUrl}/check`, {
-        headers: { 'x-api-key': apiKey },
+        headers: { 'x-api-key': wallet.apiKey },
 
         params: { address: dfxUser.address },
       });

@@ -74,9 +74,7 @@ export class WebhookService {
   ): Promise<void> {
     try {
       if (!user.wallet.isKycClient || !user.wallet.apiUrl) return;
-
-      const apiKey = this.walletService.getApiKeyInternal(user.wallet.name);
-      if (!apiKey) throw new Error(`ApiKey for wallet ${user.wallet.name} not available`);
+      if (!user.wallet.apiKey) throw new Error(`ApiKey for wallet ${user.wallet.name} not available`);
 
       const webhookDto: WebhookDto<T> = {
         id: user.address,
@@ -86,7 +84,7 @@ export class WebhookService {
       };
 
       await this.http.post(user.wallet.apiUrl, webhookDto, {
-        headers: { 'x-api-key': apiKey },
+        headers: { 'x-api-key': user.wallet.apiKey },
         retryDelay: 5000,
         tryCount: 3,
       });
