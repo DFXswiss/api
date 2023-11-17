@@ -413,8 +413,8 @@ export class SpiderSyncService {
             state: document.state.toString(),
             creationTime: document.creationTime.toISOString(),
             modificationTime: document.modificationTime.toISOString(),
-            label: document.label,
-            fileName: document.fileName,
+            label: this.replaceIllegalChars(document.label),
+            fileName: this.replaceIllegalChars(document.fileName),
             contentType: document.contentType.toString(),
             url: document.url,
           },
@@ -425,6 +425,12 @@ export class SpiderSyncService {
         );
       }
     }
+  }
+
+  private replaceIllegalChars(str: string): string {
+    str = str.split(' ').join('_');
+
+    return encodeURIComponent(str);
   }
 
   async listStorageFiles(
