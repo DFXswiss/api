@@ -152,7 +152,10 @@ export class UserDataService {
       userData = await this.kycProcessService.goToStatus(userData, dto.kycStatus);
     }
 
-    if (dto.accountType === AccountType.BUSINESS && !userData.organization)
+    if (
+      (dto.accountType === AccountType.BUSINESS || userData.accountType === AccountType.BUSINESS) &&
+      !userData.organization
+    )
       userData.organization = await this.organizationService.createOrganization({
         name: dto.organizationName,
         street: dto.organizationStreet,
