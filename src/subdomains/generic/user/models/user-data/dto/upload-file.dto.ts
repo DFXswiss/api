@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsString, ValidateIf } from 'class-validator';
 import { KycContentType, KycFileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 
 export class UploadFileDto {
@@ -17,4 +17,9 @@ export class UploadFileDto {
   @IsNotEmpty()
   @IsString()
   data: string;
+
+  @ValidateIf((dto: UploadFileDto) => dto.documentType === KycFileType.NAME_CHECK)
+  @IsNotEmpty()
+  @IsNumber()
+  kycLogId: number;
 }

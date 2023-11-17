@@ -81,6 +81,7 @@ export class BankTxService {
 
       if (match) {
         const buy = await this.buyService.getByBankUsage(match[0]);
+
         if (buy) {
           await this.update(tx.id, { type: BankTxType.BUY_CRYPTO, buyId: buy.id });
           continue;

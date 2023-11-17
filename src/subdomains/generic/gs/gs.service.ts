@@ -51,7 +51,7 @@ export class GsService {
     const request = this.dataSource
       .createQueryBuilder()
       .from(query.table, query.table)
-      .orderBy(`${query.table}.id`, query.sorting)
+      .orderBy(`${query.table}.${query.sortColumn}`, query.sorting)
       .limit(query.maxLine)
       .where(`${query.table}.id >= :id`, { id: query.min })
       .andWhere(`${query.table}.updated >= :updated`, { updated: query.updatedSince });
