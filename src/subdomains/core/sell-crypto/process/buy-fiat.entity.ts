@@ -80,6 +80,9 @@ export class BuyFiat extends IEntity {
   highRisk: boolean;
 
   // Fee
+  @Column({ length: 256, nullable: true })
+  usedFees: string; // Semicolon separated id's
+
   @Column({ type: 'float', nullable: true })
   percentFee: number;
 

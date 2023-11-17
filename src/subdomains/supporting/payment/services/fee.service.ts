@@ -102,16 +102,22 @@ export class FeeService {
 
   async addDiscountCodeUser(userData: UserData, discountCode: string): Promise<void> {
     const fee = await this.getFeeByDiscountCode(discountCode);
-    await this.verifyFee(fee, userData.accountType);
+
+    await this.feeRepo.update(...fee.increaseUsage(userData.accountType));
 
     await this.userDataService.addFee(userData, fee.id);
   }
 
   async addFeeInternal(userData: UserData, feeId: number): Promise<void> {
     const fee = await this.feeRepo.findOneBy({ id: feeId });
-    await this.verifyFee(fee, userData.accountType);
+
+    await this.feeRepo.update(...fee.increaseUsage(userData.accountType));
 
     await this.userDataService.addFee(userData, fee.id);
+  }
+
+  async increaseTxUsage(fee: Fee): Promise<void> {
+    await this.feeRepo.update(...fee.increaseTxUsage());
   }
 
   async getFeeByDiscountCode(discountCode: string): Promise<Fee> {
@@ -141,7 +147,12 @@ export class FeeService {
       'rate',
     );
     if (customFee)
-      return { rate: customFee.rate, fixed: customFee.fixed ?? 0, payoutRefBonus: customFee.payoutRefBonus };
+      return {
+        fees: [customFee],
+        rate: customFee.rate,
+        fixed: customFee.fixed ?? 0,
+        payoutRefBonus: customFee.payoutRefBonus,
+      };
 
     // get min base fee
     const baseFee = Util.minObj(
@@ -162,6 +173,7 @@ export class FeeService {
     );
 
     const discountFee: FeeDto = {
+      fees: [positiveDiscountFee, negativeDiscountFee],
       rate: (positiveDiscountFee?.rate ?? 0) + (negativeDiscountFee?.rate ?? 0),
       fixed: (positiveDiscountFee?.fixed ?? 0) + (negativeDiscountFee?.fixed ?? 0),
       payoutRefBonus: (positiveDiscountFee?.payoutRefBonus ?? true) && (negativeDiscountFee?.payoutRefBonus ?? true),
@@ -170,10 +182,11 @@ export class FeeService {
     if (!baseFee) throw new InternalServerErrorException('Base fee is missing');
     if (baseFee.rate - discountFee.rate < 0) {
       this.logger.warn(`UserDiscount higher userBaseFee! UserDataId: ${userDataId}`);
-      return { rate: baseFee.rate, fixed: baseFee.fixed, payoutRefBonus: true };
+      return { fees: [baseFee], rate: baseFee.rate, fixed: baseFee.fixed, payoutRefBonus: true };
     }
 
     return {
+      fees: [baseFee, ...discountFee.fees].filter((e) => e != null),
       rate: baseFee.rate - discountFee.rate,
       fixed: Math.max(baseFee.fixed - discountFee.fixed, 0),
       payoutRefBonus: baseFee.payoutRefBonus && discountFee.payoutRefBonus,
@@ -193,36 +206,9 @@ export class FeeService {
 
     // remove ExpiredFee
     userFees
-      .filter((fee) => discountFeeIds.includes(fee.id) && this.isExpiredFee(fee))
+      .filter((fee) => discountFeeIds.includes(fee.id) && fee.isExpired())
       .forEach((fee) => this.userDataService.removeFee(request.userData, fee.id));
 
-    return userFees.filter((fee) => this.isValidFee(fee, { ...request, accountType }));
-  }
-
-  private isValidFee(fee: Fee, request: FeeRequest): boolean {
-    return !(
-      this.isExpiredFee(fee) ||
-      (fee.accountType && fee.accountType !== request.accountType) ||
-      (fee.direction && fee.direction !== request.direction) ||
-      (fee.assetList?.length && !fee.assetList.includes(request.asset?.id)) ||
-      (fee.maxTxVolume && fee.maxTxVolume < request.txVolume)
-    );
-  }
-
-  private isExpiredFee(fee: Fee): boolean {
-    return !fee || !fee.active || (fee.expiryDate && fee.expiryDate < new Date());
-  }
-
-  private async verifyFee(fee: Fee, accountType: AccountType): Promise<void> {
-    if (this.isExpiredFee(fee)) throw new BadRequestException('Discount code is expired');
-    if (fee.accountType && fee.accountType !== accountType) throw new BadRequestException('Account Type not matching');
-
-    if (fee.maxUsages && (await this.hasMaxUsageExceeded(fee)))
-      throw new BadRequestException('Max usages for discount code taken');
-  }
-
-  private async hasMaxUsageExceeded(fee: Fee): Promise<boolean> {
-    const usages = await this.userDataService.getFeeUsages(fee.id);
-    return usages >= fee.maxUsages;
+    return userFees.filter((fee) => fee.verifyForTx({ ...request, accountType }));
   }
 }

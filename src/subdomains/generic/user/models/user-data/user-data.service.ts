@@ -18,7 +18,7 @@ import { Util } from 'src/shared/utils/util';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { SpiderApiService } from 'src/subdomains/generic/user/services/spider/spider-api.service';
 import { ReferenceType, SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
-import { In, IsNull, MoreThan, Not } from 'typeorm';
+import { In, MoreThan, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { KycProcessService } from '../kyc/kyc-process.service';
@@ -251,12 +251,6 @@ export class UserDataService {
     if (!userData.individualFeeList?.includes(feeId)) throw new BadRequestException('Discount code already removed');
 
     await this.userDataRepo.update(...userData.removeFee(feeId));
-  }
-
-  async getFeeUsages(feeId: number): Promise<number> {
-    const individualFeeEntities = await this.userDataRepo.findBy({ individualFees: Not(IsNull()) });
-
-    return individualFeeEntities.filter((userData) => userData.individualFeeList.includes(feeId)).length;
   }
 
   // --- VOLUMES --- //

@@ -1,7 +1,9 @@
-import { IEntity } from 'src/shared/models/entity';
+import { BadRequestException } from '@nestjs/common';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Column, Entity, Index } from 'typeorm';
+import { FeeRequest } from '../services/fee.service';
 
 export enum FeeType {
   BASE = 'Base',
@@ -51,10 +53,71 @@ export class Fee extends IEntity {
 
   // Acceptance columns
 
-  @Column({ type: 'float', nullable: true })
+  @Column({ type: 'integer', nullable: true })
   maxUsages: number;
 
+  @Column({ type: 'integer', default: 0 })
+  usages: number;
+
+  @Column({ type: 'integer', nullable: true })
+  maxTxUsages: number;
+
+  @Column({ type: 'integer', default: 0 })
+  txUsages: number;
+
   //*** FACTORY METHODS ***//
+
+  increaseUsage(accountType: AccountType): UpdateResult<Fee> {
+    this.verifyForUser(accountType);
+
+    const update: Partial<Fee> = {
+      usages: this.usages++,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  increaseTxUsage(): UpdateResult<Fee> {
+    if (this.isExpired()) throw new BadRequestException('Fee is expired - increaseTxUsage forbidden');
+
+    const update: Partial<Fee> = {
+      txUsages: this.txUsages + 1,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  verifyForTx(request: FeeRequest): boolean {
+    return !(
+      this.isExpired() ||
+      (this.accountType && this.accountType !== request.accountType) ||
+      (this.direction && this.direction !== request.direction) ||
+      (this.assetList?.length && !this.assetList.includes(request.asset?.id)) ||
+      (this.maxTxVolume && this.maxTxVolume < request.txVolume)
+    );
+  }
+
+  isExpired(): boolean {
+    return (
+      !this ||
+      !this.active ||
+      (this.expiryDate && this.expiryDate < new Date()) ||
+      (this.maxTxUsages && this.txUsages >= this.maxTxUsages)
+    );
+  }
+
+  verifyForUser(accountType: AccountType): void {
+    if (this.isExpired()) throw new BadRequestException('Discount code is expired');
+    if (this.accountType && this.accountType !== accountType)
+      throw new BadRequestException('Account Type not matching');
+
+    if (this.maxUsages && this.usages >= this.maxUsages)
+      throw new BadRequestException('Max usages for discount code taken');
+  }
 
   get assetList(): number[] {
     return this.assets?.split(';')?.map(Number);
