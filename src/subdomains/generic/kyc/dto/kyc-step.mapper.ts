@@ -11,6 +11,7 @@ export class KycStepMapper {
       type: kycStep.type,
       status: kycStep.status,
       sequenceNumber: kycStep.sequenceNumber,
+      ...kycStep.sessionInfo,
     };
 
     return Object.assign(new KycStepDto(), dto);
@@ -31,7 +32,7 @@ export class KycStepMapper {
 
   // --- HELPER METHODS --- //
   static getDefaultSteps(): KycStepName[] {
-    return [KycStepName.USER_DATA, KycStepName.IDENT, KycStepName.FINANCIAL];
+    return [KycStepName.PERSONAL_DATA, KycStepName.IDENT, KycStepName.FINANCIAL_DATA];
   }
 
   static sortSteps(steps: KycStepDto[]): KycStepDto[] {

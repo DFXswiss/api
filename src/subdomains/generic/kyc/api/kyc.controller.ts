@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Param, Put, Query } from '@nestjs/common';
 import { ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { KycInfoDto, KycStepDto } from '../dto/kyc-info.dto';
 import { KycStepName, KycStepType } from '../enums/kyc.enum';
@@ -17,10 +17,8 @@ export class KycController {
     return this.kycService.getInfo(code);
   }
 
-  // TODO: return more step info for endpoints below (different DTOs: ident -> URL, financial -> questions)
-
   @Get(':code/next')
-  @ApiOkResponse({ type: KycInfoDto })
+  @ApiOkResponse({ type: KycStepDto })
   async getNextStep(@Param('code') code: string): Promise<KycStepDto> {
     return this.kycService.getNextStep(code);
   }
@@ -33,5 +31,25 @@ export class KycController {
     @Query('type') stepType?: KycStepType,
   ): Promise<KycStepDto> {
     return this.kycService.getOrCreateStep(code, stepName, stepType);
+  }
+
+  // update endpoints
+  // TODO: request/response DTOs
+  @Put(':code/data/personal/:id')
+  @ApiOkResponse()
+  async updatePersonalData(@Param('code') code: string): Promise<void> {
+    return this.kycService.updatePersonalData(code);
+  }
+
+  @Put(':code/data/financial/:id')
+  @ApiOkResponse()
+  async updateFinancialData(@Param('code') code: string): Promise<void> {
+    return this.kycService.updateFinancialData(code);
+  }
+
+  @Put(':code/document/:id')
+  @ApiOkResponse()
+  async uploadDocument(@Param('code') code: string): Promise<void> {
+    return this.kycService.uploadDocument(code);
   }
 }

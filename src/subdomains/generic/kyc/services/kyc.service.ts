@@ -5,7 +5,7 @@ import { KycInfoDto, KycStepDto } from '../dto/kyc-info.dto';
 import { KycInfoMapper } from '../dto/kyc-info.mapper';
 import { KycStepMapper } from '../dto/kyc-step.mapper';
 import { KycStep } from '../entities/kyc-step.entity';
-import { KycStepName, KycStepType } from '../enums/kyc.enum';
+import { KycStepName, KycStepStatus, KycStepType } from '../enums/kyc.enum';
 import { IntrumService } from './integration/intrum.service';
 
 @Injectable()
@@ -13,38 +13,70 @@ export class KycService {
   constructor(private readonly userDataService: UserDataService, private readonly intrumService: IntrumService) {}
 
   async getInfo(kycHash: string): Promise<KycInfoDto> {
-    const userData = await this.getUserOrThrow(kycHash);
-    return KycInfoMapper.toDto(userData);
+    const user = await this.getUserOrThrow(kycHash);
+    return KycInfoMapper.toDto(user);
+  }
+
+  async updatePersonalData(kycHash: string): Promise<void> {
+    const user = await this.getUserOrThrow(kycHash);
+
+    throw new Error('Method not implemented.');
+  }
+
+  async updateFinancialData(kycHash: string): Promise<void> {
+    const user = await this.getUserOrThrow(kycHash);
+
+    throw new Error('Method not implemented.');
+  }
+
+  async uploadDocument(kycHash: string): Promise<void> {
+    const user = await this.getUserOrThrow(kycHash);
+
+    throw new Error('Method not implemented.');
   }
 
   // --- STEPPING METHODS --- //
   async getNextStep(kycHash: string): Promise<KycStepDto> {
-    const userData = await this.getUserOrThrow(kycHash);
+    const user = await this.getUserOrThrow(kycHash);
 
-    let step = userData.getPendingStep();
-    if (!step) {
-      // TODO: create next step
+    let step = user.getPendingStep();
+    while (!step || step.status === KycStepStatus.COMPLETED) {
+      const { stepName, stepType } = this.nextStep(user);
+      step = await this.initiateStep(user, stepName, stepType);
+      user.nextStep(step);
     }
 
     return KycStepMapper.entityToDto(step);
+  }
+
+  nextStep(user: UserData): { stepName: KycStepName; stepType?: KycStepType } {
+    // TODO: create next step
+    throw new Error('Method not implemented.');
   }
 
   async getOrCreateStep(kycHash: string, stepName: KycStepName, stepType?: KycStepType): Promise<KycStepDto> {
-    const userData = await this.getUserOrThrow(kycHash);
+    const user = await this.getUserOrThrow(kycHash);
 
-    let step = userData.getPendingStep(stepName, stepType);
+    let step = user.getPendingStep(stepName, stepType);
     if (!step) {
-      step = await this.initiateStep(userData, stepName, stepType);
-      userData.nextStep(step);
+      step = await this.initiateStep(user, stepName, stepType);
+      user.nextStep(step);
     }
 
     return KycStepMapper.entityToDto(step);
   }
 
-  private async initiateStep(userData: UserData, stepName: KycStepName, stepType?: KycStepType): Promise<KycStep> {
+  private async initiateStep(user: UserData, stepName: KycStepName, stepType?: KycStepType): Promise<KycStep> {
     switch (stepName) {
-      case KycStepName.USER_DATA:
+      case KycStepName.MAIL:
         // TODO: create entity
+        // TODO: auto-complete if mail already filled
+        // TODO: verify, if user can be merged
+        break;
+
+      case KycStepName.PERSONAL_DATA:
+        // TODO: create entity
+        // TODO: auto-complete if user data already filled
         break;
 
       case KycStepName.IDENT:
@@ -53,7 +85,7 @@ export class KycService {
         // TODO: stepType is required
         break;
 
-      case KycStepName.FINANCIAL:
+      case KycStepName.FINANCIAL_DATA:
         // TODO: create entity
         break;
 
@@ -68,9 +100,9 @@ export class KycService {
 
   // --- HELPER METHODS --- //
   async getUserOrThrow(kycHash: string): Promise<UserData> {
-    const userData = await this.userDataService.getUserDataByKycHash(kycHash);
-    if (!userData) throw new NotFoundException('User not found');
+    const user = await this.userDataService.getUserDataByKycHash(kycHash);
+    if (!user) throw new NotFoundException('User not found');
 
-    return userData;
+    return user;
   }
 }

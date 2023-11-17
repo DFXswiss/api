@@ -1,7 +1,8 @@
 export enum KycStepName {
-  USER_DATA = 'UserData',
+  MAIL = 'Mail',
+  PERSONAL_DATA = 'PersonalData',
   IDENT = 'Ident',
-  FINANCIAL = 'Financial',
+  FINANCIAL_DATA = 'FinancialData',
   DOCUMENT_UPLOAD = 'DocumentUpload',
 }
 
@@ -19,4 +20,9 @@ export enum KycStepStatus {
   IN_PROGRESS = 'InProgress',
   FAILED = 'Failed',
   COMPLETED = 'Completed',
+}
+
+export enum UrlType {
+  BROWSER = 'Browser',
+  API = 'API',
 }
