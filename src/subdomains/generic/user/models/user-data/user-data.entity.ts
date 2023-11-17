@@ -1,4 +1,3 @@
-import { BadRequestException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
@@ -211,7 +210,7 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   bankTransactionVerification: CheckStatus;
 
-  // Aml
+  // AML
   @Column({ type: 'datetime2', nullable: true })
   amlListAddedDate: Date;
 
@@ -221,7 +220,7 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   amlAccountType: string;
 
-  //Mail
+  // Mail
   @Column({ length: 256, nullable: true })
   blackSquadRecipientMail: string;
 
@@ -385,13 +384,6 @@ export class UserData extends IEntity {
     return this.kycSteps.find(
       (s) => (!name || s.name === name) && (!type || s.type === type) && s.status === KycStepStatus.IN_PROGRESS,
     );
-  }
-
-  getPendingStepOrThrow(name: KycStepName, type?: KycStepType): KycStep {
-    const step = this.getPendingStep(name, type);
-    if (!step) throw new BadRequestException(`Step ${name}${type ? ' - ' + type : ''} not in progress`);
-
-    return step;
   }
 
   get hasStepsInProgress(): boolean {
