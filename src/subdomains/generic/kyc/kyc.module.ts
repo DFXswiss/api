@@ -9,7 +9,7 @@ import { KycStep } from './entities/kyc-step.entity';
 import { NameCheckLog } from './entities/name-check-log.entity';
 import { KycLogRepository } from './repositories/kyc-log.repository';
 import { NameCheckLogRepository } from './repositories/name-check-log.repository';
-import { DilisenseService } from './services/dilisense.service';
+import { DilisenseService } from './services/integration/dilisense.service';
 import { DocumentStorageService } from './services/integration/document-storage.service';
 import { IntrumService } from './services/integration/intrum.service';
 import { KycLogService } from './services/kyc-log.service';

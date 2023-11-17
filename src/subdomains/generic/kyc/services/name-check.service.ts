@@ -6,7 +6,7 @@ import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { UpdateNameCheckLogDto } from '../dto/update-name-check-log.dto';
 import { NameCheckLog, RiskStatus } from '../entities/name-check-log.entity';
 import { NameCheckLogRepository } from '../repositories/name-check-log.repository';
-import { DilisenseService } from './dilisense.service';
+import { DilisenseService } from './integration/dilisense.service';
 
 @Injectable()
 export class NameCheckService implements OnModuleInit {

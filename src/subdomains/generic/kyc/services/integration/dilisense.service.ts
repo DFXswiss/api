@@ -1,7 +1,7 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { HttpService } from '../../../../shared/services/http.service';
-import { DilisenseApiData } from '../dto/dilisense-data.dto';
+import { HttpService } from '../../../../../shared/services/http.service';
+import { DilisenseApiData } from '../../dto/dilisense-data.dto';
 
 @Injectable()
 export class DilisenseService {
