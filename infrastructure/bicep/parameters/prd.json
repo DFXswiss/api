@@ -275,9 +275,6 @@
     "servicesUrl": {
       "value": "https://services.dfx.swiss"
     },
-    "lockApiKey": {
-      "value": "xxx"
-    },
     "limitRequestSupportBanner": {
       "value": "xxx"
     },
@@ -306,9 +303,6 @@
       "value": "xxx"
     },
     "albyClientSecret": {
-      "value": "xxx"
-    },
-    "taliumApiKey": {
       "value": "xxx"
     },
     "knownIps": {
