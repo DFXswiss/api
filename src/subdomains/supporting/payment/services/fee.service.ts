@@ -185,10 +185,8 @@ export class FeeService {
       return { fees: [baseFee], rate: baseFee.rate, fixed: baseFee.fixed, payoutRefBonus: true };
     }
 
-    Util.removeNullFields(discountFee.fees);
-
     return {
-      fees: [baseFee, ...discountFee.fees],
+      fees: [baseFee, ...discountFee.fees].filter((e) => e != null),
       rate: baseFee.rate - discountFee.rate,
       fixed: Math.max(baseFee.fixed - discountFee.fixed, 0),
       payoutRefBonus: baseFee.payoutRefBonus && discountFee.payoutRefBonus,

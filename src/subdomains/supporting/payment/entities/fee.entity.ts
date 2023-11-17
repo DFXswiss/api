@@ -83,7 +83,7 @@ export class Fee extends IEntity {
     if (this.isExpired()) throw new BadRequestException('Fee is expired - increaseTxUsage forbidden');
 
     const update: Partial<Fee> = {
-      txUsages: this.txUsages++,
+      txUsages: this.txUsages + 1,
     };
 
     Object.assign(this, update);
