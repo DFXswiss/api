@@ -149,6 +149,17 @@ export class UserDataController {
     return this.kycService.updateKycStatus(+id, dto);
   }
 
+  @Put(':id/organization')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async addOrganizationPartner(
+    @Param('id') id: string,
+    @Query('organizationId') organizationId: string,
+  ): Promise<void> {
+    return this.userDataService.addOrganizationPartner(+id, +organizationId);
+  }
+
   @Post(':id/kycFile')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()

@@ -320,6 +320,16 @@ export class UserData extends IEntity {
     return [this.id, update];
   }
 
+  addOrganization(organization: Organization): UpdateResult<UserData> {
+    const update: Partial<UserData> = {
+      organization,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   get isDfxUser(): boolean {
     return this.kycType === KycType.DFX;
   }

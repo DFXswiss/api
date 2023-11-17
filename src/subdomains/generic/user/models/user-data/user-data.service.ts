@@ -23,6 +23,7 @@ import { WebhookService } from '../../services/webhook/webhook.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { KycProcessService } from '../kyc/kyc-process.service';
 import { LinkService } from '../link/link.service';
+import { OrganizationDto } from '../organization/dto/organization.dto';
 import { OrganizationService } from '../organization/organization.service';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { UserRepository } from '../user/user.repository';
@@ -126,6 +127,11 @@ export class UserDataService {
       if (!userData.nationality) throw new BadRequestException('Nationality not found');
     }
 
+    if (dto.organizationCountryId) {
+      userData.organizationCountry = await this.countryService.getCountry(dto.organizationCountryId);
+      if (!userData.organizationCountry) throw new BadRequestException('Country not found');
+    }
+
     if (dto.mainBankDataId) {
       userData.mainBankData = await this.bankDataRepo.findOneBy({ id: dto.mainBankDataId });
       if (!userData.mainBankData) throw new BadRequestException('Bank data not found');
@@ -152,18 +158,8 @@ export class UserDataService {
       userData = await this.kycProcessService.goToStatus(userData, dto.kycStatus);
     }
 
-    if (
-      (dto.accountType === AccountType.BUSINESS || userData.accountType === AccountType.BUSINESS) &&
-      !userData.organization
-    )
-      userData.organization = await this.organizationService.createOrganization({
-        name: dto.organizationName,
-        street: dto.organizationStreet,
-        location: dto.organizationLocation,
-        houseNumber: dto.organizationHouseNumber,
-        zip: dto.organizationZip,
-        countryId: dto.organizationCountryId,
-      });
+    if (dto.accountType === AccountType.BUSINESS || userData.accountType === AccountType.BUSINESS)
+      await this.createOrUpdateOrganization(userData, dto);
 
     // Columns are not updatable
     if (userData.letterSentDate) dto.letterSentDate = userData.letterSentDate;
@@ -192,6 +188,9 @@ export class UserDataService {
       data.organizationZip = null;
       data.organizationCountry = null;
     }
+
+    if (data.accountType === AccountType.BUSINESS || user.accountType === AccountType.BUSINESS)
+      await this.createOrUpdateOrganization(user, data);
 
     user = await this.updateSpiderIfNeeded(user, data);
 
@@ -250,6 +249,35 @@ export class UserDataService {
     }
 
     return userData;
+  }
+
+  // --- ORGANIZATION --- //
+
+  async createOrUpdateOrganization(userData: UserData, dto: KycUserDataDto | UpdateUserDataDto): Promise<void> {
+    const organizationDto: OrganizationDto = {
+      name: dto.organizationName,
+      street: dto.organizationStreet,
+      location: dto.organizationLocation,
+      houseNumber: dto.organizationHouseNumber,
+      zip: dto.organizationZip,
+      countryId: dto instanceof KycUserDataDto ? dto.organizationCountry?.id : dto.organizationCountryId,
+    };
+
+    if (!userData.organization) {
+      userData.organization = await this.organizationService.create(organizationDto);
+    } else {
+      await this.organizationService.update(userData.organization.id, organizationDto);
+    }
+  }
+
+  async addOrganizationPartner(userDataId: number, organizationId: number) {
+    const userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: { organization: true } });
+    if (!userData) throw new NotFoundException('UserData not found');
+
+    const organization = await this.organizationService.getOrganization(organizationId);
+    if (!organization) throw new NotFoundException('Organization not found');
+
+    await this.userDataRepo.update(...userData.addOrganization(organization));
   }
 
   // --- FEES --- //
