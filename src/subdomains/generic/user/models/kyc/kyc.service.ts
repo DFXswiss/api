@@ -31,7 +31,6 @@ import { UserDataService } from '../user-data/user-data.service';
 import { User } from '../user/user.entity';
 import { UserRepository } from '../user/user.repository';
 import { WalletRepository } from '../wallet/wallet.repository';
-import { WalletService } from '../wallet/wallet.service';
 import { KycDataTransferDto } from './dto/kyc-data-transfer.dto';
 import { KycDataDto } from './dto/kyc-data.dto';
 import { KycDocumentType, KycFileDto } from './dto/kyc-file.dto';
@@ -48,7 +47,6 @@ export class KycService {
     private readonly userDataRepo: UserDataRepository,
     private readonly userRepo: UserRepository,
     private readonly walletRepo: WalletRepository,
-    private readonly walletService: WalletService,
     private readonly spiderService: SpiderService,
     private readonly spiderApiService: SpiderApiService,
     private readonly spiderSyncService: SpiderSyncService,

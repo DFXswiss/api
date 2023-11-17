@@ -8,7 +8,6 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { KycCompleted, KycStatus, KycType, UserData } from '../../models/user-data/user-data.entity';
 import { User } from '../../models/user/user.entity';
 import { UserRepository } from '../../models/user/user.repository';
-import { WalletService } from '../../models/wallet/wallet.service';
 import { KycWebhookData, KycWebhookStatus } from './dto/kyc-webhook.dto';
 import { PaymentWebhookData, PaymentWebhookState, PaymentWebhookType } from './dto/payment-webhook.dto';
 import { WebhookDto, WebhookType } from './dto/webhook.dto';
@@ -19,7 +18,6 @@ export class WebhookService {
 
   constructor(
     private readonly http: HttpService,
-    private readonly walletService: WalletService,
     private readonly userRepo: UserRepository,
     private readonly notificationService: NotificationService,
   ) {}
