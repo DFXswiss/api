@@ -15,12 +15,10 @@ import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { KycInfoDto } from 'src/subdomains/generic/kyc/dto/kyc-info.dto';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { SpiderApiService } from 'src/subdomains/generic/user/services/spider/spider-api.service';
 import { ReferenceType, SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
 import { In, IsNull, MoreThan, Not } from 'typeorm';
-import { KycInfoMapper } from '../../../kyc/dto/kyc-info.mapper';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { KycProcessService } from '../kyc/kyc-process.service';
@@ -235,12 +233,6 @@ export class UserDataService {
     }
 
     return userData;
-  }
-
-  async saveAndMap(userData: UserData): Promise<KycInfoDto> {
-    userData = await this.save(userData);
-
-    return KycInfoMapper.toDto(userData);
   }
 
   async save(userData: UserData): Promise<UserData> {

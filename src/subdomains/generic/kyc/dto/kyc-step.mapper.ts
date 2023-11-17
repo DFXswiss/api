@@ -1,7 +1,7 @@
 import { Util } from 'src/shared/utils/util';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycStep } from '../entities/kyc-step.entity';
-import { KycStepName, KycStepStatus } from '../enums/kyc.enum';
+import { KycStepName, KycStepStatus, getKycStepIndex } from '../enums/kyc.enum';
 import { KycStepDto } from './kyc-info.dto';
 
 export class KycStepMapper {
@@ -31,19 +31,15 @@ export class KycStepMapper {
   }
 
   // --- HELPER METHODS --- //
-  static getDefaultSteps(): KycStepName[] {
+  private static getDefaultSteps(): KycStepName[] {
     return [KycStepName.PERSONAL_DATA, KycStepName.IDENT, KycStepName.FINANCIAL_DATA];
   }
 
-  static sortSteps(steps: KycStepDto[]): KycStepDto[] {
+  private static sortSteps(steps: (KycStep | KycStepDto)[]): KycStepDto[] {
     // group by step and get step with highest sequence number
     const groupedSteps = Util.groupByAccessor(steps, (s) => `${s.name}-${s.type}`);
     const visibleSteps = Array.from(groupedSteps.values()).map((steps) => Util.maxObj(steps, 'sequenceNumber'));
 
-    return visibleSteps.sort((a, b) => this.getStepIndex(a) - this.getStepIndex(b));
-  }
-
-  private static getStepIndex(step: KycStepDto): number {
-    return Object.values(KycStepName).indexOf(step.name);
+    return visibleSteps.sort((a, b) => getKycStepIndex(a.name) - getKycStepIndex(b.name));
   }
 }

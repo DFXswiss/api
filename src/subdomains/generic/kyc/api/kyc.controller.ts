@@ -1,32 +1,33 @@
-import { Controller, Get, Param, Put, Query } from '@nestjs/common';
+import { Controller, Get, Headers, Param, Put, Query } from '@nestjs/common';
 import { ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { KycInfoDto, KycStepDto } from '../dto/kyc-info.dto';
+import { KycResultDto } from '../dto/kyc-result.dto';
 import { KycStepName, KycStepType } from '../enums/kyc.enum';
 import { KycService } from '../services/kyc.service';
+
+const CodeHeaderName = 'x-kyc-code';
 
 @ApiTags('KYC')
 @Controller({ path: 'kyc', version: ['2'] })
 export class KycController {
   constructor(private readonly kycService: KycService) {}
 
-  // TODO: use code in header?
-
-  @Get(':code')
+  @Get()
   @ApiOkResponse({ type: KycInfoDto })
-  async getKycInfo(@Param('code') code: string): Promise<KycInfoDto> {
+  async getKycStatus(@Headers(CodeHeaderName) code: string): Promise<KycInfoDto> {
     return this.kycService.getInfo(code);
   }
 
-  @Get(':code/next')
+  @Put()
   @ApiOkResponse({ type: KycStepDto })
-  async getNextStep(@Param('code') code: string): Promise<KycStepDto> {
-    return this.kycService.getNextStep(code);
+  async continueKyc(@Headers(CodeHeaderName) code: string): Promise<KycInfoDto> {
+    return this.kycService.continue(code);
   }
 
-  @Get(':code/:step')
+  @Get(':step')
   @ApiExcludeEndpoint()
   async getStep(
-    @Param('code') code: string,
+    @Headers(CodeHeaderName) code: string,
     @Param('step') stepName: KycStepName,
     @Query('type') stepType?: KycStepType,
   ): Promise<KycStepDto> {
@@ -34,22 +35,29 @@ export class KycController {
   }
 
   // update endpoints
-  // TODO: request/response DTOs
-  @Put(':code/data/personal/:id')
+  // TODO: request DTOs
+  @Put('data/personal/:id')
   @ApiOkResponse()
-  async updatePersonalData(@Param('code') code: string): Promise<void> {
-    return this.kycService.updatePersonalData(code);
+  async updatePersonalData(@Headers(CodeHeaderName) code: string, @Param('id') id: string): Promise<KycResultDto> {
+    return this.kycService.updatePersonalData(code, +id);
   }
 
-  @Put(':code/data/financial/:id')
+  @Get('data/financial/:id')
   @ApiOkResponse()
-  async updateFinancialData(@Param('code') code: string): Promise<void> {
-    return this.kycService.updateFinancialData(code);
+  async getFinancialData(@Headers(CodeHeaderName) code: string, @Param('id') id: string): Promise<void> {
+    // TODO: response DTO
+    return this.kycService.getFinancialData(code, +id);
   }
 
-  @Put(':code/document/:id')
+  @Put('data/financial/:id')
   @ApiOkResponse()
-  async uploadDocument(@Param('code') code: string): Promise<void> {
-    return this.kycService.uploadDocument(code);
+  async updateFinancialData(@Headers(CodeHeaderName) code: string, @Param('id') id: string): Promise<KycResultDto> {
+    return this.kycService.updateFinancialData(code, +id);
+  }
+
+  @Put('document/:id')
+  @ApiOkResponse()
+  async uploadDocument(@Headers(CodeHeaderName) code: string, @Param('id') id: string): Promise<KycResultDto> {
+    return this.kycService.uploadDocument(code, +id);
   }
 }

@@ -373,7 +373,7 @@ export class UserData extends IEntity {
     return this;
   }
 
-  kycInReview(): this {
+  kycProcessDone(): this {
     this.kycStatusNew = KycStatusNew.IN_REVIEW;
 
     this.logger.verbose(`UserData ${this.id} in review`);

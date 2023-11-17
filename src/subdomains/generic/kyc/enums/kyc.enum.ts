@@ -26,3 +26,7 @@ export enum UrlType {
   BROWSER = 'Browser',
   API = 'API',
 }
+
+export function getKycStepIndex(stepName: KycStepName): number {
+  return Object.values(KycStepName).indexOf(stepName);
+}
