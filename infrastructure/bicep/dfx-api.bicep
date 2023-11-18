@@ -161,9 +161,6 @@ param myDeFiChainPassword string
 param paymentUrl string
 param servicesUrl string
 
-@secure()
-param lockApiKey string
-
 param limitRequestSupportBanner string
 param limitRequestSupportMail string
 param limitRequestSupportName string
@@ -179,9 +176,6 @@ param azureStorageConnectionString string
 param albyClientId string
 @secure()
 param albyClientSecret string
-
-@secure()
-param taliumApiKey string
 
 @secure()
 param iknaKey string
@@ -835,10 +829,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: servicesUrl
         }
         {
-          name: 'LOCK_API_KEY'
-          value: lockApiKey
-        }
-        {
           name: 'LIMIT_REQUEST_SUPPORT_BANNER'
           value: limitRequestSupportBanner
         }
@@ -877,10 +867,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'ALBY_CLIENT_SECRET'
           value: albyClientSecret
-        }
-        {
-          name: 'TALIUM_API_KEY'
-          value: taliumApiKey
         }
         {
           name: 'REQUEST_KNOWN_IPS'
