@@ -401,6 +401,19 @@ export class UserData extends IEntity {
   get hasStepsInProgress(): boolean {
     return this.kycSteps.some((s) => s.status === KycStepStatus.IN_PROGRESS);
   }
+
+  getSequenceNumber(stepName: KycStepName, stepType?: KycStepType): number {
+    return this.kycSteps.filter((k) => k.name == stepName && (k.type === stepType ?? true)).length + 1;
+  }
+
+  isDataComplete(): boolean {
+    const requiredFields = ['mail', 'phone', 'firstname', 'surname', 'street', 'location', 'zip', 'country'].concat(
+      this.accountType === AccountType.PERSONAL
+        ? []
+        : ['organizationName', 'organizationStreet', 'organizationLocation', 'organizationZip', 'organizationCountry'],
+    );
+    return requiredFields.filter((f) => !this[f]).length === 0;
+  }
 }
 
 export const KycInProgressStates = [KycStatus.CHATBOT, KycStatus.ONLINE_ID, KycStatus.VIDEO_ID];

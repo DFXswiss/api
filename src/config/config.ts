@@ -147,18 +147,22 @@ export class Configuration {
   };
 
   kyc = {
-    mandator: process.env.KYC_MANDATOR,
-    user: process.env.KYC_USER,
-    password: process.env.KYC_PASSWORD,
-    prefix: process.env.KYC_PREFIX ?? '',
     gatewayHost: process.env.KYC_GATEWAY_HOST,
     customerAuto: process.env.KYC_CUSTOMER_AUTO,
     customerVideo: process.env.KYC_CUSTOMER_VIDEO,
     apiKey: process.env.KYC_API_KEY,
     transactionPrefix: process.env.KYC_TRANSACTION_PREFIX,
+    identFailAfterDays: 90,
+    allowedWebhookIps: process.env.KYC_WEBHOOK_IPS?.split(','),
+  };
+
+  kycSpider = {
+    mandator: process.env.KYC_MANDATOR,
+    user: process.env.KYC_USER,
+    password: process.env.KYC_PASSWORD,
+    prefix: process.env.KYC_PREFIX ?? '',
     reminderAfterDays: 2,
     failAfterDays: 7,
-    identFailAfterDays: 90,
     chatbotStyle: {
       headerColor: this.colors.white,
       textColor: this.colors.white,

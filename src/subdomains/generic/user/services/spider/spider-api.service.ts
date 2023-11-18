@@ -379,7 +379,7 @@ export class SpiderApiService {
       references: [this.reference(id)],
       sendInvitation: sendMail,
       overridingStyleInfo:
-        identType === KycDocument.INITIATE_CHATBOT_IDENTIFICATION ? Config.kyc.chatbotStyle : undefined,
+        identType === KycDocument.INITIATE_CHATBOT_IDENTIFICATION ? Config.kycSpider.chatbotStyle : undefined,
     };
 
     return this.callApi<InitiateResponse[]>(`customers/initiate-${identType}-sessions`, 'POST', data).then((r) => r[0]);
@@ -446,14 +446,14 @@ export class SpiderApiService {
     const { key, challenge } = await this.http.get<Challenge>(`${this.baseUrl}/${this.baseVersion}/challenge`);
 
     // determine response
-    const response = key + Config.kyc.mandator + Config.kyc.user + Config.kyc.password + challenge;
+    const response = key + Config.kycSpider.mandator + Config.kycSpider.user + Config.kycSpider.password + challenge;
     const hash = createHash('sha1');
     hash.update(response);
 
     const data = {
       key: key,
-      mandator: Config.kyc.mandator,
-      user: Config.kyc.user,
+      mandator: Config.kycSpider.mandator,
+      user: Config.kycSpider.user,
       response: hash.digest('hex'),
     };
 

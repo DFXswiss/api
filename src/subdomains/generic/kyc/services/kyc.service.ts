@@ -3,7 +3,6 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { LessThan } from 'typeorm';
-import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { KycContentType, KycFileType } from '../dto/kyc-file.dto';
@@ -12,7 +11,7 @@ import { KycInfoMapper } from '../dto/kyc-info.mapper';
 import { KycResultDto } from '../dto/kyc-result.dto';
 import { KycStepMapper } from '../dto/kyc-step.mapper';
 import { KycStep } from '../entities/kyc-step.entity';
-import { KycStepName, KycStepType, getKycStepIndex } from '../enums/kyc.enum';
+import { KycStepName, KycStepStatus, KycStepType, getKycStepIndex } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { DocumentStorageService } from './integration/document-storage.service';
 import { IdentService } from './integration/ident.service';
@@ -30,11 +29,13 @@ export class KycService {
   async checkIdentSteps(): Promise<void> {
     const allIdentInProgress = await this.kycStepRepo.findBy({
       name: KycStepName.IDENT,
+      status: KycStepStatus.IN_PROGRESS,
       created: LessThan(Util.daysBefore(Config.kyc.identFailAfterDays)),
     });
 
     for (const identStep of allIdentInProgress) {
       identStep.fail();
+      await this.kycStepRepo.save(identStep);
     }
   }
 
@@ -47,7 +48,7 @@ export class KycService {
     const user = await this.getUserOrThrow(kycHash);
     const kycStep = this.getKycStepOrThrow(user, stepId);
 
-    if (this.isDataComplete(user)) kycStep.complete();
+    if (kycStep.userData.isDataComplete()) kycStep.complete();
     // TODO: update user data and complete step (if data complete), might be mail or personal data step
 
     await this.updateProgress(user, false);
@@ -158,7 +159,7 @@ export class KycService {
   }
 
   private async initiateStep(user: UserData, stepName: KycStepName, stepType?: KycStepType): Promise<KycStep> {
-    const sequenceNumber = await this.getSequenceNumber(user, stepName, stepType);
+    const sequenceNumber = user.getSequenceNumber(stepName, stepType);
     let kycStep: KycStep;
     switch (stepName) {
       case KycStepName.MAIL:
@@ -169,7 +170,7 @@ export class KycService {
 
       case KycStepName.PERSONAL_DATA:
         kycStep = KycStep.create(user, stepName, sequenceNumber);
-        if (this.isDataComplete(user)) kycStep.complete();
+        if (kycStep.userData.isDataComplete()) kycStep.complete();
         return kycStep;
 
       case KycStepName.IDENT:
@@ -195,15 +196,6 @@ export class KycService {
     )?.name;
   }
 
-  isDataComplete(user: UserData): boolean {
-    const requiredFields = ['mail', 'phone', 'firstname', 'surname', 'street', 'location', 'zip', 'country'].concat(
-      user?.accountType === AccountType.PERSONAL
-        ? []
-        : ['organizationName', 'organizationStreet', 'organizationLocation', 'organizationZip', 'organizationCountry'],
-    );
-    return requiredFields.filter((f) => !user[f]).length === 0;
-  }
-
   // --- HELPER METHODS --- //
   async getUserOrThrow(kycHash: string): Promise<UserData> {
     const user = await this.userDataService.getUserDataByKycHash(kycHash);
@@ -217,10 +209,6 @@ export class KycService {
     if (!kycStep) throw new NotFoundException('Kyc step not found');
 
     return kycStep;
-  }
-
-  async getSequenceNumber(user: UserData, stepName: KycStepName, stepType?: KycStepType): Promise<number> {
-    return user.kycSteps.filter((k) => k.name == stepName && (k.type === stepType ?? true)).length + 1;
   }
 
   async saveUserAndMap(user: UserData): Promise<KycInfoDto> {

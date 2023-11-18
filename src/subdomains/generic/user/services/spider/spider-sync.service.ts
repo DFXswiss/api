@@ -63,12 +63,12 @@ export class SpiderSyncService {
         {
           kycStatus: In(KycInProgressStates),
           kycState: KycState.NA,
-          kycStatusChangeDate: LessThan(Util.daysBefore(Config.kyc.reminderAfterDays)),
+          kycStatusChangeDate: LessThan(Util.daysBefore(Config.kycSpider.reminderAfterDays)),
         },
         {
           kycStatus: In(KycInProgressStates),
           kycState: KycState.REMINDED,
-          kycStatusChangeDate: LessThan(Util.daysBefore(Config.kyc.failAfterDays)),
+          kycStatusChangeDate: LessThan(Util.daysBefore(Config.kycSpider.failAfterDays)),
         },
       ],
     });

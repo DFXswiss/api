@@ -3,6 +3,7 @@ import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, ManyToOne } from 'typeorm';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycStepName, KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
+import { IdentService } from '../services/integration/ident.service';
 
 @Entity()
 export class KycStep extends IEntity {
@@ -34,7 +35,7 @@ export class KycStep extends IEntity {
         return { url: `${apiUrl}/data/personal/${this.id}`, urlType: UrlType.API };
 
       case KycStepName.IDENT:
-        return { url: this.identUrl(), urlType: UrlType.BROWSER };
+        return { url: IdentService.identUrl(this), urlType: UrlType.BROWSER };
 
       case KycStepName.FINANCIAL_DATA:
         return { url: `${apiUrl}/data/financial/${this.id}`, urlType: UrlType.API };
@@ -65,15 +66,12 @@ export class KycStep extends IEntity {
     });
   }
 
-  identUrl(): string {
-    return `https://go.${Config.kyc.prefix}online-ident.ch/app/dfxauto/identifications/${this.sessionId}/identification/start`;
-  }
-
   // --- KYC PROCESS --- //
 
   isCompleted(): boolean {
     return this.status == KycStepStatus.COMPLETED;
   }
+
   complete(): this {
     this.status = KycStepStatus.COMPLETED;
 

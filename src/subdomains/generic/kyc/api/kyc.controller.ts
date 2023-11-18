@@ -1,9 +1,26 @@
-import { Controller, Get, Headers, Param, Put, Query, UploadedFiles, UseInterceptors } from '@nestjs/common';
-import { FilesInterceptor } from '@nestjs/platform-express';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Headers,
+  Param,
+  Post,
+  Put,
+  Query,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { RealIP } from 'nestjs-real-ip';
+import { Config } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { IdentResultDto } from '../../user/models/ident/dto/ident-result.dto';
 import { KycInfoDto, KycStepDto } from '../dto/kyc-info.dto';
 import { KycResultDto } from '../dto/kyc-result.dto';
 import { KycStepName, KycStepType } from '../enums/kyc.enum';
+import { IdentService } from '../services/integration/ident.service';
 import { KycService } from '../services/kyc.service';
 
 const CodeHeaderName = 'x-kyc-code';
@@ -11,7 +28,9 @@ const CodeHeaderName = 'x-kyc-code';
 @ApiTags('KYC')
 @Controller({ path: 'kyc', version: ['2'] })
 export class KycController {
-  constructor(private readonly kycService: KycService) {}
+  private readonly logger = new DfxLogger(KycController);
+
+  constructor(private readonly kycService: KycService, private readonly identService: IdentService) {}
 
   @Get()
   @ApiOkResponse({ type: KycInfoDto })
@@ -23,6 +42,27 @@ export class KycController {
   @ApiOkResponse({ type: KycStepDto })
   async continueKyc(@Headers(CodeHeaderName) code: string): Promise<KycInfoDto> {
     return this.kycService.continue(code);
+  }
+
+  @Post('online')
+  @ApiExcludeEndpoint()
+  async onlineIdWebhook(@RealIP() ip: string, @Body() data: IdentResultDto) {
+    this.checkWebhookIp(ip, data);
+    await this.identService.identUpdate(data);
+  }
+
+  @Post('video')
+  @ApiExcludeEndpoint()
+  async videoIdWebhook(@RealIP() ip: string, @Body() data: IdentResultDto) {
+    this.checkWebhookIp(ip, data);
+    await this.identService.identUpdate(data);
+  }
+
+  private checkWebhookIp(ip: string, data: IdentResultDto) {
+    if (!Config.kyc.allowedWebhookIps.includes('*') && !Config.kyc.allowedWebhookIps.includes(ip)) {
+      this.logger.error(`Received webhook call from invalid IP ${ip}: ${JSON.stringify(data)}`);
+      throw new ForbiddenException('Invalid source IP');
+    }
   }
 
   @Get(':step')
@@ -57,13 +97,13 @@ export class KycController {
   }
 
   @Put('document/:id')
-  @UseInterceptors(FilesInterceptor('files'))
+  @UseInterceptors(FileInterceptor('file'))
   @ApiOkResponse()
   async uploadDocument(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
-    @UploadedFiles() files: Express.Multer.File[],
+    @UploadedFile() file: Express.Multer.File,
   ): Promise<KycResultDto> {
-    return this.kycService.uploadDocument(code, +id, files[0]);
+    return this.kycService.uploadDocument(code, +id, file);
   }
 }

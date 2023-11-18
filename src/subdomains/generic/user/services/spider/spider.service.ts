@@ -200,15 +200,15 @@ export class SpiderService {
     // failed
     if (
       versions.find(
-        (doc) => doc.state != KycDocumentState.FAILED && this.documentAge(doc) < Config.kyc.failAfterDays,
+        (doc) => doc.state != KycDocumentState.FAILED && this.documentAge(doc) < Config.kycSpider.failAfterDays,
       ) == null
     )
       return DocumentState.FAILED;
 
     // expired
     if (
-      this.documentAge(versions[0]) > Config.kyc.reminderAfterDays &&
-      this.documentAge(versions[0]) < Config.kyc.failAfterDays
+      this.documentAge(versions[0]) > Config.kycSpider.reminderAfterDays &&
+      this.documentAge(versions[0]) < Config.kycSpider.failAfterDays
     ) {
       return DocumentState.EXPIRING;
     }
@@ -264,7 +264,7 @@ export class SpiderService {
   }
 
   getOnlineIdUrl(identificationId: string): string {
-    return `https://go.${Config.kyc.prefix}online-ident.ch/app/dfxauto/identifications/${identificationId}/identification/start`;
+    return `https://go.${Config.kycSpider.prefix}online-ident.ch/app/dfxauto/identifications/${identificationId}/identification/start`;
   }
 
   // --- HELPER METHODS --- //
