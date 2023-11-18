@@ -1,4 +1,5 @@
-import { Controller, Get, Headers, Param, Put, Query } from '@nestjs/common';
+import { Controller, Get, Headers, Param, Put, Query, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { KycInfoDto, KycStepDto } from '../dto/kyc-info.dto';
 import { KycResultDto } from '../dto/kyc-result.dto';
@@ -56,8 +57,13 @@ export class KycController {
   }
 
   @Put('document/:id')
+  @UseInterceptors(FilesInterceptor('files'))
   @ApiOkResponse()
-  async uploadDocument(@Headers(CodeHeaderName) code: string, @Param('id') id: string): Promise<KycResultDto> {
-    return this.kycService.uploadDocument(code, +id);
+  async uploadDocument(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @UploadedFiles() files: Express.Multer.File[],
+  ): Promise<KycResultDto> {
+    return this.kycService.uploadDocument(code, +id, files[0]);
   }
 }

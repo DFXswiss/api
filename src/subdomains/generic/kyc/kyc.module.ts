@@ -8,10 +8,11 @@ import { KycLog } from './entities/kyc-log.entity';
 import { KycStep } from './entities/kyc-step.entity';
 import { NameCheckLog } from './entities/name-check-log.entity';
 import { KycLogRepository } from './repositories/kyc-log.repository';
+import { KycStepRepository } from './repositories/kyc-step.repository';
 import { NameCheckLogRepository } from './repositories/name-check-log.repository';
 import { DilisenseService } from './services/integration/dilisense.service';
 import { DocumentStorageService } from './services/integration/document-storage.service';
-import { IntrumService } from './services/integration/intrum.service';
+import { IdentService } from './services/integration/ident.service';
 import { KycLogService } from './services/kyc-log.service';
 import { KycService } from './services/kyc.service';
 import { NameCheckService } from './services/name-check.service';
@@ -25,9 +26,10 @@ import { NameCheckService } from './services/name-check.service';
     NameCheckService,
     NameCheckLogRepository,
     DilisenseService,
-    IntrumService,
+    IdentService,
     KycLogService,
     KycLogRepository,
+    KycStepRepository,
   ],
   exports: [DocumentStorageService, NameCheckService, KycLogService],
 })

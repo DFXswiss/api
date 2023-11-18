@@ -34,7 +34,7 @@ export class KycStep extends IEntity {
         return { url: `${apiUrl}/data/personal/${this.id}`, urlType: UrlType.API };
 
       case KycStepName.IDENT:
-        return { url: `TODO: get from IntrumService (static method?)`, urlType: UrlType.BROWSER };
+        return { url: this.identUrl(), urlType: UrlType.BROWSER };
 
       case KycStepName.FINANCIAL_DATA:
         return { url: `${apiUrl}/data/financial/${this.id}`, urlType: UrlType.API };
@@ -52,7 +52,6 @@ export class KycStep extends IEntity {
     type?: KycStepType,
     sessionId?: string,
   ): KycStep {
-    if (name === KycStepName.IDENT && sessionId == null) throw new Error('Missing session ID');
     if ([KycStepName.IDENT, KycStepName.DOCUMENT_UPLOAD].includes(name) && type == null)
       throw new Error('Missing step type');
 
@@ -66,7 +65,15 @@ export class KycStep extends IEntity {
     });
   }
 
+  identUrl(): string {
+    return `https://go.${Config.kyc.prefix}online-ident.ch/app/dfxauto/identifications/${this.sessionId}/identification/start`;
+  }
+
   // --- KYC PROCESS --- //
+
+  isCompleted(): boolean {
+    return this.status == KycStepStatus.COMPLETED;
+  }
   complete(): this {
     this.status = KycStepStatus.COMPLETED;
 

@@ -1,20 +1,42 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
+import { LessThan } from 'typeorm';
+import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
+import { KycContentType, KycFileType } from '../dto/kyc-file.dto';
 import { KycInfoDto, KycStepDto } from '../dto/kyc-info.dto';
 import { KycInfoMapper } from '../dto/kyc-info.mapper';
 import { KycResultDto } from '../dto/kyc-result.dto';
 import { KycStepMapper } from '../dto/kyc-step.mapper';
 import { KycStep } from '../entities/kyc-step.entity';
 import { KycStepName, KycStepType, getKycStepIndex } from '../enums/kyc.enum';
-import { IntrumService } from './integration/intrum.service';
-
-// TODO: fail ident steps after 90 days?
+import { KycStepRepository } from '../repositories/kyc-step.repository';
+import { DocumentStorageService } from './integration/document-storage.service';
+import { IdentService } from './integration/ident.service';
 
 @Injectable()
 export class KycService {
-  constructor(private readonly userDataService: UserDataService, private readonly intrumService: IntrumService) {}
+  constructor(
+    private readonly userDataService: UserDataService,
+    private readonly identService: IdentService,
+    private readonly storageService: DocumentStorageService,
+    private readonly kycStepRepo: KycStepRepository,
+  ) {}
+
+  @Cron(CronExpression.EVERY_DAY_AT_4AM)
+  async checkIdentSteps(): Promise<void> {
+    const allIdentInProgress = await this.kycStepRepo.findBy({
+      name: KycStepName.IDENT,
+      created: LessThan(Util.daysBefore(Config.kyc.identFailAfterDays)),
+    });
+
+    for (const identStep of allIdentInProgress) {
+      identStep.fail();
+    }
+  }
 
   async getInfo(kycHash: string): Promise<KycInfoDto> {
     const user = await this.getUserOrThrow(kycHash);
@@ -23,47 +45,61 @@ export class KycService {
 
   async updatePersonalData(kycHash: string, stepId: number): Promise<KycResultDto> {
     const user = await this.getUserOrThrow(kycHash);
+    const kycStep = this.getKycStepOrThrow(user, stepId);
 
+    if (this.isDataComplete(user)) kycStep.complete();
     // TODO: update user data and complete step (if data complete), might be mail or personal data step
 
     await this.updateProgress(user, false);
 
-    // TODO: check if step complete
-    return { done: false };
+    return { done: kycStep.isCompleted() };
   }
 
   async getFinancialData(kycHash: string, stepId: number): Promise<void> {
     const user = await this.getUserOrThrow(kycHash);
+    const kycStep = this.getKycStepOrThrow(user, stepId);
 
     // TODO: get questions and existing answers
   }
 
   async updateFinancialData(kycHash: string, stepId: number): Promise<KycResultDto> {
     const user = await this.getUserOrThrow(kycHash);
+    const kycStep = this.getKycStepOrThrow(user, stepId);
 
     // TODO: store financial data and complete step (if data complete)
 
     await this.updateProgress(user, false);
 
-    // TODO: check if step complete
-    return { done: false };
+    return { done: kycStep.isCompleted() };
   }
 
-  async uploadDocument(kycHash: string, stepId: number): Promise<KycResultDto> {
+  async uploadDocument(kycHash: string, stepId: number, document: Express.Multer.File): Promise<KycResultDto> {
     const user = await this.getUserOrThrow(kycHash);
+    const kycStep = this.getKycStepOrThrow(user, stepId);
 
-    // TODO: store document to storage and complete step
+    const url = await this.storageService.uploadFile(
+      user.id,
+      KycFileType.USER_NOTES,
+      document.filename,
+      document.buffer,
+      document.mimetype as KycContentType,
+      {
+        document: document.mimetype.toString(),
+        creationTime: new Date().toISOString(),
+        fileName: document.filename,
+      },
+    );
+
+    if (url) kycStep.complete();
 
     await this.updateProgress(user, false);
 
-    // TODO: check if step complete
-    return { done: false };
+    return { done: kycStep.isCompleted() };
   }
 
   // --- STEPPING METHODS --- //
   async continue(kycHash: string): Promise<KycInfoDto> {
     const user = await this.getUserOrThrow(kycHash);
-
     return this.updateProgress(user, true);
   }
 
@@ -83,7 +119,7 @@ export class KycService {
 
   private async updateProgress(user: UserData, shouldContinue: boolean): Promise<KycInfoDto> {
     if (!user.hasStepsInProgress) {
-      let nextStep = this.getNextStep(user);
+      const nextStep = this.getNextStep(user);
 
       if (!nextStep) {
         // no more steps to do
@@ -122,35 +158,34 @@ export class KycService {
   }
 
   private async initiateStep(user: UserData, stepName: KycStepName, stepType?: KycStepType): Promise<KycStep> {
+    const sequenceNumber = await this.getSequenceNumber(user, stepName, stepType);
+    let kycStep: KycStep;
     switch (stepName) {
       case KycStepName.MAIL:
-        // TODO: create entity
-        // TODO: auto-complete if mail already filled
+        kycStep = KycStep.create(user, stepName, sequenceNumber);
+        if (user.mail !== '') kycStep.complete();
         // TODO: verify, if user can be merged
-        break;
+        return kycStep;
 
       case KycStepName.PERSONAL_DATA:
-        // TODO: create entity
-        // TODO: auto-complete if user data already filled
-        break;
+        kycStep = KycStep.create(user, stepName, sequenceNumber);
+        if (this.isDataComplete(user)) kycStep.complete();
+        return kycStep;
 
       case KycStepName.IDENT:
-        // TODO: trigger Intrum => create entity
+        kycStep = KycStep.create(user, stepName, sequenceNumber, stepType);
+        const transactionId = `${Config.kyc.transactionPrefix}-${kycStep.id}-${sequenceNumber}`;
+        const ident = await this.identService.initiateIdent(user, stepType, transactionId);
+        kycStep.sessionId = ident.id;
         // TODO: verify 2FA
-        // TODO: stepType is required
-        break;
+        return kycStep;
 
       case KycStepName.FINANCIAL_DATA:
-        // TODO: create entity
-        break;
+        return KycStep.create(user, stepName, sequenceNumber);
 
       case KycStepName.DOCUMENT_UPLOAD:
-        // TODO: create entity
-        // TODO: stepType is required
-        break;
+        return KycStep.create(user, stepName, sequenceNumber, stepType);
     }
-
-    throw new Error('Not implemented');
   }
 
   private static getLastStep(user: UserData): KycStepName | undefined {
@@ -160,12 +195,32 @@ export class KycService {
     )?.name;
   }
 
+  isDataComplete(user: UserData): boolean {
+    const requiredFields = ['mail', 'phone', 'firstname', 'surname', 'street', 'location', 'zip', 'country'].concat(
+      user?.accountType === AccountType.PERSONAL
+        ? []
+        : ['organizationName', 'organizationStreet', 'organizationLocation', 'organizationZip', 'organizationCountry'],
+    );
+    return requiredFields.filter((f) => !user[f]).length === 0;
+  }
+
   // --- HELPER METHODS --- //
   async getUserOrThrow(kycHash: string): Promise<UserData> {
     const user = await this.userDataService.getUserDataByKycHash(kycHash);
     if (!user) throw new NotFoundException('User not found');
 
     return user;
+  }
+
+  getKycStepOrThrow(user: UserData, stepId: number): KycStep {
+    const kycStep = user.kycSteps.find((s) => (s.id = stepId));
+    if (!kycStep) throw new NotFoundException('Kyc step not found');
+
+    return kycStep;
+  }
+
+  async getSequenceNumber(user: UserData, stepName: KycStepName, stepType?: KycStepType): Promise<number> {
+    return user.kycSteps.filter((k) => k.name == stepName && (k.type === stepType ?? true)).length + 1;
   }
 
   async saveUserAndMap(user: UserData): Promise<KycInfoDto> {
