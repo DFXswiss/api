@@ -191,6 +191,11 @@ param ckoPublicKey string
 @secure()
 param ckoSecretKey string
 
+param delisenseJsonPath string
+@secure()
+param delisenseKey string
+
+
 // --- VARIABLES --- //
 var compName = 'dfx'
 var apiName = 'api'
@@ -900,6 +905,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'WEBSITE_RUN_FROM_PACKAGE'
           value: '1'
+        }
+        {
+          name: 'DILISENSE_JSON_PATH'
+          value: delisenseJsonPath
+        }
+        {
+          name: 'DILISENSE_KEY'
+          value: delisenseKey
         }
       ]
     }

@@ -328,6 +328,12 @@
     },
     "ckoSecretKey": {
       "value": "xxx"
+    },
+    "delisenseJsonPath": {
+      "value": "/home/Data/Dilisense/consolidated.json"
+    },
+    "delisenseKey": {
+      "value": "xxx"
     }
   }
 }
