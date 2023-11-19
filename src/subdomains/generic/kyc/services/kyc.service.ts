@@ -34,7 +34,7 @@ export class KycService {
     });
 
     for (const identStep of allIdentInProgress) {
-      identStep.fail();
+      identStep.userData.failStep(identStep);
       await this.kycStepRepo.save(identStep);
     }
   }
@@ -48,7 +48,7 @@ export class KycService {
     const user = await this.getUserOrThrow(kycHash);
     const kycStep = this.getKycStepOrThrow(user, stepId);
 
-    if (kycStep.userData.isDataComplete()) kycStep.complete();
+    if (user.isDataComplete()) kycStep.complete();
     // TODO: update user data and complete step (if data complete), might be mail or personal data step
 
     await this.updateProgress(user, false);
@@ -91,7 +91,10 @@ export class KycService {
       },
     );
 
-    if (url) kycStep.complete();
+    if (url) {
+      user.completeStep(kycStep);
+      kycStep.result = url;
+    }
 
     await this.updateProgress(user, false);
 
@@ -164,19 +167,19 @@ export class KycService {
     switch (stepName) {
       case KycStepName.MAIL:
         kycStep = KycStep.create(user, stepName, sequenceNumber);
-        if (user.mail !== '') kycStep.complete();
+        if (user.mail !== '') user.completeStep(kycStep);
         // TODO: verify, if user can be merged
         return kycStep;
 
       case KycStepName.PERSONAL_DATA:
         kycStep = KycStep.create(user, stepName, sequenceNumber);
-        if (kycStep.userData.isDataComplete()) kycStep.complete();
+        if (user.isDataComplete()) user.completeStep(kycStep);
         return kycStep;
 
       case KycStepName.IDENT:
         kycStep = KycStep.create(user, stepName, sequenceNumber, stepType);
         const transactionId = `${Config.kyc.transactionPrefix}-${kycStep.id}-${sequenceNumber}`;
-        const ident = await this.identService.initiateIdent(user, stepType, transactionId);
+        const ident = await this.identService.initiateIdent(stepType, transactionId);
         kycStep.sessionId = ident.id;
         // TODO: verify 2FA
         return kycStep;

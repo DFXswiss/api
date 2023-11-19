@@ -25,6 +25,9 @@ export class KycStep extends IEntity {
   @Column({ nullable: true })
   sessionId?: string;
 
+  @Column({ length: 'MAX', nullable: true })
+  result: string;
+
   // --- GETTERS --- //
   get sessionInfo(): { url: string; urlType: UrlType } {
     const apiUrl = `${Config.url}/kyc`;

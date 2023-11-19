@@ -359,7 +359,6 @@ export class UserData extends IEntity {
 
   completeStep(kycStep: KycStep): this {
     kycStep.complete();
-
     this.logger.verbose(`User ${this.id} completes step ${kycStep.name} (${kycStep.id})`);
 
     return this;
