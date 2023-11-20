@@ -91,7 +91,7 @@ export class CryptoService {
   }
 
   // --- SIGNATURE VERIFICATION --- //
-  public verifySignature(message: string, address: string, signature: string, key?: string): boolean {
+  public async verifySignature(message: string, address: string, signature: string, key?: string): Promise<boolean> {
     const blockchain = this.getDefaultBlockchainBasedOn(address);
 
     try {
@@ -128,7 +128,7 @@ export class CryptoService {
     return this.lightningService.verifySignature(message, signature, key);
   }
 
-  private verifyMonero(message: string, address: string, signature: string, key: string): boolean {
+  private async verifyMonero(message: string, address: string, signature: string, key: string): Promise<boolean> {
     throw new Error('TODO: Method not implemented.');
   }
 
