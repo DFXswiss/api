@@ -18,6 +18,16 @@ import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { DocumentStorageService } from './integration/document-storage.service';
 import { IdentService } from './integration/ident.service';
 
+// TODO:
+// - country API
+// - update UserData (+ block update when KYC in progress)
+// - method for completion (call from UserDataService)
+// - custom ident methods (Settings/Wallet, see old KycProcessService)
+// - KYC reminders?
+// - send user mails (failed, completed, ident?) => see old KycProcessService
+// - send support mails (failed)
+// - send webhooks
+
 @Injectable()
 export class KycService {
   private readonly logger = new DfxLogger(KycService);
