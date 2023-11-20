@@ -1,12 +1,14 @@
+import { NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
-import { KycStepName, KycStepStatus, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycStepName, KycStepStatus, KycStepType, getKycStepIndex } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
@@ -357,15 +359,15 @@ export class UserData extends IEntity {
 
   // --- KYC PROCESS --- //
 
-  completeStep(kycStep: KycStep): this {
-    kycStep.complete();
+  completeStep(kycStep: KycStep, result?: string): this {
+    kycStep.complete(result);
     this.logger.verbose(`User ${this.id} completes step ${kycStep.name} (${kycStep.id})`);
 
     return this;
   }
 
-  failStep(kycStep: KycStep): this {
-    kycStep.fail();
+  failStep(kycStep: KycStep, result?: string): this {
+    kycStep.fail(result);
 
     if (!this.hasStepsInProgress) this.kycStatusNew = KycStatusNew.PAUSED;
 
@@ -378,7 +380,7 @@ export class UserData extends IEntity {
     this.kycSteps.push(kycStep);
     this.kycStatusNew = KycStatusNew.IN_PROGRESS;
 
-    this.logger.verbose(`UserData ${this.id} starts step ${kycStep}`);
+    this.logger.verbose(`User ${this.id} starts step ${kycStep}`);
 
     return this;
   }
@@ -386,26 +388,46 @@ export class UserData extends IEntity {
   kycProcessDone(): this {
     this.kycStatusNew = KycStatusNew.IN_REVIEW;
 
-    this.logger.verbose(`UserData ${this.id} in review`);
+    this.logger.verbose(`User ${this.id} in review`);
 
     return this;
   }
 
-  getPendingStep(name?: KycStepName, type?: KycStepType): KycStep | undefined {
-    return this.kycSteps.find(
-      (s) => (!name || s.name === name) && (!type || s.type === type) && s.status === KycStepStatus.IN_PROGRESS,
-    );
+  getStepsWith(name?: KycStepName, type?: KycStepType): KycStep[] {
+    return this.kycSteps.filter((s) => (!name || s.name === name) && (!type || s.type === type));
+  }
+
+  getPendingStepWith(name?: KycStepName, type?: KycStepType): KycStep | undefined {
+    return this.getStepsWith(name, type).find((s) => s.status === KycStepStatus.IN_PROGRESS);
+  }
+
+  getPendingStep(stepId: number): KycStep | undefined {
+    return this.kycSteps.find((s) => s.id === stepId && s.status === KycStepStatus.IN_PROGRESS);
+  }
+
+  getPendingStepOrThrow(stepId: number): KycStep {
+    const kycStep = this.getPendingStep(stepId);
+    if (!kycStep) throw new NotFoundException('KYC step not found');
+
+    return kycStep;
   }
 
   get hasStepsInProgress(): boolean {
     return this.kycSteps.some((s) => s.status === KycStepStatus.IN_PROGRESS);
   }
 
-  getSequenceNumber(stepName: KycStepName, stepType?: KycStepType): number {
-    return this.kycSteps.filter((k) => k.name == stepName && (k.type === stepType ?? true)).length + 1;
+  getLastStep(): KycStepName | undefined {
+    return Util.maxObj(
+      this.kycSteps.map((s) => ({ name: s.name, index: getKycStepIndex(s.name) })),
+      'index',
+    )?.name;
   }
 
-  isDataComplete(): boolean {
+  getNextSequenceNumber(stepName: KycStepName, stepType?: KycStepType): number {
+    return Math.max(...this.getStepsWith(stepName, stepType).map((s) => s.sequenceNumber + 1), 0);
+  }
+
+  get isDataComplete(): boolean {
     const requiredFields = ['mail', 'phone', 'firstname', 'surname', 'street', 'location', 'zip', 'country'].concat(
       this.accountType === AccountType.PERSONAL
         ? []

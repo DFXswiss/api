@@ -44,20 +44,6 @@ export class KycController {
     return this.kycService.continue(code);
   }
 
-  @Post('online')
-  @ApiExcludeEndpoint()
-  async onlineIdWebhook(@RealIP() ip: string, @Body() data: IdentResultDto) {
-    this.checkWebhookIp(ip, data);
-    await this.identService.identUpdate(data);
-  }
-
-  @Post('video')
-  @ApiExcludeEndpoint()
-  async videoIdWebhook(@RealIP() ip: string, @Body() data: IdentResultDto) {
-    this.checkWebhookIp(ip, data);
-    await this.identService.identUpdate(data);
-  }
-
   private checkWebhookIp(ip: string, data: IdentResultDto) {
     if (!Config.kyc.allowedWebhookIps.includes('*') && !Config.kyc.allowedWebhookIps.includes(ip)) {
       this.logger.error(`Received webhook call from invalid IP ${ip}: ${JSON.stringify(data)}`);
@@ -94,6 +80,20 @@ export class KycController {
   @ApiOkResponse()
   async updateFinancialData(@Headers(CodeHeaderName) code: string, @Param('id') id: string): Promise<KycResultDto> {
     return this.kycService.updateFinancialData(code, +id);
+  }
+
+  @Post('ident/online')
+  @ApiExcludeEndpoint()
+  async onlineIdWebhook(@RealIP() ip: string, @Body() data: IdentResultDto) {
+    this.checkWebhookIp(ip, data);
+    await this.kycService.updateIdent(data);
+  }
+
+  @Post('ident/video')
+  @ApiExcludeEndpoint()
+  async videoIdWebhook(@RealIP() ip: string, @Body() data: IdentResultDto) {
+    this.checkWebhookIp(ip, data);
+    await this.kycService.updateIdent(data);
   }
 
   @Put('document/:id')

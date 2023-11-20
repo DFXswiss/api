@@ -49,13 +49,7 @@ export class KycStep extends IEntity {
   }
 
   // --- FACTORY --- //
-  static create(
-    userData: UserData,
-    name: KycStepName,
-    sequenceNumber: number,
-    type?: KycStepType,
-    sessionId?: string,
-  ): KycStep {
+  static create(userData: UserData, name: KycStepName, sequenceNumber: number, type?: KycStepType): KycStep {
     if ([KycStepName.IDENT, KycStepName.DOCUMENT_UPLOAD].includes(name) && type == null)
       throw new Error('Missing step type');
 
@@ -65,24 +59,25 @@ export class KycStep extends IEntity {
       type,
       status: KycStepStatus.IN_PROGRESS,
       sequenceNumber,
-      sessionId,
     });
   }
 
   // --- KYC PROCESS --- //
 
   isCompleted(): boolean {
-    return this.status == KycStepStatus.COMPLETED;
+    return this.status === KycStepStatus.COMPLETED;
   }
 
-  complete(): this {
+  complete(result?: string): this {
     this.status = KycStepStatus.COMPLETED;
+    this.result = result;
 
     return this;
   }
 
-  fail(): this {
+  fail(result?: string): this {
     this.status = KycStepStatus.FAILED;
+    this.result = result;
 
     return this;
   }

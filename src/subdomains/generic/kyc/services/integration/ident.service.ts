@@ -3,60 +3,19 @@ import { Method } from 'axios';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpError, HttpService } from 'src/shared/services/http.service';
-import { IdentInProgress } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { IdentFailed, IdentResultDto, IdentSucceeded } from '../../dto/ident-result.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
 import { KycStepType } from '../../enums/kyc.enum';
-import { KycStepRepository } from '../../repositories/kyc-step.repository';
 
 @Injectable()
 export class IdentService {
-  constructor(private readonly http: HttpService, private readonly kycStepRepo: KycStepRepository) {}
   private readonly logger = new DfxLogger(IdentService);
+
   private readonly baseUrl = `${Config.kyc.gatewayHost}/api/v1`;
 
-  async initiateIdent(kycStepType: KycStepType, identificationId: string): Promise<{ id: string }> {
-    return this.callApi<{ id: string }>(`identifications/${identificationId}/start`, kycStepType, 'POST');
-  }
+  constructor(private readonly http: HttpService) {}
 
-  // --- WEBHOOK UPDATES --- //
-  async identUpdate(result: IdentResultDto): Promise<void> {
-    const kycStep = await this.kycStepRepo.findOne({
-      where: {
-        sessionId: result?.identificationprocess?.id,
-      },
-      relations: ['userData'],
-    });
-
-    if (!kycStep) {
-      this.logger.error(`Received unmatched webhook call: ${JSON.stringify(result)}`);
-      return;
-    }
-
-    if (!IdentInProgress(kycStep.userData.kycStatus)) {
-      this.logger.error(
-        `Received webhook call for user ${kycStep.userData.id} in invalid KYC status ${
-          kycStep.userData.kycStatus
-        }: ${JSON.stringify(result)}`,
-      );
-      return;
-    }
-
-    this.logger.info(
-      `Received webhook call for user ${kycStep.userData.id} (${result.identificationprocess.id}): ${result.identificationprocess.result}`,
-    );
-
-    if (IdentSucceeded(result)) {
-      kycStep.userData.completeStep(kycStep);
-    } else if (IdentFailed(result)) {
-      kycStep.userData.failStep(kycStep);
-    } else {
-      this.logger.error(`Unknown ident result for user ${kycStep.userData.id}: ${result.identificationprocess.result}`);
-    }
-
-    kycStep.result = JSON.stringify(result);
-
-    await this.kycStepRepo.save(kycStep);
+  async initiateIdent(kycStepType: KycStepType, transactionId: string): Promise<{ id: string }> {
+    return this.callApi<{ id: string }>(`identifications/${transactionId}/start`, kycStepType, 'POST');
   }
 
   static identUrl(kycStep: KycStep): string {
@@ -66,7 +25,8 @@ export class IdentService {
   // --- HELPER METHODS --- //
 
   private async callApi<T>(url: string, kycStepType: KycStepType, method: Method = 'GET', data?: any): Promise<T> {
-    const customer = kycStepType == KycStepType.AUTO ? Config.kyc.customerAuto : Config.kyc.customerVideo;
+    const customer = kycStepType === KycStepType.AUTO ? Config.kyc.customerAuto : Config.kyc.customerVideo;
+
     return this.request<T>(url, method, customer, data).catch((e: HttpError) => {
       this.logger.verbose(`Error during intrum request ${method} ${url}: ${e.response?.status} ${e.response?.data}`);
       throw new ServiceUnavailableException({ status: e.response?.status, data: e.response?.data });
