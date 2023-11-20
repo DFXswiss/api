@@ -31,7 +31,6 @@ import { UserDataService } from '../user-data/user-data.service';
 import { User } from '../user/user.entity';
 import { UserRepository } from '../user/user.repository';
 import { WalletRepository } from '../wallet/wallet.repository';
-import { WalletService } from '../wallet/wallet.service';
 import { KycDataTransferDto } from './dto/kyc-data-transfer.dto';
 import { KycDataDto } from './dto/kyc-data.dto';
 import { KycDocumentType, KycFileDto } from './dto/kyc-file.dto';
@@ -48,7 +47,6 @@ export class KycService {
     private readonly userDataRepo: UserDataRepository,
     private readonly userRepo: UserRepository,
     private readonly walletRepo: WalletRepository,
-    private readonly walletService: WalletService,
     private readonly spiderService: SpiderService,
     private readonly spiderApiService: SpiderApiService,
     private readonly spiderSyncService: SpiderSyncService,
@@ -127,13 +125,11 @@ export class KycService {
     const dfxUser = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
     if (!dfxUser) throw new NotFoundException('DFX user not found');
     if (!KycCompleted(dfxUser.userData.kycStatus)) throw new ConflictException('KYC required');
-
-    const apiKey = this.walletService.getApiKeyInternal(wallet.name);
-    if (!apiKey) throw new Error(`ApiKey for wallet ${wallet.name} not available`);
+    if (!wallet.apiKey) throw new Error(`ApiKey for wallet ${wallet.name} not available`);
 
     try {
       result = await this.http.get<{ kycId: string }>(`${wallet.apiUrl}/check`, {
-        headers: { 'x-api-key': apiKey },
+        headers: { 'x-api-key': wallet.apiKey },
 
         params: { address: dfxUser.address },
       });
