@@ -32,4 +32,7 @@ export class KycInfoDto {
 
   @ApiProperty({ type: KycStepDto, isArray: true })
   kycSteps: KycStepDto[];
+
+  @ApiPropertyOptional({ type: KycStepDto })
+  currentStep?: KycStepDto;
 }

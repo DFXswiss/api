@@ -8,6 +8,7 @@ export class KycInfoMapper {
       kycStatus: userData.kycStatusNew,
       tradingLimit: userData.tradingLimit,
       kycSteps: KycStepMapper.entitiesToDto(userData),
+      currentStep: KycStepMapper.entityToDto(userData.getPendingStepWith()),
     };
 
     return Object.assign(new KycInfoDto(), dto);

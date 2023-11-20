@@ -22,7 +22,6 @@ import { KycPersonalData } from '../dto/input/kyc-personal-data.dto';
 import { KycInfoDto, KycStepDto } from '../dto/output/kyc-info.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { KycStepName, KycStepType } from '../enums/kyc.enum';
-import { IdentService } from '../services/integration/ident.service';
 import { KycService } from '../services/kyc.service';
 
 const CodeHeaderName = 'x-kyc-code';
@@ -32,7 +31,7 @@ const CodeHeaderName = 'x-kyc-code';
 export class KycController {
   private readonly logger = new DfxLogger(KycController);
 
-  constructor(private readonly kycService: KycService, private readonly identService: IdentService) {}
+  constructor(private readonly kycService: KycService) {}
 
   @Get()
   @ApiOkResponse({ type: KycInfoDto })
@@ -64,8 +63,6 @@ export class KycController {
   }
 
   // update endpoints
-  // TODO: request DTOs
-  // TODO: should we merge the contact/personal endpoints?
   @Put('data/contact/:id')
   @ApiOkResponse()
   async updateContactData(
@@ -96,6 +93,7 @@ export class KycController {
   @Put('data/financial/:id')
   @ApiOkResponse()
   async updateFinancialData(@Headers(CodeHeaderName) code: string, @Param('id') id: string): Promise<KycResultDto> {
+    // TODO: request DTO
     return this.kycService.updateFinancialData(code, +id);
   }
 
