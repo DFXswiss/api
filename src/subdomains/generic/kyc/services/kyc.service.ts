@@ -6,12 +6,14 @@ import { Util } from 'src/shared/utils/util';
 import { LessThan } from 'typeorm';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
-import { IdentAborted, IdentFailed, IdentPending, IdentResultDto, IdentSucceeded } from '../dto/ident-result.dto';
+import { IdentAborted, IdentFailed, IdentPending, IdentResultDto, IdentSucceeded } from '../dto/input/ident-result.dto';
+import { KycContactData } from '../dto/input/kyc-contact-data.dto';
+import { KycPersonalData } from '../dto/input/kyc-personal-data.dto';
 import { KycContentType, KycFileType } from '../dto/kyc-file.dto';
-import { KycInfoDto, KycStepDto } from '../dto/kyc-info.dto';
-import { KycInfoMapper } from '../dto/kyc-info.mapper';
-import { KycResultDto } from '../dto/kyc-result.dto';
-import { KycStepMapper } from '../dto/kyc-step.mapper';
+import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
+import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
+import { KycInfoDto, KycStepDto } from '../dto/output/kyc-info.dto';
+import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { KycStep } from '../entities/kyc-step.entity';
 import { KycStepName, KycStepStatus, KycStepType } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
@@ -20,11 +22,10 @@ import { IdentService } from './integration/ident.service';
 
 // TODO:
 // - country API
-// - update UserData (+ block update when KYC in progress)
 // - method for completion (call from UserDataService)
 // - custom ident methods (Settings/Wallet, see old KycProcessService)
-// - KYC reminders?
-// - send user mails (failed, completed, ident?) => see old KycProcessService
+// - KYC reminders
+// - send user mails (failed, completed, ident) => see old KycProcessService
 // - send support mails (failed)
 // - send webhooks
 
@@ -62,16 +63,29 @@ export class KycService {
   }
 
   // --- UPDATE METHODS --- //
-  async updatePersonalData(kycHash: string, stepId: number): Promise<KycResultDto> {
+  async updateContactData(kycHash: string, stepId: number, data: KycContactData): Promise<KycResultDto> {
     let user = await this.getUserOrThrow(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
-    if (user.isDataComplete) user = user.completeStep(kycStep);
-    // TODO: update user data and complete step (if data complete), might be mail or personal data step
+    const { user: updatedUser, isKnownUser } = await this.userDataService.updateUserSettings(user, data);
+    user = isKnownUser ? updatedUser.failStep(kycStep) : updatedUser.completeStep(kycStep);
 
     await this.updateProgress(user, false);
 
-    return { done: kycStep.isCompleted() };
+    return { status: kycStep.status };
+  }
+
+  async updatePersonalData(kycHash: string, stepId: number, data: KycPersonalData): Promise<KycResultDto> {
+    let user = await this.getUserOrThrow(kycHash);
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    user = await this.userDataService.updateKycData(user, data);
+
+    if (user.isDataComplete) user = user.completeStep(kycStep);
+
+    await this.updateProgress(user, false);
+
+    return { status: kycStep.status };
   }
 
   async getFinancialData(kycHash: string, stepId: number): Promise<void> {
@@ -89,7 +103,7 @@ export class KycService {
 
     await this.updateProgress(user, false);
 
-    return { done: kycStep.isCompleted() };
+    return { status: kycStep.status };
   }
 
   async updateIdent(dto: IdentResultDto): Promise<void> {
@@ -151,7 +165,7 @@ export class KycService {
 
     await this.updateProgress(user, false);
 
-    return { done: kycStep.isCompleted() };
+    return { status: kycStep.status };
   }
 
   // --- STEPPING METHODS --- //
@@ -178,10 +192,10 @@ export class KycService {
     if (!user.hasStepsInProgress) {
       const nextStep = this.getNextStep(user);
 
-      if (!nextStep) {
+      if (nextStep === undefined) {
         // no more steps to do
         user.kycProcessDone();
-      } else if (shouldContinue) {
+      } else if (nextStep && shouldContinue) {
         // continue with next step
         const step = await this.initiateStep(user, nextStep.name, nextStep.type);
         user.nextStep(step);
@@ -194,9 +208,12 @@ export class KycService {
     return this.saveUserAndMap(user);
   }
 
-  private getNextStep(user: UserData): { name: KycStepName; type?: KycStepType } | undefined {
+  private getNextStep(user: UserData): { name: KycStepName; type?: KycStepType } | null | undefined {
     const lastStep = user.getLastStep();
-    switch (lastStep) {
+    if (lastStep?.isInProgress) throw new Error('Step still in progress');
+    if (lastStep?.isFailed) return null;
+
+    switch (lastStep.name) {
       case undefined:
         return { name: KycStepName.MAIL };
 
@@ -220,9 +237,10 @@ export class KycService {
 
     switch (stepName) {
       case KycStepName.MAIL:
-        // TODO: verify, if user can be merged
-
-        if (user.mail !== '') kycStep.complete();
+        if (user.mail) {
+          const isKnownUser = await this.userDataService.isKnownKycUser(user);
+          isKnownUser ? kycStep.fail() : kycStep.complete();
+        }
         break;
 
       case KycStepName.PERSONAL_DATA:

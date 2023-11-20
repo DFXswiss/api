@@ -34,6 +34,8 @@ export class KycStep extends IEntity {
 
     switch (this.name) {
       case KycStepName.MAIL:
+        return { url: `${apiUrl}/data/contact/${this.id}`, urlType: UrlType.API };
+
       case KycStepName.PERSONAL_DATA:
         return { url: `${apiUrl}/data/personal/${this.id}`, urlType: UrlType.API };
 
@@ -64,8 +66,16 @@ export class KycStep extends IEntity {
 
   // --- KYC PROCESS --- //
 
-  isCompleted(): boolean {
+  get isInProgress(): boolean {
+    return this.status === KycStepStatus.IN_PROGRESS;
+  }
+
+  get isCompleted(): boolean {
     return this.status === KycStepStatus.COMPLETED;
+  }
+
+  get isFailed(): boolean {
+    return this.status === KycStepStatus.FAILED;
   }
 
   complete(result?: string): this {

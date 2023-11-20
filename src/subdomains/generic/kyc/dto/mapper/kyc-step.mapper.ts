@@ -1,8 +1,8 @@
 import { Util } from 'src/shared/utils/util';
-import { UserData } from '../../user/models/user-data/user-data.entity';
-import { KycStep } from '../entities/kyc-step.entity';
-import { KycStepName, KycStepStatus, getKycStepIndex } from '../enums/kyc.enum';
-import { KycStepDto } from './kyc-info.dto';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycStep } from '../../entities/kyc-step.entity';
+import { KycStepName, KycStepStatus, getKycStepIndex } from '../../enums/kyc.enum';
+import { KycStepDto } from '../output/kyc-info.dto';
 
 export class KycStepMapper {
   static entityToDto(kycStep: KycStep): KycStepDto {

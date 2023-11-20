@@ -17,8 +17,10 @@ import { RealIP } from 'nestjs-real-ip';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { IdentResultDto } from '../../user/models/ident/dto/ident-result.dto';
-import { KycInfoDto, KycStepDto } from '../dto/kyc-info.dto';
-import { KycResultDto } from '../dto/kyc-result.dto';
+import { KycContactData } from '../dto/input/kyc-contact-data.dto';
+import { KycPersonalData } from '../dto/input/kyc-personal-data.dto';
+import { KycInfoDto, KycStepDto } from '../dto/output/kyc-info.dto';
+import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { KycStepName, KycStepType } from '../enums/kyc.enum';
 import { IdentService } from '../services/integration/ident.service';
 import { KycService } from '../services/kyc.service';
@@ -63,10 +65,25 @@ export class KycController {
 
   // update endpoints
   // TODO: request DTOs
+  // TODO: should we merge the contact/personal endpoints?
+  @Put('data/contact/:id')
+  @ApiOkResponse()
+  async updateContactData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycContactData,
+  ): Promise<KycResultDto> {
+    return this.kycService.updateContactData(code, +id, data);
+  }
+
   @Put('data/personal/:id')
   @ApiOkResponse()
-  async updatePersonalData(@Headers(CodeHeaderName) code: string, @Param('id') id: string): Promise<KycResultDto> {
-    return this.kycService.updatePersonalData(code, +id);
+  async updatePersonalData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycPersonalData,
+  ): Promise<KycResultDto> {
+    return this.kycService.updatePersonalData(code, +id, data);
   }
 
   @Get('data/financial/:id')

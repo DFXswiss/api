@@ -8,7 +8,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
-import { KycStepName, KycStepStatus, KycStepType, getKycStepIndex } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycStepName, KycStepType, getKycStepIndex } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
@@ -31,8 +31,10 @@ export enum KycStatus {
 
 export enum KycStatusNew {
   NA = 'NA',
+  // TODO: move these to a separate column?
   IN_PROGRESS = 'InProgress',
   IN_REVIEW = 'InReview',
+
   Light = 'Light',
   FULL = 'Full',
   PAUSED = 'Paused',
@@ -382,6 +384,9 @@ export class UserData extends IEntity {
 
     this.logger.verbose(`User ${this.id} starts step ${kycStep}`);
 
+    if (kycStep.isCompleted) this.completeStep(kycStep);
+    if (kycStep.isFailed) this.failStep(kycStep);
+
     return this;
   }
 
@@ -398,11 +403,11 @@ export class UserData extends IEntity {
   }
 
   getPendingStepWith(name?: KycStepName, type?: KycStepType): KycStep | undefined {
-    return this.getStepsWith(name, type).find((s) => s.status === KycStepStatus.IN_PROGRESS);
+    return this.getStepsWith(name, type).find((s) => s.isInProgress);
   }
 
   getPendingStep(stepId: number): KycStep | undefined {
-    return this.kycSteps.find((s) => s.id === stepId && s.status === KycStepStatus.IN_PROGRESS);
+    return this.kycSteps.find((s) => s.id === stepId && s.isInProgress);
   }
 
   getPendingStepOrThrow(stepId: number): KycStep {
@@ -413,14 +418,14 @@ export class UserData extends IEntity {
   }
 
   get hasStepsInProgress(): boolean {
-    return this.kycSteps.some((s) => s.status === KycStepStatus.IN_PROGRESS);
+    return this.kycSteps.some((s) => s.isInProgress);
   }
 
-  getLastStep(): KycStepName | undefined {
+  getLastStep(): KycStep | undefined {
     return Util.maxObj(
-      this.kycSteps.map((s) => ({ name: s.name, index: getKycStepIndex(s.name) })),
+      this.kycSteps.map((s) => ({ step: s, index: getKycStepIndex(s.name) })),
       'index',
-    )?.name;
+    )?.step;
   }
 
   getNextSequenceNumber(stepName: KycStepName, stepType?: KycStepType): number {

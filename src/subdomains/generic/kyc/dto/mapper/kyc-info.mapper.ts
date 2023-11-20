@@ -1,6 +1,6 @@
-import { KycStepMapper } from 'src/subdomains/generic/kyc/dto/kyc-step.mapper';
-import { UserData } from '../../user/models/user-data/user-data.entity';
-import { KycInfoDto } from './kyc-info.dto';
+import { UserData } from '../../../user/models/user-data/user-data.entity';
+import { KycInfoDto } from '../output/kyc-info.dto';
+import { KycStepMapper } from './kyc-step.mapper';
 
 export class KycInfoMapper {
   static toDto(userData: UserData): KycInfoDto {
