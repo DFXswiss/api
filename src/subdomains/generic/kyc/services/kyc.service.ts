@@ -268,7 +268,7 @@ export class KycService {
       case KycStepName.IDENT:
         // TODO: verify 2FA
 
-        const transactionId = `${Config.kyc.transactionPrefix}-${kycStep.id}-${nextSequenceNumber}`;
+        const transactionId = `${Config.kyc.transactionPrefix}-${user.id}-${nextSequenceNumber}`;
         const { id } = await this.identService.initiateIdent(stepType, transactionId);
         kycStep.sessionId = id;
         break;
