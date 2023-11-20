@@ -275,9 +275,6 @@
     "servicesUrl": {
       "value": "http://localhost:3001"
     },
-    "lockApiKey": {
-      "value": "xxx"
-    },
     "limitRequestSupportBanner": {
       "value": "xxx"
     },
@@ -308,9 +305,6 @@
     "albyClientSecret": {
       "value": "xxx"
     },
-    "taliumApiKey": {
-      "value": "xxx"
-    },
     "knownIps": {
       "value": "xxx"
     },
@@ -327,6 +321,12 @@
       "value": "xxx"
     },
     "ckoSecretKey": {
+      "value": "xxx"
+    },
+    "delisenseJsonPath": {
+      "value": "/home/Data/Dilisense/consolidated.json"
+    },
+    "delisenseKey": {
       "value": "xxx"
     }
   }

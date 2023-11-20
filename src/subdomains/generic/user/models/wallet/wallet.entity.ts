@@ -38,4 +38,7 @@ export class Wallet extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   cryptoFee: number;
+
+  @Column({ length: 256, nullable: true })
+  apiKey: string;
 }

@@ -161,9 +161,6 @@ param myDeFiChainPassword string
 param paymentUrl string
 param servicesUrl string
 
-@secure()
-param lockApiKey string
-
 param limitRequestSupportBanner string
 param limitRequestSupportMail string
 param limitRequestSupportName string
@@ -181,15 +178,17 @@ param albyClientId string
 param albyClientSecret string
 
 @secure()
-param taliumApiKey string
-
-@secure()
 param iknaKey string
 
 @secure()
 param ckoPublicKey string
 @secure()
 param ckoSecretKey string
+
+param delisenseJsonPath string
+@secure()
+param delisenseKey string
+
 
 // --- VARIABLES --- //
 var compName = 'dfx'
@@ -830,10 +829,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: servicesUrl
         }
         {
-          name: 'LOCK_API_KEY'
-          value: lockApiKey
-        }
-        {
           name: 'LIMIT_REQUEST_SUPPORT_BANNER'
           value: limitRequestSupportBanner
         }
@@ -874,10 +869,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: albyClientSecret
         }
         {
-          name: 'TALIUM_API_KEY'
-          value: taliumApiKey
-        }
-        {
           name: 'REQUEST_KNOWN_IPS'
           value: knownIps
         }
@@ -900,6 +891,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'WEBSITE_RUN_FROM_PACKAGE'
           value: '1'
+        }
+        {
+          name: 'DILISENSE_JSON_PATH'
+          value: delisenseJsonPath
+        }
+        {
+          name: 'DILISENSE_KEY'
+          value: delisenseKey
         }
       ]
     }

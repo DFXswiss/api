@@ -201,18 +201,6 @@ export class Configuration {
     apiKey: process.env.FIXER_API_KEY,
   };
 
-  externalKycServices = {
-    'LOCK.space': {
-      apiKey: process.env.LOCK_API_KEY,
-    },
-    'LOCK.space STG': {
-      apiKey: process.env.LOCK_API_KEY,
-    },
-    Talium: {
-      apiKey: process.env.TALIUM_API_KEY,
-    },
-  };
-
   mail: MailOptions = {
     options: {
       transport: {
@@ -411,6 +399,11 @@ export class Configuration {
     timeout: 30000,
   };
   exchangeTxSyncLimit = +(process.env.EXCHANGE_TX_SYNC_LIMIT ?? 720); // minutes
+
+  dilisense = {
+    jsonPath: process.env.DILISENSE_JSON_PATH,
+    key: process.env.DILISENSE_KEY,
+  };
 
   sepaTools = {
     auth: {

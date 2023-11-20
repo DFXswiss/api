@@ -57,7 +57,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     BlockchainModule,
     ReferralModule,
     forwardRef(() => PaymentModule),
-    KycModule,
+    forwardRef(() => KycModule),
   ],
   controllers: [
     UserController,

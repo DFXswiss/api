@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { Config } from 'src/config/config';
 import { WalletRepository } from 'src/subdomains/generic/user/models/wallet/wallet.repository';
 import { Wallet } from './wallet.entity';
 
@@ -21,13 +20,5 @@ export class WalletService {
 
   async getAllExternalServices(): Promise<Wallet[]> {
     return this.repo.findBy({ isKycClient: true });
-  }
-
-  public getApiKeyInternal(name: string): string {
-    return (
-      Object.entries(Config.externalKycServices)
-        .filter(([key, _]) => key === name)
-        .map(([_, value]) => value)[0]?.apiKey ?? undefined
-    );
   }
 }
