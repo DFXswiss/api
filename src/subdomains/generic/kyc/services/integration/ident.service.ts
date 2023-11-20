@@ -21,12 +21,12 @@ export class IdentService {
   }
 
   static identUrl(kycStep: KycStep): string {
-    return `https://go.online-ident.ch/app/dfxauto/identifications/${kycStep.sessionId}/identification/start`;
+    return `https://go.online-ident.ch/app/${Config.kyc.customerAuto}/identifications/${kycStep.sessionId}/identification/start`;
   }
 
   // --- HELPER METHODS --- //
 
-  private async callApi<T>(url: string, kycStepType: KycStepType, method: Method = 'GET', data?: any): Promise<T> {
+  private async callApi<T>(url: string, kycStepType: KycStepType, method: Method = 'GET', data: any = {}): Promise<T> {
     const customer = kycStepType === KycStepType.AUTO ? Config.kyc.customerAuto : Config.kyc.customerVideo;
 
     return this.request<T>(url, method, customer, data).catch((e: HttpError) => {

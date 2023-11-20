@@ -18,6 +18,7 @@ export enum KycStepType {
 export enum KycStepStatus {
   NOT_STARTED = 'NotStarted',
   IN_PROGRESS = 'InProgress',
+  IN_REVIEW = 'InReview',
   FAILED = 'Failed',
   COMPLETED = 'Completed',
 }

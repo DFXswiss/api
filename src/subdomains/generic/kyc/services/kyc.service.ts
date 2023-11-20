@@ -129,8 +129,8 @@ export class KycService {
     if (IdentSucceeded(dto)) {
       user = user.completeStep(kycStep, result);
     } else if (IdentPending(dto)) {
-      // TODO
-      // user = user.stepInReview(kycStep);
+      kycStep.review(result);
+      await this.kycStepRepo.save(kycStep);
     } else if (IdentAborted(dto)) {
       this.logger.info(`Ident cancelled for user ${user.id}: ${sessionStatus}`);
     } else if (IdentFailed(dto)) {
