@@ -18,7 +18,7 @@ import { Util } from 'src/shared/utils/util';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { SpiderApiService } from 'src/subdomains/generic/user/services/spider/spider-api.service';
 import { ReferenceType, SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
-import { In, MoreThan, Not } from 'typeorm';
+import { FindOptionsRelations, In, MoreThan, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { KycProcessService } from '../kyc/kyc-process.service';
@@ -73,8 +73,11 @@ export class UserDataService {
     return this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['users'] });
   }
 
-  async getUserDataByKycHash(kycHash: string): Promise<UserData | undefined> {
-    return this.userDataRepo.findOneBy({ kycHash });
+  async getUserDataByKycHash(
+    kycHash: string,
+    relations?: FindOptionsRelations<UserData>,
+  ): Promise<UserData | undefined> {
+    return this.userDataRepo.findOne({ where: { kycHash }, relations });
   }
 
   async getUsersByMail(mail: string): Promise<UserData[]> {
@@ -185,7 +188,11 @@ export class UserDataService {
     return this.userDataRepo.save(Object.assign(user, data));
   }
 
-  async updateUserSettings(user: UserData, dto: UpdateUserDto): Promise<{ user: UserData; isKnownUser: boolean }> {
+  async updateUserSettings(
+    user: UserData,
+    dto: UpdateUserDto,
+    forceUpdate?: boolean,
+  ): Promise<{ user: UserData; isKnownUser: boolean }> {
     // check phone & mail if KYC is already started
     if (
       user.kycStatus != KycStatus.NA &&
@@ -212,7 +219,7 @@ export class UserDataService {
 
     user = await this.userDataRepo.save(Object.assign(user, dto));
 
-    const isKnownUser = mailChanged && (await this.isKnownKycUser(user));
+    const isKnownUser = (mailChanged || forceUpdate) && (await this.isKnownKycUser(user));
     return { user, isKnownUser };
   }
 

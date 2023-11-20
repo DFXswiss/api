@@ -382,7 +382,7 @@ export class UserData extends IEntity {
     this.kycSteps.push(kycStep);
     this.kycStatusNew = KycStatusNew.IN_PROGRESS;
 
-    this.logger.verbose(`User ${this.id} starts step ${kycStep}`);
+    this.logger.verbose(`User ${this.id} starts step ${kycStep.name}`);
 
     if (kycStep.isCompleted) this.completeStep(kycStep);
     if (kycStep.isFailed) this.failStep(kycStep);
@@ -423,7 +423,7 @@ export class UserData extends IEntity {
 
   getLastStep(): KycStep | undefined {
     return Util.maxObj(
-      this.kycSteps.map((s) => ({ step: s, index: getKycStepIndex(s.name) })),
+      this.kycSteps.map((s) => ({ step: s, index: getKycStepIndex(s.name) * 100 + s.sequenceNumber })),
       'index',
     )?.step;
   }

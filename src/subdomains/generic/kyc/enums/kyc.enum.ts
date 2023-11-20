@@ -1,5 +1,5 @@
 export enum KycStepName {
-  MAIL = 'Mail',
+  CONTACT_DATA = 'ContactData',
   PERSONAL_DATA = 'PersonalData',
   IDENT = 'Ident',
   FINANCIAL_DATA = 'FinancialData',

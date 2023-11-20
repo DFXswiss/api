@@ -33,7 +33,7 @@ export class KycStep extends IEntity {
     const apiUrl = `${Config.url}/kyc`;
 
     switch (this.name) {
-      case KycStepName.MAIL:
+      case KycStepName.CONTACT_DATA:
         return { url: `${apiUrl}/data/contact/${this.id}`, urlType: UrlType.API };
 
       case KycStepName.PERSONAL_DATA:

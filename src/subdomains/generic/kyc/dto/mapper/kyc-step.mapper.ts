@@ -8,7 +8,7 @@ export class KycStepMapper {
   static entityToDto(kycStep: KycStep): KycStepDto {
     const dto: KycStepDto = {
       name: kycStep.name,
-      type: kycStep.type,
+      type: kycStep.type ?? undefined,
       status: kycStep.status,
       sequenceNumber: kycStep.sequenceNumber,
       ...kycStep.sessionInfo,
@@ -32,7 +32,7 @@ export class KycStepMapper {
 
   // --- HELPER METHODS --- //
   private static getDefaultSteps(): KycStepName[] {
-    return [KycStepName.PERSONAL_DATA, KycStepName.IDENT, KycStepName.FINANCIAL_DATA];
+    return [KycStepName.CONTACT_DATA, KycStepName.PERSONAL_DATA, KycStepName.IDENT, KycStepName.FINANCIAL_DATA];
   }
 
   private static sortSteps(steps: (KycStep | KycStepDto)[]): KycStepDto[] {

@@ -67,7 +67,7 @@ export class KycService {
     let user = await this.getUserOrThrow(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
-    const { user: updatedUser, isKnownUser } = await this.userDataService.updateUserSettings(user, data);
+    const { user: updatedUser, isKnownUser } = await this.userDataService.updateUserSettings(user, data, true);
     user = isKnownUser ? updatedUser.failStep(kycStep) : updatedUser.completeStep(kycStep);
 
     await this.updateProgress(user, false);
@@ -197,54 +197,72 @@ export class KycService {
         user.kycProcessDone();
       } else if (nextStep && shouldContinue) {
         // continue with next step
-        const step = await this.initiateStep(user, nextStep.name, nextStep.type);
+        const step = await this.initiateStep(user, nextStep.name, nextStep.type, nextStep.preventDirectEvaluation);
         user.nextStep(step);
 
-        // update again (step might already be complete)
-        return this.updateProgress(user, shouldContinue);
+        // update again if step is complete
+        if (step.isCompleted) return this.updateProgress(user, shouldContinue);
       }
     }
 
     return this.saveUserAndMap(user);
   }
 
-  private getNextStep(user: UserData): { name: KycStepName; type?: KycStepType } | null | undefined {
+  private getNextStep(
+    user: UserData,
+  ): { name: KycStepName; type?: KycStepType; preventDirectEvaluation?: boolean } | null | undefined {
     const lastStep = user.getLastStep();
     if (lastStep?.isInProgress) throw new Error('Step still in progress');
-    if (lastStep?.isFailed) return null;
 
-    switch (lastStep.name) {
-      case undefined:
-        return { name: KycStepName.MAIL };
+    if (lastStep?.isFailed) {
+      // on failure
+      switch (lastStep.name) {
+        case KycStepName.CONTACT_DATA:
+          return { name: KycStepName.CONTACT_DATA, preventDirectEvaluation: true };
 
-      case KycStepName.MAIL:
-        return { name: KycStepName.PERSONAL_DATA };
+        default:
+          return null;
+      }
+    } else {
+      // on success
+      switch (lastStep?.name) {
+        case undefined:
+          return { name: KycStepName.CONTACT_DATA, preventDirectEvaluation: lastStep?.isFailed };
 
-      case KycStepName.PERSONAL_DATA:
-        return { name: KycStepName.IDENT, type: KycStepType.AUTO };
+        case KycStepName.CONTACT_DATA:
+          return { name: KycStepName.PERSONAL_DATA };
 
-      case KycStepName.IDENT:
-        return { name: KycStepName.FINANCIAL_DATA };
+        case KycStepName.PERSONAL_DATA:
+          return { name: KycStepName.IDENT, type: KycStepType.AUTO };
 
-      default:
-        return undefined;
+        case KycStepName.IDENT:
+          return { name: KycStepName.FINANCIAL_DATA };
+
+        default:
+          return undefined;
+      }
     }
   }
 
-  private async initiateStep(user: UserData, stepName: KycStepName, stepType?: KycStepType): Promise<KycStep> {
+  private async initiateStep(
+    user: UserData,
+    stepName: KycStepName,
+    stepType?: KycStepType,
+    preventDirectEvaluation?: boolean,
+  ): Promise<KycStep> {
     const nextSequenceNumber = user.getNextSequenceNumber(stepName, stepType);
     const kycStep = KycStep.create(user, stepName, nextSequenceNumber, stepType);
 
     switch (stepName) {
-      case KycStepName.MAIL:
-        if (user.mail) {
+      case KycStepName.CONTACT_DATA:
+        if (user.mail && !preventDirectEvaluation) {
           const isKnownUser = await this.userDataService.isKnownKycUser(user);
           isKnownUser ? kycStep.fail() : kycStep.complete();
         }
         break;
 
       case KycStepName.PERSONAL_DATA:
-        if (user.isDataComplete) kycStep.complete();
+        if (user.isDataComplete && !preventDirectEvaluation) kycStep.complete();
         break;
 
       case KycStepName.IDENT:
@@ -261,7 +279,7 @@ export class KycService {
 
   // --- HELPER METHODS --- //
   async getUserOrThrow(kycHash: string): Promise<UserData> {
-    const user = await this.userDataService.getUserDataByKycHash(kycHash);
+    const user = await this.userDataService.getUserDataByKycHash(kycHash, { users: true });
     if (!user) throw new NotFoundException('User not found');
 
     return user;
