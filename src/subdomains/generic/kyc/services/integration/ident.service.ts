@@ -14,8 +14,10 @@ export class IdentService {
 
   constructor(private readonly http: HttpService) {}
 
-  async initiateIdent(kycStepType: KycStepType, transactionId: string): Promise<{ id: string }> {
-    return this.callApi<{ id: string }>(`identifications/${transactionId}/start`, kycStepType, 'POST');
+  async initiateIdent(kycStepType: KycStepType, transactionId: string): Promise<string> {
+    return this.callApi<{ id: string }>(`identifications/${transactionId}/start`, kycStepType, 'POST').then(
+      (r) => r.id,
+    );
   }
 
   static identUrl(kycStep: KycStep): string {
