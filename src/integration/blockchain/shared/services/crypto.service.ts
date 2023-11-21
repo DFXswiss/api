@@ -9,6 +9,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { NodeService } from '../../ain/node/node.service';
+import { MoneroService } from '../../monero/services/monero.service';
 import { EvmRegistryService } from '../evm/evm-registry.service';
 
 @Injectable()
@@ -25,6 +26,7 @@ export class CryptoService {
 
   constructor(
     private lightningService: LightningService,
+    private moneroService: MoneroService,
     private readonly nodeService: NodeService,
     private readonly evmRegistryService: EvmRegistryService,
   ) {}
@@ -98,7 +100,7 @@ export class CryptoService {
       if (this.EthereumBasedChains.includes(blockchain)) return this.verifyEthereumBased(message, address, signature);
       if (blockchain === Blockchain.BITCOIN) return this.verifyBitcoinBased(message, address, signature, null);
       if (blockchain === Blockchain.LIGHTNING) return this.verifyLightning(message, signature, key);
-      if (blockchain === Blockchain.MONERO) return this.verifyMonero(message, address, signature, key);
+      if (blockchain === Blockchain.MONERO) return this.verifyMonero(message, address, signature);
       if (blockchain === Blockchain.DEFICHAIN)
         return this.verifyBitcoinBased(message, address, signature, MainNet.messagePrefix);
       if (blockchain === Blockchain.CARDANO) return this.verifyCardano(message, address, signature, key);
@@ -128,8 +130,8 @@ export class CryptoService {
     return this.lightningService.verifySignature(message, signature, key);
   }
 
-  private async verifyMonero(message: string, address: string, signature: string, key: string): Promise<boolean> {
-    throw new Error('TODO: Method not implemented.');
+  private async verifyMonero(message: string, address: string, signature: string): Promise<boolean> {
+    return this.moneroService.verifySignature(message, address, signature);
   }
 
   private verifyCardano(message: string, address: string, signature: string, key?: string): boolean {

@@ -340,6 +340,12 @@ export class Configuration {
       },
       certificate: process.env.LIGHTNING_API_CERTIFICATE?.split('<br>').join('\n'),
     },
+    monero: {
+      rpc: {
+        url: process.env.MONERO_RPC_URL,
+        certificate: process.env.MONERO_RPC_CERTIFICATE?.split('<br>').join('\n'),
+      },
+    },
   };
 
   payIn = {
