@@ -186,8 +186,8 @@ export class AuthService {
       key = await this.lightningService.getPublicKeyOfAddress(address);
     }
 
-    let isValid = this.cryptoService.verifySignature(defaultMessage, address, signature, key);
-    if (!isValid) isValid = this.cryptoService.verifySignature(fallbackMessage, address, signature, key);
+    let isValid = await this.cryptoService.verifySignature(defaultMessage, address, signature, key);
+    if (!isValid) isValid = await this.cryptoService.verifySignature(fallbackMessage, address, signature, key);
 
     return isValid;
   }

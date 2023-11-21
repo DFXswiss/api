@@ -81,3 +81,45 @@ The self-signed certificate of the LND is used to provide HTTPS access via the g
 The `main.ts` file of the ThunderHub server must be adapted before starting to use the self-signed certificate of the LND.
 
 To change the passwords in the `accounts-{env}.yaml` file, ThunderHub must be stopped. Then the new passwords can be written in plain text to the yaml file. After restarting ThunderHub, the passwords will be encrypted automatically.
+
+## Docker Setup (dockerd)
+
+1. Copy script `infrastructure/scripts/setupDocker.sh` to virtual machine `~/setupDocker.sh`
+1. Execute script: `sudo ./setupDocker.sh`
+1. Copy script `infrastructure/scripts/setupEnv.sh` to virtual machine `~/setupEnv.sh`
+1. Execute script: `./setupEnv.sh`
+1. Copy file `infrastructure/config/docker/docker-compose-monero.yml` to virtual machine `~/docker-compose-monero.yml`
+1. Execute Docker Compose with `~/docker-compose-monero.yml`
+
+## Monero (RPC)
+
+### Initial: Create a new wallet
+
+1. Login to VM
+1. Modify docker compose file section `monero-rpc command`
+
+   - '--wallet-dir=/home/monero/.bitmonero/wallet'
+   - '--rpc-bind-port=18082'
+   - '--untrusted-daemon'
+   - '--disable-rpc-login'
+
+1. Run docker compose `docker compose -f docker-compose-monero.yml up -d`
+1. After first startup create a new wallet: `curl -X POST http://localhost:18082/json_rpc -d '{"jsonrpc":"2.0","id":"0","method":"create_wallet","params":{"filename":"[WALLET_NAME]","password":"[WALLET_PASSWORD]","language":"English"}}' -H 'Content-Type: application/json'`
+1. Stop docker image
+
+### Initial: Create a new self signed certificate
+
+1. Go to directory `volumes/bitmonero`
+1. Create certificate `openssl req -newkey rsa:2048 -new -nodes -x509 -days 3650 -keyout key.pem -out cert.pem`
+1. Modify docker compose file section `monero-rpc command`
+
+   - '--wallet-file=/home/monero/.bitmonero/wallet/[WALLET_NAME]'
+   - '--password=[WALLET_PASSWORD]'
+   - '--rpc-bind-port=18082'
+   - '--untrusted-daemon'
+   - '--disable-rpc-login'
+   - '--rpc-ssl=enabled'
+   - '--rpc-ssl-private-key=/home/monero/.bitmonero/key.pem'
+   - '--rpc-ssl-certificate=/home/monero/.bitmonero/cert.pem'
+
+1. Run docker compose `docker compose -f docker-compose-monero.yml up -d`
