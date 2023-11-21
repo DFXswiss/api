@@ -29,15 +29,12 @@ export enum KycStatus {
   TERMINATED = 'Terminated',
 }
 
-export enum KycStatusNew {
-  NA = 'NA',
-  // TODO: move these to a separate column?
-  IN_PROGRESS = 'InProgress',
-  IN_REVIEW = 'InReview',
-
-  Light = 'Light',
-  FULL = 'Full',
-  PAUSED = 'Paused',
+export enum KycLevel {
+  LEVEL_0 = 'Level0', // nothing
+  LEVEL_10 = 'Level10', // contact + personal data
+  LEVEL_20 = 'Level20', // ident
+  LEVEL_30 = 'Level30', // financial data
+  LEVEL_40 = 'Level40', // verified
   REJECTED = 'Rejected',
   TERMINATED = 'Terminated',
 }
@@ -179,8 +176,8 @@ export class UserData extends IEntity {
   @Column({ type: 'integer', nullable: true })
   kycCustomerId: number;
 
-  @Column({ length: 256, default: KycStatusNew.NA })
-  kycStatusNew: KycStatusNew;
+  @Column({ length: 256, default: KycLevel.LEVEL_0 })
+  kycLevel: KycLevel;
 
   @Column()
   @Generated('uuid')
@@ -361,6 +358,14 @@ export class UserData extends IEntity {
 
   // --- KYC PROCESS --- //
 
+  setKycLevel(level: KycLevel): this {
+    this.kycLevel = level;
+
+    this.logger.verbose(`User ${this.id} changed to KYC ${level}`);
+
+    return this;
+  }
+
   completeStep(kycStep: KycStep, result?: string): this {
     kycStep.complete(result);
     this.logger.verbose(`User ${this.id} completes step ${kycStep.name} (${kycStep.id})`);
@@ -370,8 +375,6 @@ export class UserData extends IEntity {
 
   failStep(kycStep: KycStep, result?: string): this {
     kycStep.fail(result);
-
-    if (!this.hasStepsInProgress) this.kycStatusNew = KycStatusNew.PAUSED;
 
     this.logger.verbose(`User ${this.id} fails step ${kycStep.name} (${kycStep.id})`);
 
@@ -388,20 +391,11 @@ export class UserData extends IEntity {
 
   nextStep(kycStep: KycStep): this {
     this.kycSteps.push(kycStep);
-    this.kycStatusNew = KycStatusNew.IN_PROGRESS;
 
     this.logger.verbose(`User ${this.id} starts step ${kycStep.name}`);
 
     if (kycStep.isCompleted) this.completeStep(kycStep);
     if (kycStep.isFailed) this.failStep(kycStep);
-
-    return this;
-  }
-
-  kycProcessDone(): this {
-    this.kycStatusNew = KycStatusNew.IN_REVIEW;
-
-    this.logger.verbose(`User ${this.id} in review`);
 
     return this;
   }

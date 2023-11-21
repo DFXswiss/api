@@ -12,7 +12,7 @@ export class KycInfoMapper {
       reversedSteps.find((s) => s.status === KycStepStatus.FAILED);
 
     const dto: KycInfoDto = {
-      kycStatus: userData.kycStatusNew,
+      kycLevel: userData.kycLevel,
       tradingLimit: userData.tradingLimit,
       kycSteps: kycSteps,
       currentStep,

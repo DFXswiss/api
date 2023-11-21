@@ -4,7 +4,7 @@ import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { LessThan } from 'typeorm';
-import { UserData } from '../../user/models/user-data/user-data.entity';
+import { KycLevel, UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { IdentAborted, IdentFailed, IdentPending, IdentResultDto, IdentSucceeded } from '../dto/input/ident-result.dto';
 import { KycContactData } from '../dto/input/kyc-contact-data.dto';
@@ -194,12 +194,11 @@ export class KycService {
 
   private async updateProgress(user: UserData, shouldContinue: boolean): Promise<KycInfoDto> {
     if (!user.hasStepsInProgress) {
-      const nextStep = this.getNextStep(user);
+      const { nextStep, nextLevel } = this.getNext(user);
 
-      if (nextStep === undefined) {
-        // no more steps to do
-        user.kycProcessDone();
-      } else if (nextStep && shouldContinue) {
+      if (nextLevel) user.setKycLevel(nextLevel);
+
+      if (nextStep && shouldContinue) {
         // continue with next step
         const step = await this.initiateStep(user, nextStep.name, nextStep.type, nextStep.preventDirectEvaluation);
         user.nextStep(step);
@@ -212,9 +211,10 @@ export class KycService {
     return this.saveUserAndMap(user);
   }
 
-  private getNextStep(
-    user: UserData,
-  ): { name: KycStepName; type?: KycStepType; preventDirectEvaluation?: boolean } | null | undefined {
+  private getNext(user: UserData): {
+    nextStep: { name: KycStepName; type?: KycStepType; preventDirectEvaluation?: boolean } | undefined;
+    nextLevel?: KycLevel;
+  } {
     const lastStep = user.getLastStep();
     if (lastStep?.isInProgress) throw new Error('Step still in progress');
 
@@ -222,28 +222,28 @@ export class KycService {
       // on failure
       switch (lastStep.name) {
         case KycStepName.CONTACT_DATA:
-          return { name: KycStepName.CONTACT_DATA, preventDirectEvaluation: true };
+          return { nextStep: { name: KycStepName.CONTACT_DATA, preventDirectEvaluation: true } };
 
         default:
-          return null;
+          return { nextStep: undefined };
       }
     } else {
       // on success
       switch (lastStep?.name) {
         case undefined:
-          return { name: KycStepName.CONTACT_DATA, preventDirectEvaluation: lastStep?.isFailed };
+          return { nextStep: { name: KycStepName.CONTACT_DATA, preventDirectEvaluation: lastStep?.isFailed } };
 
         case KycStepName.CONTACT_DATA:
-          return { name: KycStepName.PERSONAL_DATA };
+          return { nextStep: { name: KycStepName.PERSONAL_DATA } };
 
         case KycStepName.PERSONAL_DATA:
-          return { name: KycStepName.IDENT, type: KycStepType.AUTO };
+          return { nextStep: { name: KycStepName.IDENT, type: KycStepType.AUTO }, nextLevel: KycLevel.LEVEL_10 };
 
         case KycStepName.IDENT:
-          return { name: KycStepName.FINANCIAL_DATA };
+          return { nextStep: { name: KycStepName.FINANCIAL_DATA }, nextLevel: KycLevel.LEVEL_20 };
 
         default:
-          return undefined;
+          return { nextStep: undefined, nextLevel: KycLevel.LEVEL_30 };
       }
     }
   }
