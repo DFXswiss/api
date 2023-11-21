@@ -30,7 +30,7 @@ describe('LnurlAuth', () => {
 
   beforeAll(async () => {
     const config = {
-      url: 'https://test.dfx.api:12345/v0.1',
+      url: () => 'https://test.dfx.api:12345/v0.1',
       processDisabled: () => false,
     };
 
