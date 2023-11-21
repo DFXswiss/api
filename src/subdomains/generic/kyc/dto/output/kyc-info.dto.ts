@@ -3,6 +3,14 @@ import { KycStepName, KycStepStatus, KycStepType, UrlType } from 'src/subdomains
 import { KycStatusNew } from '../../../user/models/user-data/user-data.entity';
 import { TradingLimit } from '../../../user/models/user/dto/user.dto';
 
+export class KycSessionDto {
+  @ApiProperty()
+  url: string;
+
+  @ApiProperty({ enum: UrlType })
+  type: UrlType;
+}
+
 export class KycStepDto {
   @ApiProperty({ enum: KycStepName })
   name: KycStepName;
@@ -16,11 +24,8 @@ export class KycStepDto {
   @ApiProperty()
   sequenceNumber: number;
 
-  @ApiPropertyOptional()
-  url?: string;
-
-  @ApiPropertyOptional({ enum: UrlType })
-  urlType?: UrlType;
+  @ApiPropertyOptional({ type: KycSessionDto })
+  session?: KycSessionDto;
 }
 
 export class KycInfoDto {

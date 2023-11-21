@@ -29,24 +29,24 @@ export class KycStep extends IEntity {
   result: string;
 
   // --- GETTERS --- //
-  get sessionInfo(): { url: string; urlType: UrlType } {
-    const apiUrl = `${Config.url}/kyc`;
+  get sessionInfo(): { url: string; type: UrlType } {
+    const apiUrl = `${Config.url('v2')}/kyc`;
 
     switch (this.name) {
       case KycStepName.CONTACT_DATA:
-        return { url: `${apiUrl}/data/contact/${this.id}`, urlType: UrlType.API };
+        return { url: `${apiUrl}/data/contact/${this.id}`, type: UrlType.API };
 
       case KycStepName.PERSONAL_DATA:
-        return { url: `${apiUrl}/data/personal/${this.id}`, urlType: UrlType.API };
+        return { url: `${apiUrl}/data/personal/${this.id}`, type: UrlType.API };
 
       case KycStepName.IDENT:
-        return { url: IdentService.identUrl(this), urlType: UrlType.BROWSER };
+        return { url: IdentService.identUrl(this), type: UrlType.BROWSER };
 
       case KycStepName.FINANCIAL_DATA:
-        return { url: `${apiUrl}/data/financial/${this.id}`, urlType: UrlType.API };
+        return { url: `${apiUrl}/data/financial/${this.id}`, type: UrlType.API };
 
       case KycStepName.DOCUMENT_UPLOAD:
-        return { url: `${apiUrl}/document/${this.id}`, urlType: UrlType.API };
+        return { url: `${apiUrl}/document/${this.id}`, type: UrlType.API };
     }
   }
 

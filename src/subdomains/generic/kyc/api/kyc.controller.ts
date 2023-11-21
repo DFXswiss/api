@@ -18,7 +18,9 @@ import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { IdentResultDto } from '../../user/models/ident/dto/ident-result.dto';
 import { KycContactData } from '../dto/input/kyc-contact-data.dto';
+import { KycFinancialInData } from '../dto/input/kyc-financial-in.dto';
 import { KycPersonalData } from '../dto/input/kyc-personal-data.dto';
+import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycInfoDto, KycStepDto } from '../dto/output/kyc-info.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { KycStepName, KycStepType } from '../enums/kyc.enum';
@@ -45,13 +47,6 @@ export class KycController {
     return this.kycService.continue(code);
   }
 
-  private checkWebhookIp(ip: string, data: IdentResultDto) {
-    if (!Config.kyc.allowedWebhookIps.includes('*') && !Config.kyc.allowedWebhookIps.includes(ip)) {
-      this.logger.error(`Received webhook call from invalid IP ${ip}: ${JSON.stringify(data)}`);
-      throw new ForbiddenException('Invalid source IP');
-    }
-  }
-
   @Get(':step')
   @ApiExcludeEndpoint()
   async getStep(
@@ -62,9 +57,9 @@ export class KycController {
     return this.kycService.getOrCreateStep(code, stepName, stepType);
   }
 
-  // update endpoints
+  // --- UPDATE ENDPOINTS --- //
   @Put('data/contact/:id')
-  @ApiOkResponse()
+  @ApiOkResponse({ type: KycResultDto })
   async updateContactData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
@@ -74,7 +69,7 @@ export class KycController {
   }
 
   @Put('data/personal/:id')
-  @ApiOkResponse()
+  @ApiOkResponse({ type: KycResultDto })
   async updatePersonalData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
@@ -84,17 +79,23 @@ export class KycController {
   }
 
   @Get('data/financial/:id')
-  @ApiOkResponse()
-  async getFinancialData(@Headers(CodeHeaderName) code: string, @Param('id') id: string): Promise<void> {
-    // TODO: response DTO
-    return this.kycService.getFinancialData(code, +id);
+  @ApiOkResponse({ type: KycFinancialOutData })
+  async getFinancialData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Query('lang') lang: string,
+  ): Promise<KycFinancialOutData> {
+    return this.kycService.getFinancialData(code, +id, lang);
   }
 
   @Put('data/financial/:id')
-  @ApiOkResponse()
-  async updateFinancialData(@Headers(CodeHeaderName) code: string, @Param('id') id: string): Promise<KycResultDto> {
-    // TODO: request DTO
-    return this.kycService.updateFinancialData(code, +id);
+  @ApiOkResponse({ type: KycResultDto })
+  async updateFinancialData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycFinancialInData,
+  ): Promise<KycResultDto> {
+    return this.kycService.updateFinancialData(code, +id, data);
   }
 
   @Post('ident/online')
@@ -113,12 +114,20 @@ export class KycController {
 
   @Put('document/:id')
   @UseInterceptors(FileInterceptor('file'))
-  @ApiOkResponse()
+  @ApiOkResponse({ type: KycResultDto })
   async uploadDocument(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @UploadedFile() file: Express.Multer.File,
   ): Promise<KycResultDto> {
     return this.kycService.uploadDocument(code, +id, file);
+  }
+
+  // --- HELPER METHODS --- //
+  private checkWebhookIp(ip: string, data: IdentResultDto) {
+    if (!Config.kyc.allowedWebhookIps.includes('*') && !Config.kyc.allowedWebhookIps.includes(ip)) {
+      this.logger.error(`Received webhook call from invalid IP ${ip}: ${JSON.stringify(data)}`);
+      throw new ForbiddenException('Invalid source IP');
+    }
   }
 }

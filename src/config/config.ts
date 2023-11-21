@@ -490,12 +490,10 @@ export class Configuration {
   };
 
   // --- GETTERS --- //
-  get url(): string {
+  url(version = this.defaultVersion): string {
     return this.environment === Environment.LOC
-      ? `http://localhost:${this.port}/${this.defaultVersion}`
-      : `https://${this.environment === Environment.PRD ? '' : this.environment + '.'}api.dfx.swiss/${
-          this.defaultVersion
-        }`;
+      ? `http://localhost:${this.port}/${version}`
+      : `https://${this.environment === Environment.PRD ? '' : this.environment + '.'}api.dfx.swiss/${version}`;
   }
 
   get kraken(): ExchangeConfig {

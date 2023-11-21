@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, NotImplementedException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -8,10 +8,12 @@ import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { IdentAborted, IdentFailed, IdentPending, IdentResultDto, IdentSucceeded } from '../dto/input/ident-result.dto';
 import { KycContactData } from '../dto/input/kyc-contact-data.dto';
+import { KycFinancialInData } from '../dto/input/kyc-financial-in.dto';
 import { KycPersonalData } from '../dto/input/kyc-personal-data.dto';
 import { KycContentType, KycFileType } from '../dto/kyc-file.dto';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
 import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
+import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycInfoDto, KycStepDto } from '../dto/output/kyc-info.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { KycStep } from '../entities/kyc-step.entity';
@@ -28,6 +30,8 @@ import { IdentService } from './integration/ident.service';
 // - send user mails (failed, completed, ident) => see old KycProcessService
 // - send support mails (failed)
 // - send webhooks
+// - implement video ident
+// - 2FA (before ident)
 
 @Injectable()
 export class KycService {
@@ -88,14 +92,15 @@ export class KycService {
     return { status: kycStep.status };
   }
 
-  async getFinancialData(kycHash: string, stepId: number): Promise<void> {
+  async getFinancialData(kycHash: string, stepId: number, lang: string): Promise<KycFinancialOutData> {
     const user = await this.getUserOrThrow(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
     // TODO: get questions and existing answers
+    throw new NotImplementedException();
   }
 
-  async updateFinancialData(kycHash: string, stepId: number): Promise<KycResultDto> {
+  async updateFinancialData(kycHash: string, stepId: number, data: KycFinancialInData): Promise<KycResultDto> {
     const user = await this.getUserOrThrow(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
@@ -129,8 +134,7 @@ export class KycService {
     if (IdentSucceeded(dto)) {
       user = user.completeStep(kycStep, result);
     } else if (IdentPending(dto)) {
-      kycStep.review(result);
-      await this.kycStepRepo.save(kycStep);
+      user = user.reviewStep(kycStep, result);
     } else if (IdentAborted(dto)) {
       this.logger.info(`Ident cancelled for user ${user.id}: ${sessionStatus}`);
     } else if (IdentFailed(dto)) {

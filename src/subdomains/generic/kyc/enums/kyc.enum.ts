@@ -31,3 +31,7 @@ export enum UrlType {
 export function getKycStepIndex(stepName: KycStepName): number {
   return Object.values(KycStepName).indexOf(stepName);
 }
+
+export function getKycTypeIndex(stepType?: KycStepType): number {
+  return Object.values(KycStepType).indexOf(stepType);
+}

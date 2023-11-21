@@ -378,6 +378,14 @@ export class UserData extends IEntity {
     return this;
   }
 
+  reviewStep(kycStep: KycStep, result?: string): this {
+    kycStep.review(result);
+
+    this.logger.verbose(`User ${this.id} reviews step ${kycStep.name} (${kycStep.id})`);
+
+    return this;
+  }
+
   nextStep(kycStep: KycStep): this {
     this.kycSteps.push(kycStep);
     this.kycStatusNew = KycStatusNew.IN_PROGRESS;

@@ -64,37 +64,37 @@ export class KycPersonalData {
   @Transform(Util.trim)
   phone: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   @ValidateIf((d: KycPersonalData) => d.accountType !== AccountType.PERSONAL)
   @IsNotEmpty()
   @IsString()
   organizationName?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   @ValidateIf((d: KycPersonalData) => d.accountType !== AccountType.PERSONAL)
   @IsNotEmpty()
   @IsString()
   organizationStreet?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   @ValidateIf((d: KycPersonalData) => d.accountType !== AccountType.PERSONAL)
   @IsNotEmpty()
   @IsString()
   organizationHouseNumber?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   @ValidateIf((d: KycPersonalData) => d.accountType !== AccountType.PERSONAL)
   @IsNotEmpty()
   @IsString()
   organizationLocation?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   @ValidateIf((d: KycPersonalData) => d.accountType !== AccountType.PERSONAL)
   @IsNotEmpty()
   @IsString()
   organizationZip?: string;
 
-  @ApiProperty({ type: EntityDto })
+  @ApiPropertyOptional({ type: EntityDto })
   @ValidateIf((d: KycPersonalData) => d.accountType !== AccountType.PERSONAL)
   @IsNotEmptyObject()
   @ValidateNested()

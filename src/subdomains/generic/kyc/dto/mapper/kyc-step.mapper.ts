@@ -1,7 +1,7 @@
 import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { KycStep } from '../../entities/kyc-step.entity';
-import { KycStepName, KycStepStatus, getKycStepIndex } from '../../enums/kyc.enum';
+import { KycStepName, KycStepStatus, getKycStepIndex, getKycTypeIndex } from '../../enums/kyc.enum';
 import { KycStepDto } from '../output/kyc-info.dto';
 
 export class KycStepMapper {
@@ -11,7 +11,7 @@ export class KycStepMapper {
       type: kycStep.type ?? undefined,
       status: kycStep.status,
       sequenceNumber: kycStep.sequenceNumber,
-      ...kycStep.sessionInfo,
+      session: kycStep.sessionInfo,
     };
 
     return Object.assign(new KycStepDto(), dto);
@@ -35,11 +35,19 @@ export class KycStepMapper {
     return [KycStepName.CONTACT_DATA, KycStepName.PERSONAL_DATA, KycStepName.IDENT, KycStepName.FINANCIAL_DATA];
   }
 
-  private static sortSteps(steps: (KycStep | KycStepDto)[]): KycStepDto[] {
+  private static sortSteps(steps: KycStepDto[]): KycStepDto[] {
     // group by step and get step with highest sequence number
-    const groupedSteps = Util.groupByAccessor(steps, (s) => `${s.name}-${s.type}`);
+    const groupedSteps = steps.reduce((map, step) => {
+      const key = step.type
+        ? `${step.name}-${step.type}`
+        : Array.from(map.keys()).find((k) => k.includes(step.name)) ?? `${step.name}`;
+
+      return map.set(key, (map.get(key) ?? []).concat(step));
+    }, new Map<string, KycStepDto[]>());
     const visibleSteps = Array.from(groupedSteps.values()).map((steps) => Util.maxObj(steps, 'sequenceNumber'));
 
-    return visibleSteps.sort((a, b) => getKycStepIndex(a.name) - getKycStepIndex(b.name));
+    return visibleSteps.sort((a, b) => {
+      return getKycStepIndex(a.name) - getKycStepIndex(b.name) || getKycTypeIndex(a.type) - getKycTypeIndex(b.type);
+    });
   }
 }
