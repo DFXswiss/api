@@ -100,7 +100,7 @@ export class CryptoService {
       if (this.EthereumBasedChains.includes(blockchain)) return this.verifyEthereumBased(message, address, signature);
       if (blockchain === Blockchain.BITCOIN) return this.verifyBitcoinBased(message, address, signature, null);
       if (blockchain === Blockchain.LIGHTNING) return this.verifyLightning(message, signature, key);
-      if (blockchain === Blockchain.MONERO) return this.verifyMonero(message, address, signature);
+      if (blockchain === Blockchain.MONERO) return await this.verifyMonero(message, address, signature);
       if (blockchain === Blockchain.DEFICHAIN)
         return this.verifyBitcoinBased(message, address, signature, MainNet.messagePrefix);
       if (blockchain === Blockchain.CARDANO) return this.verifyCardano(message, address, signature, key);

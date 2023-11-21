@@ -33,7 +33,7 @@ services:
     #        condition: service_healthy
     command:
       - '--wallet-dir=/home/monero/.bitmonero/wallet'
-      #- '--wallet-file=/home/monero/.bitmonero/wallet/dfxwallet'
+      #- '--wallet-file=/home/monero/.bitmonero/wallet/[WALLET_NAME]'
       #- '--password=[WALLET_PASSWORD]'
       - '--rpc-bind-port=18082'
       - '--untrusted-daemon'
