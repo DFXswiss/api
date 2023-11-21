@@ -5,7 +5,7 @@ import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycStepName, KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
 import { IdentService } from '../services/integration/ident.service';
 
-export type KycStepResult = string | Object;
+export type KycStepResult = string | object;
 
 @Entity()
 export class KycStep extends IEntity {
