@@ -13,6 +13,7 @@ export enum KycContentType {
   PDF = 'application/pdf',
   TEXT = 'text/plain',
   XML = 'text/xml',
+  ZIP = 'application/zip',
 }
 
 export interface KycFile {

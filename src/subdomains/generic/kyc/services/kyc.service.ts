@@ -133,6 +133,21 @@ export class KycService {
 
     if (IdentSucceeded(dto)) {
       user = user.completeStep(kycStep, result);
+      const identDocuments = await this.identService.getDocuments(KycStepType.AUTO, kycStep.sessionId);
+      await this.storageService.uploadFile(
+        user.id,
+        KycFileType.IDENTIFICATION,
+        `${identDocuments.metaData.identificationprocess.transactionnumber}.pdf`,
+        Buffer.from(identDocuments.pdfBuffer),
+        KycContentType.PDF,
+      );
+      await this.storageService.uploadFile(
+        user.id,
+        KycFileType.IDENTIFICATION,
+        `${identDocuments.metaData.identificationprocess.transactionnumber}.zip`,
+        Buffer.from(identDocuments.zipBuffer),
+        KycContentType.ZIP,
+      );
     } else if (IdentPending(dto)) {
       user = user.reviewStep(kycStep, result);
     } else if (IdentAborted(dto)) {

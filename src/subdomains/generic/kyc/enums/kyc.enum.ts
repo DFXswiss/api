@@ -1,3 +1,5 @@
+import { IdentResultDto } from '../dto/input/ident-result.dto';
+
 export enum KycStepName {
   CONTACT_DATA = 'ContactData',
   PERSONAL_DATA = 'PersonalData',
@@ -26,6 +28,17 @@ export enum KycStepStatus {
 export enum UrlType {
   BROWSER = 'Browser',
   API = 'API',
+}
+
+export interface IdentConfig {
+  customer: string;
+  apiKey: string;
+}
+
+export interface IdentDocuments {
+  metaData: IdentResultDto;
+  pdfBuffer: any;
+  zipBuffer: any;
 }
 
 export function getKycStepIndex(stepName: KycStepName): number {
