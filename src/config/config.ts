@@ -148,9 +148,8 @@ export class Configuration {
 
   kyc = {
     gatewayHost: process.env.KYC_GATEWAY_HOST,
-    customerAuto: process.env.KYC_CUSTOMER_AUTO,
-    customerVideo: process.env.KYC_CUSTOMER_VIDEO,
-    apiKey: process.env.KYC_API_KEY,
+    auto: { customer: process.env.KYC_CUSTOMER_AUTO, apiKey: process.env.KYC_API_KEY_AUTO },
+    video: { customer: process.env.KYC_CUSTOMER_VIDEO, apiKey: process.env.KYC_API_KEY_VIDEO },
     transactionPrefix: process.env.KYC_TRANSACTION_PREFIX,
     identFailAfterDays: 90,
     allowedWebhookIps: process.env.KYC_WEBHOOK_IPS?.split(','),
