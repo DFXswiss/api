@@ -5,6 +5,8 @@ import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycStepName, KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
 import { IdentService } from '../services/integration/ident.service';
 
+export type KycStepResult = string | Object;
+
 @Entity()
 export class KycStep extends IEntity {
   @ManyToOne(() => UserData, (userData) => userData.kycSteps, { nullable: false })
@@ -26,7 +28,7 @@ export class KycStep extends IEntity {
   sessionId?: string;
 
   @Column({ length: 'MAX', nullable: true })
-  result: string;
+  result?: string;
 
   // --- GETTERS --- //
   get sessionInfo(): { url: string; type: UrlType } {
@@ -82,23 +84,34 @@ export class KycStep extends IEntity {
     return this.status === KycStepStatus.FAILED;
   }
 
-  complete(result?: string): this {
+  complete(result?: KycStepResult): this {
     this.status = KycStepStatus.COMPLETED;
-    this.result = result;
 
-    return this;
+    return this.setResult(result);
   }
 
-  fail(result?: string): this {
+  fail(result?: KycStepResult): this {
     this.status = KycStepStatus.FAILED;
-    this.result = result;
 
-    return this;
+    return this.setResult(result);
   }
 
-  review(result?: string): this {
+  review(result?: KycStepResult): this {
     this.status = KycStepStatus.IN_REVIEW;
-    this.result = result;
+
+    return this.setResult(result);
+  }
+
+  getResult<T extends KycStepResult>(): T | undefined {
+    try {
+      return JSON.parse(this.result);
+    } catch {}
+
+    return this.result as T;
+  }
+
+  setResult(result?: KycStepResult): this {
+    if (result !== undefined) this.result = typeof result === 'string' ? result : JSON.stringify(result);
 
     return this;
   }

@@ -106,9 +106,9 @@ export class SpiderApiService {
   }
 
   private buildCustomer(id: number, user: UserData): Partial<Customer> {
-    const preferredLanguage = ['es', 'pt'].includes(user.language?.symbol?.toLowerCase())
+    const preferredLanguage = ['es', 'pt'].includes(user.language.symbol.toLowerCase())
       ? 'en'
-      : user.language?.symbol?.toLowerCase();
+      : user.language.symbol.toLowerCase();
 
     return {
       reference: this.reference(id),

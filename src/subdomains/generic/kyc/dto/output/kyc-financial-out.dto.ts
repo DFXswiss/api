@@ -1,12 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { QuestionType } from '../../enums/kyc.enum';
 import { KycFinancialInData } from '../input/kyc-financial-in.dto';
-
-export enum QuestionType {
-  CONFIRMATION = 'Confirmation',
-  SINGLE_CHOICE = 'SingleChoice',
-  MULTIPLE_CHOICE = 'MultipleChoice',
-  TEXT = 'Text',
-}
 
 export class KycFinancialOption {
   @ApiProperty({ description: 'Option key' })

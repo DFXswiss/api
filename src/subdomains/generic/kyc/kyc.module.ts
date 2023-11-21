@@ -12,6 +12,7 @@ import { KycStepRepository } from './repositories/kyc-step.repository';
 import { NameCheckLogRepository } from './repositories/name-check-log.repository';
 import { DilisenseService } from './services/integration/dilisense.service';
 import { DocumentStorageService } from './services/integration/document-storage.service';
+import { FinancialService } from './services/integration/financial.service';
 import { IdentService } from './services/integration/ident.service';
 import { KycLogService } from './services/kyc-log.service';
 import { KycService } from './services/kyc.service';
@@ -27,6 +28,7 @@ import { NameCheckService } from './services/name-check.service';
     NameCheckLogRepository,
     DilisenseService,
     IdentService,
+    FinancialService,
     KycLogService,
     KycLogRepository,
     KycStepRepository,

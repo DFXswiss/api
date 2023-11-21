@@ -7,7 +7,7 @@ import { Language } from 'src/shared/models/language/language.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
-import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
+import { KycStep, KycStepResult } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName, KycStepType, getKycStepIndex } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -30,13 +30,18 @@ export enum KycStatus {
 }
 
 export enum KycLevel {
-  LEVEL_0 = 'Level0', // nothing
-  LEVEL_10 = 'Level10', // contact + personal data
-  LEVEL_20 = 'Level20', // ident
-  LEVEL_30 = 'Level30', // financial data
-  LEVEL_40 = 'Level40', // verified
-  REJECTED = 'Rejected',
-  TERMINATED = 'Terminated',
+  // automatic levels
+  LEVEL_0 = 0, // nothing
+  LEVEL_10 = 10, // contact data
+  LEVEL_20 = 20, // personal data
+
+  // verified levels
+  LEVEL_30 = 30, // auto ident
+  LEVEL_40 = 40, // financial data
+  LEVEL_50 = 50, // bank transaction or video ident
+
+  TERMINATED = -10,
+  REJECTED = -20,
 }
 
 export enum KycState {
@@ -143,7 +148,7 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   phone: string;
 
-  @ManyToOne(() => Language, { eager: true })
+  @ManyToOne(() => Language, { eager: true, nullable: false })
   language: Language;
 
   @ManyToOne(() => Fiat, { eager: true })
@@ -176,7 +181,7 @@ export class UserData extends IEntity {
   @Column({ type: 'integer', nullable: true })
   kycCustomerId: number;
 
-  @Column({ length: 256, default: KycLevel.LEVEL_0 })
+  @Column({ default: KycLevel.LEVEL_0 })
   kycLevel: KycLevel;
 
   @Column()
@@ -286,6 +291,7 @@ export class UserData extends IEntity {
     const update: Partial<UserData> = {
       status: UserDataStatus.BLOCKED,
       kycStatus: KycStatus.TERMINATED,
+      kycLevel: KycLevel.TERMINATED,
     };
 
     Object.assign(this, update);
@@ -366,14 +372,14 @@ export class UserData extends IEntity {
     return this;
   }
 
-  completeStep(kycStep: KycStep, result?: string): this {
+  completeStep(kycStep: KycStep, result?: KycStepResult): this {
     kycStep.complete(result);
     this.logger.verbose(`User ${this.id} completes step ${kycStep.name} (${kycStep.id})`);
 
     return this;
   }
 
-  failStep(kycStep: KycStep, result?: string): this {
+  failStep(kycStep: KycStep, result?: KycStepResult): this {
     kycStep.fail(result);
 
     this.logger.verbose(`User ${this.id} fails step ${kycStep.name} (${kycStep.id})`);
@@ -381,7 +387,7 @@ export class UserData extends IEntity {
     return this;
   }
 
-  reviewStep(kycStep: KycStep, result?: string): this {
+  reviewStep(kycStep: KycStep, result?: KycStepResult): this {
     kycStep.review(result);
 
     this.logger.verbose(`User ${this.id} reviews step ${kycStep.name} (${kycStep.id})`);

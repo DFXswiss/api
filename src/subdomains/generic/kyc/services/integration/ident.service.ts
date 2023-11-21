@@ -3,8 +3,10 @@ import { Method, ResponseType } from 'axios';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpError, HttpService } from 'src/shared/services/http.service';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { IdentConfig, IdentDocuments } from '../../dto/ident.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
-import { IdentConfig, IdentDocuments, KycStepType } from '../../enums/kyc.enum';
+import { KycStepType } from '../../enums/kyc.enum';
 
 @Injectable()
 export class IdentService {
@@ -14,30 +16,24 @@ export class IdentService {
 
   constructor(private readonly http: HttpService) {}
 
-  async initiateIdent(kycStepType: KycStepType, transactionId: string): Promise<string> {
-    return this.callApi<{ id: string }>(`identifications/${transactionId}/start`, kycStepType, 'POST').then(
-      (r) => r.id,
-    );
+  async initiateIdent(user: UserData, kycStep: KycStep): Promise<string> {
+    return this.callApi<{ id: string }>(
+      `identifications/${this.transactionId(user, kycStep)}/start`,
+      kycStep.type,
+      'POST',
+    ).then((r) => r.id);
   }
 
-  async getDocuments(kycStepType: KycStepType, transactionId: string): Promise<IdentDocuments> {
-    const metaData = await this.callApi<any>(`identifications/${transactionId}`, kycStepType, 'GET');
-    const pdfBuffer = await this.callApi<any>(
-      `identifications/${transactionId}.pdf`,
-      kycStepType,
-      'GET',
-      {},
-      'arraybuffer',
-    );
-    const zipBuffer = await this.callApi<any>(
-      `identifications/${transactionId}.zip`,
-      kycStepType,
-      'GET',
-      {},
-      'arraybuffer',
-    );
+  async getDocuments(user: UserData, kycStep: KycStep): Promise<IdentDocuments> {
+    const transactionId = this.transactionId(user, kycStep);
 
-    return { metaData, pdfBuffer, zipBuffer };
+    const pdf = await this.getDocument(kycStep.type, transactionId, 'pdf');
+    const zip = await this.getDocument(kycStep.type, transactionId, 'zip');
+
+    return {
+      pdf: { name: `${transactionId}.pdf`, content: pdf },
+      zip: { name: `${transactionId}.zip`, content: zip },
+    };
   }
 
   static identUrl(kycStep: KycStep): string {
@@ -47,6 +43,19 @@ export class IdentService {
   }
 
   // --- HELPER METHODS --- //
+  private transactionId(user: UserData, kycStep: KycStep): string {
+    return `${Config.kyc.transactionPrefix}-${user.id}-${kycStep.sequenceNumber}`;
+  }
+
+  private async getDocument(kycStepType: KycStepType, transactionId: string, contentType: string): Promise<Buffer> {
+    return this.callApi<string>(
+      `identifications/${transactionId}.${contentType}`,
+      kycStepType,
+      'GET',
+      {},
+      'arraybuffer',
+    ).then(Buffer.from);
+  }
 
   private async callApi<T>(
     url: string,

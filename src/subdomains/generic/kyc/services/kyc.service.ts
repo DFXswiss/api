@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, NotImplementedException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -8,7 +8,7 @@ import { KycLevel, UserData } from '../../user/models/user-data/user-data.entity
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { IdentAborted, IdentFailed, IdentPending, IdentResultDto, IdentSucceeded } from '../dto/input/ident-result.dto';
 import { KycContactData } from '../dto/input/kyc-contact-data.dto';
-import { KycFinancialInData } from '../dto/input/kyc-financial-in.dto';
+import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { KycPersonalData } from '../dto/input/kyc-personal-data.dto';
 import { KycContentType, KycFileType } from '../dto/kyc-file.dto';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
@@ -20,18 +20,17 @@ import { KycStep } from '../entities/kyc-step.entity';
 import { KycStepName, KycStepStatus, KycStepType } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { DocumentStorageService } from './integration/document-storage.service';
+import { FinancialService } from './integration/financial.service';
 import { IdentService } from './integration/ident.service';
 
 // TODO:
 // - country API
-// - method for completion (call from UserDataService)
 // - custom ident methods (Settings/Wallet, see old KycProcessService)
-// - KYC reminders
-// - send user mails (failed, completed, ident) => see old KycProcessService
 // - send support mails (failed)
 // - send webhooks
-// - implement video ident
-// - 2FA (before ident)
+// - configure Intrum webhooks
+// - add redirect API (configure in ident) + set step to InReview
+// - 2FA (before ident/financial)
 
 @Injectable()
 export class KycService {
@@ -40,6 +39,7 @@ export class KycService {
   constructor(
     private readonly userDataService: UserDataService,
     private readonly identService: IdentService,
+    private readonly financialService: FinancialService,
     private readonly storageService: DocumentStorageService,
     private readonly kycStepRepo: KycStepRepository,
   ) {}
@@ -92,19 +92,23 @@ export class KycService {
     return { status: kycStep.status };
   }
 
-  async getFinancialData(kycHash: string, stepId: number, lang: string): Promise<KycFinancialOutData> {
+  async getFinancialData(kycHash: string, stepId: number): Promise<KycFinancialOutData> {
     const user = await this.getUserOrThrow(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
-    // TODO: get questions and existing answers
-    throw new NotImplementedException();
+    const questions = this.financialService.getQuestions(user.language.symbol.toLowerCase());
+    const responses = kycStep.getResult<KycFinancialResponse[]>() ?? [];
+    return { questions, responses };
   }
 
   async updateFinancialData(kycHash: string, stepId: number, data: KycFinancialInData): Promise<KycResultDto> {
     const user = await this.getUserOrThrow(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
-    // TODO: store financial data and complete step (if data complete)
+    kycStep.setResult(data.responses);
+
+    const complete = this.financialService.checkResponses(data.responses);
+    if (complete) user.completeStep(kycStep);
 
     await this.updateProgress(user, false);
 
@@ -115,7 +119,6 @@ export class KycService {
     if (!dto?.identificationprocess?.id) throw new BadRequestException(`Identification process ID is missing`);
 
     const { id: sessionId, result: sessionStatus } = dto.identificationprocess;
-    const result = JSON.stringify(dto);
 
     const kycStep = await this.kycStepRepo.findOne({
       where: { sessionId },
@@ -123,7 +126,7 @@ export class KycService {
     });
 
     if (!kycStep) {
-      this.logger.error(`Received unmatched ident webhook call: ${result}`);
+      this.logger.error(`Received unmatched ident webhook call: ${JSON.stringify(dto)}`);
       return;
     }
 
@@ -132,28 +135,14 @@ export class KycService {
     this.logger.info(`Received ident webhook call for user ${user.id} (${sessionId}): ${sessionStatus}`);
 
     if (IdentSucceeded(dto)) {
-      user = user.completeStep(kycStep, result);
-      const identDocuments = await this.identService.getDocuments(KycStepType.AUTO, kycStep.sessionId);
-      await this.storageService.uploadFile(
-        user.id,
-        KycFileType.IDENTIFICATION,
-        `${identDocuments.metaData.identificationprocess.transactionnumber}.pdf`,
-        Buffer.from(identDocuments.pdfBuffer),
-        KycContentType.PDF,
-      );
-      await this.storageService.uploadFile(
-        user.id,
-        KycFileType.IDENTIFICATION,
-        `${identDocuments.metaData.identificationprocess.transactionnumber}.zip`,
-        Buffer.from(identDocuments.zipBuffer),
-        KycContentType.ZIP,
-      );
+      user = user.completeStep(kycStep, dto);
+      await this.downloadIdentDocuments(user, kycStep);
     } else if (IdentPending(dto)) {
-      user = user.reviewStep(kycStep, result);
+      user = user.reviewStep(kycStep, dto);
     } else if (IdentAborted(dto)) {
       this.logger.info(`Ident cancelled for user ${user.id}: ${sessionStatus}`);
     } else if (IdentFailed(dto)) {
-      user = user.failStep(kycStep, result);
+      user = user.failStep(kycStep, dto);
     } else {
       this.logger.error(`Unknown ident result for user ${user.id}: ${sessionStatus}`);
     }
@@ -246,19 +235,19 @@ export class KycService {
       // on success
       switch (lastStep?.name) {
         case undefined:
-          return { nextStep: { name: KycStepName.CONTACT_DATA, preventDirectEvaluation: lastStep?.isFailed } };
+          return { nextStep: { name: KycStepName.CONTACT_DATA } };
 
         case KycStepName.CONTACT_DATA:
-          return { nextStep: { name: KycStepName.PERSONAL_DATA } };
+          return { nextStep: { name: KycStepName.PERSONAL_DATA }, nextLevel: KycLevel.LEVEL_10 };
 
         case KycStepName.PERSONAL_DATA:
-          return { nextStep: { name: KycStepName.IDENT, type: KycStepType.AUTO }, nextLevel: KycLevel.LEVEL_10 };
+          return { nextStep: { name: KycStepName.IDENT, type: KycStepType.AUTO }, nextLevel: KycLevel.LEVEL_20 };
 
         case KycStepName.IDENT:
-          return { nextStep: { name: KycStepName.FINANCIAL_DATA }, nextLevel: KycLevel.LEVEL_20 };
+          return { nextStep: { name: KycStepName.FINANCIAL_DATA } };
 
         default:
-          return { nextStep: undefined, nextLevel: KycLevel.LEVEL_30 };
+          return { nextStep: undefined };
       }
     }
   }
@@ -287,8 +276,11 @@ export class KycService {
       case KycStepName.IDENT:
         // TODO: verify 2FA
 
-        const transactionId = `${Config.kyc.transactionPrefix}-${user.id}-${nextSequenceNumber}`;
-        kycStep.sessionId = await this.identService.initiateIdent(stepType, transactionId);
+        kycStep.sessionId = await this.identService.initiateIdent(user, kycStep);
+        break;
+
+      case KycStepName.FINANCIAL_DATA:
+        // TODO: verify 2FA
         break;
     }
 
@@ -307,5 +299,24 @@ export class KycService {
     user = await this.userDataService.save(user);
 
     return KycInfoMapper.toDto(user);
+  }
+
+  private async downloadIdentDocuments(user: UserData, kycStep: KycStep) {
+    const { pdf, zip } = await this.identService.getDocuments(user, kycStep);
+
+    await this.storageService.uploadFile(
+      user.id,
+      KycFileType.IDENTIFICATION,
+      pdf.name,
+      pdf.content,
+      KycContentType.PDF,
+    );
+    await this.storageService.uploadFile(
+      user.id,
+      KycFileType.IDENTIFICATION,
+      zip.name,
+      zip.content,
+      KycContentType.ZIP,
+    );
   }
 }

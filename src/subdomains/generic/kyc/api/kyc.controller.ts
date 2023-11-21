@@ -80,12 +80,8 @@ export class KycController {
 
   @Get('data/financial/:id')
   @ApiOkResponse({ type: KycFinancialOutData })
-  async getFinancialData(
-    @Headers(CodeHeaderName) code: string,
-    @Param('id') id: string,
-    @Query('lang') lang: string,
-  ): Promise<KycFinancialOutData> {
-    return this.kycService.getFinancialData(code, +id, lang);
+  async getFinancialData(@Headers(CodeHeaderName) code: string, @Param('id') id: string): Promise<KycFinancialOutData> {
+    return this.kycService.getFinancialData(code, +id);
   }
 
   @Put('data/financial/:id')

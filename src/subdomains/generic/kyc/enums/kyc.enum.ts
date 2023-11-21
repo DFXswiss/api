@@ -1,11 +1,13 @@
-import { IdentResultDto } from '../dto/input/ident-result.dto';
-
 export enum KycStepName {
   CONTACT_DATA = 'ContactData',
   PERSONAL_DATA = 'PersonalData',
   IDENT = 'Ident',
   FINANCIAL_DATA = 'FinancialData',
   DOCUMENT_UPLOAD = 'DocumentUpload',
+}
+
+export function getKycStepIndex(stepName: KycStepName): number {
+  return Object.values(KycStepName).indexOf(stepName);
 }
 
 export enum KycStepType {
@@ -15,6 +17,10 @@ export enum KycStepType {
   MANUAL = 'Manual',
   // document
   // TODO
+}
+
+export function getKycTypeIndex(stepType?: KycStepType): number {
+  return Object.values(KycStepType).indexOf(stepType);
 }
 
 export enum KycStepStatus {
@@ -30,21 +36,9 @@ export enum UrlType {
   API = 'API',
 }
 
-export interface IdentConfig {
-  customer: string;
-  apiKey: string;
-}
-
-export interface IdentDocuments {
-  metaData: IdentResultDto;
-  pdfBuffer: any;
-  zipBuffer: any;
-}
-
-export function getKycStepIndex(stepName: KycStepName): number {
-  return Object.values(KycStepName).indexOf(stepName);
-}
-
-export function getKycTypeIndex(stepType?: KycStepType): number {
-  return Object.values(KycStepType).indexOf(stepType);
+export enum QuestionType {
+  CONFIRMATION = 'Confirmation',
+  SINGLE_CHOICE = 'SingleChoice',
+  MULTIPLE_CHOICE = 'MultipleChoice',
+  TEXT = 'Text',
 }
