@@ -85,11 +85,15 @@ param bscScanApiUrl string
 @secure()
 param bscScanApiKey string
 
+@secure()
 param lightningApiCertificate string
 @secure()
 param lightningLnbitsApiKey string
 @secure()
 param lightningLndAdminMacaroon string
+
+@secure()
+param moneroRpcCertificate string
 
 param buyCryptoFeeLimit string
 
@@ -189,7 +193,6 @@ param delisenseJsonPath string
 @secure()
 param delisenseKey string
 
-
 // --- VARIABLES --- //
 var compName = 'dfx'
 var apiName = 'api'
@@ -213,6 +216,7 @@ var appInsightsName = 'appi-${compName}-${apiName}-${env}'
 
 var btcNodePort = '8332'
 var lnBitsPort = '5000'
+var moneroRpcPort = '18032'
 
 var nodeProps = [
   {
@@ -691,6 +695,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'LIGHTNING_LND_ADMIN_MACAROON'
           value: lightningLndAdminMacaroon
+        }
+        {
+          name: 'MONERO_RPC_URL'
+          value: 'https://${btcNodes[0].outputs.ip}:${moneroRpcPort}/json_rpc'
+        }
+        {
+          name: 'MONERO_RPC_CERTIFICATE'
+          value: moneroRpcCertificate
         }
         {
           name: 'BTC_OUT_WALLET_ADDRESS'
