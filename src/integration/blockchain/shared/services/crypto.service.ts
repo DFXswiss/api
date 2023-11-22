@@ -25,8 +25,8 @@ export class CryptoService {
   ];
 
   constructor(
-    private lightningService: LightningService,
-    private moneroService: MoneroService,
+    private readonly lightningService: LightningService,
+    private readonly moneroService: MoneroService,
     private readonly nodeService: NodeService,
     private readonly evmRegistryService: EvmRegistryService,
   ) {}
