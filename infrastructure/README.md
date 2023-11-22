@@ -109,8 +109,9 @@ To change the passwords in the `accounts-{env}.yaml` file, ThunderHub must be st
 
 ### Initial: Create a new self signed certificate
 
+1. Copy content of config file (`infrastructure/config/openssl/openssl.conf`) to virtual machine (`volumes/bitmonero`) and replace the missing settings (in square brackets)
 1. Go to directory `volumes/bitmonero`
-1. Create certificate `openssl req -newkey rsa:2048 -new -nodes -x509 -days 3650 -keyout key.pem -out cert.pem`
+1. Create certificate `openssl req -config openssl.conf -newkey rsa:2048 -new -nodes -x509 -days 3650 -keyout key.pem -out cert.pem`
 1. Modify docker compose file section `monero-rpc command`
 
    - '--wallet-file=/home/monero/.bitmonero/wallet/[WALLET_NAME]'
