@@ -181,13 +181,17 @@ export class SpiderApiService {
   }
 
   // --- DOCUMENTS --- //
-  async getDocumentInfos(customerId: number, isOrganization: boolean): Promise<DocumentInfo[]> {
+  async getDocumentInfos(
+    customerId: number,
+    isOrganization: boolean,
+    documentTypes?: KycDocument[],
+  ): Promise<DocumentInfo[]> {
     const { id: kycId } = await this.getCustomer(customerId);
 
     const documentList: DocumentInfo[] = [];
 
     const documents = (await this.getDocuments(customerId, isOrganization)) ?? [];
-    for (const document of documents) {
+    for (const document of documents.filter((d) => !documentTypes || documentTypes.includes(d))) {
       const versions = (await this.getDocumentVersions(customerId, isOrganization, document)) ?? [];
       for (const version of versions) {
         const parts = (await this.getDocumentVersionParts(customerId, isOrganization, document, version.name)) ?? [];
