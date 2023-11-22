@@ -376,9 +376,16 @@ export class SpiderSyncService {
 
   // --- FILE SYNC METHODS -- //
   public async syncKycFiles(userData: UserData, documents?: KycDocument[], singleVersion?: string): Promise<void> {
-    await this.syncKycFilesFor(userData.id, false, documents, singleVersion);
+    const failedDocuments = await this.syncKycFilesFor(userData.id, false, documents, singleVersion);
     if (userData.accountType !== AccountType.PERSONAL)
-      await this.syncKycFilesFor(userData.id, true, documents, singleVersion);
+      failedDocuments.push(...(await this.syncKycFilesFor(userData.id, true, documents, singleVersion)));
+
+    if (failedDocuments.length)
+      throw new Error(
+        `Failed to sync KYC files for user ${userData.id}:\n${failedDocuments
+          .map(({ document, error }) => `  ${document}: ${error}`)
+          .join('\n')}`,
+      );
   }
 
   private async syncKycFilesFor(
@@ -386,7 +393,7 @@ export class SpiderSyncService {
     isOrganization: boolean,
     documents?: KycDocument[],
     singleVersion?: string,
-  ): Promise<void> {
+  ): Promise<{ document: string; error: string }[]> {
     const allStorageFiles = await this.listStorageFiles(userDataId, isOrganization);
     const allSpiderFiles = await this.spiderApi.getDocumentInfos(userDataId, isOrganization, documents);
 
@@ -401,6 +408,7 @@ export class SpiderSyncService {
       );
     });
 
+    const failedDocuments = [];
     for (const document of filesToSync) {
       try {
         const data = await this.spiderApi.getBinaryDocument(
@@ -433,11 +441,14 @@ export class SpiderSyncService {
           },
         );
       } catch (e) {
-        throw new Error(
-          `Failed to sync KYC file (${document.document}-${document.version}-${document.part}) for user ${userDataId}: ${e.message}`,
-        );
+        failedDocuments.push({
+          document: `${document.document}-${document.version}-${document.part}`,
+          error: e.message,
+        });
       }
     }
+
+    return failedDocuments;
   }
 
   private getSingleVersion(filesToSync: DocumentInfo[], singleVersion: string): DocumentInfo[] {
