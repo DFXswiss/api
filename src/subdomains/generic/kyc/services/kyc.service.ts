@@ -116,9 +116,14 @@ export class KycService {
   }
 
   async updateIdent(dto: IdentResultDto): Promise<void> {
-    if (!dto?.identificationprocess?.id) throw new BadRequestException(`Identification process ID is missing`);
+    const { id: sessionId, transactionnumber: transactionId, result: sessionStatus } = dto.identificationprocess;
 
-    const { id: sessionId, result: sessionStatus } = dto.identificationprocess;
+    if (!sessionId || !transactionId || !sessionStatus) throw new BadRequestException(`Session data is missing`);
+
+    if (!transactionId.includes(Config.kyc.transactionPrefix)) {
+      this.logger.verbose(`Received webhook call for a different system: ${transactionId}`);
+      return;
+    }
 
     const kycStep = await this.kycStepRepo.findOne({
       where: { sessionId },
