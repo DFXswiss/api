@@ -8,6 +8,7 @@ import {
   Post,
   Put,
   Query,
+  Res,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -108,6 +109,28 @@ export class KycController {
     await this.kycService.updateIdent(data);
   }
 
+  @Get('ident/auto/success')
+  @ApiExcludeEndpoint()
+  async identRedirectSuccess(
+    @Res() res,
+    @RealIP() ip: string,
+    @Query('transactionNumber') transactionNumber: string,
+  ): Promise<void> {
+    this.checkWebhookIp(ip, transactionNumber);
+    return res.redirect(307, await this.kycService.getIdentRedirect(transactionNumber, true));
+  }
+
+  @Get('ident/auto/cancel')
+  @ApiExcludeEndpoint()
+  async identRedirectCancel(
+    @Res() res,
+    @RealIP() ip: string,
+    @Query('transactionNumber') transactionNumber: string,
+  ): Promise<void> {
+    this.checkWebhookIp(ip, transactionNumber);
+    return res.redirect(307, await this.kycService.getIdentRedirect(transactionNumber, false));
+  }
+
   @Put('document/:id')
   @UseInterceptors(FileInterceptor('file'))
   @ApiOkResponse({ type: KycResultDto })
@@ -120,7 +143,7 @@ export class KycController {
   }
 
   // --- HELPER METHODS --- //
-  private checkWebhookIp(ip: string, data: IdentResultDto) {
+  private checkWebhookIp(ip: string, data: IdentResultDto | string) {
     if (!Config.kyc.allowedWebhookIps.includes('*') && !Config.kyc.allowedWebhookIps.includes(ip)) {
       this.logger.error(`Received webhook call from invalid IP ${ip}: ${JSON.stringify(data)}`);
       throw new ForbiddenException('Invalid source IP');

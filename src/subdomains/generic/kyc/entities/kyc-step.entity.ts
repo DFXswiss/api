@@ -28,6 +28,9 @@ export class KycStep extends IEntity {
   @Column({ nullable: true })
   sessionId?: string;
 
+  @Column({ nullable: true })
+  transactionId?: string;
+
   @Column({ length: 'MAX', nullable: true })
   result?: string;
 

@@ -18,7 +18,7 @@ export class IdentService {
 
   async initiateIdent(user: UserData, kycStep: KycStep): Promise<string> {
     return this.callApi<{ id: string }>(
-      `identifications/${this.transactionId(user, kycStep)}/start`,
+      `identifications/${kycStep.transactionId ?? this.transactionId(user, kycStep)}/start`,
       kycStep.type,
       'POST',
     ).then((r) => r.id);
@@ -43,7 +43,7 @@ export class IdentService {
   }
 
   // --- HELPER METHODS --- //
-  private transactionId(user: UserData, kycStep: KycStep): string {
+  public transactionId(user: UserData, kycStep: KycStep): string {
     return `${Config.kyc.transactionPrefix}-${user.id}-${kycStep.sequenceNumber}`;
   }
 

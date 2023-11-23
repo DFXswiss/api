@@ -93,6 +93,15 @@ export class KycService {
     return { status: kycStep.status };
   }
 
+  async getIdentRedirect(transactionId: string, success: boolean): Promise<string> {
+    const kycStep = await this.kycStepRepo.findOne({ where: { transactionId } });
+
+    if (!kycStep) this.logger.verbose(`Received redirect call for a different system: ${transactionId}`);
+    success == true ? kycStep.review() : kycStep.fail();
+    await this.kycStepRepo.save(kycStep);
+    return `services/iframe-message?status=${kycStep.status}`;
+  }
+
   async getFinancialData(kycHash: string, stepId: number): Promise<KycFinancialOutData> {
     const user = await this.getUserOrThrow(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
@@ -281,7 +290,7 @@ export class KycService {
 
       case KycStepName.IDENT:
         // TODO: verify 2FA
-
+        kycStep.transactionId = this.identService.transactionId(user, kycStep);
         kycStep.sessionId = await this.identService.initiateIdent(user, kycStep);
         break;
 
