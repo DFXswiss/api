@@ -94,9 +94,9 @@ export class KycController {
     return this.kycService.updateFinancialData(code, +id, data);
   }
 
-  @Post('ident/online')
+  @Post('ident/auto')
   @ApiExcludeEndpoint()
-  async onlineIdWebhook(@RealIP() ip: string, @Body() data: IdentResultDto) {
+  async autoIdWebhook(@RealIP() ip: string, @Body() data: IdentResultDto) {
     this.checkWebhookIp(ip, data);
     await this.kycService.updateIdent(data);
   }
