@@ -128,9 +128,9 @@ export class TransactionHelper implements OnModuleInit {
     paymentMethod: BuyPaymentMethod,
   ): Promise<TxFeeDetails> {
     // get fee
-    const txInfo = this.getTxInfo(from, to);
+    const { direction, feeAsset } = this.getTxInfo(from, to);
 
-    const fee = await this.getTxFee(userData, txInfo.direction, txInfo.feeAsset, inputAmount, from, paymentMethod);
+    const fee = await this.getTxFee(userData, direction, feeAsset, inputAmount, from, paymentMethod);
 
     // get specs
     const specs = this.getSpecs(from, to);
@@ -142,10 +142,8 @@ export class TransactionHelper implements OnModuleInit {
     return {
       minVolume: this.convert(specs.minVolume, referencePrice, from instanceof Fiat),
       minFee: this.convert(specs.minFee, referencePrice, from instanceof Fiat),
-      fee: {
-        ...fee,
-        fixed: this.convert(fee.fixed, referencePrice, from instanceof Fiat),
-      },
+      ...fee,
+      fixed: this.convert(fee.fixed, referencePrice, from instanceof Fiat),
       feeAmount: this.convert(feeAmount, referencePrice, from instanceof Fiat),
     };
   }
@@ -159,12 +157,12 @@ export class TransactionHelper implements OnModuleInit {
     paymentMethod?: BuyPaymentMethod,
   ): Promise<TransactionDetails> {
     // get fee
-    const txInfo = this.getTxInfo(from, to);
+    const { direction, feeAsset } = this.getTxInfo(from, to);
 
     const fee = await this.getTxFee(
       userData,
-      txInfo.direction,
-      txInfo.feeAsset,
+      direction,
+      feeAsset,
       targetAmount ? targetAmount : sourceAmount,
       targetAmount ? to : from,
       paymentMethod,
@@ -213,16 +211,16 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   private async getTxFee(
-    userData: UserData,
+    userData: UserData | undefined,
     direction: FeeDirectionType,
     asset: Asset,
     txVolume: number,
     txAsset: Asset | Fiat,
-    paymentMethod: BuyPaymentMethod,
+    paymentMethod?: BuyPaymentMethod | undefined,
   ): Promise<FeeDto> {
-    const price = txAsset ? await this.priceProviderService.getPrice(txAsset, this.eur) : undefined;
+    const price = await this.priceProviderService.getPrice(txAsset, this.eur);
 
-    const txVolumeInEur = price ? price.convert(txVolume) : undefined;
+    const txVolumeInEur = price.convert(txVolume);
 
     return paymentMethod === BuyPaymentMethod.CARD
       ? { fees: [], rate: Config.buy.fee.card, fixed: 0, payoutRefBonus: true }

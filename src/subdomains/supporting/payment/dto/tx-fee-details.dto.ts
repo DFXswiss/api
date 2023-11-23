@@ -1,8 +1,7 @@
 import { FeeDto } from './fee.dto';
 
-export interface TxFeeDetails {
+export interface TxFeeDetails extends FeeDto {
   minFee: number;
   minVolume: number;
-  fee: FeeDto;
   feeAmount: number;
 }

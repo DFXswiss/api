@@ -6,6 +6,7 @@ import { Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { Between, In, IsNull, Not } from 'typeorm';
 import { BuyPaymentMethod } from '../../routes/buy/dto/get-buy-payment-info.dto';
@@ -52,9 +53,13 @@ export class BuyCryptoPreparationService {
         const inputReferenceCurrency = await this.fiatService.getFiatByName(entity.bankTx.txCurrency);
         const inputCurrency = await this.fiatService.getFiatByName(entity.inputAsset);
 
-        const inputReferencePrice = await this.priceProviderService.getPrice(inputCurrency, inputReferenceCurrency);
+        const inputReferencePrice = Price.create(
+          inputCurrency.name,
+          inputReferenceCurrency.name,
+          entity.inputAmount / entity.inputReferenceAmount,
+        );
 
-        const { feeAmount, fee, minFee, minVolume } = await this.transactionHelper.getTxFeeInfos(
+        const { feeAmount, rate, fixed, minFee, minVolume } = await this.transactionHelper.getTxFeeInfos(
           entity.inputAmount,
           inputCurrency,
           entity.target.asset,
@@ -80,7 +85,8 @@ export class BuyCryptoPreparationService {
             inputAssetEurPrice,
             inputAssetChfPrice,
             feeAmount,
-            fee,
+            rate,
+            fixed,
             minFee,
             minVolume,
             userDataVolume.buy + userDataVolume.checkout, // + convert?
@@ -128,9 +134,13 @@ export class BuyCryptoPreparationService {
         const inputReferenceCurrency = await this.fiatService.getFiatByName(entity.inputReference.currency);
         const inputCurrency = await this.fiatService.getFiatByName(entity.inputAsset);
 
-        const inputReferencePrice = await this.priceProviderService.getPrice(inputCurrency, inputReferenceCurrency);
+        const inputReferencePrice = Price.create(
+          inputCurrency.name,
+          inputReferenceCurrency.name,
+          entity.inputAmount / entity.inputReferenceAmount,
+        );
 
-        const { feeAmount, fee, minFee } = await this.transactionHelper.getTxFeeInfos(
+        const { feeAmount, fees, fixed, payoutRefBonus, rate, minFee } = await this.transactionHelper.getTxFeeInfos(
           entity.inputAmount,
           inputCurrency,
           entity.target.asset,
@@ -142,7 +152,7 @@ export class BuyCryptoPreparationService {
         const referenceEurPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatEur);
         const referenceChfPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatChf);
 
-        for (const feeId of fee.fees) {
+        for (const feeId of fees) {
           await this.feeService.increaseTxUsage(feeId);
         }
 
@@ -150,7 +160,10 @@ export class BuyCryptoPreparationService {
           ...entity.setFeeAndFiatReference(
             referenceEurPrice.convert(entity.inputReference.amount, 2),
             referenceChfPrice.convert(entity.inputReference.amount, 2),
-            fee,
+            fees,
+            rate,
+            fixed,
+            payoutRefBonus,
             minFee,
             minFee,
             feeAmount,
