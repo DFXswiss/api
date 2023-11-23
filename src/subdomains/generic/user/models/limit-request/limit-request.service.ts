@@ -39,16 +39,11 @@ export class LimitRequestService {
     // upload document proof
     if (dto.documentProof) {
       const { contentType, buffer } = this.fromBase64(dto.documentProof);
-      const date = new Date();
 
-      await this.storageService.uploadFile(
+      entity.documentProofUrl = await this.storageService.uploadFile(
         user.id,
         KycFileType.USER_NOTES,
-        `${date.getFullYear()}-${
-          date.getMonth() + 1
-        }-${date.getDate()}_${date.getHours()}-${date.getMinutes()}-${date.getSeconds()}_limit-request_user-upload_${
-          dto.documentProofName
-        }`,
+        `${Util.isoDateTime(new Date())}_limit-request_user-upload_${dto.documentProofName}`,
         buffer,
         contentType as KycContentType,
       );
