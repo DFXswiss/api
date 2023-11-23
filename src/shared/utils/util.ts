@@ -165,6 +165,10 @@ export class Util {
     return date.toISOString().split('T')[0];
   }
 
+  static isoDateTime(date: Date): string {
+    return date.toISOString().split('.')[0].split(':').join('-').split('T').join('_');
+  }
+
   // --- ENCRYPTION --- //
 
   static encrypt(input: string, key: string): string {
