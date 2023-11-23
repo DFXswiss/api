@@ -46,6 +46,9 @@ export class Fee extends IEntity {
   expiryDate: Date;
 
   @Column({ type: 'float', nullable: true })
+  minTxVolume: number; // EUR
+
+  @Column({ type: 'float', nullable: true })
   maxTxVolume: number; // EUR
 
   @Column({ length: 'MAX', nullable: true })
@@ -97,7 +100,8 @@ export class Fee extends IEntity {
       (this.accountType && this.accountType !== request.accountType) ||
       (this.direction && this.direction !== request.direction) ||
       (this.assetList?.length && !this.assetList.includes(request.asset?.id)) ||
-      (this.maxTxVolume && this.maxTxVolume < request.txVolume)
+      (this.maxTxVolume && this.maxTxVolume < request.txVolume) ||
+      (this.minTxVolume && this.minTxVolume > request.txVolume)
     );
   }
 

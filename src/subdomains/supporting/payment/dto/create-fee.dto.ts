@@ -60,6 +60,11 @@ export class CreateFeeDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsNumber()
+  minTxVolume: number; // EUR
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
   maxTxVolume: number; // EUR
 
   @ApiPropertyOptional()
