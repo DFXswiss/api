@@ -1,6 +1,6 @@
 import { Config } from 'src/config/config';
 import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycStepName, KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
 import { IdentService } from '../services/integration/ident.service';
@@ -8,6 +8,7 @@ import { IdentService } from '../services/integration/ident.service';
 export type KycStepResult = string | object;
 
 @Entity()
+@Index((s: KycStep) => [s.userData, s.name, s.type, s.sequenceNumber], { unique: true })
 export class KycStep extends IEntity {
   @ManyToOne(() => UserData, (userData) => userData.kycSteps, { nullable: false })
   userData: UserData;

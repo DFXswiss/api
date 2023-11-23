@@ -11,6 +11,7 @@ import { KycContactData } from '../dto/input/kyc-contact-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { KycPersonalData } from '../dto/input/kyc-personal-data.dto';
 import { KycContentType, KycFileType } from '../dto/kyc-file.dto';
+import { KycDataMapper } from '../dto/mapper/kyc-data.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
 import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
@@ -83,7 +84,7 @@ export class KycService {
     let user = await this.getUserOrThrow(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
-    user = await this.userDataService.updateKycData(user, data);
+    user = await this.userDataService.updateKycData(user, KycDataMapper.toUserData(data));
 
     if (user.isDataComplete) user = user.completeStep(kycStep);
 
