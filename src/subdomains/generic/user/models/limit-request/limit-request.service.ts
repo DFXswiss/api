@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { KycDocument } from 'src/subdomains/generic/user/services/spider/dto/spider.dto';
-import { SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
+import { KycContentType, KycFileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
+import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/document-storage.service';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { WebhookService } from '../../services/webhook/webhook.service';
@@ -20,7 +20,7 @@ export class LimitRequestService {
   constructor(
     private readonly limitRequestRepo: LimitRequestRepository,
     private readonly userDataService: UserDataService,
-    private readonly spiderService: SpiderService,
+    private readonly storageService: DocumentStorageService,
     private readonly webhookService: WebhookService,
     private readonly notificationService: NotificationService,
   ) {}
@@ -39,21 +39,13 @@ export class LimitRequestService {
     // upload document proof
     if (dto.documentProof) {
       const { contentType, buffer } = this.fromBase64(dto.documentProof);
-      const version = Date.now().toString();
-      await this.spiderService.uploadDocument(
-        user.id,
-        false,
-        KycDocument.USER_ADDED_DOCUMENT,
-        dto.documentProofName,
-        contentType,
-        buffer,
-        version,
-      );
 
-      entity.documentProofUrl = this.spiderService.getDocumentUrl(
-        user.kycCustomerId,
-        KycDocument.USER_ADDED_DOCUMENT,
-        version,
+      entity.documentProofUrl = await this.storageService.uploadFile(
+        user.id,
+        KycFileType.USER_NOTES,
+        `${Util.isoDateTime(new Date())}_limit-request_user-upload_${dto.documentProofName}`,
+        buffer,
+        contentType as KycContentType,
       );
     }
 

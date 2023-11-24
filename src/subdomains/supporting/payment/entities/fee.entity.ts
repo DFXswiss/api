@@ -46,6 +46,9 @@ export class Fee extends IEntity {
   expiryDate: Date;
 
   @Column({ type: 'float', nullable: true })
+  minTxVolume: number; // EUR
+
+  @Column({ type: 'float', nullable: true })
   maxTxVolume: number; // EUR
 
   @Column({ length: 'MAX', nullable: true })
@@ -80,7 +83,7 @@ export class Fee extends IEntity {
   }
 
   increaseTxUsage(): UpdateResult<Fee> {
-    if (this.isExpired()) throw new BadRequestException('Fee is expired - increaseTxUsage forbidden');
+    if (this.isExpired() || !this.active) throw new BadRequestException('Fee is expired - increaseTxUsage forbidden');
 
     const update: Partial<Fee> = {
       txUsages: this.txUsages + 1,
@@ -92,19 +95,22 @@ export class Fee extends IEntity {
   }
 
   verifyForTx(request: FeeRequest): boolean {
-    return !(
-      this.isExpired() ||
-      (this.accountType && this.accountType !== request.accountType) ||
-      (this.direction && this.direction !== request.direction) ||
-      (this.assetList?.length && !this.assetList.includes(request.asset?.id)) ||
-      (this.maxTxVolume && this.maxTxVolume < request.txVolume)
+    return (
+      this?.active &&
+      !(
+        this.isExpired() ||
+        (this.accountType && this.accountType !== request.accountType) ||
+        (this.direction && this.direction !== request.direction) ||
+        (this.assetList?.length && !this.assetList.includes(request.asset?.id)) ||
+        (this.maxTxVolume && this.maxTxVolume < request.txVolume) ||
+        (this.minTxVolume && this.minTxVolume > request.txVolume)
+      )
     );
   }
 
   isExpired(): boolean {
     return (
       !this ||
-      !this.active ||
       (this.expiryDate && this.expiryDate < new Date()) ||
       (this.maxTxUsages && this.txUsages >= this.maxTxUsages)
     );

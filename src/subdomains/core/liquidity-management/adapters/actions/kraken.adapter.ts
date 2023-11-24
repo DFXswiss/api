@@ -3,8 +3,8 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { KrakenService } from 'src/integration/exchange/services/kraken.service';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { LiquidityManagementSystem } from '../../enums';
-import { CcxtExchangeAdapter } from './base/ccxt-exchange.adapter';
 import { LiquidityManagementOrderRepository } from '../../repositories/liquidity-management-order.repository';
+import { CcxtExchangeAdapter } from './base/ccxt-exchange.adapter';
 
 @Injectable()
 export class KrakenAdapter extends CcxtExchangeAdapter {
@@ -13,6 +13,7 @@ export class KrakenAdapter extends CcxtExchangeAdapter {
     BinanceSmartChain: 'bsc',
     Bitcoin: 'bitcoin',
     Lightning: undefined,
+    Monero: 'monero',
     Cardano: 'cardano',
     DeFiChain: 'defichain',
     Ethereum: 'ethereum',

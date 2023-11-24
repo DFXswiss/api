@@ -9,6 +9,7 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UploadFileDto } from 'src/subdomains/generic/user/models/user-data/dto/upload-file.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
+import { KycDocument } from '../../services/spider/dto/spider.dto';
 import { KycService } from '../kyc/kyc.service';
 import { UpdateKycStatusDto } from './dto/update-kyc-status.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
@@ -137,8 +138,12 @@ export class UserDataController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async syncKycFiles(@Param('id') id: string, @Query('ignoreNameChecks') ignoreNameChecks: string): Promise<void> {
-    return this.kycService.syncKycFiles(+id, ignoreNameChecks === 'true');
+  async syncKycFiles(
+    @Param('id') id: string,
+    @Query('documents') documents: string,
+    @Query('singleVersion') singleVersion: string,
+  ): Promise<void> {
+    return this.kycService.syncKycFiles(+id, documents?.split(',') as KycDocument[], singleVersion);
   }
 
   @Put(':id/kycStatus')

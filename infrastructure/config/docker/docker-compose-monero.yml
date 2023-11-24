@@ -1,0 +1,43 @@
+version: '3.7'
+name: 'monero'
+
+services:
+  #  monerod:
+  #    image: sethsimmons/simple-monerod:v0.18.3.1
+  #    user: ${FIXUID:-1000}:${FIXGID:-1000}
+  #    restart: no
+  #    volumes:
+  #      - ./volumes/bitmonero:/home/monero/.bitmonero
+  #    ports:
+  #      - '18081:18081'
+  #      #- '18089:18089'
+  #    command:
+  #      #- "--rpc-restricted-bind-ip=127.0.0.1"
+  #      #- "--rpc-restricted-bind-port=18089"
+  #      #- "--public-node"
+  #      - "--no-zmq"
+  #      - "--no-igd"
+  #      - "--enable-dns-blocklist"
+  #      - "--prune-blockchain"
+  #      - "--out-peers=64"
+  monero-rpc:
+    image: sethsimmons/simple-monero-wallet-rpc:v0.18.3.1
+    user: ${FIXUID:-1000}:${FIXGID:-1000}
+    restart: unless-stopped
+    volumes:
+      - ./volumes/bitmonero:/home/monero/.bitmonero
+    ports:
+      - '18082:18082'
+    #    depends_on:
+    #      monerod:
+    #        condition: service_healthy
+    command:
+      - '--wallet-dir=/home/monero/.bitmonero/wallet'
+      #- '--wallet-file=/home/monero/.bitmonero/wallet/[WALLET_NAME]'
+      #- '--password=[WALLET_PASSWORD]'
+      - '--rpc-bind-port=18082'
+      - '--untrusted-daemon'
+      - '--disable-rpc-login'
+      #- '--rpc-ssl=enabled'
+      #- '--rpc-ssl-private-key=/home/monero/.bitmonero/key.pem'
+      #- '--rpc-ssl-certificate=/home/monero/.bitmonero/cert.pem'

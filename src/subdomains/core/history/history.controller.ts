@@ -1,16 +1,17 @@
 import {
   Controller,
-  UseGuards,
   Get,
-  StreamableFile,
-  Res,
+  Headers,
+  NotFoundException,
   Post,
   Query,
-  NotFoundException,
-  Headers,
+  Res,
+  StreamableFile,
+  UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { Response } from 'express';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -18,13 +19,12 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { BuyFiatService } from '../sell-crypto/process/buy-fiat.service';
-import { HistoryTransactionType, HistoryDto, TypedHistoryDto } from './dto/history.dto';
-import { HistoryQuery } from './dto/history-query.dto';
-import { CoinTrackingHistoryDto } from './dto/coin-tracking-history.dto';
-import { HistoryService } from './history.service';
 import { BuyCryptoService } from '../buy-crypto/process/services/buy-crypto.service';
-import { Response } from 'express';
+import { BuyFiatService } from '../sell-crypto/process/buy-fiat.service';
+import { CoinTrackingHistoryDto } from './dto/coin-tracking-history.dto';
+import { HistoryQuery } from './dto/history-query.dto';
+import { HistoryDto, HistoryTransactionType, TypedHistoryDto } from './dto/history.dto';
+import { HistoryService } from './history.service';
 
 @ApiTags('History')
 @Controller('history')
@@ -103,6 +103,6 @@ export class HistoryController {
   }
 
   private formatDate(date: Date = new Date()): string {
-    return date.toISOString().split('-').join('').split(':').join('').split('T').join('_').split('.')[0];
+    return Util.isoDateTime(date).split('-').join('');
   }
 }
