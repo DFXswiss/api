@@ -107,9 +107,9 @@ export class KycController {
   async identRedirectSuccess(
     @Res() res,
     @Param('id') status: string,
-    @Query('transactionNumber') transactionNumber: string,
+    @Query('transactionId') transactionId: string,
   ): Promise<void> {
-    return res.redirect(307, await this.kycService.getIdentRedirect(transactionNumber, status));
+    return res.redirect(307, await this.kycService.getIdentRedirect(transactionId, status));
   }
 
   @Put('document/:id')
