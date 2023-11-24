@@ -118,7 +118,7 @@ export class KycService {
     kycStep.setResult(data.responses);
 
     const complete = this.financialService.checkResponses(data.responses);
-    if (complete) user.completeStep(kycStep);
+    if (complete) user.reviewStep(kycStep);
 
     await this.updateProgress(user, false);
 
@@ -150,7 +150,7 @@ export class KycService {
     this.logger.info(`Received ident webhook call for user ${user.id} (${sessionId}): ${sessionStatus}`);
 
     if (IdentSucceeded(dto)) {
-      user = user.completeStep(kycStep, dto);
+      user = user.reviewStep(kycStep, dto);
       await this.downloadIdentDocuments(user, kycStep);
     } else if (IdentPending(dto)) {
       user = user.reviewStep(kycStep, dto);
