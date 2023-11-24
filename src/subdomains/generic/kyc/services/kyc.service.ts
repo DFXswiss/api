@@ -93,12 +93,15 @@ export class KycService {
     return { status: kycStep.status };
   }
 
-  async getIdentRedirect(transactionId: string, success: boolean): Promise<string> {
+  async getIdentRedirect(transactionId: string, status: string): Promise<string> {
     const kycStep = await this.kycStepRepo.findOne({ where: { transactionId } });
 
     if (!kycStep) this.logger.verbose(`Received redirect call for a different system: ${transactionId}`);
-    success == true ? kycStep.review() : kycStep.fail();
-    await this.kycStepRepo.save(kycStep);
+    if (status == 'success') {
+      kycStep.review();
+      await this.kycStepRepo.save(kycStep);
+    }
+
     return `services/iframe-message?status=${kycStep.status}`;
   }
 

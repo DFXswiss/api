@@ -95,40 +95,21 @@ export class KycController {
     return this.kycService.updateFinancialData(code, +id, data);
   }
 
-  @Post('ident/auto')
+  @Post('ident/:type')
   @ApiExcludeEndpoint()
   async autoIdWebhook(@RealIP() ip: string, @Body() data: IdentResultDto) {
     this.checkWebhookIp(ip, data);
     await this.kycService.updateIdent(data);
   }
 
-  @Post('ident/video')
-  @ApiExcludeEndpoint()
-  async videoIdWebhook(@RealIP() ip: string, @Body() data: IdentResultDto) {
-    this.checkWebhookIp(ip, data);
-    await this.kycService.updateIdent(data);
-  }
-
-  @Get('ident/auto/success')
+  @Get('ident/:type/:status')
   @ApiExcludeEndpoint()
   async identRedirectSuccess(
     @Res() res,
-    @RealIP() ip: string,
+    @Param('id') status: string,
     @Query('transactionNumber') transactionNumber: string,
   ): Promise<void> {
-    this.checkWebhookIp(ip, transactionNumber);
-    return res.redirect(307, await this.kycService.getIdentRedirect(transactionNumber, true));
-  }
-
-  @Get('ident/auto/cancel')
-  @ApiExcludeEndpoint()
-  async identRedirectCancel(
-    @Res() res,
-    @RealIP() ip: string,
-    @Query('transactionNumber') transactionNumber: string,
-  ): Promise<void> {
-    this.checkWebhookIp(ip, transactionNumber);
-    return res.redirect(307, await this.kycService.getIdentRedirect(transactionNumber, false));
+    return res.redirect(307, await this.kycService.getIdentRedirect(transactionNumber, status));
   }
 
   @Put('document/:id')
@@ -143,7 +124,7 @@ export class KycController {
   }
 
   // --- HELPER METHODS --- //
-  private checkWebhookIp(ip: string, data: IdentResultDto | string) {
+  private checkWebhookIp(ip: string, data: IdentResultDto) {
     if (!Config.kyc.allowedWebhookIps.includes('*') && !Config.kyc.allowedWebhookIps.includes(ip)) {
       this.logger.error(`Received webhook call from invalid IP ${ip}: ${JSON.stringify(data)}`);
       throw new ForbiddenException('Invalid source IP');
