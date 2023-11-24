@@ -42,3 +42,8 @@ export enum QuestionType {
   MULTIPLE_CHOICE = 'MultipleChoice',
   TEXT = 'Text',
 }
+
+export enum IdentStatus {
+  SUCCESS = 'success',
+  CANCEL = 'cancel',
+}

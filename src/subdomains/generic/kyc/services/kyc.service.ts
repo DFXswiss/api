@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { LessThan } from 'typeorm';
@@ -18,7 +19,7 @@ import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycInfoDto, KycStepDto } from '../dto/output/kyc-info.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { KycStep } from '../entities/kyc-step.entity';
-import { KycStepName, KycStepStatus, KycStepType } from '../enums/kyc.enum';
+import { IdentStatus, KycStepName, KycStepStatus, KycStepType } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { DocumentStorageService } from './integration/document-storage.service';
 import { FinancialService } from './integration/financial.service';
@@ -43,6 +44,7 @@ export class KycService {
     private readonly financialService: FinancialService,
     private readonly storageService: DocumentStorageService,
     private readonly kycStepRepo: KycStepRepository,
+    private readonly languageService: LanguageService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
@@ -57,7 +59,9 @@ export class KycService {
     });
 
     for (const identStep of expiredIdentSteps) {
-      const user = identStep.userData.failStep(identStep);
+      let user = identStep.userData;
+      const step = user.getPendingStepOrThrow(identStep.id);
+      user = user.failStep(step);
       await this.userDataService.save(user);
     }
   }
@@ -93,23 +97,13 @@ export class KycService {
     return { status: kycStep.status };
   }
 
-  async getIdentRedirect(transactionId: string, status: string): Promise<string> {
-    const kycStep = await this.kycStepRepo.findOne({ where: { transactionId } });
-
-    if (!kycStep) this.logger.verbose(`Received redirect call for a different system: ${transactionId}`);
-    if (status == 'success') {
-      kycStep.review();
-      await this.kycStepRepo.save(kycStep);
-    }
-
-    return `services/iframe-message?status=${kycStep.status}`;
-  }
-
-  async getFinancialData(kycHash: string, stepId: number): Promise<KycFinancialOutData> {
+  async getFinancialData(kycHash: string, stepId: number, lang?: string): Promise<KycFinancialOutData> {
     const user = await this.getUserOrThrow(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
-    const questions = this.financialService.getQuestions(user.language.symbol.toLowerCase());
+    const language = (lang && (await this.languageService.getLanguageBySymbol(lang.toUpperCase()))) ?? user.language;
+
+    const questions = this.financialService.getQuestions(language.symbol.toLowerCase());
     const responses = kycStep.getResult<KycFinancialResponse[]>() ?? [];
     return { questions, responses };
   }
@@ -138,17 +132,10 @@ export class KycService {
       return;
     }
 
-    const kycStep = await this.kycStepRepo.findOne({
-      where: { sessionId },
-      relations: { userData: true },
-    });
+    const transaction = await this.getUserByTransactionOrThrow(transactionId, dto);
 
-    if (!kycStep) {
-      this.logger.error(`Received unmatched ident webhook call: ${JSON.stringify(dto)}`);
-      return;
-    }
-
-    let user = kycStep.userData;
+    let user = transaction.user;
+    const kycStep = user.getPendingStepOrThrow(transaction.stepId);
 
     this.logger.info(`Received ident webhook call for user ${user.id} (${sessionId}): ${sessionStatus}`);
 
@@ -166,6 +153,21 @@ export class KycService {
     }
 
     await this.updateProgress(user, false);
+  }
+
+  async updateIdentStatus(transactionId: string, status: IdentStatus): Promise<KycStep> {
+    const transaction = await this.getUserByTransactionOrThrow(transactionId, status);
+
+    let user = transaction.user;
+    const kycStep = user.getPendingStepOrThrow(transaction.stepId);
+
+    if (status === IdentStatus.SUCCESS) {
+      user = user.reviewStep(kycStep);
+
+      await this.updateProgress(user, false);
+    }
+
+    return kycStep;
   }
 
   async uploadDocument(kycHash: string, stepId: number, document: Express.Multer.File): Promise<KycResultDto> {
@@ -293,8 +295,8 @@ export class KycService {
 
       case KycStepName.IDENT:
         // TODO: verify 2FA
-        kycStep.transactionId = this.identService.transactionId(user, kycStep);
-        kycStep.sessionId = await this.identService.initiateIdent(user, kycStep);
+        kycStep.transactionId = IdentService.transactionId(user, kycStep);
+        kycStep.sessionId = await this.identService.initiateIdent(kycStep);
         break;
 
       case KycStepName.FINANCIAL_DATA:
@@ -306,6 +308,17 @@ export class KycService {
   }
 
   // --- HELPER METHODS --- //
+  async getUserByTransactionOrThrow(transactionId: string, data: any): Promise<{ user: UserData; stepId: number }> {
+    const kycStep = await this.kycStepRepo.findOne({ where: { transactionId }, relations: { userData: true } });
+
+    if (!kycStep) {
+      this.logger.error(`Received unmatched ident call: ${JSON.stringify(data)}`);
+      throw new NotFoundException();
+    }
+
+    return { user: kycStep.userData, stepId: kycStep.id };
+  }
+
   async getUserOrThrow(kycHash: string): Promise<UserData> {
     const user = await this.userDataService.getUserDataByKycHash(kycHash, { users: true });
     if (!user) throw new NotFoundException('User not found');

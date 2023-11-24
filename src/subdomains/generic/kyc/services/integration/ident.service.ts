@@ -16,16 +16,18 @@ export class IdentService {
 
   constructor(private readonly http: HttpService) {}
 
-  async initiateIdent(user: UserData, kycStep: KycStep): Promise<string> {
-    return this.callApi<{ id: string }>(
-      `identifications/${kycStep.transactionId ?? this.transactionId(user, kycStep)}/start`,
-      kycStep.type,
-      'POST',
-    ).then((r) => r.id);
+  static transactionId(user: UserData, kycStep: KycStep): string {
+    return `${Config.kyc.transactionPrefix}-${kycStep.type}-${user.id}-${kycStep.sequenceNumber + 1}`.toLowerCase();
+  }
+
+  async initiateIdent(kycStep: KycStep): Promise<string> {
+    return this.callApi<{ id: string }>(`identifications/${kycStep.transactionId}/start`, kycStep.type, 'POST').then(
+      (r) => r.id,
+    );
   }
 
   async getDocuments(user: UserData, kycStep: KycStep): Promise<IdentDocuments> {
-    const transactionId = this.transactionId(user, kycStep);
+    const transactionId = IdentService.transactionId(user, kycStep);
 
     const pdf = await this.getDocument(kycStep.type, transactionId, 'pdf');
     const zip = await this.getDocument(kycStep.type, transactionId, 'zip');
@@ -43,9 +45,6 @@ export class IdentService {
   }
 
   // --- HELPER METHODS --- //
-  public transactionId(user: UserData, kycStep: KycStep): string {
-    return `${Config.kyc.transactionPrefix}-${user.id}-${kycStep.sequenceNumber}`;
-  }
 
   private async getDocument(kycStepType: KycStepType, transactionId: string, contentType: string): Promise<Buffer> {
     return this.callApi<string>(

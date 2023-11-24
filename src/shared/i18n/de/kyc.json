@@ -6,14 +6,20 @@
         "title": "Quelle der zu investierenden Vermögenswerte",
         "description": "Ich bestätige, dass die Vermögenswerte mir gehören"
       },
-      "source_of_funds": { "title": "Quelle der zu investierenden Vermögenswerte", "description": "" },
-      "occupation": { "title": "Berufliche Tätigkeit", "description": "" },
-      "employer": { "title": "Arbeitgeber", "description": "" },
-      "sector": { "title": "Branche", "description": "" },
-      "risky_business": { "title": "Risikobehaftete Geschäftstätigkeiten", "description": "" },
-      "income": { "title": "Jahreseinkommen", "description": "" },
-      "assets": { "title": "Vermögen", "description": "" },
-      "notification_of_changes": { "title": "Mitteilung von Änderungen", "description": "" }
+      "source_of_funds": {
+        "title": "Quelle der zu investierenden Vermögenswerte",
+        "description": "Von wo hast Du die Kohle?"
+      },
+      "occupation": { "title": "Berufliche Tätigkeit", "description": "Was arbeitest Du denn?" },
+      "employer": { "title": "Arbeitgeber", "description": "Bei wem arbeitest Du?" },
+      "sector": { "title": "Branche", "description": "Was für 'ne Branche?" },
+      "risky_business": { "title": "Risikobehaftete Geschäftstätigkeiten", "description": "Bist Du ein Drogenbaron?" },
+      "income": { "title": "Jahreseinkommen", "description": "Wie viel kommt dabei rum jährlich?" },
+      "assets": { "title": "Vermögen", "description": "Und wie viel bleibt hängen?" },
+      "notification_of_changes": {
+        "title": "Mitteilung von Änderungen",
+        "description": "Ich bestätige, dass ich automatisch Änderungen mitteile"
+      }
     },
     "option": {
       "yes": "Ja",

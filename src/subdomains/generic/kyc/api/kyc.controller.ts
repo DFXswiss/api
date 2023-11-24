@@ -24,7 +24,7 @@ import { KycPersonalData } from '../dto/input/kyc-personal-data.dto';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycInfoDto, KycStepDto } from '../dto/output/kyc-info.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
-import { KycStepName, KycStepType } from '../enums/kyc.enum';
+import { IdentStatus, KycStepName, KycStepType } from '../enums/kyc.enum';
 import { KycService } from '../services/kyc.service';
 
 const CodeHeaderName = 'x-kyc-code';
@@ -81,8 +81,12 @@ export class KycController {
 
   @Get('data/financial/:id')
   @ApiOkResponse({ type: KycFinancialOutData })
-  async getFinancialData(@Headers(CodeHeaderName) code: string, @Param('id') id: string): Promise<KycFinancialOutData> {
-    return this.kycService.getFinancialData(code, +id);
+  async getFinancialData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Query('lang') lang: string,
+  ): Promise<KycFinancialOutData> {
+    return this.kycService.getFinancialData(code, +id, lang);
   }
 
   @Put('data/financial/:id')
@@ -106,10 +110,11 @@ export class KycController {
   @ApiExcludeEndpoint()
   async identRedirectSuccess(
     @Res() res,
-    @Param('id') status: string,
+    @Param('status') status: IdentStatus,
     @Query('transactionId') transactionId: string,
   ): Promise<void> {
-    return res.redirect(307, await this.kycService.getIdentRedirect(transactionId, status));
+    const kycStep = await this.kycService.updateIdentStatus(transactionId, status);
+    res.redirect(307, `${Config.frontend.services}/iframe-message?status=${kycStep.status}`);
   }
 
   @Put('document/:id')
