@@ -1,11 +1,13 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { LessThan } from 'typeorm';
-import { KycLevel, UserData } from '../../user/models/user-data/user-data.entity';
+import { IsNull, LessThan, Not } from 'typeorm';
+import { KycLevel, KycStatus, UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
+import { UserRepository } from '../../user/models/user/user.repository';
 import { IdentAborted, IdentFailed, IdentPending, IdentResultDto, IdentSucceeded } from '../dto/input/ident-result.dto';
 import { KycContactData } from '../dto/input/kyc-contact-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
@@ -43,6 +45,8 @@ export class KycService {
     private readonly financialService: FinancialService,
     private readonly storageService: DocumentStorageService,
     private readonly kycStepRepo: KycStepRepository,
+    private readonly userRepo: UserRepository,
+    private readonly settingService: SettingService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
@@ -233,10 +237,10 @@ export class KycService {
     return this.saveUserAndMap(user);
   }
 
-  private getNext(user: UserData): {
+  private async getNext(user: UserData): Promise<{
     nextStep: { name: KycStepName; type?: KycStepType; preventDirectEvaluation?: boolean } | undefined;
     nextLevel?: KycLevel;
-  } {
+  }> {
     const lastStep = user.getLastStep();
     if (lastStep?.isInProgress) throw new Error('Step still in progress');
 
@@ -259,7 +263,13 @@ export class KycService {
           return { nextStep: { name: KycStepName.PERSONAL_DATA }, nextLevel: KycLevel.LEVEL_10 };
 
         case KycStepName.PERSONAL_DATA:
-          return { nextStep: { name: KycStepName.IDENT, type: KycStepType.AUTO }, nextLevel: KycLevel.LEVEL_20 };
+          return {
+            nextStep: {
+              name: KycStepName.IDENT,
+              type: (await this.getIdentMethod(user)) == KycStatus.ONLINE_ID ? KycStepType.AUTO : KycStepType.VIDEO,
+            },
+            nextLevel: KycLevel.LEVEL_20,
+          };
 
         case KycStepName.IDENT:
           return { nextStep: { name: KycStepName.FINANCIAL_DATA } };
@@ -306,6 +316,24 @@ export class KycService {
   }
 
   // --- HELPER METHODS --- //
+  private async customIdentMethod(userDataId: number): Promise<KycStatus | undefined> {
+    const userWithCustomMethod = await this.userRepo.findOne({
+      where: {
+        userData: { id: userDataId },
+        wallet: { identMethod: Not(IsNull()) },
+      },
+      relations: { wallet: true },
+    });
+
+    return userWithCustomMethod?.wallet.identMethod;
+  }
+
+  private async getIdentMethod(userData: UserData): Promise<KycStatus> {
+    const defaultIdent = await this.settingService.get('defaultIdentMethod', KycStatus.ONLINE_ID);
+    const customIdent = await this.customIdentMethod(userData.id);
+
+    return customIdent ?? (defaultIdent as KycStatus);
+  }
   async getUserOrThrow(kycHash: string): Promise<UserData> {
     const user = await this.userDataService.getUserDataByKycHash(kycHash, { users: true });
     if (!user) throw new NotFoundException('User not found');
