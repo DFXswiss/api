@@ -70,6 +70,12 @@ export class KycService {
     return KycInfoMapper.toDto(user);
   }
 
+  async getCountries(kycHash: string): Promise<Country[]> {
+    const user = await this.getUserOrThrow(kycHash);
+
+    return this.countryService.getCountriesByKycType(user.kycType);
+  }
+
   // --- UPDATE METHODS --- //
   async updateContactData(kycHash: string, stepId: number, data: KycContactData): Promise<KycResultDto> {
     let user = await this.getUserOrThrow(kycHash);
@@ -195,12 +201,6 @@ export class KycService {
     return { status: kycStep.status };
   }
 
-  async getKycCountries(code: string): Promise<Country[]> {
-    const user = await this.getUserOrThrow(code);
-
-    return this.countryService.getCountriesByKycType(user.kycType);
-  }
-
   // --- STEPPING METHODS --- //
   async continue(kycHash: string): Promise<KycInfoDto> {
     const user = await this.getUserOrThrow(kycHash);
@@ -319,7 +319,6 @@ export class KycService {
   }
 
   // --- HELPER METHODS --- //
-
   async getUserByTransactionOrThrow(transactionId: string, data: any): Promise<{ user: UserData; stepId: number }> {
     const kycStep = await this.kycStepRepo.findOne({ where: { transactionId }, relations: { userData: true } });
 

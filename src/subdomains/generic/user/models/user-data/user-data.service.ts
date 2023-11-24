@@ -255,11 +255,8 @@ export class UserDataService {
     const customIdent = await this.customIdentMethod(userData.id);
     const isVipUser = await this.hasRole(userData.id, UserRole.VIP);
 
-    return isVipUser
-      ? KycStepType.AUTO
-      : (customIdent ?? (defaultIdent as KycStatus)) == KycStatus.ONLINE_ID
-      ? KycStepType.AUTO
-      : KycStepType.VIDEO;
+    const ident = isVipUser ? KycStatus.VIDEO_ID : customIdent ?? (defaultIdent as KycStatus);
+    return ident === KycStatus.ONLINE_ID ? KycStepType.AUTO : KycStepType.VIDEO;
   }
 
   private async customIdentMethod(userDataId: number): Promise<KycStatus | undefined> {

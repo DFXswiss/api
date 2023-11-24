@@ -50,10 +50,10 @@ export class KycController {
     return this.kycService.continue(code);
   }
 
-  @Get(':code/countries')
+  @Get('countries')
   @ApiOkResponse({ type: CountryDto, isArray: true })
-  async getKycCountriesByCode(@Param('code') code: string): Promise<CountryDto[]> {
-    return this.kycService.getKycCountries(code).then(CountryDtoMapper.entitiesToDto);
+  async getKycCountries(@Headers(CodeHeaderName) code: string): Promise<CountryDto[]> {
+    return this.kycService.getCountries(code).then(CountryDtoMapper.entitiesToDto);
   }
 
   @Get(':step')
