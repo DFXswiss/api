@@ -4,7 +4,6 @@ import { Config } from 'src/config/config';
 import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
-import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { LessThan } from 'typeorm';
@@ -43,7 +42,6 @@ export class KycService {
     private readonly financialService: FinancialService,
     private readonly storageService: DocumentStorageService,
     private readonly kycStepRepo: KycStepRepository,
-    private readonly settingService: SettingService,
     private readonly languageService: LanguageService,
     private readonly countryService: CountryService,
   ) {}
