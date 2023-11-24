@@ -9,8 +9,11 @@ export class DilisenseService {
 
   constructor(private readonly http: HttpService) {}
 
-  async getRiskData(name: string, dob: Date): Promise<DilisenseApiData> {
-    const url = `${this.baseUrl}?names=${name}&dob=${dob.toLocaleDateString('en-GB')}`;
+  async getRiskData(name: string, dob?: Date): Promise<DilisenseApiData> {
+    const params = new URLSearchParams({ names: name });
+    dob && params.set('dob', dob.toLocaleDateString('en-GB'));
+
+    const url = `${this.baseUrl}?${params.toString()}`;
 
     try {
       return await this.http.get<DilisenseApiData>(url, {
