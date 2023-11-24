@@ -1,14 +1,15 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { Country } from 'src/shared/models/country/country.entity';
+import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { IsNull, LessThan, Not } from 'typeorm';
-import { KycLevel, KycStatus, UserData } from '../../user/models/user-data/user-data.entity';
+import { LessThan } from 'typeorm';
+import { KycLevel, UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
-import { UserRepository } from '../../user/models/user/user.repository';
 import { IdentAborted, IdentFailed, IdentPending, IdentResultDto, IdentSucceeded } from '../dto/input/ident-result.dto';
 import { KycContactData } from '../dto/input/kyc-contact-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
@@ -28,12 +29,8 @@ import { FinancialService } from './integration/financial.service';
 import { IdentService } from './integration/ident.service';
 
 // TODO:
-// - country API
-// - custom ident methods (Settings/Wallet, see old KycProcessService)
 // - send support mails (failed)
 // - send webhooks
-// - configure Intrum webhooks
-// - add redirect API (configure in ident) + set step to InReview
 // - 2FA (before ident/financial)
 
 @Injectable()
@@ -46,9 +43,9 @@ export class KycService {
     private readonly financialService: FinancialService,
     private readonly storageService: DocumentStorageService,
     private readonly kycStepRepo: KycStepRepository,
-    private readonly userRepo: UserRepository,
     private readonly settingService: SettingService,
     private readonly languageService: LanguageService,
+    private readonly countryService: CountryService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
@@ -200,6 +197,12 @@ export class KycService {
     return { status: kycStep.status };
   }
 
+  async getKycCountries(code: string): Promise<Country[]> {
+    const user = await this.getUserOrThrow(code);
+
+    return this.countryService.getCountriesByKycType(user.kycType);
+  }
+
   // --- STEPPING METHODS --- //
   async continue(kycHash: string): Promise<KycInfoDto> {
     const user = await this.getUserOrThrow(kycHash);
@@ -268,7 +271,7 @@ export class KycService {
           return {
             nextStep: {
               name: KycStepName.IDENT,
-              type: (await this.getIdentMethod(user)) == KycStatus.ONLINE_ID ? KycStepType.AUTO : KycStepType.VIDEO,
+              type: await this.userDataService.getIdentMethod(user),
             },
             nextLevel: KycLevel.LEVEL_20,
           };
@@ -318,24 +321,7 @@ export class KycService {
   }
 
   // --- HELPER METHODS --- //
-  private async customIdentMethod(userDataId: number): Promise<KycStatus | undefined> {
-    const userWithCustomMethod = await this.userRepo.findOne({
-      where: {
-        userData: { id: userDataId },
-        wallet: { identMethod: Not(IsNull()) },
-      },
-      relations: { wallet: true },
-    });
 
-    return userWithCustomMethod?.wallet.identMethod;
-  }
-
-  private async getIdentMethod(userData: UserData): Promise<KycStatus> {
-    const defaultIdent = await this.settingService.get('defaultIdentMethod', KycStatus.ONLINE_ID);
-    const customIdent = await this.customIdentMethod(userData.id);
-
-    return customIdent ?? (defaultIdent as KycStatus);
-  }
   async getUserByTransactionOrThrow(transactionId: string, data: any): Promise<{ user: UserData; stepId: number }> {
     const kycStep = await this.kycStepRepo.findOne({ where: { transactionId }, relations: { userData: true } });
 

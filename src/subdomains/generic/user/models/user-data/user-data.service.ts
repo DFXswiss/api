@@ -8,17 +8,20 @@ import {
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
+import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { SpiderApiService } from 'src/subdomains/generic/user/services/spider/spider-api.service';
 import { ReferenceType, SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
-import { FindOptionsRelations, In, MoreThan, Not } from 'typeorm';
+import { FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { KycProcessService } from '../kyc/kyc-process.service';
@@ -54,6 +57,7 @@ export class UserDataService {
     private readonly spiderApiService: SpiderApiService,
     private readonly kycProcessService: KycProcessService,
     private readonly webhookService: WebhookService,
+    private readonly settingService: SettingService,
     @Inject(forwardRef(() => LinkService)) private readonly linkService: LinkService,
   ) {}
 
@@ -244,6 +248,34 @@ export class UserDataService {
     }
 
     return userData;
+  }
+
+  async getIdentMethod(userData: UserData): Promise<KycStepType> {
+    const defaultIdent = await this.settingService.get('defaultIdentMethod', KycStatus.ONLINE_ID);
+    const customIdent = await this.customIdentMethod(userData.id);
+    const isVipUser = await this.hasRole(userData.id, UserRole.VIP);
+
+    return isVipUser
+      ? KycStepType.AUTO
+      : (customIdent ?? (defaultIdent as KycStatus)) == KycStatus.ONLINE_ID
+      ? KycStepType.AUTO
+      : KycStepType.VIDEO;
+  }
+
+  private async customIdentMethod(userDataId: number): Promise<KycStatus | undefined> {
+    const userWithCustomMethod = await this.userRepo.findOne({
+      where: {
+        userData: { id: userDataId },
+        wallet: { identMethod: Not(IsNull()) },
+      },
+      relations: { wallet: true },
+    });
+
+    return userWithCustomMethod?.wallet.identMethod;
+  }
+
+  private async hasRole(userDataId: number, role: UserRole): Promise<boolean> {
+    return this.userRepo.exist({ where: { userData: { id: userDataId }, role } });
   }
 
   async save(userData: UserData): Promise<UserData> {

@@ -16,6 +16,8 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { RealIP } from 'nestjs-real-ip';
 import { Config } from 'src/config/config';
+import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
+import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { IdentResultDto } from '../../user/models/ident/dto/ident-result.dto';
 import { KycContactData } from '../dto/input/kyc-contact-data.dto';
@@ -46,6 +48,12 @@ export class KycController {
   @ApiOkResponse({ type: KycStepDto })
   async continueKyc(@Headers(CodeHeaderName) code: string): Promise<KycInfoDto> {
     return this.kycService.continue(code);
+  }
+
+  @Get(':code/countries')
+  @ApiOkResponse({ type: CountryDto, isArray: true })
+  async getKycCountriesByCode(@Param('code') code: string): Promise<CountryDto[]> {
+    return this.kycService.getKycCountries(code).then(CountryDtoMapper.entitiesToDto);
   }
 
   @Get(':step')
