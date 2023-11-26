@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AzureStorageService, Blob, BlobContent } from 'src/integration/infrastructure/azure-storage.service';
+import { AzureStorageService, BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { KycContentType, KycFile, KycFileType } from '../dto/kyc-file.dto';
 
 @Injectable()
@@ -11,13 +11,11 @@ export class DocumentStorageService {
   }
 
   async listUserFiles(userDataId: number): Promise<KycFile[]> {
-    const blobs = await this.storageService.listBlobs(`${userDataId}/`);
-    return this.blobToKycFile(blobs);
+    return this.listFilesByPrefix(`user/${userDataId}/`);
   }
 
   async listSpiderFiles(userDataId: number, isOrganization: boolean): Promise<KycFile[]> {
-    const blobs = await this.storageService.listBlobs(`spider/${userDataId}${isOrganization ? '-organization' : ''}/`);
-    return this.blobToKycFile(blobs);
+    return this.listFilesByPrefix(`spider/${userDataId}${isOrganization ? '-organization' : ''}/`);
   }
 
   async uploadFile(
@@ -36,7 +34,8 @@ export class DocumentStorageService {
   }
 
   // --- HELPER METHODS --- //
-  private blobToKycFile(blobs: Blob[]): KycFile[] {
+  private async listFilesByPrefix(prefix: string): Promise<KycFile[]> {
+    const blobs = await this.storageService.listBlobs(prefix);
     return blobs.map((b) => {
       const [_, type, name] = this.fromFileId(b.name);
       return {
