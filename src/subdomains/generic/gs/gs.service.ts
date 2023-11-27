@@ -11,6 +11,8 @@ import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { DataSource } from 'typeorm';
+import { DocumentStorageService } from '../kyc/services/document-storage.service';
+import { AccountType } from '../user/models/user-data/account-type.enum';
 import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { UserService } from '../user/models/user/user.service';
@@ -45,6 +47,7 @@ export class GsService {
     private readonly bankTxService: BankTxService,
     private readonly fiatOutputService: FiatOutputService,
     private readonly dataSource: DataSource,
+    private readonly documentStorageService: DocumentStorageService,
   ) {}
 
   async getRawData(query: DbQueryDto): Promise<any> {
@@ -93,6 +96,13 @@ export class GsService {
 
     return {
       userData,
+      documents: [
+        ...(await this.documentStorageService.listUserFiles(userData.id)),
+        ...(await this.documentStorageService.listSpiderFiles(userData.id, false)),
+        ...(userData.accountType !== AccountType.PERSONAL
+          ? await this.documentStorageService.listSpiderFiles(userData.id, true)
+          : []),
+      ],
       buyCrypto: await this.buyCryptoService.getAllUserTransactions(userIds),
       buyFiat: await this.buyFiatService.getAllUserTransactions(userIds),
       ref: await this.buyCryptoService.getAllRefTransactions(refCodes),
