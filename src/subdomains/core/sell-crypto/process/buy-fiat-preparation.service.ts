@@ -4,6 +4,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
@@ -43,11 +44,17 @@ export class BuyFiatPreparationService {
           (await this.fiatService.getFiatByName(entity.inputReferenceAsset)) ??
           (await this.assetService.getNativeMainLayerAsset(entity.inputReferenceAsset));
 
-        const { feeAmount, fee, minFee } = await this.transactionHelper.getTxDetails(
-          entity.inputReferenceAmount,
-          undefined,
-          inputReferenceCurrency,
+        const inputReferencePrice = Price.create(
+          entity.cryptoInput.asset.name,
+          inputReferenceCurrency.name,
+          entity.inputAmount / entity.inputReferenceAmount,
+        );
+
+        const { fee } = await this.transactionHelper.getTxFeeInfos(
+          entity.inputAmount,
+          entity.cryptoInput.asset,
           entity.sell.fiat,
+          inputReferencePrice,
           entity.sell.user.userData,
         );
 
@@ -62,11 +69,14 @@ export class BuyFiatPreparationService {
           ...entity.setFeeAndFiatReference(
             referenceEurPrice.convert(entity.inputReferenceAmount, 2),
             referenceChfPrice.convert(entity.inputReferenceAmount, 2),
-            fee,
-            minFee,
-            minFee,
-            feeAmount,
-            referenceChfPrice.convert(feeAmount, 2),
+            fee.fees,
+            fee.rate,
+            fee.fixed,
+            fee.payoutRefBonus,
+            fee.min,
+            fee.min,
+            fee.total,
+            referenceChfPrice.convert(fee.total, 2),
           ),
         );
       } catch (e) {

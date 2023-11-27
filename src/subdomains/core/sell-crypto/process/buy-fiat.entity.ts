@@ -3,7 +3,7 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
+import { Fee } from 'src/subdomains/supporting/payment/entities/fee.entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { AmlReason } from '../../buy-crypto/process/enums/aml-reason.enum';
@@ -216,16 +216,19 @@ export class BuyFiat extends IEntity {
   setFeeAndFiatReference(
     amountInEur: number,
     amountInChf: number,
-    fee: FeeDto,
+    fees: Fee[],
+    feeRate: number,
+    fixedFee: number,
+    payoutRefBonus: boolean,
     minFeeAmount: number,
     minFeeAmountFiat: number,
     totalFeeAmount: number,
     totalFeeAmountChf: number,
   ): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
-      absoluteFeeAmount: fee.fixed,
-      percentFee: fee.rate,
-      percentFeeAmount: fee.rate * this.inputReferenceAmount,
+      absoluteFeeAmount: fixedFee,
+      percentFee: feeRate,
+      percentFeeAmount: feeRate * this.inputReferenceAmount,
       minFeeAmount,
       minFeeAmountFiat,
       totalFeeAmount,
@@ -233,8 +236,8 @@ export class BuyFiat extends IEntity {
       inputReferenceAmountMinusFee: this.inputReferenceAmount - totalFeeAmount,
       amountInEur,
       amountInChf,
-      refFactor: fee.payoutRefBonus ? this.refFactor : 0,
-      usedFees: fee.fees?.map((fee) => fee.id).join(';'),
+      refFactor: payoutRefBonus ? this.refFactor : 0,
+      usedFees: fees?.map((fee) => fee.id).join(';'),
     };
 
     Object.assign(this, update);
