@@ -9,6 +9,13 @@ export enum IdentResult {
   FRAUD_SUSPICION_CONFIRMED = 'FRAUD_SUSPICION_CONFIRMED',
 }
 
+export enum IdentShortResult {
+  CANCEL = 'Cancel',
+  REVIEW = 'Review',
+  SUCCESS = 'Success',
+  FAIL = 'Fail',
+}
+
 export enum IdentItemStatus {
   MATCH = 'MATCH',
   CHANGE = 'CHANGE',
@@ -72,20 +79,17 @@ export interface IdentResultDto {
   };
 }
 
-export function IdentPending(update: IdentResultDto): boolean {
-  return [IdentResult.REVIEW_PENDING, IdentResult.CHECK_PENDING, IdentResult.FRAUD_SUSPICION_PENDING].includes(
-    update?.identificationprocess?.result,
-  );
-}
+const IdentResultMap: Record<IdentResult, IdentShortResult> = {
+  [IdentResult.REVIEW_PENDING]: IdentShortResult.REVIEW,
+  [IdentResult.CHECK_PENDING]: IdentShortResult.REVIEW,
+  [IdentResult.FRAUD_SUSPICION_PENDING]: IdentShortResult.REVIEW,
+  [IdentResult.SUCCESS]: IdentShortResult.SUCCESS,
+  [IdentResult.SUCCESS_DATA_CHANGED]: IdentShortResult.SUCCESS,
+  [IdentResult.ABORTED]: IdentShortResult.CANCEL,
+  [IdentResult.CANCELED]: IdentShortResult.CANCEL,
+  [IdentResult.FRAUD_SUSPICION_CONFIRMED]: IdentShortResult.FAIL,
+};
 
-export function IdentSucceeded(update: IdentResultDto): boolean {
-  return [IdentResult.SUCCESS, IdentResult.SUCCESS_DATA_CHANGED].includes(update?.identificationprocess?.result);
-}
-
-export function IdentAborted(update: IdentResultDto): boolean {
-  return [IdentResult.ABORTED, IdentResult.CANCELED].includes(update?.identificationprocess?.result);
-}
-
-export function IdentFailed(update: IdentResultDto): boolean {
-  return [IdentResult.FRAUD_SUSPICION_CONFIRMED].includes(update?.identificationprocess?.result);
+export function getIdentResult(dto: IdentResultDto): IdentShortResult {
+  return IdentResultMap[dto.identificationprocess?.result];
 }

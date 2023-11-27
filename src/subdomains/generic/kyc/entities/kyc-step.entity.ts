@@ -59,7 +59,7 @@ export class KycStep extends IEntity {
   // --- FACTORY --- //
   static create(userData: UserData, name: KycStepName, sequenceNumber: number, type?: KycStepType): KycStep {
     if ([KycStepName.IDENT, KycStepName.DOCUMENT_UPLOAD].includes(name) && type == null)
-      throw new Error('Missing step type');
+      throw new Error('Step type is missing');
 
     return Object.assign(new KycStep(), {
       userData,

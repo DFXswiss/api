@@ -14,7 +14,7 @@ export class KycFinancialQuestion {
   @ApiProperty({ description: 'Question key' })
   key: string;
 
-  @ApiProperty({ description: 'Question key', enum: QuestionType })
+  @ApiProperty({ description: 'Question type', enum: QuestionType })
   type: QuestionType;
 
   @ApiProperty({ description: 'Question title (translated)' })

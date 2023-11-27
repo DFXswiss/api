@@ -20,7 +20,7 @@ export class FinancialService {
     }));
   }
 
-  checkResponses(responses: KycFinancialResponse[]): boolean {
+  isComplete(responses: KycFinancialResponse[]): boolean {
     const hasDuplicates = new Set(responses.map((r) => r.key)).size !== responses.length;
     if (hasDuplicates) throw new BadRequestException('Duplicate response keys found');
 

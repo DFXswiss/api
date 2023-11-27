@@ -9,7 +9,7 @@ import { Util } from 'src/shared/utils/util';
 import { LessThan } from 'typeorm';
 import { KycLevel, UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
-import { IdentAborted, IdentFailed, IdentPending, IdentResultDto, IdentSucceeded } from '../dto/input/ident-result.dto';
+import { IdentResultDto, IdentShortResult, getIdentResult } from '../dto/input/ident-result.dto';
 import { KycContactData } from '../dto/input/kyc-contact-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { KycPersonalData } from '../dto/input/kyc-personal-data.dto';
@@ -18,7 +18,7 @@ import { KycDataMapper } from '../dto/mapper/kyc-data.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
 import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
-import { KycInfoDto, KycStepDto } from '../dto/output/kyc-info.dto';
+import { KycSessionDto, KycStatusDto, KycStepSessionDto } from '../dto/output/kyc-info.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { KycStep } from '../entities/kyc-step.entity';
 import { IdentStatus, KycStepName, KycStepStatus, KycStepType } from '../enums/kyc.enum';
@@ -30,7 +30,7 @@ import { IdentService } from './integration/ident.service';
 // TODO:
 // - send support mails (failed)
 // - send webhooks
-// - 2FA (before ident/financial)
+// - 2FA
 
 @Injectable()
 export class KycService {
@@ -52,7 +52,7 @@ export class KycService {
       where: {
         name: KycStepName.IDENT,
         status: KycStepStatus.IN_PROGRESS,
-        created: LessThan(Util.daysBefore(Config.kyc.identFailAfterDays)),
+        created: LessThan(Util.daysBefore(Config.kyc.identFailAfterDays - 1)),
       },
       relations: { userData: true },
     });
@@ -65,9 +65,20 @@ export class KycService {
     }
   }
 
-  async getInfo(kycHash: string): Promise<KycInfoDto> {
+  async getInfo(kycHash: string): Promise<KycStatusDto> {
     const user = await this.getUserOrThrow(kycHash);
-    return KycInfoMapper.toDto(user);
+
+    return KycInfoMapper.toDto(user, false);
+  }
+
+  async continue(kycHash: string): Promise<KycSessionDto> {
+    let user = await this.getUserOrThrow(kycHash);
+
+    user = await this.updateProgress(user, true);
+
+    await this.verify2faIfRequired(user);
+
+    return KycInfoMapper.toDto(user, true);
   }
 
   async getCountries(kycHash: string): Promise<Country[]> {
@@ -106,6 +117,8 @@ export class KycService {
     const user = await this.getUserOrThrow(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
+    await this.verify2fa(user);
+
     const language = (lang && (await this.languageService.getLanguageBySymbol(lang.toUpperCase()))) ?? user.language;
 
     const questions = this.financialService.getQuestions(language.symbol.toLowerCase());
@@ -117,9 +130,11 @@ export class KycService {
     const user = await this.getUserOrThrow(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
+    await this.verify2fa(user);
+
     kycStep.setResult(data.responses);
 
-    const complete = this.financialService.checkResponses(data.responses);
+    const complete = this.financialService.isComplete(data.responses);
     if (complete) user.reviewStep(kycStep);
 
     await this.updateProgress(user, false);
@@ -144,17 +159,26 @@ export class KycService {
 
     this.logger.info(`Received ident webhook call for user ${user.id} (${sessionId}): ${sessionStatus}`);
 
-    if (IdentSucceeded(dto)) {
-      user = user.reviewStep(kycStep, dto);
-      await this.downloadIdentDocuments(user, kycStep);
-    } else if (IdentPending(dto)) {
-      user = user.reviewStep(kycStep, dto);
-    } else if (IdentAborted(dto)) {
-      this.logger.info(`Ident cancelled for user ${user.id}: ${sessionStatus}`);
-    } else if (IdentFailed(dto)) {
-      user = user.failStep(kycStep, dto);
-    } else {
-      this.logger.error(`Unknown ident result for user ${user.id}: ${sessionStatus}`);
+    switch (getIdentResult(dto)) {
+      case IdentShortResult.CANCEL:
+        this.logger.info(`Ident cancelled for user ${user.id}: ${sessionStatus}`);
+        break;
+
+      case IdentShortResult.REVIEW:
+        user = user.reviewStep(kycStep, dto);
+        break;
+
+      case IdentShortResult.SUCCESS:
+        user = user.reviewStep(kycStep, dto);
+        await this.downloadIdentDocuments(user, kycStep);
+        break;
+
+      case IdentShortResult.FAIL:
+        user = user.failStep(kycStep, dto);
+        break;
+
+      default:
+        this.logger.error(`Unknown ident result for user ${user.id}: ${sessionStatus}`);
     }
 
     await this.updateProgress(user, false);
@@ -192,9 +216,7 @@ export class KycService {
       },
     );
 
-    if (url) {
-      user.completeStep(kycStep, url);
-    }
+    if (url) user.completeStep(kycStep, url);
 
     await this.updateProgress(user, false);
 
@@ -202,12 +224,7 @@ export class KycService {
   }
 
   // --- STEPPING METHODS --- //
-  async continue(kycHash: string): Promise<KycInfoDto> {
-    const user = await this.getUserOrThrow(kycHash);
-    return this.updateProgress(user, true);
-  }
-
-  async getOrCreateStep(kycHash: string, stepName: KycStepName, stepType?: KycStepType): Promise<KycStepDto> {
+  async getOrCreateStep(kycHash: string, stepName: KycStepName, stepType?: KycStepType): Promise<KycStepSessionDto> {
     const user = await this.getUserOrThrow(kycHash);
 
     let step = user.getPendingStepWith(stepName, stepType);
@@ -218,10 +235,12 @@ export class KycService {
       await this.userDataService.save(user);
     }
 
-    return KycStepMapper.entityToDto(step);
+    await this.verify2faIfRequired(user);
+
+    return KycStepMapper.toStepSession(step);
   }
 
-  private async updateProgress(user: UserData, shouldContinue: boolean): Promise<KycInfoDto> {
+  private async updateProgress(user: UserData, shouldContinue: boolean): Promise<UserData> {
     if (!user.hasStepsInProgress) {
       const { nextStep, nextLevel } = await this.getNext(user);
 
@@ -237,7 +256,7 @@ export class KycService {
       }
     }
 
-    return this.saveUserAndMap(user);
+    return this.saveUser(user);
   }
 
   private async getNext(user: UserData): Promise<{
@@ -305,13 +324,8 @@ export class KycService {
         break;
 
       case KycStepName.IDENT:
-        // TODO: verify 2FA
         kycStep.transactionId = IdentService.transactionId(user, kycStep);
         kycStep.sessionId = await this.identService.initiateIdent(kycStep);
-        break;
-
-      case KycStepName.FINANCIAL_DATA:
-        // TODO: verify 2FA
         break;
     }
 
@@ -319,7 +333,10 @@ export class KycService {
   }
 
   // --- HELPER METHODS --- //
-  async getUserByTransactionOrThrow(transactionId: string, data: any): Promise<{ user: UserData; stepId: number }> {
+  private async getUserByTransactionOrThrow(
+    transactionId: string,
+    data: any,
+  ): Promise<{ user: UserData; stepId: number }> {
     const kycStep = await this.kycStepRepo.findOne({ where: { transactionId }, relations: { userData: true } });
 
     if (!kycStep) {
@@ -330,21 +347,30 @@ export class KycService {
     return { user: kycStep.userData, stepId: kycStep.id };
   }
 
-  async getUserOrThrow(kycHash: string): Promise<UserData> {
+  private async getUserOrThrow(kycHash: string): Promise<UserData> {
     const user = await this.userDataService.getUserDataByKycHash(kycHash, { users: true });
     if (!user) throw new NotFoundException('User not found');
 
     return user;
   }
 
-  async saveUserAndMap(user: UserData): Promise<KycInfoDto> {
-    user = await this.userDataService.save(user);
+  private async saveUser(user: UserData): Promise<UserData> {
+    return this.userDataService.save(user);
+  }
 
-    return KycInfoMapper.toDto(user);
+  private async verify2faIfRequired(user: UserData): Promise<void> {
+    const stepsWith2fa = [KycStepName.IDENT, KycStepName.FINANCIAL_DATA];
+    if (stepsWith2fa.some((s) => user.getPendingStepWith(s))) {
+      await this.verify2fa(user);
+    }
+  }
+
+  private async verify2fa(user: UserData): Promise<void> {
+    // TODO: verify 2FA < 24h
   }
 
   private async downloadIdentDocuments(user: UserData, kycStep: KycStep) {
-    const { pdf, zip } = await this.identService.getDocuments(user, kycStep);
+    const { pdf, zip } = await this.identService.getDocuments(kycStep);
 
     await this.storageService.uploadFile(
       user.id,

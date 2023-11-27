@@ -3,7 +3,8 @@ import { KycStepName, KycStepStatus, KycStepType, UrlType } from 'src/subdomains
 import { KycLevel } from '../../../user/models/user-data/user-data.entity';
 import { TradingLimit } from '../../../user/models/user/dto/user.dto';
 
-export class KycSessionDto {
+// step
+export class KycSessionInfoDto {
   @ApiProperty()
   url: string;
 
@@ -11,7 +12,7 @@ export class KycSessionDto {
   type: UrlType;
 }
 
-export class KycStepDto {
+export class KycStepBase {
   @ApiProperty({ enum: KycStepName })
   name: KycStepName;
 
@@ -23,21 +24,34 @@ export class KycStepDto {
 
   @ApiProperty()
   sequenceNumber: number;
-
-  @ApiPropertyOptional({ type: KycSessionDto })
-  session?: KycSessionDto;
 }
 
-export class KycInfoDto {
+export class KycStepDto extends KycStepBase {
+  @ApiProperty()
+  isCurrent: boolean;
+}
+
+export class KycStepSessionDto extends KycStepBase {
+  @ApiProperty({ type: KycSessionInfoDto })
+  session: KycSessionInfoDto;
+}
+
+// status
+export class KycStatusDto {
   @ApiProperty({ enum: KycLevel })
   kycLevel: KycLevel;
 
   @ApiProperty({ type: TradingLimit })
   tradingLimit: TradingLimit;
 
+  @ApiProperty()
+  twoFactorEnabled: boolean;
+
   @ApiProperty({ type: KycStepDto, isArray: true })
   kycSteps: KycStepDto[];
+}
 
-  @ApiPropertyOptional({ type: KycStepDto })
-  currentStep?: KycStepDto;
+export class KycSessionDto extends KycStatusDto {
+  @ApiPropertyOptional({ type: KycStepSessionDto })
+  currentStep?: KycStepSessionDto;
 }

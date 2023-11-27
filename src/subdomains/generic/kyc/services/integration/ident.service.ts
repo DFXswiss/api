@@ -1,4 +1,4 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, ServiceUnavailableException } from '@nestjs/common';
 import { Method, ResponseType } from 'axios';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -16,26 +16,29 @@ export class IdentService {
 
   constructor(private readonly http: HttpService) {}
 
-  static transactionId(user: UserData, kycStep: KycStep): string {
-    return `${Config.kyc.transactionPrefix}-${kycStep.type}-${user.id}-${kycStep.sequenceNumber + 1}`.toLowerCase();
-  }
-
   async initiateIdent(kycStep: KycStep): Promise<string> {
+    if (!kycStep.transactionId) throw new InternalServerErrorException('Transaction ID is missing');
+
     return this.callApi<{ id: string }>(`identifications/${kycStep.transactionId}/start`, kycStep.type, 'POST').then(
       (r) => r.id,
     );
   }
 
-  async getDocuments(user: UserData, kycStep: KycStep): Promise<IdentDocuments> {
-    const transactionId = IdentService.transactionId(user, kycStep);
+  async getDocuments(kycStep: KycStep): Promise<IdentDocuments> {
+    if (!kycStep.transactionId) throw new InternalServerErrorException('Transaction ID is missing');
 
-    const pdf = await this.getDocument(kycStep.type, transactionId, 'pdf');
-    const zip = await this.getDocument(kycStep.type, transactionId, 'zip');
+    const pdf = await this.getDocument(kycStep.type, kycStep.transactionId, 'pdf');
+    const zip = await this.getDocument(kycStep.type, kycStep.transactionId, 'zip');
 
     return {
-      pdf: { name: `${transactionId}.pdf`, content: pdf },
-      zip: { name: `${transactionId}.zip`, content: zip },
+      pdf: { name: `${kycStep.transactionId}.pdf`, content: pdf },
+      zip: { name: `${kycStep.transactionId}.zip`, content: zip },
     };
+  }
+
+  // --- STATIC HELPER METHODS --- //
+  static transactionId(user: UserData, kycStep: KycStep): string {
+    return `${Config.kyc.transactionPrefix}-${kycStep.type}-${user.id}-${kycStep.sequenceNumber}`.toLowerCase();
   }
 
   static identUrl(kycStep: KycStep): string {

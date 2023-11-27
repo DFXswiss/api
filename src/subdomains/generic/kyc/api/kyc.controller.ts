@@ -24,7 +24,7 @@ import { KycContactData } from '../dto/input/kyc-contact-data.dto';
 import { KycFinancialInData } from '../dto/input/kyc-financial-in.dto';
 import { KycPersonalData } from '../dto/input/kyc-personal-data.dto';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
-import { KycInfoDto, KycStepDto } from '../dto/output/kyc-info.dto';
+import { KycSessionDto, KycStatusDto, KycStepSessionDto } from '../dto/output/kyc-info.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { IdentStatus, KycStepName, KycStepType } from '../enums/kyc.enum';
 import { KycService } from '../services/kyc.service';
@@ -39,14 +39,14 @@ export class KycController {
   constructor(private readonly kycService: KycService) {}
 
   @Get()
-  @ApiOkResponse({ type: KycInfoDto })
-  async getKycStatus(@Headers(CodeHeaderName) code: string): Promise<KycInfoDto> {
+  @ApiOkResponse({ type: KycStatusDto })
+  async getKycStatus(@Headers(CodeHeaderName) code: string): Promise<KycStatusDto> {
     return this.kycService.getInfo(code);
   }
 
   @Put()
-  @ApiOkResponse({ type: KycStepDto })
-  async continueKyc(@Headers(CodeHeaderName) code: string): Promise<KycInfoDto> {
+  @ApiOkResponse({ type: KycSessionDto })
+  async continueKyc(@Headers(CodeHeaderName) code: string): Promise<KycSessionDto> {
     return this.kycService.continue(code);
   }
 
@@ -62,7 +62,7 @@ export class KycController {
     @Headers(CodeHeaderName) code: string,
     @Param('step') stepName: KycStepName,
     @Query('type') stepType?: KycStepType,
-  ): Promise<KycStepDto> {
+  ): Promise<KycStepSessionDto> {
     return this.kycService.getOrCreateStep(code, stepName, stepType);
   }
 
@@ -109,14 +109,14 @@ export class KycController {
 
   @Post('ident/:type')
   @ApiExcludeEndpoint()
-  async autoIdWebhook(@RealIP() ip: string, @Body() data: IdentResultDto) {
+  async identWebhook(@RealIP() ip: string, @Body() data: IdentResultDto) {
     this.checkWebhookIp(ip, data);
     await this.kycService.updateIdent(data);
   }
 
   @Get('ident/:type/:status')
   @ApiExcludeEndpoint()
-  async identRedirectSuccess(
+  async identRedirect(
     @Res() res,
     @Param('status') status: IdentStatus,
     @Query('transactionId') transactionId: string,
