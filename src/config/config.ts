@@ -53,7 +53,7 @@ export function GetConfig(): Configuration {
 export class Configuration {
   port = process.env.PORT ?? 3000;
   environment = process.env.ENVIRONMENT as Environment;
-  version = 'v1';
+  defaultVersion = 'v1';
   network = process.env.NETWORK as NetworkName;
   githubToken = process.env.GH_TOKEN;
   defaultLanguage = 'en';
@@ -157,6 +157,15 @@ export class Configuration {
   };
 
   kyc = {
+    gatewayHost: process.env.KYC_GATEWAY_HOST,
+    auto: { customer: process.env.KYC_CUSTOMER_AUTO, apiKey: process.env.KYC_API_KEY_AUTO },
+    video: { customer: process.env.KYC_CUSTOMER_VIDEO, apiKey: process.env.KYC_API_KEY_VIDEO },
+    transactionPrefix: process.env.KYC_TRANSACTION_PREFIX,
+    identFailAfterDays: 90,
+    allowedWebhookIps: process.env.KYC_WEBHOOK_IPS?.split(','),
+  };
+
+  kycSpider = {
     mandator: process.env.KYC_MANDATOR,
     user: process.env.KYC_USER,
     password: process.env.KYC_PASSWORD,
@@ -496,10 +505,10 @@ export class Configuration {
   };
 
   // --- GETTERS --- //
-  get url(): string {
+  url(version = this.defaultVersion): string {
     return this.environment === Environment.LOC
-      ? `http://localhost:${this.port}/${this.version}`
-      : `https://${this.environment === Environment.PRD ? '' : this.environment + '.'}api.dfx.swiss/${this.version}`;
+      ? `http://localhost:${this.port}/${version}`
+      : `https://${this.environment === Environment.PRD ? '' : this.environment + '.'}api.dfx.swiss/${version}`;
   }
 
   get kraken(): ExchangeConfig {

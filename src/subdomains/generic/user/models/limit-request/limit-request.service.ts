@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { KycContentType, KycFileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
-import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/document-storage.service';
+import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { WebhookService } from '../../services/webhook/webhook.service';

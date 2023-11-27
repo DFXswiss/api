@@ -69,7 +69,7 @@ export class AuthLnUrlService {
       k1CreationTime: Date.now(),
     });
 
-    const url = new URL(`${Config.url}/lnurla`);
+    const url = new URL(`${Config.url()}/lnurla`);
     url.searchParams.set('tag', 'login');
     url.searchParams.set('action', 'login');
     url.searchParams.set('k1', k1);

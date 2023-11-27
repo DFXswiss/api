@@ -148,7 +148,7 @@ export class MailFactory {
     const { metadata, options } = request;
     const { userData, title, salutation, prefix, suffix, table } = request.input as MailRequestUserInput;
 
-    const lang = userData.language?.symbol.toLowerCase();
+    const lang = userData.language.symbol.toLowerCase();
 
     return new UserMail({
       to: userData.mail,
@@ -166,7 +166,7 @@ export class MailFactory {
     const { userData, title, prefix, banner, from, displayName } = request.input as MailRequestPersonalInput;
     const { metadata, options } = request;
 
-    const lang = userData.language?.symbol.toLowerCase();
+    const lang = userData.language.symbol.toLowerCase();
 
     return new PersonalMail({
       to: userData.mail,

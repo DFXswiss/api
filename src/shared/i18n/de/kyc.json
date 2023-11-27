@@ -1,0 +1,78 @@
+{
+  "financial": {
+    "question": {
+      "tnc": { "title": "Allgemeine Geschäftsbedingungen", "description": "Ich akzeptiere die AGBs" },
+      "own_funds": {
+        "title": "Quelle der zu investierenden Vermögenswerte",
+        "description": "Ich bestätige, dass die Vermögenswerte mir gehören"
+      },
+      "source_of_funds": {
+        "title": "Quelle der zu investierenden Vermögenswerte",
+        "description": "Von wo hast Du die Kohle?"
+      },
+      "occupation": { "title": "Berufliche Tätigkeit", "description": "Was arbeitest Du denn?" },
+      "employer": { "title": "Arbeitgeber", "description": "Bei wem arbeitest Du?" },
+      "sector": { "title": "Branche", "description": "Was für 'ne Branche?" },
+      "risky_business": { "title": "Risikobehaftete Geschäftstätigkeiten", "description": "Bist Du ein Drogenbaron?" },
+      "income": { "title": "Jahreseinkommen", "description": "Wie viel kommt dabei rum jährlich?" },
+      "assets": { "title": "Vermögen", "description": "Und wie viel bleibt hängen?" },
+      "notification_of_changes": {
+        "title": "Mitteilung von Änderungen",
+        "description": "Ich bestätige, dass ich automatisch Änderungen mitteile"
+      }
+    },
+    "option": {
+      "yes": "Ja",
+      "no": "Nein",
+      "accept": "Akzeptieren",
+
+      "employment_income": "Einkünfte aus unselbständiger Tätigkeit",
+      "real_estate_sale": "Verkauf von Immobilien",
+      "share_sale": "Verkauf von Aktien oder anderen Kapitalanlagen",
+      "loan": "Darlehen",
+      "company_sale": "Verkauf von Unternehmen",
+      "company_profits": "Unternehmensgewinne / Dividenden",
+      "inheritance": "Erbe",
+      "gift": "Schenkung / Spende",
+      "pension": "Pensionsfonds / Rente",
+      "gambling": "Glücksspiel-Gewinne",
+
+      "apprentice": "In Ausbildung",
+      "employed": "Angestellt",
+      "employed_management": "Angestellt mit Kadervertrag",
+      "self_employed": "Selbstständig",
+      "unemployed": "Arbeitslos",
+      "retired": "In Rente",
+      "privatier": "Privatier",
+
+      "no_business": "Keine operative Geschäftstätigkeit",
+      "automotive": "Automotive",
+      "bank_finance": "Banksektor & Finanzen",
+      "advisory": "Beratung",
+      "education": "Bildung",
+      "pharma": "Pharma",
+      "it": "Informationstechnologie",
+      "energy_environment": "Energie & Umwelt",
+      "research_development": "Forschung & Entwicklung",
+      "health_social_services": "Gesundheits- und Sozialdienste",
+      "trade_consumption": "Handel & Konsum",
+      "handicraft": "Handwerk",
+      "real_estate_facility_management": "Immobilien & Facility Management",
+      "internet_multimedia": "Internet & Multimedia",
+      "culture_entertainment_events": "Kultur, Unterhaltung & Veranstaltungen",
+      "marketing_pr": "Marketing & PR",
+      "legal_tax": "Recht & Steuern",
+      "telecommunication": "Telekommunikation",
+      "textile_fashion": "Textil & Mode",
+      "traffic_transport_logistics": "Verkehr, Transport & Logistik",
+      "insurance": "Versicherung",
+      "other": "Andere",
+
+      "50k": "< 50'000 CHF",
+      "50k_100k": "50'000 - 100'000 CHF",
+      "100k_500k": "100'000 - 500'000 CHF",
+      "500k_1m": "500'000 - 1'000'000 CHF",
+      "1m": "> 1'000'000 CHF"
+    }
+  }
+}
