@@ -6,8 +6,10 @@ import { Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { Between, In, IsNull, Not } from 'typeorm';
+import { BuyPaymentMethod } from '../../routes/buy/dto/get-buy-payment-info.dto';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { CheckStatus } from '../enums/check-status.enum';
@@ -48,17 +50,26 @@ export class BuyCryptoPreparationService {
 
     for (const entity of entities) {
       try {
-        const inputCurrency = await this.fiatService.getFiatByName(entity.bankTx.txCurrency);
+        const inputReferenceCurrency = await this.fiatService.getFiatByName(entity.bankTx.txCurrency);
+        const inputCurrency = await this.fiatService.getFiatByName(entity.inputAsset);
 
-        const { minVolume, minFee, feeAmount, fee } = await this.transactionHelper.getTxDetails(
-          entity.bankTx.txAmount,
-          undefined,
-          inputCurrency,
-          entity.target.asset,
+        const inputReferencePrice = Price.create(
+          inputCurrency.name,
+          inputReferenceCurrency.name,
+          entity.inputAmount / entity.inputReferenceAmount,
         );
 
-        const inputAssetEurPrice = await this.priceProviderService.getPrice(inputCurrency, fiatEur);
-        const inputAssetChfPrice = await this.priceProviderService.getPrice(inputCurrency, fiatChf);
+        const { fee, minVolume } = await this.transactionHelper.getTxFeeInfos(
+          entity.inputAmount,
+          inputCurrency,
+          entity.target.asset,
+          inputReferencePrice,
+          entity.user.userData,
+          BuyPaymentMethod.BANK,
+        );
+
+        const inputAssetEurPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatEur);
+        const inputAssetChfPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatChf);
 
         const bankData = await this.bankDataService.getActiveBankDataWithIban(entity.bankTx.iban);
 
@@ -73,9 +84,10 @@ export class BuyCryptoPreparationService {
           ...entity.amlCheckAndFillUp(
             inputAssetEurPrice,
             inputAssetChfPrice,
-            feeAmount,
-            fee,
-            minFee,
+            fee.total,
+            fee.rate,
+            fee.fixed,
+            fee.min,
             minVolume,
             userDataVolume.buy + userDataVolume.checkout, // + convert?
             bankData?.userData,
@@ -120,13 +132,21 @@ export class BuyCryptoPreparationService {
       // Only for bankTx/checkoutTx BuyCrypto
       try {
         const inputReferenceCurrency = await this.fiatService.getFiatByName(entity.inputReference.currency);
+        const inputCurrency = await this.fiatService.getFiatByName(entity.inputAsset);
 
-        const { feeAmount, fee, minFee } = await this.transactionHelper.getTxDetails(
-          entity.inputReferenceAmount,
-          undefined,
-          inputReferenceCurrency,
+        const inputReferencePrice = Price.create(
+          inputCurrency.name,
+          inputReferenceCurrency.name,
+          entity.inputAmount / entity.inputReferenceAmount,
+        );
+
+        const { fee } = await this.transactionHelper.getTxFeeInfos(
+          entity.inputAmount,
+          inputCurrency,
           entity.target.asset,
+          inputReferencePrice,
           entity.user.userData,
+          BuyPaymentMethod.BANK,
         );
 
         const referenceEurPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatEur);
@@ -140,11 +160,14 @@ export class BuyCryptoPreparationService {
           ...entity.setFeeAndFiatReference(
             referenceEurPrice.convert(entity.inputReference.amount, 2),
             referenceChfPrice.convert(entity.inputReference.amount, 2),
-            fee,
-            minFee,
-            minFee,
-            feeAmount,
-            referenceChfPrice.convert(feeAmount, 2),
+            fee.fees,
+            fee.rate,
+            fee.fixed,
+            fee.payoutRefBonus,
+            fee.min,
+            fee.min,
+            fee.total,
+            referenceChfPrice.convert(fee.total, 2),
           ),
         );
       } catch (e) {
