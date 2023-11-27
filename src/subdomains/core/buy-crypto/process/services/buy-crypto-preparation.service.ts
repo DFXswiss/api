@@ -101,7 +101,6 @@ export class BuyCryptoPreparationService {
 
   async refreshFee(): Promise<void> {
     // Atm only for bankTx/checkoutTx BuyCrypto
-
     const entities = await this.buyCryptoRepo.find({
       where: {
         amlCheck: CheckStatus.PASS,
@@ -146,7 +145,7 @@ export class BuyCryptoPreparationService {
           entity.target.asset,
           inputReferencePrice,
           entity.user.userData,
-          BuyPaymentMethod.BANK,
+          entity.checkoutTx ? BuyPaymentMethod.CARD : BuyPaymentMethod.BANK,
         );
 
         const referenceEurPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatEur);
