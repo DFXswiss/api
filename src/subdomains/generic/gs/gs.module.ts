@@ -11,6 +11,7 @@ import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
 import { FiatOutputModule } from 'src/subdomains/supporting/fiat-output/fiat-output.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PayInModule } from 'src/subdomains/supporting/payin/payin.module';
+import { KycModule } from '../kyc/kyc.module';
 import { UserModule } from '../user/user.module';
 import { GsEvmController } from './gs-evm.controller';
 import { GsEvmService } from './gs-evm.service';
@@ -32,6 +33,7 @@ import { GsService } from './gs.service';
     BankTxModule,
     PayInModule,
     FiatOutputModule,
+    KycModule,
   ],
   controllers: [GsController, GsEvmController],
   providers: [GsService, GsEvmService],
