@@ -98,10 +98,10 @@ export class GsService {
       userData,
       documents: [
         ...(await this.documentStorageService.listUserFiles(userData.id)),
-        ...(await this.documentStorageService.listSpiderFiles(
-          userData.id,
-          userData.accountType !== AccountType.PERSONAL,
-        )),
+        ...(await this.documentStorageService.listSpiderFiles(userData.id, false)),
+        ...(userData.accountType !== AccountType.PERSONAL
+          ? await this.documentStorageService.listSpiderFiles(userData.id, true)
+          : []),
       ],
       buyCrypto: await this.buyCryptoService.getAllUserTransactions(userIds),
       buyFiat: await this.buyFiatService.getAllUserTransactions(userIds),
