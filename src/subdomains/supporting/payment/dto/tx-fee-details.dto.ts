@@ -2,7 +2,7 @@ import { FeeDto } from './fee.dto';
 
 export interface ExtendedFeeDto extends FeeDto {
   min: number;
-  amount: number;
+  total: number;
 }
 
 export interface TxFeeDetails {

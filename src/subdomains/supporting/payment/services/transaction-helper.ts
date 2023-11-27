@@ -145,7 +145,7 @@ export class TransactionHelper implements OnModuleInit {
         ...fee,
         fixed: this.convert(fee.fixed, referencePrice, from instanceof Fiat),
         min: this.convert(specs.minFee, referencePrice, from instanceof Fiat),
-        amount: this.convert(feeAmount, referencePrice, from instanceof Fiat),
+        total: this.convert(feeAmount, referencePrice, from instanceof Fiat),
       },
     };
   }

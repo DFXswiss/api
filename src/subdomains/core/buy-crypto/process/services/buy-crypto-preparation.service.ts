@@ -84,7 +84,7 @@ export class BuyCryptoPreparationService {
           ...entity.amlCheckAndFillUp(
             inputAssetEurPrice,
             inputAssetChfPrice,
-            fee.amount,
+            fee.total,
             fee.rate,
             fee.fixed,
             fee.min,
@@ -166,8 +166,8 @@ export class BuyCryptoPreparationService {
             fee.payoutRefBonus,
             fee.min,
             fee.min,
-            fee.amount,
-            referenceChfPrice.convert(fee.amount, 2),
+            fee.total,
+            referenceChfPrice.convert(fee.total, 2),
           ),
         );
       } catch (e) {
