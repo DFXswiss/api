@@ -35,6 +35,24 @@
     "mailPass": {
       "value": "xxx"
     },
+    "kycGatewayHost": {
+      "value": "https://gateway.online-ident.ch"
+    },
+    "kycCustomerAuto": {
+      "value": "xxx"
+    },
+    "kycApiKeyAuto": {
+      "value": "xxx"
+    },
+    "kycCustomerVideo": {
+      "value": "xxx"
+    },
+    "kycApiKeyVideo": {
+      "value": "xxx"
+    },
+    "kycTransactionPrefix": {
+      "value": "xxx"
+    },
     "kycMandator": {
       "value": "dfx_test"
     },

@@ -5,7 +5,7 @@ export class KycStepMapper {
   static toStep(kycStep: KycStep, currentStep?: KycStep): KycStepDto {
     const dto: KycStepDto = {
       ...KycStepMapper.toBase(kycStep),
-      isCurrent: kycStep.id === currentStep?.id,
+      isCurrent: kycStep.id && kycStep.id === currentStep?.id,
     };
 
     return Object.assign(new KycStepDto(), dto);

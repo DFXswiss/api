@@ -21,6 +21,15 @@ param mailUser string
 @secure()
 param mailPass string
 
+param kycGatewayHost string
+param kycCustomerAuto string
+@secure()
+param kycApiKeyAuto string
+param kycCustomerVideo string
+@secure()
+param kycApiKeyVideo string
+param kycTransactionPrefix string
+
 param kycMandator string
 @secure()
 param kycPassword string
@@ -479,6 +488,30 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'MAIL_PASS'
           value: mailPass
+        }
+        {
+          name: 'KYC_GATEWAY_HOST'
+          value: kycGatewayHost
+        }
+        {
+          name: 'KYC_CUSTOMER_AUTO'
+          value: kycCustomerAuto
+        }
+        {
+          name: 'KYC_API_KEY_AUTO'
+          value: kycApiKeyAuto
+        }
+        {
+          name: 'KYC_CUSTOMER_VIDEO'
+          value: kycCustomerVideo
+        }
+        {
+          name: 'KYC_API_KEY_VIDEO'
+          value: kycApiKeyVideo
+        }
+        {
+          name: 'KYC_TRANSACTION_PREFIX'
+          value: kycTransactionPrefix
         }
         {
           name: 'KYC_MANDATOR'
