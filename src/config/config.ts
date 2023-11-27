@@ -80,17 +80,27 @@ export class Configuration {
 
   bitcoinAddressFormat = '([13]|bc1)[a-zA-HJ-NP-Z0-9]{25,62}';
   lightningAddressFormat = '(LNURL|LNDHUB)[A-Z0-9]{25,250}|LNNID[A-Z0-9]{66}';
+  moneroAddressFormat = '[48][0-9AB][1-9A-HJ-NP-Za-km-z]{93}';
   ethereumAddressFormat = '0x\\w{40}';
   cardanoAddressFormat = 'stake[a-z0-9]{54}';
   defichainAddressFormat =
     this.environment === Environment.PRD ? '8\\w{33}|d\\w{33}|d\\w{41}' : '[78]\\w{33}|[td]\\w{33}|[td]\\w{41}';
 
-  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.ethereumAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}`;
+  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}`;
+
+  masterKeySignatureFormat = '[0-9a-fA-F]{8}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{12}';
+  bitcoinSignatureFormat = '.{87}=';
+  lightningSignatureFormat = '[a-z0-9]{104}';
+  lightningCustodialSignatureFormat = '[a-z0-9]{140,146}';
+  moneroSignatureFormat = 'SigV\\d[0-9a-zA-Z]{88}';
+  ethereumSignatureFormat = '(0x)?[a-f0-9]{130}';
+  cardanoSignatureFormat = '[a-f0-9]{582}';
+
+  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.cardanoSignatureFormat}`;
 
   formats = {
     address: new RegExp(`^(${this.allAddressFormat})$`),
-    signature:
-      /^([0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}|.{87}=|[a-f0-9]{130}|[a-f0-9x]{132}|[a-f0-9]{582}|[a-z0-9]{104}|[a-z0-9]{140,146})$/,
+    signature: new RegExp(`^(${this.allSignatureFormat})$`),
     key: /^[a-f0-9]{84}$/,
     ref: /^(\w{1,3}-\w{1,3})$/,
     bankUsage: /[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}/,
@@ -200,18 +210,6 @@ export class Configuration {
   fixer = {
     baseUrl: process.env.FIXER_BASE_URL,
     apiKey: process.env.FIXER_API_KEY,
-  };
-
-  externalKycServices = {
-    'LOCK.space': {
-      apiKey: process.env.LOCK_API_KEY,
-    },
-    'LOCK.space STG': {
-      apiKey: process.env.LOCK_API_KEY,
-    },
-    Talium: {
-      apiKey: process.env.TALIUM_API_KEY,
-    },
   };
 
   mail: MailOptions = {
@@ -342,6 +340,12 @@ export class Configuration {
         adminMacaroon: process.env.LIGHTNING_LND_ADMIN_MACAROON,
       },
       certificate: process.env.LIGHTNING_API_CERTIFICATE?.split('<br>').join('\n'),
+    },
+    monero: {
+      rpc: {
+        url: process.env.MONERO_RPC_URL,
+        certificate: process.env.MONERO_RPC_CERTIFICATE?.split('<br>').join('\n'),
+      },
     },
   };
 

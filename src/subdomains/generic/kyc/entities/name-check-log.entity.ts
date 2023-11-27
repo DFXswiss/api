@@ -24,6 +24,6 @@ export class NameCheckLog extends KycLog {
   @Column({ type: 'datetime2', nullable: true })
   riskEvaluationDate: Date;
 
-  @ManyToOne(() => BankData, { nullable: false })
+  @ManyToOne(() => BankData, { nullable: true })
   bankData: BankData;
 }

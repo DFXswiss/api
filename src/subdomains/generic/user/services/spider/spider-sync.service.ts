@@ -24,7 +24,14 @@ import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notificat
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, LessThan } from 'typeorm';
 import { AccountType } from '../../models/user-data/account-type.enum';
-import { DocumentVersionPart, KycContentType, KycDocument, KycDocumentState, KycDocuments } from './dto/spider.dto';
+import {
+  DocumentInfo,
+  DocumentVersionPart,
+  KycContentType,
+  KycDocument,
+  KycDocumentState,
+  KycDocuments,
+} from './dto/spider.dto';
 import { SpiderApiService } from './spider-api.service';
 import { DocumentState, SpiderService } from './spider.service';
 
@@ -168,7 +175,7 @@ export class SpiderSyncService {
       await this.spiderDataRepo.save(userData.spiderData);
     }
 
-    await this.syncKycFiles(userData, true);
+    await this.syncKycFiles(userData);
 
     // force sync (chatbot and ident result)
     if (forceSync) {
@@ -368,27 +375,41 @@ export class SpiderSyncService {
   }
 
   // --- FILE SYNC METHODS -- //
-  public async syncKycFiles(userData: UserData, ignoreNameChecks: boolean): Promise<void> {
-    await this.syncKycFilesFor(userData.id, ignoreNameChecks, false);
-    if (userData.accountType !== AccountType.PERSONAL) await this.syncKycFilesFor(userData.id, ignoreNameChecks, true);
+  public async syncKycFiles(userData: UserData, documents?: KycDocument[], singleVersion?: string): Promise<void> {
+    const failedDocuments = await this.syncKycFilesFor(userData.id, false, documents, singleVersion);
+    if (userData.accountType !== AccountType.PERSONAL)
+      failedDocuments.push(...(await this.syncKycFilesFor(userData.id, true, documents, singleVersion)));
+
+    if (failedDocuments.length)
+      throw new Error(
+        `Failed to sync KYC files for user ${userData.id}:\n${failedDocuments
+          .map(({ document, error }) => `  ${document}: ${error}`)
+          .join('\n')}`,
+      );
   }
 
-  private async syncKycFilesFor(userDataId: number, ignoreNameChecks: boolean, isOrganization: boolean): Promise<void> {
+  private async syncKycFilesFor(
+    userDataId: number,
+    isOrganization: boolean,
+    documents?: KycDocument[],
+    singleVersion?: string,
+  ): Promise<{ document: string; error: string }[]> {
     const allStorageFiles = await this.listStorageFiles(userDataId, isOrganization);
-    const allSpiderFiles = await this.spiderApi.getDocumentInfos(userDataId, isOrganization);
+    const allSpiderFiles = await this.spiderApi.getDocumentInfos(userDataId, isOrganization, documents);
 
-    const notSynchedFiles = allSpiderFiles
-      .filter((f) => !ignoreNameChecks || f.document !== KycDocument.CHECK)
-      .filter((spiderFile) => {
-        return !allStorageFiles.some(
-          (f) =>
-            f.document === spiderFile.document &&
-            f.metadata.version === spiderFile.version &&
-            f.metadata.part === spiderFile.part,
-        );
-      });
+    let filesToSync = singleVersion ? this.getSingleVersion(allSpiderFiles, singleVersion) : allSpiderFiles;
 
-    for (const document of notSynchedFiles) {
+    filesToSync = filesToSync.filter((spiderFile) => {
+      return !allStorageFiles.some(
+        (f) =>
+          f.document === spiderFile.document &&
+          f.metadata.version === spiderFile.version &&
+          f.metadata.part === spiderFile.part,
+      );
+    });
+
+    const failedDocuments = [];
+    for (const document of filesToSync) {
       try {
         const data = await this.spiderApi.getBinaryDocument(
           userDataId,
@@ -413,18 +434,45 @@ export class SpiderSyncService {
             state: document.state.toString(),
             creationTime: document.creationTime.toISOString(),
             modificationTime: document.modificationTime.toISOString(),
-            label: document.label,
-            fileName: document.fileName,
+            label: this.replaceIllegalChars(document.label),
+            fileName: this.replaceIllegalChars(document.fileName),
             contentType: document.contentType.toString(),
             url: document.url,
           },
         );
       } catch (e) {
-        throw new Error(
-          `Failed to sync KYC file (${document.document}-${document.version}-${document.part}) for user ${userDataId}: ${e.message}`,
-        );
+        failedDocuments.push({
+          document: `${document.document}-${document.version}-${document.part}`,
+          error: e.message,
+        });
       }
     }
+
+    return failedDocuments;
+  }
+
+  private getSingleVersion(filesToSync: DocumentInfo[], singleVersion: string): DocumentInfo[] {
+    const filesByVersion = Util.groupByAccessor(filesToSync, (f) => `${f.document}-${f.version}`);
+    const fileVersionsWithDate = Array.from(filesByVersion.values()).map(([file]) => ({
+      document: file.document,
+      version: file.version,
+      date: new Date(file.creationTime).getTime(),
+    }));
+
+    const filesByType = Util.groupByAccessor(fileVersionsWithDate, (v) => v.document);
+    const selectedVersions = Array.from(filesByType.values()).map((versions) =>
+      singleVersion === 'newest' ? Util.maxObj(versions, 'date') : Util.minObj(versions, 'date'),
+    );
+
+    return filesToSync.filter((f) =>
+      selectedVersions.some((v) => f.document === v.document && f.version === v.version),
+    );
+  }
+
+  private replaceIllegalChars(str: string): string {
+    str = str.split(' ').join('_');
+
+    return encodeURIComponent(str);
   }
 
   async listStorageFiles(
