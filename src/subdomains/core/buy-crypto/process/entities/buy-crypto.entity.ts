@@ -15,7 +15,7 @@ import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
+import { Fee } from 'src/subdomains/supporting/payment/entities/fee.entity';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { Buy } from '../../routes/buy/buy.entity';
@@ -401,16 +401,19 @@ export class BuyCrypto extends IEntity {
   setFeeAndFiatReference(
     amountInEur: number,
     amountInChf: number,
-    fee: FeeDto,
+    fees: Fee[],
+    feeRate: number,
+    fixedFee: number,
+    payoutRefBonus: boolean,
     minFeeAmount: number,
     minFeeAmountFiat: number,
     totalFeeAmount: number,
     totalFeeAmountChf: number,
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
-      absoluteFeeAmount: fee.fixed,
-      percentFee: fee.rate,
-      percentFeeAmount: fee.rate * this.inputReferenceAmount,
+      absoluteFeeAmount: fixedFee,
+      percentFee: feeRate,
+      percentFeeAmount: feeRate * this.inputReferenceAmount,
       minFeeAmount,
       minFeeAmountFiat,
       totalFeeAmount,
@@ -418,8 +421,8 @@ export class BuyCrypto extends IEntity {
       inputReferenceAmountMinusFee: this.inputReferenceAmount - totalFeeAmount,
       amountInEur,
       amountInChf,
-      refFactor: fee.payoutRefBonus ? this.refFactor : 0,
-      usedFees: fee.fees?.map((fee) => fee.id).join(';'),
+      refFactor: payoutRefBonus ? this.refFactor : 0,
+      usedFees: fees?.map((fee) => fee.id).join(';'),
     };
 
     Object.assign(this, update);
@@ -431,7 +434,8 @@ export class BuyCrypto extends IEntity {
     eurPrice: Price,
     chfPrice: Price,
     totalFeeAmount: number,
-    fee: FeeDto,
+    feeRate: number,
+    fixedFee: number,
     minFeeAmount: number,
     minVolume: number,
     monthlyAmountInEur: number,
@@ -448,9 +452,9 @@ export class BuyCrypto extends IEntity {
           inputReferenceAsset: this.bankTx.currency,
           amountInChf,
           amountInEur: eurPrice.convert(this.bankTx.txAmount, 2),
-          absoluteFeeAmount: fee.fixed,
-          percentFee: fee.rate,
-          percentFeeAmount: fee.rate * this.bankTx.txAmount,
+          absoluteFeeAmount: fixedFee,
+          percentFee: feeRate,
+          percentFeeAmount: feeRate * this.bankTx.txAmount,
           minFeeAmount,
           minFeeAmountFiat: minFeeAmount,
           totalFeeAmount,
