@@ -59,7 +59,7 @@ export class BuyCryptoPreparationService {
           entity.inputAmount / entity.inputReferenceAmount,
         );
 
-        const { feeAmount, rate, fixed, minFee, minVolume } = await this.transactionHelper.getTxFeeInfos(
+        const { fee, minVolume } = await this.transactionHelper.getTxFeeInfos(
           entity.inputAmount,
           inputCurrency,
           entity.target.asset,
@@ -84,10 +84,10 @@ export class BuyCryptoPreparationService {
           ...entity.amlCheckAndFillUp(
             inputAssetEurPrice,
             inputAssetChfPrice,
-            feeAmount,
-            rate,
-            fixed,
-            minFee,
+            fee.amount,
+            fee.rate,
+            fee.fixed,
+            fee.min,
             minVolume,
             userDataVolume.buy + userDataVolume.checkout, // + convert?
             bankData?.userData,
@@ -140,7 +140,7 @@ export class BuyCryptoPreparationService {
           entity.inputAmount / entity.inputReferenceAmount,
         );
 
-        const { feeAmount, fees, fixed, payoutRefBonus, rate, minFee } = await this.transactionHelper.getTxFeeInfos(
+        const { fee } = await this.transactionHelper.getTxFeeInfos(
           entity.inputAmount,
           inputCurrency,
           entity.target.asset,
@@ -152,7 +152,7 @@ export class BuyCryptoPreparationService {
         const referenceEurPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatEur);
         const referenceChfPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatChf);
 
-        for (const feeId of fees) {
+        for (const feeId of fee.fees) {
           await this.feeService.increaseTxUsage(feeId);
         }
 
@@ -160,14 +160,14 @@ export class BuyCryptoPreparationService {
           ...entity.setFeeAndFiatReference(
             referenceEurPrice.convert(entity.inputReference.amount, 2),
             referenceChfPrice.convert(entity.inputReference.amount, 2),
-            fees,
-            rate,
-            fixed,
-            payoutRefBonus,
-            minFee,
-            minFee,
-            feeAmount,
-            referenceChfPrice.convert(feeAmount, 2),
+            fee.fees,
+            fee.rate,
+            fee.fixed,
+            fee.payoutRefBonus,
+            fee.min,
+            fee.min,
+            fee.amount,
+            referenceChfPrice.convert(fee.amount, 2),
           ),
         );
       } catch (e) {
