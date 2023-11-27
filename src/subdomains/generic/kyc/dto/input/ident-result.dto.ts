@@ -91,5 +91,5 @@ const IdentResultMap: Record<IdentResult, IdentShortResult> = {
 };
 
 export function getIdentResult(dto: IdentResultDto): IdentShortResult {
-  return IdentResultMap[dto.identificationprocess?.result];
+  return IdentResultMap[dto.identificationprocess.result];
 }
