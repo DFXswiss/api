@@ -8,6 +8,7 @@ import { FeeService } from 'src/subdomains/supporting/payment/services/fee.servi
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { Between, In, IsNull, Not } from 'typeorm';
+import { BuyPaymentMethod } from '../../routes/buy/dto/get-buy-payment-info.dto';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { CheckStatus } from '../enums/check-status.enum';
@@ -89,7 +90,6 @@ export class BuyCryptoPreparationService {
 
   async refreshFee(): Promise<void> {
     // Atm only for bankTx/checkoutTx BuyCrypto
-
     const entities = await this.buyCryptoRepo.find({
       where: {
         amlCheck: CheckStatus.PASS,
@@ -127,6 +127,7 @@ export class BuyCryptoPreparationService {
           inputReferenceCurrency,
           entity.target.asset,
           entity.user.userData,
+          entity.checkoutTx ? BuyPaymentMethod.CARD : BuyPaymentMethod.BANK,
         );
 
         const referenceEurPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatEur);
