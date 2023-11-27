@@ -10,20 +10,12 @@ export class DocumentStorageService {
     this.storageService = new AzureStorageService('kyc');
   }
 
-  async listFiles(userDataId: number): Promise<KycFile[]> {
-    const blobs = await this.storageService.listBlobs(`${userDataId}/`);
-    return blobs.map((b) => {
-      const [_, type, name] = this.fromFileId(b.name);
-      return {
-        type,
-        name,
-        url: b.url,
-        contentType: b.contentType as KycContentType,
-        created: b.created,
-        updated: b.updated,
-        metadata: b.metadata,
-      };
-    });
+  async listUserFiles(userDataId: number): Promise<KycFile[]> {
+    return this.listFilesByPrefix(`user/${userDataId}/`);
+  }
+
+  async listSpiderFiles(userDataId: number, isOrganization: boolean): Promise<KycFile[]> {
+    return this.listFilesByPrefix(`spider/${userDataId}${isOrganization ? '-organization' : ''}/`);
   }
 
   async uploadFile(
@@ -42,6 +34,22 @@ export class DocumentStorageService {
   }
 
   // --- HELPER METHODS --- //
+  private async listFilesByPrefix(prefix: string): Promise<KycFile[]> {
+    const blobs = await this.storageService.listBlobs(prefix);
+    return blobs.map((b) => {
+      const [_, type, name] = this.fromFileId(b.name);
+      return {
+        type,
+        name,
+        url: b.url,
+        contentType: b.contentType as KycContentType,
+        created: b.created,
+        updated: b.updated,
+        metadata: b.metadata,
+      };
+    });
+  }
+
   private toFileId(userDataId: number, type: KycFileType, name: string): string {
     return `user/${userDataId}/${type}/${name}`;
   }
