@@ -19,6 +19,7 @@ import { Fee } from 'src/subdomains/supporting/payment/entities/fee.entity';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { Buy } from '../../routes/buy/buy.entity';
+import { BuyPaymentMethod } from '../../routes/buy/dto/get-buy-payment-info.dto';
 import { AmlReason } from '../enums/aml-reason.enum';
 import { CheckStatus } from '../enums/check-status.enum';
 import { BuyCryptoBatch } from './buy-crypto-batch.entity';
@@ -556,6 +557,10 @@ export class BuyCrypto extends IEntity {
 
   get user(): User {
     return this.buy ? this.buy.user : this.cryptoRoute.user;
+  }
+
+  get buyPaymentMethod(): BuyPaymentMethod {
+    return this.checkoutTx ? BuyPaymentMethod.CARD : this.bankTx ? BuyPaymentMethod.BANK : BuyPaymentMethod.CRYPTO;
   }
 
   get target(): { address: string; asset: Asset; trimmedReturnAddress: string } {

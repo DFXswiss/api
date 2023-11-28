@@ -100,14 +100,12 @@ export class BuyCryptoPreparationService {
   }
 
   async refreshFee(): Promise<void> {
-    // Atm only for bankTx/checkoutTx BuyCrypto
     const entities = await this.buyCryptoRepo.find({
       where: {
         amlCheck: CheckStatus.PASS,
         status: IsNull(),
         isComplete: false,
         percentFee: IsNull(),
-        cryptoInput: IsNull(),
         inputReferenceAmount: Not(IsNull()),
       },
       relations: [
@@ -128,10 +126,11 @@ export class BuyCryptoPreparationService {
     const fiatChf = await this.fiatService.getFiatByName('CHF');
 
     for (const entity of entities) {
-      // Only for bankTx/checkoutTx BuyCrypto
       try {
-        const inputReferenceCurrency = await this.fiatService.getFiatByName(entity.inputReference.currency);
-        const inputCurrency = await this.fiatService.getFiatByName(entity.inputAsset);
+        const inputReferenceCurrency =
+          (await this.fiatService.getFiatByName(entity.inputReferenceAsset)) ??
+          (await this.assetService.getNativeMainLayerAsset(entity.inputReferenceAsset));
+        const inputCurrency = (await this.fiatService.getFiatByName(entity.inputAsset)) ?? entity.cryptoInput.asset;
 
         const inputReferencePrice = Price.create(
           inputCurrency.name,
@@ -145,7 +144,7 @@ export class BuyCryptoPreparationService {
           entity.target.asset,
           inputReferencePrice,
           entity.user.userData,
-          entity.checkoutTx ? BuyPaymentMethod.CARD : BuyPaymentMethod.BANK,
+          entity.buyPaymentMethod,
         );
 
         const referenceEurPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatEur);

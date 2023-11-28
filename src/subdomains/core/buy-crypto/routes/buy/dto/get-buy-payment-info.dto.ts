@@ -21,6 +21,7 @@ import { IsDfxIban } from 'src/subdomains/supporting/bank/bank-account/is-dfx-ib
 export enum BuyPaymentMethod {
   BANK = 'Bank',
   CARD = 'Card',
+  CRYPTO = 'Crypto',
 }
 
 export class GetBuyPaymentInfoDto {
