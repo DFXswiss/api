@@ -18,6 +18,7 @@ import { SellHistoryDto } from '../route/dto/sell-history.dto';
 import { Sell } from '../route/sell.entity';
 import { SellRepository } from '../route/sell.repository';
 import { SellService } from '../route/sell.service';
+import { BuyFiatPreparationService } from './buy-fiat-preparation.service';
 import { BuyFiatRegistrationService } from './buy-fiat-registration.service';
 import { BuyFiat } from './buy-fiat.entity';
 import { BuyFiatRepository } from './buy-fiat.repository';
@@ -37,6 +38,7 @@ export class BuyFiatService {
     private readonly bankTxService: BankTxService,
     private readonly fiatOutputService: FiatOutputService,
     private readonly webhookService: WebhookService,
+    private readonly buyFiatPreparationService: BuyFiatPreparationService,
   ) {}
 
   // --- CHECK BUY FIAT --- //
@@ -62,6 +64,7 @@ export class BuyFiatService {
   async checkCryptoPayIn() {
     if (Config.processDisabled(Process.BUY_FIAT)) return;
     await this.buyFiatRegistrationService.registerSellPayIn();
+    if (!Config.processDisabled(Process.BUY_FIAT_SET_FEE)) await this.buyFiatPreparationService.refreshFee();
   }
 
   async update(id: number, dto: UpdateBuyFiatDto): Promise<BuyFiat> {

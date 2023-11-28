@@ -125,7 +125,7 @@ export class TransactionHelper implements OnModuleInit {
     to: Asset | Fiat,
     referencePrice: Price,
     userData: UserData,
-    paymentMethod: BuyPaymentMethod,
+    paymentMethod?: BuyPaymentMethod | undefined,
   ): Promise<TxFeeDetails> {
     // get fee
     const { direction, feeAsset } = this.getTxInfo(from, to);
