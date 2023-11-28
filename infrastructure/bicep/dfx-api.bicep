@@ -7,6 +7,9 @@ param knownIps string
 param limitCheck string
 param bsLink string
 
+param apiSkuName string
+param apiSkuTier string
+
 param dbAllowAllIps bool
 param dbAdminLogin string
 @secure()
@@ -409,8 +412,8 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2018-02-01' = {
     reserved: true
   }
   sku: {
-    name: 'P1v2'
-    tier: 'PremiumV2'
+    name: apiSkuName
+    tier: apiSkuTier
     capacity: 1
   }
 }
