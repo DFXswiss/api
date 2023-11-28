@@ -17,9 +17,8 @@ import { KycPersonalData } from '../dto/input/kyc-personal-data.dto';
 import { KycContentType, KycFileType } from '../dto/kyc-file.dto';
 import { KycDataMapper } from '../dto/mapper/kyc-data.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
-import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
-import { KycSessionDto, KycStatusDto, KycStepSessionDto } from '../dto/output/kyc-info.dto';
+import { KycSessionDto, KycStatusDto } from '../dto/output/kyc-info.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { KycStep } from '../entities/kyc-step.entity';
 import { KycStepName, KycStepStatus, KycStepType } from '../enums/kyc.enum';
@@ -234,7 +233,7 @@ export class KycService {
   }
 
   // --- STEPPING METHODS --- //
-  async getOrCreateStep(kycHash: string, stepName: string, stepType?: string): Promise<KycStepSessionDto> {
+  async getOrCreateStep(kycHash: string, stepName: string, stepType?: string): Promise<KycSessionDto> {
     const name = Object.values(KycStepName).find((n) => n.toLowerCase() === stepName.toLowerCase());
     const type = Object.values(KycStepType).find((t) => t.toLowerCase() === stepType?.toLowerCase());
     if (!name) throw new BadRequestException('Invalid step name');
@@ -243,7 +242,7 @@ export class KycService {
 
     let step = user.getPendingStepWith(name, type);
     if (!step) {
-      step = await this.initiateStep(user, name, type);
+      step = await this.initiateStep(user, name, type, true);
       user.nextStep(step);
 
       await this.userDataService.save(user);
@@ -251,7 +250,7 @@ export class KycService {
 
     await this.verify2faIfRequired(user);
 
-    return KycStepMapper.toStepSession(step);
+    return KycInfoMapper.toDto(user, true);
   }
 
   private async updateProgress(user: UserData, shouldContinue: boolean): Promise<UserData> {

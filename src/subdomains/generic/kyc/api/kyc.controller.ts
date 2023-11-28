@@ -25,7 +25,7 @@ import { KycContactData } from '../dto/input/kyc-contact-data.dto';
 import { KycFinancialInData } from '../dto/input/kyc-financial-in.dto';
 import { KycPersonalData } from '../dto/input/kyc-personal-data.dto';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
-import { KycSessionDto, KycStatusDto, KycStepSessionDto } from '../dto/output/kyc-info.dto';
+import { KycSessionDto, KycStatusDto } from '../dto/output/kyc-info.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { KycService } from '../services/kyc.service';
 
@@ -58,11 +58,11 @@ export class KycController {
 
   @Get(':step')
   @ApiExcludeEndpoint()
-  async getStep(
+  async initiateStep(
     @Headers(CodeHeaderName) code: string,
     @Param('step') stepName: string,
     @Query('type') stepType?: string,
-  ): Promise<KycStepSessionDto> {
+  ): Promise<KycSessionDto> {
     return this.kycService.getOrCreateStep(code, stepName, stepType);
   }
 
