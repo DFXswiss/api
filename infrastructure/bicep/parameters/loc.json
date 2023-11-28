@@ -227,6 +227,9 @@
     "binanceWithdrawKeys": {
       "value": "xxx"
     },
+    "binanceBtcDepositAddress": {
+      "value": "xxx"
+    },
     "olkyClient": {
       "value": "xxx"
     },

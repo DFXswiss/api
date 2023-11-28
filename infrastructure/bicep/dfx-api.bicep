@@ -128,6 +128,7 @@ param binanceKey string
 param binanceSecret string
 
 param binanceWithdrawKeys string
+param binanceBtcDepositAddress string
 
 param olkyClient string
 @secure()
@@ -788,6 +789,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'BINANCE_WITHDRAW_KEYS'
           value: binanceWithdrawKeys
+        }
+        {
+          name: 'BINANCE_BTC_DEPOSIT_ADDRESS'
+          value: binanceBtcDepositAddress
         }
         {
           name: 'LETTER_URL'
