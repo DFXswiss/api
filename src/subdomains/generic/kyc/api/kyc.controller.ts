@@ -27,7 +27,6 @@ import { KycPersonalData } from '../dto/input/kyc-personal-data.dto';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycSessionDto, KycStatusDto, KycStepSessionDto } from '../dto/output/kyc-info.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
-import { KycStepName, KycStepType } from '../enums/kyc.enum';
 import { KycService } from '../services/kyc.service';
 
 const CodeHeaderName = 'x-kyc-code';
@@ -61,8 +60,8 @@ export class KycController {
   @ApiExcludeEndpoint()
   async getStep(
     @Headers(CodeHeaderName) code: string,
-    @Param('step') stepName: KycStepName,
-    @Query('type') stepType?: KycStepType,
+    @Param('step') stepName: string,
+    @Query('type') stepType?: string,
   ): Promise<KycStepSessionDto> {
     return this.kycService.getOrCreateStep(code, stepName, stepType);
   }

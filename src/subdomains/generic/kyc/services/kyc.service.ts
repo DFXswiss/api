@@ -234,12 +234,16 @@ export class KycService {
   }
 
   // --- STEPPING METHODS --- //
-  async getOrCreateStep(kycHash: string, stepName: KycStepName, stepType?: KycStepType): Promise<KycStepSessionDto> {
+  async getOrCreateStep(kycHash: string, stepName: string, stepType?: string): Promise<KycStepSessionDto> {
+    const name = Object.values(KycStepName).find((n) => n.toLowerCase() === stepName.toLowerCase());
+    const type = Object.values(KycStepType).find((t) => t.toLowerCase() === stepType?.toLowerCase());
+    if (!name) throw new BadRequestException('Invalid step name');
+
     const user = await this.getUserOrThrow(kycHash);
 
-    let step = user.getPendingStepWith(stepName, stepType);
+    let step = user.getPendingStepWith(name, type);
     if (!step) {
-      step = await this.initiateStep(user, stepName, stepType);
+      step = await this.initiateStep(user, name, type);
       user.nextStep(step);
 
       await this.userDataService.save(user);
