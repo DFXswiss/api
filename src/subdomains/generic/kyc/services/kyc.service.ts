@@ -9,6 +9,7 @@ import { Util } from 'src/shared/utils/util';
 import { LessThan } from 'typeorm';
 import { KycLevel, UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
+import { IdentChannel, IdentStatus } from '../dto/ident.dto';
 import { IdentResultDto, IdentShortResult, getIdentResult } from '../dto/input/ident-result.dto';
 import { KycContactData } from '../dto/input/kyc-contact-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
@@ -21,7 +22,7 @@ import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycSessionDto, KycStatusDto, KycStepSessionDto } from '../dto/output/kyc-info.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { KycStep } from '../entities/kyc-step.entity';
-import { IdentStatus, KycStepName, KycStepStatus, KycStepType } from '../enums/kyc.enum';
+import { KycStepName, KycStepStatus, KycStepType } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { DocumentStorageService } from './integration/document-storage.service';
 import { FinancialService } from './integration/financial.service';
@@ -157,7 +158,7 @@ export class KycService {
     const transaction = await this.getUserByTransactionOrThrow(transactionId, dto);
 
     let user = transaction.user;
-    const kycStep = user.getPendingStepOrThrow(transaction.stepId);
+    const kycStep = user.getStepOrThrow(transaction.stepId);
 
     this.logger.info(`Received ident webhook call for user ${user.id} (${sessionId}): ${sessionStatus}`);
 
@@ -167,7 +168,7 @@ export class KycService {
         break;
 
       case IdentShortResult.REVIEW:
-        user = user.reviewStep(kycStep, dto);
+        user = user.checkStep(kycStep, dto);
         break;
 
       case IdentShortResult.SUCCESS:
@@ -186,19 +187,26 @@ export class KycService {
     await this.updateProgress(user, false);
   }
 
-  async updateIdentStatus(transactionId: string, status: IdentStatus): Promise<KycStep> {
+  async updateIdentStatus(transactionId: string, channel: IdentChannel, status: IdentStatus): Promise<string> {
     const transaction = await this.getUserByTransactionOrThrow(transactionId, status);
 
     let user = transaction.user;
-    const kycStep = user.getPendingStepOrThrow(transaction.stepId);
+    const kycStep = user.getStepOrThrow(transaction.stepId);
 
     if (status === IdentStatus.SUCCESS) {
-      user = user.reviewStep(kycStep);
+      user = user.finishStep(kycStep);
 
       await this.updateProgress(user, false);
     }
 
-    return kycStep;
+    switch (channel) {
+      case IdentChannel.WEB:
+        return `${Config.frontend.services}/iframe-message?status=${kycStep.status}`;
+
+      case IdentChannel.IOS:
+      case IdentChannel.ANDROID:
+        return `${Config.frontend.services}/kyc?code=${user.kycHash}`;
+    }
   }
 
   async uploadDocument(kycHash: string, stepId: number, document: Express.Multer.File): Promise<KycResultDto> {

@@ -3,6 +3,7 @@ import { Method, ResponseType } from 'axios';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpError, HttpService } from 'src/shared/services/http.service';
+import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IdentConfig, IdentDocuments } from '../../dto/ident.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
@@ -38,7 +39,9 @@ export class IdentService {
 
   // --- STATIC HELPER METHODS --- //
   static transactionId(user: UserData, kycStep: KycStep): string {
-    return `${Config.kyc.transactionPrefix}-${kycStep.type}-${user.id}-${kycStep.sequenceNumber}`.toLowerCase();
+    return `${Config.kyc.transactionPrefix}-${kycStep.type}-${user.id}-${
+      kycStep.sequenceNumber
+    }-${Util.randomId()}`.toLowerCase();
   }
 
   static identUrl(kycStep: KycStep): string {

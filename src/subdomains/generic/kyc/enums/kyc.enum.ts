@@ -26,6 +26,8 @@ export function getKycTypeIndex(stepType?: KycStepType): number {
 export enum KycStepStatus {
   NOT_STARTED = 'NotStarted',
   IN_PROGRESS = 'InProgress',
+  FINISHED = 'Finished',
+  CHECK_PENDING = 'CheckPending',
   IN_REVIEW = 'InReview',
   FAILED = 'Failed',
   COMPLETED = 'Completed',
@@ -41,9 +43,4 @@ export enum QuestionType {
   SINGLE_CHOICE = 'SingleChoice',
   MULTIPLE_CHOICE = 'MultipleChoice',
   TEXT = 'Text',
-}
-
-export enum IdentStatus {
-  SUCCESS = 'success',
-  CANCEL = 'cancel',
 }

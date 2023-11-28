@@ -77,7 +77,7 @@ export class KycStep extends IEntity {
   }
 
   get isInReview(): boolean {
-    return this.status === KycStepStatus.IN_REVIEW;
+    return [KycStepStatus.FINISHED, KycStepStatus.CHECK_PENDING, KycStepStatus.IN_REVIEW].includes(this.status);
   }
 
   get isCompleted(): boolean {
@@ -96,6 +96,18 @@ export class KycStep extends IEntity {
 
   fail(result?: KycStepResult): this {
     this.status = KycStepStatus.FAILED;
+
+    return this.setResult(result);
+  }
+
+  finish(): this {
+    if (this.isInProgress) this.status = KycStepStatus.FINISHED;
+
+    return this;
+  }
+
+  check(result?: KycStepResult): this {
+    this.status = KycStepStatus.CHECK_PENDING;
 
     return this.setResult(result);
   }

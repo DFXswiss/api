@@ -1,7 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { KycStepName, KycStepStatus, KycStepType, UrlType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycStepName, KycStepType, UrlType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { KycLevel } from '../../../user/models/user-data/user-data.entity';
 import { TradingLimit } from '../../../user/models/user/dto/user.dto';
+
+export enum KycStepStatus {
+  NOT_STARTED = 'NotStarted',
+  IN_PROGRESS = 'InProgress',
+  IN_REVIEW = 'InReview',
+  FAILED = 'Failed',
+  COMPLETED = 'Completed',
+}
 
 // step
 export class KycSessionInfoDto {

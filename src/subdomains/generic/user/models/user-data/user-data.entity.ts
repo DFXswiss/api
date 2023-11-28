@@ -387,6 +387,22 @@ export class UserData extends IEntity {
     return this;
   }
 
+  finishStep(kycStep: KycStep): this {
+    kycStep.finish();
+
+    this.logger.verbose(`User ${this.id} finishes step ${kycStep.name} (${kycStep.id})`);
+
+    return this;
+  }
+
+  checkStep(kycStep: KycStep, result?: KycStepResult): this {
+    kycStep.check(result);
+
+    this.logger.verbose(`User ${this.id} checks step ${kycStep.name} (${kycStep.id})`);
+
+    return this;
+  }
+
   reviewStep(kycStep: KycStep, result?: KycStepResult): this {
     kycStep.review(result);
 
@@ -406,6 +422,17 @@ export class UserData extends IEntity {
     return this;
   }
 
+  getStep(stepId: number): KycStep | undefined {
+    return this.kycSteps.find((s) => s.id === stepId);
+  }
+
+  getStepOrThrow(stepId: number): KycStep {
+    const kycStep = this.getStep(stepId);
+    if (!kycStep) throw new NotFoundException('KYC step not found');
+
+    return kycStep;
+  }
+
   getStepsWith(name?: KycStepName, type?: KycStepType): KycStep[] {
     return this.kycSteps.filter((s) => (!name || s.name === name) && (!type || s.type === type));
   }
@@ -414,13 +441,9 @@ export class UserData extends IEntity {
     return this.getStepsWith(name, type).find((s) => s.isInProgress);
   }
 
-  getPendingStep(stepId: number): KycStep | undefined {
-    return this.kycSteps.find((s) => s.id === stepId && s.isInProgress);
-  }
-
   getPendingStepOrThrow(stepId: number): KycStep {
-    const kycStep = this.getPendingStep(stepId);
-    if (!kycStep) throw new NotFoundException('KYC step not found');
+    const kycStep = this.getStep(stepId);
+    if (!kycStep?.isInProgress) throw new NotFoundException('KYC step not found');
 
     return kycStep;
   }

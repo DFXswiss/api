@@ -20,13 +20,14 @@ import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapp
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { IdentResultDto } from '../../user/models/ident/dto/ident-result.dto';
+import { IdentChannel, IdentStatus } from '../dto/ident.dto';
 import { KycContactData } from '../dto/input/kyc-contact-data.dto';
 import { KycFinancialInData } from '../dto/input/kyc-financial-in.dto';
 import { KycPersonalData } from '../dto/input/kyc-personal-data.dto';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycSessionDto, KycStatusDto, KycStepSessionDto } from '../dto/output/kyc-info.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
-import { IdentStatus, KycStepName, KycStepType } from '../enums/kyc.enum';
+import { KycStepName, KycStepType } from '../enums/kyc.enum';
 import { KycService } from '../services/kyc.service';
 
 const CodeHeaderName = 'x-kyc-code';
@@ -114,15 +115,17 @@ export class KycController {
     await this.kycService.updateIdent(data);
   }
 
-  @Get('ident/:type/:status')
+  @Get('ident/:type/:channel/:status')
   @ApiExcludeEndpoint()
   async identRedirect(
     @Res() res,
+    @Param('channel') channel: IdentChannel,
     @Param('status') status: IdentStatus,
     @Query('transactionId') transactionId: string,
   ): Promise<void> {
-    const kycStep = await this.kycService.updateIdentStatus(transactionId, status);
-    res.redirect(307, `${Config.frontend.services}/iframe-message?status=${kycStep.status}`);
+    const redirectUri = await this.kycService.updateIdentStatus(transactionId, channel, status);
+
+    res.redirect(307, redirectUri);
   }
 
   @Put('document/:id')

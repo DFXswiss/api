@@ -1,5 +1,6 @@
 import { KycStep } from '../../entities/kyc-step.entity';
-import { KycStepBase, KycStepDto, KycStepSessionDto } from '../output/kyc-info.dto';
+import { KycStepStatus as EntityStatus } from '../../enums/kyc.enum';
+import { KycStepStatus as DtoStatus, KycStepBase, KycStepDto, KycStepSessionDto } from '../output/kyc-info.dto';
 
 export class KycStepMapper {
   static toStep(kycStep: KycStep, currentStep?: KycStep): KycStepDto {
@@ -24,8 +25,18 @@ export class KycStepMapper {
     return {
       name: kycStep.name,
       type: kycStep.type ?? undefined,
-      status: kycStep.status,
+      status: KycStepMapper.StepMap[kycStep.status],
       sequenceNumber: kycStep.sequenceNumber,
     };
   }
+
+  private static StepMap: Record<EntityStatus, DtoStatus> = {
+    [EntityStatus.NOT_STARTED]: DtoStatus.NOT_STARTED,
+    [EntityStatus.IN_PROGRESS]: DtoStatus.IN_PROGRESS,
+    [EntityStatus.FINISHED]: DtoStatus.IN_REVIEW,
+    [EntityStatus.CHECK_PENDING]: DtoStatus.IN_REVIEW,
+    [EntityStatus.IN_REVIEW]: DtoStatus.IN_REVIEW,
+    [EntityStatus.FAILED]: DtoStatus.FAILED,
+    [EntityStatus.COMPLETED]: DtoStatus.COMPLETED,
+  };
 }

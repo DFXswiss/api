@@ -12,3 +12,14 @@ export interface IdentDocuments {
   pdf: IdentDocument;
   zip: IdentDocument;
 }
+
+export enum IdentStatus {
+  SUCCESS = 'success',
+  CANCEL = 'cancel',
+}
+
+export enum IdentChannel {
+  WEB = 'web',
+  IOS = 'ios',
+  ANDROID = 'android',
+}
