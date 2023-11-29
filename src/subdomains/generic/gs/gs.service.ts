@@ -16,7 +16,7 @@ import { AccountType } from '../user/models/user-data/account-type.enum';
 import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { UserService } from '../user/models/user/user.service';
-import { DbQueryBaseDto, DbQueryDto } from './dto/db-query.dto';
+import { DbFileQueryDto, DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 
 export enum SupportTable {
@@ -50,37 +50,33 @@ export class GsService {
     private readonly documentStorageService: DocumentStorageService,
   ) {}
 
-  async getRawData(query: DbQueryDto): Promise<any> {
-    const request = this.dataSource
-      .createQueryBuilder()
-      .from(query.table, query.table)
-      .orderBy(`${query.table}.${query.sortColumn}`, query.sorting)
-      .limit(query.maxLine)
-      .where(`${query.table}.id >= :id`, { id: query.min })
-      .andWhere(`${query.table}.updated >= :updated`, { updated: query.updatedSince });
-
-    if (query.select) request.select(query.select);
-
-    for (const where of query.where) {
-      request.andWhere(where[0], where[1]);
-    }
-
-    for (const join of query.join) {
-      request.leftJoin(join[0], join[1]);
-    }
-
-    const data = await request.getRawMany().catch((e: Error) => {
-      throw new BadRequestException(e.message);
-    });
+  async getDbData(query: DbQueryDto): Promise<DbReturnData> {
+    const data = await this.getRawDbData(query);
 
     // transform to array
     return this.transformResultArray(data, query.table);
   }
 
-  async getExtendedData(query: DbQueryBaseDto): Promise<{
-    keys: string[];
-    values: any;
-  }> {
+  async getDbFileData(query: DbFileQueryDto): Promise<any> {
+    const data: UserData[] = await this.getRawDbData({ ...query, table: 'userData' });
+
+    for (const userData of data) {
+      userData['documents'] = query.filePrefix
+        ? await this.documentStorageService.listFilesByPrefix(`${query.filePrefix}/${userData.id}/`)
+        : [
+            ...(await this.documentStorageService.listUserFiles(userData.id)),
+            ...(await this.documentStorageService.listSpiderFiles(userData.id, false)),
+            ...(userData.accountType !== AccountType.PERSONAL
+              ? await this.documentStorageService.listSpiderFiles(userData.id, true)
+              : []),
+          ];
+    }
+
+    // transform to array
+    return this.transformResultArray(data, query.table);
+  }
+
+  async getExtendedDbData(query: DbQueryBaseDto): Promise<DbReturnData> {
     switch (query.table) {
       case 'bank_tx':
         return this.transformResultArray(await this.getExtendedBankTxData(query), query.table);
@@ -113,6 +109,30 @@ export class GsService {
   }
 
   //*** HELPER METHODS ***//
+
+  private async getRawDbData(query: DbQueryDto): Promise<any[]> {
+    const request = this.dataSource
+      .createQueryBuilder()
+      .from(query.table, query.table)
+      .orderBy(`${query.table}.${query.sortColumn}`, query.sorting)
+      .limit(query.maxLine)
+      .where(`${query.table}.id >= :id`, { id: query.min })
+      .andWhere(`${query.table}.updated >= :updated`, { updated: query.updatedSince });
+
+    if (query.select) request.select(query.select);
+
+    for (const where of query.where) {
+      request.andWhere(where[0], where[1]);
+    }
+
+    for (const join of query.join) {
+      request.leftJoin(join[0], join[1]);
+    }
+
+    return request.getRawMany().catch((e: Error) => {
+      throw new BadRequestException(e.message);
+    });
+  }
 
   private async getUserData(query: SupportDataQuery): Promise<UserData> {
     switch (query.table) {
@@ -223,13 +243,7 @@ export class GsService {
       );
   }
 
-  private transformResultArray(
-    data: any[],
-    table: string,
-  ): {
-    keys: string[];
-    values: any;
-  } {
+  private transformResultArray(data: any[], table: string): DbReturnData {
     // transform to array
     return data.length > 0
       ? {
