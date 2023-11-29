@@ -57,7 +57,7 @@ export class GsService {
     return this.transformResultArray(data, query.table);
   }
 
-  async getDbFileData(query: DbFileQueryDto): Promise<any> {
+  async getDbUserFileData(query: DbFileQueryDto): Promise<any> {
     const data: UserData[] = await this.getRawDbData({ ...query, table: 'userData' });
 
     for (const userData of data) {
