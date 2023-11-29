@@ -15,6 +15,7 @@ import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { FeeDto } from '../dto/fee.dto';
 import { TargetEstimation, TransactionDetails } from '../dto/transaction-details.dto';
+import { TxFeeDetails } from '../dto/tx-fee-details.dto';
 import { TxSpec, TxSpecExtended } from '../dto/tx-spec.dto';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
 import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
@@ -118,6 +119,37 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   // --- TARGET ESTIMATION --- //
+  async getTxFeeInfos(
+    inputAmount: number,
+    from: Asset | Fiat,
+    to: Asset | Fiat,
+    referencePrice: Price,
+    userData: UserData,
+    paymentMethod?: BuyPaymentMethod | undefined,
+  ): Promise<TxFeeDetails> {
+    // get fee
+    const { direction, feeAsset } = this.getTxInfo(from, to);
+
+    const fee = await this.getTxFee(userData, direction, feeAsset, inputAmount, from, paymentMethod);
+
+    // get specs
+    const specs = this.getSpecs(from, to);
+    const txSpecSource = await this.convertToSource(from, { ...specs, fixedFee: fee.fixed });
+
+    const percentFeeAmount = inputAmount * fee.rate;
+    const feeAmount = Math.max(percentFeeAmount + txSpecSource.fixedFee, txSpecSource.minFee);
+
+    return {
+      minVolume: this.convert(specs.minVolume, referencePrice, from instanceof Fiat),
+      fee: {
+        ...fee,
+        fixed: this.convert(fee.fixed, referencePrice, from instanceof Fiat),
+        min: this.convert(specs.minFee, referencePrice, from instanceof Fiat),
+        total: this.convert(feeAmount, referencePrice, from instanceof Fiat),
+      },
+    };
+  }
+
   async getTxDetails(
     sourceAmount: number | undefined,
     targetAmount: number | undefined,
@@ -127,14 +159,14 @@ export class TransactionHelper implements OnModuleInit {
     paymentMethod?: BuyPaymentMethod,
   ): Promise<TransactionDetails> {
     // get fee
-    const direction = this.getTxDirection(from, to);
+    const { direction, feeAsset } = this.getTxInfo(from, to);
 
     const fee = await this.getTxFee(
       userData,
       direction,
-      to instanceof Asset ? to : from instanceof Asset ? from : undefined,
-      targetAmount ? to : from,
+      feeAsset,
       targetAmount ? targetAmount : sourceAmount,
+      targetAmount ? to : from,
       paymentMethod,
     );
 
@@ -181,16 +213,16 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   private async getTxFee(
-    userData: UserData,
+    userData: UserData | undefined,
     direction: FeeDirectionType,
     asset: Asset,
-    txAsset: Asset | Fiat,
     txVolume: number,
-    paymentMethod: BuyPaymentMethod,
+    txAsset: Asset | Fiat,
+    paymentMethod?: BuyPaymentMethod | undefined,
   ): Promise<FeeDto> {
-    const price = txAsset ? await this.priceProviderService.getPrice(txAsset, this.eur) : undefined;
+    const price = await this.priceProviderService.getPrice(txAsset, this.eur);
 
-    const txVolumeInEur = price ? price.convert(txVolume) : undefined;
+    const txVolumeInEur = price.convert(txVolume);
 
     return paymentMethod === BuyPaymentMethod.CARD
       ? { fees: [], rate: Config.buy.fee.card, fixed: 0, payoutRefBonus: true }
@@ -284,9 +316,9 @@ export class TransactionHelper implements OnModuleInit {
     return isFiat ? Util.round(amount, -1) : Util.roundByPrecision(amount, 3);
   }
 
-  private getTxDirection(from: Asset | Fiat, to: Asset | Fiat): FeeDirectionType {
-    if (from instanceof Fiat && to instanceof Asset) return FeeDirectionType.BUY;
-    if (from instanceof Asset && to instanceof Fiat) return FeeDirectionType.SELL;
-    return FeeDirectionType.CONVERT;
+  private getTxInfo(from: Asset | Fiat, to: Asset | Fiat): { direction: FeeDirectionType; feeAsset: Asset } {
+    if (from instanceof Fiat && to instanceof Asset) return { direction: FeeDirectionType.BUY, feeAsset: to };
+    if (from instanceof Asset && to instanceof Fiat) return { direction: FeeDirectionType.SELL, feeAsset: from };
+    return { direction: FeeDirectionType.CONVERT, feeAsset: to instanceof Asset ? to : undefined };
   }
 }

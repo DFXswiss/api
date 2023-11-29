@@ -1,0 +1,69 @@
+{
+  "financial": {
+    "question": {
+      "tnc": { "title": "", "description": "" },
+      "own_funds": { "title": "", "description": "" },
+      "source_of_funds": { "title": "", "description": "" },
+      "occupation": { "title": "", "description": "" },
+      "employer": { "title": "", "description": "" },
+      "sector": { "title": "", "description": "" },
+      "risky_business": { "title": "", "description": "" },
+      "income": { "title": "", "description": "" },
+      "assets": { "title": "", "description": "" },
+      "notification_of_changes": { "title": "", "description": "" }
+    },
+    "option": {
+      "yes": "",
+      "no": "",
+      "accept": "",
+
+      "employment_income": "",
+      "real_estate_sale": "",
+      "share_sale": "",
+      "loan": "",
+      "company_sale": "",
+      "company_profits": "",
+      "inheritance": "",
+      "gift": "",
+      "pension": "",
+      "gambling": "",
+
+      "apprentice": "",
+      "employed": "",
+      "employed_management": "",
+      "self_employed": "",
+      "unemployed": "",
+      "retired": "",
+      "privatier": "",
+
+      "no_business": "",
+      "automotive": "",
+      "bank_finance": "",
+      "advisory": "",
+      "education": "",
+      "pharma": "",
+      "it": "",
+      "energy_environment": "",
+      "research_development": "",
+      "health_social_services": "",
+      "trade_consumption": "",
+      "handicraft": "",
+      "real_estate_facility_management": "",
+      "internet_multimedia": "",
+      "culture_entertainment_events": "",
+      "marketing_pr": "",
+      "legal_tax": "",
+      "telecommunication": "",
+      "textile_fashion": "",
+      "traffic_transport_logistics": "",
+      "insurance": "",
+      "other": "",
+
+      "50k": "< 50'000 CHF",
+      "50k_100k": "50'000 - 100'000 CHF",
+      "100k_500k": "100'000 - 500'000 CHF",
+      "500k_1m": "500'000 - 1'000'000 CHF",
+      "1m": "> 1'000'000 CHF"
+    }
+  }
+}

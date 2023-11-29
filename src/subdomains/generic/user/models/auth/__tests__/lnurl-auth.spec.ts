@@ -30,7 +30,7 @@ describe('LnurlAuth', () => {
 
   beforeAll(async () => {
     const config = {
-      url: 'https://test.dfx.api:12345/v0.1',
+      url: () => 'https://test.dfx.api:12345/v0.1',
       processDisabled: () => false,
     };
 
@@ -291,7 +291,7 @@ describe('LnurlAuth', () => {
 function insertCache(internalAuthCache: Map<string, AuthCacheDto>, k1: string, creationTime = Date.now()) {
   internalAuthCache.set(k1, {
     servicesIp: '127.0.0.1',
-    servicesUrl: Config.url,
+    servicesUrl: Config.url(),
     k1: k1,
     k1CreationTime: creationTime,
   });
@@ -311,7 +311,7 @@ function createSignupDto(): AuthLnurlSignupDto {
 
 function createLoginLnurl(lnUrlAuthService: AuthLnUrlService, maxLoop: number, k1Array: string[]) {
   for (let loop = 0; loop < maxLoop; loop++) {
-    const createLoginResponse = lnUrlAuthService.create('127.0.0.1', Config.url);
+    const createLoginResponse = lnUrlAuthService.create('127.0.0.1', Config.url());
     const authUrl = new URL(LightningHelper.decodeLnurl(createLoginResponse.lnurl));
     const urlParams = authUrl.searchParams;
 

@@ -106,7 +106,7 @@ export class AuthAlbyService {
 
   // --- HELPER METHODS --- //
   private redirectUri(id: string): string {
-    return `${Config.url}/auth/alby/redirect/${id}`;
+    return `${Config.url()}/auth/alby/redirect/${id}`;
   }
 
   private get fallbackUrl(): string {

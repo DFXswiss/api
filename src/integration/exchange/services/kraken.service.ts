@@ -8,8 +8,6 @@ import { ExchangeService } from './exchange.service';
 export class KrakenService extends ExchangeService {
   protected readonly logger = new DfxLogger(KrakenService);
 
-  protected readonly orderParams = { oflags: 'post' };
-
   constructor() {
     super(kraken, GetConfig().kraken);
   }

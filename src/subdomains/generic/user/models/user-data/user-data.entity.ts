@@ -1,9 +1,14 @@
+import { NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
+import { KycStep, KycStepResult } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
+import { KycStepName, KycStepType, getKycStepIndex } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
@@ -22,6 +27,21 @@ export enum KycStatus {
   COMPLETED = 'Completed',
   REJECTED = 'Rejected',
   TERMINATED = 'Terminated',
+}
+
+export enum KycLevel {
+  // automatic levels
+  LEVEL_0 = 0, // nothing
+  LEVEL_10 = 10, // contact data
+  LEVEL_20 = 20, // personal data
+
+  // verified levels
+  LEVEL_30 = 30, // auto ident
+  LEVEL_40 = 40, // financial data
+  LEVEL_50 = 50, // bank transaction or video ident
+
+  TERMINATED = -10,
+  REJECTED = -20,
 }
 
 export enum KycState {
@@ -68,6 +88,8 @@ export enum UserDataStatus {
 
 @Entity()
 export class UserData extends IEntity {
+  private readonly logger = new DfxLogger(UserData);
+
   @Column({ default: AccountType.PERSONAL, length: 256 })
   accountType: AccountType;
 
@@ -126,7 +148,7 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   phone: string;
 
-  @ManyToOne(() => Language, { eager: true })
+  @ManyToOne(() => Language, { eager: true, nullable: false })
   language: Language;
 
   @ManyToOne(() => Fiat, { eager: true })
@@ -159,6 +181,9 @@ export class UserData extends IEntity {
   @Column({ type: 'integer', nullable: true })
   kycCustomerId: number;
 
+  @Column({ default: KycLevel.LEVEL_0 })
+  kycLevel: KycLevel;
+
   @Column()
   @Generated('uuid')
   @Index({ unique: true })
@@ -167,8 +192,8 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   kycType: KycType;
 
-  // @OneToMany(() => KycStep, (step) => step.userData, { eager: true, cascade: true })
-  // kycSteps: KycStep[];
+  @OneToMany(() => KycStep, (step) => step.userData, { eager: true, cascade: true })
+  kycSteps: KycStep[];
 
   @Column({ type: 'float', nullable: true })
   depositLimit: number;
@@ -194,7 +219,7 @@ export class UserData extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   lastNameCheckDate: Date;
 
-  // Aml
+  // AML
   @Column({ type: 'datetime2', nullable: true })
   amlListAddedDate: Date;
 
@@ -204,7 +229,7 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   amlAccountType: string;
 
-  //Mail
+  // Mail
   @Column({ length: 256, nullable: true })
   blackSquadRecipientMail: string;
 
@@ -266,6 +291,7 @@ export class UserData extends IEntity {
     const update: Partial<UserData> = {
       status: UserDataStatus.BLOCKED,
       kycStatus: KycStatus.TERMINATED,
+      kycLevel: KycLevel.TERMINATED,
     };
 
     Object.assign(this, update);
@@ -334,6 +360,116 @@ export class UserData extends IEntity {
   set riskResult({ result, risks }: RiskResult) {
     this.riskState = result;
     this.riskRoots = result === 'c' ? null : JSON.stringify(risks);
+  }
+
+  // --- KYC PROCESS --- //
+
+  setKycLevel(level: KycLevel): this {
+    this.kycLevel = level;
+
+    this.logger.verbose(`User ${this.id} changed to KYC ${level}`);
+
+    return this;
+  }
+
+  completeStep(kycStep: KycStep, result?: KycStepResult): this {
+    kycStep.complete(result);
+    this.logger.verbose(`User ${this.id} completes step ${kycStep.name} (${kycStep.id})`);
+
+    return this;
+  }
+
+  failStep(kycStep: KycStep, result?: KycStepResult): this {
+    kycStep.fail(result);
+
+    this.logger.verbose(`User ${this.id} fails step ${kycStep.name} (${kycStep.id})`);
+
+    return this;
+  }
+
+  finishStep(kycStep: KycStep): this {
+    kycStep.finish();
+
+    this.logger.verbose(`User ${this.id} finishes step ${kycStep.name} (${kycStep.id})`);
+
+    return this;
+  }
+
+  checkStep(kycStep: KycStep, result?: KycStepResult): this {
+    kycStep.check(result);
+
+    this.logger.verbose(`User ${this.id} checks step ${kycStep.name} (${kycStep.id})`);
+
+    return this;
+  }
+
+  reviewStep(kycStep: KycStep, result?: KycStepResult): this {
+    kycStep.review(result);
+
+    this.logger.verbose(`User ${this.id} reviews step ${kycStep.name} (${kycStep.id})`);
+
+    return this;
+  }
+
+  nextStep(kycStep: KycStep): this {
+    this.kycSteps.push(kycStep);
+
+    this.logger.verbose(`User ${this.id} starts step ${kycStep.name}`);
+
+    if (kycStep.isCompleted) this.completeStep(kycStep);
+    if (kycStep.isFailed) this.failStep(kycStep);
+
+    return this;
+  }
+
+  getStep(stepId: number): KycStep | undefined {
+    return this.kycSteps.find((s) => s.id === stepId);
+  }
+
+  getStepOrThrow(stepId: number): KycStep {
+    const kycStep = this.getStep(stepId);
+    if (!kycStep) throw new NotFoundException('KYC step not found');
+
+    return kycStep;
+  }
+
+  getStepsWith(name?: KycStepName, type?: KycStepType): KycStep[] {
+    return this.kycSteps.filter((s) => (!name || s.name === name) && (!type || s.type === type));
+  }
+
+  getPendingStepWith(name?: KycStepName, type?: KycStepType): KycStep | undefined {
+    return this.getStepsWith(name, type).find((s) => s.isInProgress);
+  }
+
+  getPendingStepOrThrow(stepId: number): KycStep {
+    const kycStep = this.getStep(stepId);
+    if (!kycStep?.isInProgress) throw new NotFoundException('KYC step not found');
+
+    return kycStep;
+  }
+
+  get hasStepsInProgress(): boolean {
+    return this.kycSteps.some((s) => s.isInProgress);
+  }
+
+  getLastStep(): KycStep | undefined {
+    return Util.maxObj(
+      this.kycSteps.map((s) => ({ step: s, index: getKycStepIndex(s.name) * 100 + s.sequenceNumber })),
+      'index',
+    )?.step;
+  }
+
+  getNextSequenceNumber(stepName: KycStepName, stepType?: KycStepType): number {
+    return Math.max(...this.getStepsWith(stepName, stepType).map((s) => s.sequenceNumber + 1), 0);
+  }
+
+  get isDataComplete(): boolean {
+    const requiredFields = ['mail', 'phone', 'firstname', 'surname', 'street', 'location', 'zip', 'country'].concat(
+      this.accountType === AccountType.PERSONAL
+        ? []
+        : ['organizationName', 'organizationStreet', 'organizationLocation', 'organizationZip', 'organizationCountry'],
+    );
+    return requiredFields.filter((f) => !this[f]).length === 0;
   }
 }
 

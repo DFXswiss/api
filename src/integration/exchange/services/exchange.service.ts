@@ -28,7 +28,6 @@ enum PrecisionMode {
 
 export abstract class ExchangeService implements PricingProvider {
   protected abstract readonly logger: DfxLogger;
-  protected readonly orderParams?: any = undefined;
 
   private readonly exchange: Exchange;
 
@@ -265,12 +264,12 @@ export abstract class ExchangeService implements PricingProvider {
   }
 
   private async createOrder(pair: string, direction: OrderSide, amount: number, price: number): Promise<Order> {
-    return this.callApi((e) => e.createOrder(pair, 'limit', direction, amount, price, this.orderParams));
+    return this.callApi((e) => e.createOrder(pair, 'limit', direction, amount, price));
   }
 
   protected async updateOrderPrice(order: Order, price: number): Promise<string> {
     return this.callApi((e) =>
-      e.editOrder(order.id, order.symbol, order.type, order.side, order.remaining, price, this.orderParams),
+      e.editOrder(order.id, order.symbol, order.type, order.side, order.remaining, price),
     ).then((o) => o.id);
   }
 

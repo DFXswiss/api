@@ -7,6 +7,9 @@ param knownIps string
 param limitCheck string
 param bsLink string
 
+param apiSkuName string
+param apiSkuTier string
+
 param dbAllowAllIps bool
 param dbAdminLogin string
 @secure()
@@ -20,6 +23,15 @@ param jwtSecret string = newGuid()
 param mailUser string
 @secure()
 param mailPass string
+
+param kycGatewayHost string
+param kycCustomerAuto string
+@secure()
+param kycApiKeyAuto string
+param kycCustomerVideo string
+@secure()
+param kycApiKeyVideo string
+param kycTransactionPrefix string
 
 param kycMandator string
 @secure()
@@ -119,6 +131,7 @@ param binanceKey string
 param binanceSecret string
 
 param binanceWithdrawKeys string
+param binanceBtcDepositAddress string
 
 param olkyClient string
 @secure()
@@ -399,8 +412,8 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2018-02-01' = {
     reserved: true
   }
   sku: {
-    name: 'P1v2'
-    tier: 'PremiumV2'
+    name: apiSkuName
+    tier: apiSkuTier
     capacity: 1
   }
 }
@@ -479,6 +492,30 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'MAIL_PASS'
           value: mailPass
+        }
+        {
+          name: 'KYC_GATEWAY_HOST'
+          value: kycGatewayHost
+        }
+        {
+          name: 'KYC_CUSTOMER_AUTO'
+          value: kycCustomerAuto
+        }
+        {
+          name: 'KYC_API_KEY_AUTO'
+          value: kycApiKeyAuto
+        }
+        {
+          name: 'KYC_CUSTOMER_VIDEO'
+          value: kycCustomerVideo
+        }
+        {
+          name: 'KYC_API_KEY_VIDEO'
+          value: kycApiKeyVideo
+        }
+        {
+          name: 'KYC_TRANSACTION_PREFIX'
+          value: kycTransactionPrefix
         }
         {
           name: 'KYC_MANDATOR'
@@ -755,6 +792,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'BINANCE_WITHDRAW_KEYS'
           value: binanceWithdrawKeys
+        }
+        {
+          name: 'BINANCE_BTC_DEPOSIT_ADDRESS'
+          value: binanceBtcDepositAddress
         }
         {
           name: 'LETTER_URL'

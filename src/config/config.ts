@@ -36,6 +36,7 @@ export enum Process {
   BUY_CRYPTO_AML_CHECK = 'BuyCryptoAmlCheck',
   BUY_CRYPTO_SET_FEE = 'BuyCryptoSetFee',
   LNURL_AUTH_CACHE = 'LnurlAuthCache',
+  BUY_FIAT_SET_FEE = 'BuyFiatSetFee',
 }
 
 export enum Environment {
@@ -46,6 +47,8 @@ export enum Environment {
 
 export type ExchangeConfig = Partial<Exchange> & { withdrawKeys?: Map<string, string> };
 
+export type Version = '1' | '2';
+
 export function GetConfig(): Configuration {
   return new Configuration();
 }
@@ -53,7 +56,9 @@ export function GetConfig(): Configuration {
 export class Configuration {
   port = process.env.PORT ?? 3000;
   environment = process.env.ENVIRONMENT as Environment;
-  version = 'v1';
+  defaultVersion: Version = '1';
+  kycVersion: Version = '2';
+  defaultVersionString = `v${this.defaultVersion}`;
   network = process.env.NETWORK as NetworkName;
   githubToken = process.env.GH_TOKEN;
   defaultLanguage = 'en';
@@ -157,6 +162,15 @@ export class Configuration {
   };
 
   kyc = {
+    gatewayHost: process.env.KYC_GATEWAY_HOST,
+    auto: { customer: process.env.KYC_CUSTOMER_AUTO, apiKey: process.env.KYC_API_KEY_AUTO },
+    video: { customer: process.env.KYC_CUSTOMER_VIDEO, apiKey: process.env.KYC_API_KEY_VIDEO },
+    transactionPrefix: process.env.KYC_TRANSACTION_PREFIX,
+    identFailAfterDays: 90,
+    allowedWebhookIps: process.env.KYC_WEBHOOK_IPS?.split(','),
+  };
+
+  kycSpider = {
     mandator: process.env.KYC_MANDATOR,
     user: process.env.KYC_USER,
     password: process.env.KYC_PASSWORD,
@@ -496,10 +510,11 @@ export class Configuration {
   };
 
   // --- GETTERS --- //
-  get url(): string {
+  url(version: Version = this.defaultVersion): string {
+    const versionString = `v${version}`;
     return this.environment === Environment.LOC
-      ? `http://localhost:${this.port}/${this.version}`
-      : `https://${this.environment === Environment.PRD ? '' : this.environment + '.'}api.dfx.swiss/${this.version}`;
+      ? `http://localhost:${this.port}/${versionString}`
+      : `https://${this.environment === Environment.PRD ? '' : this.environment + '.'}api.dfx.swiss/${versionString}`;
   }
 
   get kraken(): ExchangeConfig {

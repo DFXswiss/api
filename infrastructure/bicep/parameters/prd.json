@@ -14,6 +14,12 @@
     "oceanUrls": {
       "value": "https://ocean.mydefichain.com,https://ocean.defichain.com"
     },
+    "apiSkuName": {
+      "value": "P2v2"
+    },
+    "apiSkuTier": {
+      "value": "PremiumV2"
+    },
     "dbAllowAllIps": {
       "value": false
     },
@@ -33,6 +39,24 @@
       "value": "xxx"
     },
     "mailPass": {
+      "value": "xxx"
+    },
+    "kycGatewayHost": {
+      "value": "https://gateway.online-ident.ch"
+    },
+    "kycCustomerAuto": {
+      "value": "xxx"
+    },
+    "kycApiKeyAuto": {
+      "value": "xxx"
+    },
+    "kycCustomerVideo": {
+      "value": "xxx"
+    },
+    "kycApiKeyVideo": {
+      "value": "xxx"
+    },
+    "kycTransactionPrefix": {
       "value": "xxx"
     },
     "kycMandator": {
@@ -207,6 +231,9 @@
       "value": "xxx"
     },
     "binanceWithdrawKeys": {
+      "value": "xxx"
+    },
+    "binanceBtcDepositAddress": {
       "value": "xxx"
     },
     "olkyClient": {
