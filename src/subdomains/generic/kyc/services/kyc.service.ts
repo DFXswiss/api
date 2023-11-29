@@ -14,6 +14,7 @@ import { IdentResultDto, IdentShortResult, getIdentResult } from '../dto/input/i
 import { KycContactData } from '../dto/input/kyc-contact-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { KycPersonalData } from '../dto/input/kyc-personal-data.dto';
+import { UpdateKycStepStatusDto } from '../dto/input/update-kyc-step-status.dtp';
 import { KycContentType, KycFileType } from '../dto/kyc-file.dto';
 import { KycDataMapper } from '../dto/mapper/kyc-data.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
@@ -108,6 +109,12 @@ export class KycService {
     await this.updateProgress(user, false);
 
     return { status: kycStep.status };
+  }
+
+  async updateKycStep(stepId: number, dto: UpdateKycStepStatusDto): Promise<void> {
+    const kycStep = await this.kycStepRepo.findOneBy({ id: stepId });
+    kycStep.update(dto.status, dto.result);
+    await this.kycStepRepo.save(kycStep);
   }
 
   async getFinancialData(kycHash: string, stepId: number, lang?: string): Promise<KycFinancialOutData> {
