@@ -17,12 +17,7 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
 import { XOR } from 'src/shared/validators/xor.validator';
 import { IsDfxIban } from 'src/subdomains/supporting/bank/bank-account/is-dfx-iban.validator';
-
-export enum BuyPaymentMethod {
-  BANK = 'Bank',
-  CARD = 'Card',
-  CRYPTO = 'Crypto',
-}
+import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.dto';
 
 export class GetBuyPaymentInfoDto {
   @ApiPropertyOptional()
@@ -59,6 +54,6 @@ export class GetBuyPaymentInfoDto {
   targetAmount: number;
 
   @IsNotEmpty()
-  @IsEnum(BuyPaymentMethod)
-  paymentMethod: BuyPaymentMethod = BuyPaymentMethod.BANK;
+  @IsEnum(FiatPaymentMethod)
+  paymentMethod: FiatPaymentMethod = FiatPaymentMethod.BANK;
 }

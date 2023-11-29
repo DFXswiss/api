@@ -14,6 +14,7 @@ import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
+import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.dto';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { BuyFiatService } from '../process/buy-fiat.service';
 import { CreateSellDto } from './dto/create-sell.dto';
@@ -76,7 +77,13 @@ export class SellController {
       feeAmount,
       estimatedAmount,
       sourceAmount: amount,
-    } = await this.transactionHelper.getTxDetails(sourceAmount, targetAmount, asset, currency);
+    } = await this.transactionHelper.getTxDetails(
+      sourceAmount,
+      targetAmount,
+      asset,
+      currency,
+      CryptoPaymentMethod.CRYPTO,
+    );
 
     return {
       feeAmount,
@@ -161,7 +168,14 @@ export class SellController {
       sourceAmount: amount,
       isValid,
       error,
-    } = await this.transactionHelper.getTxDetails(dto.amount, dto.targetAmount, dto.asset, dto.currency, user.userData);
+    } = await this.transactionHelper.getTxDetails(
+      dto.amount,
+      dto.targetAmount,
+      dto.asset,
+      dto.currency,
+      CryptoPaymentMethod.CRYPTO,
+      user.userData,
+    );
 
     return {
       routeId: sell.id,
