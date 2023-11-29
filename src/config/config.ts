@@ -47,6 +47,8 @@ export enum Environment {
 
 export type ExchangeConfig = Partial<Exchange> & { withdrawKeys?: Map<string, string> };
 
+export type Version = '1' | '2';
+
 export function GetConfig(): Configuration {
   return new Configuration();
 }
@@ -54,7 +56,9 @@ export function GetConfig(): Configuration {
 export class Configuration {
   port = process.env.PORT ?? 3000;
   environment = process.env.ENVIRONMENT as Environment;
-  defaultVersion = 'v1';
+  defaultVersion: Version = '1';
+  kycVersion: Version = '2';
+  defaultVersionString = `v${this.defaultVersion}`;
   network = process.env.NETWORK as NetworkName;
   githubToken = process.env.GH_TOKEN;
   defaultLanguage = 'en';
@@ -506,10 +510,11 @@ export class Configuration {
   };
 
   // --- GETTERS --- //
-  url(version = this.defaultVersion): string {
+  url(version: Version = this.defaultVersion): string {
+    const versionString = `v${version}`;
     return this.environment === Environment.LOC
-      ? `http://localhost:${this.port}/${version}`
-      : `https://${this.environment === Environment.PRD ? '' : this.environment + '.'}api.dfx.swiss/${version}`;
+      ? `http://localhost:${this.port}/${versionString}`
+      : `https://${this.environment === Environment.PRD ? '' : this.environment + '.'}api.dfx.swiss/${versionString}`;
   }
 
   get kraken(): ExchangeConfig {

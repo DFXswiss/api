@@ -15,7 +15,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { RealIP } from 'nestjs-real-ip';
-import { Config } from 'src/config/config';
+import { Config, GetConfig } from 'src/config/config';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -32,7 +32,7 @@ import { KycService } from '../services/kyc.service';
 const CodeHeaderName = 'x-kyc-code';
 
 @ApiTags('KYC')
-@Controller({ path: 'kyc', version: ['2'] })
+@Controller({ path: 'kyc', version: [GetConfig().kycVersion] })
 export class KycController {
   private readonly logger = new DfxLogger(KycController);
 

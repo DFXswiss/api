@@ -36,7 +36,7 @@ export class KycStep extends IEntity {
 
   // --- GETTERS --- //
   get sessionInfo(): { url: string; type: UrlType } {
-    const apiUrl = `${Config.url('v2')}/kyc`;
+    const apiUrl = `${Config.url(Config.kycVersion)}/kyc`;
 
     switch (this.name) {
       case KycStepName.CONTACT_DATA:

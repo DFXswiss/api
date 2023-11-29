@@ -34,7 +34,7 @@ async function bootstrap() {
 
   app.enableVersioning({
     type: VersioningType.URI,
-    defaultVersion: ['1'],
+    defaultVersion: [Config.defaultVersion],
   });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
   app.useGlobalFilters(new ApiExceptionFilter());
@@ -42,7 +42,7 @@ async function bootstrap() {
   const swaggerOptions = new DocumentBuilder()
     .setTitle('DFX API')
     .setDescription(`DFX API ${Config.environment.toUpperCase()} (updated on ${new Date().toLocaleString()})`)
-    .setVersion(Config.defaultVersion)
+    .setVersion(Config.defaultVersionString)
     .addBearerAuth()
     .build();
 

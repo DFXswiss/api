@@ -27,11 +27,6 @@ import { DocumentStorageService } from './integration/document-storage.service';
 import { FinancialService } from './integration/financial.service';
 import { IdentService } from './integration/ident.service';
 
-// TODO:
-// - send support mails (failed)
-// - send webhooks
-// - 2FA
-
 @Injectable()
 export class KycService {
   private readonly logger = new DfxLogger(KycService);
@@ -250,7 +245,7 @@ export class KycService {
 
     await this.verify2faIfRequired(user);
 
-    return KycInfoMapper.toDto(user, true);
+    return KycInfoMapper.toDto(user, true, step);
   }
 
   private async updateProgress(user: UserData, shouldContinue: boolean): Promise<UserData> {
@@ -378,7 +373,7 @@ export class KycService {
     }
   }
 
-  private async verify2fa(user: UserData): Promise<void> {
+  private async verify2fa(_user: UserData): Promise<void> {
     // TODO: verify 2FA < 24h
   }
 
