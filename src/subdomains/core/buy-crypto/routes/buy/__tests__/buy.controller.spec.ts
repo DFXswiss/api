@@ -17,13 +17,14 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { createDefaultWallet } from 'src/subdomains/generic/user/models/wallet/__mocks__/wallet.entity.mock';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.dto';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { BuyCryptoService } from '../../../process/services/buy-crypto.service';
 import { createDefaultBuy } from '../__mocks__/buy.entity.mock';
 import { BuyController } from '../buy.controller';
 import { BuyService } from '../buy.service';
-import { BuyPaymentMethod, GetBuyPaymentInfoDto } from '../dto/get-buy-payment-info.dto';
+import { GetBuyPaymentInfoDto } from '../dto/get-buy-payment-info.dto';
 
 function createBuyPaymentInfoDto(
   amount = 1,
@@ -36,7 +37,7 @@ function createBuyPaymentInfoDto(
     amount: amount,
     targetAmount: targetAmount,
     currency: currency,
-    paymentMethod: BuyPaymentMethod.BANK,
+    paymentMethod: FiatPaymentMethod.BANK,
   };
 }
 
