@@ -18,6 +18,22 @@ export class DocumentStorageService {
     return this.listFilesByPrefix(`spider/${userDataId}${isOrganization ? '-organization' : ''}/`);
   }
 
+  async listFilesByPrefix(prefix: string): Promise<KycFile[]> {
+    const blobs = await this.storageService.listBlobs(prefix);
+    return blobs.map((b) => {
+      const [_, type, name] = this.fromFileId(b.name);
+      return {
+        type,
+        name,
+        url: b.url,
+        contentType: b.contentType as KycContentType,
+        created: b.created,
+        updated: b.updated,
+        metadata: b.metadata,
+      };
+    });
+  }
+
   async uploadFile(
     userDataId: number,
     type: KycFileType,
@@ -34,22 +50,6 @@ export class DocumentStorageService {
   }
 
   // --- HELPER METHODS --- //
-  private async listFilesByPrefix(prefix: string): Promise<KycFile[]> {
-    const blobs = await this.storageService.listBlobs(prefix);
-    return blobs.map((b) => {
-      const [_, type, name] = this.fromFileId(b.name);
-      return {
-        type,
-        name,
-        url: b.url,
-        contentType: b.contentType as KycContentType,
-        created: b.created,
-        updated: b.updated,
-        metadata: b.metadata,
-      };
-    });
-  }
-
   private toFileId(userDataId: number, type: KycFileType, name: string): string {
     return `user/${userDataId}/${type}/${name}`;
   }
