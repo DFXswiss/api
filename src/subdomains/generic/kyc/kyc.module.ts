@@ -14,7 +14,7 @@ import { DilisenseService } from './services/integration/dilisense.service';
 import { DocumentStorageService } from './services/integration/document-storage.service';
 import { FinancialService } from './services/integration/financial.service';
 import { IdentService } from './services/integration/ident.service';
-import { KycLogService } from './services/kyc-log.service';
+import { KycAdminService } from './services/kyc-admin.service';
 import { KycService } from './services/kyc.service';
 import { NameCheckService } from './services/name-check.service';
 
@@ -23,16 +23,16 @@ import { NameCheckService } from './services/name-check.service';
   controllers: [KycController, KycAdminController],
   providers: [
     KycService,
+    KycAdminService,
     DocumentStorageService,
     NameCheckService,
     NameCheckLogRepository,
     DilisenseService,
     IdentService,
     FinancialService,
-    KycLogService,
     KycLogRepository,
     KycStepRepository,
   ],
-  exports: [DocumentStorageService, NameCheckService, KycLogService],
+  exports: [DocumentStorageService, NameCheckService, KycAdminService],
 })
 export class KycModule {}
