@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
@@ -56,6 +58,7 @@ export class BuyFiatPreparationService {
           entity.sell.fiat,
           inputReferencePrice,
           entity.sell.user.userData,
+          CryptoPaymentMethod.CRYPTO,
         );
 
         const referenceEurPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatEur);
@@ -74,7 +77,7 @@ export class BuyFiatPreparationService {
             fee.fixed,
             fee.payoutRefBonus,
             fee.min,
-            fee.min,
+            inputReferenceCurrency instanceof Fiat ? fee.min : referenceEurPrice.convert(fee.min, 2),
             fee.total,
             referenceChfPrice.convert(fee.total, 2),
           ),

@@ -6,7 +6,6 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { BuyPaymentMethod } from 'src/subdomains/core/buy-crypto/routes/buy/dto/get-buy-payment-info.dto';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/min-amount.dto';
@@ -14,6 +13,7 @@ import { FeeService } from 'src/subdomains/supporting/payment/services/fee.servi
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { FeeDto } from '../dto/fee.dto';
+import { FiatPaymentMethod, PaymentMethod } from '../dto/payment-method.enum';
 import { TargetEstimation, TransactionDetails } from '../dto/transaction-details.dto';
 import { TxFeeDetails } from '../dto/tx-fee-details.dto';
 import { TxSpec, TxSpecExtended } from '../dto/tx-spec.dto';
@@ -125,7 +125,7 @@ export class TransactionHelper implements OnModuleInit {
     to: Asset | Fiat,
     referencePrice: Price,
     userData: UserData,
-    paymentMethod?: BuyPaymentMethod | undefined,
+    paymentMethod: PaymentMethod,
   ): Promise<TxFeeDetails> {
     // get fee
     const { direction, feeAsset } = this.getTxInfo(from, to);
@@ -155,8 +155,8 @@ export class TransactionHelper implements OnModuleInit {
     targetAmount: number | undefined,
     from: Asset | Fiat,
     to: Asset | Fiat,
+    paymentMethod: PaymentMethod,
     userData?: UserData,
-    paymentMethod?: BuyPaymentMethod,
   ): Promise<TransactionDetails> {
     // get fee
     const { direction, feeAsset } = this.getTxInfo(from, to);
@@ -218,13 +218,13 @@ export class TransactionHelper implements OnModuleInit {
     asset: Asset,
     txVolume: number,
     txAsset: Asset | Fiat,
-    paymentMethod?: BuyPaymentMethod | undefined,
+    paymentMethod: PaymentMethod,
   ): Promise<FeeDto> {
     const price = await this.priceProviderService.getPrice(txAsset, this.eur);
 
     const txVolumeInEur = price.convert(txVolume);
 
-    return paymentMethod === BuyPaymentMethod.CARD
+    return paymentMethod === FiatPaymentMethod.CARD
       ? { fees: [], rate: Config.buy.fee.card, fixed: 0, payoutRefBonus: true }
       : userData
       ? this.feeService.getUserFee({ userData, direction, asset, txVolume: txVolumeInEur })
