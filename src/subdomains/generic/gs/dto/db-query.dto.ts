@@ -38,3 +38,14 @@ export class DbQueryDto extends DbQueryBaseDto {
   @IsNotEmpty()
   where?: [string, { [key: string]: string }][] = [];
 }
+
+export class DbFileQueryDto extends DbQueryDto {
+  @IsOptional()
+  @IsString()
+  filePrefix: string;
+}
+
+export class DbReturnData {
+  keys: string[];
+  values: any;
+}
