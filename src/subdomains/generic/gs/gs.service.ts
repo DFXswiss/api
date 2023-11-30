@@ -58,7 +58,7 @@ export class GsService {
   }
 
   async getDbUserFileData(query: DbFileQueryDto): Promise<any> {
-    const data: UserData[] = await this.getRawDbData({ ...query, table: 'userData' });
+    const data: UserData[] = await this.getRawDbData({ ...query, table: 'user_data' });
 
     for (const userData of data) {
       userData['documents'] = query.filePrefix
@@ -73,7 +73,7 @@ export class GsService {
     }
 
     // transform to array
-    return this.transformResultArray(data, query.table);
+    return this.transformResultArray(data, 'user_data');
   }
 
   async getExtendedDbData(query: DbQueryBaseDto): Promise<DbReturnData> {
