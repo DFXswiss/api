@@ -15,6 +15,7 @@ import { PayoutDeFiChainService } from './services/payout-defichain.service';
 import { PayoutEthereumService } from './services/payout-ethereum.service';
 import { PayoutLightningService } from './services/payout-lightning.service';
 import { PayoutLogService } from './services/payout-log.service';
+import { PayoutMoneroService } from './services/payout-monero.service';
 import { PayoutOptimismService } from './services/payout-optimism.service';
 import { PayoutService } from './services/payout.service';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyPO } from './strategies/payout/impl/arbitrum-coin.strategy';
@@ -28,6 +29,7 @@ import { DeFiChainTokenStrategy as DeFiChainTokenStrategyPO } from './strategies
 import { EthereumCoinStrategy as EthereumCoinStrategyPO } from './strategies/payout/impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy as EthereumTokenStrategyPO } from './strategies/payout/impl/ethereum-token.strategy';
 import { LightningStrategy as LightningStrategyPO } from './strategies/payout/impl/lightning.strategy';
+import { MoneroStrategy as MoneroStrategyPO } from './strategies/payout/impl/monero.strategy';
 import { OptimismCoinStrategy as OptimismCoinStrategyPO } from './strategies/payout/impl/optimism-coin.strategy';
 import { OptimismTokenStrategy as OptimismTokenStrategyPO } from './strategies/payout/impl/optimism-token.strategy';
 import { ArbitrumStrategy as ArbitrumStrategyPR } from './strategies/prepare/impl/arbitrum.strategy';
@@ -37,6 +39,7 @@ import { BscStrategy as BscStrategyPR } from './strategies/prepare/impl/bsc.stra
 import { DeFiChainStrategy as DeFiChainStrategyPR } from './strategies/prepare/impl/defichain.strategy';
 import { EthereumStrategy as EthereumStrategyPR } from './strategies/prepare/impl/ethereum.strategy';
 import { LightningStrategy as LightningStrategyPR } from './strategies/prepare/impl/lightning.strategy';
+import { MoneroStrategy as MoneroStrategyPR } from './strategies/prepare/impl/monero.strategy';
 import { OptimismStrategy as OptimismStrategyPR } from './strategies/prepare/impl/optimism.strategy';
 
 @Module({
@@ -49,6 +52,7 @@ import { OptimismStrategy as OptimismStrategyPR } from './strategies/prepare/imp
     PayoutService,
     PayoutBitcoinService,
     PayoutLightningService,
+    PayoutMoneroService,
     PayoutArbitrumService,
     PayoutOptimismService,
     PayoutDeFiChainService,
@@ -58,6 +62,7 @@ import { OptimismStrategy as OptimismStrategyPR } from './strategies/prepare/imp
     PrepareStrategyRegistry,
     BitcoinStrategyPO,
     LightningStrategyPO,
+    MoneroStrategyPO,
     ArbitrumCoinStrategyPO,
     ArbitrumTokenStrategyPO,
     BscCoinStrategyPO,
@@ -70,6 +75,7 @@ import { OptimismStrategy as OptimismStrategyPR } from './strategies/prepare/imp
     OptimismTokenStrategyPO,
     BitcoinStrategyPR,
     LightningStrategyPR,
+    MoneroStrategyPR,
     BscStrategyPR,
     DeFiChainStrategyPR,
     EthereumStrategyPR,

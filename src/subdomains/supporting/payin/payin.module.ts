@@ -42,6 +42,10 @@ import { LightningStrategy as LightningStrategyS } from './strategies/send/impl/
 import { OptimismCoinStrategy as OptimismCoinStrategyS } from './strategies/send/impl/optimism-coin.strategy';
 import { OptimismTokenStrategy as OptimismTokenStrategyS } from './strategies/send/impl/optimism-token.strategy';
 
+import { PayInMoneroService } from './services/payin-monero.service';
+import { MoneroStrategy as MoneroStrategyR } from './strategies/register/impl/monero.strategy';
+import { MoneroStrategy as MoneroStrategyS } from './strategies/send/impl/monero.strategy';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([CryptoInput]),
@@ -65,19 +69,23 @@ import { OptimismTokenStrategy as OptimismTokenStrategyS } from './strategies/se
     PayInEthereumService,
     PayInOptimismService,
     PayInBitcoinService,
+    PayInMoneroService,
     PayInDeFiChainService,
     RegisterStrategyRegistry,
     SendStrategyRegistry,
     ArbitrumStrategyR,
     BitcoinStrategyR,
+    LightningStrategyR,
+    MoneroStrategyR,
     BscStrategyR,
     DeFiChainStrategyR,
     EthereumStrategyR,
     OptimismStrategyR,
-    LightningStrategyR,
     ArbitrumCoinStrategyS,
     ArbitrumTokenStrategyS,
     BitcoinStrategyS,
+    LightningStrategyS,
+    MoneroStrategyS,
     BscCoinStrategyS,
     BscTokenStrategyS,
     DeFiChainCoinStrategyS,
@@ -86,7 +94,6 @@ import { OptimismTokenStrategy as OptimismTokenStrategyS } from './strategies/se
     EthereumTokenStrategyS,
     OptimismCoinStrategyS,
     OptimismTokenStrategyS,
-    LightningStrategyS,
     PayInNotificationService,
   ],
   exports: [PayInService],
