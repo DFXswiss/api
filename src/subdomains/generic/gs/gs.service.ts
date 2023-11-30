@@ -58,16 +58,22 @@ export class GsService {
   }
 
   async getDbUserFileData(query: DbFileQueryDto): Promise<any> {
-    const data: UserData[] = await this.getRawDbData({ ...query, table: 'user_data' });
+    const data: UserData[] = await this.getRawDbData({
+      ...query,
+      select: query.select?.filter((s) => !s.includes('documents')),
+      table: 'user_data',
+    });
 
     for (const userData of data) {
       userData['documents'] = query.filePrefix
-        ? await this.documentStorageService.listFilesByPrefix(`${query.filePrefix}/${userData.id}/`)
+        ? await this.documentStorageService.listFilesByPrefix(
+            `${query.filePrefix}/${userData.id ?? userData['user_data_id']}/`,
+          )
         : [
-            ...(await this.documentStorageService.listUserFiles(userData.id)),
-            ...(await this.documentStorageService.listSpiderFiles(userData.id, false)),
+            ...(await this.documentStorageService.listUserFiles(userData.id ?? userData['user_data_id'])),
+            ...(await this.documentStorageService.listSpiderFiles(userData.id ?? userData['user_data_id'], false)),
             ...(userData.accountType !== AccountType.PERSONAL
-              ? await this.documentStorageService.listSpiderFiles(userData.id, true)
+              ? await this.documentStorageService.listSpiderFiles(userData.id ?? userData['user_data_id'], true)
               : []),
           ];
     }
