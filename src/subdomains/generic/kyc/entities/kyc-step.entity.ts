@@ -88,6 +88,11 @@ export class KycStep extends IEntity {
     return this.status === KycStepStatus.FAILED;
   }
 
+  update(status: KycStepStatus, result?: string): this {
+    this.status = status;
+    return this.setResult(result);
+  }
+
   complete(result?: KycStepResult): this {
     this.status = KycStepStatus.COMPLETED;
 
