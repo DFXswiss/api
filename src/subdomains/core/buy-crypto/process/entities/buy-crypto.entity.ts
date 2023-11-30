@@ -19,7 +19,7 @@ import {
   CryptoPaymentMethod,
   FiatPaymentMethod,
   PaymentMethod,
-} from 'src/subdomains/supporting/payment/dto/payment-method.dto';
+} from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { Fee } from 'src/subdomains/supporting/payment/entities/fee.entity';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';

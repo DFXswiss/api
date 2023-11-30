@@ -17,7 +17,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { createDefaultWallet } from 'src/subdomains/generic/user/models/wallet/__mocks__/wallet.entity.mock';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
-import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.dto';
+import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { BuyCryptoService } from '../../../process/services/buy-crypto.service';

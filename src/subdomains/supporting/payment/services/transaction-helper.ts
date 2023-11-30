@@ -13,7 +13,7 @@ import { FeeService } from 'src/subdomains/supporting/payment/services/fee.servi
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { FeeDto } from '../dto/fee.dto';
-import { FiatPaymentMethod, PaymentMethod } from '../dto/payment-method.dto';
+import { FiatPaymentMethod, PaymentMethod } from '../dto/payment-method.enum';
 import { TargetEstimation, TransactionDetails } from '../dto/transaction-details.dto';
 import { TxFeeDetails } from '../dto/tx-fee-details.dto';
 import { TxSpec, TxSpecExtended } from '../dto/tx-spec.dto';
