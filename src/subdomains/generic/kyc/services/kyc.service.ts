@@ -158,7 +158,7 @@ export class KycService {
 
     switch (getIdentResult(dto)) {
       case IdentShortResult.CANCEL:
-        this.logger.info(`Ident cancelled for user ${user.id}: ${sessionStatus}`);
+        user = user.cancelStep(kycStep, dto);
         break;
 
       case IdentShortResult.REVIEW:

@@ -387,6 +387,13 @@ export class UserData extends IEntity {
     return this;
   }
 
+  cancelStep(kycStep: KycStep, result?: KycStepResult): this {
+    kycStep.cancel(result);
+    this.logger.verbose(`User ${this.id} cancels step ${kycStep.name} (${kycStep.id})`);
+
+    return this;
+  }
+
   finishStep(kycStep: KycStep): this {
     kycStep.finish();
 
