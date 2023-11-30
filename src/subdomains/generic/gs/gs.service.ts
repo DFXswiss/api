@@ -65,15 +65,15 @@ export class GsService {
     });
 
     for (const userData of data) {
+      const userDataId = userData.id ?? userData['user_data_id'];
+
       userData['documents'] = query.filePrefix
-        ? await this.documentStorageService.listFilesByPrefix(
-            `${query.filePrefix}/${userData.id ?? userData['user_data_id']}/`,
-          )
+        ? await this.documentStorageService.listFilesByPrefix(`${query.filePrefix}/${userDataId}/`)
         : [
-            ...(await this.documentStorageService.listUserFiles(userData.id ?? userData['user_data_id'])),
-            ...(await this.documentStorageService.listSpiderFiles(userData.id ?? userData['user_data_id'], false)),
+            ...(await this.documentStorageService.listUserFiles(userDataId)),
+            ...(await this.documentStorageService.listSpiderFiles(userDataId, false)),
             ...(userData.accountType !== AccountType.PERSONAL
-              ? await this.documentStorageService.listSpiderFiles(userData.id ?? userData['user_data_id'], true)
+              ? await this.documentStorageService.listSpiderFiles(userDataId, true)
               : []),
           ];
     }
