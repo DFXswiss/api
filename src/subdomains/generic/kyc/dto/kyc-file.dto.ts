@@ -14,6 +14,7 @@ export enum KycContentType {
   TEXT = 'text/plain',
   XML = 'text/xml',
   ZIP = 'application/zip',
+  MP3 = 'audio/mpeg',
 }
 
 export interface KycFile {

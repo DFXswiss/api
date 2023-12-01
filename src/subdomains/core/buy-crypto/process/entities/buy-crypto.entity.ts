@@ -15,6 +15,11 @@ import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import {
+  CryptoPaymentMethod,
+  FiatPaymentMethod,
+  PaymentMethod,
+} from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { Fee } from 'src/subdomains/supporting/payment/entities/fee.entity';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
@@ -556,6 +561,10 @@ export class BuyCrypto extends IEntity {
 
   get user(): User {
     return this.buy ? this.buy.user : this.cryptoRoute.user;
+  }
+
+  get paymentMethod(): PaymentMethod {
+    return this.checkoutTx ? FiatPaymentMethod.CARD : this.bankTx ? FiatPaymentMethod.BANK : CryptoPaymentMethod.CRYPTO;
   }
 
   get target(): { address: string; asset: Asset; trimmedReturnAddress: string } {

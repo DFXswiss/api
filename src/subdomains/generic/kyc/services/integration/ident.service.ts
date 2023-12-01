@@ -5,7 +5,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpError, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { IdentConfig, IdentDocuments } from '../../dto/ident.dto';
+import { IdentConfig, IdentDocument } from '../../dto/ident.dto';
+import { KycContentType } from '../../dto/kyc-file.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
 import { KycStepType } from '../../enums/kyc.enum';
 
@@ -25,16 +26,31 @@ export class IdentService {
     );
   }
 
-  async getDocuments(kycStep: KycStep): Promise<IdentDocuments> {
+  async getDocuments(kycStep: KycStep): Promise<IdentDocument[]> {
     if (!kycStep.transactionId) throw new InternalServerErrorException('Transaction ID is missing');
 
     const pdf = await this.getDocument(kycStep.type, kycStep.transactionId, 'pdf');
     const zip = await this.getDocument(kycStep.type, kycStep.transactionId, 'zip');
+    const mp3 =
+      kycStep.type === KycStepType.VIDEO && (await this.getDocument(kycStep.type, kycStep.transactionId, 'mp3'));
 
-    return {
-      pdf: { name: `${kycStep.transactionId}.pdf`, content: pdf },
-      zip: { name: `${kycStep.transactionId}.zip`, content: zip },
-    };
+    return [
+      pdf && {
+        name: this.fileName(kycStep.transactionId, 'pdf'),
+        content: pdf,
+        contentType: KycContentType.PDF,
+      },
+      zip && {
+        name: this.fileName(kycStep.transactionId, 'zip'),
+        content: zip,
+        contentType: KycContentType.ZIP,
+      },
+      mp3 && {
+        name: this.fileName(kycStep.transactionId, 'mp3'),
+        content: mp3,
+        contentType: KycContentType.MP3,
+      },
+    ].filter((d) => d);
   }
 
   // --- STATIC HELPER METHODS --- //
@@ -52,14 +68,27 @@ export class IdentService {
 
   // --- HELPER METHODS --- //
 
-  private async getDocument(kycStepType: KycStepType, transactionId: string, contentType: string): Promise<Buffer> {
+  private fileName(transactionId: string, contentType: string): string {
+    return `${Util.isoDate(new Date()).split('-').join('')}-${transactionId}.${contentType}`;
+  }
+
+  private async getDocument(
+    kycStepType: KycStepType,
+    transactionId: string,
+    contentType: string,
+  ): Promise<Buffer | undefined> {
     return this.callApi<string>(
       `identifications/${transactionId}.${contentType}`,
       kycStepType,
       'GET',
       {},
       'arraybuffer',
-    ).then(Buffer.from);
+    )
+      .then(Buffer.from)
+      .catch((e) => {
+        this.logger.error(`Failed to fetch ${contentType} document for ${transactionId}:`, e);
+        return undefined;
+      });
   }
 
   private async callApi<T>(

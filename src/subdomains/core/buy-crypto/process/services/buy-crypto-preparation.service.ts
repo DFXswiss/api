@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -9,7 +10,6 @@ import { TransactionHelper } from 'src/subdomains/supporting/payment/services/tr
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { Between, In, IsNull, Not } from 'typeorm';
-import { BuyPaymentMethod } from '../../routes/buy/dto/get-buy-payment-info.dto';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { CheckStatus } from '../enums/check-status.enum';
@@ -65,7 +65,7 @@ export class BuyCryptoPreparationService {
           entity.target.asset,
           inputReferencePrice,
           entity.user.userData,
-          BuyPaymentMethod.BANK,
+          entity.paymentMethod,
         );
 
         const inputAssetEurPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatEur);
@@ -100,14 +100,12 @@ export class BuyCryptoPreparationService {
   }
 
   async refreshFee(): Promise<void> {
-    // Atm only for bankTx/checkoutTx BuyCrypto
     const entities = await this.buyCryptoRepo.find({
       where: {
         amlCheck: CheckStatus.PASS,
         status: IsNull(),
         isComplete: false,
         percentFee: IsNull(),
-        cryptoInput: IsNull(),
         inputReferenceAmount: Not(IsNull()),
       },
       relations: [
@@ -128,10 +126,11 @@ export class BuyCryptoPreparationService {
     const fiatChf = await this.fiatService.getFiatByName('CHF');
 
     for (const entity of entities) {
-      // Only for bankTx/checkoutTx BuyCrypto
       try {
-        const inputReferenceCurrency = await this.fiatService.getFiatByName(entity.inputReference.currency);
-        const inputCurrency = await this.fiatService.getFiatByName(entity.inputAsset);
+        const inputReferenceCurrency =
+          (await this.fiatService.getFiatByName(entity.inputReferenceAsset)) ??
+          (await this.assetService.getNativeMainLayerAsset(entity.inputReferenceAsset));
+        const inputCurrency = entity.cryptoInput.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
 
         const inputReferencePrice = Price.create(
           inputCurrency.name,
@@ -145,7 +144,7 @@ export class BuyCryptoPreparationService {
           entity.target.asset,
           inputReferencePrice,
           entity.user.userData,
-          entity.checkoutTx ? BuyPaymentMethod.CARD : BuyPaymentMethod.BANK,
+          entity.paymentMethod,
         );
 
         const referenceEurPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatEur);
@@ -164,7 +163,7 @@ export class BuyCryptoPreparationService {
             fee.fixed,
             fee.payoutRefBonus,
             fee.min,
-            fee.min,
+            inputReferenceCurrency instanceof Fiat ? fee.min : referenceEurPrice.convert(fee.min, 2),
             fee.total,
             referenceChfPrice.convert(fee.total, 2),
           ),

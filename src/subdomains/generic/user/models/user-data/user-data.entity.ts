@@ -229,6 +229,9 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   amlAccountType: string;
 
+  @Column({ length: 'MAX', nullable: true })
+  relatedUsers: string;
+
   // Mail
   @Column({ length: 256, nullable: true })
   blackSquadRecipientMail: string;
@@ -383,6 +386,13 @@ export class UserData extends IEntity {
     kycStep.fail(result);
 
     this.logger.verbose(`User ${this.id} fails step ${kycStep.name} (${kycStep.id})`);
+
+    return this;
+  }
+
+  cancelStep(kycStep: KycStep, result?: KycStepResult): this {
+    kycStep.cancel(result);
+    this.logger.verbose(`User ${this.id} cancels step ${kycStep.name} (${kycStep.id})`);
 
     return this;
   }
