@@ -1,5 +1,5 @@
 import { Util } from 'src/shared/utils/util';
-import { GetTransactionResultDto } from './dto/monero.dto';
+import { MoneroTransactionDto } from './dto/monero.dto';
 
 export class MoneroHelper {
   // https://web.getmonero.org/resources/moneropedia/denominations.html
@@ -16,7 +16,7 @@ export class MoneroHelper {
   }
 
   // --- UTILS --- /
-  static isTransactionComplete(transaction: GetTransactionResultDto): boolean {
-    return 'OK' === transaction.status && transaction.block_height && transaction.confirmations > 0;
+  static isTransactionComplete(transaction: MoneroTransactionDto): boolean {
+    return transaction.block_height && transaction.confirmations > 0;
   }
 }

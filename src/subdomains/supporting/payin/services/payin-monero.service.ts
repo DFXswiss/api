@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
-  GetTransactionResultDto,
   GetTransferInResultDto,
+  MoneroTransactionDto,
   TransferResultDto,
 } from 'src/integration/blockchain/monero/dto/monero.dto';
 import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
@@ -20,14 +20,14 @@ export class PayInMoneroService {
     return this.moneroService.isHealthy();
   }
 
-  async getTransaction(txId: string): Promise<GetTransactionResultDto> {
+  async getTransaction(txId: string): Promise<MoneroTransactionDto> {
     return this.client.getTransaction(txId);
   }
 
   async getTransactionHistory(startTxId: string): Promise<GetTransferInResultDto[]> {
     const result: GetTransferInResultDto[] = [];
 
-    const startTransactionResult = await this.client.getTransaction(startTxId);
+    const startTransactionResult = await this.getTransaction(startTxId);
     const startBlockHeight = startTransactionResult.block_height;
 
     if (startBlockHeight) {

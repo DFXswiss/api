@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -75,9 +74,8 @@ export class MoneroStrategy extends PayoutStrategy {
   async estimateFee(): Promise<FeeResult> {
     const feeRate = await this.payoutMoneroService.getEstimatedFee();
     const feeAmount = this.averageTransactionSize * feeRate;
-    const xmrFeeAmount = MoneroHelper.auToXmr(feeAmount);
 
-    return { asset: await this.feeAsset(), amount: xmrFeeAmount };
+    return { asset: await this.feeAsset(), amount: feeAmount };
   }
 
   private async isHealthy(): Promise<boolean> {

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseFeePriority, GetTransactionResultDto } from 'src/integration/blockchain/monero/dto/monero.dto';
+import { BaseFeePriority } from 'src/integration/blockchain/monero/dto/monero.dto';
 import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
 import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
@@ -27,21 +27,12 @@ export class PayoutMoneroService {
   }
 
   async getPayoutCompletionData(payoutTxId: string): Promise<[boolean, number]> {
-    const transaction = await this.client.getTransaction(payoutTxId, true);
+    const transaction = await this.client.getTransaction(payoutTxId);
 
     const isComplete = MoneroHelper.isTransactionComplete(transaction);
-    const payoutFee = isComplete ? this.getTransactionFee(transaction) : 0;
+    const payoutFee = isComplete ? transaction.txnFee ?? 0 : 0;
 
     return [isComplete, payoutFee];
-  }
-
-  private getTransactionFee(transactionResult: GetTransactionResultDto): number {
-    try {
-      const txs = JSON.parse(transactionResult.txs_as_json);
-      return Array.isArray(txs) ? MoneroHelper.auToXmr(txs[0].txnFee) : 0;
-    } catch {
-      return 0;
-    }
   }
 
   async getEstimatedFee(): Promise<number> {

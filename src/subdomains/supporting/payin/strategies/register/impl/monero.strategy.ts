@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Config, Process } from 'src/config/config';
 import { GetTransferInResultDto } from 'src/integration/blockchain/monero/dto/monero.dto';
-import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
@@ -103,7 +102,7 @@ export class MoneroStrategy extends RegisterStrategy {
       txId: p.txid,
       txType: null,
       blockHeight: p.height,
-      amount: MoneroHelper.auToXmr(p.amount),
+      amount: p.amount,
       asset,
     }));
   }

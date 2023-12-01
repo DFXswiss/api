@@ -18,7 +18,7 @@ export class DexMoneroService {
   }
 
   async sendTransfer(address: string, amount: number): Promise<string> {
-    return this.client.transfer(address, MoneroHelper.xmrToAu(amount)).then((r) => r.tx_hash);
+    return this.client.transfer(address, amount).then((r) => r.tx_hash);
   }
 
   async transferMinimal(address: string): Promise<string> {
