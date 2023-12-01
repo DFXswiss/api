@@ -20,7 +20,7 @@ import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapp
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { IdentResultDto } from '../../user/models/ident/dto/ident-result.dto';
-import { IdentChannel, IdentStatus } from '../dto/ident.dto';
+import { IdentStatus } from '../dto/ident.dto';
 import { KycContactData } from '../dto/input/kyc-contact-data.dto';
 import { KycFinancialInData } from '../dto/input/kyc-financial-in.dto';
 import { KycPersonalData } from '../dto/input/kyc-personal-data.dto';
@@ -118,11 +118,10 @@ export class KycController {
   @ApiExcludeEndpoint()
   async identRedirect(
     @Res() res,
-    @Param('channel') channel: IdentChannel,
     @Param('status') status: IdentStatus,
     @Query('transactionId') transactionId: string,
   ): Promise<void> {
-    const redirectUri = await this.kycService.updateIdentStatus(transactionId, channel, status);
+    const redirectUri = await this.kycService.updateIdentStatus(transactionId, status);
 
     res.redirect(307, redirectUri);
   }
