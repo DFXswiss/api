@@ -9,7 +9,7 @@ import { Util } from 'src/shared/utils/util';
 import { LessThan } from 'typeorm';
 import { KycLevel, UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
-import { IdentChannel, IdentStatus } from '../dto/ident.dto';
+import { IdentStatus } from '../dto/ident.dto';
 import { IdentResultDto, IdentShortResult, getIdentResult } from '../dto/input/ident-result.dto';
 import { KycContactData } from '../dto/input/kyc-contact-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
@@ -182,7 +182,7 @@ export class KycService {
     await this.updateProgress(user, false);
   }
 
-  async updateIdentStatus(transactionId: string, channel: IdentChannel, status: IdentStatus): Promise<string> {
+  async updateIdentStatus(transactionId: string, status: IdentStatus): Promise<string> {
     const transaction = await this.getUserByTransactionOrThrow(transactionId, status);
 
     let user = transaction.user;
@@ -194,14 +194,8 @@ export class KycService {
       await this.updateProgress(user, false);
     }
 
-    switch (channel) {
-      case IdentChannel.WEB:
-        return `${Config.frontend.services}/iframe-message?status=${kycStep.status}`;
-
-      case IdentChannel.IOS:
-      case IdentChannel.ANDROID:
-        return `${Config.frontend.services}/kyc?code=${user.kycHash}`;
-    }
+    const search = new URLSearchParams({ code: user.kycHash, status: kycStep.status });
+    return `${Config.frontend.services}/kyc/redirect?${search.toString()}`;
   }
 
   async uploadDocument(kycHash: string, stepId: number, document: Express.Multer.File): Promise<KycResultDto> {
