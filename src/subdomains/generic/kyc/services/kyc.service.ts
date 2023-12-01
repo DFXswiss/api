@@ -172,6 +172,7 @@ export class KycService {
 
       case IdentShortResult.FAIL:
         user = user.failStep(kycStep, dto);
+        await this.downloadIdentDocuments(user, kycStep, 'fail/');
         break;
 
       default:
@@ -377,22 +378,17 @@ export class KycService {
     // TODO: verify 2FA < 24h
   }
 
-  private async downloadIdentDocuments(user: UserData, kycStep: KycStep) {
-    const { pdf, zip } = await this.identService.getDocuments(kycStep);
+  private async downloadIdentDocuments(user: UserData, kycStep: KycStep, namePrefix = '') {
+    const documents = await this.identService.getDocuments(kycStep);
 
-    await this.storageService.uploadFile(
-      user.id,
-      KycFileType.IDENTIFICATION,
-      pdf.name,
-      pdf.content,
-      KycContentType.PDF,
-    );
-    await this.storageService.uploadFile(
-      user.id,
-      KycFileType.IDENTIFICATION,
-      zip.name,
-      zip.content,
-      KycContentType.ZIP,
-    );
+    for (const { name, content, contentType } of documents) {
+      await this.storageService.uploadFile(
+        user.id,
+        KycFileType.IDENTIFICATION,
+        `${namePrefix}${name}`,
+        content,
+        contentType,
+      );
+    }
   }
 }
