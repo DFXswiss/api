@@ -130,7 +130,7 @@ export class BuyCryptoPreparationService {
         const inputReferenceCurrency =
           (await this.fiatService.getFiatByName(entity.inputReferenceAsset)) ??
           (await this.assetService.getNativeMainLayerAsset(entity.inputReferenceAsset));
-        const inputCurrency = (await this.fiatService.getFiatByName(entity.inputAsset)) ?? entity.cryptoInput.asset;
+        const inputCurrency = entity.cryptoInput.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
 
         const inputReferencePrice = Price.create(
           inputCurrency.name,
