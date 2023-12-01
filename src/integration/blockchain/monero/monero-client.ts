@@ -60,30 +60,6 @@ export class MoneroClient {
     return feeEstimateResult;
   }
 
-  async transfer(destinationAddress: string, amount: number): Promise<TransferResultDto> {
-    return this.http
-      .post<{ result: TransferResultDto }>(
-        `${Config.blockchain.monero.d.url}/json_rpc`,
-        {
-          method: 'transfer',
-          params: {
-            destinations: [{ amount: MoneroHelper.xmrToAu(amount), address: destinationAddress }],
-            account_index: 0,
-            priority: 0,
-          },
-        },
-        this.httpConfig(),
-      )
-      .then((r) => this.mapTransfer(r.result));
-  }
-
-  private mapTransfer(transferResult: TransferResultDto): TransferResultDto {
-    transferResult.amount = MoneroHelper.auToXmr(transferResult.amount);
-    transferResult.fee = MoneroHelper.auToXmr(transferResult.fee);
-
-    return transferResult;
-  }
-
   async getTransaction(txId: string): Promise<MoneroTransactionDto | undefined> {
     return this.http
       .post<{ status: string; txs: GetTransactionResultDto[] }>(
@@ -186,7 +162,37 @@ export class MoneroClient {
         },
         this.httpConfig(),
       )
-      .then((r) => r.result);
+      .then((r) => this.mapBalance(r.result));
+  }
+
+  private mapBalance(balanceResultDto: GetBalanceResultDto): GetBalanceResultDto {
+    balanceResultDto.unlocked_balance = MoneroHelper.auToXmr(balanceResultDto.unlocked_balance);
+
+    return balanceResultDto;
+  }
+
+  async transfer(destinationAddress: string, amount: number): Promise<TransferResultDto> {
+    return this.http
+      .post<{ result: TransferResultDto }>(
+        `${Config.blockchain.monero.rpc.url}`,
+        {
+          method: 'transfer',
+          params: {
+            destinations: [{ amount: MoneroHelper.xmrToAu(amount), address: destinationAddress }],
+            account_index: 0,
+            priority: 0,
+          },
+        },
+        this.httpConfig(),
+      )
+      .then((r) => this.mapTransfer(r.result));
+  }
+
+  private mapTransfer(transferResult: TransferResultDto): TransferResultDto {
+    transferResult.amount = MoneroHelper.auToXmr(transferResult.amount ?? 0);
+    transferResult.fee = MoneroHelper.auToXmr(transferResult.fee ?? 0);
+
+    return transferResult;
   }
 
   async getTransfers(blockHeight: number): Promise<GetTransfersResultDto> {
