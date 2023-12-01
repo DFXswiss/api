@@ -229,6 +229,9 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   amlAccountType: string;
 
+  @Column({ length: 'MAX', nullable: true })
+  relatedUsers: string;
+
   // Mail
   @Column({ length: 256, nullable: true })
   blackSquadRecipientMail: string;

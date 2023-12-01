@@ -166,4 +166,8 @@ export class UpdateUserDataDto {
   @IsDate()
   @Type(() => Date)
   lastNameCheckDate: Date;
+
+  @IsOptional()
+  @IsString()
+  relatedUsers: string;
 }
