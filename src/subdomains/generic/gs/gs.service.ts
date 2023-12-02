@@ -16,7 +16,7 @@ import { AccountType } from '../user/models/user-data/account-type.enum';
 import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { UserService } from '../user/models/user/user.service';
-import { DbFileQueryDto, DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
+import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 
 export enum SupportTable {
@@ -57,25 +57,30 @@ export class GsService {
     return this.transformResultArray(data, query.table);
   }
 
-  async getDbUserFileData(query: DbFileQueryDto): Promise<any> {
+  async getDbUserFileData(query: DbQueryDto): Promise<any> {
     const data: UserData[] = await this.getRawDbData({
       ...query,
       select: query.select?.filter((s) => !s.includes('documents')),
       table: 'user_data',
     });
+    const selectPaths = this.filterSelectDocumentColumn(query.select);
 
     for (const userData of data) {
-      const userDataId = userData.id ?? userData['user_data_id'];
+      const userDataId = userData.id ?? (userData['user_data_id'] as number);
 
-      userData['documents'] = query.filePrefix
-        ? await this.documentStorageService.listFilesByPrefix(`${query.filePrefix}/${userDataId}/`)
-        : [
-            ...(await this.documentStorageService.listUserFiles(userDataId)),
-            ...(await this.documentStorageService.listSpiderFiles(userDataId, false)),
-            ...(userData.accountType !== AccountType.PERSONAL
-              ? await this.documentStorageService.listSpiderFiles(userDataId, true)
-              : []),
-          ];
+      for (const selectPath of selectPaths) {
+        const prefixPath = this.toDocPrefixPath(selectPath, `${userDataId}`);
+
+        userData[selectPath] = prefixPath
+          ? await this.documentStorageService.listFilesByPrefix(prefixPath)
+          : [
+              ...(await this.documentStorageService.listUserFiles(userDataId)),
+              ...(await this.documentStorageService.listSpiderFiles(userDataId, false)),
+              ...(userData.accountType !== AccountType.PERSONAL
+                ? await this.documentStorageService.listSpiderFiles(userDataId, true)
+                : []),
+            ];
+      }
     }
 
     // transform to array
@@ -249,6 +254,14 @@ export class GsService {
       );
   }
 
+  private filterSelectDocumentColumn(select: string[]): string[] {
+    return select.filter((s) => s.includes('documents')).map((doc) => doc.split('user_data.').join(''));
+  }
+
+  private toDocPrefixPath(selectPath: string, userDataId: string): string {
+    return selectPath.split('-')?.[1]?.split('.').join('/').split('{userData}').join(userDataId);
+  }
+
   private transformResultArray(data: any[], table: string): DbReturnData {
     // transform to array
     return data.length > 0
@@ -260,7 +273,9 @@ export class GsService {
   }
 
   private renameDbKeys(table: string, keys: string[]): string[] {
-    return keys.map((k) => k.replace(`${table}_`, '')).map((k) => (k.includes('_') ? this.toDotSeparation(k) : k));
+    return keys
+      .map((k) => k.replace(`${table}_`, ''))
+      .map((k) => (k.includes('_') && !k.includes('documents') ? this.toDotSeparation(k) : k));
   }
 
   private toDotSeparation(str: string): string {

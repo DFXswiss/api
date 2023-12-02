@@ -3,7 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { DbFileQueryDto, DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
+import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 import { GsService } from './gs.service';
 
@@ -23,7 +23,7 @@ export class GsController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getDbUserFileData(@Body() query: DbFileQueryDto): Promise<DbReturnData> {
+  async getDbUserFileData(@Body() query: DbQueryDto): Promise<DbReturnData> {
     return this.gsService.getDbUserFileData(query);
   }
 
