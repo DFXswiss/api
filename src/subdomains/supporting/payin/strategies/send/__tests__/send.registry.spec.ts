@@ -8,6 +8,7 @@ import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
 import { PayInBscService } from '../../../services/payin-bsc.service';
 import { PayInDeFiChainService } from '../../../services/payin-defichain.service';
 import { PayInEthereumService } from '../../../services/payin-ethereum.service';
+import { PayInMoneroService } from '../../../services/payin-monero.service';
 import { PayInOptimismService } from '../../../services/payin-optimism.service';
 import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy } from '../impl/arbitrum-token.strategy';
@@ -20,12 +21,14 @@ import { DeFiChainTokenStrategy } from '../impl/defichain-token.strategy';
 import { EthereumCoinStrategy } from '../impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy } from '../impl/ethereum-token.strategy';
 import { LightningStrategy } from '../impl/lightning.strategy';
+import { MoneroStrategy } from '../impl/monero.strategy';
 import { OptimismCoinStrategy } from '../impl/optimism-coin.strategy';
 import { OptimismTokenStrategy } from '../impl/optimism-token.strategy';
 
 describe('SendStrategyRegistry', () => {
   let bitcoin: BitcoinStrategy;
   let lightning: LightningStrategy;
+  let monero: MoneroStrategy;
   let deFiChainCoin: DeFiChainCoinStrategy;
   let deFiChainToken: DeFiChainTokenStrategy;
   let ethereumCoin: EthereumCoinStrategy;
@@ -43,6 +46,8 @@ describe('SendStrategyRegistry', () => {
     bitcoin = new BitcoinStrategy(mock<PayInBitcoinService>(), mock<PayInRepository>());
 
     lightning = new LightningStrategy(mock<PayInRepository>());
+
+    monero = new MoneroStrategy(mock<PayInMoneroService>(), mock<PayInRepository>());
 
     deFiChainCoin = new DeFiChainCoinStrategy(mock<PayInDeFiChainService>(), mock<PayInRepository>());
     deFiChainToken = new DeFiChainTokenStrategy(mock<PayInDeFiChainService>(), mock<PayInRepository>());
@@ -62,6 +67,7 @@ describe('SendStrategyRegistry', () => {
     registry = new SendStrategyRegistryWrapper(
       bitcoin,
       lightning,
+      monero,
       deFiChainCoin,
       deFiChainToken,
       ethereumCoin,
@@ -91,6 +97,14 @@ describe('SendStrategyRegistry', () => {
         );
 
         expect(strategy).toBeInstanceOf(LightningStrategy);
+      });
+
+      it('gets MONERO strategy', () => {
+        const strategy = registry.getSendStrategy(
+          createCustomAsset({ blockchain: Blockchain.MONERO, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(MoneroStrategy);
       });
 
       it('gets DEFICHAIN_COIN strategy', () => {
@@ -190,6 +204,7 @@ class SendStrategyRegistryWrapper extends SendStrategyRegistry {
   constructor(
     bitcoin: BitcoinStrategy,
     lightning: LightningStrategy,
+    monero: MoneroStrategy,
     deFiChainCoin: DeFiChainCoinStrategy,
     deFiChainToken: DeFiChainTokenStrategy,
     ethereumCoin: EthereumCoinStrategy,
@@ -205,6 +220,7 @@ class SendStrategyRegistryWrapper extends SendStrategyRegistry {
 
     this.addStrategy({ blockchain: Blockchain.BITCOIN }, bitcoin);
     this.addStrategy({ blockchain: Blockchain.LIGHTNING }, lightning);
+    this.addStrategy({ blockchain: Blockchain.MONERO }, monero);
 
     this.addStrategy({ blockchain: Blockchain.DEFICHAIN, assetType: AssetType.COIN }, deFiChainCoin);
     this.addStrategy({ blockchain: Blockchain.DEFICHAIN, assetType: AssetType.TOKEN }, deFiChainToken);
