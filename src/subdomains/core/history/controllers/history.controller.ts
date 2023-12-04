@@ -5,6 +5,7 @@ import {
   NotFoundException,
   Post,
   Query,
+  Redirect,
   Res,
   StreamableFile,
   UseGuards,
@@ -52,6 +53,7 @@ export class HistoryController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: TypedHistoryDto, isArray: true })
   @ApiExcludeEndpoint()
+  @Redirect('transaction', 301)
   async getHistory(@GetJwt() jwt: JwtPayload): Promise<TypedHistoryDto[]> {
     return [
       await this.buyCryptoService.getBuyHistory(jwt.id).then(this.addType(HistoryTransactionType.BUY)),
