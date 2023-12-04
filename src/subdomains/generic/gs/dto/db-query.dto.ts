@@ -28,7 +28,7 @@ export class DbQueryBaseDto {
   sorting: 'ASC' | 'DESC' = 'ASC';
 
   @IsOptional()
-  select?: string[];
+  select?: string[]; // user file structure: documents-$prefix.{userData}.$suffix
 }
 
 export class DbQueryDto extends DbQueryBaseDto {
@@ -37,12 +37,6 @@ export class DbQueryDto extends DbQueryBaseDto {
 
   @IsNotEmpty()
   where?: [string, { [key: string]: string }][] = [];
-}
-
-export class DbFileQueryDto extends DbQueryDto {
-  @IsOptional()
-  @IsString()
-  filePrefix: string;
 }
 
 export class DbReturnData {
