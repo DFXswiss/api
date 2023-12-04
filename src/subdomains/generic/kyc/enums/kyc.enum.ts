@@ -19,6 +19,11 @@ export enum KycStepType {
   // TODO
 }
 
+export enum KycLogType {
+  KYC_STEP = 'KycStep',
+  NAME_CHECK = 'NameCheck',
+}
+
 export function getKycTypeIndex(stepType?: KycStepType): number {
   return Object.values(KycStepType).indexOf(stepType);
 }

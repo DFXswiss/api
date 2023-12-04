@@ -21,7 +21,7 @@ import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycSessionDto, KycStatusDto } from '../dto/output/kyc-info.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { KycStep } from '../entities/kyc-step.entity';
-import { KycStepName, KycStepStatus, KycStepType } from '../enums/kyc.enum';
+import { KycLogType, KycStepName, KycStepStatus, KycStepType } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { StepLogRepository } from '../repositories/step-log.repository';
 import { DocumentStorageService } from './integration/document-storage.service';
@@ -346,7 +346,7 @@ export class KycService {
   // --- HELPER METHODS --- //
   private async createStepLog(kycStep: KycStep): Promise<void> {
     const entity = this.stepLogRepo.create({
-      type: 'KycStep',
+      type: KycLogType.KYC_STEP,
       result: kycStep.result,
       userData: kycStep.userData,
       kycStep: kycStep,
