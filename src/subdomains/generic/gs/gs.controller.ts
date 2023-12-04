@@ -19,14 +19,6 @@ export class GsController {
     return this.gsService.getDbData(query);
   }
 
-  @Post('db/files')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getDbUserFileData(@Body() query: DbQueryDto): Promise<DbReturnData> {
-    return this.gsService.getDbUserFileData(query);
-  }
-
   @Post('db/custom')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()

@@ -51,40 +51,12 @@ export class GsService {
   ) {}
 
   async getDbData(query: DbQueryDto): Promise<DbReturnData> {
-    const data = await this.getRawDbData(query);
+    const data = await this.getRawDbData({ ...query, select: query.select?.filter((s) => !s.includes('documents')) });
+
+    if (query.table === 'user_data') await this.setUserDataDocs(data, query.select);
 
     // transform to array
     return this.transformResultArray(data, query.table);
-  }
-
-  async getDbUserFileData(query: DbQueryDto): Promise<any> {
-    const data: UserData[] = await this.getRawDbData({
-      ...query,
-      select: query.select?.filter((s) => !s.includes('documents')),
-      table: 'user_data',
-    });
-    const selectPaths = this.filterSelectDocumentColumn(query.select);
-
-    for (const userData of data) {
-      const userDataId = userData.id ?? (userData['user_data_id'] as number);
-
-      for (const selectPath of selectPaths) {
-        const prefixPath = this.toDocPrefixPath(selectPath, `${userDataId}`);
-
-        userData[selectPath] = prefixPath
-          ? await this.documentStorageService.listFilesByPrefix(prefixPath)
-          : [
-              ...(await this.documentStorageService.listUserFiles(userDataId)),
-              ...(await this.documentStorageService.listSpiderFiles(userDataId, false)),
-              ...(userData.accountType !== AccountType.PERSONAL
-                ? await this.documentStorageService.listSpiderFiles(userDataId, true)
-                : []),
-            ];
-      }
-    }
-
-    // transform to array
-    return this.transformResultArray(data, 'user_data');
   }
 
   async getExtendedDbData(query: DbQueryBaseDto): Promise<DbReturnData> {
@@ -120,6 +92,28 @@ export class GsService {
   }
 
   //*** HELPER METHODS ***//
+
+  private async setUserDataDocs(data: UserData[], select: string[]): Promise<void> {
+    const selectPaths = this.filterSelectDocumentColumn(select);
+
+    for (const userData of data) {
+      const userDataId = userData.id ?? (userData['user_data_id'] as number);
+
+      for (const selectPath of selectPaths) {
+        const prefixPath = this.toDocPrefixPath(selectPath, `${userDataId}`);
+
+        userData[selectPath] = prefixPath
+          ? await this.documentStorageService.listFilesByPrefix(prefixPath)
+          : [
+              ...(await this.documentStorageService.listUserFiles(userDataId)),
+              ...(await this.documentStorageService.listSpiderFiles(userDataId, false)),
+              ...(userData.accountType !== AccountType.PERSONAL
+                ? await this.documentStorageService.listSpiderFiles(userDataId, true)
+                : []),
+            ];
+      }
+    }
+  }
 
   private async getRawDbData(query: DbQueryDto): Promise<any[]> {
     const request = this.dataSource
@@ -255,7 +249,9 @@ export class GsService {
   }
 
   private filterSelectDocumentColumn(select: string[]): string[] {
-    return select.filter((s) => s.includes('documents')).map((doc) => doc.split('user_data.').join(''));
+    return (
+      select?.filter((s) => s.includes('documents')).map((doc) => doc.split('user_data.').join('')) ?? ['documents']
+    );
   }
 
   private toDocPrefixPath(selectPath: string, userDataId: string): string {
