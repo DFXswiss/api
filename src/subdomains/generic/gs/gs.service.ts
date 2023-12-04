@@ -16,7 +16,7 @@ import { AccountType } from '../user/models/user-data/account-type.enum';
 import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { UserService } from '../user/models/user/user.service';
-import { DbFileQueryDto, DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
+import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 
 export enum SupportTable {
@@ -51,35 +51,12 @@ export class GsService {
   ) {}
 
   async getDbData(query: DbQueryDto): Promise<DbReturnData> {
-    const data = await this.getRawDbData(query);
+    const data = await this.getRawDbData({ ...query, select: query.select?.filter((s) => !s.includes('documents')) });
+
+    if (query.table === 'user_data') await this.setUserDataDocs(data, query.select);
 
     // transform to array
     return this.transformResultArray(data, query.table);
-  }
-
-  async getDbUserFileData(query: DbFileQueryDto): Promise<any> {
-    const data: UserData[] = await this.getRawDbData({
-      ...query,
-      select: query.select?.filter((s) => !s.includes('documents')),
-      table: 'user_data',
-    });
-
-    for (const userData of data) {
-      const userDataId = userData.id ?? userData['user_data_id'];
-
-      userData['documents'] = query.filePrefix
-        ? await this.documentStorageService.listFilesByPrefix(`${query.filePrefix}/${userDataId}/`)
-        : [
-            ...(await this.documentStorageService.listUserFiles(userDataId)),
-            ...(await this.documentStorageService.listSpiderFiles(userDataId, false)),
-            ...(userData.accountType !== AccountType.PERSONAL
-              ? await this.documentStorageService.listSpiderFiles(userDataId, true)
-              : []),
-          ];
-    }
-
-    // transform to array
-    return this.transformResultArray(data, 'user_data');
   }
 
   async getExtendedDbData(query: DbQueryBaseDto): Promise<DbReturnData> {
@@ -115,6 +92,28 @@ export class GsService {
   }
 
   //*** HELPER METHODS ***//
+
+  private async setUserDataDocs(data: UserData[], select: string[]): Promise<void> {
+    const selectPaths = this.filterSelectDocumentColumn(select);
+
+    for (const userData of data) {
+      const userDataId = userData.id ?? (userData['user_data_id'] as number);
+
+      for (const selectPath of selectPaths) {
+        const prefixPath = this.toDocPrefixPath(selectPath, `${userDataId}`);
+
+        userData[selectPath] = prefixPath
+          ? await this.documentStorageService.listFilesByPrefix(prefixPath)
+          : [
+              ...(await this.documentStorageService.listUserFiles(userDataId)),
+              ...(await this.documentStorageService.listSpiderFiles(userDataId, false)),
+              ...(userData.accountType !== AccountType.PERSONAL
+                ? await this.documentStorageService.listSpiderFiles(userDataId, true)
+                : []),
+            ];
+      }
+    }
+  }
 
   private async getRawDbData(query: DbQueryDto): Promise<any[]> {
     const request = this.dataSource
@@ -249,6 +248,16 @@ export class GsService {
       );
   }
 
+  private filterSelectDocumentColumn(select: string[]): string[] {
+    return (
+      select?.filter((s) => s.includes('documents')).map((doc) => doc.split('user_data.').join('')) ?? ['documents']
+    );
+  }
+
+  private toDocPrefixPath(selectPath: string, userDataId: string): string {
+    return selectPath.split('-')?.[1]?.split('.').join('/').split('{userData}').join(userDataId);
+  }
+
   private transformResultArray(data: any[], table: string): DbReturnData {
     // transform to array
     return data.length > 0
@@ -260,7 +269,9 @@ export class GsService {
   }
 
   private renameDbKeys(table: string, keys: string[]): string[] {
-    return keys.map((k) => k.replace(`${table}_`, '')).map((k) => (k.includes('_') ? this.toDotSeparation(k) : k));
+    return keys
+      .map((k) => k.replace(`${table}_`, ''))
+      .map((k) => (k.includes('_') && !k.includes('documents') ? this.toDotSeparation(k) : k));
   }
 
   private toDotSeparation(str: string): string {
