@@ -17,13 +17,13 @@ export class PayoutMoneroService {
   }
 
   async sendTransfer(address: string, amount: number): Promise<string> {
-    const transfer = await this.client.transfer(address, amount);
+    const transfer = await this.client.sendTransfer(address, amount);
 
     if (!transfer) {
       throw new Error(`Error while sending payment by Monero ${address}`);
     }
 
-    return transfer.tx_hash;
+    return transfer.txid;
   }
 
   async getPayoutCompletionData(payoutTxId: string): Promise<[boolean, number]> {

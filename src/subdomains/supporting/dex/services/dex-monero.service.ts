@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { GetTransferInResultDto } from 'src/integration/blockchain/monero/dto/monero.dto';
+import { MoneroTransactionType, MoneroTransferDto } from 'src/integration/blockchain/monero/dto/monero.dto';
 import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
 import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
@@ -18,7 +18,7 @@ export class DexMoneroService {
   }
 
   async sendTransfer(address: string, amount: number): Promise<string> {
-    return this.client.transfer(address, amount).then((r) => r.tx_hash);
+    return this.client.sendTransfer(address, amount).then((r) => r.txid);
   }
 
   async transferMinimal(address: string): Promise<string> {
@@ -31,9 +31,9 @@ export class DexMoneroService {
     return MoneroHelper.isTransactionComplete(transaction);
   }
 
-  async getRecentHistory(blockCount: number): Promise<GetTransferInResultDto[]> {
+  async getRecentHistory(blockCount: number): Promise<MoneroTransferDto[]> {
     const currentBlockHeight = await this.client.getBlockHeight();
-    return this.client.getTransfers(currentBlockHeight - blockCount).then((t) => t.in);
+    return this.client.getTransfers(MoneroTransactionType.in, currentBlockHeight - blockCount);
   }
 
   async checkAvailableTargetLiquidity(inputAmount: number): Promise<[number, number]> {

@@ -10,10 +10,10 @@ export interface GetInfoResultDto {
 
 // https://web.getmonero.org/resources/developer-guides/daemon-rpc.html#get_fee_estimate
 export enum BaseFeePriority {
-  slow,
-  normal,
-  fast,
-  fastest,
+  slow = 'slow',
+  normal = 'normal',
+  fast = 'fast',
+  fastest = 'fastest',
 }
 
 export interface GetFeeEstimateResultDto {
@@ -94,23 +94,37 @@ export interface GetBalanceResultDto {
 }
 
 // https://web.getmonero.org/resources/developer-guides/wallet-rpc.html#transfer
-export interface TransferResultDto {
-  amount: number;
-  fee: number;
-  tx_hash: string;
-}
-
 // https://web.getmonero.org/resources/developer-guides/wallet-rpc.html#get_transfers
-export interface GetTransfersResultDto {
-  in: GetTransferInResultDto[];
+export interface MoneroTransferDto {
+  amount: number;
+  fee: number;
+  txid: string;
+
+  timestamp?: number;
+  address?: string;
+  confirmations?: number;
+  height?: number;
+
+  destinations?: [
+    {
+      address: string;
+      amount: number;
+    },
+  ];
 }
 
-export interface GetTransferInResultDto {
-  timestamp: number;
-  address: string;
-  amount: number;
-  confirmations: number;
-  fee: number;
-  height: number;
-  txid: string;
+export enum MoneroTransactionType {
+  in = 'in',
+  out = 'out',
+  failed = 'failed',
+  pending = 'pending',
+  pool = 'pool',
+}
+
+export interface GetTransfersResultDto {
+  in?: MoneroTransferDto[];
+  out?: MoneroTransferDto[];
+  failed?: MoneroTransferDto[];
+  pending?: MoneroTransferDto[];
+  pool?: MoneroTransferDto[];
 }

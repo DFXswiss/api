@@ -17,6 +17,7 @@ import { PayInBitcoinService } from './services/payin-bitcoin.service';
 import { PayInBscService } from './services/payin-bsc.service';
 import { PayInDeFiChainService } from './services/payin-defichain.service';
 import { PayInEthereumService } from './services/payin-ethereum.service';
+import { PayInMoneroService } from './services/payin-monero.service';
 import { PayInNotificationService } from './services/payin-notification.service';
 import { PayInOptimismService } from './services/payin-optimism.service';
 import { PayInService } from './services/payin.service';
@@ -27,6 +28,7 @@ import { BscStrategy as BscStrategyR } from './strategies/register/impl/bsc.stra
 import { DeFiChainStrategy as DeFiChainStrategyR } from './strategies/register/impl/defichain.strategy';
 import { EthereumStrategy as EthereumStrategyR } from './strategies/register/impl/ethereum.strategy';
 import { LightningStrategy as LightningStrategyR } from './strategies/register/impl/lightning.strategy';
+import { MoneroStrategy as MoneroStrategyR } from './strategies/register/impl/monero.strategy';
 import { OptimismStrategy as OptimismStrategyR } from './strategies/register/impl/optimism.strategy';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyS } from './strategies/send/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategyS } from './strategies/send/impl/arbitrum-token.strategy';
@@ -39,12 +41,9 @@ import { DeFiChainTokenStrategy as DeFiChainTokenStrategyS } from './strategies/
 import { EthereumCoinStrategy as EthereumCoinStrategyS } from './strategies/send/impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy as EthereumTokenStrategyS } from './strategies/send/impl/ethereum-token.strategy';
 import { LightningStrategy as LightningStrategyS } from './strategies/send/impl/lightning.strategy';
+import { MoneroStrategy as MoneroStrategyS } from './strategies/send/impl/monero.strategy';
 import { OptimismCoinStrategy as OptimismCoinStrategyS } from './strategies/send/impl/optimism-coin.strategy';
 import { OptimismTokenStrategy as OptimismTokenStrategyS } from './strategies/send/impl/optimism-token.strategy';
-
-import { PayInMoneroService } from './services/payin-monero.service';
-import { MoneroStrategy as MoneroStrategyR } from './strategies/register/impl/monero.strategy';
-import { MoneroStrategy as MoneroStrategyS } from './strategies/send/impl/monero.strategy';
 
 @Module({
   imports: [

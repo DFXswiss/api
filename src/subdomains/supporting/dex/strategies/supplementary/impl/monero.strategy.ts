@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { GetTransferInResultDto } from 'src/integration/blockchain/monero/dto/monero.dto';
+import { MoneroTransferDto } from 'src/integration/blockchain/monero/dto/monero.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
 import { TransactionQuery, TransactionResult, TransferRequest } from '../../../interfaces';
@@ -44,7 +44,7 @@ export class MoneroStrategy extends SupplementaryStrategy {
 
   //*** HELPER METHODS ***//
 
-  private filterRelevantHistory(allHistory: GetTransferInResultDto[], since: Date): GetTransferInResultDto[] {
+  private filterRelevantHistory(allHistory: MoneroTransferDto[], since: Date): MoneroTransferDto[] {
     return allHistory.filter((h) => Util.round(h.timestamp * 1000, 0) > since.getTime());
   }
 }

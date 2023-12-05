@@ -11,7 +11,8 @@ import {
   GetTransactionResultDto,
   GetTransfersResultDto,
   MoneroTransactionDto,
-  TransferResultDto,
+  MoneroTransactionType,
+  MoneroTransferDto,
   VerifyResultDto,
 } from './dto/monero.dto';
 import { MoneroHelper } from './monero-helper';
@@ -50,10 +51,10 @@ export class MoneroClient {
         },
         this.httpConfig(),
       )
-      .then((r) => this.mapFeeEstimate(r.result));
+      .then((r) => this.convertFeeEstimateAuToXmr(r.result));
   }
 
-  private mapFeeEstimate(feeEstimateResult: GetFeeEstimateResultDto): GetFeeEstimateResultDto {
+  private convertFeeEstimateAuToXmr(feeEstimateResult: GetFeeEstimateResultDto): GetFeeEstimateResultDto {
     feeEstimateResult.fee = MoneroHelper.auToXmr(feeEstimateResult.fee);
     feeEstimateResult.fees = feeEstimateResult.fees.map((fee) => MoneroHelper.auToXmr(fee));
 
@@ -104,7 +105,7 @@ export class MoneroClient {
   async verifySignature(message: string, address: string, signature: string): Promise<VerifyResultDto> {
     return this.http
       .post<{ result: VerifyResultDto }>(
-        `${Config.blockchain.monero.rpc.url}`,
+        `${Config.blockchain.monero.rpc.url}/json_rpc`,
         {
           method: 'verify',
           params: { data: message, address: address, signature: signature },
@@ -117,7 +118,7 @@ export class MoneroClient {
   async createAddress(label?: string): Promise<AddressResultDto> {
     return this.http
       .post<{ result: AddressResultDto }>(
-        `${Config.blockchain.monero.rpc.url}`,
+        `${Config.blockchain.monero.rpc.url}/json_rpc`,
         {
           method: 'create_address',
           params: {
@@ -140,7 +141,7 @@ export class MoneroClient {
   async getAddresses(): Promise<AddressResultDto[]> {
     return this.http
       .post<{ result: GetAddressResultDto }>(
-        `${Config.blockchain.monero.rpc.url}`,
+        `${Config.blockchain.monero.rpc.url}/json_rpc`,
         {
           method: 'get_address',
           params: {
@@ -155,26 +156,26 @@ export class MoneroClient {
   async getBalance(): Promise<GetBalanceResultDto> {
     return this.http
       .post<{ result: GetBalanceResultDto }>(
-        `${Config.blockchain.monero.rpc.url}`,
+        `${Config.blockchain.monero.rpc.url}/json_rpc`,
         {
           method: 'get_balance',
           params: { account_index: 0 },
         },
         this.httpConfig(),
       )
-      .then((r) => this.mapBalance(r.result));
+      .then((r) => this.convertBalanceAuToXmr(r.result));
   }
 
-  private mapBalance(balanceResultDto: GetBalanceResultDto): GetBalanceResultDto {
+  private convertBalanceAuToXmr(balanceResultDto: GetBalanceResultDto): GetBalanceResultDto {
     balanceResultDto.unlocked_balance = MoneroHelper.auToXmr(balanceResultDto.unlocked_balance);
 
     return balanceResultDto;
   }
 
-  async transfer(destinationAddress: string, amount: number): Promise<TransferResultDto> {
+  async sendTransfer(destinationAddress: string, amount: number): Promise<MoneroTransferDto> {
     return this.http
-      .post<{ result: TransferResultDto }>(
-        `${Config.blockchain.monero.rpc.url}`,
+      .post<{ result: MoneroTransferDto }>(
+        `${Config.blockchain.monero.rpc.url}/json_rpc`,
         {
           method: 'transfer',
           params: {
@@ -185,27 +186,33 @@ export class MoneroClient {
         },
         this.httpConfig(),
       )
-      .then((r) => this.mapTransfer(r.result));
+      .then((r) => this.convertTransferAuToXmr(r.result));
   }
 
-  private mapTransfer(transferResult: TransferResultDto): TransferResultDto {
-    transferResult.amount = MoneroHelper.auToXmr(transferResult.amount ?? 0);
-    transferResult.fee = MoneroHelper.auToXmr(transferResult.fee ?? 0);
-
-    return transferResult;
-  }
-
-  async getTransfers(blockHeight: number): Promise<GetTransfersResultDto> {
+  async getTransfers(type: MoneroTransactionType, blockHeight: number): Promise<MoneroTransferDto[]> {
     return this.http
       .post<{ result: GetTransfersResultDto }>(
-        `${Config.blockchain.monero.rpc.url}`,
+        `${Config.blockchain.monero.rpc.url}/json_rpc`,
         {
           method: 'get_transfers',
-          params: { in: true, filter_by_height: true, min_height: blockHeight },
+          params: {
+            [type]: true,
+            filter_by_height: true,
+            min_height: blockHeight,
+          },
         },
         this.httpConfig(),
       )
-      .then((r) => r.result);
+      .then((r) => r.result[type]?.map((t) => this.convertTransferAuToXmr(t)) ?? []);
+  }
+
+  private convertTransferAuToXmr(transfer: MoneroTransferDto): MoneroTransferDto {
+    transfer.amount = MoneroHelper.auToXmr(transfer.amount);
+    transfer.fee = MoneroHelper.auToXmr(transfer.fee);
+
+    transfer.destinations?.forEach((d) => (d.amount = MoneroHelper.auToXmr(d.amount)));
+
+    return transfer;
   }
 
   // --- HELPER --- //
@@ -213,7 +220,7 @@ export class MoneroClient {
   private httpConfig(): HttpRequestConfig {
     return {
       httpsAgent: new Agent({
-        ca: Config.blockchain.monero.rpc.certificate,
+        ca: Config.blockchain.monero.certificate,
       }),
     };
   }

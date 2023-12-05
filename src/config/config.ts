@@ -360,8 +360,9 @@ export class Configuration {
       },
       rpc: {
         url: process.env.MONERO_RPC_URL,
-        certificate: process.env.MONERO_RPC_CERTIFICATE?.split('<br>').join('\n'),
       },
+      walletAddress: process.env.MONERO_WALLET_ADDRESS,
+      certificate: process.env.MONERO_RPC_CERTIFICATE?.split('<br>').join('\n'),
     },
   };
 

@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Process } from 'src/config/config';
-import { GetTransferInResultDto } from 'src/integration/blockchain/monero/dto/monero.dto';
+import { MoneroTransferDto } from 'src/integration/blockchain/monero/dto/monero.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
@@ -54,8 +56,8 @@ export class MoneroStrategy extends RegisterStrategy {
 
   //*** JOBS ***//
 
-  //  @Cron(CronExpression.EVERY_MINUTE)
-  //   @Lock(7200)
+  @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(7200)
   async checkPayInEntries(): Promise<void> {
     if (Config.processDisabled(Process.PAY_IN)) return;
 
@@ -67,18 +69,11 @@ export class MoneroStrategy extends RegisterStrategy {
   private async processNewPayInEntries(): Promise<void> {
     const log = this.createNewLogObject();
 
-    const lastCheckedTxId = await this.payInRepository
-      .findOne({
-        select: ['inTxId'],
-        where: { address: { blockchain: this.blockchain } },
-        order: { id: 'DESC' },
-        loadEagerRelations: false,
-      })
-      .then((input) => input?.inTxId ?? '');
+    const lastCheckedBlockHeight = await this.getLastCheckedBlockHeight();
 
-    const newEntries = await this.getNewEntries(lastCheckedTxId);
+    const newEntries = await this.getNewEntries(lastCheckedBlockHeight);
 
-    if (newEntries) {
+    if (newEntries?.length) {
       await this.addReferenceAmounts(newEntries);
       await this.createPayInsAndSave(newEntries, log);
     }
@@ -86,15 +81,36 @@ export class MoneroStrategy extends RegisterStrategy {
     this.printInputLog(log, 'omitted', this.blockchain);
   }
 
-  private async getNewEntries(lastCheckedTxId: string): Promise<PayInEntry[]> {
+  private async getLastCheckedBlockHeight(): Promise<number> {
+    return this.payInRepository
+      .findOne({
+        select: ['id', 'blockHeight'],
+        where: { address: { blockchain: this.blockchain } },
+        order: { blockHeight: 'DESC' },
+        loadEagerRelations: false,
+      })
+      .then((input) => input?.blockHeight ?? 0);
+  }
+
+  private async getNewEntries(lastCheckedBlockHeight: number): Promise<PayInEntry[]> {
     const isHealthy = await this.payInMoneroService.isHealthy();
     if (!isHealthy) throw new Error('Monero Node not in sync');
 
-    const transferInResults = await this.payInMoneroService.getTransactionHistory(lastCheckedTxId);
-    return this.mapToPayInEntries(transferInResults);
+    const transferInResults = await this.payInMoneroService.getTransactionHistory(lastCheckedBlockHeight);
+    const relevantTransferInResults = this.filterByRelevantAddresses(this.getOwnAddresses(), transferInResults);
+
+    return this.mapToPayInEntries(relevantTransferInResults);
   }
 
-  private async mapToPayInEntries(transferInResults: GetTransferInResultDto[]): Promise<PayInEntry[]> {
+  private getOwnAddresses(): string[] {
+    return [Config.blockchain.monero.walletAddress];
+  }
+
+  private filterByRelevantAddresses(ownAddresses: string[], transferResults: MoneroTransferDto[]): MoneroTransferDto[] {
+    return transferResults.filter((t) => !ownAddresses.map((a) => a.toLowerCase()).includes(t.address.toLowerCase()));
+  }
+
+  private async mapToPayInEntries(transferInResults: MoneroTransferDto[]): Promise<PayInEntry[]> {
     const asset = await this.assetService.getMoneroCoin();
 
     return [...transferInResults].reverse().map((p) => ({
