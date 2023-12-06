@@ -141,7 +141,7 @@ export class PricingService {
     this.addPath(
       new PricePath(PricingPathAlias.FIAT_TO_ALT_COIN, [
         new PriceStep({
-          to: 'BTC',
+          to: 'USDT',
           primary: {
             providers: [this.krakenService],
           },
@@ -150,7 +150,7 @@ export class PricingService {
           },
         }),
         new PriceStep({
-          from: 'BTC',
+          from: 'USDT',
           primary: {
             providers: [this.binanceService],
           },
@@ -164,7 +164,7 @@ export class PricingService {
     this.addPath(
       new PricePath(PricingPathAlias.ALT_COIN_TO_ALT_COIN, [
         new PriceStep({
-          to: 'BTC',
+          to: 'USDT',
           primary: {
             providers: [this.binanceService],
           },
@@ -173,7 +173,7 @@ export class PricingService {
           },
         }),
         new PriceStep({
-          from: 'BTC',
+          from: 'USDT',
           primary: {
             providers: [this.binanceService],
           },
