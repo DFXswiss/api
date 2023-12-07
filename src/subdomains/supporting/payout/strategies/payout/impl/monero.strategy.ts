@@ -35,16 +35,30 @@ export class MoneroStrategy extends PayoutStrategy {
   async doPayout(orders: PayoutOrder[]): Promise<void> {
     if (await this.isHealthy()) {
       for (const order of orders) {
-        try {
-          const address = order.destinationAddress;
-          const amount = order.amount;
-
-          const txId = await this.payoutMoneroService.sendTransfer(address, amount);
-          await this.finishDoPayout(order, txId);
-        } catch (e) {
-          this.logger.error(`Error while executing Monero payout order ${order.id}:`, e);
-        }
+        await this.executePayout(order);
       }
+    }
+  }
+
+  private async executePayout(order: PayoutOrder): Promise<void> {
+    try {
+      const address = order.destinationAddress;
+      const amount = order.amount;
+
+      const unlockedBalance = await this.payoutMoneroService.getUnlockedBalance();
+      const estimateFee = await this.payoutMoneroService.getEstimatedFee();
+
+      // use factor 2 for the estimate fee to be on the save side
+      const checkPayoutAmount = amount + estimateFee * 2;
+
+      if (unlockedBalance < checkPayoutAmount) {
+        this.logger.info(`Insufficient unlocked balance ${unlockedBalance} for payout ${amount}`);
+      } else {
+        const txId = await this.payoutMoneroService.sendTransfer(address, amount);
+        await this.finishDoPayout(order, txId);
+      }
+    } catch (e) {
+      this.logger.error(`Error while executing Monero payout order ${order.id}:`, e);
     }
   }
 

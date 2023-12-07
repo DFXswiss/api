@@ -16,6 +16,10 @@ export class PayoutMoneroService {
     return this.moneroService.isHealthy();
   }
 
+  async getUnlockedBalance(): Promise<number> {
+    return this.client.getBalance().then((b) => b.unlocked_balance);
+  }
+
   async sendTransfer(address: string, amount: number): Promise<string> {
     const transfer = await this.client.sendTransfer(address, amount);
 

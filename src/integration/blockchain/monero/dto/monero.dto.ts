@@ -10,10 +10,10 @@ export interface GetInfoResultDto {
 
 // https://web.getmonero.org/resources/developer-guides/daemon-rpc.html#get_fee_estimate
 export enum BaseFeePriority {
-  slow = 'slow',
-  normal = 'normal',
-  fast = 'fast',
-  fastest = 'fastest',
+  slow = 0,
+  normal = 1,
+  fast = 2,
+  fastest = 3,
 }
 
 export interface GetFeeEstimateResultDto {
@@ -126,9 +126,15 @@ export enum MoneroTransactionType {
 }
 
 export interface GetSendTransferResultDto {
-  amount: number;
-  fee: number;
-  tx_hash: string;
+  result?: {
+    amount: number;
+    fee: number;
+    tx_hash: string;
+  };
+  error?: {
+    code: number;
+    message: string;
+  };
 }
 
 export interface GetTransfersResultDto {

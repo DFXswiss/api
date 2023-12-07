@@ -183,7 +183,7 @@ export class MoneroClient {
 
   async sendTransfer(destinationAddress: string, amount: number): Promise<MoneroTransferDto> {
     return this.http
-      .post<{ result: GetSendTransferResultDto }>(
+      .post<GetSendTransferResultDto>(
         `${Config.blockchain.monero.rpc.url}/json_rpc`,
         {
           method: 'transfer',
@@ -195,19 +195,22 @@ export class MoneroClient {
         },
         this.httpConfig(),
       )
-      .then((r) => this.mapSendTransfer(r.result));
+      .then((r) => this.mapSendTransfer(r));
   }
 
   private mapSendTransfer(sendTransferResult: GetSendTransferResultDto): MoneroTransferDto {
+    if (sendTransferResult.error) throw new Error(sendTransferResult.error.message);
+    if (!sendTransferResult.result) throw new Error('No result after send transfer');
+
     return this.convertTransferAuToXmr({
-      amount: sendTransferResult.amount,
-      fee: sendTransferResult.fee,
-      txid: sendTransferResult.tx_hash,
+      amount: sendTransferResult.result.amount,
+      fee: sendTransferResult.result.fee,
+      txid: sendTransferResult.result.tx_hash,
     });
   }
 
   async getTransfers(type: MoneroTransactionType, blockHeight: number): Promise<MoneroTransferDto[]> {
-    return this.http
+    const transfers = await this.http
       .post<{ result: GetTransfersResultDto }>(
         `${Config.blockchain.monero.rpc.url}/json_rpc`,
         {
@@ -221,6 +224,12 @@ export class MoneroClient {
         this.httpConfig(),
       )
       .then((r) => r.result[type]?.map((t) => this.convertTransferAuToXmr(t)) ?? []);
+
+    return this.sortTransfers(transfers);
+  }
+
+  private sortTransfers(transfers: MoneroTransferDto[]): MoneroTransferDto[] {
+    return transfers.sort((t1, t2) => (t1.timestamp > t2.timestamp ? -1 : 1));
   }
 
   private convertTransferAuToXmr(transfer: MoneroTransferDto): MoneroTransferDto {
