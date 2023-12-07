@@ -30,7 +30,15 @@ import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { UserRepository } from '../user/user.repository';
 import { AccountType } from './account-type.enum';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
-import { KycCompleted, KycStatus, KycType, UserData, UserDataStatus } from './user-data.entity';
+import {
+  KycCompleted,
+  KycInProgress,
+  KycState,
+  KycStatus,
+  KycType,
+  UserData,
+  UserDataStatus,
+} from './user-data.entity';
 import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
