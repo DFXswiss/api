@@ -30,16 +30,10 @@ import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { UserRepository } from '../user/user.repository';
 import { AccountType } from './account-type.enum';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
-import {
-  KycCompleted,
-  KycInProgress,
-  KycState,
-  KycStatus,
-  KycType,
-  UserData,
-  UserDataStatus,
-} from './user-data.entity';
+import { KycCompleted, KycStatus, KycType, UserData, UserDataStatus } from './user-data.entity';
 import { UserDataRepository } from './user-data.repository';
+
+export const MergedPrefix = 'Merged into ';
 
 @Injectable()
 export class UserDataService {
@@ -73,8 +67,8 @@ export class UserDataService {
       .getOne();
   }
 
-  async getUserData(userDataId: number): Promise<UserData> {
-    return this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['users'] });
+  async getUserData(userDataId: number, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
+    return this.userDataRepo.findOne({ where: { id: userDataId }, relations });
   }
 
   async getUserDataByKycHash(
@@ -382,7 +376,10 @@ export class UserDataService {
     await this.userDataRepo.save(master);
 
     // update slave status
-    await this.userDataRepo.update(slave.id, { status: UserDataStatus.MERGED, firstname: `Merged into ${master.id}` });
+    await this.userDataRepo.update(slave.id, {
+      status: UserDataStatus.MERGED,
+      firstname: `${MergedPrefix}${master.id}`,
+    });
 
     // KYC change Webhook
     await this.webhookService.kycChanged(master);

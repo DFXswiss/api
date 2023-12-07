@@ -98,7 +98,7 @@ export class KycService {
   }
 
   async syncKycFiles(userDataId: number, documents: KycDocument[], singleVersion?: string): Promise<void> {
-    const userData = await this.userDataService.getUserData(userDataId);
+    const userData = await this.userDataService.getUserData(userDataId, { users: true });
     await this.spiderSyncService.syncKycFiles(userData, documents, singleVersion);
   }
 
@@ -146,7 +146,7 @@ export class KycService {
   }
 
   async triggerWebhook(userDataId: number, reason?: string): Promise<void> {
-    const user = await this.userDataService.getUserData(userDataId);
+    const user = await this.userDataService.getUserData(userDataId, { users: true });
     if (!user) throw new NotFoundException('User not found');
 
     if (user.kycState === KycState.FAILED) {

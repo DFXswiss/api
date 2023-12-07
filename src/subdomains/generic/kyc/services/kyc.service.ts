@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Process } from 'src/config/config';
 import { Country } from 'src/shared/models/country/country.entity';
@@ -7,8 +7,8 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { LessThan } from 'typeorm';
-import { KycLevel, UserData } from '../../user/models/user-data/user-data.entity';
-import { UserDataService } from '../../user/models/user-data/user-data.service';
+import { KycLevel, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
+import { MergedPrefix, UserDataService } from '../../user/models/user-data/user-data.service';
 import { IdentStatus } from '../dto/ident.dto';
 import { IdentResultDto, IdentShortResult, getIdentResult } from '../dto/input/ident-result.dto';
 import { KycContactData } from '../dto/input/kyc-contact-data.dto';
@@ -19,6 +19,7 @@ import { KycDataMapper } from '../dto/mapper/kyc-data.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycSessionDto, KycStatusDto } from '../dto/output/kyc-info.dto';
+import { MergedDto } from '../dto/output/kyc-merged.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { KycStep } from '../entities/kyc-step.entity';
 import { KycStepName, KycStepStatus, KycStepType } from '../enums/kyc.enum';
@@ -68,10 +69,10 @@ export class KycService {
     return KycInfoMapper.toDto(user, false);
   }
 
-  async continue(kycHash: string): Promise<KycSessionDto> {
+  async continue(kycHash: string, autoStep: boolean): Promise<KycSessionDto> {
     let user = await this.getUserOrThrow(kycHash);
 
-    user = await this.updateProgress(user, true);
+    user = await this.updateProgress(user, true, autoStep);
 
     await this.verify2faIfRequired(user);
 
@@ -243,19 +244,19 @@ export class KycService {
     return KycInfoMapper.toDto(user, true, step);
   }
 
-  private async updateProgress(user: UserData, shouldContinue: boolean): Promise<UserData> {
+  private async updateProgress(user: UserData, shouldContinue: boolean, autoStep = true, depth = 0): Promise<UserData> {
     if (!user.hasStepsInProgress) {
       const { nextStep, nextLevel } = await this.getNext(user);
 
       if (nextLevel) user.setKycLevel(nextLevel);
 
-      if (nextStep && shouldContinue) {
+      if (nextStep && shouldContinue && (autoStep || depth === 0)) {
         // continue with next step
         const step = await this.initiateStep(user, nextStep.name, nextStep.type, nextStep.preventDirectEvaluation);
         user.nextStep(step);
 
         // update again if step is complete
-        if (step.isCompleted) return this.updateProgress(user, shouldContinue);
+        if (step.isCompleted) return this.updateProgress(user, shouldContinue, autoStep, depth + 1);
       }
     }
 
@@ -351,10 +352,30 @@ export class KycService {
   }
 
   private async getUserOrThrow(kycHash: string): Promise<UserData> {
-    const user = await this.userDataService.getUserDataByKycHash(kycHash, { users: true });
+    let user = await this.userDataService.getUserDataByKycHash(kycHash, { users: true });
     if (!user) throw new NotFoundException('User not found');
 
+    if (user.status === UserDataStatus.MERGED) {
+      user = await this.getMasterUser(user);
+      if (user) {
+        const payload: MergedDto = {
+          error: 'Conflict',
+          message: 'User is merged',
+          statusCode: 409,
+          switchToCode: user.kycHash,
+        };
+        throw new ConflictException(payload);
+      } else {
+        throw new BadRequestException('User is merged');
+      }
+    }
+
     return user;
+  }
+
+  private async getMasterUser(user: UserData): Promise<UserData | undefined> {
+    const masterUserId = +user.firstname.replace(MergedPrefix, '');
+    if (!isNaN(masterUserId)) return this.userDataService.getUserData(masterUserId);
   }
 
   private async saveUser(user: UserData): Promise<UserData> {
