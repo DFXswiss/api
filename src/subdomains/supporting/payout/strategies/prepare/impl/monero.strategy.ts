@@ -5,7 +5,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { AutoConfirmStrategy } from './base/auto-confirm.strategy';
 
-Injectable();
+@Injectable()
 export class MoneroStrategy extends AutoConfirmStrategy {
   constructor(private readonly assetService: AssetService, payoutOrderRepo: PayoutOrderRepository) {
     super(payoutOrderRepo);

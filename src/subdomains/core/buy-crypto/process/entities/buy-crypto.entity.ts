@@ -222,6 +222,7 @@ export class BuyCrypto extends IEntity {
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
       case Blockchain.BINANCE_SMART_CHAIN:
+      case Blockchain.MONERO:
         this.setOutputReferenceAsset(this.outputAsset);
         return null;
 

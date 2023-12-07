@@ -39,6 +39,10 @@ export interface MoneroTransactionDto {
   vout?: [MoneroTransactionVoutDto];
   extra?: [number];
   signatures?: [string];
+  rct_signatures?: {
+    type: number;
+    txnFee: number;
+  };
 
   block_height?: number;
   block_timestamp?: number;
@@ -119,6 +123,12 @@ export enum MoneroTransactionType {
   failed = 'failed',
   pending = 'pending',
   pool = 'pool',
+}
+
+export interface GetSendTransferResultDto {
+  amount: number;
+  fee: number;
+  tx_hash: string;
 }
 
 export interface GetTransfersResultDto {

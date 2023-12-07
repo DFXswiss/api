@@ -8,6 +8,7 @@ import {
   GetBalanceResultDto,
   GetFeeEstimateResultDto,
   GetInfoResultDto,
+  GetSendTransferResultDto,
   GetTransactionResultDto,
   GetTransfersResultDto,
   MoneroTransactionDto,
@@ -74,7 +75,7 @@ export class MoneroClient {
       .then((r) => this.mapTransaction(r.status, r.txs));
   }
 
-  mapTransaction(status: string, txs?: GetTransactionResultDto[]): MoneroTransactionDto {
+  private mapTransaction(status: string, txs?: GetTransactionResultDto[]): MoneroTransactionDto {
     if ('OK' !== status || !txs) return {};
 
     const transactionResult = txs[0];
@@ -87,6 +88,12 @@ export class MoneroClient {
     transaction.confirmations = transactionResult.confirmations;
     transaction.tx_hash = transactionResult.tx_hash;
 
+    transaction.txnFee = MoneroHelper.auToXmr(this.mapTransactionFee(transaction));
+
+    return transaction;
+  }
+
+  private mapTransactionFee(transaction: MoneroTransactionDto): number {
     const vinAmounts = transaction.vin?.map((vin) => vin.key.amount) ?? [0];
     const voutAmounts = transaction.vout?.map((vout) => vout.amount) ?? [0];
 
@@ -95,9 +102,11 @@ export class MoneroClient {
 
     transaction.inAmount = MoneroHelper.auToXmr(totalVinAmount);
     transaction.outAmount = MoneroHelper.auToXmr(totalVoutAmount);
-    transaction.txnFee = MoneroHelper.auToXmr(totalVinAmount - totalVoutAmount);
 
-    return transaction;
+    const transactionFee = totalVinAmount - totalVoutAmount;
+    if (transactionFee > 0) return transactionFee;
+
+    return transaction.rct_signatures?.txnFee ?? 0;
   }
 
   // --- MONERO WALLET --- //
@@ -174,7 +183,7 @@ export class MoneroClient {
 
   async sendTransfer(destinationAddress: string, amount: number): Promise<MoneroTransferDto> {
     return this.http
-      .post<{ result: MoneroTransferDto }>(
+      .post<{ result: GetSendTransferResultDto }>(
         `${Config.blockchain.monero.rpc.url}/json_rpc`,
         {
           method: 'transfer',
@@ -186,7 +195,15 @@ export class MoneroClient {
         },
         this.httpConfig(),
       )
-      .then((r) => this.convertTransferAuToXmr(r.result));
+      .then((r) => this.mapSendTransfer(r.result));
+  }
+
+  private mapSendTransfer(sendTransferResult: GetSendTransferResultDto): MoneroTransferDto {
+    return this.convertTransferAuToXmr({
+      amount: sendTransferResult.amount,
+      fee: sendTransferResult.fee,
+      txid: sendTransferResult.tx_hash,
+    });
   }
 
   async getTransfers(type: MoneroTransactionType, blockHeight: number): Promise<MoneroTransferDto[]> {
