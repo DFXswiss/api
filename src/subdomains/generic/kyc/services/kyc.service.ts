@@ -22,8 +22,9 @@ import { KycSessionDto, KycStatusDto } from '../dto/output/kyc-info.dto';
 import { MergedDto } from '../dto/output/kyc-merged.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { KycStep } from '../entities/kyc-step.entity';
-import { KycStepName, KycStepStatus, KycStepType } from '../enums/kyc.enum';
+import { KycLogType, KycStepName, KycStepStatus, KycStepType } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
+import { StepLogRepository } from '../repositories/step-log.repository';
 import { DocumentStorageService } from './integration/document-storage.service';
 import { FinancialService } from './integration/financial.service';
 import { IdentService } from './integration/ident.service';
@@ -40,6 +41,7 @@ export class KycService {
     private readonly kycStepRepo: KycStepRepository,
     private readonly languageService: LanguageService,
     private readonly countryService: CountryService,
+    private readonly stepLogRepo: StepLogRepository,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
@@ -60,6 +62,7 @@ export class KycService {
       const step = user.getPendingStepOrThrow(identStep.id);
       user = user.failStep(step);
       await this.userDataService.save(user);
+      await this.createStepLog(step);
     }
   }
 
@@ -93,6 +96,7 @@ export class KycService {
     const { user: updatedUser, isKnownUser } = await this.userDataService.updateUserSettings(user, data, true);
     user = isKnownUser ? updatedUser.failStep(kycStep) : updatedUser.completeStep(kycStep);
 
+    await this.createStepLog(kycStep);
     await this.updateProgress(user, false);
 
     return { status: kycStep.status };
@@ -106,6 +110,7 @@ export class KycService {
 
     if (user.isDataComplete) user = user.completeStep(kycStep);
 
+    await this.createStepLog(kycStep);
     await this.updateProgress(user, false);
 
     return { status: kycStep.status };
@@ -135,6 +140,7 @@ export class KycService {
     const complete = this.financialService.isComplete(data.responses);
     if (complete) user.reviewStep(kycStep);
 
+    await this.createStepLog(kycStep);
     await this.updateProgress(user, false);
 
     return { status: kycStep.status };
@@ -180,6 +186,7 @@ export class KycService {
         this.logger.error(`Unknown ident result for user ${user.id}: ${sessionStatus}`);
     }
 
+    await this.createStepLog(kycStep);
     await this.updateProgress(user, false);
   }
 
@@ -192,6 +199,7 @@ export class KycService {
     if (status === IdentStatus.SUCCESS) {
       user = user.finishStep(kycStep);
 
+      await this.createStepLog(kycStep);
       await this.updateProgress(user, false);
     }
 
@@ -337,6 +345,18 @@ export class KycService {
   }
 
   // --- HELPER METHODS --- //
+  private async createStepLog(kycStep: KycStep): Promise<void> {
+    const entity = this.stepLogRepo.create({
+      type: KycLogType.KYC_STEP,
+      result: kycStep.result,
+      userData: kycStep.userData,
+      kycStep: kycStep,
+      status: kycStep.status,
+    });
+
+    await this.stepLogRepo.save(entity);
+  }
+
   private async getUserByTransactionOrThrow(
     transactionId: string,
     data: any,
