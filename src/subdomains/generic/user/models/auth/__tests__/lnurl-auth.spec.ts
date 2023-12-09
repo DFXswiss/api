@@ -5,6 +5,7 @@ import { Config } from 'src/config/config';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { IpLog } from 'src/shared/models/ip-log/ip-log.entity';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
+import { ProcessService } from 'src/shared/services/process.service';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { Util } from 'src/shared/utils/util';
 import { AuthService } from 'src/subdomains/generic/user/models/auth/auth.service';
@@ -16,6 +17,7 @@ describe('LnurlAuth', () => {
   let lnUrlAuthService: AuthLnUrlService;
   let authServiceMock: AuthService;
   let ipLogServiceMock: IpLogService;
+  let processService: ProcessService;
 
   let signupDto: AuthLnurlSignupDto;
 
@@ -36,6 +38,7 @@ describe('LnurlAuth', () => {
 
     authServiceMock = mock<AuthService>();
     ipLogServiceMock = mock<IpLogService>();
+    processService = mock<ProcessService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [],
@@ -43,6 +46,7 @@ describe('LnurlAuth', () => {
         TestUtil.provideConfig(config),
         { provide: AuthService, useValue: authServiceMock },
         { provide: IpLogService, useValue: ipLogServiceMock },
+        { provide: ProcessService, useValue: processService },
         AuthLnUrlService,
       ],
       controllers: [],

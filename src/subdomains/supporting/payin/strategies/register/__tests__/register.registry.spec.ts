@@ -5,6 +5,7 @@ import { LightningService } from 'src/integration/lightning/services/lightning.s
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
+import { ProcessService } from 'src/shared/services/process.service';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInArbitrumService } from '../../../services/payin-arbitrum.service';
 import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
@@ -38,14 +39,21 @@ describe('RegisterStrategyRegistry', () => {
       mock<PayInBitcoinService>(),
       mock<ChainalysisService>(),
       mock<PayInRepository>(),
+      mock<ProcessService>(),
     );
 
-    lightningStrategy = new LightningStrategy(mock<LightningService>(), mock<AssetService>(), mock<PayInRepository>());
+    lightningStrategy = new LightningStrategy(
+      mock<LightningService>(),
+      mock<AssetService>(),
+      mock<PayInRepository>(),
+      mock<ProcessService>(),
+    );
 
     defichainStrategy = new DeFiChainStrategy(
       mock<AssetService>(),
       mock<PayInDeFiChainService>(),
       mock<PayInRepository>(),
+      mock<ProcessService>(),
     );
 
     ethereumStrategy = new EthereumStrategy(
@@ -53,6 +61,7 @@ describe('RegisterStrategyRegistry', () => {
       mock<PayInRepository>(),
       mock<AssetService>(),
       mock<RepositoryFactory>(),
+      mock<ProcessService>(),
     );
 
     bscStrategy = new BscStrategy(
@@ -60,6 +69,7 @@ describe('RegisterStrategyRegistry', () => {
       mock<PayInRepository>(),
       mock<AssetService>(),
       mock<RepositoryFactory>(),
+      mock<ProcessService>(),
     );
 
     arbitrumStrategy = new ArbitrumStrategy(
@@ -67,6 +77,7 @@ describe('RegisterStrategyRegistry', () => {
       mock<PayInRepository>(),
       mock<AssetService>(),
       mock<RepositoryFactory>(),
+      mock<ProcessService>(),
     );
 
     optimismStrategy = new OptimismStrategy(
@@ -74,6 +85,7 @@ describe('RegisterStrategyRegistry', () => {
       mock<PayInRepository>(),
       mock<AssetService>(),
       mock<RepositoryFactory>(),
+      mock<ProcessService>(),
     );
 
     registry = new RegisterStrategyRegistryWrapper(
