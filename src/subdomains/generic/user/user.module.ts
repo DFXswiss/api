@@ -20,8 +20,8 @@ import { BankDataController } from './models/bank-data/bank-data.controller';
 import { BankData } from './models/bank-data/bank-data.entity';
 import { BankDataRepository } from './models/bank-data/bank-data.repository';
 import { BankDataService } from './models/bank-data/bank-data.service';
-import { IdentController } from './models/ident/ident.controller';
 import { KycClientController, KycController } from './models/kyc/kyc.controller';
+import { KycService } from './models/kyc/kyc.service';
 import { LimitRequestNotificationService } from './models/limit-request/limit-request-notification.service';
 import { LimitRequestController } from './models/limit-request/limit-request.controller';
 import { LimitRequest } from './models/limit-request/limit-request.entity';
@@ -59,7 +59,6 @@ import { WebhookService } from './services/webhook/webhook.service';
     BankDataController,
     AuthController,
     AuthLnurlController,
-    IdentController,
     KycClientController,
     KycController,
     LinkController,
@@ -84,6 +83,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     LimitRequestService,
     LinkService,
     WebhookService,
+    KycService,
     LimitRequestNotificationService,
     UserDataNotificationService,
   ],

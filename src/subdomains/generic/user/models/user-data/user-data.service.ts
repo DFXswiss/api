@@ -19,7 +19,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
-import { FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
+import { FindOptionsRelations, In, IsNull, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { LinkService } from '../link/link.service';
@@ -357,16 +357,6 @@ export class UserDataService {
         await this.userRepo.activateUser(user);
       }
     }
-  }
-
-  async getAllUserDataWithEmptyFileId(): Promise<number[]> {
-    const userDataList = await this.userDataRepo.findBy({ kycFileId: MoreThan(0) });
-    const idList = [];
-    for (const userData of userDataList) {
-      idList.push(userData.id);
-    }
-
-    return idList;
   }
 
   private async updateBankTxTime(userDataId: number): Promise<void> {
