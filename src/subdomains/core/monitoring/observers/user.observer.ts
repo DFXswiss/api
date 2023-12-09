@@ -1,15 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Process, ProcessService } from 'src/shared/services/process.service';
+import { Lock } from 'src/shared/utils/lock';
+import { Util } from 'src/shared/utils/util';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
-import { Util } from 'src/shared/utils/util';
-import { KycStatus, IdentCompletedStates } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { IdentCompletedStates, KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
-import { LessThan, IsNull, In } from 'typeorm';
-import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
-import { Config, Process } from 'src/config/config';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Lock } from 'src/shared/utils/lock';
+import { In, IsNull, LessThan } from 'typeorm';
 
 interface UserData {
   kycStatus: {
@@ -29,14 +29,18 @@ interface UserWithout {
 export class UserObserver extends MetricObserver<UserData> {
   protected readonly logger = new DfxLogger(UserObserver);
 
-  constructor(monitoringService: MonitoringService, private readonly repos: RepositoryFactory) {
+  constructor(
+    monitoringService: MonitoringService,
+    private readonly repos: RepositoryFactory,
+    private readonly processService: ProcessService,
+  ) {
     super(monitoringService, 'user', 'kyc');
   }
 
   @Cron(CronExpression.EVERY_10_MINUTES)
   @Lock(1800)
   async fetch(): Promise<UserData> {
-    if (Config.processDisabled(Process.MONITORING)) return;
+    if (await this.processService.isDisableProcess(Process.MONITORING)) return;
 
     const data = await this.getUser();
 

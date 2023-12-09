@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { Config, Process } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Process, ProcessService } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import {
@@ -23,11 +24,12 @@ export class BuyCryptoNotificationService {
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly notificationService: NotificationService,
+    private readonly processService: ProcessService,
   ) {}
 
   async sendNotificationMails(): Promise<void> {
     try {
-      if (Config.processDisabled(Process.BUY_CRYPTO_MAIL)) return;
+      if (await this.processService.isDisableProcess(Process.BUY_CRYPTO_MAIL)) return;
       await this.buyCryptoConfirmed();
       await this.paybackToAddressInitiated();
       await this.pendingBuyCrypto();

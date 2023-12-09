@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Process, ProcessService } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
@@ -15,12 +16,13 @@ export class UserDataNotificationService {
   constructor(
     private readonly userDataRepo: UserDataRepository,
     private readonly notificationService: NotificationService,
+    private readonly processService: ProcessService,
   ) {}
 
   @Cron(CronExpression.EVERY_HOUR)
   @Lock(1800)
   async sendNotificationMails(): Promise<void> {
-    if (Config.processDisabled(Process.BLACK_SQUAD_MAIL)) return;
+    if (await this.processService.isDisableProcess(Process.BLACK_SQUAD_MAIL)) return;
     await this.blackSquadInvitation();
   }
 

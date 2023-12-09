@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import { Process } from 'src/shared/services/process.service';
 import { CakeFlowDto, CakeSettings } from './dto/cake-flow.dto';
 import { CustomSignUpFeesDto } from './dto/custom-sign-up-fees.dto';
+import { UpdateProcessDto } from './dto/update-process.dto';
 import { Setting } from './setting.entity';
 import { SettingRepository } from './setting.repository';
 
@@ -35,6 +37,20 @@ export class SettingService {
     customSignUpFee ? Object.assign(customSignUpFee, dto) : customSignUpFeesArray.push(dto);
 
     await this.setObj<CustomSignUpFeesDto[]>('customSignUpFees', customSignUpFeesArray);
+  }
+
+  async updateProcess(dto: UpdateProcessDto): Promise<void> {
+    const disabledProcesses = await this.getObj<Process[]>('disabledProcess');
+    const index = disabledProcesses?.indexOf(dto.process);
+
+    index?.toString() && index !== -1 ? disabledProcesses.splice(index, 1) : disabledProcesses?.push(dto.process);
+
+    await this.setObj<Process[]>('disabledProcess', disabledProcesses ?? [dto.process]);
+  }
+
+  async isDisableProcess(process: Process): Promise<boolean> {
+    const disabledProcesses = await this.getObj<Process[]>('disabledProcess');
+    return disabledProcesses?.includes(process) ?? false;
   }
 
   async getCustomSignUpFees(ref?: string | undefined, walletId?: number | undefined): Promise<number[]> {

@@ -1,13 +1,14 @@
 import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { DeFiClient, Proposal, ProposalType, ProposalVote } from 'src/integration/blockchain/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { HttpService } from 'src/shared/services/http.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CfpResult, ResultStatus, Vote, VotingType } from './dto/cfp.dto';
+import { Process, ProcessService } from 'src/shared/services/process.service';
 
 interface Masternodes {
   [id: string]: { ownerAuthAddress: string };
@@ -26,7 +27,7 @@ export class CfpService implements OnModuleInit {
   private bakeMasternodes: [{ address: string }];
   private blockInfo: BlockchainInfo;
 
-  constructor(nodeService: NodeService, private readonly http: HttpService) {
+  constructor(nodeService: NodeService, private readonly http: HttpService, private readonly processService: ProcessService) {
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.client = client));
   }
 
@@ -37,7 +38,7 @@ export class CfpService implements OnModuleInit {
   @Cron(CronExpression.EVERY_10_MINUTES)
   @Lock(7200)
   async doUpdate(): Promise<void> {
-    if (Config.processDisabled(Process.UPDATE_CFP)) return;
+    if (await this.processService.isDisableProcess(Process.UPDATE_CFP)) return;
     // update masternodes
     this.allMasternodes = await this.client.listMasternodes();
     this.lockMasternodes = await this.callApi<any>(this.lockUrl);

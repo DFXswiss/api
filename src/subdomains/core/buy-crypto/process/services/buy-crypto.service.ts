@@ -7,9 +7,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Process, ProcessService } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
@@ -59,6 +59,7 @@ export class BuyCryptoService {
     private readonly assetService: AssetService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly buyCryptoPreparationService: BuyCryptoPreparationService,
+    private readonly processService: ProcessService,
   ) {}
 
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<BuyCrypto> {
@@ -203,16 +204,18 @@ export class BuyCryptoService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async checkCryptoPayIn() {
-    if (Config.processDisabled(Process.BUY_CRYPTO)) return;
+    if (await this.processService.isDisableProcess(Process.BUY_CRYPTO)) return;
     await this.buyCryptoRegistrationService.registerCryptoPayIn();
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(7200)
   async process() {
-    if (Config.processDisabled(Process.BUY_CRYPTO)) return;
-    if (!Config.processDisabled(Process.BUY_CRYPTO_AML_CHECK)) await this.buyCryptoPreparationService.doAmlCheck();
-    if (!Config.processDisabled(Process.BUY_CRYPTO_SET_FEE)) await this.buyCryptoPreparationService.refreshFee();
+    if (await this.processService.isDisableProcess(Process.BUY_CRYPTO)) return;
+    if (!(await this.processService.isDisableProcess(Process.BUY_CRYPTO_AML_CHECK)))
+      await this.buyCryptoPreparationService.doAmlCheck();
+    if (!(await this.processService.isDisableProcess(Process.BUY_CRYPTO_SET_FEE)))
+      await this.buyCryptoPreparationService.refreshFee();
     await this.buyCryptoPreparationService.prepareTransactions();
     await this.buyCryptoBatchService.batchAndOptimizeTransactions();
     await this.buyCryptoDexService.secureLiquidity();

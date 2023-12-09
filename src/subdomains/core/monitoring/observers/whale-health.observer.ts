@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
+import { WhaleService } from 'src/integration/blockchain/ain/whale/whale.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Process, ProcessService } from 'src/shared/services/process.service';
+import { Lock } from 'src/shared/utils/lock';
 import { MetricObserver } from '../metric.observer';
 import { MonitoringService } from '../monitoring.service';
-import { WhaleService } from 'src/integration/blockchain/ain/whale/whale.service';
-import { Lock } from 'src/shared/utils/lock';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 interface WhaleState {
   index: number;
@@ -19,7 +19,11 @@ type WhalesState = WhaleState[];
 export class WhaleHealthObserver extends MetricObserver<WhalesState> {
   protected readonly logger = new DfxLogger(WhaleHealthObserver);
 
-  constructor(readonly monitoringService: MonitoringService, private readonly whaleService: WhaleService) {
+  constructor(
+    readonly monitoringService: MonitoringService,
+    private readonly whaleService: WhaleService,
+    private readonly processService: ProcessService,
+  ) {
     super(monitoringService, 'whale', 'health');
   }
 
@@ -30,7 +34,7 @@ export class WhaleHealthObserver extends MetricObserver<WhalesState> {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(360)
   async fetch(): Promise<WhalesState> {
-    if (Config.processDisabled(Process.MONITORING)) return;
+    if (await this.processService.isDisableProcess(Process.MONITORING)) return;
 
     let state = await this.getState();
     state = this.handleErrors(state);

@@ -1,10 +1,11 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Process, ProcessService } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { LessThan } from 'typeorm';
 import { KycLevel, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
@@ -42,11 +43,12 @@ export class KycService {
     private readonly languageService: LanguageService,
     private readonly countryService: CountryService,
     private readonly stepLogRepo: StepLogRepository,
+    private readonly processService: ProcessService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
   async checkIdentSteps(): Promise<void> {
-    if (Config.processDisabled(Process.KYC)) return;
+    if (await this.processService.isDisableProcess(Process.KYC)) return;
 
     const expiredIdentSteps = await this.kycStepRepo.find({
       where: {

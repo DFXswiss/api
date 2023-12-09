@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { AzureStorageService } from 'src/integration/infrastructure/azure-storage.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Process, ProcessService } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { IdentResultDto } from 'src/subdomains/generic/user/models/ident/dto/ident-result.dto';
@@ -55,6 +56,7 @@ export class SpiderSyncService {
     private readonly spiderService: SpiderService,
     private readonly settingService: SettingService,
     private readonly spiderDataRepo: SpiderDataRepository,
+    private readonly processService: ProcessService,
   ) {
     this.storageService = new AzureStorageService('kyc');
   }
@@ -62,7 +64,7 @@ export class SpiderSyncService {
   @Cron(CronExpression.EVERY_2_HOURS)
   @Lock()
   async checkOngoingKyc() {
-    if (Config.processDisabled(Process.KYC)) return;
+    if (await this.processService.isDisableProcess(Process.KYC)) return;
 
     const userInProgress = await this.userDataRepo.find({
       select: ['id'],
@@ -97,7 +99,7 @@ export class SpiderSyncService {
   @Cron(CronExpression.EVERY_5_MINUTES)
   @Lock(7200)
   async continuousSync() {
-    if (Config.processDisabled(Process.KYC)) return;
+    if (await this.processService.isDisableProcess(Process.KYC)) return;
 
     const settingKey = 'spiderModificationDate';
     const lastModificationTime = await this.settingService.get(settingKey);
@@ -111,7 +113,7 @@ export class SpiderSyncService {
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
   @Lock()
   async dailySync() {
-    if (Config.processDisabled(Process.KYC)) return;
+    if (await this.processService.isDisableProcess(Process.KYC)) return;
 
     const modificationDate = Util.daysBefore(1);
     await this.syncKycData(modificationDate.getTime());

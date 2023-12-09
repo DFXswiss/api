@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Process, ProcessService } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
@@ -28,6 +28,7 @@ export class PayoutService {
     private readonly payoutOrderFactory: PayoutOrderFactory,
     private readonly payoutStrategyRegistry: PayoutStrategyRegistry,
     private readonly prepareStrategyRegistry: PrepareStrategyRegistry,
+    private readonly processService: ProcessService,
   ) {}
 
   //*** PUBLIC API ***//
@@ -73,7 +74,7 @@ export class PayoutService {
   @Cron(CronExpression.EVERY_30_SECONDS)
   @Lock(1800)
   async processOrders(): Promise<void> {
-    if (Config.processDisabled(Process.PAY_OUT)) return;
+    if (await this.processService.isDisableProcess(Process.PAY_OUT)) return;
     await this.checkExistingOrders();
     await this.prepareNewOrders();
     await this.payoutOrders();

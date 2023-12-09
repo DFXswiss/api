@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { Process, ProcessService } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
@@ -23,6 +23,7 @@ export class StakingService {
     private readonly cryptoStakingRepo: CryptoStakingRepository,
     private readonly stakingRepository: StakingRepository,
     private readonly payInService: PayInService,
+    private readonly processService: ProcessService,
   ) {}
 
   //*** JOBS ***//
@@ -30,7 +31,7 @@ export class StakingService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async checkCryptoPayIn() {
-    if (Config.processDisabled(Process.STAKING)) return;
+    if (await this.processService.isDisableProcess(Process.STAKING)) return;
     await this.returnStakingPayIn();
   }
 
