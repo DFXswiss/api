@@ -9,8 +9,6 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UploadFileDto } from 'src/subdomains/generic/user/models/user-data/dto/upload-file.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
-import { KycDocument } from '../../services/spider/dto/spider.dto';
-import { KycService } from '../kyc/kyc.service';
 import { UpdateKycStatusDto } from './dto/update-kyc-status.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { UserData } from './user-data.entity';
@@ -24,7 +22,6 @@ export class UserDataController {
     private readonly userDataService: UserDataService,
     private readonly bankDataService: BankDataService,
     private readonly userDataRepo: UserDataRepository,
-    private readonly kycService: KycService,
     private readonly feeService: FeeService,
     private readonly storageService: DocumentStorageService,
     private readonly kycAdminService: KycAdminService,
@@ -113,8 +110,7 @@ export class UserDataController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async requestKyc(@Param('id') id: string): Promise<string> {
     const userData = await this.userDataRepo.findOne({ where: { id: +id }, relations: ['users'] });
-
-    await this.kycService.requestKyc(userData.kycHash);
+    //TODO kyc hash
     return userData.kycHash;
   }
 
@@ -123,7 +119,7 @@ export class UserDataController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getNameCheck(@Param('id') id: string): Promise<string> {
-    return this.kycService.doNameCheck(+id);
+    return; //TODO
   }
 
   @Put(':id/resync')
@@ -131,7 +127,7 @@ export class UserDataController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async resyncKycData(@Param('id') id: string): Promise<void> {
-    return this.kycService.resyncKycData(+id);
+    return; //TODO
   }
 
   @Put(':id/fileSync')
@@ -143,7 +139,7 @@ export class UserDataController {
     @Query('documents') documents: string,
     @Query('singleVersion') singleVersion: string,
   ): Promise<void> {
-    return this.kycService.syncKycFiles(+id, documents?.split(',') as KycDocument[], singleVersion);
+    return; //TODO
   }
 
   @Put(':id/kycStatus')
@@ -151,7 +147,7 @@ export class UserDataController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async updateKycStatus(@Param('id') id: string, @Body() dto: UpdateKycStatusDto): Promise<void> {
-    return this.kycService.updateKycStatus(+id, dto);
+    return; //TODO
   }
 
   @Post(':id/kycFile')

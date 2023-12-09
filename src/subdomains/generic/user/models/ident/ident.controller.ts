@@ -4,27 +4,24 @@ import { RealIP } from 'nestjs-real-ip';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { IdentResultDto } from './dto/ident-result.dto';
-import { IdentService } from './ident.service';
 
 @ApiTags('Ident')
 @Controller('ident')
 export class IdentController {
   private readonly logger = new DfxLogger(IdentController);
 
-  constructor(private readonly identService: IdentService) {}
-
   @Post('online')
   @ApiExcludeEndpoint()
   async onlineIdWebhook(@RealIP() ip: string, @Body() data: IdentResultDto) {
     this.checkWebhookIp(ip, data);
-    await this.identService.identUpdate(data);
+    return; //TODO
   }
 
   @Post('video')
   @ApiExcludeEndpoint()
   async videoIdWebhook(@RealIP() ip: string, @Body() data: IdentResultDto) {
     this.checkWebhookIp(ip, data);
-    await this.identService.identUpdate(data);
+    return; //TODO
   }
 
   private checkWebhookIp(ip: string, data: IdentResultDto) {

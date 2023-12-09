@@ -13,7 +13,6 @@ import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
 import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
-import { RiskResult } from '../../services/spider/dto/spider.dto';
 import { SpiderData } from '../spider-data/spider-data.entity';
 import { TradingLimit } from '../user/dto/user.dto';
 import { AccountType } from './account-type.enum';
@@ -358,11 +357,6 @@ export class UserData extends IEntity {
     return this.tradingLimit.period === LimitPeriod.YEAR
       ? this.tradingLimit.limit - this.annualBuyVolume - this.annualSellVolume - this.annualCryptoVolume
       : this.tradingLimit.limit;
-  }
-
-  set riskResult({ result, risks }: RiskResult) {
-    this.riskState = result;
-    this.riskRoots = result === 'c' ? null : JSON.stringify(risks);
   }
 
   // --- KYC PROCESS --- //

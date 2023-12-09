@@ -19,26 +19,15 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
-import { SpiderApiService } from 'src/subdomains/generic/user/services/spider/spider-api.service';
-import { ReferenceType, SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
 import { FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
-import { KycProcessService } from '../kyc/kyc-process.service';
 import { LinkService } from '../link/link.service';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { UserRepository } from '../user/user.repository';
 import { AccountType } from './account-type.enum';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
-import {
-  KycCompleted,
-  KycInProgress,
-  KycState,
-  KycStatus,
-  KycType,
-  UserData,
-  UserDataStatus,
-} from './user-data.entity';
+import { KycCompleted, KycStatus, KycType, UserData, UserDataStatus } from './user-data.entity';
 import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
@@ -55,9 +44,6 @@ export class UserDataService {
     private readonly countryService: CountryService,
     private readonly languageService: LanguageService,
     private readonly fiatService: FiatService,
-    private readonly spiderService: SpiderService,
-    private readonly spiderApiService: SpiderApiService,
-    private readonly kycProcessService: KycProcessService,
     private readonly webhookService: WebhookService,
     private readonly settingService: SettingService,
     @Inject(forwardRef(() => LinkService)) private readonly linkService: LinkService,
@@ -115,10 +101,11 @@ export class UserDataService {
   }
 
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
-    let userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['users', 'users.wallet'] });
+    const userData = await this.userDataRepo.findOne({
+      where: { id: userDataId },
+      relations: ['users', 'users.wallet'],
+    });
     if (!userData) throw new NotFoundException('User data not found');
-
-    userData = await this.updateSpiderIfNeeded(userData, dto);
 
     if (dto.countryId) {
       userData.country = await this.countryService.getCountry(dto.countryId);
@@ -145,20 +132,6 @@ export class UserDataService {
       if (userWithSameFileId) throw new ConflictException('A user with this KYC file ID already exists');
 
       await this.userDataRepo.save({ ...userData, ...{ kycFileId: dto.kycFileId } });
-
-      const customerInfo = await this.spiderApiService.getCustomerInfo(userDataId);
-      if (customerInfo?.contractReference == null) throw new BadRequestException('Spider KYC file reference is null');
-
-      if (customerInfo.contractReference !== dto.kycFileId.toString())
-        await this.spiderService.renameReference(
-          customerInfo.contractReference,
-          dto.kycFileId.toString(),
-          ReferenceType.CONTRACT,
-        );
-    }
-
-    if (dto.kycStatus && userData.kycStatus != dto.kycStatus) {
-      userData = await this.kycProcessService.goToStatus(userData, dto.kycStatus);
     }
 
     // Columns are not updatable
@@ -189,8 +162,6 @@ export class UserDataService {
       data.organizationCountry = null;
     }
 
-    user = await this.updateSpiderIfNeeded(user, data);
-
     return this.userDataRepo.save(Object.assign(user, data));
   }
 
@@ -220,9 +191,6 @@ export class UserDataService {
 
     const mailChanged = dto.mail && dto.mail !== user.mail;
 
-    // update spider
-    user = await this.updateSpiderIfNeeded(user, dto);
-
     user = await this.userDataRepo.save(Object.assign(user, dto));
 
     const isKnownUser = (mailChanged || forceUpdate) && (await this.isKnownKycUser(user));
@@ -235,21 +203,6 @@ export class UserDataService {
 
   async refreshLastNameCheckDate(userData: UserData): Promise<void> {
     await this.userDataRepo.update(...userData.refreshLastCheckedTimestamp());
-  }
-
-  private async updateSpiderIfNeeded(userData: UserData, dto: UpdateUserDto): Promise<UserData> {
-    if ((dto.phone && dto.phone != userData.phone) || (dto.mail && dto.mail != userData.mail)) {
-      await this.spiderService.updateCustomer(userData.id, {
-        telephones: dto.phone ? [dto.phone.replace('+', '')] : undefined,
-        emails: dto.mail ? [dto.mail] : undefined,
-      });
-
-      if (KycInProgress(userData.kycStatus)) {
-        userData.kycState = KycState.FAILED;
-      }
-    }
-
-    return userData;
   }
 
   async getIdentMethod(userData: UserData): Promise<KycStepType> {
@@ -410,8 +363,7 @@ export class UserDataService {
     const userDataList = await this.userDataRepo.findBy({ kycFileId: MoreThan(0) });
     const idList = [];
     for (const userData of userDataList) {
-      const customerInfo = await this.spiderApiService.getCustomerInfo(userData.id);
-      if (customerInfo && !customerInfo.contractReference) idList.push(userData.id);
+      idList.push(userData.id);
     }
 
     return idList;

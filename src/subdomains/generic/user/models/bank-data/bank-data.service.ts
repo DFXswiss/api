@@ -3,18 +3,13 @@ import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
-import { SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
 import { Not } from 'typeorm';
 import { BankData } from './bank-data.entity';
 import { UpdateBankDataDto } from './dto/update-bank-data.dto';
 
 @Injectable()
 export class BankDataService {
-  constructor(
-    private readonly userDataRepo: UserDataRepository,
-    private readonly bankDataRepo: BankDataRepository,
-    private readonly spiderService: SpiderService,
-  ) {}
+  constructor(private readonly userDataRepo: UserDataRepository, private readonly bankDataRepo: BankDataRepository) {}
 
   async addBankData(userDataId: number, dto: CreateBankDataDto): Promise<UserData> {
     const userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['bankDatas'] });
@@ -24,15 +19,7 @@ export class BankDataService {
     const bankData = this.bankDataRepo.create({ ...dto, userData });
     await this.bankDataRepo.save(bankData);
 
-    // create customer and do name check, if not existing
-    const created = await this.spiderService.createCustomer(userData.id, bankData.name);
-    if (created) {
-      userData.riskResult = await this.spiderService.checkCustomer(userData.id);
-      await this.userDataRepo.update(userData.id, { riskState: userData.riskState, riskRoots: userData.riskRoots });
-    } else {
-      // update updated time in user data
-      await this.userDataRepo.setNewUpdateTime(userDataId);
-    }
+    await this.userDataRepo.update(userData.id, { riskState: userData.riskState, riskRoots: userData.riskRoots });
 
     userData.bankDatas.push(bankData);
     return userData;
