@@ -93,21 +93,3 @@ const IdentResultMap: Record<IdentResult, IdentShortResult> = {
 export function getIdentResult(dto: IdentResultDto): IdentShortResult {
   return IdentResultMap[dto.identificationprocess.result];
 }
-
-export function IdentPending(update: IdentResultDto): boolean {
-  return [IdentResult.REVIEW_PENDING, IdentResult.CHECK_PENDING, IdentResult.FRAUD_SUSPICION_PENDING].includes(
-    update?.identificationprocess?.result,
-  );
-}
-
-export function IdentSucceeded(update: IdentResultDto): boolean {
-  return [IdentResult.SUCCESS, IdentResult.SUCCESS_DATA_CHANGED].includes(update?.identificationprocess?.result);
-}
-
-export function IdentAborted(update: IdentResultDto): boolean {
-  return [IdentResult.ABORTED, IdentResult.CANCELED].includes(update?.identificationprocess?.result);
-}
-
-export function IdentFailed(update: IdentResultDto): boolean {
-  return [IdentResult.FRAUD_SUSPICION_CONFIRMED].includes(update?.identificationprocess?.result);
-}

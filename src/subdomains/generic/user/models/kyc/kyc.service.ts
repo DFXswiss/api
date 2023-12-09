@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  NotImplementedException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Country } from 'src/shared/models/country/country.entity';
@@ -13,7 +14,6 @@ import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { KycContentType, KycFile, KycFileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
-import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import {
   Blank,
   BlankType,
@@ -48,18 +48,6 @@ export class KycService {
     private readonly webhookService: WebhookService,
     private readonly storageService: DocumentStorageService,
   ) {}
-
-  // --- ADMIN/SUPPORT --- //
-  async doNameCheck(userDataId: number): Promise<string> {
-    const userData = await this.userDataRepo.findOneBy({ id: userDataId });
-    if (!userData) throw new NotFoundException('User data not found');
-
-    //if (!userData.riskState) throw new BadRequestException('User is not in Spider');
-
-    await this.userDataRepo.save(userData);
-
-    return userData.riskState;
-  }
 
   // --- KYC DATA --- //
 
@@ -117,20 +105,6 @@ export class KycService {
     }
   }
 
-  async userDataComplete(userId: number): Promise<boolean> {
-    const user = await this.userDataService.getUserDataByUser(userId);
-    return this.isDataComplete(user);
-  }
-
-  isDataComplete(user: UserData): boolean {
-    const requiredFields = ['mail', 'phone', 'firstname', 'surname', 'street', 'location', 'zip', 'country'].concat(
-      user?.accountType === AccountType.PERSONAL
-        ? []
-        : ['organizationName', 'organizationStreet', 'organizationLocation', 'organizationZip', 'organizationCountry'],
-    );
-    return requiredFields.filter((f) => !user[f]).length === 0;
-  }
-
   async uploadDocument(
     code: string,
     document: Express.Multer.File,
@@ -150,32 +124,8 @@ export class KycService {
   }
 
   // --- KYC PROCESS --- //
-  async requestKyc(code: string, userId?: number): Promise<KycInfo> {
-    let user = await this.getUser(code, userId);
-
-    // check if KYC already started
-    if (user.kycStatus !== KycStatus.NA) {
-      throw new BadRequestException('KYC already in progress/completed');
-    }
-
-    // check if user data complete
-    const dataComplete = this.isDataComplete(user);
-    if (!dataComplete) throw new BadRequestException('Ident data incomplete');
-
-    // check if user already has KYC
-    const hasKyc = await this.userDataService.isKnownKycUser(user);
-    if (hasKyc) throw new ConflictException('User already has completed KYC');
-
-    // update
-    user = await this.startKyc(user);
-    await this.userDataRepo.save(user);
-
-    return this.createKycInfoBasedOn(user);
-  }
-
-  private async startKyc(userData: UserData): Promise<UserData> {
-    // TODO
-    return userData;
+  async requestKyc(_c: string, _u?: number): Promise<never> {
+    throw new NotImplementedException('Use KYC v2');
   }
 
   async getKycStatus(code: string, userId?: number): Promise<KycInfo> {
@@ -192,7 +142,7 @@ export class KycService {
       kycStatus: userData.kycStatus,
       kycState: userData.kycState,
       kycHash: userData.kycHash,
-      kycDataComplete: this.isDataComplete(userData),
+      kycDataComplete: userData.isDataComplete,
       accountType: userData.accountType,
       tradingLimit: userData.tradingLimit,
       blankedPhone: Blank(userData.phone, BlankType.PHONE),
@@ -243,19 +193,25 @@ export class KycService {
     if (!user) throw new NotFoundException('User not found');
 
     const allDocuments = await this.storageService.listUserFiles(user.userData.id);
-    return allDocuments.map((d) => this.toKycFileDto(d));
+
+    return Object.values(KycDocumentType)
+      .map((type) => ({ type, info: this.getFileFor(type, allDocuments) }))
+      .filter((d) => d.info != null)
+      .map(({ type, info }) => this.toKycFileDto(type, info));
   }
 
-  async getKycFile(userAddress: string, walletId: number, kycDocumentType: KycDocumentType): Promise<any> {
+  async getKycFile(userAddress: string, walletId: number, type: KycDocumentType): Promise<any> {
     const user = await this.userRepo.findOne({
       where: { address: userAddress, wallet: { id: walletId } },
       relations: ['userData', 'wallet'],
     });
     if (!user) throw new NotFoundException('User not found');
 
-    //TODO kycDocumentType mapping?
+    const allDocuments = await this.storageService.listUserFiles(user.userData.id);
+    const document = this.getFileFor(type, allDocuments);
+    if (!document) throw new NotFoundException('File not found');
 
-    return;
+    return this.storageService.downloadFile(user.userData.id, document.type, document.name).then((b) => b.data);
   }
 
   // --- HELPER METHODS --- //
@@ -267,10 +223,24 @@ export class KycService {
     };
   }
 
-  private toKycFileDto({ type, contentType }: KycFile): KycFileDto {
-    return {
-      type: type == KycFileType.IDENTIFICATION ? KycDocumentType.IDENTIFICATION : KycDocumentType.CHATBOT,
-      contentType,
-    };
+  private toKycFileDto(type: KycDocumentType, { contentType }: KycFile): KycFileDto {
+    return { type, contentType };
+  }
+
+  private getFileFor(type: KycDocumentType, documents: KycFile[]): KycFile | undefined {
+    switch (type) {
+      case KycDocumentType.IDENTIFICATION:
+        return documents.find((d) => d.type === KycFileType.IDENTIFICATION && d.contentType === KycContentType.PDF);
+
+      case KycDocumentType.CHATBOT:
+        // TODO: find PDF result
+        return undefined;
+
+      case KycDocumentType.INCORPORATION_CERTIFICATE:
+        return documents.find((d) => d.type === KycFileType.USER_NOTES && d.name.includes('incorporation-certificate'));
+
+      default:
+        throw new BadRequestException(`Document type ${type} is not supported`);
+    }
   }
 }
