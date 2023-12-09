@@ -185,6 +185,7 @@ export class SpiderSyncService {
       userData = await this.kycProcess.storeIdentResult(userData, identResult);
     }
 
+    userData.kycSteps = undefined; // ignore steps
     await this.userDataRepo.save(userData);
   }
 

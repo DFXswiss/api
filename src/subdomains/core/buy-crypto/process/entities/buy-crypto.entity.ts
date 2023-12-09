@@ -191,7 +191,6 @@ export class BuyCrypto extends IEntity {
 
     entity.cryptoInput = payIn;
     entity.cryptoRoute = cryptoRoute;
-    entity.status = BuyCryptoStatus.CREATED;
 
     return entity;
   }

@@ -4,8 +4,10 @@ import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Not } from 'typeorm';
+import { IdentAborted, IdentFailed, IdentPending, IdentSucceeded } from '../../user/models/ident/dto/ident-result.dto';
 import { SpiderData } from '../../user/models/spider-data/spider-data.entity';
 import { KycLevel, KycStatus, UserData } from '../../user/models/user-data/user-data.entity';
+import { IdentResultDto } from '../dto/input/ident-result.dto';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
 import { KycStep } from '../entities/kyc-step.entity';
 import { KycStepName, KycStepStatus, KycStepType } from '../enums/kyc.enum';
@@ -40,7 +42,11 @@ export class KycAdminService {
         // create completed steps
         const completedSteps = this.getCompletedSteps(user);
         const missingSteps = completedSteps.filter((n) => !user.kycSteps.some((s) => s.name === n));
+        const stepsToUpdate = user.kycSteps.filter(
+          (s) => !(s.isCompleted || s.isFailed) && completedSteps.some((cs) => cs === s.name),
+        );
 
+        // add missing steps
         const newSteps = [];
         for (const stepName of missingSteps) {
           const step: KycStep = Object.assign(new KycStep(), {
@@ -50,22 +56,17 @@ export class KycAdminService {
             sequenceNumber: 0,
           });
 
-          switch (stepName) {
-            case KycStepName.IDENT:
-              step.type = this.getIdentType(user.spiderData);
-              step.sessionId = user.spiderData?.identIdentificationIds?.split(',').pop();
-              step.result = user.spiderData?.identResult;
-              break;
-
-            case KycStepName.FINANCIAL_DATA:
-              step.result = user.spiderData?.chatbotResult;
-              break;
-          }
+          this.setStepData(step, user);
 
           newSteps.push(step);
         }
-
         await this.kycStepRepo.save(newSteps);
+
+        // update steps
+        for (const step of stepsToUpdate) {
+          this.setStepData(step, user);
+          await this.kycStepRepo.save(step);
+        }
       } catch (e) {
         this.logger.error(`Failed to sync KYC for user ${user.id}:`, e);
       }
@@ -106,6 +107,39 @@ export class KycAdminService {
     if (user.spiderData?.chatbotResult) steps.push(KycStepName.FINANCIAL_DATA);
 
     return steps;
+  }
+
+  private setStepData(step: KycStep, user: UserData) {
+    switch (step.name) {
+      case KycStepName.IDENT:
+        step.status = this.getIdentStatus(user.spiderData);
+        step.type = this.getIdentType(user.spiderData);
+        step.sessionId = user.spiderData?.identIdentificationIds?.split(',').pop();
+        step.result = user.spiderData?.identResult;
+        break;
+
+      case KycStepName.FINANCIAL_DATA:
+        step.result = user.spiderData?.chatbotResult;
+        break;
+    }
+  }
+
+  private getIdentStatus(spiderData?: SpiderData): KycStepStatus {
+    if (spiderData?.identResult) {
+      const result: IdentResultDto = JSON.parse(spiderData.identResult);
+
+      if (IdentPending(result)) {
+        return KycStepStatus.CHECK_PENDING;
+      } else if (IdentSucceeded(result)) {
+        return KycStepStatus.COMPLETED;
+      } else if (IdentAborted(result)) {
+        return KycStepStatus.IN_PROGRESS;
+      } else if (IdentFailed(result)) {
+        return KycStepStatus.FAILED;
+      }
+    }
+
+    return KycStepStatus.IN_PROGRESS;
   }
 
   private getIdentType(spiderData?: SpiderData): KycStepType {
