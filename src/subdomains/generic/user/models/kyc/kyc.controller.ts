@@ -1,23 +1,23 @@
 import { Body, Controller, Get, Param, Post, Put, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiCreatedResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
-import { KycDocument } from 'src/subdomains/generic/user/services/spider/dto/spider.dto';
-import { LimitRequestDto } from '../limit-request/dto/limit-request.dto';
-import { LimitRequestService } from '../limit-request/limit-request.service';
-import { KycUserDataDto } from './dto/kyc-user-data.dto';
-import { KycService } from './kyc.service';
-import { AuthGuard } from '@nestjs/passport';
+import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
-import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
-import { KycDataTransferDto } from './dto/kyc-data-transfer.dto';
-import { KycInfo } from './dto/kyc-info.dto';
-import { KycWebhookTriggerDto } from './dto/kyc-webhook-trigger.dto';
-import { KycDocumentType, KycFileDto } from './dto/kyc-file.dto';
-import { KycDataDto } from './dto/kyc-data.dto';
-import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
+import { CountryDto } from 'src/shared/models/country/dto/country.dto';
+import { KycFileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
+import { LimitRequestDto } from '../limit-request/dto/limit-request.dto';
+import { LimitRequestService } from '../limit-request/limit-request.service';
+import { KycDataTransferDto } from './dto/kyc-data-transfer.dto';
+import { KycDataDto } from './dto/kyc-data.dto';
+import { KycDocumentType, KycFileDto } from './dto/kyc-file.dto';
+import { KycInfo } from './dto/kyc-info.dto';
+import { KycUserDataDto } from './dto/kyc-user-data.dto';
+import { KycWebhookTriggerDto } from './dto/kyc-webhook-trigger.dto';
+import { KycService } from './kyc.service';
 
 @ApiTags('KYC')
 @Controller('kyc')
@@ -91,7 +91,7 @@ export class KycController {
     @GetJwt() jwt: JwtPayload,
     @UploadedFiles() files: Express.Multer.File[],
   ): Promise<boolean> {
-    return this.kycService.uploadDocument('', files[0], KycDocument.INCORPORATION_CERTIFICATE, jwt.id);
+    return this.kycService.uploadDocument('', files[0], KycFileType.USER_NOTES, jwt.id);
   }
 
   // --- CODE CALLS --- //
@@ -132,7 +132,7 @@ export class KycController {
     @Param('code') code: string,
     @UploadedFiles() files: Express.Multer.File[],
   ): Promise<boolean> {
-    return this.kycService.uploadDocument(code, files[0], KycDocument.INCORPORATION_CERTIFICATE);
+    return this.kycService.uploadDocument(code, files[0], KycFileType.USER_NOTES);
   }
 }
 

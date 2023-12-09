@@ -20,9 +20,6 @@ import { BankDataController } from './models/bank-data/bank-data.controller';
 import { BankData } from './models/bank-data/bank-data.entity';
 import { BankDataRepository } from './models/bank-data/bank-data.repository';
 import { BankDataService } from './models/bank-data/bank-data.service';
-import { IdentController } from './models/ident/ident.controller';
-import { IdentService } from './models/ident/ident.service';
-import { KycProcessService } from './models/kyc/kyc-process.service';
 import { KycClientController, KycController } from './models/kyc/kyc.controller';
 import { KycService } from './models/kyc/kyc.service';
 import { LimitRequestNotificationService } from './models/limit-request/limit-request-notification.service';
@@ -44,9 +41,6 @@ import { UserRepository } from './models/user/user.repository';
 import { UserService } from './models/user/user.service';
 import { WalletController } from './models/wallet/wallet.controller';
 import { Wallet } from './models/wallet/wallet.entity';
-import { SpiderApiService } from './services/spider/spider-api.service';
-import { SpiderSyncService } from './services/spider/spider-sync.service';
-import { SpiderService } from './services/spider/spider.service';
 import { WebhookService } from './services/webhook/webhook.service';
 
 @Module({
@@ -65,7 +59,6 @@ import { WebhookService } from './services/webhook/webhook.service';
     BankDataController,
     AuthController,
     AuthLnurlController,
-    IdentController,
     KycClientController,
     KycController,
     LinkController,
@@ -84,30 +77,16 @@ import { WebhookService } from './services/webhook/webhook.service';
     WalletService,
     UserDataService,
     BankDataService,
-    KycService,
-    KycProcessService,
-    SpiderService,
-    SpiderApiService,
-    SpiderSyncService,
     AuthService,
     AuthAlbyService,
     AuthLnUrlService,
     LimitRequestService,
-    IdentService,
     LinkService,
     WebhookService,
+    KycService,
     LimitRequestNotificationService,
     UserDataNotificationService,
   ],
-  exports: [
-    UserService,
-    UserDataService,
-    KycService,
-    SpiderService,
-    SpiderApiService,
-    LinkService,
-    WebhookService,
-    BankDataService,
-  ],
+  exports: [UserService, UserDataService, LinkService, WebhookService, BankDataService],
 })
 export class UserModule {}
