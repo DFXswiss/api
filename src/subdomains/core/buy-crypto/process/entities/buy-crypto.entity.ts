@@ -446,7 +446,7 @@ export class BuyCrypto extends IEntity {
     monthlyAmountInEur: number,
     bankDataUserData: UserData,
   ): UpdateResult<BuyCrypto> {
-    const usedRef = this.user.getBuyUsedRef;
+    const usedRef = this.user.usedRef;
     const amountInChf = chfPrice.convert(this.bankTx.txAmount, 2);
 
     const update: Partial<BuyCrypto> = this.isAmlPass(minVolume, amountInChf, bankDataUserData?.id, monthlyAmountInEur)
