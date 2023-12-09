@@ -11,6 +11,7 @@ import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { DataSource } from 'typeorm';
+import { KycFile } from '../kyc/dto/kyc-file.dto';
 import { DocumentStorageService } from '../kyc/services/integration/document-storage.service';
 import { AccountType } from '../user/models/user-data/account-type.enum';
 import { UserData } from '../user/models/user-data/user-data.entity';
@@ -99,20 +100,45 @@ export class GsService {
     for (const userData of data) {
       const userDataId = userData.id ?? (userData['user_data_id'] as number);
 
-      for (const selectPath of selectPaths) {
-        const prefixPath = this.toDocPrefixPath(selectPath, `${userDataId}`);
+      const docsCache: { [b in string]: KycFile[] } = {};
 
-        userData[selectPath] = prefixPath
-          ? await this.documentStorageService.listFilesByPrefix(prefixPath)
-          : [
-              ...(await this.documentStorageService.listUserFiles(userDataId)),
-              ...(await this.documentStorageService.listSpiderFiles(userDataId, false)),
-              ...(userData.accountType !== AccountType.PERSONAL
-                ? await this.documentStorageService.listSpiderFiles(userDataId, true)
-                : []),
-            ];
+      for (const selectPath of selectPaths) {
+        const docPath = this.toDocAffixPath(selectPath, `${userDataId}`);
+
+        const prefixPaths = this.getGCD(selectPath, selectPaths);
+        const docAffixPath = this.toDocAffixPath(prefixPaths, `${userDataId}`);
+
+        const docs =
+          docsCache[prefixPaths] ??
+          (docAffixPath
+            ? await this.documentStorageService.listFilesByPrefix(docAffixPath)
+            : [
+                ...(await this.documentStorageService.listUserFiles(userDataId)),
+                ...(await this.documentStorageService.listSpiderFiles(userDataId, false)),
+                ...(userData.accountType !== AccountType.PERSONAL
+                  ? await this.documentStorageService.listSpiderFiles(userDataId, true)
+                  : []),
+              ]);
+
+        if (!docsCache[prefixPaths]) docsCache[prefixPaths] = docs;
+
+        docPath === docAffixPath
+          ? (userData[selectPath] = docs)
+          : (userData[selectPath] = docs.filter((doc) => doc.url.includes(docPath)));
       }
     }
+  }
+
+  private getGCD(inputString: string, selects: string[], separator = '.'): string {
+    const gcd = [];
+
+    // or with for loop?
+    inputString.split(separator).forEach((separatedInput, i) => {
+      const t = selects.every((s) => s.split(separator)[i] === separatedInput);
+      t && i == gcd.length && gcd.push(separatedInput);
+    });
+
+    return gcd.length === 0 ? 'documents' : gcd.join(separator);
   }
 
   private async getRawDbData(query: DbQueryDto): Promise<any[]> {
@@ -254,8 +280,8 @@ export class GsService {
     );
   }
 
-  private toDocPrefixPath(selectPath: string, userDataId: string): string {
-    return selectPath.split('-')?.[1]?.split('.').join('/').split('{userData}').join(userDataId);
+  private toDocAffixPath(selectPath: string, userDataId: string): string {
+    return selectPath.split('-')[1]?.split('.').join('/').split('{userData}').join(userDataId);
   }
 
   private transformResultArray(data: any[], table: string): DbReturnData {
