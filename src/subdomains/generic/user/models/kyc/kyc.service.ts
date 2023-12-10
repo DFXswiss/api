@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  NotImplementedException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Country } from 'src/shared/models/country/country.entity';
@@ -10,22 +11,18 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
-import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { Util } from 'src/shared/utils/util';
+import { KycContentType, KycFile, KycFileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
+import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
 import {
   Blank,
   BlankType,
   KycCompleted,
-  KycInProgress,
   KycState,
   KycStatus,
   UserData,
 } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { SpiderSyncService } from 'src/subdomains/generic/user/services/spider/spider-sync.service';
-import { SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
-import { DocumentInfo, KycDocument } from '../../services/spider/dto/spider.dto';
-import { SpiderApiService } from '../../services/spider/spider-api.service';
 import { WebhookService } from '../../services/webhook/webhook.service';
-import { UpdateKycStatusDto } from '../user-data/dto/update-kyc-status.dto';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { UserDataService } from '../user-data/user-data.service';
 import { User } from '../user/user.entity';
@@ -36,7 +33,6 @@ import { KycDataDto } from './dto/kyc-data.dto';
 import { KycDocumentType, KycFileDto } from './dto/kyc-file.dto';
 import { KycInfo } from './dto/kyc-info.dto';
 import { KycUserDataDto } from './dto/kyc-user-data.dto';
-import { KycProcessService } from './kyc-process.service';
 
 @Injectable()
 export class KycService {
@@ -47,60 +43,13 @@ export class KycService {
     private readonly userDataRepo: UserDataRepository,
     private readonly userRepo: UserRepository,
     private readonly walletRepo: WalletRepository,
-    private readonly spiderService: SpiderService,
-    private readonly spiderApiService: SpiderApiService,
-    private readonly spiderSyncService: SpiderSyncService,
     private readonly countryService: CountryService,
-    private readonly kycProcess: KycProcessService,
     private readonly http: HttpService,
     private readonly webhookService: WebhookService,
+    private readonly storageService: DocumentStorageService,
   ) {}
 
-  // --- ADMIN/SUPPORT --- //
-  async doNameCheck(userDataId: number): Promise<string> {
-    const userData = await this.userDataRepo.findOneBy({ id: userDataId });
-    if (!userData) throw new NotFoundException('User data not found');
-
-    userData.riskResult = await this.spiderService.checkCustomer(userData.id);
-    if (!userData.riskState) throw new BadRequestException('User is not in Spider');
-
-    await this.userDataRepo.save(userData);
-
-    return userData.riskState;
-  }
-
-  async updateKycStatus(userDataId: number, dto: UpdateKycStatusDto): Promise<void> {
-    let userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['users', 'users.wallet'] });
-    if (!userData) throw new NotFoundException('User data not found');
-
-    // update status
-    if (dto.kycStatus) {
-      if (!this.isKycChangeAllowed(userData.kycStatus, dto.kycStatus))
-        throw new BadRequestException(`Invalid KYC status change ${userData.kycStatus} -> ${dto.kycStatus}`);
-
-      userData = await this.kycProcess.goToStatus(userData, dto.kycStatus);
-    }
-
-    // update state
-    if (dto.kycState) userData = this.kycProcess.updateKycState(userData, dto.kycState);
-
-    await this.userDataRepo.save(userData);
-  }
-
-  private isKycChangeAllowed(from: KycStatus, to: KycStatus): boolean {
-    const allowedChanges = { [KycStatus.ONLINE_ID]: [KycStatus.VIDEO_ID] };
-    return allowedChanges[from]?.includes(to);
-  }
-
   // --- KYC DATA --- //
-  async resyncKycData(userId: number): Promise<void> {
-    await this.spiderSyncService.syncKycUser(userId, true);
-  }
-
-  async syncKycFiles(userDataId: number, documents: KycDocument[], singleVersion?: string): Promise<void> {
-    const userData = await this.userDataService.getUserData(userDataId);
-    await this.spiderSyncService.syncKycFiles(userData, documents, singleVersion);
-  }
 
   async getKycCountries(code: string, userId?: number): Promise<Country[]> {
     const user = await this.getUser(code, userId);
@@ -146,7 +95,7 @@ export class KycService {
   }
 
   async triggerWebhook(userDataId: number, reason?: string): Promise<void> {
-    const user = await this.userDataService.getUserData(userDataId);
+    const user = await this.userDataService.getUserData(userDataId, { users: true });
     if (!user) throw new NotFoundException('User not found');
 
     if (user.kycState === KycState.FAILED) {
@@ -156,84 +105,31 @@ export class KycService {
     }
   }
 
-  async userDataComplete(userId: number): Promise<boolean> {
-    const user = await this.userDataService.getUserDataByUser(userId);
-    return this.isDataComplete(user);
-  }
-
-  isDataComplete(user: UserData): boolean {
-    const requiredFields = ['mail', 'phone', 'firstname', 'surname', 'street', 'location', 'zip', 'country'].concat(
-      user?.accountType === AccountType.PERSONAL
-        ? []
-        : ['organizationName', 'organizationStreet', 'organizationLocation', 'organizationZip', 'organizationCountry'],
-    );
-    return requiredFields.filter((f) => !user[f]).length === 0;
-  }
-
   async uploadDocument(
     code: string,
     document: Express.Multer.File,
-    kycDocument: KycDocument,
+    kycDocument: KycFileType,
     userId?: number,
   ): Promise<boolean> {
     const userData = await this.getUser(code, userId);
 
-    // create customer, if not existing
-    await this.spiderService.createCustomer(userData.id, userData.surname);
-
-    return this.spiderService.uploadDocument(
+    const upload = await this.storageService.uploadFile(
       userData.id,
-      false,
       kycDocument,
-      document.originalname,
-      document.mimetype,
+      `${Util.isoDate(new Date()).split('-').join('')}-incorporation-certificate-${document.filename}`,
       document.buffer,
+      document.mimetype as KycContentType,
     );
+    return upload != '';
   }
 
   // --- KYC PROCESS --- //
-  async requestKyc(code: string, userId?: number): Promise<KycInfo> {
-    let user = await this.getUser(code, userId);
-
-    // check if KYC already started
-    if (user.kycStatus !== KycStatus.NA) {
-      throw new BadRequestException('KYC already in progress/completed');
-    }
-
-    // check if user data complete
-    const dataComplete = this.isDataComplete(user);
-    if (!dataComplete) throw new BadRequestException('Ident data incomplete');
-
-    // check if user already has KYC
-    const hasKyc = await this.userDataService.isKnownKycUser(user);
-    if (hasKyc) throw new ConflictException('User already has completed KYC');
-
-    // update
-    user = await this.startKyc(user);
-    await this.userDataRepo.save(user);
-
-    return this.createKycInfoBasedOn(user);
-  }
-
-  private async startKyc(userData: UserData): Promise<UserData> {
-    // update customer
-    await this.spiderService.initializeCustomer(userData);
-
-    // do name check
-    userData.riskResult = await this.spiderService.checkCustomer(userData.id);
-
-    // start KYC
-    return this.kycProcess.startKycProcess(userData);
+  async requestKyc(_c: string, _u?: number): Promise<never> {
+    throw new NotImplementedException('Use KYC v2');
   }
 
   async getKycStatus(code: string, userId?: number): Promise<KycInfo> {
-    let userData = await this.getUser(code, userId);
-
-    if (KycInProgress(userData.kycStatus)) {
-      // update
-      userData = await this.kycProcess.checkKycProcess(userData);
-      await this.userDataRepo.save(userData);
-    }
+    const userData = await this.getUser(code, userId);
 
     return this.createKycInfoBasedOn(userData);
   }
@@ -246,7 +142,7 @@ export class KycService {
       kycStatus: userData.kycStatus,
       kycState: userData.kycState,
       kycHash: userData.kycHash,
-      kycDataComplete: this.isDataComplete(userData),
+      kycDataComplete: userData.isDataComplete,
       accountType: userData.accountType,
       tradingLimit: userData.tradingLimit,
       blankedPhone: Blank(userData.phone, BlankType.PHONE),
@@ -296,31 +192,26 @@ export class KycService {
     });
     if (!user) throw new NotFoundException('User not found');
 
-    const allDocuments = await this.spiderApiService.getDocumentInfos(user.userData.id, false);
+    const allDocuments = await this.storageService.listUserFiles(user.userData.id);
 
     return Object.values(KycDocumentType)
-      .map((type) => ({ type, info: this.getDocumentInfoFor(type, allDocuments) }))
+      .map((type) => ({ type, info: this.getFileFor(type, allDocuments) }))
       .filter((d) => d.info != null)
       .map(({ type, info }) => this.toKycFileDto(type, info));
   }
 
-  async getKycFile(userAddress: string, walletId: number, kycDocumentType: KycDocumentType): Promise<any> {
+  async getKycFile(userAddress: string, walletId: number, type: KycDocumentType): Promise<any> {
     const user = await this.userRepo.findOne({
       where: { address: userAddress, wallet: { id: walletId } },
       relations: ['userData', 'wallet'],
     });
     if (!user) throw new NotFoundException('User not found');
 
-    const allDocuments = await this.spiderApiService.getDocumentInfos(user.userData.id, false);
-    const document = this.getDocumentInfoFor(kycDocumentType, allDocuments);
+    const allDocuments = await this.storageService.listUserFiles(user.userData.id);
+    const document = this.getFileFor(type, allDocuments);
+    if (!document) throw new NotFoundException('File not found');
 
-    return this.spiderApiService.getBinaryDocument(
-      user.userData.id,
-      false,
-      document.document,
-      document.version,
-      document.part,
-    );
+    return this.storageService.downloadFile(user.userData.id, document.type, document.name).then((b) => b.data);
   }
 
   // --- HELPER METHODS --- //
@@ -332,30 +223,24 @@ export class KycService {
     };
   }
 
-  private toKycFileDto(type: KycDocumentType, { contentType }: DocumentInfo): KycFileDto {
+  private toKycFileDto(type: KycDocumentType, { contentType }: KycFile): KycFileDto {
     return { type, contentType };
   }
 
-  private getDocumentInfoFor(type: KycDocumentType, documents: DocumentInfo[]): DocumentInfo | undefined {
+  private getFileFor(type: KycDocumentType, documents: KycFile[]): KycFile | undefined {
     switch (type) {
       case KycDocumentType.IDENTIFICATION:
-        return (
-          this.getReportDocumentInfo(KycDocument.ONLINE_IDENTIFICATION, documents) ??
-          this.getReportDocumentInfo(KycDocument.VIDEO_IDENTIFICATION, documents)
-        );
+        return documents.find((d) => d.type === KycFileType.IDENTIFICATION && d.contentType === KycContentType.PDF);
 
       case KycDocumentType.CHATBOT:
-        return this.getReportDocumentInfo(KycDocument.CHATBOT_ONBOARDING, documents);
+        // TODO: find PDF result
+        return undefined;
 
       case KycDocumentType.INCORPORATION_CERTIFICATE:
-        return documents.find((d) => d.document === KycDocument.INCORPORATION_CERTIFICATE);
+        return documents.find((d) => d.type === KycFileType.USER_NOTES && d.name.includes('incorporation-certificate'));
 
       default:
         throw new BadRequestException(`Document type ${type} is not supported`);
     }
-  }
-
-  private getReportDocumentInfo(type: KycDocument, documents: DocumentInfo[]): DocumentInfo | undefined {
-    return documents.find((d) => d.document === type && d.label === 'Report');
   }
 }

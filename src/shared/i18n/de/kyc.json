@@ -4,21 +4,21 @@
       "tnc": { "title": "Allgemeine Geschäftsbedingungen", "description": "Ich akzeptiere die AGBs" },
       "own_funds": {
         "title": "Quelle der zu investierenden Vermögenswerte",
-        "description": "Ich bestätige, dass die Vermögenswerte mir gehören"
+        "description": "Ich bestätige, dass alle Vermögenswerte die ich bei DFX einbringe ausschliesslich mir gehören."
       },
       "source_of_funds": {
         "title": "Quelle der zu investierenden Vermögenswerte",
-        "description": "Von wo hast Du die Kohle?"
+        "description": "Woher stammt der grossteil des Geldes?"
       },
-      "occupation": { "title": "Berufliche Tätigkeit", "description": "Was arbeitest Du denn?" },
-      "employer": { "title": "Arbeitgeber", "description": "Bei wem arbeitest Du?" },
-      "sector": { "title": "Branche", "description": "Was für 'ne Branche?" },
-      "risky_business": { "title": "Risikobehaftete Geschäftstätigkeiten", "description": "Bist Du ein Drogenbaron?" },
-      "income": { "title": "Jahreseinkommen", "description": "Wie viel kommt dabei rum jährlich?" },
-      "assets": { "title": "Vermögen", "description": "Und wie viel bleibt hängen?" },
+      "occupation": { "title": "Berufliche Tätigkeit", "description": "Wie beschreibst du deine berufliche Tätigkeit?" },
+      "employer": { "title": "Arbeitgeber", "description": "Wie lautet der Name deines Arbeitgebers? Bei Personen ohne Arbeitsverhältniss, wie lautet der Name deiner Uni, Schule oder bei Pensionären, Arbeitslosen und Rentner der Name des letzten Arbeitgebers." },
+      "sector": { "title": "Branche", "description": "In welcher Branche bist du beruflich tätig oder warst du zuletzt beruflich tätig?" },
+      "risky_business": { "title": "Risikobehaftete Geschäftstätigkeiten", "description": "Bist du in potentiell risikobehafteten Geschäftstätigkeiten wie zum Beispiel Waffenhandel, Casinos, Diamanten, exotische Tiere, Pornografie oder Prostitution involviert?" },
+      "income": { "title": "Jahreseinkommen", "description": "Wie hoch ist dein jährliches Einkommen?" },
+      "assets": { "title": "Vermögen", "description": "Wie gross ist dein totales Vermögen?" },
       "notification_of_changes": {
         "title": "Mitteilung von Änderungen",
-        "description": "Ich bestätige, dass ich automatisch Änderungen mitteile"
+        "description": "Ich bestätige, dass ich bei relevanten Änderungen meinerseits diese unverzüglich an DFX via support@dfx.swiss mitteile."
       }
     },
     "option": {
@@ -42,7 +42,7 @@
       "employed_management": "Angestellt mit Kadervertrag",
       "self_employed": "Selbstständig",
       "unemployed": "Arbeitslos",
-      "retired": "In Rente",
+      "retired": "In Rente / Pension",
       "privatier": "Privatier",
 
       "no_business": "Keine operative Geschäftstätigkeit",
@@ -68,11 +68,11 @@
       "insurance": "Versicherung",
       "other": "Andere",
 
-      "50k": "< 50'000 CHF",
-      "50k_100k": "50'000 - 100'000 CHF",
-      "100k_500k": "100'000 - 500'000 CHF",
-      "500k_1m": "500'000 - 1'000'000 CHF",
-      "1m": "> 1'000'000 CHF"
+      "50k": "< 50'000 CHF / EUR / USD",
+      "50k_100k": "50'000 - 100'000 CHF / EUR / USD",
+      "100k_500k": "100'000 - 500'000 CHF / EUR / USD",
+      "500k_1m": "500'000 - 1'000'000 CHF / EUR / USD",
+      "1m": "> 1'000'000 CHF / EUR / USD"
     }
   }
 }

@@ -23,7 +23,6 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
-import { KycService } from '../kyc/kyc.service';
 import { KycStatus, KycType, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { Wallet } from '../wallet/wallet.entity';
@@ -46,7 +45,6 @@ export class UserService {
     private readonly userRepo: UserRepository,
     private readonly userDataRepo: UserDataRepository,
     private readonly userDataService: UserDataService,
-    private readonly kycService: KycService,
     private readonly walletService: WalletService,
     private readonly dfiTaxService: DfiTaxService,
     private readonly apiKeyService: ApiKeyService,
@@ -431,7 +429,7 @@ export class UserService {
       kycLevel: user.userData?.kycLevel,
       kycHash: user.userData?.kycHash,
       tradingLimit: user.userData?.tradingLimit,
-      kycDataComplete: this.kycService.isDataComplete(user.userData),
+      kycDataComplete: user.userData?.isDataComplete,
       apiKeyCT: user.apiKeyCT,
       apiFilterCT: this.apiKeyService.getFilterArray(user.apiFilterCT),
       ...(detailed ? await this.getUserDetails(user) : undefined),
