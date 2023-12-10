@@ -19,7 +19,8 @@ export class BankDataService {
     const bankData = this.bankDataRepo.create({ ...dto, userData });
     await this.bankDataRepo.save(bankData);
 
-    await this.userDataRepo.update(userData.id, { riskState: userData.riskState, riskRoots: userData.riskRoots });
+    // update updated time in user data
+    await this.userDataRepo.setNewUpdateTime(userDataId);
 
     userData.bankDatas.push(bankData);
     return userData;
