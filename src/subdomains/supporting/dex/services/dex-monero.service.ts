@@ -38,7 +38,7 @@ export class DexMoneroService {
 
   async checkAvailableTargetLiquidity(inputAmount: number): Promise<[number, number]> {
     const pendingAmount = await this.getPendingAmount();
-    const availableAmount = await this.client.getBalance().then((b) => b.unlocked_balance);
+    const availableAmount = await this.client.getBalance().then((b) => b.balance);
 
     return [inputAmount, availableAmount - pendingAmount];
   }

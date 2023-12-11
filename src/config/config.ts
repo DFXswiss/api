@@ -355,8 +355,8 @@ export class Configuration {
       certificate: process.env.LIGHTNING_API_CERTIFICATE?.split('<br>').join('\n'),
     },
     monero: {
-      d: {
-        url: process.env.MONERO_D_URL,
+      node: {
+        url: process.env.MONERO_NODE_URL,
       },
       rpc: {
         url: process.env.MONERO_RPC_URL,

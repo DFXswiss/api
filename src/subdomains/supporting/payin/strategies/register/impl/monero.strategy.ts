@@ -94,7 +94,7 @@ export class MoneroStrategy extends RegisterStrategy {
 
   private async getNewEntries(lastCheckedBlockHeight: number): Promise<PayInEntry[]> {
     const isHealthy = await this.payInMoneroService.isHealthy();
-    if (!isHealthy) throw new Error('Monero Node not in sync');
+    if (!isHealthy) throw new Error('Monero Node is unhealthy');
 
     const transferInResults = await this.payInMoneroService.getTransactionHistory(lastCheckedBlockHeight);
     const relevantTransferInResults = this.filterByRelevantAddresses(this.getOwnAddresses(), transferInResults);

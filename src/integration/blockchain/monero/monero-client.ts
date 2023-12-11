@@ -26,7 +26,7 @@ export class MoneroClient {
   async getInfo(): Promise<GetInfoResultDto> {
     return this.http
       .post<{ result: GetInfoResultDto }>(
-        `${Config.blockchain.monero.d.url}/json_rpc`,
+        `${Config.blockchain.monero.node.url}/json_rpc`,
         {
           method: 'get_info',
           params: { account_index: 0 },
@@ -38,14 +38,14 @@ export class MoneroClient {
 
   async getBlockHeight(): Promise<number> {
     return this.http
-      .post<{ height: number }>(`${Config.blockchain.monero.d.url}/get_height`, {}, this.httpConfig())
+      .post<{ height: number }>(`${Config.blockchain.monero.node.url}/get_height`, {}, this.httpConfig())
       .then((r) => r.height);
   }
 
   async getFeeEstimate(): Promise<GetFeeEstimateResultDto> {
     return this.http
       .post<{ result: GetFeeEstimateResultDto }>(
-        `${Config.blockchain.monero.d.url}/json_rpc`,
+        `${Config.blockchain.monero.node.url}/json_rpc`,
         {
           method: 'get_fee_estimate',
           params: {},
@@ -56,8 +56,8 @@ export class MoneroClient {
   }
 
   private convertFeeEstimateAuToXmr(feeEstimateResult: GetFeeEstimateResultDto): GetFeeEstimateResultDto {
-    feeEstimateResult.fee = MoneroHelper.auToXmr(feeEstimateResult.fee);
-    feeEstimateResult.fees = feeEstimateResult.fees.map((fee) => MoneroHelper.auToXmr(fee));
+    feeEstimateResult.fee = MoneroHelper.auToXmr(feeEstimateResult.fee) ?? 0;
+    feeEstimateResult.fees = feeEstimateResult.fees.map((fee) => MoneroHelper.auToXmr(fee) ?? 0);
 
     return feeEstimateResult;
   }
@@ -65,7 +65,7 @@ export class MoneroClient {
   async getTransaction(txId: string): Promise<MoneroTransactionDto | undefined> {
     return this.http
       .post<{ status: string; txs: GetTransactionResultDto[] }>(
-        `${Config.blockchain.monero.d.url}/get_transactions`,
+        `${Config.blockchain.monero.node.url}/get_transactions`,
         {
           txs_hashes: [txId],
           decode_as_json: true,
@@ -88,7 +88,7 @@ export class MoneroClient {
     transaction.confirmations = transactionResult.confirmations;
     transaction.tx_hash = transactionResult.tx_hash;
 
-    transaction.txnFee = MoneroHelper.auToXmr(this.mapTransactionFee(transaction));
+    transaction.txnFee = MoneroHelper.auToXmr(this.mapTransactionFee(transaction)) ?? 0;
 
     return transaction;
   }
@@ -100,8 +100,8 @@ export class MoneroClient {
     const totalVinAmount = Util.sum(vinAmounts);
     const totalVoutAmount = Util.sum(voutAmounts);
 
-    transaction.inAmount = MoneroHelper.auToXmr(totalVinAmount);
-    transaction.outAmount = MoneroHelper.auToXmr(totalVoutAmount);
+    transaction.inAmount = MoneroHelper.auToXmr(totalVinAmount) ?? 0;
+    transaction.outAmount = MoneroHelper.auToXmr(totalVoutAmount) ?? 0;
 
     const transactionFee = totalVinAmount - totalVoutAmount;
     if (transactionFee > 0) return transactionFee;
@@ -176,7 +176,8 @@ export class MoneroClient {
   }
 
   private convertBalanceAuToXmr(balanceResultDto: GetBalanceResultDto): GetBalanceResultDto {
-    balanceResultDto.unlocked_balance = MoneroHelper.auToXmr(balanceResultDto.unlocked_balance);
+    balanceResultDto.balance = MoneroHelper.auToXmr(balanceResultDto.balance) ?? 0;
+    balanceResultDto.unlocked_balance = MoneroHelper.auToXmr(balanceResultDto.unlocked_balance) ?? 0;
 
     return balanceResultDto;
   }
@@ -229,14 +230,14 @@ export class MoneroClient {
   }
 
   private sortTransfers(transfers: MoneroTransferDto[]): MoneroTransferDto[] {
-    return transfers.sort((t1, t2) => (t1.timestamp > t2.timestamp ? -1 : 1));
+    return transfers.sort((t1, t2) => t2.timestamp - t1.timestamp);
   }
 
   private convertTransferAuToXmr(transfer: MoneroTransferDto): MoneroTransferDto {
-    transfer.amount = MoneroHelper.auToXmr(transfer.amount);
-    transfer.fee = MoneroHelper.auToXmr(transfer.fee);
+    transfer.amount = MoneroHelper.auToXmr(transfer.amount) ?? 0;
+    transfer.fee = MoneroHelper.auToXmr(transfer.fee) ?? 0;
 
-    transfer.destinations?.forEach((d) => (d.amount = MoneroHelper.auToXmr(d.amount)));
+    transfer.destinations?.forEach((d) => (d.amount = MoneroHelper.auToXmr(d.amount) ?? 0));
 
     return transfer;
   }

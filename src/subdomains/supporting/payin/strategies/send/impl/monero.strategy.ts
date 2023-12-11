@@ -28,7 +28,7 @@ export class MoneroStrategy extends SendStrategy {
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
     const isHealthy = await this.payInMoneroService.isHealthy();
-    if (!isHealthy) throw new Error('Monero Node not in sync');
+    if (!isHealthy) throw new Error('Monero Node is unhealthy');
 
     for (const payIn of payIns) {
       try {
@@ -47,7 +47,7 @@ export class MoneroStrategy extends SendStrategy {
 
   async checkConfirmations(payIns: CryptoInput[]): Promise<void> {
     const isHealthy = await this.payInMoneroService.isHealthy();
-    if (!isHealthy) throw new Error('Monero Node not in sync');
+    if (!isHealthy) throw new Error('Monero Node is unhealthy');
 
     for (const payIn of payIns) {
       try {

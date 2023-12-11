@@ -94,6 +94,7 @@ export interface GetAddressResultDto {
 
 // https://web.getmonero.org/resources/developer-guides/wallet-rpc.html#get_balance
 export interface GetBalanceResultDto {
+  balance: number;
   unlocked_balance: number;
 }
 

@@ -13,7 +13,6 @@ import { PayoutStrategy } from './base/payout.strategy';
 export class MoneroStrategy extends PayoutStrategy {
   private readonly logger = new DfxLogger(MoneroStrategy);
 
-  // TODO: Define the average transaction size for a monero transaction! ...
   private readonly averageTransactionSize = 180; // vBytes
 
   constructor(
@@ -52,7 +51,7 @@ export class MoneroStrategy extends PayoutStrategy {
       const checkPayoutAmount = amount + estimateFee * 2;
 
       if (unlockedBalance < checkPayoutAmount) {
-        this.logger.info(`Insufficient unlocked balance ${unlockedBalance} for payout ${amount}`);
+        this.logger.info(`Insufficient unlocked balance ${unlockedBalance} for payout ${amount} with id ${order.id}`);
       } else {
         const txId = await this.payoutMoneroService.sendTransfer(address, amount);
         await this.finishDoPayout(order, txId);
@@ -93,12 +92,7 @@ export class MoneroStrategy extends PayoutStrategy {
   }
 
   private async isHealthy(): Promise<boolean> {
-    try {
-      return await this.payoutMoneroService.isHealthy();
-    } catch (e) {
-      this.logger.error('Error in checking health state of Monero Node', e);
-      return false;
-    }
+    return this.payoutMoneroService.isHealthy();
   }
 
   async getFeeAsset(): Promise<Asset> {
