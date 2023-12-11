@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { LanguageDto } from 'src/shared/models/language/dto/language.dto';
 import { KycStepName, KycStepType, UrlType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { KycLevel } from '../../../user/models/user-data/user-data.entity';
 import { TradingLimit } from '../../../user/models/user/dto/user.dto';
@@ -54,6 +55,9 @@ export class KycStatusDto {
 
   @ApiProperty()
   twoFactorEnabled: boolean;
+
+  @ApiProperty({ type: LanguageDto })
+  language: LanguageDto;
 
   @ApiProperty({ type: KycStepDto, isArray: true })
   kycSteps: KycStepDto[];
