@@ -6,7 +6,6 @@ import { AmlReason } from 'src/subdomains/core/buy-crypto/process/enums/aml-reas
 import { Mail, MailParams } from '../entities/mail/base/mail';
 import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
 import { InternalMail, MailRequestInternalInput } from '../entities/mail/internal-mail';
-import { KycSupportMail, KycSupportMailInput } from '../entities/mail/kyc-support-mail';
 import { MailRequestPersonalInput, PersonalMail } from '../entities/mail/personal-mail';
 import { MailRequestUserInput, UserMail, UserMailTable } from '../entities/mail/user-mail';
 import { MailType } from '../enums';
@@ -67,10 +66,6 @@ export class MailFactory {
         return this.createErrorMonitoringMail(request);
       }
 
-      case MailType.KYC_SUPPORT: {
-        return this.createKycSupportMail(request);
-      }
-
       case MailType.USER: {
         return this.createUserMail(request);
       }
@@ -129,19 +124,6 @@ export class MailFactory {
     const { metadata, options } = request;
 
     return new ErrorMonitoringMail({ subject, errors, metadata, options });
-  }
-
-  private createKycSupportMail(request: MailRequest): KycSupportMail {
-    const { userData } = request.input as KycSupportMailInput;
-    const { metadata, options } = request;
-
-    return new KycSupportMail({
-      userDataId: userData.id,
-      kycStatus: userData.kycStatus,
-      kycCustomerId: userData.kycCustomerId,
-      metadata,
-      options,
-    });
   }
 
   private createUserMail(request: MailRequest): UserMail {

@@ -1,3 +1,4 @@
+import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from '../../../user/models/user-data/user-data.entity';
 import { KycStep } from '../../entities/kyc-step.entity';
@@ -19,6 +20,7 @@ export class KycInfoMapper {
       kycLevel: userData.kycLevel,
       tradingLimit: userData.tradingLimit,
       twoFactorEnabled: false, // TODO
+      language: LanguageDtoMapper.entityToDto(userData.language),
       kycSteps: kycSteps.map((s) => KycStepMapper.toStep(s, currentStep)),
       currentStep: withSession && currentStep ? KycStepMapper.toStepSession(currentStep) : undefined,
     };
