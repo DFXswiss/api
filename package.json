@@ -72,6 +72,7 @@
     "mssql": "^9.1.1",
     "nestjs-i18n": "^10.2.6",
     "nestjs-real-ip": "^2.2.0",
+    "node-2fa": "^2.0.3",
     "nodemailer": "^6.9.1",
     "passport": "^0.6.0",
     "passport-jwt": "^4.0.1",
