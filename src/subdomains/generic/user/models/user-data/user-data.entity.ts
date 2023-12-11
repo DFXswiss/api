@@ -364,7 +364,7 @@ export class UserData extends IEntity {
   setKycLevel(level: KycLevel): this {
     this.kycLevel = level;
 
-    this.logger.verbose(`User ${this.id} changed to KYC ${level}`);
+    this.logger.verbose(`User ${this.id} changed to KYC level ${level}`);
 
     return this;
   }
