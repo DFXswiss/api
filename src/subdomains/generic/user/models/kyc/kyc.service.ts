@@ -3,7 +3,6 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
-  NotImplementedException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Country } from 'src/shared/models/country/country.entity';
@@ -124,8 +123,8 @@ export class KycService {
   }
 
   // --- KYC PROCESS --- //
-  async requestKyc(_c: string, _u?: number): Promise<never> {
-    throw new NotImplementedException('Use KYC v2');
+  async requestKyc(code: string, userId?: number): Promise<KycInfo> {
+    return this.getKycStatus(code, userId);
   }
 
   async getKycStatus(code: string, userId?: number): Promise<KycInfo> {
