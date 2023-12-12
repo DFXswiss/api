@@ -58,6 +58,7 @@ export class BuyCryptoService {
     private readonly userService: UserService,
     private readonly assetService: AssetService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
+    @Inject(forwardRef(() => BuyCryptoPreparationService))
     private readonly buyCryptoPreparationService: BuyCryptoPreparationService,
   ) {}
 
@@ -332,7 +333,7 @@ export class BuyCryptoService {
     return cryptoRoute;
   }
 
-  private async updateBuyVolume(buyIds: number[]): Promise<void> {
+  async updateBuyVolume(buyIds: number[]): Promise<void> {
     buyIds = buyIds.filter((u, j) => buyIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 
     for (const id of buyIds) {
@@ -357,7 +358,7 @@ export class BuyCryptoService {
     }
   }
 
-  private async updateCryptoRouteVolume(cryptoRouteIds: number[]): Promise<void> {
+  async updateCryptoRouteVolume(cryptoRouteIds: number[]): Promise<void> {
     cryptoRouteIds = cryptoRouteIds.filter((u, j) => cryptoRouteIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 
     for (const id of cryptoRouteIds) {
@@ -382,7 +383,7 @@ export class BuyCryptoService {
     }
   }
 
-  private async updateRefVolume(refs: string[]): Promise<void> {
+  async updateRefVolume(refs: string[]): Promise<void> {
     refs = refs.filter((u, j) => refs.indexOf(u) === j).filter((i) => i); // distinct, not null
 
     for (const ref of refs) {
