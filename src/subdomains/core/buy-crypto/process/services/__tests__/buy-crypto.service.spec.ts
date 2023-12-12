@@ -2,7 +2,6 @@ import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { ProcessService } from 'src/shared/services/process.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { CryptoRouteService } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.service';
 import { createCustomHistory } from 'src/subdomains/core/history/dto/__mocks__/history.dto.mock';
@@ -52,7 +51,6 @@ describe('BuyCryptoService', () => {
   let buyCryptoWebhookService: BuyCryptoWebhookService;
   let assetService: AssetService;
   let buyCryptoPreparationService: BuyCryptoPreparationService;
-  let processService: ProcessService;
 
   beforeEach(async () => {
     buyCryptoRepo = createMock<BuyCryptoRepository>();
@@ -70,7 +68,6 @@ describe('BuyCryptoService', () => {
     buyCryptoWebhookService = createMock<BuyCryptoWebhookService>();
     assetService = createMock<AssetService>();
     buyCryptoPreparationService = createMock<BuyCryptoPreparationService>();
-    processService = createMock<ProcessService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -91,7 +88,6 @@ describe('BuyCryptoService', () => {
         { provide: BuyCryptoWebhookService, useValue: buyCryptoWebhookService },
         { provide: AssetService, useValue: assetService },
         { provide: BuyCryptoPreparationService, useValue: buyCryptoPreparationService },
-        { provide: ProcessService, useValue: processService },
       ],
     }).compile();
 

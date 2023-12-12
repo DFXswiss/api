@@ -1,6 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { ProcessService } from 'src/shared/services/process.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -39,7 +38,6 @@ describe('BuyFiatService', () => {
   let buyFiatRegistrationService: BuyFiatRegistrationService;
   let webhookService: WebhookService;
   let buyFiatPreparationService: BuyFiatPreparationService;
-  let processService: ProcessService;
 
   beforeEach(async () => {
     buyFiatRepo = createMock<BuyFiatRepository>();
@@ -52,7 +50,6 @@ describe('BuyFiatService', () => {
     buyFiatRegistrationService = createMock<BuyFiatRegistrationService>();
     webhookService = createMock<WebhookService>();
     buyFiatPreparationService = createMock<BuyFiatPreparationService>();
-    processService = createMock<ProcessService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -68,7 +65,6 @@ describe('BuyFiatService', () => {
         { provide: BuyFiatRegistrationService, useValue: buyFiatRegistrationService },
         { provide: WebhookService, useValue: webhookService },
         { provide: BuyFiatPreparationService, useValue: buyFiatPreparationService },
-        { provide: ProcessService, useValue: processService },
       ],
     }).compile();
 

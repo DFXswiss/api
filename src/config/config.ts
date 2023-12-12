@@ -515,9 +515,12 @@ export class Configuration {
   }
 
   // --- HELPERS --- //
-
-  processDisabled = (processName: Process) =>
-    process.env.DISABLED_PROCESSES === '*' || (process.env.DISABLED_PROCESSES?.split(',') ?? []).includes(processName);
+  disabledProcesses = () =>
+    process.env.DISABLED_PROCESSES === '*'
+      ? Object.values(Process)
+      : Object.values(Process).filter((processName) =>
+          (process.env.DISABLED_PROCESSES?.split(',') ?? []).includes(processName),
+        );
 }
 
 function splitWithdrawKeys(value?: string): Map<string, string> {

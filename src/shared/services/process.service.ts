@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Lock } from 'src/shared/utils/lock';
@@ -34,28 +34,26 @@ export enum Process {
   TOTP_AUTH_CACHE = 'TotpAuthCache',
 }
 
-type DisabledProcessType = Record<Process, boolean>;
-export let disabledProcesses: DisabledProcessType = {} as DisabledProcessType;
+let DisabledProcesses: { [p in Process]?: boolean } = {};
 
 export function DisabledProcess(process: Process): boolean {
-  return disabledProcesses[process];
+  return DisabledProcesses[process] === true;
 }
 
 @Injectable()
-export class ProcessService {
-  constructor(private readonly settingService: SettingService) {
-    this.resyncDisabledProcesses();
+export class ProcessService implements OnModuleInit {
+  constructor(private readonly settingService: SettingService) {}
+
+  onModuleInit() {
+    void this.resyncDisabledProcesses();
   }
 
   @Cron(CronExpression.EVERY_30_SECONDS)
   @Lock(1800)
   async resyncDisabledProcesses(): Promise<void> {
-    const settingDisabledProcesses = await this.settingService.getDisabledProcesses();
+    const allDisabledProcesses = [...(await this.settingService.getDisabledProcesses()), ...Config.disabledProcesses()];
 
-    settingDisabledProcesses.forEach((process) => (disabledProcesses[process] = true));
-
-    Object.values(Process).forEach((process) => {
-      if (Config.processDisabled(process)) disabledProcesses[process] = true;
-    });
+    DisabledProcesses = {};
+    allDisabledProcesses.forEach((process) => (DisabledProcesses[process] = true));
   }
 }
