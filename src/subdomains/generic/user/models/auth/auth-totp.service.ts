@@ -4,6 +4,7 @@ import { generateSecret, generateToken, verifyToken } from 'node-2fa';
 import { Config, Process } from 'src/config/config';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
+import { KycLogType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { TotpAuthLogRepository } from 'src/subdomains/generic/kyc/repositories/totp-auth-log.repository';
 import { UserData } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
@@ -128,7 +129,7 @@ export class AuthTotpService {
   // --- HELPER METHODS --- //
   private async createTotpAuthLog(kycHash: string, ip: string, message: string) {
     const logEntity = this.totpAuthLogRepository.create({
-      type: '2faLog',
+      type: KycLogType.TOTP_AUTH,
       ipAddress: ip,
       userData: await this.getUserData(kycHash),
       comment: message,
