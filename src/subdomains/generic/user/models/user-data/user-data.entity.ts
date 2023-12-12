@@ -261,6 +261,10 @@ export class UserData extends IEntity {
   @Column({ type: 'float', default: 0 })
   cryptoVolume: number; // CHF
 
+  // 2FA
+  @Column({ nullable: true })
+  totpSecret: string;
+
   // References
   @OneToMany(() => BankAccount, (bankAccount) => bankAccount.userData)
   bankAccounts: BankAccount[];
