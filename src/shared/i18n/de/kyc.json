@@ -4,18 +4,30 @@
       "tnc": { "title": "Allgemeine Geschäftsbedingungen", "description": "Ich akzeptiere die AGBs" },
       "own_funds": {
         "title": "Quelle der zu investierenden Vermögenswerte",
-        "description": "Ich bestätige, dass alle Vermögenswerte die ich bei DFX einbringe ausschliesslich mir gehören."
+        "description": "Ich bestätige, dass alle Vermögenswerte, die ich bei DFX einbringe, ausschliesslich mir gehören."
       },
       "source_of_funds": {
         "title": "Quelle der zu investierenden Vermögenswerte",
-        "description": "Woher stammt der grossteil des Geldes?"
+        "description": "Woher stammt der Grossteil des Geldes?"
       },
-      "occupation": { "title": "Berufliche Tätigkeit", "description": "Wie beschreibst du deine berufliche Tätigkeit?" },
-      "employer": { "title": "Arbeitgeber", "description": "Wie lautet der Name deines Arbeitgebers? Bei Personen ohne Arbeitsverhältniss, wie lautet der Name deiner Uni, Schule oder bei Pensionären, Arbeitslosen und Rentner der Name des letzten Arbeitgebers." },
-      "sector": { "title": "Branche", "description": "In welcher Branche bist du beruflich tätig oder warst du zuletzt beruflich tätig?" },
-      "risky_business": { "title": "Risikobehaftete Geschäftstätigkeiten", "description": "Bist du in potentiell risikobehafteten Geschäftstätigkeiten wie zum Beispiel Waffenhandel, Casinos, Diamanten, exotische Tiere, Pornografie oder Prostitution involviert?" },
-      "income": { "title": "Jahreseinkommen", "description": "Wie hoch ist dein jährliches Einkommen?" },
-      "assets": { "title": "Vermögen", "description": "Wie gross ist dein totales Vermögen?" },
+      "occupation": {
+        "title": "Berufliche Tätigkeit",
+        "description": "Wie beschreibst Du Deine berufliche Tätigkeit?"
+      },
+      "employer": {
+        "title": "Arbeitgeber",
+        "description": "Wie lautet der Name Deines Arbeitgebers? Bei Personen ohne Arbeitsverhältnis der Name der Uni, Schule oder bei Pensionären, Arbeitslosen und Rentnern der Name des letzten Arbeitgebers."
+      },
+      "sector": {
+        "title": "Branche",
+        "description": "In welcher Branche bist Du beruflich tätig oder warst Du zuletzt beruflich tätig?"
+      },
+      "risky_business": {
+        "title": "Risikobehaftete Geschäftstätigkeiten",
+        "description": "Bist Du in potentiell risikobehafteten Geschäftstätigkeiten wie zum Beispiel Waffenhandel, Kasinos, Diamanten, exotische Tiere, Pornografie oder Prostitution involviert?"
+      },
+      "income": { "title": "Jahreseinkommen", "description": "Wie hoch ist Dein jährliches Einkommen?" },
+      "assets": { "title": "Vermögen", "description": "Wie gross ist Dein totales Vermögen?" },
       "notification_of_changes": {
         "title": "Mitteilung von Änderungen",
         "description": "Ich bestätige, dass ich bei relevanten Änderungen meinerseits diese unverzüglich an DFX via support@dfx.swiss mitteile."

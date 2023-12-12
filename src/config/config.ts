@@ -35,8 +35,9 @@ export enum Process {
   PRICING = 'Pricing',
   BUY_CRYPTO_AML_CHECK = 'BuyCryptoAmlCheck',
   BUY_CRYPTO_SET_FEE = 'BuyCryptoSetFee',
-  LNURL_AUTH_CACHE = 'LnurlAuthCache',
   BUY_FIAT_SET_FEE = 'BuyFiatSetFee',
+  LNURL_AUTH_CACHE = 'LnurlAuthCache',
+  TOTP_AUTH_CACHE = 'TotpAuthCache',
 }
 
 export enum Environment {
@@ -355,10 +356,14 @@ export class Configuration {
       certificate: process.env.LIGHTNING_API_CERTIFICATE?.split('<br>').join('\n'),
     },
     monero: {
+      node: {
+        url: process.env.MONERO_NODE_URL,
+      },
       rpc: {
         url: process.env.MONERO_RPC_URL,
-        certificate: process.env.MONERO_RPC_CERTIFICATE?.split('<br>').join('\n'),
       },
+      walletAddress: process.env.MONERO_WALLET_ADDRESS,
+      certificate: process.env.MONERO_RPC_CERTIFICATE?.split('<br>').join('\n'),
     },
   };
 
@@ -366,6 +371,9 @@ export class Configuration {
     minDeposit: {
       Bitcoin: {
         BTC: 0.000001,
+      },
+      Monero: {
+        XMR: 0.000001,
       },
       DeFiChain: {
         DFI: 0.01,

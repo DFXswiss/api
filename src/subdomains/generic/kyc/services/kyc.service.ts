@@ -286,6 +286,9 @@ export class KycService {
         case KycStepName.CONTACT_DATA:
           return { nextStep: { name: KycStepName.CONTACT_DATA, preventDirectEvaluation: true } };
 
+        case KycStepName.IDENT:
+          return { nextStep: { name: KycStepName.IDENT, type: await this.userDataService.getIdentMethod(user) } };
+
         default:
           return { nextStep: undefined };
       }

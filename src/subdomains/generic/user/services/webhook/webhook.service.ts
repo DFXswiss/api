@@ -71,7 +71,7 @@ export class WebhookService {
     reason?: string,
   ): Promise<void> {
     try {
-      if (!user.wallet.isKycClient || !user.wallet.apiUrl) return;
+      if (!user.wallet.apiUrl) return;
       if (!user.wallet.apiKey) throw new Error(`ApiKey for wallet ${user.wallet.name} not available`);
 
       const webhookDto: WebhookDto<T> = {

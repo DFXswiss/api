@@ -12,6 +12,7 @@ export interface AssetQuery {
 
 const MainLayerBlockchain: { [name in string]: Blockchain } = {
   BTC: Blockchain.BITCOIN,
+  XMR: Blockchain.MONERO,
   ETH: Blockchain.ETHEREUM,
   BNB: Blockchain.BINANCE_SMART_CHAIN,
 };
@@ -130,6 +131,14 @@ export class AssetService {
     return this.getAssetByQuery({
       dexName: 'BTC',
       blockchain: Blockchain.LIGHTNING,
+      type: AssetType.COIN,
+    });
+  }
+
+  async getMoneroCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      dexName: 'XMR',
+      blockchain: Blockchain.MONERO,
       type: AssetType.COIN,
     });
   }

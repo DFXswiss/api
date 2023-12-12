@@ -14,6 +14,10 @@ export function assetExplorerUrl(asset: Asset): string | undefined {
   return assetPath ? `${BlockchainExplorerUrls[asset.blockchain]}/${assetPath}` : undefined;
 }
 
+export function isBtcChain(blockchain: Blockchain): boolean {
+  return [Blockchain.BITCOIN, Blockchain.LIGHTNING, Blockchain.MONERO].includes(blockchain);
+}
+
 // --- HELPERS --- //
 
 const BlockchainExplorerUrls: { [b in Blockchain]: string } = {

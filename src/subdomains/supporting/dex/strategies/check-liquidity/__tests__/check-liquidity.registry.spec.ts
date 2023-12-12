@@ -11,6 +11,7 @@ import { DexBscService } from '../../../services/dex-bsc.service';
 import { DexDeFiChainService } from '../../../services/dex-defichain.service';
 import { DexEthereumService } from '../../../services/dex-ethereum.service';
 import { DexLightningService } from '../../../services/dex-lightning.service';
+import { DexMoneroService } from '../../../services/dex-monero.service';
 import { DexOptimismService } from '../../../services/dex-optimism.service';
 import { PurchaseLiquidityStrategyRegistry } from '../../purchase-liquidity/impl/base/purchase-liquidity.strategy-registry';
 import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
@@ -24,6 +25,7 @@ import { DeFiChainPoolPairStrategy } from '../impl/defichain-poolpair.strategy';
 import { EthereumCoinStrategy } from '../impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy } from '../impl/ethereum-token.strategy';
 import { LightningStrategy } from '../impl/lightning.strategy';
+import { MoneroStrategy } from '../impl/monero.strategy';
 import { OptimismCoinStrategy } from '../impl/optimism-coin.strategy';
 import { OptimismTokenStrategy } from '../impl/optimism-token.strategy';
 
@@ -40,6 +42,7 @@ describe('CheckLiquidityStrategies', () => {
   let ethereumCoin: EthereumCoinStrategy;
   let ethereumToken: EthereumTokenStrategy;
   let lightning: LightningStrategy;
+  let monero: MoneroStrategy;
   let optimismCoin: OptimismCoinStrategy;
   let optimismToken: OptimismTokenStrategy;
 
@@ -63,6 +66,7 @@ describe('CheckLiquidityStrategies', () => {
     ethereumCoin = new EthereumCoinStrategy(mock<AssetService>(), mock<DexEthereumService>());
     ethereumToken = new EthereumTokenStrategy(mock<AssetService>(), mock<DexEthereumService>());
     lightning = new LightningStrategy(mock<AssetService>(), mock<DexLightningService>());
+    monero = new MoneroStrategy(mock<AssetService>(), mock<DexMoneroService>());
     optimismCoin = new OptimismCoinStrategy(mock<AssetService>(), mock<DexOptimismService>());
     optimismToken = new OptimismTokenStrategy(mock<AssetService>(), mock<DexOptimismService>());
 
@@ -77,6 +81,7 @@ describe('CheckLiquidityStrategies', () => {
       ethereumCoin,
       ethereumToken,
       lightning,
+      monero,
       optimismCoin,
       optimismToken,
     );
@@ -166,6 +171,12 @@ describe('CheckLiquidityStrategies', () => {
         expect(strategy).toBeInstanceOf(LightningStrategy);
       });
 
+      it('gets MONERO strategy for MONERO', () => {
+        const strategy = register.getCheckLiquidityStrategy(createCustomAsset({ blockchain: Blockchain.MONERO }));
+
+        expect(strategy).toBeInstanceOf(MoneroStrategy);
+      });
+
       it('gets OPTIMISM_COIN strategy', () => {
         const strategy = register.getCheckLiquidityStrategy(
           createCustomAsset({ blockchain: Blockchain.OPTIMISM, type: AssetType.COIN }),
@@ -205,6 +216,7 @@ class CheckLiquidityStrategyRegistryWrapper extends CheckLiquidityStrategyRegist
     ethereumCoin: EthereumCoinStrategy,
     ethereumToken: EthereumTokenStrategy,
     lightning: LightningStrategy,
+    monero: MoneroStrategy,
     optimismCoin: OptimismCoinStrategy,
     optimismToken: OptimismTokenStrategy,
   ) {
@@ -221,6 +233,7 @@ class CheckLiquidityStrategyRegistryWrapper extends CheckLiquidityStrategyRegist
     this.addStrategy({ blockchain: Blockchain.ETHEREUM, assetType: AssetType.COIN }, ethereumCoin);
     this.addStrategy({ blockchain: Blockchain.ETHEREUM, assetType: AssetType.TOKEN }, ethereumToken);
     this.addStrategy({ blockchain: Blockchain.LIGHTNING }, lightning);
+    this.addStrategy({ blockchain: Blockchain.MONERO }, monero);
     this.addStrategy({ blockchain: Blockchain.OPTIMISM, assetType: AssetType.COIN }, optimismCoin);
     this.addStrategy({ blockchain: Blockchain.OPTIMISM, assetType: AssetType.TOKEN }, optimismToken);
   }
