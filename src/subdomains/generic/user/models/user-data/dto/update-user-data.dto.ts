@@ -170,4 +170,8 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsString()
   relatedUsers: string;
+
+  @IsOptional()
+  @IsString()
+  verificationDocumentId: string;
 }

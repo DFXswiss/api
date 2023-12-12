@@ -218,6 +218,9 @@ export class UserData extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   lastNameCheckDate: Date;
 
+  @Column({ length: 256, nullable: true })
+  verificationDocumentId: string;
+
   // AML
   @Column({ type: 'datetime2', nullable: true })
   amlListAddedDate: Date;
