@@ -178,7 +178,7 @@ export class BuyCryptoService {
 
     if (dto.amountInChf) await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
     if (dto.amountInChf) await this.updateCryptoRouteVolume([cryptoRouteIdBefore, entity.cryptoRoute?.id]);
-    if (dto.usedRef) await this.updateRefVolume([usedRefBefore, entity.usedRef]);
+    if (dto.usedRef || dto.amountInEur) await this.updateRefVolume([usedRefBefore, entity.usedRef]);
 
     return entity;
   }
