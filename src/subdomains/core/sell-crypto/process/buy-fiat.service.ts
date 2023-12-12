@@ -115,8 +115,8 @@ export class BuyFiatService {
     )
       await this.triggerWebhook(entity);
 
-    await this.updateSellVolume([sellIdBefore, entity.sell?.id]);
-    await this.updateRefVolume([usedRefBefore, entity.usedRef]);
+    if (dto.amountInChf) await this.updateSellVolume([sellIdBefore, entity.sell?.id]);
+    if (dto.usedRef) await this.updateRefVolume([usedRefBefore, entity.usedRef]);
 
     return entity;
   }

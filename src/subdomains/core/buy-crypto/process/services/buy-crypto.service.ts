@@ -176,9 +176,9 @@ export class BuyCryptoService {
     )
       await this.buyCryptoWebhookService.triggerWebhook(entity);
 
-    await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
-    await this.updateCryptoRouteVolume([cryptoRouteIdBefore, entity.cryptoRoute?.id]);
-    await this.updateRefVolume([usedRefBefore, entity.usedRef]);
+    if (dto.amountInChf) await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
+    if (dto.amountInChf) await this.updateCryptoRouteVolume([cryptoRouteIdBefore, entity.cryptoRoute?.id]);
+    if (dto.usedRef) await this.updateRefVolume([usedRefBefore, entity.usedRef]);
 
     return entity;
   }
