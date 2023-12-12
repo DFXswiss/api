@@ -29,8 +29,9 @@ export enum Process {
   PRICING = 'Pricing',
   BUY_CRYPTO_AML_CHECK = 'BuyCryptoAmlCheck',
   BUY_CRYPTO_SET_FEE = 'BuyCryptoSetFee',
-  LNURL_AUTH_CACHE = 'LnurlAuthCache',
   BUY_FIAT_SET_FEE = 'BuyFiatSetFee',
+  LNURL_AUTH_CACHE = 'LnurlAuthCache',
+  TOTP_AUTH_CACHE = 'TotpAuthCache',
 }
 
 type DisabledProcessType = Record<Process, boolean>;
