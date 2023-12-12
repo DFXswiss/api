@@ -28,6 +28,7 @@ import { StepLogRepository } from '../repositories/step-log.repository';
 import { DocumentStorageService } from './integration/document-storage.service';
 import { FinancialService } from './integration/financial.service';
 import { IdentService } from './integration/ident.service';
+import { KycNotificationService } from './kyc-notification.service';
 
 @Injectable()
 export class KycService {
@@ -42,6 +43,7 @@ export class KycService {
     private readonly languageService: LanguageService,
     private readonly countryService: CountryService,
     private readonly stepLogRepo: StepLogRepository,
+    private readonly kycNotificationService: KycNotificationService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
@@ -182,12 +184,14 @@ export class KycService {
       case IdentShortResult.FAIL:
         user = user.failStep(kycStep, dto);
         await this.downloadIdentDocuments(user, kycStep, 'fail/');
+        await this.kycNotificationService.kycFailed(kycStep);
         break;
 
       default:
         this.logger.error(`Unknown ident result for user ${user.id}: ${sessionStatus}`);
     }
 
+    await this.kycStepRepo.update(...kycStep.resetReminderSentDate());
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
   }
@@ -258,7 +262,10 @@ export class KycService {
     if (!user.hasStepsInProgress) {
       const { nextStep, nextLevel } = await this.getNext(user);
 
-      if (nextLevel) user.setKycLevel(nextLevel);
+      if (nextLevel) {
+        user.setKycLevel(nextLevel);
+        await this.kycNotificationService.kycChanged(user, nextLevel);
+      }
 
       if (nextStep && shouldContinue && (autoStep || depth === 0)) {
         // continue with next step

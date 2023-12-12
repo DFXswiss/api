@@ -28,6 +28,7 @@ export enum Process {
   UPDATE_CFP = 'UpdateCfp',
   UPDATE_STATISTIC = 'UpdateStatistic',
   KYC = 'Kyc',
+  KYC_MAIL = 'KycMail',
   BANK_ACCOUNT = 'BankAccount',
   BANK_TX = 'BankTx',
   STAKING = 'Staking',
@@ -168,8 +169,10 @@ export class Configuration {
     transactionPrefix: process.env.KYC_TRANSACTION_PREFIX,
     identFailAfterDays: 90,
     allowedWebhookIps: process.env.KYC_WEBHOOK_IPS?.split(','),
+    reminderAfterDays: 2,
   };
 
+  // TODO: remove
   kycSpider = {
     mandator: process.env.KYC_MANDATOR,
     user: process.env.KYC_USER,

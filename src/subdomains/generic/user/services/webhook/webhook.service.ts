@@ -112,6 +112,7 @@ export class WebhookService {
       zip: userData.zip,
       phone: userData.phone,
       kycStatus: this.getKycWebhookStatus(userData.kycStatus, userData.kycType),
+      kycLevel: userData.kycLevel,
       kycHash: userData.kycHash,
       tradingLimit: userData.tradingLimit,
     };

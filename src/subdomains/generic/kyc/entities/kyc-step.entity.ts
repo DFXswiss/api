@@ -1,5 +1,5 @@
 import { Config } from 'src/config/config';
-import { IEntity } from 'src/shared/models/entity';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycStepName, KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
@@ -33,6 +33,10 @@ export class KycStep extends IEntity {
 
   @Column({ length: 'MAX', nullable: true })
   result?: string;
+
+  // Mail
+  @Column({ type: 'datetime2', nullable: true })
+  reminderSentDate: Date;
 
   // --- GETTERS --- //
   get sessionInfo(): { url: string; type: UrlType } {
@@ -70,6 +74,28 @@ export class KycStep extends IEntity {
     });
   }
 
+  // --- MAIL --- //
+
+  setReminderSentDate(): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = {
+      reminderSentDate: new Date(),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  resetReminderSentDate(): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = {
+      reminderSentDate: null,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   // --- KYC PROCESS --- //
 
   get isInProgress(): boolean {
@@ -105,7 +131,7 @@ export class KycStep extends IEntity {
     return this.setResult(result);
   }
 
-  cancel(result?: KycStepResult) {
+  cancel(result?: KycStepResult): this {
     this.status = KycStepStatus.IN_PROGRESS;
 
     return this.setResult(result);
