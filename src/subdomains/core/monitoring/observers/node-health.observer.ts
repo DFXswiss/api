@@ -4,7 +4,7 @@ import { NodeMode } from 'src/integration/blockchain/ain/node/node-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { AzureService } from 'src/integration/infrastructure/azure-service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Process, ProcessService } from 'src/shared/services/process.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
@@ -38,7 +38,6 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
     private readonly nodeService: NodeService,
     private readonly notificationService: NotificationService,
     private readonly azureService: AzureService,
-    private readonly processService: ProcessService,
   ) {
     super(monitoringService, 'node', 'health');
   }
@@ -53,7 +52,7 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(360)
   async fetch(): Promise<NodesState> {
-    if (await this.processService.isDisableProcess(Process.MONITORING)) return;
+    if (DisabledProcess(Process.MONITORING)) return;
     const previousState = this.data;
 
     let state = await this.getState(previousState);

@@ -4,7 +4,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { Process, ProcessService } from 'src/shared/services/process.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -44,7 +44,6 @@ export class RefRewardService {
     private readonly refRewardNotificationService: RefRewardNotificationService,
     private readonly refRewardDexService: RefRewardDexService,
     private readonly refRewardOutService: RefRewardOutService,
-    private readonly processService: ProcessService,
   ) {}
 
   //*** JOBS ***//
@@ -52,7 +51,7 @@ export class RefRewardService {
   @Cron(CronExpression.EVERY_DAY_AT_6AM)
   @Lock(1800)
   async createPendingRefRewards() {
-    if (await this.processService.isDisableProcess(Process.REF_PAYOUT)) return;
+    if (DisabledProcess(Process.REF_PAYOUT)) return;
 
     const openCreditUser = await this.userService.getOpenRefCreditUser();
     if (openCreditUser.length == 0) return;
@@ -98,7 +97,7 @@ export class RefRewardService {
   @Cron(CronExpression.EVERY_10_MINUTES)
   @Lock(1800)
   async processPendingRefRewards() {
-    if (await this.processService.isDisableProcess(Process.REF_PAYOUT)) return;
+    if (DisabledProcess(Process.REF_PAYOUT)) return;
 
     await this.refRewardDexService.secureLiquidity();
     await this.refRewardOutService.checkPaidTransaction();

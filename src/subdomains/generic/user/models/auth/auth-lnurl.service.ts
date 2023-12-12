@@ -5,7 +5,7 @@ import { randomBytes } from 'crypto';
 import { Config } from 'src/config/config';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
-import { Process, ProcessService } from 'src/shared/services/process.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { AuthService } from 'src/subdomains/generic/user/models/auth/auth.service';
@@ -30,17 +30,12 @@ export interface AuthCacheDto {
 export class AuthLnUrlService {
   private authCache: Map<string, AuthCacheDto> = new Map();
 
-  constructor(
-    private readonly authService: AuthService,
-    private readonly ipLogService: IpLogService,
-    private readonly processService: ProcessService,
-  ) {}
+  constructor(private readonly authService: AuthService, private readonly ipLogService: IpLogService) {}
 
   @Cron(CronExpression.EVERY_30_SECONDS)
   @Lock()
   processCleanupAccessToken() {
-    // make method async?
-    if (Config.processDisabled(Process.LNURL_AUTH_CACHE)) return;
+    if (DisabledProcess(Process.LNURL_AUTH_CACHE)) return;
 
     const before30SecTime = Util.secondsBefore(30).getTime();
 
@@ -54,8 +49,7 @@ export class AuthLnUrlService {
   @Cron(CronExpression.EVERY_5_MINUTES)
   @Lock()
   processCleanupAuthCache() {
-    // make method async?
-    if (Config.processDisabled(Process.LNURL_AUTH_CACHE)) return;
+    if (DisabledProcess(Process.LNURL_AUTH_CACHE)) return;
 
     const before5MinTime = Util.minutesBefore(5).getTime();
 

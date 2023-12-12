@@ -6,7 +6,7 @@ import { ChainalysisService } from 'src/integration/chainalysis/services/chainal
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Process, ProcessService } from 'src/shared/services/process.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
@@ -28,7 +28,6 @@ export class BitcoinStrategy extends JellyfishStrategy {
     private readonly bitcoinService: PayInBitcoinService,
     private readonly chainalysisService: ChainalysisService,
     protected readonly payInRepository: PayInRepository,
-    private readonly processService: ProcessService,
   ) {
     super(payInRepository);
   }
@@ -76,7 +75,7 @@ export class BitcoinStrategy extends JellyfishStrategy {
   @Cron(CronExpression.EVERY_30_SECONDS)
   @Lock(7200)
   async checkPayInEntries(): Promise<void> {
-    if (await this.processService.isDisableProcess(Process.PAY_IN)) return;
+    if (DisabledProcess(Process.PAY_IN)) return;
 
     await this.processNewPayInEntries();
   }

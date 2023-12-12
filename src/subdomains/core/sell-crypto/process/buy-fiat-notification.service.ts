@@ -3,7 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Process, ProcessService } from 'src/shared/services/process.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
@@ -25,13 +25,12 @@ export class BuyFiatNotificationService {
   constructor(
     private readonly buyFiatRepo: BuyFiatRepository,
     private readonly notificationService: NotificationService,
-    private readonly processService: ProcessService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async sendNotificationMails(): Promise<void> {
-    if (await this.processService.isDisableProcess(Process.BUY_FIAT_MAIL)) return;
+    if (DisabledProcess(Process.BUY_FIAT_MAIL)) return;
     await this.offRampInitiated();
     await this.cryptoExchangedToFiat();
     await this.fiatToBankTransferInitiated();

@@ -2,7 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { Process, ProcessService } from 'src/shared/services/process.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
@@ -19,7 +19,6 @@ export class StatisticService implements OnModuleInit {
     private sellService: SellService,
     private settingService: SettingService,
     private userService: UserService,
-    private readonly processService: ProcessService,
   ) {}
 
   onModuleInit() {
@@ -29,7 +28,7 @@ export class StatisticService implements OnModuleInit {
   @Cron(CronExpression.EVERY_HOUR)
   @Lock(7200)
   async doUpdate(): Promise<void> {
-    if (await this.processService.isDisableProcess(Process.UPDATE_STATISTIC)) return;
+    if (DisabledProcess(Process.UPDATE_STATISTIC)) return;
 
     this.statistic = {
       totalVolume: {

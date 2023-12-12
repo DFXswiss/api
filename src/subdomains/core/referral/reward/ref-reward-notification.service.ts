@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { Config } from 'src/config/config';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
@@ -9,7 +9,6 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { IsNull, Not } from 'typeorm';
 import { RewardStatus } from './ref-reward.entity';
 import { RefRewardRepository } from './ref-reward.repository';
-import { Process, ProcessService } from 'src/shared/services/process.service';
 
 @Injectable()
 export class RefRewardNotificationService {
@@ -18,11 +17,10 @@ export class RefRewardNotificationService {
   constructor(
     private readonly refRewardRepo: RefRewardRepository,
     private readonly notificationService: NotificationService,
-    private readonly processService: ProcessService,
   ) {}
 
   async sendNotificationMails(): Promise<void> {
-    if (await this.processService.isDisableProcess(Process.REF_REWARD_MAIL)) return;
+    if (DisabledProcess(Process.REF_REWARD_MAIL)) return;
 
     await this.refRewardPayouts();
   }

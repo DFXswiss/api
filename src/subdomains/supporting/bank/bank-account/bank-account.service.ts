@@ -4,7 +4,7 @@ import { IbanDetailsDto, IbanService } from 'src/integration/bank/services/iban.
 import { CountryService } from 'src/shared/models/country/country.service';
 import { IEntity } from 'src/shared/models/entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { Process, ProcessService } from 'src/shared/services/process.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { KycType, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -21,7 +21,6 @@ export class BankAccountService {
     private readonly ibanService: IbanService,
     private readonly fiatService: FiatService,
     private readonly countryService: CountryService,
-    private readonly processService: ProcessService,
   ) {}
 
   async getUserBankAccounts(userId: number): Promise<BankAccount[]> {
@@ -88,7 +87,7 @@ export class BankAccountService {
   @Cron(CronExpression.EVERY_WEEK)
   @Lock(3600)
   async checkFailedBankAccounts(): Promise<void> {
-    if (await this.processService.isDisableProcess(Process.BANK_ACCOUNT)) return;
+    if (DisabledProcess(Process.BANK_ACCOUNT)) return;
 
     const failedBankAccounts = await this.bankAccountRepo.findBy({ returnCode: 256 });
     for (const bankAccount of failedBankAccounts) {

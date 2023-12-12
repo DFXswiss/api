@@ -4,7 +4,7 @@ import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Process, ProcessService } from 'src/shared/services/process.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { PriceProviderService } from './price-provider.service';
 
@@ -16,14 +16,13 @@ export class AssetPricesService {
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
     private readonly priceProvider: PriceProviderService,
-    private readonly processService: ProcessService,
   ) {}
 
   // --- JOBS --- //
   @Cron(CronExpression.EVERY_HOUR)
   @Lock(3600)
   async updateUsdValues() {
-    if (await this.processService.isDisableProcess(Process.PRICING)) return;
+    if (DisabledProcess(Process.PRICING)) return;
 
     const usd = await this.fiatService.getFiatByName('USD');
     const assets = await this.assetService.getAllAsset([]);

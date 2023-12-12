@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
-import { Process, ProcessService } from 'src/shared/services/process.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { ExchangeSyncs, ExchangeTokens, ExchangeTxDto } from '../entities/exchange-tx.entity';
@@ -14,7 +14,6 @@ export class ExchangeTxService {
   constructor(
     private readonly exchangeTxRepo: ExchangeTxRepository,
     private readonly registryService: ExchangeRegistryService,
-    private readonly processService: ProcessService,
   ) {}
 
   //*** JOBS ***//
@@ -22,7 +21,7 @@ export class ExchangeTxService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async syncExchanges() {
-    if (await this.processService.isDisableProcess(Process.EXCHANGE_TX_SYNC)) return;
+    if (DisabledProcess(Process.EXCHANGE_TX_SYNC)) return;
 
     const since = Util.minutesBefore(Config.exchangeTxSyncLimit);
 

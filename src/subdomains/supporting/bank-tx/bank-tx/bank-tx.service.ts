@@ -3,7 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Process, ProcessService } from 'src/shared/services/process.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
@@ -39,7 +39,6 @@ export class BankTxService {
     private readonly bankTxRepeatService: BankTxRepeatService,
     private readonly buyService: BuyService,
     private readonly bankService: BankService,
-    private readonly processService: ProcessService,
   ) {}
 
   // --- TRANSACTION HANDLING --- //
@@ -51,7 +50,7 @@ export class BankTxService {
   }
 
   async checkTransactions(): Promise<void> {
-    if (await this.processService.isDisableProcess(Process.BANK_TX)) return;
+    if (DisabledProcess(Process.BANK_TX)) return;
 
     // Get settings
     const settingKeyOlky = 'lastBankOlkyDate';

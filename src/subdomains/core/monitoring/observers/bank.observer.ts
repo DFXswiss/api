@@ -4,7 +4,7 @@ import { Config } from 'src/config/config';
 import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Process, ProcessService } from 'src/shared/services/process.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
@@ -30,7 +30,6 @@ export class BankObserver extends MetricObserver<BankData[]> {
     private readonly olkypayService: OlkypayService,
     private readonly bankService: BankService,
     private readonly repos: RepositoryFactory,
-    private readonly processService: ProcessService,
   ) {
     super(monitoringService, 'bank', 'balance');
   }
@@ -38,7 +37,7 @@ export class BankObserver extends MetricObserver<BankData[]> {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async fetch() {
-    if (await this.processService.isDisableProcess(Process.MONITORING)) return;
+    if (DisabledProcess(Process.MONITORING)) return;
 
     let data = [];
 

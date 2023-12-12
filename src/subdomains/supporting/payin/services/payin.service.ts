@@ -4,7 +4,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Process, ProcessService } from 'src/shared/services/process.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
@@ -26,7 +26,6 @@ export class PayInService {
     private readonly payInRepository: PayInRepository,
     private readonly sendStrategyRegistry: SendStrategyRegistry,
     private readonly registerStrategyRegistry: RegisterStrategyRegistry,
-    private readonly processService: ProcessService,
   ) {}
 
   //*** PUBLIC API ***//
@@ -97,7 +96,7 @@ export class PayInService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(7200)
   async forwardPayInEntries(): Promise<void> {
-    if (await this.processService.isDisableProcess(Process.PAY_IN)) return;
+    if (DisabledProcess(Process.PAY_IN)) return;
 
     await this.forwardPayIns();
   }
@@ -105,7 +104,7 @@ export class PayInService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(7200)
   async returnPayInEntries(): Promise<void> {
-    if (await this.processService.isDisableProcess(Process.PAY_IN)) return;
+    if (DisabledProcess(Process.PAY_IN)) return;
 
     await this.returnPayIns();
   }
@@ -113,7 +112,7 @@ export class PayInService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(7200)
   async retryGettingReferencePrices(): Promise<void> {
-    if (await this.processService.isDisableProcess(Process.PAY_IN)) return;
+    if (DisabledProcess(Process.PAY_IN)) return;
 
     await this.retryPayIns();
   }
@@ -121,7 +120,7 @@ export class PayInService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(7200)
   async checkInputConfirmations(): Promise<void> {
-    if (await this.processService.isDisableProcess(Process.PAY_IN)) return;
+    if (DisabledProcess(Process.PAY_IN)) return;
 
     await this.checkConfirmations();
   }

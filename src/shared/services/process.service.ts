@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { Lock } from 'src/shared/utils/lock';
 import { SettingService } from '../models/setting/setting.service';
 
 export enum Process {
@@ -31,12 +33,28 @@ export enum Process {
   BUY_FIAT_SET_FEE = 'BuyFiatSetFee',
 }
 
+type DisabledProcessType = Record<Process, boolean>;
+export let disabledProcesses: DisabledProcessType = {} as DisabledProcessType;
+
+export function DisabledProcess(process: Process): boolean {
+  return disabledProcesses[process];
+}
+
 @Injectable()
 export class ProcessService {
-  constructor(private readonly settingService: SettingService) {}
+  constructor(private readonly settingService: SettingService) {
+    this.resyncDisabledProcesses();
+  }
 
-  async isDisableProcess(process: Process): Promise<boolean> {
-    const disabledProcesses = await this.settingService.isDisableProcess(process);
-    return disabledProcesses || Config.processDisabled(process);
+  @Cron(CronExpression.EVERY_30_SECONDS)
+  @Lock(1800)
+  async resyncDisabledProcesses(): Promise<void> {
+    const settingDisabledProcesses = await this.settingService.getDisabledProcesses();
+
+    settingDisabledProcesses.forEach((process) => (disabledProcesses[process] = true));
+
+    Object.values(Process).forEach((process) => {
+      if (Config.processDisabled(process)) disabledProcesses[process] = true;
+    });
   }
 }

@@ -6,7 +6,7 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Process, ProcessService } from 'src/shared/services/process.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInEthereumService } from '../../../services/payin-ethereum.service';
@@ -21,7 +21,6 @@ export class EthereumStrategy extends EvmStrategy {
     payInRepository: PayInRepository,
     assetService: AssetService,
     repos: RepositoryFactory,
-    private readonly processService: ProcessService,
   ) {
     super('ETH', ethereumService, payInRepository, assetService, repos);
   }
@@ -67,7 +66,7 @@ export class EthereumStrategy extends EvmStrategy {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(7200)
   async checkPayInEntries(): Promise<void> {
-    if (await this.processService.isDisableProcess(Process.PAY_IN)) return;
+    if (DisabledProcess(Process.PAY_IN)) return;
 
     await this.processNewPayInEntries();
   }

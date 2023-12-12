@@ -40,7 +40,7 @@ export class SettingService {
   }
 
   async updateProcess(dto: UpdateProcessDto): Promise<void> {
-    const disabledProcesses = await this.getObj<Process[]>('disabledProcess');
+    const disabledProcesses = await this.getDisabledProcesses();
     const index = disabledProcesses?.indexOf(dto.process);
 
     index?.toString() && index !== -1 ? disabledProcesses.splice(index, 1) : disabledProcesses?.push(dto.process);
@@ -48,9 +48,8 @@ export class SettingService {
     await this.setObj<Process[]>('disabledProcess', disabledProcesses ?? [dto.process]);
   }
 
-  async isDisableProcess(process: Process): Promise<boolean> {
-    const disabledProcesses = await this.getObj<Process[]>('disabledProcess');
-    return disabledProcesses?.includes(process) ?? false;
+  async getDisabledProcesses(): Promise<Process[]> {
+    return this.getObj<Process[]>('disabledProcess');
   }
 
   async getCustomSignUpFees(ref?: string | undefined, walletId?: number | undefined): Promise<number[]> {

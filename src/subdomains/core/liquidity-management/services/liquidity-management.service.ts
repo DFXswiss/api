@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Process, ProcessService } from 'src/shared/services/process.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { In } from 'typeorm';
@@ -25,7 +25,6 @@ export class LiquidityManagementService {
     private readonly ruleRepo: LiquidityManagementRuleRepository,
     private readonly pipelineRepo: LiquidityManagementPipelineRepository,
     private readonly balanceService: LiquidityManagementBalanceService,
-    private readonly processService: ProcessService,
   ) {}
 
   //*** JOBS ***//
@@ -33,7 +32,7 @@ export class LiquidityManagementService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async verifyRules() {
-    if (await this.processService.isDisableProcess(Process.LIQUIDITY_MANAGEMENT)) return;
+    if (DisabledProcess(Process.LIQUIDITY_MANAGEMENT)) return;
 
     const rules = await this.ruleRepo.findBy({ status: LiquidityManagementRuleStatus.ACTIVE });
     const balances = await this.balanceService.refreshBalances(rules);

@@ -1,7 +1,7 @@
 import { ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Process, ProcessService } from 'src/shared/services/process.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
@@ -17,7 +17,6 @@ export class AdminService {
     private readonly assetService: AssetService,
     private readonly dexService: DexService,
     private readonly payoutService: PayoutService,
-    private readonly processService: ProcessService,
   ) {}
 
   // --- PAYOUT --- //
@@ -59,7 +58,7 @@ export class AdminService {
   @Cron(CronExpression.EVERY_5_MINUTES)
   @Lock(3600)
   async completeLiquidityOrders() {
-    if (await this.processService.isDisableProcess(Process.LIQUIDITY_MANAGEMENT)) return;
+    if (DisabledProcess(Process.LIQUIDITY_MANAGEMENT)) return;
     for (const context of Object.values(PayoutRequestContext)) {
       const lContext = context as unknown as LiquidityOrderContext;
       const pContext = context as unknown as PayoutOrderContext;
