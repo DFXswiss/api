@@ -13,7 +13,7 @@ import { PayoutStrategy } from './base/payout.strategy';
 export class MoneroStrategy extends PayoutStrategy {
   private readonly logger = new DfxLogger(MoneroStrategy);
 
-  private readonly averageTransactionSize = 180; // vBytes
+  private readonly averageTransactionSize = 1600; // Bytes
 
   constructor(
     private readonly assetService: AssetService,

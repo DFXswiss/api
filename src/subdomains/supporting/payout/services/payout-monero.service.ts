@@ -41,6 +41,6 @@ export class PayoutMoneroService {
 
   async getEstimatedFee(): Promise<number> {
     const feeEstimate = await this.client.getFeeEstimate();
-    return feeEstimate.fees[BaseFeePriority.fastest];
+    return feeEstimate.fees[BaseFeePriority.slow];
   }
 }
