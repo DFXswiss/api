@@ -191,7 +191,6 @@ export class KycService {
         this.logger.error(`Unknown ident result for user ${user.id}: ${sessionStatus}`);
     }
 
-    await this.kycStepRepo.update(...kycStep.resetReminderSentDate());
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
   }

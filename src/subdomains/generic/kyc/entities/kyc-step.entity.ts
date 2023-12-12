@@ -86,16 +86,6 @@ export class KycStep extends IEntity {
     return [this.id, update];
   }
 
-  resetReminderSentDate(): UpdateResult<KycStep> {
-    const update: Partial<KycStep> = {
-      reminderSentDate: null,
-    };
-
-    Object.assign(this, update);
-
-    return [this.id, update];
-  }
-
   // --- KYC PROCESS --- //
 
   get isInProgress(): boolean {
@@ -116,41 +106,50 @@ export class KycStep extends IEntity {
 
   update(status: KycStepStatus, result?: KycStepResult): this {
     this.status = status;
+    this.reminderSentDate = null;
     return this.setResult(result);
   }
 
   complete(result?: KycStepResult): this {
     this.status = KycStepStatus.COMPLETED;
+    this.reminderSentDate = null;
 
     return this.setResult(result);
   }
 
   fail(result?: KycStepResult): this {
     this.status = KycStepStatus.FAILED;
+    this.reminderSentDate = null;
 
     return this.setResult(result);
   }
 
   cancel(result?: KycStepResult): this {
     this.status = KycStepStatus.IN_PROGRESS;
+    this.reminderSentDate = null;
 
     return this.setResult(result);
   }
 
   finish(): this {
-    if (this.isInProgress) this.status = KycStepStatus.FINISHED;
+    if (this.isInProgress) {
+      this.status = KycStepStatus.FINISHED;
+      this.reminderSentDate = null;
+    }
 
     return this;
   }
 
   check(result?: KycStepResult): this {
     this.status = KycStepStatus.CHECK_PENDING;
+    this.reminderSentDate = null;
 
     return this.setResult(result);
   }
 
   review(result?: KycStepResult): this {
     this.status = KycStepStatus.IN_REVIEW;
+    this.reminderSentDate = null;
 
     return this.setResult(result);
   }
