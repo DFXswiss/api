@@ -147,7 +147,7 @@ export class Util {
     return date;
   }
 
-  static hourBefore(hours: number, from?: Date): Date {
+  static hoursBefore(hours: number, from?: Date): Date {
     return this.hoursAfter(-hours, from);
   }
 

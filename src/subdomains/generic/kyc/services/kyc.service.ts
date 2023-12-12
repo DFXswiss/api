@@ -27,6 +27,7 @@ import { StepLogRepository } from '../repositories/step-log.repository';
 import { DocumentStorageService } from './integration/document-storage.service';
 import { FinancialService } from './integration/financial.service';
 import { IdentService } from './integration/ident.service';
+import { TfaService } from './tfa.service';
 
 @Injectable()
 export class KycService {
@@ -41,6 +42,7 @@ export class KycService {
     private readonly languageService: LanguageService,
     private readonly countryService: CountryService,
     private readonly stepLogRepo: StepLogRepository,
+    private readonly tfaService: TfaService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
@@ -73,12 +75,12 @@ export class KycService {
     return KycInfoMapper.toDto(user, false);
   }
 
-  async continue(kycHash: string, autoStep: boolean): Promise<KycSessionDto> {
+  async continue(kycHash: string, ip: string, autoStep: boolean): Promise<KycSessionDto> {
     let user = await this.getUser(kycHash);
 
     user = await this.updateProgress(user, true, autoStep);
 
-    await this.verify2faIfRequired(user);
+    await this.verify2faIfRequired(user, ip);
 
     return KycInfoMapper.toDto(user, true);
   }
@@ -109,19 +111,21 @@ export class KycService {
 
     user = await this.userDataService.updateKycData(user, KycDataMapper.toUserData(data));
 
-    if (user.isDataComplete) user = user.completeStep(kycStep);
+    if (user.isDataComplete) {
+      user = user.completeStep(kycStep);
+      await this.createStepLog(user, kycStep);
+    }
 
-    await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
     return { status: kycStep.status };
   }
 
-  async getFinancialData(kycHash: string, stepId: number, lang?: string): Promise<KycFinancialOutData> {
+  async getFinancialData(kycHash: string, ip: string, stepId: number, lang?: string): Promise<KycFinancialOutData> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
-    await this.verify2fa(user);
+    await this.verify2fa(user, ip);
 
     const language = (lang && (await this.languageService.getLanguageBySymbol(lang.toUpperCase()))) ?? user.language;
 
@@ -130,18 +134,25 @@ export class KycService {
     return { questions, responses };
   }
 
-  async updateFinancialData(kycHash: string, stepId: number, data: KycFinancialInData): Promise<KycResultDto> {
+  async updateFinancialData(
+    kycHash: string,
+    ip: string,
+    stepId: number,
+    data: KycFinancialInData,
+  ): Promise<KycResultDto> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
-    await this.verify2fa(user);
+    await this.verify2fa(user, ip);
 
     kycStep.setResult(data.responses);
 
     const complete = this.financialService.isComplete(data.responses);
-    if (complete) user.reviewStep(kycStep);
+    if (complete) {
+      user.reviewStep(kycStep);
+      await this.createStepLog(user, kycStep);
+    }
 
-    await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
     return { status: kycStep.status };
@@ -200,7 +211,6 @@ export class KycService {
     if (status === IdentStatus.SUCCESS) {
       user = user.finishStep(kycStep);
 
-      await this.createStepLog(user, kycStep);
       await this.updateProgress(user, false);
     }
 
@@ -233,7 +243,7 @@ export class KycService {
   }
 
   // --- STEPPING METHODS --- //
-  async getOrCreateStep(kycHash: string, stepName: string, stepType?: string): Promise<KycSessionDto> {
+  async getOrCreateStep(kycHash: string, ip: string, stepName: string, stepType?: string): Promise<KycSessionDto> {
     const name = Object.values(KycStepName).find((n) => n.toLowerCase() === stepName.toLowerCase());
     const type = Object.values(KycStepType).find((t) => t.toLowerCase() === stepType?.toLowerCase());
     if (!name) throw new BadRequestException('Invalid step name');
@@ -248,7 +258,7 @@ export class KycService {
       await this.userDataService.save(user);
     }
 
-    await this.verify2faIfRequired(user);
+    await this.verify2faIfRequired(user, ip);
 
     return KycInfoMapper.toDto(user, true, step);
   }
@@ -383,15 +393,15 @@ export class KycService {
     return this.userDataService.save(user);
   }
 
-  private async verify2faIfRequired(user: UserData): Promise<void> {
+  private async verify2faIfRequired(user: UserData, ip: string): Promise<void> {
     const stepsWith2fa = [KycStepName.IDENT, KycStepName.FINANCIAL_DATA];
     if (stepsWith2fa.some((s) => user.getPendingStepWith(s))) {
-      await this.verify2fa(user);
+      await this.verify2fa(user, ip);
     }
   }
 
-  private async verify2fa(_user: UserData): Promise<void> {
-    // TODO: verify 2FA < 24h
+  private async verify2fa(user: UserData, ip: string): Promise<void> {
+    await this.tfaService.checkVerification(user, ip);
   }
 
   private async downloadIdentDocuments(user: UserData, kycStep: KycStep, namePrefix = '') {

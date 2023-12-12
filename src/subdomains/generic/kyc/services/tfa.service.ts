@@ -6,13 +6,21 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { KycLogType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { TfaLogRepository } from 'src/subdomains/generic/kyc/repositories/tfa-log.repository';
+import { MoreThan } from 'typeorm';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { Setup2faDto } from '../dto/output/setup-2fa.dto';
 
-export interface SecretCacheEntry {
+const TfaValidityHours = 24;
+
+interface SecretCacheEntry {
   secret: string;
   creationTime: number;
+}
+
+enum TfaComment {
+  VERIFIED = 'Verified',
+  DELETED = 'Deleted',
 }
 
 @Injectable()
@@ -53,7 +61,7 @@ export class TfaService {
     const user = await this.getUser(kycHash);
     await this.userDataService.updateTotpSecret(user, null);
 
-    await this.createTfaLog(user, ip, 'deleted');
+    await this.createTfaLog(user, ip, TfaComment.DELETED);
   }
 
   async verify(kycHash: string, token: string, ip: string): Promise<void> {
@@ -62,28 +70,40 @@ export class TfaService {
     const secret = user.totpSecret ?? this.secretCache.get(user.id)?.secret;
     if (!secret) throw new NotFoundException('2FA not set up');
 
-    this.verifyOrThrow(user.totpSecret, token);
+    this.verifyOrThrow(secret, token);
 
     if (!user.totpSecret) {
       await this.userDataService.updateTotpSecret(user, secret);
       this.secretCache.delete(user.id);
     }
 
-    await this.createTfaLog(user, ip, 'verified');
+    await this.createTfaLog(user, ip, TfaComment.VERIFIED);
   }
 
+  async checkVerification(user: UserData, ip: string) {
+    const isVerified = await this.tfaRepo.exist({
+      where: {
+        userData: { id: user.id },
+        ipAddress: ip,
+        comment: TfaComment.VERIFIED,
+        created: MoreThan(Util.hoursBefore(TfaValidityHours)),
+      },
+    });
+    if (!isVerified) throw new UnauthorizedException('2FA required');
+  }
+
+  // --- HELPER METHODS --- //
   private verifyOrThrow(secret: string, token: string): void {
     const result = verifyToken(secret, token);
     if (!result || result.delta !== 0) throw new UnauthorizedException('Invalid or expired 2FA token');
   }
 
-  // --- HELPER METHODS --- //
-  private async createTfaLog(user: UserData, ip: string, message: string) {
+  private async createTfaLog(userData: UserData, ipAddress: string, comment: TfaComment) {
     const logEntity = this.tfaRepo.create({
       type: KycLogType.TFA,
-      ipAddress: ip,
-      userData: user,
-      comment: message,
+      ipAddress,
+      userData,
+      comment,
     });
 
     await this.tfaRepo.save(logEntity);

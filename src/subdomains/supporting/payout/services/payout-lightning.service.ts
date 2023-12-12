@@ -86,7 +86,7 @@ export class PayoutLightningService {
 
   private async findPayment(toDate: Date, payoutTxId: string): Promise<LndPaymentDto> {
     let loopToDate = toDate;
-    let loopFromDate = Util.hourBefore(1, loopToDate);
+    let loopFromDate = Util.hoursBefore(1, loopToDate);
 
     for (let hour = 0; hour < PayoutLightningService.MAX_HOURS; hour++) {
       const payments = await this.client.listPayments(loopFromDate, loopToDate);
@@ -94,8 +94,8 @@ export class PayoutLightningService {
 
       if (foundPayment) return foundPayment;
 
-      loopToDate = Util.hourBefore(1, loopToDate);
-      loopFromDate = Util.hourBefore(1, loopToDate);
+      loopToDate = Util.hoursBefore(1, loopToDate);
+      loopFromDate = Util.hoursBefore(1, loopToDate);
     }
 
     return null;

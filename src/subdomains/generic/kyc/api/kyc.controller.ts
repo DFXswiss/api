@@ -18,7 +18,6 @@ import {
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiExcludeEndpoint,
-  ApiNoContentResponse,
   ApiOkResponse,
   ApiTags,
   ApiUnauthorizedResponse,
@@ -67,9 +66,10 @@ export class KycController {
   @ApiConflictResponse(MergedResponse)
   async continueKyc(
     @Headers(CodeHeaderName) code: string,
+    @RealIP() ip: string,
     @Query('autoStep') autoStep?: string,
   ): Promise<KycSessionDto> {
-    return this.kycService.continue(code, autoStep !== 'false');
+    return this.kycService.continue(code, ip, autoStep !== 'false');
   }
 
   @Get('countries')
@@ -117,10 +117,11 @@ export class KycController {
   @ApiConflictResponse(MergedResponse)
   async getFinancialData(
     @Headers(CodeHeaderName) code: string,
+    @RealIP() ip: string,
     @Param('id') id: string,
     @Query('lang') lang: string,
   ): Promise<KycFinancialOutData> {
-    return this.kycService.getFinancialData(code, +id, lang);
+    return this.kycService.getFinancialData(code, ip, +id, lang);
   }
 
   @Put('data/financial/:id')
@@ -128,10 +129,11 @@ export class KycController {
   @ApiConflictResponse(MergedResponse)
   async updateFinancialData(
     @Headers(CodeHeaderName) code: string,
+    @RealIP() ip: string,
     @Param('id') id: string,
     @Body() data: KycFinancialInData,
   ): Promise<KycResultDto> {
-    return this.kycService.updateFinancialData(code, +id, data);
+    return this.kycService.updateFinancialData(code, ip, +id, data);
   }
 
   @Post('ident/:type')
@@ -174,7 +176,7 @@ export class KycController {
   }
 
   @Delete('2fa')
-  @ApiNoContentResponse()
+  @ApiOkResponse()
   @ApiConflictResponse(MergedResponse)
   async deleteSecret(@Headers(CodeHeaderName) code: string, @RealIP() ip: string): Promise<void> {
     return this.tfaService.delete(code, ip);
@@ -186,8 +188,8 @@ export class KycController {
   @ApiUnauthorizedResponse({ description: 'Invalid or expired 2FA token' })
   async verifyToken(
     @Headers(CodeHeaderName) code: string,
-    @Body() dto: Verify2faDto,
     @RealIP() ip: string,
+    @Body() dto: Verify2faDto,
   ): Promise<void> {
     return this.tfaService.verify(code, dto.token, ip);
   }
