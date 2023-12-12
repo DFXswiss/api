@@ -113,7 +113,7 @@ export class UpdateUserDataDto {
   kycState: KycState;
 
   @IsOptional()
-  @IsEnum(KycLevel)
+  @IsInt()
   kycLevel: KycLevel;
 
   @IsOptional()

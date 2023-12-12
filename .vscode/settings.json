@@ -48,6 +48,7 @@
     "sepa",
     "signmessage",
     "timelock",
+    "totp",
     "txid",
     "typeorm",
     "utxo",

@@ -12,6 +12,7 @@ import { KycLogRepository } from './repositories/kyc-log.repository';
 import { KycStepRepository } from './repositories/kyc-step.repository';
 import { NameCheckLogRepository } from './repositories/name-check-log.repository';
 import { StepLogRepository } from './repositories/step-log.repository';
+import { TfaLogRepository } from './repositories/tfa-log.repository';
 import { DilisenseService } from './services/integration/dilisense.service';
 import { DocumentStorageService } from './services/integration/document-storage.service';
 import { FinancialService } from './services/integration/financial.service';
@@ -19,6 +20,7 @@ import { IdentService } from './services/integration/ident.service';
 import { KycAdminService } from './services/kyc-admin.service';
 import { KycService } from './services/kyc.service';
 import { NameCheckService } from './services/name-check.service';
+import { TfaService } from './services/tfa.service';
 
 @Module({
   imports: [
@@ -30,10 +32,12 @@ import { NameCheckService } from './services/name-check.service';
   providers: [
     KycService,
     KycAdminService,
+    TfaService,
     DocumentStorageService,
     NameCheckService,
     NameCheckLogRepository,
     StepLogRepository,
+    TfaLogRepository,
     DilisenseService,
     IdentService,
     FinancialService,

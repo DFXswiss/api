@@ -1,12 +1,13 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Column, Entity, ManyToOne, TableInheritance } from 'typeorm';
+import { KycLogType } from '../enums/kyc.enum';
 
 @Entity()
 @TableInheritance({ column: { type: 'nvarchar', name: 'type' } })
 export class KycLog extends IEntity {
   @Column({ length: 256 })
-  type: string;
+  type: KycLogType;
 
   @Column({ length: 'MAX', nullable: true })
   result: string;

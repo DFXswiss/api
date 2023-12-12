@@ -37,7 +37,7 @@ export enum Process {
   BUY_CRYPTO_SET_FEE = 'BuyCryptoSetFee',
   BUY_FIAT_SET_FEE = 'BuyFiatSetFee',
   LNURL_AUTH_CACHE = 'LnurlAuthCache',
-  TOTP_AUTH_CACHE = 'TotpAuthCache',
+  TFA_CACHE = '2faCache',
 }
 
 export enum Environment {
