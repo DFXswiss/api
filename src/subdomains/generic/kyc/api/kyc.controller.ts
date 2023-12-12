@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConflictResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { Response } from 'express';
 import { RealIP } from 'nestjs-real-ip';
 import { Config, GetConfig } from 'src/config/config';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
@@ -132,12 +133,12 @@ export class KycController {
   @Get('ident/:type/:channel/:status')
   @ApiExcludeEndpoint()
   async identRedirect(
-    @Res() res,
+    @Res() res: Response,
     @Param('status') status: IdentStatus,
     @Query('transactionId') transactionId: string,
   ): Promise<void> {
     const redirectUri = await this.kycService.updateIdentStatus(transactionId, status);
-
+    this.allowFrameIntegration(res);
     res.redirect(307, redirectUri);
   }
 
@@ -159,5 +160,16 @@ export class KycController {
       this.logger.error(`Received webhook call from invalid IP ${ip}: ${JSON.stringify(data)}`);
       throw new ForbiddenException('Invalid source IP');
     }
+  }
+
+  private allowFrameIntegration(res: Response) {
+    res.removeHeader('X-Frame-Options');
+
+    const contentPolicy = res.getHeader('Content-Security-Policy') as string;
+    const updatedPolicy = contentPolicy
+      ?.split(';')
+      .filter((p) => !p.includes('frame-ancestors'))
+      .join(';');
+    res.setHeader('Content-Security-Policy', updatedPolicy);
   }
 }
