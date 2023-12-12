@@ -188,6 +188,9 @@
     "lightningLndAdminMacaroon": {
       "value": "xxx"
     },
+    "moneroWalletAddress": {
+      "value": "xxx"
+    },
     "moneroRpcCertificate": {
       "value": "xxx"
     },
