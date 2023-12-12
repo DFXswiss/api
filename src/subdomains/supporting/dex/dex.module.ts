@@ -13,6 +13,7 @@ import { DexBscService } from './services/dex-bsc.service';
 import { DexDeFiChainService } from './services/dex-defichain.service';
 import { DexEthereumService } from './services/dex-ethereum.service';
 import { DexLightningService } from './services/dex-lightning.service';
+import { DexMoneroService } from './services/dex-monero.service';
 import { DexOptimismService } from './services/dex-optimism.service';
 import { DexService } from './services/dex.service';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyCL } from './strategies/check-liquidity/impl/arbitrum-coin.strategy';
@@ -26,6 +27,7 @@ import { DeFiChainPoolPairStrategy as DeFiChainPoolPairStrategyCL } from './stra
 import { EthereumCoinStrategy as EthereumCoinStrategyCL } from './strategies/check-liquidity/impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy as EthereumTokenStrategyCL } from './strategies/check-liquidity/impl/ethereum-token.strategy';
 import { LightningStrategy as LightningStrategyCL } from './strategies/check-liquidity/impl/lightning.strategy';
+import { MoneroStrategy as MoneroStrategyCL } from './strategies/check-liquidity/impl/monero.strategy';
 import { OptimismCoinStrategy as OptimismCoinStrategyCL } from './strategies/check-liquidity/impl/optimism-coin.strategy';
 import { OptimismTokenStrategy as OptimismTokenStrategyCL } from './strategies/check-liquidity/impl/optimism-token.strategy';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyPL } from './strategies/purchase-liquidity/impl/arbitrum-coin.strategy';
@@ -40,6 +42,7 @@ import { DeFiChainPoolPairStrategy as DeFiChainPoolPairStrategyPL } from './stra
 import { DeFiChainStockStrategy as DeFiChainStockStrategyPL } from './strategies/purchase-liquidity/impl/defichain-stock.strategy';
 import { EthereumCoinStrategy as EthereumCoinStrategyPL } from './strategies/purchase-liquidity/impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy as EthereumTokenStrategyPL } from './strategies/purchase-liquidity/impl/ethereum-token.strategy';
+import { MoneroStrategy as MoneroStrategyPL } from './strategies/purchase-liquidity/impl/monero.strategy';
 import { OptimismCoinStrategy as OptimismCoinStrategyPL } from './strategies/purchase-liquidity/impl/optimism-coin.strategy';
 import { OptimismTokenStrategy as OptimismTokenStrategyPL } from './strategies/purchase-liquidity/impl/optimism-token.strategy';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategySL } from './strategies/sell-liquidity/impl/arbitrum-coin.strategy';
@@ -52,6 +55,7 @@ import { DeFiChainCoinStrategy as DeFiChainCoinStrategySL } from './strategies/s
 import { DeFiChainTokenStrategy as DeFiChainTokenStrategySL } from './strategies/sell-liquidity/impl/defichain-token.strategy';
 import { EthereumCoinStrategy as EthereumCoinStrategySL } from './strategies/sell-liquidity/impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy as EthereumTokenStrategySL } from './strategies/sell-liquidity/impl/ethereum-token.strategy';
+import { MoneroStrategy as MoneroStrategySL } from './strategies/sell-liquidity/impl/monero.strategy';
 import { OptimismCoinStrategy as OptimismCoinStrategySL } from './strategies/sell-liquidity/impl/optimism-coin.strategy';
 import { OptimismTokenStrategy as OptimismTokenStrategySL } from './strategies/sell-liquidity/impl/optimism-token.strategy';
 import { ArbitrumStrategy as ArbitrumStrategyS } from './strategies/supplementary/impl/arbitrum.strategy';
@@ -60,6 +64,7 @@ import { BitcoinStrategy as BitcoinStrategyS } from './strategies/supplementary/
 import { BscStrategy as BscStrategyS } from './strategies/supplementary/impl/bsc.strategy';
 import { DeFiChainStrategy as DeFiChainStrategyS } from './strategies/supplementary/impl/defichain.strategy';
 import { EthereumStrategy as EthereumStrategyS } from './strategies/supplementary/impl/ethereum.strategy';
+import { MoneroStrategy as MoneroStrategyS } from './strategies/supplementary/impl/monero.strategy';
 import { OptimismStrategy as OptimismStrategyS } from './strategies/supplementary/impl/optimism.strategy';
 
 @Module({
@@ -76,6 +81,7 @@ import { OptimismStrategy as OptimismStrategyS } from './strategies/supplementar
     DexBscService,
     DexBitcoinService,
     DexLightningService,
+    DexMoneroService,
     CheckLiquidityStrategyRegistry,
     PurchaseLiquidityStrategyRegistry,
     SellLiquidityStrategyRegistry,
@@ -88,6 +94,7 @@ import { OptimismStrategy as OptimismStrategyS } from './strategies/supplementar
     BscCoinStrategyCL,
     BitcoinStrategyCL,
     LightningStrategyCL,
+    MoneroStrategyCL,
     BscTokenStrategyCL,
     EthereumTokenStrategyCL,
     OptimismCoinStrategyCL,
@@ -99,6 +106,7 @@ import { OptimismStrategy as OptimismStrategyS } from './strategies/supplementar
     EthereumCoinStrategyPL,
     BscCoinStrategyPL,
     BitcoinStrategyPL,
+    MoneroStrategyPL,
     ArbitrumCoinStrategyPL,
     ArbitrumTokenStrategyPL,
     BscTokenStrategyPL,
@@ -106,6 +114,7 @@ import { OptimismStrategy as OptimismStrategyS } from './strategies/supplementar
     OptimismCoinStrategyPL,
     OptimismTokenStrategyPL,
     BitcoinStrategySL,
+    MoneroStrategySL,
     ArbitrumCoinStrategySL,
     ArbitrumTokenStrategySL,
     BscCoinStrategySL,
@@ -118,6 +127,7 @@ import { OptimismStrategy as OptimismStrategyS } from './strategies/supplementar
     OptimismTokenStrategySL,
     ArbitrumStrategyS,
     BitcoinStrategyS,
+    MoneroStrategyS,
     BscStrategyS,
     DeFiChainStrategyS,
     EthereumStrategyS,

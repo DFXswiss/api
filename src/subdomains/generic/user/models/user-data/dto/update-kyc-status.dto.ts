@@ -1,4 +1,4 @@
-import { IsOptional, IsEnum } from 'class-validator';
+import { IsEnum, IsOptional } from 'class-validator';
 import { KycState, KycStatus } from '../user-data.entity';
 
 export class UpdateKycStatusDto {

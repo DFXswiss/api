@@ -4,7 +4,6 @@ export enum NotificationType {
 
 export enum MailType {
   GENERIC = 'Generic',
-  KYC_SUPPORT = 'KycSupport',
   ERROR_MONITORING = 'ErrorMonitoring',
   USER = 'User',
   PERSONAL = 'Personal',

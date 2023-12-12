@@ -4,10 +4,9 @@ import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Not } from 'typeorm';
-import { IdentAborted, IdentFailed, IdentPending, IdentSucceeded } from '../../user/models/ident/dto/ident-result.dto';
 import { SpiderData } from '../../user/models/spider-data/spider-data.entity';
 import { KycLevel, KycStatus, UserData } from '../../user/models/user-data/user-data.entity';
-import { IdentResultDto } from '../dto/input/ident-result.dto';
+import { IdentResultDto, IdentShortResult, getIdentResult } from '../dto/input/ident-result.dto';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
 import { KycStep } from '../entities/kyc-step.entity';
 import { KycStepName, KycStepStatus, KycStepType } from '../enums/kyc.enum';
@@ -128,14 +127,18 @@ export class KycAdminService {
     if (spiderData?.identResult) {
       const result: IdentResultDto = JSON.parse(spiderData.identResult);
 
-      if (IdentPending(result)) {
-        return KycStepStatus.CHECK_PENDING;
-      } else if (IdentSucceeded(result)) {
-        return KycStepStatus.COMPLETED;
-      } else if (IdentAborted(result)) {
-        return KycStepStatus.IN_PROGRESS;
-      } else if (IdentFailed(result)) {
-        return KycStepStatus.FAILED;
+      switch (getIdentResult(result)) {
+        case IdentShortResult.CANCEL:
+          return KycStepStatus.IN_PROGRESS;
+
+        case IdentShortResult.REVIEW:
+          return KycStepStatus.CHECK_PENDING;
+
+        case IdentShortResult.SUCCESS:
+          return KycStepStatus.COMPLETED;
+
+        case IdentShortResult.FAIL:
+          return KycStepStatus.FAILED;
       }
     }
 

@@ -61,9 +61,11 @@ export class KycService {
     for (const identStep of expiredIdentSteps) {
       let user = identStep.userData;
       const step = user.getPendingStepOrThrow(identStep.id);
+
       user = user.failStep(step);
       await this.userDataService.save(user);
-      await this.createStepLog(step);
+
+      await this.createStepLog(user, step);
     }
   }
 
@@ -97,7 +99,7 @@ export class KycService {
     const { user: updatedUser, isKnownUser } = await this.userDataService.updateUserSettings(user, data, true);
     user = isKnownUser ? updatedUser.failStep(kycStep) : updatedUser.completeStep(kycStep);
 
-    await this.createStepLog(kycStep);
+    await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
     return { status: kycStep.status };
@@ -111,7 +113,7 @@ export class KycService {
 
     if (user.isDataComplete) user = user.completeStep(kycStep);
 
-    await this.createStepLog(kycStep);
+    await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
     return { status: kycStep.status };
@@ -141,7 +143,7 @@ export class KycService {
     const complete = this.financialService.isComplete(data.responses);
     if (complete) user.reviewStep(kycStep);
 
-    await this.createStepLog(kycStep);
+    await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
     return { status: kycStep.status };
@@ -187,7 +189,7 @@ export class KycService {
         this.logger.error(`Unknown ident result for user ${user.id}: ${sessionStatus}`);
     }
 
-    await this.createStepLog(kycStep);
+    await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
   }
 
@@ -200,7 +202,7 @@ export class KycService {
     if (status === IdentStatus.SUCCESS) {
       user = user.finishStep(kycStep);
 
-      await this.createStepLog(kycStep);
+      await this.createStepLog(user, kycStep);
       await this.updateProgress(user, false);
     }
 
@@ -285,6 +287,9 @@ export class KycService {
         case KycStepName.CONTACT_DATA:
           return { nextStep: { name: KycStepName.CONTACT_DATA, preventDirectEvaluation: true } };
 
+        case KycStepName.IDENT:
+          return { nextStep: { name: KycStepName.IDENT, type: await this.userDataService.getIdentMethod(user) } };
+
         default:
           return { nextStep: undefined };
       }
@@ -346,11 +351,11 @@ export class KycService {
   }
 
   // --- HELPER METHODS --- //
-  private async createStepLog(kycStep: KycStep): Promise<void> {
+  private async createStepLog(user: UserData, kycStep: KycStep): Promise<void> {
     const entity = this.stepLogRepo.create({
       type: KycLogType.KYC_STEP,
       result: kycStep.result,
-      userData: kycStep.userData,
+      userData: user,
       kycStep: kycStep,
       status: kycStep.status,
     });

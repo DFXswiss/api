@@ -104,6 +104,7 @@ param lightningLnbitsApiKey string
 @secure()
 param lightningLndAdminMacaroon string
 
+param moneroWalletAddress string
 @secure()
 param moneroRpcCertificate string
 
@@ -229,7 +230,8 @@ var appInsightsName = 'appi-${compName}-${apiName}-${env}'
 
 var btcNodePort = '8332'
 var lnBitsPort = '5000'
-var moneroRpcPort = '18032'
+var moneroNodePort = '18081'
+var moneroRpcPort = '18082'
 
 var nodeProps = [
   {
@@ -734,8 +736,16 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: lightningLndAdminMacaroon
         }
         {
+          name: 'MONERO_WALLET_ADDRESS'
+          value: moneroWalletAddress
+        }
+        {
+          name: 'MONERO_NODE_URL'
+          value: 'https://${btcNodes[0].outputs.ip}:${moneroNodePort}'
+        }
+        {
           name: 'MONERO_RPC_URL'
-          value: 'https://${btcNodes[0].outputs.ip}:${moneroRpcPort}/json_rpc'
+          value: 'https://${btcNodes[0].outputs.ip}:${moneroRpcPort}'
         }
         {
           name: 'MONERO_RPC_CERTIFICATE'

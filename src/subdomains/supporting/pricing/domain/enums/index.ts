@@ -54,6 +54,7 @@ export enum AltCoin {
   GMX = 'GMX',
   INCH = '1INCH',
   SUSHI = 'SUSHI',
+  XMR = 'XMR',
 }
 
 export enum SpecialCoin {

@@ -7,7 +7,6 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
-import { KycService } from '../../kyc/kyc.service';
 import { UserDataRepository } from '../../user-data/user-data.repository';
 import { UserDataService } from '../../user-data/user-data.service';
 import { WalletService } from '../../wallet/wallet.service';
@@ -20,7 +19,6 @@ describe('UserService', () => {
   let userRepo: UserRepository;
   let userDataRepo: UserDataRepository;
   let userDataService: UserDataService;
-  let kycService: KycService;
   let walletService: WalletService;
   let dfiTaxService: DfiTaxService;
   let geoLocationService: GeoLocationService;
@@ -33,7 +31,6 @@ describe('UserService', () => {
     userRepo = createMock<UserRepository>();
     userDataRepo = createMock<UserDataRepository>();
     userDataService = createMock<UserDataService>();
-    kycService = createMock<KycService>();
     walletService = createMock<WalletService>();
     dfiTaxService = createMock<DfiTaxService>();
     geoLocationService = createMock<GeoLocationService>();
@@ -48,7 +45,6 @@ describe('UserService', () => {
         { provide: UserRepository, useValue: userRepo },
         { provide: UserDataRepository, useValue: userDataRepo },
         { provide: UserDataService, useValue: userDataService },
-        { provide: KycService, useValue: kycService },
         { provide: WalletService, useValue: walletService },
         { provide: DfiTaxService, useValue: dfiTaxService },
         { provide: GeoLocationService, useValue: geoLocationService },
