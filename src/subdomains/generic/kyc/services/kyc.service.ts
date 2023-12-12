@@ -151,7 +151,12 @@ export class KycService {
   }
 
   async updateIdent(dto: IdentResultDto): Promise<void> {
-    const { id: sessionId, transactionnumber: transactionId, result: sessionStatus } = dto.identificationprocess;
+    const {
+      id: sessionId,
+      transactionnumber: transactionId,
+      result: sessionStatus,
+      reason,
+    } = dto.identificationprocess;
 
     if (!sessionId || !transactionId || !sessionStatus) throw new BadRequestException(`Session data is missing`);
 
@@ -184,7 +189,7 @@ export class KycService {
       case IdentShortResult.FAIL:
         user = user.failStep(kycStep, dto);
         await this.downloadIdentDocuments(user, kycStep, 'fail/');
-        await this.kycNotificationService.kycFailed(kycStep);
+        await this.kycNotificationService.identFailed(kycStep, reason);
         break;
 
       default:

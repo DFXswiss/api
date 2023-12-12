@@ -76,7 +76,7 @@ export class KycStep extends IEntity {
 
   // --- MAIL --- //
 
-  setReminderSentDate(): UpdateResult<KycStep> {
+  reminderSent(): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
       reminderSentDate: new Date(),
     };
@@ -106,20 +106,18 @@ export class KycStep extends IEntity {
 
   update(status: KycStepStatus, result?: KycStepResult): this {
     this.status = status;
-    this.reminderSentDate = null;
+
     return this.setResult(result);
   }
 
   complete(result?: KycStepResult): this {
     this.status = KycStepStatus.COMPLETED;
-    this.reminderSentDate = null;
 
     return this.setResult(result);
   }
 
   fail(result?: KycStepResult): this {
     this.status = KycStepStatus.FAILED;
-    this.reminderSentDate = null;
 
     return this.setResult(result);
   }
@@ -132,24 +130,19 @@ export class KycStep extends IEntity {
   }
 
   finish(): this {
-    if (this.isInProgress) {
-      this.status = KycStepStatus.FINISHED;
-      this.reminderSentDate = null;
-    }
+    if (this.isInProgress) this.status = KycStepStatus.FINISHED;
 
     return this;
   }
 
   check(result?: KycStepResult): this {
     this.status = KycStepStatus.CHECK_PENDING;
-    this.reminderSentDate = null;
 
     return this.setResult(result);
   }
 
   review(result?: KycStepResult): this {
     this.status = KycStepStatus.IN_REVIEW;
-    this.reminderSentDate = null;
 
     return this.setResult(result);
   }

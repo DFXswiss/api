@@ -7,7 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { IsNull, MoreThan } from 'typeorm';
+import { IsNull, LessThan } from 'typeorm';
 import { KycLevel, UserData } from '../../user/models/user-data/user-data.entity';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { KycStep } from '../entities/kyc-step.entity';
@@ -36,7 +36,7 @@ export class KycNotificationService {
       where: {
         reminderSentDate: IsNull(),
         status: KycStepStatus.IN_PROGRESS,
-        updated: MoreThan(Util.daysAfter(Config.kyc.reminderAfterDays)),
+        updated: LessThan(Util.daysBefore(Config.kyc.reminderAfterDays)),
       },
       relations: ['userData'],
     });
@@ -72,14 +72,14 @@ export class KycNotificationService {
           this.logger.warn(`Failed to send kyc reminder mail for userData ${entity.userData.id}: user has no email`);
         }
 
-        await this.kycStepRepo.update(...entity.setReminderSentDate());
+        await this.kycStepRepo.update(...entity.reminderSent());
       } catch (e) {
         this.logger.error(`Failed to send kyc reminder mail for kycStep ${entity.id}:`, e);
       }
     }
   }
 
-  async kycFailed(entity: KycStep): Promise<void> {
+  async identFailed(entity: KycStep, reason: string): Promise<void> {
     try {
       if ((entity.userData.mail, !Config.processDisabled(Process.KYC_MAIL))) {
         await this.notificationService.sendMail({
@@ -102,13 +102,13 @@ export class KycNotificationService {
         });
       } else {
         !entity.userData.mail &&
-          this.logger.warn(`Failed to send kyc failed mail for user data ${entity.userData.id}: user has no email`);
+          this.logger.warn(`Failed to send ident failed mail for user data ${entity.userData.id}: user has no email`);
       }
 
       //Kyc webhook external Services
-      await this.webhookService.kycFailed(entity.userData, entity.result);
+      await this.webhookService.kycFailed(entity.userData, reason);
     } catch (e) {
-      this.logger.error(`Failed to send kyc failed mail or webhook ${entity.id}:`, e);
+      this.logger.error(`Failed to send ident failed mail or webhook ${entity.id}:`, e);
     }
   }
 

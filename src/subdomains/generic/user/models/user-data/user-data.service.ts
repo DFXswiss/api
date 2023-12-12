@@ -134,7 +134,8 @@ export class UserDataService {
       await this.userDataRepo.save({ ...userData, ...{ kycFileId: dto.kycFileId } });
     }
 
-    if (dto.kycLevel) await this.kycNotificationService.kycChanged(userData, dto.kycLevel);
+    if (dto.kycLevel && dto.kycLevel !== userData.kycLevel)
+      await this.kycNotificationService.kycChanged(userData, dto.kycLevel);
 
     // Columns are not updatable
     if (userData.letterSentDate) dto.letterSentDate = userData.letterSentDate;
