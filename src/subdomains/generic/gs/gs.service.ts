@@ -76,13 +76,7 @@ export class GsService {
 
     return {
       userData,
-      documents: [
-        ...(await this.documentStorageService.listUserFiles(userData.id)),
-        ...(await this.documentStorageService.listSpiderFiles(userData.id, false)),
-        ...(userData.accountType !== AccountType.PERSONAL
-          ? await this.documentStorageService.listSpiderFiles(userData.id, true)
-          : []),
-      ],
+      documents: await this.getAllUserDocuments(userData.id, userData.accountType),
       buyCrypto: await this.buyCryptoService.getAllUserTransactions(userIds),
       buyFiat: await this.buyFiatService.getAllUserTransactions(userIds),
       ref: await this.buyCryptoService.getAllRefTransactions(refCodes),
@@ -96,44 +90,41 @@ export class GsService {
 
   private async setUserDataDocs(data: UserData[], select: string[]): Promise<void> {
     const selectPaths = this.filterSelectDocumentColumn(select);
-    const prefixPaths = this.getBiggestCommonPrefix(selectPaths) ?? 'documents';
+    const commonPrefix = this.getBiggestCommonPrefix(selectPaths);
 
     for (const userData of data) {
       const userDataId = userData.id ?? (userData['user_data_id'] as number);
+      const commonPathPrefix = this.toDocPath(commonPrefix, userDataId);
 
-      const docsCache: { [b in string]: KycFile[] } = {};
+      const docs = commonPathPrefix
+        ? await this.documentStorageService.listFilesByPrefix(commonPathPrefix)
+        : await this.getAllUserDocuments(userDataId, userData.accountType);
 
       for (const selectPath of selectPaths) {
-        const docPath = this.toDocAffixPath(selectPath, `${userDataId}`);
-        const docAffixPath = this.toDocAffixPath(prefixPaths, `${userDataId}`);
-
-        const docs =
-          docsCache[prefixPaths] ??
-          (docAffixPath
-            ? await this.documentStorageService.listFilesByPrefix(docAffixPath)
-            : [
-                ...(await this.documentStorageService.listUserFiles(userDataId)),
-                ...(await this.documentStorageService.listSpiderFiles(userDataId, false)),
-                ...(userData.accountType !== AccountType.PERSONAL
-                  ? await this.documentStorageService.listSpiderFiles(userDataId, true)
-                  : []),
-              ]);
-
-        if (!docsCache[prefixPaths]) docsCache[prefixPaths] = docs;
-
-        docPath === docAffixPath
-          ? (userData[selectPath] = docs)
-          : (userData[selectPath] = docs.filter((doc) => doc.url.includes(docPath)));
+        const docPath = this.toDocPath(selectPath, userDataId);
+        userData[selectPath] = docPath === commonPathPrefix ? docs : docs.filter((doc) => doc.url.includes(docPath));
       }
     }
   }
 
-  private getBiggestCommonPrefix(selects: string[]): string | undefined {
-    if (!selects[0] || selects.length == 1) return selects[0] || undefined;
-    let i = 0;
-    while (selects[0][i] && selects.every((w) => w[i] === selects[0][i])) i++;
+  private async getAllUserDocuments(userDataId: number, accountType: AccountType): Promise<KycFile[]> {
+    return [
+      ...(await this.documentStorageService.listUserFiles(userDataId)),
+      ...(await this.documentStorageService.listSpiderFiles(userDataId, false)),
+      ...(accountType !== AccountType.PERSONAL
+        ? await this.documentStorageService.listSpiderFiles(userDataId, true)
+        : []),
+    ];
+  }
 
-    return selects[0].substring(0, i);
+  private getBiggestCommonPrefix(selects: string[]): string | undefined {
+    const first = selects[0];
+    if (!first || selects.length === 1) return first || undefined;
+
+    let i = 0;
+    while (first[i] && selects.every((w) => w[i] === first[i])) i++;
+
+    return first.substring(0, i);
   }
 
   private async getRawDbData(query: DbQueryDto): Promise<any[]> {
@@ -275,8 +266,8 @@ export class GsService {
     );
   }
 
-  private toDocAffixPath(selectPath: string, userDataId: string): string {
-    return selectPath.split('-')[1]?.split('.').join('/').split('{userData}').join(userDataId);
+  private toDocPath(selectPath: string, userDataId: number): string {
+    return selectPath.split('-')[1]?.split('.').join('/').split('{userData}').join(`${userDataId}`);
   }
 
   private transformResultArray(data: any[], table: string): DbReturnData {
