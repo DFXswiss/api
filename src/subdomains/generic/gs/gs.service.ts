@@ -54,7 +54,8 @@ export class GsService {
   async getDbData(query: DbQueryDto): Promise<DbReturnData> {
     const data = await this.getRawDbData({ ...query, select: query.select?.filter((s) => !s.includes('documents')) });
 
-    if (query.table === 'user_data') await this.setUserDataDocs(data, query.select);
+    if (query.table === 'user_data' && (!query.select || query.select.some((s) => s.includes('documents'))))
+      await this.setUserDataDocs(data, query.select);
 
     // transform to array
     return this.transformResultArray(data, query.table);
