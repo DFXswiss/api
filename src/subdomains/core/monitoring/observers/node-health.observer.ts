@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
 import { NodeMode } from 'src/integration/blockchain/ain/node/node-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { AzureService } from 'src/integration/infrastructure/azure-service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
@@ -52,7 +52,7 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(360)
   async fetch(): Promise<NodesState> {
-    if (Config.processDisabled(Process.MONITORING)) return;
+    if (DisabledProcess(Process.MONITORING)) return;
     const previousState = this.data;
 
     let state = await this.getState(previousState);

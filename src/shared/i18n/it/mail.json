@@ -135,23 +135,14 @@
             "message": "La verifica è stata completata."
         },
         "failed": {
-            "title": "La tua identificazione online non è riuscita",
-            "salutation": "La tua identificazione online non è riuscita",
-            "message": "Abbiamo notato che la sua identificazione online è fallita. Tuttavia, abbiamo già sbloccato l'identificazione video per te."
-        },
-        "ident": {
-            "title": "Verifica completata",
-            "salutation": "Identificazione completata - i suoi dati saranno controllati",
-            "message": "L'identificazione è stata completata con successo e i tuoi dati vengono ora controllati.<br>Il controllo può richiedere fino a 24 ore in casi individuali."
-        },
-        "chatbot": {
-            "title": "Chatbot completato",
-            "salutation": "Chatbot completato -passo successivo per la tua verifica"
+            "title": "La tua identificazione non è riuscita",
+            "salutation": "La tua identificazione non è riuscita",
+            "message": "Abbiamo notato che la sua identificazione è fallita. Riprovare con il seguente URL: [url:qui]"
         },
         "reminder": {
             "title": "Completa la tua verifica",
             "salutation": "Completa la tua verifica",
-            "message": "Abbiamo notato che non hai completato la {status}."
+            "message": "Abbiamo notato che non hai completato la tua verifica."
         },
         "next_step": "Per iniziare il processo di identificazione online, clicca sul pulsante di aggiornamento nella sezione dei limiti della pagina di pagamento (accedi tramite il bottone \"My DFX\" nell'app) o [url:qui].",
         "last_step": "Fai il passo finale e inizia a lavorare sulla tua libertà finanziaria oggi stesso"

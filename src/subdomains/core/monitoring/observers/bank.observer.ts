@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
@@ -36,7 +37,7 @@ export class BankObserver extends MetricObserver<BankData[]> {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async fetch() {
-    if (Config.processDisabled(Process.MONITORING)) return;
+    if (DisabledProcess(Process.MONITORING)) return;
 
     let data = [];
 

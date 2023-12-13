@@ -1,7 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { generateSecret, generateToken, verifyToken } from 'node-2fa';
-import { Config, Process } from 'src/config/config';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { KycLogType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
@@ -31,7 +31,7 @@ export class AuthTotpService {
   @Cron(CronExpression.EVERY_5_MINUTES)
   @Lock()
   processCleanupSecretCache() {
-    if (Config.processDisabled(Process.TOTP_AUTH_CACHE)) return;
+    if (DisabledProcess(Process.TOTP_AUTH_CACHE)) return;
 
     const before5MinTime = Util.minutesBefore(5).getTime();
 

@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { LiquidityBalance } from '../entities/liquidity-balance.entity';
 import { LiquidityManagementRule } from '../entities/liquidity-management-rule.entity';
 import { LiquidityBalanceIntegrationFactory } from '../factories/liquidity-balance-integration.factory';
 import { LiquidityBalanceRepository } from '../repositories/liquidity-balance.repository';
-import { Util } from 'src/shared/utils/util';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class LiquidityManagementBalanceService {
@@ -42,6 +42,11 @@ export class LiquidityManagementBalanceService {
 
   async getBalances(): Promise<LiquidityBalance[]> {
     return this.balanceRepo.find();
+  }
+
+  async getNumberOfPendingOrders(rule: LiquidityManagementRule): Promise<number> {
+    const integration = this.balanceIntegrationFactory.getIntegration(rule);
+    return integration.getNumberOfPendingOrders(rule.target);
   }
 
   //*** HELPER METHODS ***//
