@@ -11,6 +11,7 @@ import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { DataSource } from 'typeorm';
+import { KycFile } from '../kyc/dto/kyc-file.dto';
 import { DocumentStorageService } from '../kyc/services/integration/document-storage.service';
 import { AccountType } from '../user/models/user-data/account-type.enum';
 import { UserData } from '../user/models/user-data/user-data.entity';
@@ -75,13 +76,7 @@ export class GsService {
 
     return {
       userData,
-      documents: [
-        ...(await this.documentStorageService.listUserFiles(userData.id)),
-        ...(await this.documentStorageService.listSpiderFiles(userData.id, false)),
-        ...(userData.accountType !== AccountType.PERSONAL
-          ? await this.documentStorageService.listSpiderFiles(userData.id, true)
-          : []),
-      ],
+      documents: await this.getAllUserDocuments(userData.id, userData.accountType),
       buyCrypto: await this.buyCryptoService.getAllUserTransactions(userIds),
       buyFiat: await this.buyFiatService.getAllUserTransactions(userIds),
       ref: await this.buyCryptoService.getAllRefTransactions(refCodes),
@@ -95,24 +90,41 @@ export class GsService {
 
   private async setUserDataDocs(data: UserData[], select: string[]): Promise<void> {
     const selectPaths = this.filterSelectDocumentColumn(select);
+    const commonPrefix = this.getBiggestCommonPrefix(selectPaths);
 
     for (const userData of data) {
       const userDataId = userData.id ?? (userData['user_data_id'] as number);
+      const commonPathPrefix = this.toDocPath(commonPrefix, userDataId);
+
+      const docs = commonPathPrefix
+        ? await this.documentStorageService.listFilesByPrefix(commonPathPrefix)
+        : await this.getAllUserDocuments(userDataId, userData.accountType);
 
       for (const selectPath of selectPaths) {
-        const prefixPath = this.toDocPrefixPath(selectPath, `${userDataId}`);
-
-        userData[selectPath] = prefixPath
-          ? await this.documentStorageService.listFilesByPrefix(prefixPath)
-          : [
-              ...(await this.documentStorageService.listUserFiles(userDataId)),
-              ...(await this.documentStorageService.listSpiderFiles(userDataId, false)),
-              ...(userData.accountType !== AccountType.PERSONAL
-                ? await this.documentStorageService.listSpiderFiles(userDataId, true)
-                : []),
-            ];
+        const docPath = this.toDocPath(selectPath, userDataId);
+        userData[selectPath] = docPath === commonPathPrefix ? docs : docs.filter((doc) => doc.url.includes(docPath));
       }
     }
+  }
+
+  private async getAllUserDocuments(userDataId: number, accountType: AccountType): Promise<KycFile[]> {
+    return [
+      ...(await this.documentStorageService.listUserFiles(userDataId)),
+      ...(await this.documentStorageService.listSpiderFiles(userDataId, false)),
+      ...(accountType !== AccountType.PERSONAL
+        ? await this.documentStorageService.listSpiderFiles(userDataId, true)
+        : []),
+    ];
+  }
+
+  private getBiggestCommonPrefix(selects: string[]): string | undefined {
+    const first = selects[0];
+    if (!first || selects.length === 1) return first || undefined;
+
+    let i = 0;
+    while (first[i] && selects.every((w) => w[i] === first[i])) i++;
+
+    return first.substring(0, i);
   }
 
   private async getRawDbData(query: DbQueryDto): Promise<any[]> {
@@ -254,8 +266,8 @@ export class GsService {
     );
   }
 
-  private toDocPrefixPath(selectPath: string, userDataId: string): string {
-    return selectPath.split('-')?.[1]?.split('.').join('/').split('{userData}').join(userDataId);
+  private toDocPath(selectPath: string, userDataId: number): string {
+    return selectPath.split('-')[1]?.split('.').join('/').split('{userData}').join(`${userDataId}`);
   }
 
   private transformResultArray(data: any[], table: string): DbReturnData {
