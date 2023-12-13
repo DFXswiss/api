@@ -173,9 +173,9 @@ export class UpdateUserDataDto {
 
   @IsOptional()
   @IsString()
-  verificationDocumentId: string;
+  identDocumentId: string;
 
   @IsOptional()
   @IsString()
-  verificationDocumentType: string;
+  identDocumentType: string;
 }

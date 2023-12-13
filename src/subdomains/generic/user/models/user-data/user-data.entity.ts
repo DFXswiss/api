@@ -219,10 +219,10 @@ export class UserData extends IEntity {
   lastNameCheckDate: Date;
 
   @Column({ length: 256, nullable: true })
-  verificationDocumentId: string;
+  identDocumentId: string;
 
   @Column({ length: 256, nullable: true })
-  verificationDocumentType: string;
+  identDocumentType: string;
 
   // AML
   @Column({ type: 'datetime2', nullable: true })
