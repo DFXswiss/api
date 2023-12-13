@@ -96,6 +96,7 @@ export class GsService {
 
   private async setUserDataDocs(data: UserData[], select: string[]): Promise<void> {
     const selectPaths = this.filterSelectDocumentColumn(select);
+    const prefixPaths = this.getBiggestCommonPrefix(selectPaths) ?? 'documents';
 
     for (const userData of data) {
       const userDataId = userData.id ?? (userData['user_data_id'] as number);
@@ -104,8 +105,6 @@ export class GsService {
 
       for (const selectPath of selectPaths) {
         const docPath = this.toDocAffixPath(selectPath, `${userDataId}`);
-
-        const prefixPaths = this.getGCD(selectPath, selectPaths);
         const docAffixPath = this.toDocAffixPath(prefixPaths, `${userDataId}`);
 
         const docs =
@@ -129,16 +128,12 @@ export class GsService {
     }
   }
 
-  private getGCD(inputString: string, selects: string[], separator = '.'): string {
-    const gcd = [];
+  private getBiggestCommonPrefix(selects: string[]): string | undefined {
+    if (!selects[0] || selects.length == 1) return selects[0] || undefined;
+    let i = 0;
+    while (selects[0][i] && selects.every((w) => w[i] === selects[0][i])) i++;
 
-    // or with for loop?
-    inputString.split(separator).forEach((separatedInput, i) => {
-      const t = selects.every((s) => s.split(separator)[i] === separatedInput);
-      t && i == gcd.length && gcd.push(separatedInput);
-    });
-
-    return gcd.length === 0 ? 'documents' : gcd.join(separator);
+    return selects[0].substring(0, i);
   }
 
   private async getRawDbData(query: DbQueryDto): Promise<any[]> {
