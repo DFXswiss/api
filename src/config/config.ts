@@ -516,11 +516,7 @@ export class Configuration {
 
   // --- HELPERS --- //
   disabledProcesses = () =>
-    process.env.DISABLED_PROCESSES === '*'
-      ? Object.values(Process)
-      : Object.values(Process).filter((processName) =>
-          (process.env.DISABLED_PROCESSES?.split(',') ?? []).includes(processName),
-        );
+    process.env.DISABLED_PROCESSES === '*' ? Object.values(Process) : process.env.DISABLED_PROCESSES?.split(',') ?? [];
 }
 
 function splitWithdrawKeys(value?: string): Map<string, string> {
