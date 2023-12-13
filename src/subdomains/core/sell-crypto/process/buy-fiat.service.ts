@@ -1,7 +1,7 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -38,6 +38,7 @@ export class BuyFiatService {
     private readonly bankTxService: BankTxService,
     private readonly fiatOutputService: FiatOutputService,
     private readonly webhookService: WebhookService,
+    @Inject(forwardRef(() => BuyFiatPreparationService))
     private readonly buyFiatPreparationService: BuyFiatPreparationService,
   ) {}
 
@@ -45,7 +46,7 @@ export class BuyFiatService {
   @Cron(CronExpression.EVERY_10_MINUTES)
   @Lock(7200)
   async addFiatOutputs(): Promise<void> {
-    if (Config.processDisabled(Process.BUY_FIAT)) return;
+    if (DisabledProcess(Process.BUY_FIAT)) return;
     const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
       relations: ['fiatOutput'],
       where: { amlCheck: CheckStatus.PASS, fiatOutput: IsNull() },
@@ -62,9 +63,9 @@ export class BuyFiatService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async checkCryptoPayIn() {
-    if (Config.processDisabled(Process.BUY_FIAT)) return;
+    if (DisabledProcess(Process.BUY_FIAT)) return;
     await this.buyFiatRegistrationService.registerSellPayIn();
-    if (!Config.processDisabled(Process.BUY_FIAT_SET_FEE)) await this.buyFiatPreparationService.refreshFee();
+    if (!DisabledProcess(Process.BUY_FIAT_SET_FEE)) await this.buyFiatPreparationService.refreshFee();
   }
 
   async update(id: number, dto: UpdateBuyFiatDto): Promise<BuyFiat> {
@@ -114,8 +115,8 @@ export class BuyFiatService {
     )
       await this.triggerWebhook(entity);
 
-    await this.updateSellVolume([sellIdBefore, entity.sell?.id]);
-    await this.updateRefVolume([usedRefBefore, entity.usedRef]);
+    if (dto.amountInChf) await this.updateSellVolume([sellIdBefore, entity.sell?.id]);
+    if (dto.usedRef || dto.amountInEur) await this.updateRefVolume([usedRefBefore, entity.usedRef]);
 
     return entity;
   }
@@ -248,7 +249,7 @@ export class BuyFiatService {
     return sell;
   }
 
-  private async updateSellVolume(sellIds: number[]): Promise<void> {
+  async updateSellVolume(sellIds: number[]): Promise<void> {
     sellIds = sellIds.filter((u, j) => sellIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 
     for (const id of sellIds) {
@@ -273,7 +274,7 @@ export class BuyFiatService {
     }
   }
 
-  private async updateRefVolume(refs: string[]): Promise<void> {
+  async updateRefVolume(refs: string[]): Promise<void> {
     refs = refs.filter((u, j) => refs.indexOf(u) === j).filter((i) => i); // distinct, not null
 
     for (const ref of refs) {

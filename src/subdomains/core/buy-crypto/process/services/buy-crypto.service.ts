@@ -7,9 +7,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
@@ -58,6 +58,7 @@ export class BuyCryptoService {
     private readonly userService: UserService,
     private readonly assetService: AssetService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
+    @Inject(forwardRef(() => BuyCryptoPreparationService))
     private readonly buyCryptoPreparationService: BuyCryptoPreparationService,
   ) {}
 
@@ -175,9 +176,9 @@ export class BuyCryptoService {
     )
       await this.buyCryptoWebhookService.triggerWebhook(entity);
 
-    await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
-    await this.updateCryptoRouteVolume([cryptoRouteIdBefore, entity.cryptoRoute?.id]);
-    await this.updateRefVolume([usedRefBefore, entity.usedRef]);
+    if (dto.amountInChf) await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
+    if (dto.amountInChf) await this.updateCryptoRouteVolume([cryptoRouteIdBefore, entity.cryptoRoute?.id]);
+    if (dto.usedRef || dto.amountInEur) await this.updateRefVolume([usedRefBefore, entity.usedRef]);
 
     return entity;
   }
@@ -203,16 +204,16 @@ export class BuyCryptoService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async checkCryptoPayIn() {
-    if (Config.processDisabled(Process.BUY_CRYPTO)) return;
+    if (DisabledProcess(Process.BUY_CRYPTO)) return;
     await this.buyCryptoRegistrationService.registerCryptoPayIn();
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(7200)
   async process() {
-    if (Config.processDisabled(Process.BUY_CRYPTO)) return;
-    if (!Config.processDisabled(Process.BUY_CRYPTO_AML_CHECK)) await this.buyCryptoPreparationService.doAmlCheck();
-    if (!Config.processDisabled(Process.BUY_CRYPTO_SET_FEE)) await this.buyCryptoPreparationService.refreshFee();
+    if (DisabledProcess(Process.BUY_CRYPTO)) return;
+    if (!DisabledProcess(Process.BUY_CRYPTO_AML_CHECK)) await this.buyCryptoPreparationService.doAmlCheck();
+    if (!DisabledProcess(Process.BUY_CRYPTO_SET_FEE)) await this.buyCryptoPreparationService.refreshFee();
     await this.buyCryptoPreparationService.prepareTransactions();
     await this.buyCryptoBatchService.batchAndOptimizeTransactions();
     await this.buyCryptoDexService.secureLiquidity();
@@ -332,7 +333,7 @@ export class BuyCryptoService {
     return cryptoRoute;
   }
 
-  private async updateBuyVolume(buyIds: number[]): Promise<void> {
+  async updateBuyVolume(buyIds: number[]): Promise<void> {
     buyIds = buyIds.filter((u, j) => buyIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 
     for (const id of buyIds) {
@@ -357,7 +358,7 @@ export class BuyCryptoService {
     }
   }
 
-  private async updateCryptoRouteVolume(cryptoRouteIds: number[]): Promise<void> {
+  async updateCryptoRouteVolume(cryptoRouteIds: number[]): Promise<void> {
     cryptoRouteIds = cryptoRouteIds.filter((u, j) => cryptoRouteIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 
     for (const id of cryptoRouteIds) {
@@ -382,7 +383,7 @@ export class BuyCryptoService {
     }
   }
 
-  private async updateRefVolume(refs: string[]): Promise<void> {
+  async updateRefVolume(refs: string[]): Promise<void> {
     refs = refs.filter((u, j) => refs.indexOf(u) === j).filter((i) => i); // distinct, not null
 
     for (const ref of refs) {

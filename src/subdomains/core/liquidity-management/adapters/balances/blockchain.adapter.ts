@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
 import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
+import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
+import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
@@ -25,25 +27,26 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
 
   private dexClient: DeFiClient;
   private btcClient: BtcClient;
-  private lnClient: LightningClient;
+  private lightningClient: LightningClient;
+  private moneroClient: MoneroClient;
 
   constructor(
     private readonly dexService: DexService,
     private readonly evmRegistryService: EvmRegistryService,
     nodeService: NodeService,
     lightningService: LightningService,
+    moneroService: MoneroService,
   ) {
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.dexClient = client));
     nodeService.getConnectedNode(NodeType.BTC_OUTPUT).subscribe((client) => (this.btcClient = client));
-    this.lnClient = lightningService.getDefaultClient();
+    this.lightningClient = lightningService.getDefaultClient();
+    this.moneroClient = moneroService.getDefaultClient();
   }
 
   async getBalances(assets: Asset[]): Promise<LiquidityBalance[]> {
     if (!assets.every((a) => a instanceof Asset)) {
       throw new Error(`BlockchainAdapter supports only assets`);
     }
-
-    assets = await Util.asyncFilter(assets, (a) => this.hasSafeBalance(a));
 
     const blockchainAssets = Util.groupBy<Asset, Blockchain>(assets, 'blockchain');
 
@@ -52,6 +55,10 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     );
 
     return balances.reduce((prev, curr) => prev.concat(curr), []);
+  }
+
+  async getNumberOfPendingOrders(asset: Asset): Promise<number> {
+    return this.dexService.getPendingOrdersCount(asset);
   }
 
   private async getForBlockchain(blockchain: Blockchain, assets: Asset[]): Promise<LiquidityBalance[]> {
@@ -90,6 +97,10 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
         case Blockchain.BITCOIN:
         case Blockchain.LIGHTNING:
           await this.getForBitcoin(assets);
+          break;
+
+        case Blockchain.MONERO:
+          await this.getForMonero(assets);
           break;
 
         case Blockchain.ETHEREUM:
@@ -137,10 +148,24 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
       try {
         if (asset.type !== AssetType.COIN) throw new Error(`Only coins are available on ${asset.blockchain}`);
 
-        const client = asset.blockchain === Blockchain.BITCOIN ? this.btcClient : this.lnClient;
+        const client = asset.blockchain === Blockchain.BITCOIN ? this.btcClient : this.lightningClient;
 
         const balance = await client.getBalance();
         this.balanceCache.set(asset.id, +balance);
+      } catch (e) {
+        this.logger.error(`Failed to update liquidity management balance for ${asset.uniqueName}:`, e);
+        this.invalidateCacheFor([asset]);
+      }
+    }
+  }
+
+  private async getForMonero(assets: Asset[]): Promise<void> {
+    for (const asset of assets) {
+      try {
+        if (asset.type !== AssetType.COIN) throw new Error(`Only coins are available on ${asset.blockchain}`);
+
+        const balance = await this.moneroClient.getBalance().then((b) => b.balance);
+        this.balanceCache.set(asset.id, balance);
       } catch (e) {
         this.logger.error(`Failed to update liquidity management balance for ${asset.uniqueName}:`, e);
         this.invalidateCacheFor([asset]);
@@ -184,15 +209,5 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
   // --- HELPER METHODS --- //
   private invalidateCacheFor(assets: Asset[]) {
     assets.forEach((a) => this.balanceCache.delete(a.id));
-  }
-
-  private async hasSafeBalance(asset: Asset): Promise<boolean> {
-    const ongoingOrders = await this.dexService.getPendingOrdersCount(asset);
-
-    if (ongoingOrders) {
-      this.logger.info(`Cannot safely get balance of ${asset.uniqueName} (${ongoingOrders} DEX order(s) ongoing)`);
-    }
-
-    return ongoingOrders === 0;
   }
 }

@@ -1,10 +1,11 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { LessThan } from 'typeorm';
 import { KycLevel, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
@@ -28,6 +29,7 @@ import { StepLogRepository } from '../repositories/step-log.repository';
 import { DocumentStorageService } from './integration/document-storage.service';
 import { FinancialService } from './integration/financial.service';
 import { IdentService } from './integration/ident.service';
+import { KycNotificationService } from './kyc-notification.service';
 
 @Injectable()
 export class KycService {
@@ -42,11 +44,12 @@ export class KycService {
     private readonly languageService: LanguageService,
     private readonly countryService: CountryService,
     private readonly stepLogRepo: StepLogRepository,
+    private readonly kycNotificationService: KycNotificationService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
   async checkIdentSteps(): Promise<void> {
-    if (Config.processDisabled(Process.KYC)) return;
+    if (DisabledProcess(Process.KYC)) return;
 
     const expiredIdentSteps = await this.kycStepRepo.find({
       where: {
@@ -149,7 +152,12 @@ export class KycService {
   }
 
   async updateIdent(dto: IdentResultDto): Promise<void> {
-    const { id: sessionId, transactionnumber: transactionId, result: sessionStatus } = dto.identificationprocess;
+    const {
+      id: sessionId,
+      transactionnumber: transactionId,
+      result: sessionStatus,
+      reason,
+    } = dto.identificationprocess;
 
     if (!sessionId || !transactionId || !sessionStatus) throw new BadRequestException(`Session data is missing`);
 
@@ -182,6 +190,7 @@ export class KycService {
       case IdentShortResult.FAIL:
         user = user.failStep(kycStep, dto);
         await this.downloadIdentDocuments(user, kycStep, 'fail/');
+        await this.kycNotificationService.identFailed(kycStep, reason);
         break;
 
       default:
@@ -258,7 +267,10 @@ export class KycService {
     if (!user.hasStepsInProgress) {
       const { nextStep, nextLevel } = await this.getNext(user);
 
-      if (nextLevel) user.setKycLevel(nextLevel);
+      if (nextLevel) {
+        user.setKycLevel(nextLevel);
+        await this.kycNotificationService.kycChanged(user, nextLevel);
+      }
 
       if (nextStep && shouldContinue && (autoStep || depth === 0)) {
         // continue with next step

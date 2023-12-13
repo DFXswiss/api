@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, forwardRef } from '@nestjs/common';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -15,6 +15,7 @@ import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { CheckStatus } from '../enums/check-status.enum';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
+import { BuyCryptoService } from './buy-crypto.service';
 
 @Injectable()
 export class BuyCryptoPreparationService {
@@ -29,6 +30,8 @@ export class BuyCryptoPreparationService {
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly assetService: AssetService,
     private readonly feeService: FeeService,
+    @Inject(forwardRef(() => BuyCryptoService))
+    private readonly buyCryptoService: BuyCryptoService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
@@ -168,6 +171,10 @@ export class BuyCryptoPreparationService {
             referenceChfPrice.convert(fee.total, 2),
           ),
         );
+
+        await this.buyCryptoService.updateBuyVolume([entity.buy?.id]);
+        await this.buyCryptoService.updateCryptoRouteVolume([entity.cryptoRoute?.id]);
+        await this.buyCryptoService.updateRefVolume([entity.usedRef]);
       } catch (e) {
         this.logger.error(`Error during buy-crypto ${entity.id} fee and fiat reference refresh:`, e);
       }

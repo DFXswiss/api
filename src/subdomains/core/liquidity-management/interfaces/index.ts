@@ -9,6 +9,7 @@ export type Command = (order: LiquidityManagementOrder) => Promise<CorrelationId
 
 export interface LiquidityBalanceIntegration {
   getBalances(assets: (Asset | Fiat)[]): Promise<LiquidityBalance[]>;
+  getNumberOfPendingOrders(asset: Asset | Fiat): Promise<number>;
 }
 
 export interface LiquidityActionIntegration {

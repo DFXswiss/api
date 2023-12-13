@@ -113,7 +113,7 @@ export class UpdateUserDataDto {
   kycState: KycState;
 
   @IsOptional()
-  @IsEnum(KycLevel)
+  @IsInt()
   kycLevel: KycLevel;
 
   @IsOptional()
@@ -170,4 +170,12 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsString()
   relatedUsers: string;
+
+  @IsOptional()
+  @IsString()
+  identDocumentId: string;
+
+  @IsOptional()
+  @IsString()
+  identDocumentType: string;
 }

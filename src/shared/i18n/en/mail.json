@@ -135,23 +135,14 @@
             "message": "Your verification is complete."
         },
         "failed": {
-            "title": "Online identification failed",
-            "salutation": "Your online identification has failed",
-            "message": "We have noticed that your online identification has failed. However, we have already unlocked video identification for you."
-        },
-        "ident": {
-            "title": "Identification completed",
-            "salutation": "Identification completed - your data will be verified",
-            "message": "The identification has been completed successfully and your data will now be checked.<br>The verification can take up to 24 hours in some cases."
-        },
-        "chatbot": {
-            "title": "Chatbot completed",
-            "salutation": "Chatbot completed - next step for your verification"
+            "title": "Identification failed",
+            "salutation": "Your identification has failed",
+            "message": "We have noticed that your identification has failed. Please try it again with the following URL: [url:here]"
         },
         "reminder": {
             "title": "Complete verification",
             "salutation": "Complete your verification",
-            "message": "We have noticed that you have not completed the {status}."
+            "message": "We have noticed that you have not completed your verification."
         },
         "next_step": "To start the online identification process, click on the refresh button in the limit section on the payment page (access via the \"My DFX\" button in the app) or [url:here].",
         "last_step": "Take the final step and start working on your financial freedom today"

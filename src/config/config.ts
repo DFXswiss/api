@@ -6,38 +6,9 @@ import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 import { FeeTier } from 'src/shared/models/asset/asset.entity';
+import { Process } from 'src/shared/services/process.service';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
-
-export enum Process {
-  PAY_OUT = 'PayOut',
-  PAY_IN = 'PayIn',
-  FIAT_PAY_IN = 'FiatPayIn',
-  BUY_FIAT = 'BuyFiat',
-  BUY_CRYPTO = 'BuyCrypto',
-  LIMIT_REQUEST_MAIL = 'LimitRequestMail',
-  BLACK_SQUAD_MAIL = 'BlackSquadMail',
-  PAY_IN_MAIL = 'PayInMail',
-  BUY_CRYPTO_MAIL = 'BuyCryptoMail',
-  BUY_FIAT_MAIL = 'BuyFiatMail',
-  REF_REWARD_MAIL = 'RefRewardMail',
-  EXCHANGE_TX_SYNC = 'ExchangeTxSync',
-  LIQUIDITY_MANAGEMENT = 'LiquidityManagement',
-  MONITORING = 'Monitoring',
-  UPDATE_CFP = 'UpdateCfp',
-  UPDATE_STATISTIC = 'UpdateStatistic',
-  KYC = 'Kyc',
-  BANK_ACCOUNT = 'BankAccount',
-  BANK_TX = 'BankTx',
-  STAKING = 'Staking',
-  REF_PAYOUT = 'RefPayout',
-  PRICING = 'Pricing',
-  BUY_CRYPTO_AML_CHECK = 'BuyCryptoAmlCheck',
-  BUY_CRYPTO_SET_FEE = 'BuyCryptoSetFee',
-  BUY_FIAT_SET_FEE = 'BuyFiatSetFee',
-  LNURL_AUTH_CACHE = 'LnurlAuthCache',
-  TOTP_AUTH_CACHE = 'TotpAuthCache',
-}
 
 export enum Environment {
   LOC = 'loc',
@@ -168,31 +139,7 @@ export class Configuration {
     transactionPrefix: process.env.KYC_TRANSACTION_PREFIX,
     identFailAfterDays: 90,
     allowedWebhookIps: process.env.KYC_WEBHOOK_IPS?.split(','),
-  };
-
-  kycSpider = {
-    mandator: process.env.KYC_MANDATOR,
-    user: process.env.KYC_USER,
-    password: process.env.KYC_PASSWORD,
-    prefix: process.env.KYC_PREFIX ?? '',
     reminderAfterDays: 2,
-    failAfterDays: 7,
-    chatbotStyle: {
-      headerColor: this.colors.white,
-      textColor: this.colors.white,
-      warningColor: this.colors.red,
-      backgroundColor: this.colors.darkBlue,
-      overlayBackgroundColor: this.colors.darkBlue,
-      buttonColor: this.colors.white,
-      buttonBackgroundColor: this.colors.red,
-      bubbleLeftColor: this.colors.white,
-      bubbleLeftBackgroundColor: this.colors.lightBlue,
-      bubbleRightColor: this.colors.white,
-      bubbleRightBackgroundColor: this.colors.lightBlue,
-      htmlHeaderInclude: '',
-      htmlBodyInclude: '',
-    },
-    allowedWebhookIps: process.env.KYC_WEBHOOK_IPS?.split(','),
   };
 
   support = {
@@ -539,9 +486,10 @@ export class Configuration {
   }
 
   // --- HELPERS --- //
-
-  processDisabled = (processName: Process) =>
-    process.env.DISABLED_PROCESSES === '*' || (process.env.DISABLED_PROCESSES?.split(',') ?? []).includes(processName);
+  disabledProcesses = () =>
+    process.env.DISABLED_PROCESSES === '*'
+      ? Object.values(Process)
+      : ((process.env.DISABLED_PROCESSES?.split(',') ?? []) as Process[]);
 }
 
 function splitWithdrawKeys(value?: string): Map<string, string> {

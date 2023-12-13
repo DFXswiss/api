@@ -1,4 +1,4 @@
-import { Entity, Column } from 'typeorm';
+import { Column, Entity } from 'typeorm';
 import { IEntity } from '../entity';
 
 @Entity()
@@ -11,4 +11,10 @@ export class Fiat extends IEntity {
 
   @Column({ default: false })
   sellable: boolean;
+
+  @Column({ default: false })
+  cardBuyable: boolean;
+
+  @Column({ default: false })
+  cardSellable: boolean;
 }

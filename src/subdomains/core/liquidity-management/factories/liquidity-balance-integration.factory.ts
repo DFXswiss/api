@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { Util } from 'src/shared/utils/util';
 import { BankAdapter } from '../adapters/balances/bank.adapter';
 import { BlockchainAdapter } from '../adapters/balances/blockchain.adapter';
 import { LiquidityManagementRule } from '../entities/liquidity-management-rule.entity';
 import { LiquidityBalanceIntegration } from '../interfaces';
-import { Util } from 'src/shared/utils/util';
 
 enum AdapterType {
   BLOCKCHAIN = 'Blockchain',
@@ -13,7 +13,7 @@ enum AdapterType {
 }
 @Injectable()
 export class LiquidityBalanceIntegrationFactory {
-  protected readonly adapters = new Map<AdapterType, LiquidityBalanceIntegration>();
+  private readonly adapters = new Map<AdapterType, LiquidityBalanceIntegration>();
 
   constructor(readonly blockchainAdapter: BlockchainAdapter, readonly bankAdapter: BankAdapter) {
     this.adapters.set(AdapterType.BLOCKCHAIN, blockchainAdapter);
