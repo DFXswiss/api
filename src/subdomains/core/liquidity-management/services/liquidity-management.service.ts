@@ -34,7 +34,7 @@ export class LiquidityManagementService {
   async verifyRules() {
     if (DisabledProcess(Process.LIQUIDITY_MANAGEMENT)) return;
 
-    const rules = await this.ruleRepo.findBy({ status: LiquidityManagementRuleStatus.ACTIVE });
+    const rules = await this.ruleRepo.find();
     const balances = await this.balanceService.refreshBalances(rules);
 
     for (const rule of rules) {
@@ -84,6 +84,17 @@ export class LiquidityManagementService {
 
   private async verifyRule(rule: LiquidityManagementRule, balances: LiquidityBalance[]): Promise<void> {
     try {
+      if (rule.status !== LiquidityManagementRuleStatus.ACTIVE) {
+        this.logger.info(`Could not verify rule ${rule.id}: status is ${rule.status}`);
+        return;
+      }
+
+      const numberOfPendingOrders = await this.balanceService.getNumberOfPendingOrders(rule);
+      if (numberOfPendingOrders > 0) {
+        this.logger.info(`Could not verify rule ${rule.id}: pending orders found`);
+        return;
+      }
+
       const balance = this.balanceService.findRelevantBalance(rule, balances);
       if (!balance) {
         this.logger.info(`Could not verify rule ${rule.id}: balance not found`);

@@ -48,8 +48,6 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
       throw new Error(`BlockchainAdapter supports only assets`);
     }
 
-    assets = await Util.asyncFilter(assets, (a) => this.hasSafeBalance(a));
-
     const blockchainAssets = Util.groupBy<Asset, Blockchain>(assets, 'blockchain');
 
     const balances = await Util.doGetFulfilled(
@@ -57,6 +55,10 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     );
 
     return balances.reduce((prev, curr) => prev.concat(curr), []);
+  }
+
+  async getNumberOfPendingOrders(asset: Asset): Promise<number> {
+    return this.dexService.getPendingOrdersCount(asset);
   }
 
   private async getForBlockchain(blockchain: Blockchain, assets: Asset[]): Promise<LiquidityBalance[]> {
@@ -207,15 +209,5 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
   // --- HELPER METHODS --- //
   private invalidateCacheFor(assets: Asset[]) {
     assets.forEach((a) => this.balanceCache.delete(a.id));
-  }
-
-  private async hasSafeBalance(asset: Asset): Promise<boolean> {
-    const ongoingOrders = await this.dexService.getPendingOrdersCount(asset);
-
-    if (ongoingOrders) {
-      this.logger.info(`Cannot safely get balance of ${asset.uniqueName} (${ongoingOrders} DEX order(s) ongoing)`);
-    }
-
-    return ongoingOrders === 0;
   }
 }
