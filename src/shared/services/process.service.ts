@@ -22,6 +22,7 @@ export enum Process {
   UPDATE_CFP = 'UpdateCfp',
   UPDATE_STATISTIC = 'UpdateStatistic',
   KYC = 'Kyc',
+  KYC_MAIL = 'KycMail',
   BANK_ACCOUNT = 'BankAccount',
   BANK_TX = 'BankTx',
   STAKING = 'Staking',
