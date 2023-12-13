@@ -45,7 +45,7 @@ export class SettingController {
     return this.settingService.updateCustomSignUpFees(dto);
   }
 
-  @Put('updateProcess')
+  @Put('disabledProcesses')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))

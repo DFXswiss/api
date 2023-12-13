@@ -42,7 +42,7 @@ export class KycNotificationService {
       relations: ['userData'],
     });
 
-    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'kyc reminder' email(s)`);
+    entities.length > 0 && this.logger.verbose(`Sending ${entities.length} KYC reminder email(s)`);
 
     for (const entity of entities) {
       try {
@@ -70,12 +70,12 @@ export class KycNotificationService {
             },
           });
         } else {
-          this.logger.warn(`Failed to send kyc reminder mail for userData ${entity.userData.id}: user has no email`);
+          this.logger.warn(`Failed to send KYC reminder mail for user data ${entity.userData.id}: user has no email`);
         }
 
         await this.kycStepRepo.update(...entity.reminderSent());
       } catch (e) {
-        this.logger.error(`Failed to send kyc reminder mail for kycStep ${entity.id}:`, e);
+        this.logger.error(`Failed to send KYC reminder mail for KYC step ${entity.id}:`, e);
       }
     }
   }
@@ -106,16 +106,16 @@ export class KycNotificationService {
           this.logger.warn(`Failed to send ident failed mail for user data ${entity.userData.id}: user has no email`);
       }
 
-      //Kyc webhook external Services
+      // KYC webhook external services
       await this.webhookService.kycFailed(entity.userData, reason);
     } catch (e) {
       this.logger.error(`Failed to send ident failed mail or webhook ${entity.id}:`, e);
     }
   }
 
-  async kycChanged(userData: UserData, level?: KycLevel): Promise<void> {
+  async kycChanged(userData: UserData, newLevel?: KycLevel): Promise<void> {
     try {
-      if (userData.mail && level === KycLevel.LEVEL_50 && !DisabledProcess(Process.KYC_MAIL)) {
+      if (userData.mail && newLevel === KycLevel.LEVEL_50 && !DisabledProcess(Process.KYC_MAIL)) {
         await this.notificationService.sendMail({
           type: MailType.USER,
           input: {
@@ -133,13 +133,13 @@ export class KycNotificationService {
         });
       } else {
         !userData.mail &&
-          this.logger.warn(`Failed to send kyc completion mail for user data ${userData.id}: user has no email`);
+          this.logger.warn(`Failed to send KYC completion mail for user data ${userData.id}: user has no email`);
       }
 
-      //Kyc webhook external Services
+      // KYC webhook external services
       await this.webhookService.kycChanged(userData);
     } catch (e) {
-      this.logger.error(`Failed to send kyc success mail or kyc changed webhook ${userData.id}:`, e);
+      this.logger.error(`Failed to send KYC success mail or KYC changed webhook ${userData.id}:`, e);
     }
   }
 }
