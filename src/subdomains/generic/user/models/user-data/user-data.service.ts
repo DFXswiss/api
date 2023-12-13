@@ -314,6 +314,7 @@ export class UserDataService {
       }),
     ]);
     if (!master.isDfxUser) throw new BadRequestException(`Master ${master.id} not allowed to merge. Wrong KYC type`);
+    if (slave.amlListAddedDate) throw new BadRequestException('Slave is on AML list');
     if ([master.status, slave.status].includes(UserDataStatus.MERGED))
       throw new BadRequestException('Master or slave is already merged');
 
