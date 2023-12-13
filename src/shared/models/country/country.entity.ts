@@ -26,7 +26,7 @@ export class Country extends IEntity {
   fatfEnable: boolean;
 
   @Column({ default: true })
-  dfxAutoEnableCitizenship: boolean;
+  nationalityEnable: boolean;
 
   isEnabled(kycType: KycType): boolean {
     switch (kycType) {
