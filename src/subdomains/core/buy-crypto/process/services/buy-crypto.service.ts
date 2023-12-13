@@ -58,6 +58,7 @@ export class BuyCryptoService {
     private readonly userService: UserService,
     private readonly assetService: AssetService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
+    @Inject(forwardRef(() => BuyCryptoPreparationService))
     private readonly buyCryptoPreparationService: BuyCryptoPreparationService,
   ) {}
 
@@ -175,9 +176,9 @@ export class BuyCryptoService {
     )
       await this.buyCryptoWebhookService.triggerWebhook(entity);
 
-    await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
-    await this.updateCryptoRouteVolume([cryptoRouteIdBefore, entity.cryptoRoute?.id]);
-    await this.updateRefVolume([usedRefBefore, entity.usedRef]);
+    if (dto.amountInChf) await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
+    if (dto.amountInChf) await this.updateCryptoRouteVolume([cryptoRouteIdBefore, entity.cryptoRoute?.id]);
+    if (dto.usedRef || dto.amountInEur) await this.updateRefVolume([usedRefBefore, entity.usedRef]);
 
     return entity;
   }
@@ -332,7 +333,7 @@ export class BuyCryptoService {
     return cryptoRoute;
   }
 
-  private async updateBuyVolume(buyIds: number[]): Promise<void> {
+  async updateBuyVolume(buyIds: number[]): Promise<void> {
     buyIds = buyIds.filter((u, j) => buyIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 
     for (const id of buyIds) {
@@ -357,7 +358,7 @@ export class BuyCryptoService {
     }
   }
 
-  private async updateCryptoRouteVolume(cryptoRouteIds: number[]): Promise<void> {
+  async updateCryptoRouteVolume(cryptoRouteIds: number[]): Promise<void> {
     cryptoRouteIds = cryptoRouteIds.filter((u, j) => cryptoRouteIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 
     for (const id of cryptoRouteIds) {
@@ -382,7 +383,7 @@ export class BuyCryptoService {
     }
   }
 
-  private async updateRefVolume(refs: string[]): Promise<void> {
+  async updateRefVolume(refs: string[]): Promise<void> {
     refs = refs.filter((u, j) => refs.indexOf(u) === j).filter((i) => i); // distinct, not null
 
     for (const ref of refs) {

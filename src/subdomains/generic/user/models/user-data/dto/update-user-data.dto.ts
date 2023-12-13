@@ -170,4 +170,12 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsString()
   relatedUsers: string;
+
+  @IsOptional()
+  @IsString()
+  identDocumentId: string;
+
+  @IsOptional()
+  @IsString()
+  identDocumentType: string;
 }

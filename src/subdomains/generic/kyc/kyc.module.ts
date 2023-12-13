@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SharedModule } from 'src/shared/shared.module';
+import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { UserModule } from '../user/user.module';
 import { KycController } from './api/kyc.controller';
 import { KycAdminController } from './controllers/kyc-admin.controller';
@@ -17,6 +18,7 @@ import { DocumentStorageService } from './services/integration/document-storage.
 import { FinancialService } from './services/integration/financial.service';
 import { IdentService } from './services/integration/ident.service';
 import { KycAdminService } from './services/kyc-admin.service';
+import { KycNotificationService } from './services/kyc-notification.service';
 import { KycService } from './services/kyc.service';
 import { NameCheckService } from './services/name-check.service';
 
@@ -24,6 +26,7 @@ import { NameCheckService } from './services/name-check.service';
   imports: [
     TypeOrmModule.forFeature([KycStep, KycLog, NameCheckLog, StepLog]),
     SharedModule,
+    NotificationModule,
     forwardRef(() => UserModule),
   ],
   controllers: [KycController, KycAdminController],
@@ -39,7 +42,8 @@ import { NameCheckService } from './services/name-check.service';
     FinancialService,
     KycLogRepository,
     KycStepRepository,
+    KycNotificationService,
   ],
-  exports: [DocumentStorageService, NameCheckService, KycAdminService],
+  exports: [DocumentStorageService, NameCheckService, KycAdminService, KycNotificationService],
 })
 export class KycModule {}

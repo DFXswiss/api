@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { KycLevel } from '../../../models/user-data/user-data.entity';
 import { TradingLimit } from '../../../models/user/dto/user.dto';
 import { WebhookDto, WebhookType } from './webhook.dto';
 
@@ -34,8 +35,11 @@ export class KycWebhookData {
   @ApiProperty()
   phone: string;
 
-  @ApiProperty({ enum: KycWebhookStatus })
+  @ApiProperty({ enum: KycWebhookStatus, deprecated: true })
   kycStatus: KycWebhookStatus;
+
+  @ApiProperty({ enum: KycLevel })
+  kycLevel: KycLevel;
 
   @ApiProperty()
   kycHash: string;

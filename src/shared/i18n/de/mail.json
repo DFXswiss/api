@@ -135,23 +135,14 @@
             "message": "Deine Verifikation ist abgeschlossen."
         },
         "failed": {
-            "title": "Online Identifikation fehlgeschlagen",
-            "salutation": "Deine Online-Identifikation ist fehlgeschlagen",
-            "message": "Wir haben festgestellt, dass die Online-Identifizierung fehlgeschlagen ist. Wir haben jedoch bereits die Video-Identifikation freigeschaltet."
-        },
-        "ident": {
-            "title": "Identifikation abgeschlossen",
-            "salutation": "Identifikation abgeschlossen - deine Daten werden überprüft",
-            "message": "Deine Identifikation ist erfolgreich abgeschlossen und die Daten werden nun geprüft.<br>Die Überprüfung kann in Einzelfällen bis zu 24 Stunden dauern."
-        },
-        "chatbot": {
-            "title": "Chatbot abgeschlossen",
-            "salutation": "Chatbot abgeschlossen - nächster Schritt zur Verifizierung"
+            "title": "Identifikation fehlgeschlagen",
+            "salutation": "Deine Identifikation ist fehlgeschlagen",
+            "message": "Wir haben festgestellt, dass deine Identifizierung fehlgeschlagen ist. Bitte versuche es über die folgende URL erneut: [url:hier]"
         },
         "reminder": {
             "title": "Vervollständige Verifizierung",
             "salutation": "Vervollständige deine Verifizierung",
-            "message": "Uns ist aufgefallen, dass {status} noch nicht vollständig abgeschlossen wurde."
+            "message": "Uns ist aufgefallen, dass deine Verifizierung noch nicht vollständig abgeschlossen wurde."
         },
         "next_step": "Um den Online-Identifizierungsprozess zu starten, klicke auf der Payment Seite (Zugang über den \"My DFX\" Button in der App) auf den Refresh Button (roter Pfeil in Kreisoptik) oder [url:hier].",
         "last_step": "Mache den letzten Schritt und beginne noch heute deine Reise zur finanziellen Freiheit"

@@ -38,6 +38,7 @@ export class BuyFiatService {
     private readonly bankTxService: BankTxService,
     private readonly fiatOutputService: FiatOutputService,
     private readonly webhookService: WebhookService,
+    @Inject(forwardRef(() => BuyFiatPreparationService))
     private readonly buyFiatPreparationService: BuyFiatPreparationService,
   ) {}
 
@@ -114,8 +115,8 @@ export class BuyFiatService {
     )
       await this.triggerWebhook(entity);
 
-    await this.updateSellVolume([sellIdBefore, entity.sell?.id]);
-    await this.updateRefVolume([usedRefBefore, entity.usedRef]);
+    if (dto.amountInChf) await this.updateSellVolume([sellIdBefore, entity.sell?.id]);
+    if (dto.usedRef || dto.amountInEur) await this.updateRefVolume([usedRefBefore, entity.usedRef]);
 
     return entity;
   }
@@ -248,7 +249,7 @@ export class BuyFiatService {
     return sell;
   }
 
-  private async updateSellVolume(sellIds: number[]): Promise<void> {
+  async updateSellVolume(sellIds: number[]): Promise<void> {
     sellIds = sellIds.filter((u, j) => sellIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 
     for (const id of sellIds) {
@@ -273,7 +274,7 @@ export class BuyFiatService {
     }
   }
 
-  private async updateRefVolume(refs: string[]): Promise<void> {
+  async updateRefVolume(refs: string[]): Promise<void> {
     refs = refs.filter((u, j) => refs.indexOf(u) === j).filter((i) => i); // distinct, not null
 
     for (const ref of refs) {
