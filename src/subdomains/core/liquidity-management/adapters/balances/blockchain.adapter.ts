@@ -58,13 +58,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
   }
 
   async getNumberOfPendingOrders(asset: Asset): Promise<number> {
-    const ongoingOrders = await this.dexService.getPendingOrdersCount(asset);
-
-    if (ongoingOrders) {
-      this.logger.info(`Cannot safely get balance of ${asset.uniqueName} (${ongoingOrders} DEX order(s) ongoing)`);
-    }
-
-    return ongoingOrders;
+    return this.dexService.getPendingOrdersCount(asset);
   }
 
   private async getForBlockchain(blockchain: Blockchain, assets: Asset[]): Promise<LiquidityBalance[]> {
