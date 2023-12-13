@@ -35,7 +35,9 @@ export enum Process {
   TOTP_AUTH_CACHE = 'TotpAuthCache',
 }
 
-let DisabledProcesses: { [p in Process]?: boolean } = {};
+type ProcessMap = { [p in Process]?: boolean };
+
+let DisabledProcesses: ProcessMap = {};
 
 export function DisabledProcess(process: Process): boolean {
   return DisabledProcesses[process] === true;
@@ -46,6 +48,8 @@ export class ProcessService implements OnModuleInit {
   constructor(private readonly settingService: SettingService) {}
 
   onModuleInit() {
+    DisabledProcesses = this.listToMap(Config.disabledProcesses());
+
     void this.resyncDisabledProcesses();
   }
 
@@ -53,8 +57,13 @@ export class ProcessService implements OnModuleInit {
   @Lock(1800)
   async resyncDisabledProcesses(): Promise<void> {
     const allDisabledProcesses = [...(await this.settingService.getDisabledProcesses()), ...Config.disabledProcesses()];
+    DisabledProcesses = this.listToMap(allDisabledProcesses);
+  }
 
-    DisabledProcesses = {};
-    allDisabledProcesses.forEach((process) => (DisabledProcesses[process] = true));
+  private listToMap(processes: Process[]): ProcessMap {
+    return processes.reduce((map, p) => {
+      map[p] = true;
+      return map;
+    }, {});
   }
 }
