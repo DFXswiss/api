@@ -45,7 +45,7 @@ export class TfaService {
 
   async setup(kycHash: string): Promise<Setup2faDto> {
     const user = await this.getUser(kycHash);
-    if (user.totpSecret || this.secretCache.has(user.id)) throw new ConflictException('2FA already set up');
+    if (user.totpSecret) throw new ConflictException('2FA already set up');
 
     const { secret, uri } = generateSecret({ name: 'DFX.swiss', account: user.mail ?? '' });
 
