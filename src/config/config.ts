@@ -28,6 +28,7 @@ export enum Process {
   UPDATE_CFP = 'UpdateCfp',
   UPDATE_STATISTIC = 'UpdateStatistic',
   KYC = 'Kyc',
+  KYC_MAIL = 'KycMail',
   BANK_ACCOUNT = 'BankAccount',
   BANK_TX = 'BankTx',
   STAKING = 'Staking',
@@ -169,31 +170,7 @@ export class Configuration {
     transactionPrefix: process.env.KYC_TRANSACTION_PREFIX,
     identFailAfterDays: 90,
     allowedWebhookIps: process.env.KYC_WEBHOOK_IPS?.split(','),
-  };
-
-  kycSpider = {
-    mandator: process.env.KYC_MANDATOR,
-    user: process.env.KYC_USER,
-    password: process.env.KYC_PASSWORD,
-    prefix: process.env.KYC_PREFIX ?? '',
     reminderAfterDays: 2,
-    failAfterDays: 7,
-    chatbotStyle: {
-      headerColor: this.colors.white,
-      textColor: this.colors.white,
-      warningColor: this.colors.red,
-      backgroundColor: this.colors.darkBlue,
-      overlayBackgroundColor: this.colors.darkBlue,
-      buttonColor: this.colors.white,
-      buttonBackgroundColor: this.colors.red,
-      bubbleLeftColor: this.colors.white,
-      bubbleLeftBackgroundColor: this.colors.lightBlue,
-      bubbleRightColor: this.colors.white,
-      bubbleRightBackgroundColor: this.colors.lightBlue,
-      htmlHeaderInclude: '',
-      htmlBodyInclude: '',
-    },
-    allowedWebhookIps: process.env.KYC_WEBHOOK_IPS?.split(','),
   };
 
   support = {
