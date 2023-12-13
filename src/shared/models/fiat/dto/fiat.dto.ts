@@ -12,4 +12,10 @@ export class FiatDto {
 
   @ApiProperty()
   sellable: boolean;
+
+  @ApiProperty()
+  cardBuyable: boolean;
+
+  @ApiProperty()
+  cardSellable: boolean;
 }
