@@ -1,12 +1,13 @@
 import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
@@ -76,7 +77,7 @@ export class DeFiChainStrategy extends RegisterStrategy {
   @Cron(CronExpression.EVERY_30_SECONDS)
   @Lock(7200)
   async checkPayInEntries(): Promise<void> {
-    if (Config.processDisabled(Process.PAY_IN)) return;
+    if (DisabledProcess(Process.PAY_IN)) return;
 
     await this.processNewPayInEntries();
   }
@@ -84,7 +85,7 @@ export class DeFiChainStrategy extends RegisterStrategy {
   @Cron(CronExpression.EVERY_5_MINUTES)
   @Lock(7200)
   async splitPools(): Promise<void> {
-    if (Config.processDisabled(Process.PAY_IN)) return;
+    if (DisabledProcess(Process.PAY_IN)) return;
 
     await this.deFiChainService.splitPools();
   }
@@ -92,7 +93,7 @@ export class DeFiChainStrategy extends RegisterStrategy {
   @Cron(CronExpression.EVERY_HOUR)
   @Lock(7200)
   async retrieveSmallDfiTokens(): Promise<void> {
-    if (Config.processDisabled(Process.PAY_IN)) return;
+    if (DisabledProcess(Process.PAY_IN)) return;
 
     await this.deFiChainService.retrieveSmallDfiTokens();
   }
@@ -100,7 +101,7 @@ export class DeFiChainStrategy extends RegisterStrategy {
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
   @Lock(7200)
   async retrieveFeeUtxos(): Promise<void> {
-    if (Config.processDisabled(Process.PAY_IN)) return;
+    if (DisabledProcess(Process.PAY_IN)) return;
 
     await this.deFiChainService.retrieveFeeUtxos();
   }

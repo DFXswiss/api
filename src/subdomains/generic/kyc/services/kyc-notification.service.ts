@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
@@ -27,7 +28,7 @@ export class KycNotificationService {
   @Cron(CronExpression.EVERY_HOUR)
   @Lock(1800)
   async sendNotificationMails(): Promise<void> {
-    if (Config.processDisabled(Process.KYC_MAIL)) return;
+    if (DisabledProcess(Process.KYC_MAIL)) return;
     await this.kycReminder();
   }
 
@@ -81,7 +82,7 @@ export class KycNotificationService {
 
   async identFailed(entity: KycStep, reason: string): Promise<void> {
     try {
-      if ((entity.userData.mail, !Config.processDisabled(Process.KYC_MAIL))) {
+      if ((entity.userData.mail, !DisabledProcess(Process.KYC_MAIL))) {
         await this.notificationService.sendMail({
           type: MailType.USER,
           input: {
@@ -114,7 +115,7 @@ export class KycNotificationService {
 
   async kycChanged(userData: UserData, level?: KycLevel): Promise<void> {
     try {
-      if (userData.mail && level === KycLevel.LEVEL_50 && !Config.processDisabled(Process.KYC_MAIL)) {
+      if (userData.mail && level === KycLevel.LEVEL_50 && !DisabledProcess(Process.KYC_MAIL)) {
         await this.notificationService.sendMail({
           type: MailType.USER,
           input: {

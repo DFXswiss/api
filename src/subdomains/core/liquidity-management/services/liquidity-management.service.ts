@@ -1,19 +1,19 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
+import { Util } from 'src/shared/utils/util';
+import { In } from 'typeorm';
 import { LiquidityBalance } from '../entities/liquidity-balance.entity';
+import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
 import { LiquidityManagementRule } from '../entities/liquidity-management-rule.entity';
 import { LiquidityManagementPipelineStatus, LiquidityManagementRuleStatus } from '../enums';
 import { LiquidityState, PipelineId } from '../interfaces';
+import { LiquidityManagementPipelineRepository } from '../repositories/liquidity-management-pipeline.repository';
 import { LiquidityManagementRuleRepository } from '../repositories/liquidity-management-rule.repository';
 import { LiquidityManagementBalanceService } from './liquidity-management-balance.service';
-import { LiquidityManagementPipelineRepository } from '../repositories/liquidity-management-pipeline.repository';
-import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
-import { In } from 'typeorm';
-import { Util } from 'src/shared/utils/util';
-import { Config, Process } from 'src/config/config';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 @Injectable()
 export class LiquidityManagementService {
@@ -32,7 +32,7 @@ export class LiquidityManagementService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async verifyRules() {
-    if (Config.processDisabled(Process.LIQUIDITY_MANAGEMENT)) return;
+    if (DisabledProcess(Process.LIQUIDITY_MANAGEMENT)) return;
 
     const rules = await this.ruleRepo.findBy({ status: LiquidityManagementRuleStatus.ACTIVE });
     const balances = await this.balanceService.refreshBalances(rules);
