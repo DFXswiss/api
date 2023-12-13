@@ -1,17 +1,15 @@
-import { MailerModule } from '@nestjs-modules/mailer';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { GetConfig } from 'src/config/config';
 import { SharedModule } from 'src/shared/shared.module';
-import { MailService } from './services/mail.service';
+import { Notification } from './entities/notification.entity';
 import { MailFactory } from './factories/mail.factory';
 import { NotificationController } from './notification.controller';
 import { NotificationRepository } from './repositories/notification.repository';
+import { MailService } from './services/mail.service';
 import { NotificationService } from './services/notification.service';
-import { Notification } from './entities/notification.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Notification]), MailerModule.forRoot(GetConfig().mail.options), SharedModule],
+  imports: [TypeOrmModule.forFeature([Notification]), SharedModule],
   providers: [NotificationRepository, MailService, NotificationService, MailFactory],
   controllers: [NotificationController],
   exports: [NotificationService],

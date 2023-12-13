@@ -1,5 +1,4 @@
 import { NetworkName } from '@defichain/jellyfish-network';
-import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { Injectable, Optional } from '@nestjs/common';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { Exchange } from 'ccxt';
@@ -242,10 +241,6 @@ export class Configuration {
       },
       template: {
         dir: join(__dirname, '../subdomains/supporting/notification/templates'),
-        adapter: new HandlebarsAdapter(),
-        options: {
-          strict: true,
-        },
       },
     },
     defaultMailTemplate: 'generic',
