@@ -1,16 +1,16 @@
 import { Injectable } from '@nestjs/common';
+import { ArbitrumL2BridgeAdapter } from '../adapters/actions/arbitrum-l2-bridge.adapter';
+import { BinanceAdapter } from '../adapters/actions/binance.adapter';
 import { DfxDexAdapter } from '../adapters/actions/dfx-dex.adapter';
+import { KrakenAdapter } from '../adapters/actions/kraken.adapter';
+import { OptimismL2BridgeAdapter } from '../adapters/actions/optimism-l2-bridge.adapter';
 import { LiquidityManagementAction } from '../entities/liquidity-management-action.entity';
 import { LiquidityManagementSystem } from '../enums';
 import { LiquidityActionIntegration } from '../interfaces';
-import { ArbitrumL2BridgeAdapter } from '../adapters/actions/arbitrum-l2-bridge.adapter';
-import { OptimismL2BridgeAdapter } from '../adapters/actions/optimism-l2-bridge.adapter';
-import { KrakenAdapter } from '../adapters/actions/kraken.adapter';
-import { BinanceAdapter } from '../adapters/actions/binance.adapter';
 
 @Injectable()
 export class LiquidityActionIntegrationFactory {
-  protected readonly adapters = new Map<LiquidityManagementSystem, LiquidityActionIntegration>();
+  private readonly adapters = new Map<LiquidityManagementSystem, LiquidityActionIntegration>();
 
   constructor(
     readonly dfxDexAdapter: DfxDexAdapter,
