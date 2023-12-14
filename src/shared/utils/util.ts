@@ -29,12 +29,20 @@ export class Util {
     return list.reduce((prev, curr) => prev + curr, 0);
   }
 
-  static sumObj<T>(list: T[], key: KeyType<T, number>): number {
+  static sumObjValue<T>(list: T[], key: KeyType<T, number>): number {
     return this.sum(list.map((i) => i[key] as unknown as number));
   }
 
-  static minObj<T>(list: T[], key: KeyType<T, number>): number {
+  static minObjValue<T>(list: T[], key: KeyType<T, number>): number {
     return Math.min(...list.map((i) => i[key] as unknown as number));
+  }
+
+  static minObj<T>(list: T[], key: KeyType<T, number>): T {
+    return list.reduce((i, j) => (i && j[key] >= i[key] ? i : j), undefined);
+  }
+
+  static maxObj<T>(list: T[], key: KeyType<T, number>): T {
+    return list.reduce((i, j) => (i && j[key] <= i[key] ? i : j), undefined);
   }
 
   static avg(list: number[]): number {
@@ -74,7 +82,7 @@ export class Util {
   }
 
   static fixRoundingMismatch<T>(list: T[], key: KeyType<T, number>, targetAmount: number, precision = 8): T[] {
-    const listTotal = Util.round(Util.sumObj<T>(list, key), precision);
+    const listTotal = Util.round(Util.sumObjValue<T>(list, key), precision);
     const mismatch = Util.round(targetAmount - listTotal, precision);
     const maxMismatchThreshold = 10 ** -precision * list.length;
 
@@ -155,6 +163,10 @@ export class Util {
 
   static isoDate(date: Date): string {
     return date.toISOString().split('T')[0];
+  }
+
+  static isoDateTime(date: Date): string {
+    return date.toISOString().split('.')[0].split(':').join('-').split('T').join('_');
   }
 
   // --- ENCRYPTION --- //

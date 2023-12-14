@@ -14,6 +14,12 @@
     "oceanUrls": {
       "value": "https://testnet-ocean.mydefichain.com:8443,https://ocean.defichain.com"
     },
+    "apiSkuName": {
+      "value": "B2"
+    },
+    "apiSkuTier": {
+      "value": "Basic"
+    },
     "dbAllowAllIps": {
       "value": true
     },
@@ -33,6 +39,24 @@
       "value": "xxx"
     },
     "mailPass": {
+      "value": "xxx"
+    },
+    "kycGatewayHost": {
+      "value": "https://gateway.online-ident.ch"
+    },
+    "kycCustomerAuto": {
+      "value": "xxx"
+    },
+    "kycApiKeyAuto": {
+      "value": "xxx"
+    },
+    "kycCustomerVideo": {
+      "value": "xxx"
+    },
+    "kycApiKeyVideo": {
+      "value": "xxx"
+    },
+    "kycTransactionPrefix": {
       "value": "xxx"
     },
     "kycMandator": {
@@ -78,13 +102,13 @@
       "value": "xxx"
     },
     "ethGatewayUrl": {
-      "value": "https://goerli.infura.io/v3"
+      "value": "https://sepolia.infura.io/v3"
     },
     "ethApiKey": {
       "value": "xxx"
     },
     "ethChainId": {
-      "value": "5"
+      "value": "11155111"
     },
     "optimismWalletAddress": {
       "value": "xxx"
@@ -93,13 +117,13 @@
       "value": "xxx"
     },
     "optimismGatewayUrl": {
-      "value": "https://goerli.optimism.io"
+      "value": "https://sepolia.optimism.io"
     },
     "optimismApiKey": {
       "value": "xxx"
     },
     "optimismChainId": {
-      "value": "420"
+      "value": "11155420"
     },
     "arbitrumWalletAddress": {
       "value": "xxx"
@@ -108,13 +132,13 @@
       "value": "xxx"
     },
     "arbitrumGatewayUrl": {
-      "value": "https://goerli-rollup.arbitrum.io/rpc"
+      "value": "https://sepolia-rollup.arbitrum.io/rpc"
     },
     "arbitrumApiKey": {
       "value": "xxx"
     },
     "arbitrumChainId": {
-      "value": "421613"
+      "value": "421614"
     },
     "bscWalletAddress": {
       "value": "xxx"
@@ -144,6 +168,12 @@
       "value": "xxx"
     },
     "lightningLndAdminMacaroon": {
+      "value": "xxx"
+    },
+    "moneroWalletAddress": {
+      "value": "xxx"
+    },
+    "moneroRpcCertificate": {
       "value": "xxx"
     },
     "btcOutWalletAddress": {
@@ -186,6 +216,9 @@
       "value": "xxx"
     },
     "binanceWithdrawKeys": {
+      "value": "xxx"
+    },
+    "binanceBtcDepositAddress": {
       "value": "xxx"
     },
     "olkyClient": {
@@ -257,9 +290,6 @@
     "servicesUrl": {
       "value": "https://dev.services.dfx.swiss"
     },
-    "lockApiKey": {
-      "value": "xxx"
-    },
     "limitRequestSupportBanner": {
       "value": "xxx"
     },
@@ -281,13 +311,13 @@
     "azureClientSecret": {
       "value": "xxx"
     },
+    "azureStorageConnectionString": {
+      "value": "xxx"
+    },
     "albyClientId": {
       "value": "xxx"
     },
     "albyClientSecret": {
-      "value": "xxx"
-    },
-    "taliumApiKey": {
       "value": "xxx"
     },
     "knownIps": {
@@ -306,6 +336,12 @@
       "value": "xxx"
     },
     "ckoSecretKey": {
+      "value": "xxx"
+    },
+    "delisenseJsonPath": {
+      "value": "/home/Data/Dilisense/consolidated.json"
+    },
+    "delisenseKey": {
       "value": "xxx"
     }
   }

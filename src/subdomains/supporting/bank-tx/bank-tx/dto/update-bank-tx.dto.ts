@@ -1,4 +1,4 @@
-import { IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateIf } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateIf } from 'class-validator';
 import { BankTxType } from '../bank-tx.entity';
 
 export class UpdateBankTxDto {
@@ -74,4 +74,8 @@ export class UpdateBankTxDto {
   @IsInt()
   @ValidateIf((p: UpdateBankTxDto) => p.type === BankTxType.BUY_CRYPTO)
   buyId?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  highRisk?: boolean;
 }

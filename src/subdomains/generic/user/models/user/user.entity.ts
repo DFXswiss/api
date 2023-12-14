@@ -1,6 +1,4 @@
-import { Config } from 'src/config/config';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
@@ -18,10 +16,10 @@ export enum UserStatus {
   BLOCKED = 'Blocked',
 }
 
-export enum FeeType {
-  BUY = 'buy',
-  SELL = 'sell',
-  CRYPTO = 'crypto',
+export enum FeeDirectionType {
+  BUY = 'Buy',
+  SELL = 'Sell',
+  CONVERT = 'Convert',
 }
 
 @Entity()
@@ -50,15 +48,6 @@ export class User extends IEntity {
   @Column({ length: 256, nullable: true })
   ipCountry: string;
 
-  @Column({ type: 'float', nullable: true })
-  buyFee: number;
-
-  @Column({ type: 'float', nullable: true })
-  sellFee: number;
-
-  @Column({ type: 'float', nullable: true })
-  cryptoFee: number;
-
   @Column({ length: 256, nullable: true })
   origin: string;
 
@@ -86,6 +75,9 @@ export class User extends IEntity {
 
   @Column({ type: 'float', default: 0 })
   cryptoVolume: number; // CHF
+
+  @Column({ nullable: true })
+  approved: boolean;
 
   @OneToMany(() => Buy, (buy) => buy.user)
   buys: Buy[];
@@ -129,34 +121,6 @@ export class User extends IEntity {
   comment: string;
 
   //*** FACTORY METHODS ***//
-  get getBuyUsedRef(): string {
-    return this.buyFee ? '000-000' : this.usedRef;
-  }
-
-  getFee(type: FeeType.BUY | FeeType.SELL, asset: Asset): number;
-  getFee(type: FeeType.CRYPTO): number;
-
-  getFee(type: FeeType, asset?: Asset): number {
-    switch (type) {
-      case FeeType.BUY:
-        const defaultBuyFee = Config.buy.fee.get(asset.feeTier, this.userData.accountType);
-        const customBuyFee = this.buyFee ?? this.wallet.buyFee;
-
-        return customBuyFee != null ? Math.min(customBuyFee, defaultBuyFee) : defaultBuyFee;
-
-      case FeeType.SELL:
-        const defaultSellFee = Config.sell.fee.get(asset.feeTier, this.userData.accountType);
-        const customSellFee = this.sellFee ?? this.wallet.sellFee;
-
-        return customSellFee != null ? Math.min(customSellFee, defaultSellFee) : defaultSellFee;
-
-      case FeeType.CRYPTO:
-        const customCryptoFee = this.cryptoFee ?? this.wallet.cryptoFee;
-
-        return customCryptoFee != null ? Math.min(customCryptoFee, Config.crypto.fee) : Config.crypto.fee;
-    }
-  }
-
   blockUser(reason: string): UpdateResult<User> {
     const update: Partial<User> = {
       status: UserStatus.BLOCKED,

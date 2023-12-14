@@ -1,6 +1,5 @@
 import { ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
 import { MailRequestInternalInput } from '../entities/mail/internal-mail';
-import { KycSupportMailInput } from '../entities/mail/kyc-support-mail';
 import { MailRequestPersonalInput } from '../entities/mail/personal-mail';
 import { MailRequestUserInput } from '../entities/mail/user-mail';
 import { NotificationMetadata, NotificationOptions } from '../entities/notification.entity';
@@ -11,7 +10,6 @@ export interface MailRequest {
   input:
     | MailRequestGenericInput
     | ErrorMonitoringMailInput
-    | KycSupportMailInput
     | MailRequestUserInput
     | MailRequestPersonalInput
     | MailRequestInternalInput;

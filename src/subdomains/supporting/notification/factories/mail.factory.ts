@@ -6,32 +6,29 @@ import { AmlReason } from 'src/subdomains/core/buy-crypto/process/enums/aml-reas
 import { Mail, MailParams } from '../entities/mail/base/mail';
 import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
 import { InternalMail, MailRequestInternalInput } from '../entities/mail/internal-mail';
-import { KycSupportMail, KycSupportMailInput } from '../entities/mail/kyc-support-mail';
 import { MailRequestPersonalInput, PersonalMail } from '../entities/mail/personal-mail';
 import { MailRequestUserInput, UserMail, UserMailTable } from '../entities/mail/user-mail';
 import { MailType } from '../enums';
 import { MailAffix, MailRequest, MailRequestGenericInput, TranslationItem, TranslationParams } from '../interfaces';
 
 export enum MailTranslationKey {
-  GENERAL = 'translation.general',
-  PAYMENT = 'translation.payment',
-  BUY_FIAT = 'translation.payment.buy_fiat',
-  BUY_CRYPTO = 'translation.payment.buy_crypto',
-  PENDING = 'translation.payment.pending',
-  RETURN = 'translation.payment.return',
-  RETURN_REASON = 'translation.payment.return.reasons',
-  CRYPTO_RETURN = 'translation.payment.return.crypto',
-  FIAT_RETURN = 'translation.payment.return.fiat',
-  REFERRAL = 'translation.referral',
-  KYC = 'translation.kyc',
-  KYC_SUCCESS = 'translation.kyc.success',
-  KYC_FAILED = 'translation.kyc.failed',
-  KYC_IDENT = 'translation.kyc.ident',
-  KYC_CHATBOT = 'translation.kyc.chatbot',
-  KYC_REMINDER = 'translation.kyc.reminder',
-  LINK_ADDRESS = 'translation.link_address',
-  LIMIT_REQUEST = 'translation.limit_request',
-  BLACK_SQUAD = 'translation.black_squad',
+  GENERAL = 'mail.general',
+  PAYMENT = 'mail.payment',
+  BUY_FIAT = 'mail.payment.buy_fiat',
+  BUY_CRYPTO = 'mail.payment.buy_crypto',
+  PENDING = 'mail.payment.pending',
+  RETURN = 'mail.payment.return',
+  RETURN_REASON = 'mail.payment.return.reasons',
+  CRYPTO_RETURN = 'mail.payment.return.crypto',
+  FIAT_RETURN = 'mail.payment.return.fiat',
+  REFERRAL = 'mail.referral',
+  KYC = 'mail.kyc',
+  KYC_SUCCESS = 'mail.kyc.success',
+  KYC_FAILED = 'mail.kyc.failed',
+  KYC_REMINDER = 'mail.kyc.reminder',
+  LINK_ADDRESS = 'mail.link_address',
+  LIMIT_REQUEST = 'mail.limit_request',
+  BLACK_SQUAD = 'mail.black_squad',
 }
 
 export enum MailKey {
@@ -65,10 +62,6 @@ export class MailFactory {
 
       case MailType.ERROR_MONITORING: {
         return this.createErrorMonitoringMail(request);
-      }
-
-      case MailType.KYC_SUPPORT: {
-        return this.createKycSupportMail(request);
       }
 
       case MailType.USER: {
@@ -131,24 +124,11 @@ export class MailFactory {
     return new ErrorMonitoringMail({ subject, errors, metadata, options });
   }
 
-  private createKycSupportMail(request: MailRequest): KycSupportMail {
-    const { userData } = request.input as KycSupportMailInput;
-    const { metadata, options } = request;
-
-    return new KycSupportMail({
-      userDataId: userData.id,
-      kycStatus: userData.kycStatus,
-      kycCustomerId: userData.kycCustomerId,
-      metadata,
-      options,
-    });
-  }
-
   private createUserMail(request: MailRequest): UserMail {
     const { metadata, options } = request;
     const { userData, title, salutation, prefix, suffix, table } = request.input as MailRequestUserInput;
 
-    const lang = userData.language?.symbol.toLowerCase();
+    const lang = userData.language.symbol.toLowerCase();
 
     return new UserMail({
       to: userData.mail,
@@ -166,7 +146,7 @@ export class MailFactory {
     const { userData, title, prefix, banner, from, displayName } = request.input as MailRequestPersonalInput;
     const { metadata, options } = request;
 
-    const lang = userData.language?.symbol.toLowerCase();
+    const lang = userData.language.symbol.toLowerCase();
 
     return new PersonalMail({
       to: userData.mail,

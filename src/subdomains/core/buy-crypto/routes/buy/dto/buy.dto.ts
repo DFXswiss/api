@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
-import { MinAmount } from 'src/shared/payment/dto/min-amount.dto';
+import { MinAmount } from 'src/subdomains/supporting/payment/dto/min-amount.dto';
 
 export class BuyDto {
   @ApiProperty()

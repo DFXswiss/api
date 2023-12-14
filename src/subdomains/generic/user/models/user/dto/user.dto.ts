@@ -3,7 +3,7 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { AccountType } from '../../user-data/account-type.enum';
-import { KycState, KycStatus, LimitPeriod } from '../../user-data/user-data.entity';
+import { KycLevel, KycState, KycStatus, LimitPeriod } from '../../user-data/user-data.entity';
 import { UserStatus } from '../user.entity';
 import { LinkedUserOutDto } from './linked-user.dto';
 
@@ -51,13 +51,16 @@ export class UserDto {
   @ApiProperty({ enum: KycState })
   kycState: KycState;
 
+  @ApiProperty({ enum: KycLevel })
+  kycLevel: KycLevel;
+
   @ApiProperty()
   kycHash: string;
 
   @ApiProperty({ type: TradingLimit })
   tradingLimit: TradingLimit;
 
-  @ApiProperty()
+  @ApiProperty({ deprecated: true })
   kycDataComplete: boolean;
 
   @ApiProperty()

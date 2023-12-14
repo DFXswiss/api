@@ -8,7 +8,6 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { createDefaultCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
@@ -18,12 +17,14 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { createDefaultWallet } from 'src/subdomains/generic/user/models/wallet/__mocks__/wallet.entity.mock';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { BuyCryptoService } from '../../../process/services/buy-crypto.service';
 import { createDefaultBuy } from '../__mocks__/buy.entity.mock';
 import { BuyController } from '../buy.controller';
 import { BuyService } from '../buy.service';
-import { BuyPaymentMethod, GetBuyPaymentInfoDto } from '../dto/get-buy-payment-info.dto';
+import { GetBuyPaymentInfoDto } from '../dto/get-buy-payment-info.dto';
 
 function createBuyPaymentInfoDto(
   amount = 1,
@@ -36,7 +37,7 @@ function createBuyPaymentInfoDto(
     amount: amount,
     targetAmount: targetAmount,
     currency: currency,
-    paymentMethod: BuyPaymentMethod.BANK,
+    paymentMethod: FiatPaymentMethod.BANK,
   };
 }
 
@@ -46,6 +47,7 @@ function createJwt(): JwtPayload {
     address: '',
     role: UserRole.USER,
     blockchains: [Blockchain.DEFICHAIN],
+    ip: '127.0.0.0',
   };
 }
 
@@ -106,7 +108,6 @@ describe('BuyController', () => {
     jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(createDefaultCountry());
     jest.spyOn(userService, 'getUser').mockResolvedValue(
       createCustomUser({
-        buyFee: 0.01,
         wallet: createDefaultWallet(),
         userData: createDefaultUserData(),
       }),
@@ -118,6 +119,8 @@ describe('BuyController', () => {
       minFeeTarget: 0,
       exchangeRate: 10,
       feeAmount: 3,
+      fee: { fees: [], rate: 2.9, fixed: 0, payoutRefBonus: true },
+      rate: 0.2,
       estimatedAmount: 100,
       sourceAmount: 50,
       isValid: true,

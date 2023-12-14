@@ -2,9 +2,10 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { randomBytes } from 'crypto';
-import { Config, Process } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { AuthService } from 'src/subdomains/generic/user/models/auth/auth.service';
@@ -34,7 +35,7 @@ export class AuthLnUrlService {
   @Cron(CronExpression.EVERY_30_SECONDS)
   @Lock()
   processCleanupAccessToken() {
-    if (Config.processDisabled(Process.LNURL_AUTH_CACHE)) return;
+    if (DisabledProcess(Process.LNURL_AUTH_CACHE)) return;
 
     const before30SecTime = Util.secondsBefore(30).getTime();
 
@@ -48,7 +49,7 @@ export class AuthLnUrlService {
   @Cron(CronExpression.EVERY_5_MINUTES)
   @Lock()
   processCleanupAuthCache() {
-    if (Config.processDisabled(Process.LNURL_AUTH_CACHE)) return;
+    if (DisabledProcess(Process.LNURL_AUTH_CACHE)) return;
 
     const before5MinTime = Util.minutesBefore(5).getTime();
 
@@ -69,7 +70,7 @@ export class AuthLnUrlService {
       k1CreationTime: Date.now(),
     });
 
-    const url = new URL(`${Config.url}/lnurla`);
+    const url = new URL(`${Config.url()}/lnurla`);
     url.searchParams.set('tag', 'login');
     url.searchParams.set('action', 'login');
     url.searchParams.set('k1', k1);
@@ -77,7 +78,7 @@ export class AuthLnUrlService {
     return { k1: k1, lnurl: LightningHelper.encodeLnurl(url.toString()) };
   }
 
-  async login(signupDto: AuthLnurlSignupDto): Promise<AuthLnurlSignInResponseDto> {
+  async login(signupDto: AuthLnurlSignupDto, userIp: string): Promise<AuthLnurlSignInResponseDto> {
     const checkSignupResponse = this.checkSignupDto(signupDto);
 
     if (checkSignupResponse) {
@@ -101,7 +102,7 @@ export class AuthLnUrlService {
       const verifyResult = secp256k1.verify(sig, k1, key);
       if (!verifyResult) return AuthLnurlSignInResponseDto.createError('invalid auth signature');
 
-      authCacheEntry.accessToken = await this.signIn(signupDto, servicesIp);
+      authCacheEntry.accessToken = await this.signIn(signupDto, servicesIp, userIp);
       authCacheEntry.accessTokenCreationTime = Date.now();
 
       return AuthLnurlSignInResponseDto.createOk();
@@ -122,10 +123,10 @@ export class AuthLnUrlService {
       return AuthLnurlSignInResponseDto.createError('challenge expired');
   }
 
-  async signIn(signupDto: AuthLnurlSignupDto, servicesIp: string): Promise<string> {
+  async signIn(signupDto: AuthLnurlSignupDto, servicesIp: string, userIp: string): Promise<string> {
     const session = { address: signupDto.address, signature: signupDto.signature };
 
-    const { accessToken } = await this.authService.signIn(session, true).catch((e) => {
+    const { accessToken } = await this.authService.signIn(session, userIp, true).catch((e) => {
       if (e instanceof NotFoundException)
         return this.authService.signUp(
           { ...session, usedRef: signupDto.usedRef, wallet: signupDto.wallet ?? 'DFX Bitcoin' },

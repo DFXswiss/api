@@ -1,158 +1,170 @@
 {
-  "kyc": {
-    "reminder": {
-      "salutation": "Terminez votre vérification",
-      "body": "<p>Nous avons remarqué que vous n'avez pas terminé votre vérification. ({status})</p><p>Veuillez continuer en cliquant sur le bouton d'actualisation dans la section Limites de la page de paiement (via le bouton \"My DFX\" dans l'appli) ou <a href=\"{url}\" style=\"color:#FFFFFF\">ici</a>.</p><p>Franchissez le dernier pas et développez votre liberté financière dès aujourd'hui</p><p>Votre équipe DFX<br>Bitcoiners de coeur ♥</p>",
-      "title": "Terminez votre vérification"
+    "general": {
+        "dfx_team_closing": "Votre équipe DFX",
+        "dfx_closing_message": "Bitcoiners by heart ♥️",
+        "support": "Si vous avez des questions,<br>nous sommes ravis de vous aider sur [mail:support@dfx.swiss].",
+        "thanks": "Merci beaucoup pour votre confiance",
+        "happy_trading": "Bon trading",
+        "welcome": "Bonjour {name},",
+        "personal_questions": "Please do not hesitate to contact me if you have any questions.",
+        "personal_closing": "Kind regards,<br>{closingName}"
     },
-    "chatbot": {
-      "salutation": "Chatbot terminé - prochaine étape pour votre vérification",
-      "body": "<p>Pour commencer l'identification en ligne, cliquez sur le bouton d'actualisation dans la section Limites de la page de paiement (via le bouton \"My DFX\" dans l'appli) ou <a href=\"{url}\" style=\"color:#FFFFFF\">ici</a>.</p><p>Franchissez le dernier pas et développez votre liberté financière dès aujourd'hui</p><p>Votre équipe DFX<br>Bitcoiners de coeur ♥</p>",
-      "title": "Chatbot terminé"
+    "payment": {
+        "buy_fiat": {
+            "initiated": {
+                "title": "Fonds reçus",
+                "salutation": "Nous avons reçu vos fonds",
+                "next_step": "Étape suivante: nous allons vendre vos fonds et les échanger dans la monnaie que vous souhaitez, nous vous informerons dans les prochains e-mails."
+            },
+            "exchanged": {
+                "title": "Fonds vendus",
+                "salutation": "Nous avons vendu vos fonds",
+                "next_step": "Étape suivante : maintenant que nous avons vendu vos fonds, nous préparons le virement bancaire. Lorsque l'argent sera sorti de notre compte bancaire, vous recevrez un dernier e-mail confirmant le virement."
+            },
+            "processed": {
+                "title": "Virement effectué",
+                "salutation": "Nous avons effectué le virement bancaire",
+                "next_step": "Le virement vient de partir de notre banque et sera visible sur votre compte sous peu. La latence du traitement est désormais de la responsabilité de la banque. Merci d'avoir utilisé le service de retrait de DFX."
+            },
+            "input_amount": "Versement",
+            "output_amount": "Versement net",
+            "payment_link": "Vous trouverez ici l'ID de transaction associée à votre retrait: [url:Link]"
+        },
+        "buy_crypto": {
+            "title": "Dépôt effectué",
+            "salutation": "Votre dépôt a été effectué avec succès",
+            "input_amount": "Déposé",
+            "output_amount": "Paiement crypto",
+            "payment_link": "Vous trouverez ici l'ID de transaction associée à votre versement: [url:Link]"
+        },
+        "return": {
+            "fiat": {
+                "title":"Remboursement des fonds",
+                "salutation": "Vos fonds ont été retournés à votre banque"
+            },
+            "crypto": {
+                "title": "Remboursement des fonds",
+                "salutation": "Vos fonds ont été remboursés sur votre adresse de wallet",
+                "payment_link": "Vous trouverez l'ID de transaction<br>pour le remboursement: [url:Link]"
+            },
+            "introduction": "Reason why we reimbursed your funds:<br>{reason}",
+            "reasons": {
+                "daily_limit": "Vous avez dépassé la limite hors KYC",
+                "user_data_mismatch": "Le nom que vous avez indiqué à DFX ne correspond pas au nom du propriétaire de l'IBAN",
+                "iban_check": "L'IBAN n'est pas utilisable avec DFX",
+                "kyc_rejected": "Votre demande KYC a été rejetée",
+                "name_check": "Pour des raisons légales, nous ne pouvons vous servir comme client",
+                "annual_limit": "Vous avez dépassé votre limite annuelle",
+                "olky_no_kyc": "Vous devez terminer le KYC de DFX pour utiliser Olkypay Bank",
+                "min_deposit_not_reached": "La limite de dépôt minimum n'a pas été atteinte",
+                "name_check_without_kyc": "Votre transaction a été annulée en raison d'un KYC manquant",
+                "annual_limit_without_kyc": "Vous avez dépassé la limité annuelle sans KYC",
+                "asset_currently_not_available": "Cet actif n'est actuellement pas disponible à l'échange avec DFX",
+                "staking_discontinued": "Les nouveaux dépôts en staking ne sont plus possible"
+            }
+        },
+        "pending": {
+            "daily_limit": {
+                "title": "Limite sur 24h dépassée",
+                "salutation": "Vous avez dépassé votre volume sur 24h",
+                "line1": "Veuillez vous faire vérifier par le KYC (know your customer) pour augmenter votre limite.",
+                "line2": "Nous traiterons votre transaction après la réussite du KYC.",
+                "line3": "Sans vérification, ton argent te sera automatiquement retourné après 7 jours.",
+                "line4": "Augmenter la limite par un KYC ?<br>Cliquer [url:ici] pour commencer la procédure de KYC.",
+                "line5": "Autrement, vous pouvez aussi utiliser l'appli DFX sur votre page de paiement,<br> cliquer sur la flèche rouge en face de \"Votre limite\"<br> et commencer la vérification."
+            },
+            "annual_limit": {
+                "title": "Limite annuelle dépassée",
+                "salutation": "Vous avez dépassé votre volume annuel",
+                "line1": "Veuillez demander une nouvelle limite annuelle.",
+                "line2": "Nous traiterons votre transaction après<br> l'augmentation de votre limite.",
+                "line3": "Augmenter la limite ?",
+                "line4": "Ouvrez la page de paiement via le bouton \"My DFX\" dans l'appli DFX.",
+                "line5": "Rendez-vous sur la flèche rouge sous \"Votre limite\" et<br> demandez une nouvelle limite."
+            },
+            "annual_limit_without_kyc": {
+                "title": "Transaction en attente - limite annuelle sans KYC dépassée",
+                "salutation": "Vous avez dépassé votre volume annuel sans KYC",
+                "line1": "Cher client, merci beaucoup pour votre confiance en DFX AG.",
+                "line2": "Malheureusement, comme vous avez dépassé votre limite annuelle, nous ne pouvons pas traiter votre commande sans vérifier votre compte.",
+                "line3": "Nous vous invitions donc à utiliser ce lien [url:ici] pour réaliser le KYC avec votre pièce d'identité.",
+                "line4": "Vous pouvez aussi utiliser l'appli DFX et, sur votre page de paiement, <br> cliquer sur la flèche rouge à côté de \"Votre limite\" <br> pour commencer le KYC.",
+                "line5": "Si vous ne souhaitez pas réaliser la vérification, les fonds seront intégralement retournés après 7 jours."
+            },
+            "olky_no_kyc": {
+                "title": "Le KYC est nécessaire pour utiliser le virement SEPA instantané",
+                "salutation": "Une vérification KYC est nécessaire pour utiliser notre banque luxembourgeoise",
+                "line1": "Pour utiliser notre compte bancaire au Luxembourg lors d'un virement instantané, une vérification complète doit être réalisée.",
+                "line2": "Nous vous demandons donc d'utiliser ce lien [url:ici] pour réaliser le KYC avec votre carte d'identité.",
+                "line3": "Autrement, vous pouvez utiliser l'appli DFX et vous rendre sur votre page de paiement <br> pour cliquer sur la flèche rouge à côté de \"Votre limite\" <br> et démarrer le KYC.",
+                "line4": "Sans vérification, vous pouvez continuer à utiliser notre compte bancaire suisse jusqu'à 1 000 euros par jour en SEPA standard.",
+                "line5": "Si vous ne réalisez pas la vérification, l'argent sera retourné automatiquement après 7 jours."
+            },
+            "name_check_without_kyc": {
+                "title": "KYC requis pour traiter votre transaction en attente",
+                "salutation": "Votre transaction en attente nécessite une vérification KYC complète pour être traitée",
+                "line1": "Cher client, merci beaucoup pour votre confiance en DFX AG.",
+                "line2": "Nous ne pouvons malheureusement pas traiter votre commande sans une vérification KYC complète.",
+                "line3": "Nous vous invitions donc à utiliser ce lien [url:ici] pour réaliser le KYC avec votre pièce d'identité.",
+                "line4": "Vous pouvez aussi utiliser l'appli DFX et, sur votre page de paiement, <br> cliquer sur la flèche rouge à côté de \"Votre limite\" <br> pour commencer le KYC.",
+                "line5": "Si vous ne souhaitez pas réaliser la vérification, les fonds seront intégralement retournés après 7 jours."
+            }
+        },
+        "blockchain": "Blockchain",
+        "input_blockchain": "Blockchain de dépôt",
+        "output_blockchain": "Blockchain de paiement",
+        "dfx_fee": "DFX Frais",
+        "exchange_rate": "Taux de change",
+        "bank_account": "Compte bancaire",
+        "remittance_info": "Motif du paiement",
+        "transaction_id": "ID de la transaction",
+        "wallet_address": "Adresse du portefeuille",
+        "reimbursed": "Remboursés"
     },
-    "ident": {
-      "salutation": "Identification terminée - tes données sont vérifiées",
-      "body": "<p>L'identification est terminée avec succès et tes données sont maintenant vérifiées.<br>Dans certains cas, la vérification peut durer jusqu'à 24 heures.</p><p>Bon trading!</p><p>Votre équipe DFX<br>Bitcoiners de coeur ♥</p>",
-      "title": "Identification terminée"
+    "referral": {
+        "title": "Paiement de la prime de parrainage",
+        "salutation": "Votre prime de parrainage a été versée",
+        "output_amount": "Montant",
+        "payment_link": "Voici l'ID de transaction de votre prime de parrainage: [url:Link]",
+        "dfx_ambassador": "Vous êtes un véritable ambassadeur. Merci de passer le mot à propos de DFX !"
     },
-    "failed": {
-      "salutation": "Votre identification en ligne a échoué",
-      "body": "<p>Nous avons remarqué que votre identification en ligne a échoué. Nous avons cependant déjà débloqué l'identification vidéo pour vous.<br>Veuillez continuer en cliquant sur le bouton d'actualisation dans la section Limites de la page de paiement (via le bouton \"My DFX\" dans l'appli) ou <a href=\"{url}\" style=\"color:#FFFFFF\">ici</a>.</p><p>Franchissez le dernier pas et développez votre liberté financière dès aujourd'hui</p><p>Votre équipe DFX<br>Bitcoiners de coeur ♥</p>",
-      "title": "Votre identification en ligne a échoué"
+    "kyc": {
+        "success": {
+            "title": "Vérification réussie",
+            "salutation": "Vérification réussie",
+            "message": "Votre vérification est terminée."
+        },
+        "failed": {
+            "title": "Votre identification a échoué",
+            "salutation": "Votre identification a échoué",
+            "message": "Nous avons remarqué que votre identification a échoué. Veuillez réessayer avec l'URL suivante: [url:ici]"
+        },
+        "reminder": {
+            "title": "Terminez votre vérification",
+            "salutation": "Terminez votre vérification",
+            "message": "Nous avons remarqué que vous n'avez pas terminé votre vérification."
+        },
+        "next_step": "Pour commencer l'identification en ligne, cliquez sur le bouton d'actualisation dans la section Limites de la page de paiement (via le bouton \"My DFX\" dans l'appli) ou [url:ici].",
+        "last_step": "Franchissez le dernier pas et développez votre liberté financière dès aujourd'hui"
     },
-    "success": {
-      "salutation": "Vérification réussie",
-      "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td colspan=\"3\" align=\"center\">Votre vérification est terminée.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Bon trading</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Votre équipe DFX</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
-      "title": "Vérification réussie"
-    }
-  },
-  "staking": {
-    "return": {
-      "salutation": "Le service de staking DFX se termine le 31 décembre 2022. Tout nouveau dépôt sera remboursé",
-      "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td colspan=\"3\" align=\"center\">Nous avons remboursé votre dernier dépôt en staking DFX sur votre wallet</td></tr><tr><td colspan=\"3\" align=\"center\">Les nouveaux dépôts en staking ne sont plus possible.</td></tr><tr><td align=\"right\">Reimbursed</td><td style=\"width:2%;\"></td><td align=\"left\">{inputAmount} {inputAsset}</td></tr><tr><td align=\"right\">Adresse de wallet</td><td style=\"width:2%;\"></td><td align=\"left\">***{userAddressTrimmed}</td></tr><tr><td colspan=\"3\" align=\"center\">Vous pouvez voir l'ID de transaction: <a style=\"color:white\" href=\"{transactionLink}\">Link</a></td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Si vous avez des questions, nous sommes ravis de vous aider sur <a href=\"mailto:support@dfx.swiss\">support@dfx.swiss</a>.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Merci beaucoup pour votre confiance</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Votre équipe DFX</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
-      "title": "Nous avons remboursé votre nouveau dépôt en staking DFX"
-    }
-  },
-  "payment": {
-    "pending": {
-      "dailyLimit": {
-        "salutation": "Vous avez dépassé votre volume sur 24h",
-        "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td colspan=\"3\" align=\"center\">Veuillez vous faire vérifier par le KYC (know your customer) pour augmenter votre limite.</td></tr><tr><td colspan=\"3\" align=\"center\">Nous traiterons votre transaction après la réussite du KYC.</td></tr><tr><td colspan=\"3\" align=\"center\">Augmenter la limite par un KYC ?</td></tr><tr><td colspan=\"3\" align=\"center\">Cliquer <a style=\"color:white\" href=\"{hashLink}\">here</a> pour commencer la procédure de KYC.</td></tr><tr><td colspan=\"3\" align=\"center\">Autrement, vous pouvez aussi utiliser l'appli DFX sur votre page de paiement,<br> cliquer sur la flèche rouge en face de \"Votre limite\"<br> et commencer la vérification.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\">Si vous avez des questions, nous sommes ravis de vous aider sur <a href=\"mailto:support@dfx.swiss\">support@dfx.swiss</a>.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Merci beaucoup pour votre confiance</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Votre équipe DFX</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
-        "title": "Limite sur 24h dépassée"
-      },
-      "annualLimit": {
-        "salutation": "Vous avez dépassé votre volume annuel",
-        "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td colspan=\"3\" align=\"center\">Veuillez demander une nouvelle limite annuelle.</td></tr><tr><td colspan=\"3\" align=\"center\">Nous traiterons votre transaction après<br> l'augmentation de votre limite.</td></tr><tr><td colspan=\"3\" align=\"center\">Augmenter la limite ?</td></tr><tr><td colspan=\"3\" align=\"center\">Ouvrez la page de paiement via le bouton \"My DFX\" dans l'appli DFX.</td></tr><tr><td colspan=\"3\" align=\"center\">Rendez-vous sur la flèche rouge sous \"Votre limite\" et<br> demandez une nouvelle limite.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\">Si vous avez des questions, nous sommes ravis de vous aider sur <a href=\"mailto:support@dfx.swiss\">support@dfx.swiss</a>.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Merci beaucoup pour votre confiance</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Votre équipe DFX</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
-        "title": "Limite annuelle dépassée"
-      },
-      "annualLimitWithoutKyc": {
-        "salutation": "Vous avez dépassé votre volume annuel sans KYC",
-        "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td colspan=\"3\" align=\"center\">Cher client, merci beaucoup pour votre confiance en DFX AG.</td></tr><tr><td colspan=\"3\" align=\"center\">Malheureusement, comme vous avez dépassé votre limite annuelle, nous ne pouvons pas traiter votre commande sans vérifier votre compte. </td></tr><tr><td colspan=\"3\" align=\"center\">Nous vous invitions donc à utiliser ce lien <a style=\"color:white\" href=\"{hashLink}\">ici</a> pour réaliser le KYC avec votre pièce d'identité.</td></tr><tr><td colspan=\"3\" align=\"center\">Alternatively, you can also use the DFX app on your payment page <br> to click on the red arrow next to \"Your limit\" <br> and start KYC</td></tr><tr><td colspan=\"3\" align=\"center\">Si vous ne souhaitez pas réaliser la vérification, les fonds seront intégralement retournés après 7 jours.</td></tr><tr><td colspan=\"3\" align=\"center\">Si vous avez des questions, nous sommes ravis de vous aider sur <a href=\"mailto:support@dfx.swiss\">support@dfx.swiss</a>.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Merci beaucoup pour votre confiance</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Votre équipe DFX</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
-        "title": "Transaction en attente - limite annuelle sans KYC dépassée"
-      },
-      "olkyNoKyc": {
-        "salutation": "Une vérification KYC est nécessaire pour utiliser notre banque luxembourgeoise",
-        "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td colspan=\"3\" align=\"center\">Pour utiliser notre compte bancaire au Luxembourg lors d'un virement instantané, une vérification complète doit être réalisée.</td></tr><tr><td colspan=\"3\" align=\"center\">Nous vous demandons donc d'utiliser ce lien <a style=\"color:white\" href=\"{hashLink}\">ici</a> pour réaliser le KYC avec votre carte d'identité</td></tr><tr><td colspan=\"3\" align=\"center\">Autrement, vous pouvez utiliser l'appli DFX et vous rendre sur votre page de paiement <br> pour cliquer sur la flèche rouge à côté de \"Votre limite\" <br> et démarrer le KYC</td></tr><tr><td colspan=\"3\" align=\"center\">Sans vérification, vous pouvez continuer à utiliser notre compte bancaire suisse jusqu'à 1 000 euros par jour en SEPA standard.</td></tr><tr><td colspan=\"3\" align=\"center\">Si vous ne réalisez pas la vérification, l'argent sera retourné automatiquement après 7 jours.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Si vous avez des questions, nous sommes ravis de vous aider sur <a href=\"mailto:support@dfx.swiss\">support@dfx.swiss</a>.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Merci beaucoup pour votre confiance</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Votre équipe DFX</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
-        "title": "Le KYC est nécessaire pour utiliser le virement SEPA instantané"
-      },
-      "nameCheckWithoutKyc": {
-        "salutation": "Votre transaction en attente nécessite une vérification KYC complète pour être traitée",
-        "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td colspan=\"3\" align=\"center\">Cher client, merci beaucoup pour votre confiance en DFX AG.</td></tr><tr><td colspan=\"3\" align=\"center\">Nous ne pouvons malheureusement pas traiter votre commande sans une vérification KYC complète</td></tr><tr><td colspan=\"3\" align=\"center\">Nous vous invitions donc à utiliser ce lien <a style=\"color:white\" href=\"{hashLink}\">ici</a> pour réaliser le KYC avec votre pièce d'identité.</td></tr><tr><td colspan=\"3\" align=\"center\">Vous pouvez aussi utiliser l'appli DFX et, sur votre page de paiement, <br> cliquer sur la flèche rouge à côté de \"Votre limite\" <br> pour commencer le KYC</td></tr><tr><td colspan=\"3\" align=\"center\">Si vous ne souhaitez pas réaliser la vérification, les fonds seront intégralement retournés après 7 jours.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Si vous avez des questions, nous sommes ravis de vous aider sur <a href=\"mailto:support@dfx.swiss\">support@dfx.swiss</a>.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Merci beaucoup pour votre confiance</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Votre équipe DFX</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
-        "title": "KYC requis pour traiter votre transaction en attente"
-      }
+    "link_address": {
+        "title": "Associez votre adresse",
+        "salutation": "Souhaitez-vous lier votre adresse à votre compte actuel ?",
+        "existing_address": "Adresse existante",
+        "new_address": "Nouvelle adresse",
+        "message": "Si vous souhaitez lier cette nouvelle adresse à votre compte actuel déjà vérifié, veuillez les instructions ci-dessous: [url:Cliquez ici]"
     },
-    "deposit": {
-      "buyCryptoFiat": {
-        "salutation": "Votre dépôt a été effectué avec succès",
-        "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td align=\"right\">Déposé</td><td style=\"width:2%;\"></td><td align=\"left\">{buyInputAmount} {buyInputAsset}</td></tr><tr><td align=\"right\">Paiement crypto</td><td style=\"width:2%;\"></td><td align=\"left\">{buyOutputAmount} {buyOutputAsset}</td></tr><tr><td align=\"right\">Blockchain</td><td style=\"width:2%;\"></td><td align=\"left\">{blockchain}</td></tr><tr><td align=\"right\">DFX Frais</td><td style=\"width:2%;\"></td><td align=\"left\">{fee}</td></tr><tr><td align=\"right\">Taux de change</td><td style=\"width:2%;\"></td><td align=\"left\">{exchangeRate} {buyInputAsset}/{buyOutputAsset}</td></tr><tr><td align=\"right\">Adresse du portefeuille</td><td style=\"width:2%;\"></td><td align=\"left\">{buyWalletAddress}</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Vous trouverez ici l'ID de transaction associée à votre versement: <a style=\"color:white\" href=\"{buyTransactionLink}\">Link</a></td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Votre équipe DFX</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
-        "title": "Dépôt effectué"
-      },
-      "buyCryptoFiatLightning": {
-        "salutation": "Votre dépôt a été effectué avec succès",
-        "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td align=\"right\">Déposé</td><td style=\"width:2%;\"></td><td align=\"left\">{buyInputAmount} {buyInputAsset}</td></tr><tr><td align=\"right\">Paiement crypto</td><td style=\"width:2%;\"></td><td align=\"left\">{buyOutputAmount} {buyOutputAsset}</td></tr><tr><td align=\"right\">Blockchain</td><td style=\"width:2%;\"></td><td align=\"left\">{blockchain}</td></tr><tr><td align=\"right\">DFX Frais</td><td style=\"width:2%;\"></td><td align=\"left\">{fee}</td></tr><tr><td align=\"right\">Taux de change</td><td style=\"width:2%;\"></td><td align=\"left\">{exchangeRate} {buyInputAsset}/{buyOutputAsset}</td></tr><tr><td align=\"right\">Adresse du portefeuille</td><td style=\"width:2%;\"></td><td align=\"left\">{buyWalletAddress}</td></tr><tr><td align=\"right\">ID de la transaction</td><td style=\"width:2%;\"></td><td align=\"left\">{buyTransactionLink}</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Votre équipe DFX</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
-        "title": "Dépôt effectué"
-      },
-      "buyCryptoCrypto": {
-        "salutation": "Votre dépôt a été effectué avec succès",
-        "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td align=\"right\">Déposé</td><td style=\"width:2%;\"></td><td align=\"left\">{buyInputAmount} {buyInputAsset}</td></tr><tr><td align=\"right\">Blockchain de dépôt</td><td style=\"width:2%;\"></td><td align=\"left\">{inputBlockchain}</td></tr><tr><td align=\"right\">Paiement crypto</td><td style=\"width:2%;\"></td><td align=\"left\">{buyOutputAmount} {buyOutputAsset}</td></tr><tr><td align=\"right\">Blockchain de paiement</td><td style=\"width:2%;\"></td><td align=\"left\">{blockchain}</td></tr><tr><td align=\"right\">DFX Frais</td><td style=\"width:2%;\"></td><td align=\"left\">{fee}</td></tr><tr><td align=\"right\">Adresse du portefeuille</td><td style=\"width:2%;\"></td><td align=\"left\">{buyWalletAddress}</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Vous trouverez ici l'ID de transaction associée à votre versement: <a style=\"color:white\" href=\"{buyTransactionLink}\">Link</a></td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Votre équipe DFX</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
-        "title": "Dépôt effectué"
-      },
-      "buyCryptoCryptoLightning": {
-        "salutation": "Votre dépôt a été effectué avec succès",
-        "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td align=\"right\">Déposé</td><td style=\"width:2%;\"></td><td align=\"left\">{buyInputAmount} {buyInputAsset}</td></tr><tr><td align=\"right\">Blockchain de dépôt</td><td style=\"width:2%;\"></td><td align=\"left\">{inputBlockchain}</td></tr><tr><td align=\"right\">Paiement crypto</td><td style=\"width:2%;\"></td><td align=\"left\">{buyOutputAmount} {buyOutputAsset}</td></tr><tr><td align=\"right\">Blockchain de paiement</td><td style=\"width:2%;\"></td><td align=\"left\">{blockchain}</td></tr><tr><td align=\"right\">DFX Frais</td><td style=\"width:2%;\"></td><td align=\"left\">{fee}</td></tr><tr><td align=\"right\">Adresse du portefeuille</td><td style=\"width:2%;\"></td><td align=\"left\">{buyWalletAddress}</td></tr><tr><td align=\"right\">ID de la transaction</td><td style=\"width:2%;\"></td><td align=\"left\">{buyTransactionLink}</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Votre équipe DFX</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
-        "title": "Dépôt effectué"
-      },
-      "paybackInitiated": {
-        "salutation": "Vos fonds ont été retournés à votre banque",
-        "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td align=\"right\">Montant retourné</td><td style=\"width:2%;\"></td><td align=\"left\">{inputAmount} {inputAsset}</td></tr><tr><td align=\"right\">Compte bancaire</td><td style=\"width:2%;\"></td><td align=\"left\">{userAddressTrimmed}</td></tr><tr><td align=\"right\">Motif du paiement</td><td style=\"width:2%;\"></td><td align=\"left\">{returnTransactionLink}</td></tr><tr><td colspan=\"3\" align=\"center\">Motif du remboursement:<br>{returnReason}</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\">Si vous avez des questions, nous sommes ravis de vous aider sur <a href=\"mailto:support@dfx.swiss\">support@dfx.swiss</a>.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Merci beaucoup pour votre confiance</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Votre équipe DFX</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
-        "title": "Remboursement des fonds"
-      }
+    "limit_request": {
+        "title": "Transaction volume approved",
+        "message": "Your request of {limitAmount} EUR transaction volume has been approved and is now freely available to you."
     },
-    "withdrawal": {
-      "offRampInitiated": {
-        "salutation": "Nous avons reçu vos fonds",
-        "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td align=\"right\">Versement</td><td style=\"width:2%;\"></td><td align=\"left\">{inputAmount} {inputAsset}</td></tr><tr><td align=\"right\">Blockchain</td><td style=\"width:2%;\"></td><td align=\"left\">{blockchain}</td></tr><tr><td colspan=\"3\" align=\"center\">Vous trouverez ici l'ID de transaction associée à votre retrait: <a style=\"color:white\" href=\"{inputTransactionLink}\">Link</a></td></tr><tr><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Étape suivante: nous allons vendre vos fonds et les échanger dans la monnaie que vous souhaitez, nous vous informerons dans les prochains e-mails.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Votre équipe DFX</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
-        "title": "Fonds reçus"
-      },
-      "offRampInitiatedLightning": {
-        "salutation": "Nous avons reçu vos fonds",
-        "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td align=\"right\">Versement</td><td style=\"width:2%;\"></td><td align=\"left\">{inputAmount} {inputAsset}</td></tr><tr><td align=\"right\">Blockchain</td><td style=\"width:2%;\"></td><td align=\"left\">{blockchain}</td></tr><tr><td align=\"right\">ID de la transaction</td><td style=\"width:2%;\"></td><td align=\"left\">{inputTransactionLink}</td></tr><tr><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Étape suivante: nous allons vendre vos fonds et les échanger dans la monnaie que vous souhaitez, nous vous informerons dans les prochains e-mails.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Votre équipe DFX</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
-        "title": "Fonds reçus"
-      },
-      "cryptoExchangedToFiat": {
-        "salutation": "Nous avons vendu vos fonds",
-        "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td align=\"right\">Versement</td><td style=\"width:2%;\"></td><td align=\"left\">{inputAmount} {inputAsset}</td></tr><tr><td align=\"right\">Blockchain</td><td style=\"width:2%;\"></td><td align=\"left\">{blockchain}</td></tr><tr><td align=\"right\">DFX Frais</td><td style=\"width:2%;\"></td><td align=\"left\">{fee}</td></tr><tr><td align=\"right\">Taux de change</td><td style=\"width:2%;\"></td><td align=\"left\">{exchangeRate}</td></tr><tr><td align=\"right\">Versement net</td><td style=\"width:2%;\"></td><td align=\"left\">{outputAmount} {outputAsset}</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Étape suivante : maintenant que nous avons vendu vos fonds, nous préparons le virement bancaire. Lorsque l'argent sera sorti de notre compte bancaire, vous recevrez un dernier e-mail confirmant le virement.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Votre équipe DFX</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
-        "title": "Fonds vendus"
-      },
-      "fiatToBankTransferInitiated": {
-        "salutation": "Nous avons effectué le virement bancaire",
-        "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td align=\"right\">Versement net</td><td style=\"width:2%;\"></td><td align=\"left\">{outputAmount} {outputAsset}</td></tr><tr><td align=\"right\">Compte bancaire</td><td style=\"width:2%;\"></td><td align=\"left\">{bankAccountTrimmed}</td></tr><tr><td align=\"right\">Motif du paiement</td><td style=\"width:2%;\"></td><td align=\"left\">{remittanceInfo}</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Le virement vient de partir de notre banque et sera visible sur votre compte sous peu. La latence du traitement est désormais de la responsabilité de la banque. Merci d'avoir utilisé le service de retrait de DFX.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Votre équipe DFX</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
-        "title": "Virement effectué"
-      },
-      "paybackToAddressInitiated": {
-        "salutation": "Vos fonds ont été remboursés sur votre adresse de wallet",
-        "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td align=\"right\">Remboursés</td><td style=\"width:2%;\"></td><td align=\"left\">{inputAmount} {inputAsset}</td></tr><tr><td align=\"right\">Blockchain</td><td style=\"width:2%;\"></td><td align=\"left\">{blockchain}</td></tr><tr><td align=\"right\">Adresse de wallet</td><td style=\"width:2%;\"></td><td align=\"left\">{userAddressTrimmed}</td></tr><tr><td colspan=\"3\" align=\"center\">Vous trouverez l'ID de la transaction: <a style=\"color:white\" href=\"{returnTransactionLink}\">Link</a> </td></tr><tr><td colspan=\"3\" align=\"center\">Motif du remboursement:<br>{returnReason}</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\">Si vous avez des questions, nous sommes ravis de vous aider sur <a href=\"mailto:support@dfx.swiss\">support@dfx.swiss</a>.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Merci beaucoup pour votre confiance</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Votre équipe DFX</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
-        "title": "Remboursement des fonds"
-      }
+    "black_squad": {
+        "title": "Invitation Black Squad",
+        "line1": "first of all I would like to introduce myself. My name is Oli and I am CMO at DFX.swiss.",
+        "line2": "For some time now, we have been maintaining a Telegram group for people with larger investments via DFX.swiss and would like to offer you with this group",
+        "line3": "<ul><li>provide a direct mouthpiece to the C-Level of DFX</li><li>provide a platform for discussions</li><li>listen closely to your requests for new services</li><li>and introduce you to new topics and services in advance</li></ul>",
+        "line4": "We would be pleased if you would like to join this group.",
+        "line5": "We have provided you with direct access to this group on your personal DFX Payment page. Just click on MyDFX in the DFX app and follow the link.",
+        "closing": "Thank you for your trust in us.<br>Oli"
     }
-  },
-  "referral": {
-    "salutation": "Votre prime de parrainage a été versée",
-    "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td align=\"right\">Montant</td><td style=\"width:2%;\"></td><td align=\"left\">{outputAmount} {outputAsset}</td></tr><tr><td align=\"right\">Adresse de wallet</td><td style=\"width:2%;\"></td><td align=\"left\">***{userAddressTrimmed}</td></tr><tr><td colspan=\"3\" align=\"center\">Voici l'ID de transaction de votre prime de parrainage: <a style=\"color:white\" href=\"{transactionLink}\">Link</a></td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Vous êtes un véritable ambassadeur. Merci de passer le mot à propos de DFX !</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Votre équipe DFX</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
-    "title": "Paiement de la prime de parrainage"
-  },
-  "limitRequest": {
-    "manualApproved": {
-      "salutation": "Your transaction volume has been approved",
-      "body": "<p>Hi {firstname},</p><p>Your request of {limitAmount} EUR transaction volume has been approved and is now freely available to you</p><p>Thank you for your trust in DFX.</p><p>Please do not hesitate to contact me if you have any questions.</p><p>Kind regards,<br>{mailName}</p><p>Assistance CEO",
-      "title": "Transaction volume approved"
-    }
-  },
-  "blackSquad": {
-    "invitation": {
-      "salutation": "",
-      "body": "<p>Hi {firstname},</p><p>first of all I would like to introduce myself. My name is Oli and I am CMO at DFX.swiss.</p><p>For some time now, we have been maintaining a Telegram group for people with larger investments via DFX.swiss and would like to offer you with this group</p><p>- provide a direct mouthpiece to the C-Level of DFX<br>- provide a platform for discussions<br>- listen closely to your requests for new services<br>- and introduce you to new topics and services in advance</p><p>We would be pleased if you would like to join this group.</p><p>We have provided you with direct access to this group on your personal DFX Payment page. Just click on MyDFX in the DFX app and follow the link.</p><p>Thank you for your trust in us.<br>Oli</p>",
-      "title": "Invitation Black Squad"
-    }
-  },
-  "link": {
-    "address": {
-      "salutation": "Souhaitez-vous lier votre adresse à votre compte actuel ?",
-      "body": "<table style=\"font-family: Open Sans, Helvetica, Arial, sans-serif; width: 60%; padding: 8px; font-size: 85%\" align=\"center\"><tr style=\"font-family: Open Sans, Helvetica, Arial, sans-serif\"><td colspan=\"3\" align=\"center\">Bonjour {firstname} {surname} {organizationName}</td></tr><tr style=\"padding: 1px\"><td colspan=\"3\"></td></tr><tr style=\"padding: 1px\"><td colspan=\"3\"></td></tr><tr style=\"font-family: Open Sans, Helvetica, Arial, sans-serif\"><td colspan=\"3\" align=\"center\">Si vous souhaitez lier cette nouvelle adresse à votre compte actuel déjà vérifié, veuillez les instructions ci-dessous: <a href=\"{url}\" style=\"color: #ffffff\">Cliquez ici</a></td></tr><tr style=\"padding: 1px\"><td colspan=\"3\"></td></tr><tr style=\"padding: 1px\"><td colspan=\"3\"></td></tr><tr><td align=\"right\">Adresse existante</td><td style=\"width: 2%\"></td><td align=\"left\">{existingAddress}</td></tr><tr><td align=\"right\">Nouvelle adresse</td><td style=\"width: 2%\"></td><td align=\"left\">{newAddress}</td></tr><tr style=\"padding: 1px\"><td colspan=\"3\"></td></tr><tr style=\"padding: 1px\"><td colspan=\"3\"></td></tr><tr style=\"padding: 1px\"><td colspan=\"3\"></td></tr><tr style=\"padding: 1px\"><td colspan=\"3\"></td></tr><tr style=\"font-family: Open Sans, Helvetica, Arial, sans-serif\"><td colspan=\"3\" align=\"center\">Votre équipe DFX</td></tr><tr style=\"padding: 1px\"><td colspan=\"3\"></td></tr><tr style=\"padding: 1px\"><td colspan=\"3\"></td></tr><tr style=\"padding: 1px\"><td colspan=\"3\"></td></tr><tr style=\"padding: 1px\"><td colspan=\"3\"></td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family: Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
-      "title": "Associez votre adresse"
-    }
-  },
-  "amlReasonMailText": {
-    "DailyLimit": "Vous avez dépassé la limite hors KYC",
-    "UserDataMismatch": "Le nom que vous avez indiqué à DFX ne correspond pas au nom du propriétaire de l'IBAN",
-    "IbanCheck": "L'IBAN n'est pas utilisable avec DFX",
-    "KycRejected": "Votre demande KYC a été rejetée",
-    "NameCheck": "Pour des raisons légales, nous ne pouvons vous servir comme client",
-    "AnnualLimit": "Vous avez dépassé votre limite annuelle",
-    "OlkyNoKyc": "Vous devez terminer le KYC de DFX pour utiliser Olkypay Bank",
-    "MinDepositNotReached": "La limite de dépôt minimum n'a pas été atteinte",
-    "NameCheckWithoutKYC": "Votre transaction a été annulée en raison d'un KYC manquant",
-    "AnnualLimitWithoutKYC": "Vous avez dépassé la limité annuelle sans KYC",
-    "AssetCurrentlyNotAvailable": "Cet actif n'est actuellement pas disponible à l'échange avec DFX"
-  }
 }

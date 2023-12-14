@@ -14,9 +14,11 @@ import { CryptoService } from 'src/integration/blockchain/shared/services/crypto
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { JwtPayload, JwtPayloadBase } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
 import { CreateUserDto } from 'src/subdomains/generic/user/models/user/dto/create-user.dto';
+import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { LinkedUserInDto } from '../user/dto/linked-user.dto';
 import { User, UserStatus } from '../user/user.entity';
 import { UserRepository } from '../user/user.repository';
@@ -35,6 +37,7 @@ export interface ChallengeData {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new DfxLogger(AuthService);
   private challengeList: Map<string, ChallengeData> = new Map<string, ChallengeData>();
 
   constructor(
@@ -45,6 +48,7 @@ export class AuthService {
     private readonly cryptoService: CryptoService,
     private readonly lightningService: LightningService,
     private readonly refService: RefService,
+    private readonly feeService: FeeService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -70,19 +74,17 @@ export class AuthService {
       throw new BadRequestException('Invalid signature');
 
     const ref = await this.refService.get(userIp);
-    if (ref) {
-      dto.usedRef ??= ref.ref;
-    }
+    if (ref) dto.usedRef ??= ref.ref;
 
     if (dto.key) dto.signature = [dto.signature, dto.key].join(';');
 
-    const user = await this.userService.createUser(dto, userIp, ref?.origin, undefined, wallet);
-    return { accessToken: this.generateUserToken(user) };
+    const user = await this.userService.createUser(dto, userIp, ref?.origin, wallet, dto.discountCode);
+    return { accessToken: this.generateUserToken(user, userIp) };
   }
 
-  async signIn(dto: AuthCredentialsDto, isCustodial = false): Promise<AuthResponseDto> {
+  async signIn(dto: AuthCredentialsDto, ip: string, isCustodial = false): Promise<AuthResponseDto> {
     const isCompany = this.hasChallenge(dto.address);
-    if (isCompany) return this.companySignIn(dto);
+    if (isCompany) return this.companySignIn(dto, ip);
 
     const user = await this.userRepo.getByAddress(dto.address, true);
     if (!user || user.status == UserStatus.BLOCKED) throw new NotFoundException('User not found');
@@ -96,17 +98,23 @@ export class AuthService {
       }
     }
 
-    return { accessToken: this.generateUserToken(user) };
+    try {
+      if (dto.discountCode) await this.feeService.addDiscountCodeUser(user.userData, dto.discountCode);
+    } catch (e) {
+      this.logger.warn(`Error while adding discountCode in user signIn ${user.id}:`, e);
+    }
+
+    return { accessToken: this.generateUserToken(user, ip) };
   }
 
-  private async companySignIn(dto: AuthCredentialsDto): Promise<AuthResponseDto> {
+  private async companySignIn(dto: AuthCredentialsDto, ip: string): Promise<AuthResponseDto> {
     const wallet = await this.walletService.getByAddress(dto.address);
     if (!wallet?.isKycClient) throw new NotFoundException('Wallet not found');
 
     if (!(await this.verifyCompanySignature(dto.address, dto.signature, dto.key)))
       throw new UnauthorizedException('Invalid credentials');
 
-    return { accessToken: this.generateCompanyToken(wallet) };
+    return { accessToken: this.generateCompanyToken(wallet, ip) };
   }
 
   async getCompanyChallenge(address: string): Promise<ChallengeDto> {
@@ -120,11 +128,11 @@ export class AuthService {
     return { challenge: challenge };
   }
 
-  async changeUser(id: number, changeUser: LinkedUserInDto): Promise<AuthResponseDto> {
+  async changeUser(id: number, changeUser: LinkedUserInDto, ip: string): Promise<AuthResponseDto> {
     const user = await this.getLinkedUser(id, changeUser.address);
     if (!user) throw new NotFoundException('User not found');
     if (user.status === UserStatus.BLOCKED) throw new BadRequestException('User is blocked');
-    return { accessToken: this.generateUserToken(user) };
+    return { accessToken: this.generateUserToken(user, ip) };
   }
 
   // --- SIGN MESSAGES --- //
@@ -178,8 +186,8 @@ export class AuthService {
       key = await this.lightningService.getPublicKeyOfAddress(address);
     }
 
-    let isValid = this.cryptoService.verifySignature(defaultMessage, address, signature, key);
-    if (!isValid) isValid = this.cryptoService.verifySignature(fallbackMessage, address, signature, key);
+    let isValid = await this.cryptoService.verifySignature(defaultMessage, address, signature, key);
+    if (!isValid) isValid = await this.cryptoService.verifySignature(fallbackMessage, address, signature, key);
 
     return isValid;
   }
@@ -196,21 +204,23 @@ export class AuthService {
     return this.challengeList.has(address);
   }
 
-  private generateUserToken(user: User): string {
+  private generateUserToken(user: User, ip: string): string {
     const payload: JwtPayload = {
       id: user.id,
       address: user.address,
       role: user.role,
       blockchains: this.getBlockchains(user),
+      ip,
     };
     return this.jwtService.sign(payload);
   }
 
-  private generateCompanyToken(wallet: Wallet): string {
+  private generateCompanyToken(wallet: Wallet, ip: string): string {
     const payload: JwtPayloadBase = {
       id: wallet.id,
       address: wallet.address,
       role: UserRole.KYC_CLIENT_COMPANY,
+      ip,
     };
     return this.jwtService.sign(payload, { expiresIn: Config.auth.company.signOptions.expiresIn });
   }

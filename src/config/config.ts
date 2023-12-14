@@ -7,35 +7,9 @@ import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 import { FeeTier } from 'src/shared/models/asset/asset.entity';
+import { Process } from 'src/shared/services/process.service';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
-
-export enum Process {
-  PAY_OUT = 'PayOut',
-  PAY_IN = 'PayIn',
-  FIAT_PAY_IN = 'FiatPayIn',
-  BUY_FIAT = 'BuyFiat',
-  BUY_CRYPTO = 'BuyCrypto',
-  LIMIT_REQUEST_MAIL = 'LimitRequestMail',
-  BLACK_SQUAD_MAIL = 'BlackSquadMail',
-  PAY_IN_MAIL = 'PayInMail',
-  BUY_CRYPTO_MAIL = 'BuyCryptoMail',
-  BUY_FIAT_MAIL = 'BuyFiatMail',
-  REF_REWARD_MAIL = 'RefRewardMail',
-  EXCHANGE_TX_SYNC = 'ExchangeTxSync',
-  LIQUIDITY_MANAGEMENT = 'LiquidityManagement',
-  MONITORING = 'Monitoring',
-  UPDATE_CFP = 'UpdateCfp',
-  UPDATE_STATISTIC = 'UpdateStatistic',
-  KYC = 'Kyc',
-  BANK_ACCOUNT = 'BankAccount',
-  BANK_TX = 'BankTx',
-  STAKING = 'Staking',
-  REF_PAYOUT = 'RefPayout',
-  PRICING = 'Pricing',
-  BUY_CRYPTO_AML_CHECK = 'BuyCryptoAmlCheck',
-  LNURL_AUTH_CACHE = 'LnurlAuthCache',
-}
 
 export enum Environment {
   LOC = 'loc',
@@ -45,6 +19,8 @@ export enum Environment {
 
 export type ExchangeConfig = Partial<Exchange> & { withdrawKeys?: Map<string, string> };
 
+export type Version = '1' | '2';
+
 export function GetConfig(): Configuration {
   return new Configuration();
 }
@@ -52,7 +28,9 @@ export function GetConfig(): Configuration {
 export class Configuration {
   port = process.env.PORT ?? 3000;
   environment = process.env.ENVIRONMENT as Environment;
-  version = 'v1';
+  defaultVersion: Version = '1';
+  kycVersion: Version = '2';
+  defaultVersionString = `v${this.defaultVersion}`;
   network = process.env.NETWORK as NetworkName;
   githubToken = process.env.GH_TOKEN;
   defaultLanguage = 'en';
@@ -78,17 +56,27 @@ export class Configuration {
 
   bitcoinAddressFormat = '([13]|bc1)[a-zA-HJ-NP-Z0-9]{25,62}';
   lightningAddressFormat = '(LNURL|LNDHUB)[A-Z0-9]{25,250}|LNNID[A-Z0-9]{66}';
+  moneroAddressFormat = '[48][0-9AB][1-9A-HJ-NP-Za-km-z]{93}';
   ethereumAddressFormat = '0x\\w{40}';
   cardanoAddressFormat = 'stake[a-z0-9]{54}';
   defichainAddressFormat =
     this.environment === Environment.PRD ? '8\\w{33}|d\\w{33}|d\\w{41}' : '[78]\\w{33}|[td]\\w{33}|[td]\\w{41}';
 
-  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.ethereumAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}`;
+  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}`;
+
+  masterKeySignatureFormat = '[0-9a-fA-F]{8}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{12}';
+  bitcoinSignatureFormat = '.{87}=';
+  lightningSignatureFormat = '[a-z0-9]{104}';
+  lightningCustodialSignatureFormat = '[a-z0-9]{140,146}';
+  moneroSignatureFormat = 'SigV\\d[0-9a-zA-Z]{88}';
+  ethereumSignatureFormat = '(0x)?[a-f0-9]{130}';
+  cardanoSignatureFormat = '[a-f0-9]{582}';
+
+  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.cardanoSignatureFormat}`;
 
   formats = {
     address: new RegExp(`^(${this.allAddressFormat})$`),
-    signature:
-      /^([0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}|.{87}=|[a-f0-9]{130}|[a-f0-9x]{132}|[a-f0-9]{582}|[a-z0-9]{104}|[a-z0-9]{140,146})$/,
+    signature: new RegExp(`^(${this.allSignatureFormat})$`),
     key: /^[a-f0-9]{84}$/,
     ref: /^(\w{1,3}-\w{1,3})$/,
     bankUsage: /[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}/,
@@ -146,28 +134,13 @@ export class Configuration {
   };
 
   kyc = {
-    mandator: process.env.KYC_MANDATOR,
-    user: process.env.KYC_USER,
-    password: process.env.KYC_PASSWORD,
-    prefix: process.env.KYC_PREFIX ?? '',
-    reminderAfterDays: 2,
-    failAfterDays: 7,
-    chatbotStyle: {
-      headerColor: this.colors.white,
-      textColor: this.colors.white,
-      warningColor: this.colors.red,
-      backgroundColor: this.colors.darkBlue,
-      overlayBackgroundColor: this.colors.darkBlue,
-      buttonColor: this.colors.white,
-      buttonBackgroundColor: this.colors.red,
-      bubbleLeftColor: this.colors.white,
-      bubbleLeftBackgroundColor: this.colors.lightBlue,
-      bubbleRightColor: this.colors.white,
-      bubbleRightBackgroundColor: this.colors.lightBlue,
-      htmlHeaderInclude: '',
-      htmlBodyInclude: '',
-    },
+    gatewayHost: process.env.KYC_GATEWAY_HOST,
+    auto: { customer: process.env.KYC_CUSTOMER_AUTO, apiKey: process.env.KYC_API_KEY_AUTO },
+    video: { customer: process.env.KYC_CUSTOMER_VIDEO, apiKey: process.env.KYC_API_KEY_VIDEO },
+    transactionPrefix: process.env.KYC_TRANSACTION_PREFIX,
+    identFailAfterDays: 90,
     allowedWebhookIps: process.env.KYC_WEBHOOK_IPS?.split(','),
+    reminderAfterDays: 2,
   };
 
   support = {
@@ -198,18 +171,6 @@ export class Configuration {
   fixer = {
     baseUrl: process.env.FIXER_BASE_URL,
     apiKey: process.env.FIXER_API_KEY,
-  };
-
-  externalKycServices = {
-    'LOCK.space': {
-      apiKey: process.env.LOCK_API_KEY,
-    },
-    'LOCK.space STG': {
-      apiKey: process.env.LOCK_API_KEY,
-    },
-    Talium: {
-      apiKey: process.env.TALIUM_API_KEY,
-    },
   };
 
   mail: MailOptions = {
@@ -335,12 +296,25 @@ export class Configuration {
       },
       certificate: process.env.LIGHTNING_API_CERTIFICATE?.split('<br>').join('\n'),
     },
+    monero: {
+      node: {
+        url: process.env.MONERO_NODE_URL,
+      },
+      rpc: {
+        url: process.env.MONERO_RPC_URL,
+      },
+      walletAddress: process.env.MONERO_WALLET_ADDRESS,
+      certificate: process.env.MONERO_RPC_CERTIFICATE?.split('<br>').join('\n'),
+    },
   };
 
   payIn = {
     minDeposit: {
       Bitcoin: {
         BTC: 0.000001,
+      },
+      Monero: {
+        XMR: 0.000001,
       },
       DeFiChain: {
         DFI: 0.01,
@@ -405,6 +379,11 @@ export class Configuration {
   };
   exchangeTxSyncLimit = +(process.env.EXCHANGE_TX_SYNC_LIMIT ?? 720); // minutes
 
+  dilisense = {
+    jsonPath: process.env.DILISENSE_JSON_PATH,
+    key: process.env.DILISENSE_KEY,
+  };
+
   sepaTools = {
     auth: {
       username: process.env.SEPA_TOOLS_USER,
@@ -461,6 +440,12 @@ export class Configuration {
     tenantId: process.env.AZURE_TENANT_ID,
     clientId: process.env.AZURE_CLIENT_ID,
     clientSecret: process.env.AZURE_CLIENT_SECRET,
+    storage: {
+      url: process.env.AZURE_STORAGE_CONNECTION_STRING?.split(';')
+        .find((p) => p.includes('BlobEndpoint'))
+        ?.replace('BlobEndpoint=', ''),
+      connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
+    },
   };
 
   alby = {
@@ -479,10 +464,11 @@ export class Configuration {
   };
 
   // --- GETTERS --- //
-  get url(): string {
+  url(version: Version = this.defaultVersion): string {
+    const versionString = `v${version}`;
     return this.environment === Environment.LOC
-      ? `http://localhost:${this.port}/${this.version}`
-      : `https://${this.environment === Environment.PRD ? '' : this.environment + '.'}api.dfx.swiss/${this.version}`;
+      ? `http://localhost:${this.port}/${versionString}`
+      : `https://${this.environment === Environment.PRD ? '' : this.environment + '.'}api.dfx.swiss/${versionString}`;
   }
 
   get kraken(): ExchangeConfig {
@@ -504,9 +490,10 @@ export class Configuration {
   }
 
   // --- HELPERS --- //
-
-  processDisabled = (processName: Process) =>
-    process.env.DISABLED_PROCESSES === '*' || (process.env.DISABLED_PROCESSES?.split(',') ?? []).includes(processName);
+  disabledProcesses = () =>
+    process.env.DISABLED_PROCESSES === '*'
+      ? Object.values(Process)
+      : ((process.env.DISABLED_PROCESSES?.split(',') ?? []) as Process[]);
 }
 
 function splitWithdrawKeys(value?: string): Map<string, string> {

@@ -1,8 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
-import { MinAmount } from 'src/shared/payment/dto/min-amount.dto';
-import { TransactionError } from 'src/shared/payment/services/transaction-helper';
+import { MinAmount } from 'src/subdomains/supporting/payment/dto/min-amount.dto';
+import { TransactionError } from 'src/subdomains/supporting/payment/services/transaction-helper';
 
 export class CryptoPaymentInfoDto {
   @ApiProperty()
@@ -43,6 +43,12 @@ export class CryptoPaymentInfoDto {
 
   @ApiProperty({ description: 'Maximum volume in target asset' })
   maxVolumeTarget: number;
+
+  @ApiProperty({ description: 'Exchange rate in source/target' })
+  exchangeRate: number;
+
+  @ApiProperty({ description: 'Final rate (incl. fees) in source/target' })
+  rate: number;
 
   @ApiProperty({ description: 'Estimated amount in target asset' })
   estimatedAmount: number;

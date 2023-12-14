@@ -53,6 +53,9 @@ export class BankTx extends IEntity {
   @Column({ length: 256, nullable: true })
   txId?: string;
 
+  @Column({ nullable: true })
+  highRisk: boolean;
+
   // amounts
   @Column({ type: 'float', nullable: true })
   amount?: number;

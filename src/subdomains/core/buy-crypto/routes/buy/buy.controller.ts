@@ -4,18 +4,19 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nest
 import { Config } from 'src/config/config';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { IpGuard } from 'src/shared/auth/ip.guard';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
-import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
-import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
-import { FeeType } from 'src/subdomains/generic/user/models/user/user.entity';
+import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { BuyCryptoService } from '../../process/services/buy-crypto.service';
 import { Buy } from './buy.entity';
 import { BuyService } from './buy.service';
@@ -24,7 +25,7 @@ import { BankInfoDto, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
 import { BuyQuoteDto } from './dto/buy-quote.dto';
 import { BuyDto } from './dto/buy.dto';
 import { CreateBuyDto } from './dto/create-buy.dto';
-import { BuyPaymentMethod, GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
+import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
 import { GetBuyQuoteDto } from './dto/get-buy-quote.dto';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 
@@ -71,14 +72,12 @@ export class BuyController {
   async getBuyQuote(@Body() dto: GetBuyQuoteDto): Promise<BuyQuoteDto> {
     const { amount: sourceAmount, currency, asset, targetAmount } = await this.paymentInfoService.buyCheck(dto);
 
-    const fee = Config.buy.fee.get(asset.feeTier, AccountType.PERSONAL);
-
     const {
       exchangeRate,
       feeAmount,
       estimatedAmount,
       sourceAmount: amount,
-    } = await this.transactionHelper.getTxDetails(sourceAmount, targetAmount, fee, currency, asset);
+    } = await this.transactionHelper.getTxDetails(sourceAmount, targetAmount, currency, asset, FiatPaymentMethod.BANK);
 
     return {
       feeAmount,
@@ -90,7 +89,7 @@ export class BuyController {
 
   @Put('/paymentInfos')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
   @ApiOkResponse({ type: BuyPaymentInfoDto })
   async createBuyWithPaymentInfo(
     @GetJwt() jwt: JwtPayload,
@@ -124,8 +123,7 @@ export class BuyController {
   }
 
   private async toDto(userId: number, buy: Buy): Promise<BuyDto> {
-    const user = await this.userService.getUser(userId, { userData: true, wallet: true });
-    const fee = user.getFee(FeeType.BUY, buy.asset);
+    const fee = await this.userService.getUserFee(userId, FeeDirectionType.BUY, buy.asset);
 
     const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
       'Fiat',
@@ -142,7 +140,7 @@ export class BuyController {
       annualVolume: buy.annualVolume,
       bankUsage: buy.bankUsage,
       asset: AssetDtoMapper.entityToDto(buy.asset),
-      fee: Util.round(fee * 100, Config.defaultPercentageDecimal),
+      fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposits: [minDeposit],
       minFee,
     };
@@ -150,37 +148,41 @@ export class BuyController {
 
   private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
     const user = await this.userService.getUser(userId, { userData: true, wallet: true });
-    const fee = dto.paymentMethod === BuyPaymentMethod.CARD ? Config.buy.fee.card : user.getFee(FeeType.BUY, buy.asset);
 
     const {
       minVolume,
       minFee,
       minVolumeTarget,
       minFeeTarget,
-      estimatedAmount,
-      sourceAmount: amount,
       maxVolume,
       maxVolumeTarget,
+      fee,
+      exchangeRate,
+      rate,
+      estimatedAmount,
+      sourceAmount: amount,
       isValid,
       error,
     } = await this.transactionHelper.getTxDetails(
       dto.amount,
       dto.targetAmount,
-      fee,
       dto.currency,
       dto.asset,
-      user.userData.availableTradingLimit,
+      dto.paymentMethod,
+      user.userData,
     );
     const bankInfo = await this.getBankInfo(buy, { ...dto, amount });
 
     return {
       routeId: buy.id,
-      fee: Util.round(fee * 100, Config.defaultPercentageDecimal),
+      fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposit: { amount: minVolume, asset: dto.currency.name }, // TODO: remove
       minVolume,
       minFee,
       minVolumeTarget,
       minFeeTarget,
+      exchangeRate,
+      rate,
       estimatedAmount,
       amount,
       asset: AssetDtoMapper.entityToDto(dto.asset),
@@ -196,7 +198,7 @@ export class BuyController {
       paymentRequest: isValid ? this.generateGiroCode(buy, bankInfo, dto) : undefined,
       // card info
       paymentLink:
-        isValid && dto.paymentMethod === BuyPaymentMethod.CARD
+        isValid && dto.paymentMethod === FiatPaymentMethod.CARD
           ? await this.checkoutService.createPaymentLink(
               buy.bankUsage,
               amount,

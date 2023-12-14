@@ -22,14 +22,15 @@ describe('LnurlAuth', () => {
   const maxLoop = 10;
   const k1Array: string[] = [];
 
-  const login = async (signupDto) => lnUrlAuthService.login(Object.assign(new AuthLnurlSignupDto(), { ...signupDto }));
+  const login = async (signupDto) =>
+    lnUrlAuthService.login(Object.assign(new AuthLnurlSignupDto(), { ...signupDto }), '127.0.0.0');
   const status = (k1) => lnUrlAuthService.status(k1);
 
   let internalAuthCache: Map<string, AuthCacheDto>;
 
   beforeAll(async () => {
     const config = {
-      url: 'https://test.dfx.api:12345/v0.1',
+      url: () => 'https://test.dfx.api:12345/v0.1',
       processDisabled: () => false,
     };
 
@@ -146,7 +147,7 @@ describe('LnurlAuth', () => {
       ipLog.result = false;
       jest.spyOn(ipLogServiceMock, 'create').mockResolvedValue(Promise.resolve(ipLog));
 
-      const testCall = async () => lnUrlAuthService.login(signupDto);
+      const testCall = async () => lnUrlAuthService.login(signupDto, '127.0.0.0');
 
       insertCache(internalAuthCache, signupDto.k1);
       expect(internalAuthCache.size).toStrictEqual(maxLoop + 1);
@@ -290,7 +291,7 @@ describe('LnurlAuth', () => {
 function insertCache(internalAuthCache: Map<string, AuthCacheDto>, k1: string, creationTime = Date.now()) {
   internalAuthCache.set(k1, {
     servicesIp: '127.0.0.1',
-    servicesUrl: Config.url,
+    servicesUrl: Config.url(),
     k1: k1,
     k1CreationTime: creationTime,
   });
@@ -310,7 +311,7 @@ function createSignupDto(): AuthLnurlSignupDto {
 
 function createLoginLnurl(lnUrlAuthService: AuthLnUrlService, maxLoop: number, k1Array: string[]) {
   for (let loop = 0; loop < maxLoop; loop++) {
-    const createLoginResponse = lnUrlAuthService.create('127.0.0.1', Config.url);
+    const createLoginResponse = lnUrlAuthService.create('127.0.0.1', Config.url());
     const authUrl = new URL(LightningHelper.decodeLnurl(createLoginResponse.lnurl));
     const urlParams = authUrl.searchParams;
 

@@ -14,6 +14,12 @@
     "oceanUrls": {
       "value": "https://ocean.mydefichain.com,https://ocean.defichain.com"
     },
+    "apiSkuName": {
+      "value": "P2v2"
+    },
+    "apiSkuTier": {
+      "value": "PremiumV2"
+    },
     "dbAllowAllIps": {
       "value": false
     },
@@ -33,6 +39,24 @@
       "value": "xxx"
     },
     "mailPass": {
+      "value": "xxx"
+    },
+    "kycGatewayHost": {
+      "value": "https://gateway.online-ident.ch"
+    },
+    "kycCustomerAuto": {
+      "value": "xxx"
+    },
+    "kycApiKeyAuto": {
+      "value": "xxx"
+    },
+    "kycCustomerVideo": {
+      "value": "xxx"
+    },
+    "kycApiKeyVideo": {
+      "value": "xxx"
+    },
+    "kycTransactionPrefix": {
       "value": "xxx"
     },
     "kycMandator": {
@@ -146,6 +170,12 @@
     "lightningLndAdminMacaroon": {
       "value": "xxx"
     },
+    "moneroWalletAddress": {
+      "value": "xxx"
+    },
+    "moneroRpcCertificate": {
+      "value": "xxx"
+    },
     "btcOutWalletAddress": {
       "value": "xxx"
     },
@@ -186,6 +216,9 @@
       "value": "xxx"
     },
     "binanceWithdrawKeys": {
+      "value": "xxx"
+    },
+    "binanceBtcDepositAddress": {
       "value": "xxx"
     },
     "olkyClient": {
@@ -257,9 +290,6 @@
     "servicesUrl": {
       "value": "https://services.dfx.swiss"
     },
-    "lockApiKey": {
-      "value": "xxx"
-    },
     "limitRequestSupportBanner": {
       "value": "xxx"
     },
@@ -281,13 +311,13 @@
     "azureClientSecret": {
       "value": "xxx"
     },
+    "azureStorageConnectionString": {
+      "value": "xxx"
+    },
     "albyClientId": {
       "value": "xxx"
     },
     "albyClientSecret": {
-      "value": "xxx"
-    },
-    "taliumApiKey": {
       "value": "xxx"
     },
     "knownIps": {
@@ -306,6 +336,12 @@
       "value": "xxx"
     },
     "ckoSecretKey": {
+      "value": "xxx"
+    },
+    "delisenseJsonPath": {
+      "value": "/home/Data/Dilisense/consolidated.json"
+    },
+    "delisenseKey": {
       "value": "xxx"
     }
   }

@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 import { DepositDto } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit.dto';
-import { MinAmount } from '../../../../../../shared/payment/dto/min-amount.dto';
+import { MinAmount } from '../../../../../supporting/payment/dto/min-amount.dto';
 
 export class CryptoRouteDto {
   @ApiProperty()

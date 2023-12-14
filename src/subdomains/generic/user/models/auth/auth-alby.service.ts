@@ -6,7 +6,6 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { AlbySignupDto } from '../user/dto/alby.dto';
-import { UserRepository } from '../user/user.repository';
 import { AuthService } from './auth.service';
 
 interface AlbyAuthResponse {
@@ -41,7 +40,6 @@ export class AuthAlbyService {
     private readonly http: HttpService,
     private readonly authService: AuthService,
     private readonly ipLogService: IpLogService,
-    private readonly userRepo: UserRepository,
   ) {}
 
   getOauthUrl(dto: AlbySignupDto): string {
@@ -89,7 +87,7 @@ export class AuthAlbyService {
       const ipLog = await this.ipLogService.create(userIp, requestUrl, session.address);
       if (!ipLog.result) throw new ForbiddenException('The country of IP address is not allowed');
 
-      const { accessToken } = await this.authService.signIn(session, true).catch((e) => {
+      const { accessToken } = await this.authService.signIn(session, userIp, true).catch((e) => {
         if (e instanceof NotFoundException) return this.authService.signUp({ ...dto, ...session }, userIp, true);
 
         throw e;
@@ -108,7 +106,7 @@ export class AuthAlbyService {
 
   // --- HELPER METHODS --- //
   private redirectUri(id: string): string {
-    return `${Config.url}/auth/alby/redirect/${id}`;
+    return `${Config.url()}/auth/alby/redirect/${id}`;
   }
 
   private get fallbackUrl(): string {

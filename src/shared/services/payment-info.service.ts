@@ -8,6 +8,7 @@ import { GetCryptoQuoteDto } from 'src/subdomains/core/buy-crypto/routes/crypto-
 import { CreateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/create-sell.dto';
 import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-payment-info.dto';
 import { GetSellQuoteDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-quote.dto';
+import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { JwtPayload } from '../auth/jwt-payload.interface';
 import { AssetService } from '../models/asset/asset.service';
 import { FiatService } from '../models/fiat/fiat.service';
@@ -21,6 +22,8 @@ export class PaymentInfoService {
       dto.currency = await this.fiatService.getFiat(dto.currency.id);
       if (!dto.currency) throw new NotFoundException('Currency not found');
       if (!dto.currency.sellable) throw new BadRequestException('Currency not sellable');
+      if ('paymentMethod' in dto && dto.paymentMethod === FiatPaymentMethod.CARD && dto.currency.name !== 'EUR')
+        throw new BadRequestException('Currency not allowed for Card payment (use EUR)');
     }
 
     dto.asset = await this.assetService.getAssetById(dto.asset.id);
