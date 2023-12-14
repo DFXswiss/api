@@ -1,4 +1,4 @@
-import { IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 
@@ -26,4 +26,8 @@ export class UpdateUserAdminDto {
   @IsOptional()
   @IsNumber()
   cryptoFee: number;
+
+  @IsOptional()
+  @IsBoolean()
+  approved: boolean;
 }
