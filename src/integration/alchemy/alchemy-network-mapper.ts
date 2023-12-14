@@ -14,13 +14,13 @@ export class AlchemyNetworkMapper {
 
   private static readonly chainIdToNetworkMap = new Map<number, Network>([
     [1, Network.ETH_MAINNET],
-    [5, Network.ETH_GOERLI],
+    [11155111, Network.ETH_SEPOLIA],
 
     [42161, Network.ARB_MAINNET],
-    [421613, Network.ARB_GOERLI],
+    [421614, Network.ARB_SEPOLIA],
 
     [10, Network.OPT_MAINNET],
-    [420, Network.OPT_GOERLI],
+    [11155420, Network.OPT_SEPOLIA],
 
     [137, Network.MATIC_MAINNET],
     [80001, Network.MATIC_MUMBAI],
