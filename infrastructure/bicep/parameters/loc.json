@@ -102,16 +102,16 @@
       "value": "xxx"
     },
     "ethGatewayUrl": {
-      "value": "https://sepolia.infura.io/v3"
+      "value": "https://goerli.infura.io/v3"
     },
     "ethApiKey": {
       "value": "xxx"
     },
     "ethChainId": {
-      "value": "11155111"
+      "value": "5"
     },
     "ethScanApiUrl": {
-      "value": "https://api-sepolia.etherscan.io/api"
+      "value": "https://api-goerli.etherscan.io/api"
     },
     "ethScanApiKey": {
       "value": "xxx"
@@ -123,16 +123,16 @@
       "value": "xxx"
     },
     "optimismGatewayUrl": {
-      "value": "https://sepolia.optimism.io"
+      "value": "https://goerli.optimism.io"
     },
     "optimismApiKey": {
       "value": "xxx"
     },
     "optimismChainId": {
-      "value": "11155420"
+      "value": "420"
     },
     "optimismScanApiUrl": {
-      "value": "https://api-sepolia-optimistic.etherscan.io/api"
+      "value": "https://api-goerli-optimistic.etherscan.io/api"
     },
     "optimismScanApiKey": {
       "value": "xxx"
@@ -144,16 +144,16 @@
       "value": "xxx"
     },
     "arbitrumGatewayUrl": {
-      "value": "https://sepolia-rollup.arbitrum.io/rpc"
+      "value": "https://goerli-rollup.arbitrum.io/rpc"
     },
     "arbitrumApiKey": {
       "value": "xxx"
     },
     "arbitrumChainId": {
-      "value": "421614"
+      "value": "421613"
     },
     "arbitrumScanApiUrl": {
-      "value": "https://api-sepolia.arbiscan.io/api"
+      "value": "https://api-goerli.arbiscan.io/api"
     },
     "arbitrumScanApiKey": {
       "value": "xxx"
