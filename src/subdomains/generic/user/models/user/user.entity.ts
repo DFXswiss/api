@@ -76,6 +76,9 @@ export class User extends IEntity {
   @Column({ type: 'float', default: 0 })
   cryptoVolume: number; // CHF
 
+  @Column({ nullable: true })
+  approved: boolean;
+
   @OneToMany(() => Buy, (buy) => buy.user)
   buys: Buy[];
 
