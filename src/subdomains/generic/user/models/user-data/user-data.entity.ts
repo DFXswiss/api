@@ -86,7 +86,10 @@ export enum UserDataStatus {
 }
 
 @Entity()
-@Index((userData: UserData) => [userData.identDocumentId, userData.nationality], { unique: true })
+@Index((userData: UserData) => [userData.identDocumentId, userData.nationality], {
+  unique: true,
+  where: 'identDocumentId IS NOT NULL',
+})
 export class UserData extends IEntity {
   private readonly logger = new DfxLogger(UserData);
 
