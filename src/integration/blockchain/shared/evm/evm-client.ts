@@ -68,7 +68,7 @@ export abstract class EvmClient {
   // --- PUBLIC API - GETTERS --- //
 
   async getNativeCoinTransactions(walletAddress: string, fromBlock: number): Promise<EvmCoinHistoryEntry[]> {
-    const category = [AlchemyNetwork.ETH_MAINNET, AlchemyNetwork.ETH_SEPOLIA].includes(this.alchemy.config.network)
+    const category = [AlchemyNetwork.ETH_MAINNET, AlchemyNetwork.ETH_GOERLI].includes(this.alchemy.config.network)
       ? [AssetTransfersCategory.EXTERNAL, AssetTransfersCategory.INTERNAL]
       : [AssetTransfersCategory.EXTERNAL];
 
