@@ -102,13 +102,13 @@
       "value": "xxx"
     },
     "ethGatewayUrl": {
-      "value": "https://sepolia.infura.io/v3"
+      "value": "https://goerli.infura.io/v3"
     },
     "ethApiKey": {
       "value": "xxx"
     },
     "ethChainId": {
-      "value": "11155111"
+      "value": "5"
     },
     "optimismWalletAddress": {
       "value": "xxx"
@@ -117,13 +117,13 @@
       "value": "xxx"
     },
     "optimismGatewayUrl": {
-      "value": "https://sepolia.optimism.io"
+      "value": "https://goerli.optimism.io"
     },
     "optimismApiKey": {
       "value": "xxx"
     },
     "optimismChainId": {
-      "value": "11155420"
+      "value": "420"
     },
     "arbitrumWalletAddress": {
       "value": "xxx"
@@ -132,13 +132,13 @@
       "value": "xxx"
     },
     "arbitrumGatewayUrl": {
-      "value": "https://sepolia-rollup.arbitrum.io/rpc"
+      "value": "https://goerli-rollup.arbitrum.io/rpc"
     },
     "arbitrumApiKey": {
       "value": "xxx"
     },
     "arbitrumChainId": {
-      "value": "421614"
+      "value": "421613"
     },
     "bscWalletAddress": {
       "value": "xxx"
