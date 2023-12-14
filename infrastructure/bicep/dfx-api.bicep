@@ -198,6 +198,11 @@ param delisenseJsonPath string
 @secure()
 param delisenseKey string
 
+@secure()
+param alchemyApiKey string
+@secure()
+param alchemyAuthToken string
+
 // --- VARIABLES --- //
 var compName = 'dfx'
 var apiName = 'api'
@@ -929,6 +934,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'DILISENSE_KEY'
           value: delisenseKey
+        }
+        {
+          name: 'ALCHEMY_API_KEY'
+          value: alchemyApiKey
+        }
+        {
+          name: 'ALCHEMY_AUTH_TOKEN'
+          value: alchemyAuthToken
         }
       ]
     }

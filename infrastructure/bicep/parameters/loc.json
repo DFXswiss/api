@@ -343,6 +343,12 @@
     },
     "delisenseKey": {
       "value": "xxx"
+    },
+    "alchemyApiKey": {
+      "value": "xxx"
+    },
+    "alchemyAuthToken": {
+      "value": "xxx"
     }
   }
 }
