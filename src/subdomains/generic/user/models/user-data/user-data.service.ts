@@ -127,6 +127,14 @@ export class UserDataService {
       if (!userData.mainBankData) throw new BadRequestException('Bank data not found');
     }
 
+    if (dto.nationality || dto.identDocumentId) {
+      const existing = await this.userDataRepo.findOneBy({
+        nationality: { id: userData.nationality.id },
+        identDocumentId: dto.identDocumentId ?? userData.identDocumentId,
+      });
+      if (existing) throw new ConflictException('A user with the same nationality and identDocumentId already exists');
+    }
+
     if (dto.kycFileId) {
       const userWithSameFileId = await this.userDataRepo.findOneBy({ id: Not(userDataId), kycFileId: dto.kycFileId });
       if (userWithSameFileId) throw new ConflictException('A user with this KYC file ID already exists');
