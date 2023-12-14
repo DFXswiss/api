@@ -162,8 +162,8 @@ export class BuyFiatService {
     await this.fiatOutputService.delete(fiatOutputId);
   }
 
-  async updateVolumes(): Promise<void> {
-    const sellIds = await this.sellRepo.find().then((l) => l.map((b) => b.id));
+  async updateVolumes(start = 1, end = 100000): Promise<void> {
+    const sellIds = await this.sellRepo.findBy({ id: Between(start, end) }).then((l) => l.map((b) => b.id));
     await this.updateSellVolume(sellIds);
   }
 
