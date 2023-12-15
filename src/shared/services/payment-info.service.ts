@@ -21,9 +21,11 @@ export class PaymentInfoService {
     if ('currency' in dto) {
       dto.currency = await this.fiatService.getFiat(dto.currency.id);
       if (!dto.currency) throw new NotFoundException('Currency not found');
-      if (!dto.currency.sellable) throw new BadRequestException('Currency not sellable');
-      if ('paymentMethod' in dto && dto.paymentMethod === FiatPaymentMethod.CARD && dto.currency.name !== 'EUR')
-        throw new BadRequestException('Currency not allowed for Card payment (use EUR)');
+      if ('paymentMethod' in dto && dto.paymentMethod === FiatPaymentMethod.CARD) {
+        if (!dto.currency.cardSellable) throw new BadRequestException('Currency not sellable');
+      } else {
+        if (!dto.currency.sellable) throw new BadRequestException('Currency not sellable');
+      }
     }
 
     dto.asset = await this.assetService.getAssetById(dto.asset.id);
