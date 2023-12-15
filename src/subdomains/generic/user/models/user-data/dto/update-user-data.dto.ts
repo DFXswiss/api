@@ -178,4 +178,8 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsString()
   identDocumentType: string;
+
+  @IsOptional()
+  @IsString()
+  verifiedName: string;
 }

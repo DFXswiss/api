@@ -99,7 +99,7 @@ export class UserData extends IEntity {
   @Column({ length: 256, default: UserDataStatus.NA })
   status: UserDataStatus;
 
-  // KYC
+  // --- PERSONAL DATA --- //
   @Column({ length: 256, nullable: true })
   mail: string;
 
@@ -108,6 +108,9 @@ export class UserData extends IEntity {
 
   @Column({ length: 256, nullable: true })
   surname: string;
+
+  @Column({ length: 256, nullable: true })
+  verifiedName: string;
 
   @Column({ length: 256, nullable: true })
   street: string;
@@ -156,6 +159,8 @@ export class UserData extends IEntity {
 
   @ManyToOne(() => Fiat, { eager: true })
   currency: Fiat;
+
+  // --- KYC --- //
 
   @Column({ length: 256, nullable: true })
   riskState: RiskState;
