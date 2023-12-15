@@ -2,7 +2,14 @@ import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.m
 import { Util } from 'src/shared/utils/util';
 import { UserData } from '../../../user/models/user-data/user-data.entity';
 import { KycStep } from '../../entities/kyc-step.entity';
-import { KycStepName, KycStepStatus, getKycStepIndex, getKycTypeIndex } from '../../enums/kyc.enum';
+import {
+  KycStepName,
+  KycStepStatus,
+  KycStepType,
+  getKycStepIndex,
+  getKycTypeIndex,
+  requiredKycSteps,
+} from '../../enums/kyc.enum';
 import { KycSessionDto, KycStatusDto } from '../output/kyc-info.dto';
 import { KycStepMapper } from './kyc-step.mapper';
 
@@ -31,7 +38,7 @@ export class KycInfoMapper {
   // --- HELPER METHODS --- //
   private static getUiSteps(userData: UserData): KycStep[] {
     // add open steps
-    const openSteps: KycStep[] = KycInfoMapper.getDefaultSteps().map((s) =>
+    const openSteps: KycStep[] = requiredKycSteps().map((s) =>
       Object.assign(new KycStep(), {
         name: s,
         status: KycStepStatus.NOT_STARTED,
@@ -42,19 +49,21 @@ export class KycInfoMapper {
     return KycInfoMapper.sortSteps(userData.kycSteps.concat(openSteps));
   }
 
-  private static getDefaultSteps(): KycStepName[] {
-    return [KycStepName.CONTACT_DATA, KycStepName.PERSONAL_DATA, KycStepName.IDENT, KycStepName.FINANCIAL_DATA];
-  }
-
   private static sortSteps(steps: KycStep[]): KycStep[] {
-    // group by step and get step with highest sequence number
-    const groupedSteps = steps.reduce((map, step) => {
-      const key = step.type
-        ? `${step.name}-${step.type}`
-        : Array.from(map.keys()).find((k) => k.includes(step.name)) ?? `${step.name}`;
+    const hasVideoIdent = steps.some(
+      (s) => s.name === KycStepName.IDENT && s.type === KycStepType.VIDEO && s.isCompleted,
+    );
 
-      return map.set(key, (map.get(key) ?? []).concat(step));
-    }, new Map<string, KycStep[]>());
+    // group by step and get step with highest sequence number
+    const groupedSteps = steps
+      .filter((s) => !(hasVideoIdent && s.name === KycStepName.IDENT && s.type === KycStepType.AUTO))
+      .reduce((map, step) => {
+        const key = step.type
+          ? `${step.name}-${step.type}`
+          : Array.from(map.keys()).find((k) => k.includes(step.name)) ?? `${step.name}`;
+
+        return map.set(key, (map.get(key) ?? []).concat(step));
+      }, new Map<string, KycStep[]>());
     const visibleSteps = Array.from(groupedSteps.values()).map((steps) => Util.maxObj(steps, 'sequenceNumber'));
 
     return visibleSteps.sort((a, b) => {

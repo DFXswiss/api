@@ -19,9 +19,9 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { FindOptionsRelations, In, IsNull, Not } from 'typeorm';
-import { WebhookService } from '../../services/webhook/webhook.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { LinkService } from '../link/link.service';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
@@ -45,8 +45,8 @@ export class UserDataService {
     private readonly countryService: CountryService,
     private readonly languageService: LanguageService,
     private readonly fiatService: FiatService,
-    private readonly webhookService: WebhookService,
     private readonly settingService: SettingService,
+    private readonly kycNotificationService: KycNotificationService,
     @Inject(forwardRef(() => LinkService)) private readonly linkService: LinkService,
   ) {}
 
@@ -148,12 +148,23 @@ export class UserDataService {
       if (!userData.mainBankData) throw new BadRequestException('Bank data not found');
     }
 
+    if (dto.nationality || dto.identDocumentId) {
+      const existing = await this.userDataRepo.findOneBy({
+        nationality: { id: userData.nationality.id },
+        identDocumentId: dto.identDocumentId ?? userData.identDocumentId,
+      });
+      if (existing) throw new ConflictException('A user with the same nationality and identDocumentId already exists');
+    }
+
     if (dto.kycFileId) {
       const userWithSameFileId = await this.userDataRepo.findOneBy({ id: Not(userDataId), kycFileId: dto.kycFileId });
       if (userWithSameFileId) throw new ConflictException('A user with this KYC file ID already exists');
 
       await this.userDataRepo.save({ ...userData, ...{ kycFileId: dto.kycFileId } });
     }
+
+    if (dto.kycLevel && dto.kycLevel !== userData.kycLevel)
+      await this.kycNotificationService.kycChanged(userData, dto.kycLevel);
 
     // Columns are not updatable
     if (userData.letterSentDate) dto.letterSentDate = userData.letterSentDate;
@@ -336,6 +347,7 @@ export class UserDataService {
       }),
     ]);
     if (!master.isDfxUser) throw new BadRequestException(`Master ${master.id} not allowed to merge. Wrong KYC type`);
+    if (slave.amlListAddedDate) throw new BadRequestException('Slave is on AML list');
     if ([master.status, slave.status].includes(UserDataStatus.MERGED))
       throw new BadRequestException('Master or slave is already merged');
 
@@ -368,7 +380,7 @@ export class UserDataService {
     });
 
     // KYC change Webhook
-    await this.webhookService.kycChanged(master);
+    await this.kycNotificationService.kycChanged(master);
 
     // update volumes
     await this.updateVolumes(masterId);

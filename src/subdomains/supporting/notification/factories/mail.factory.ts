@@ -25,8 +25,6 @@ export enum MailTranslationKey {
   KYC = 'mail.kyc',
   KYC_SUCCESS = 'mail.kyc.success',
   KYC_FAILED = 'mail.kyc.failed',
-  KYC_IDENT = 'mail.kyc.ident',
-  KYC_CHATBOT = 'mail.kyc.chatbot',
   KYC_REMINDER = 'mail.kyc.reminder',
   LINK_ADDRESS = 'mail.link_address',
   LIMIT_REQUEST = 'mail.limit_request',

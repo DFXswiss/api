@@ -5,10 +5,9 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { KycStep, KycStepResult } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
-import { KycStepName, KycStepType, getKycStepIndex } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
@@ -86,6 +85,10 @@ export enum UserDataStatus {
 }
 
 @Entity()
+@Index((userData: UserData) => [userData.identDocumentId, userData.nationality], {
+  unique: true,
+  where: 'identDocumentId IS NOT NULL',
+})
 export class UserData extends IEntity {
   private readonly logger = new DfxLogger(UserData);
 
@@ -95,7 +98,7 @@ export class UserData extends IEntity {
   @Column({ length: 256, default: UserDataStatus.NA })
   status: UserDataStatus;
 
-  // KYC
+  // --- PERSONAL DATA --- //
   @Column({ length: 256, nullable: true })
   mail: string;
 
@@ -104,6 +107,9 @@ export class UserData extends IEntity {
 
   @Column({ length: 256, nullable: true })
   surname: string;
+
+  @Column({ length: 256, nullable: true })
+  verifiedName: string;
 
   @Column({ length: 256, nullable: true })
   street: string;
@@ -152,6 +158,8 @@ export class UserData extends IEntity {
 
   @ManyToOne(() => Fiat, { eager: true })
   currency: Fiat;
+
+  // --- KYC --- //
 
   @Column({ length: 256, nullable: true })
   riskState: RiskState;
@@ -217,6 +225,12 @@ export class UserData extends IEntity {
 
   @Column({ type: 'datetime2', nullable: true })
   lastNameCheckDate: Date;
+
+  @Column({ length: 256, nullable: true })
+  identDocumentId: string;
+
+  @Column({ length: 256, nullable: true })
+  identDocumentType: string;
 
   // AML
   @Column({ type: 'datetime2', nullable: true })
@@ -458,13 +472,6 @@ export class UserData extends IEntity {
 
   get hasStepsInProgress(): boolean {
     return this.kycSteps.some((s) => s.isInProgress);
-  }
-
-  getLastStep(): KycStep | undefined {
-    return Util.maxObj(
-      this.kycSteps.map((s) => ({ step: s, index: getKycStepIndex(s.name) * 100 + s.sequenceNumber })),
-      'index',
-    )?.step;
   }
 
   getNextSequenceNumber(stepName: KycStepName, stepType?: KycStepType): number {

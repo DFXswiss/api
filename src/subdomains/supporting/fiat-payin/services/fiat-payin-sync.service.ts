@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
 import { CheckoutPayment } from 'src/integration/checkout/dto/checkout.dto';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckoutTx } from '../entities/checkout-tx.entity';
@@ -25,7 +25,7 @@ export class FiatPayInSyncService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async syncCheckout() {
-    if (Config.processDisabled(Process.FIAT_PAY_IN)) return;
+    if (DisabledProcess(Process.FIAT_PAY_IN)) return;
 
     const payments = await this.checkoutService.getPayments(Util.minutesBefore(10));
 

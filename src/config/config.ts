@@ -7,38 +7,9 @@ import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 import { FeeTier } from 'src/shared/models/asset/asset.entity';
+import { Process } from 'src/shared/services/process.service';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
-
-export enum Process {
-  PAY_OUT = 'PayOut',
-  PAY_IN = 'PayIn',
-  FIAT_PAY_IN = 'FiatPayIn',
-  BUY_FIAT = 'BuyFiat',
-  BUY_CRYPTO = 'BuyCrypto',
-  LIMIT_REQUEST_MAIL = 'LimitRequestMail',
-  BLACK_SQUAD_MAIL = 'BlackSquadMail',
-  PAY_IN_MAIL = 'PayInMail',
-  BUY_CRYPTO_MAIL = 'BuyCryptoMail',
-  BUY_FIAT_MAIL = 'BuyFiatMail',
-  REF_REWARD_MAIL = 'RefRewardMail',
-  EXCHANGE_TX_SYNC = 'ExchangeTxSync',
-  LIQUIDITY_MANAGEMENT = 'LiquidityManagement',
-  MONITORING = 'Monitoring',
-  UPDATE_CFP = 'UpdateCfp',
-  UPDATE_STATISTIC = 'UpdateStatistic',
-  KYC = 'Kyc',
-  BANK_ACCOUNT = 'BankAccount',
-  BANK_TX = 'BankTx',
-  STAKING = 'Staking',
-  REF_PAYOUT = 'RefPayout',
-  PRICING = 'Pricing',
-  BUY_CRYPTO_AML_CHECK = 'BuyCryptoAmlCheck',
-  BUY_CRYPTO_SET_FEE = 'BuyCryptoSetFee',
-  BUY_FIAT_SET_FEE = 'BuyFiatSetFee',
-  LNURL_AUTH_CACHE = 'LnurlAuthCache',
-  TFA_CACHE = '2faCache',
-}
 
 export enum Environment {
   LOC = 'loc',
@@ -169,31 +140,7 @@ export class Configuration {
     transactionPrefix: process.env.KYC_TRANSACTION_PREFIX,
     identFailAfterDays: 90,
     allowedWebhookIps: process.env.KYC_WEBHOOK_IPS?.split(','),
-  };
-
-  kycSpider = {
-    mandator: process.env.KYC_MANDATOR,
-    user: process.env.KYC_USER,
-    password: process.env.KYC_PASSWORD,
-    prefix: process.env.KYC_PREFIX ?? '',
     reminderAfterDays: 2,
-    failAfterDays: 7,
-    chatbotStyle: {
-      headerColor: this.colors.white,
-      textColor: this.colors.white,
-      warningColor: this.colors.red,
-      backgroundColor: this.colors.darkBlue,
-      overlayBackgroundColor: this.colors.darkBlue,
-      buttonColor: this.colors.white,
-      buttonBackgroundColor: this.colors.red,
-      bubbleLeftColor: this.colors.white,
-      bubbleLeftBackgroundColor: this.colors.lightBlue,
-      bubbleRightColor: this.colors.white,
-      bubbleRightBackgroundColor: this.colors.lightBlue,
-      htmlHeaderInclude: '',
-      htmlBodyInclude: '',
-    },
-    allowedWebhookIps: process.env.KYC_WEBHOOK_IPS?.split(','),
   };
 
   support = {
@@ -306,8 +253,6 @@ export class Configuration {
       }),
     },
     ethereum: {
-      ethScanApiUrl: process.env.ETH_SCAN_API_URL,
-      ethScanApiKey: process.env.ETH_SCAN_API_KEY,
       ethWalletAddress: process.env.ETH_WALLET_ADDRESS,
       ethWalletPrivateKey: process.env.ETH_WALLET_PRIVATE_KEY,
       ethGatewayUrl: process.env.ETH_GATEWAY_URL,
@@ -324,8 +269,6 @@ export class Configuration {
       pancakeRouterAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
     },
     optimism: {
-      optimismScanApiUrl: process.env.OPTIMISM_SCAN_API_URL,
-      optimismScanApiKey: process.env.OPTIMISM_SCAN_API_KEY,
       optimismWalletAddress: process.env.OPTIMISM_WALLET_ADDRESS,
       optimismWalletPrivateKey: process.env.OPTIMISM_WALLET_PRIVATE_KEY,
       optimismGatewayUrl: process.env.OPTIMISM_GATEWAY_URL,
@@ -333,8 +276,6 @@ export class Configuration {
       optimismChainId: +process.env.OPTIMISM_CHAIN_ID,
     },
     arbitrum: {
-      arbitrumScanApiUrl: process.env.ARBITRUM_SCAN_API_URL,
-      arbitrumScanApiKey: process.env.ARBITRUM_SCAN_API_KEY,
       arbitrumWalletAddress: process.env.ARBITRUM_WALLET_ADDRESS,
       arbitrumWalletPrivateKey: process.env.ARBITRUM_WALLET_PRIVATE_KEY,
       arbitrumGatewayUrl: process.env.ARBITRUM_GATEWAY_URL,
@@ -512,6 +453,11 @@ export class Configuration {
     clientSecret: process.env.ALBY_CLIENT_SECRET,
   };
 
+  alchemy = {
+    apiKey: process.env.ALCHEMY_API_KEY,
+    authToken: process.env.ALCHEMY_AUTH_TOKEN,
+  };
+
   request = {
     knownIps: process.env.REQUEST_KNOWN_IPS?.split(',') ?? [],
     limitCheck: process.env.REQUEST_LIMIT_CHECK === 'true',
@@ -544,9 +490,10 @@ export class Configuration {
   }
 
   // --- HELPERS --- //
-
-  processDisabled = (processName: Process) =>
-    process.env.DISABLED_PROCESSES === '*' || (process.env.DISABLED_PROCESSES?.split(',') ?? []).includes(processName);
+  disabledProcesses = () =>
+    process.env.DISABLED_PROCESSES === '*'
+      ? Object.values(Process)
+      : ((process.env.DISABLED_PROCESSES?.split(',') ?? []) as Process[]);
 }
 
 function splitWithdrawKeys(value?: string): Map<string, string> {

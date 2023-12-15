@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { BigNumber as AlchemyBigNumber, OwnedToken } from 'alchemy-sdk';
 import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
 import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
@@ -48,8 +49,6 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
       throw new Error(`BlockchainAdapter supports only assets`);
     }
 
-    assets = await Util.asyncFilter(assets, (a) => this.hasSafeBalance(a));
-
     const blockchainAssets = Util.groupBy<Asset, Blockchain>(assets, 'blockchain');
 
     const balances = await Util.doGetFulfilled(
@@ -57,6 +56,10 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     );
 
     return balances.reduce((prev, curr) => prev.concat(curr), []);
+  }
+
+  async getNumberOfPendingOrders(asset: Asset): Promise<number> {
+    return this.dexService.getPendingOrdersCount(asset);
   }
 
   private async getForBlockchain(blockchain: Blockchain, assets: Asset[]): Promise<LiquidityBalance[]> {
@@ -102,10 +105,13 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
           break;
 
         case Blockchain.ETHEREUM:
-        case Blockchain.BINANCE_SMART_CHAIN:
         case Blockchain.OPTIMISM:
         case Blockchain.ARBITRUM:
           await this.getForEvm(assets);
+          break;
+
+        case Blockchain.BINANCE_SMART_CHAIN:
+          await this.getForBsc(assets);
           break;
 
         default:
@@ -177,6 +183,38 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     const blockchain = assets[0].blockchain;
     const client = this.evmRegistryService.getClient(blockchain);
 
+    let coinBalance: AlchemyBigNumber;
+    let tokenBalances: OwnedToken[];
+
+    try {
+      coinBalance = await client.getNativeCoinBalanceByAlchemy();
+      tokenBalances = await client.getTokenBalancesByAlchemy();
+    } catch (e) {
+      this.logger.error(`Failed to update liquidity management balance for all assets of blockchain ${blockchain}:`, e);
+      this.invalidateCacheFor(assets);
+      return;
+    }
+
+    const tokenToBalanceMap = new Map<string, number>(
+      tokenBalances.filter((t) => t.symbol).map((t) => [t.symbol.toUpperCase(), t.balance ? Number(t.balance) : 0]),
+    );
+
+    for (const asset of assets) {
+      const balance =
+        asset.type === AssetType.COIN
+          ? client.fromWeiAmount(coinBalance)
+          : tokenToBalanceMap.get(asset.dexName.toUpperCase()) ?? 0;
+
+      this.balanceCache.set(asset.id, balance);
+    }
+  }
+
+  private async getForBsc(assets: Asset[]): Promise<void> {
+    if (assets.length === 0) return;
+
+    const blockchain = assets[0].blockchain;
+    const client = this.evmRegistryService.getClient(blockchain);
+
     const tokenTransactions = await client.getERC20Transactions(client.dfxAddress, 0);
     const recentTransactions = tokenTransactions.filter(
       (tx) =>
@@ -207,15 +245,5 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
   // --- HELPER METHODS --- //
   private invalidateCacheFor(assets: Asset[]) {
     assets.forEach((a) => this.balanceCache.delete(a.id));
-  }
-
-  private async hasSafeBalance(asset: Asset): Promise<boolean> {
-    const ongoingOrders = await this.dexService.getPendingOrdersCount(asset);
-
-    if (ongoingOrders) {
-      this.logger.info(`Cannot safely get balance of ${asset.uniqueName} (${ongoingOrders} DEX order(s) ongoing)`);
-    }
-
-    return ongoingOrders === 0;
   }
 }

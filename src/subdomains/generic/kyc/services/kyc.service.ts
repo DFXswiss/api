@@ -1,10 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { LessThan } from 'typeorm';
 import { KycLevel, UserData } from '../../user/models/user-data/user-data.entity';
@@ -21,12 +22,13 @@ import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycSessionDto, KycStatusDto } from '../dto/output/kyc-info.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { KycStep } from '../entities/kyc-step.entity';
-import { KycLogType, KycStepName, KycStepStatus, KycStepType } from '../enums/kyc.enum';
+import { KycLogType, KycStepName, KycStepStatus, KycStepType, requiredKycSteps } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { StepLogRepository } from '../repositories/step-log.repository';
 import { DocumentStorageService } from './integration/document-storage.service';
 import { FinancialService } from './integration/financial.service';
 import { IdentService } from './integration/ident.service';
+import { KycNotificationService } from './kyc-notification.service';
 import { TfaService } from './tfa.service';
 
 @Injectable()
@@ -43,11 +45,12 @@ export class KycService {
     private readonly countryService: CountryService,
     private readonly stepLogRepo: StepLogRepository,
     private readonly tfaService: TfaService,
+    private readonly kycNotificationService: KycNotificationService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
   async checkIdentSteps(): Promise<void> {
-    if (Config.processDisabled(Process.KYC)) return;
+    if (DisabledProcess(Process.KYC)) return;
 
     const expiredIdentSteps = await this.kycStepRepo.find({
       where: {
@@ -159,7 +162,12 @@ export class KycService {
   }
 
   async updateIdent(dto: IdentResultDto): Promise<void> {
-    const { id: sessionId, transactionnumber: transactionId, result: sessionStatus } = dto.identificationprocess;
+    const {
+      id: sessionId,
+      transactionnumber: transactionId,
+      result: sessionStatus,
+      reason,
+    } = dto.identificationprocess;
 
     if (!sessionId || !transactionId || !sessionStatus) throw new BadRequestException(`Session data is missing`);
 
@@ -192,6 +200,7 @@ export class KycService {
       case IdentShortResult.FAIL:
         user = user.failStep(kycStep, dto);
         await this.downloadIdentDocuments(user, kycStep, 'fail/');
+        await this.kycNotificationService.identFailed(kycStep, reason);
         break;
 
       default:
@@ -267,7 +276,10 @@ export class KycService {
     if (!user.hasStepsInProgress) {
       const { nextStep, nextLevel } = await this.getNext(user);
 
-      if (nextLevel) user.setKycLevel(nextLevel);
+      if (nextLevel) {
+        user.setKycLevel(nextLevel);
+        await this.kycNotificationService.kycChanged(user, nextLevel);
+      }
 
       if (nextStep && shouldContinue && (autoStep || depth === 0)) {
         // continue with next step
@@ -286,41 +298,47 @@ export class KycService {
     nextStep: { name: KycStepName; type?: KycStepType; preventDirectEvaluation?: boolean } | undefined;
     nextLevel?: KycLevel;
   }> {
-    const lastStep = user.getLastStep();
-    if (lastStep?.isInProgress) throw new Error('Step still in progress');
+    const missingSteps = requiredKycSteps().filter(
+      (rs) => !user.getStepsWith(rs).some((us) => us.name === rs && us.isDone),
+    );
 
-    if (lastStep?.isFailed) {
-      // on failure
-      switch (lastStep.name) {
+    const nextStep = missingSteps[0];
+
+    const lastTry = nextStep && Util.maxObj(user.getStepsWith(nextStep), 'sequenceNumber');
+    if (lastTry) {
+      // retry
+      if (lastTry.isInProgress) throw new Error('Step still in progress');
+
+      switch (lastTry.name) {
         case KycStepName.CONTACT_DATA:
-          return { nextStep: { name: KycStepName.CONTACT_DATA, preventDirectEvaluation: true } };
+          return { nextStep: { name: lastTry.name, preventDirectEvaluation: true } };
 
         case KycStepName.IDENT:
-          return { nextStep: { name: KycStepName.IDENT, type: await this.userDataService.getIdentMethod(user) } };
+          return { nextStep: { name: lastTry.name, type: await this.userDataService.getIdentMethod(user) } };
 
         default:
           return { nextStep: undefined };
       }
     } else {
-      // on success
-      switch (lastStep?.name) {
-        case undefined:
-          return { nextStep: { name: KycStepName.CONTACT_DATA } };
-
+      // next
+      switch (nextStep) {
         case KycStepName.CONTACT_DATA:
-          return { nextStep: { name: KycStepName.PERSONAL_DATA }, nextLevel: KycLevel.LEVEL_10 };
+          return { nextStep: { name: nextStep } };
 
         case KycStepName.PERSONAL_DATA:
+          return { nextStep: { name: nextStep }, nextLevel: KycLevel.LEVEL_10 };
+
+        case KycStepName.IDENT:
           return {
             nextStep: {
-              name: KycStepName.IDENT,
+              name: nextStep,
               type: await this.userDataService.getIdentMethod(user),
             },
             nextLevel: KycLevel.LEVEL_20,
           };
 
-        case KycStepName.IDENT:
-          return { nextStep: { name: KycStepName.FINANCIAL_DATA } };
+        case KycStepName.FINANCIAL_DATA:
+          return { nextStep: { name: nextStep } };
 
         default:
           return { nextStep: undefined };

@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
@@ -34,7 +34,7 @@ export class LiquidityManagementPipelineService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async processPipelines() {
-    if (Config.processDisabled(Process.LIQUIDITY_MANAGEMENT)) return;
+    if (DisabledProcess(Process.LIQUIDITY_MANAGEMENT)) return;
     await this.startNewPipelines();
     await this.checkRunningPipelines();
   }
@@ -42,7 +42,7 @@ export class LiquidityManagementPipelineService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async processOrders() {
-    if (Config.processDisabled(Process.LIQUIDITY_MANAGEMENT)) return;
+    if (DisabledProcess(Process.LIQUIDITY_MANAGEMENT)) return;
     await this.startNewOrders();
     await this.checkRunningOrders();
   }

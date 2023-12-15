@@ -108,7 +108,6 @@ describe('BuyController', () => {
     jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(createDefaultCountry());
     jest.spyOn(userService, 'getUser').mockResolvedValue(
       createCustomUser({
-        buyFee: 0.01,
         wallet: createDefaultWallet(),
         userData: createDefaultUserData(),
       }),

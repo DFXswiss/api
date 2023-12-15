@@ -13,7 +13,7 @@ export class BinanceAdapter extends CcxtExchangeAdapter {
     BinanceSmartChain: 'BSC',
     Bitcoin: 'BTC',
     Lightning: undefined,
-    Monero: 'monero',
+    Monero: 'XMR',
     Cardano: undefined,
     DeFiChain: undefined,
     Ethereum: 'ETH',

@@ -1,7 +1,7 @@
 import { ConflictException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { generateSecret, verifyToken } from 'node-2fa';
-import { Config, Process } from 'src/config/config';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { KycLogType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
@@ -32,7 +32,7 @@ export class TfaService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock()
   processCleanupSecretCache() {
-    if (Config.processDisabled(Process.TFA_CACHE)) return;
+    if (DisabledProcess(Process.TFA_CACHE)) return;
 
     const before5MinTime = Util.minutesBefore(5).getTime();
 

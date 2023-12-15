@@ -1,9 +1,10 @@
 import { Config } from 'src/config/config';
-import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity, Index, ManyToOne } from 'typeorm';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
+import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycStepName, KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
 import { IdentService } from '../services/integration/ident.service';
+import { StepLog } from './step-log.entity';
 
 export type KycStepResult = string | object;
 
@@ -33,6 +34,13 @@ export class KycStep extends IEntity {
 
   @Column({ length: 'MAX', nullable: true })
   result?: string;
+
+  @OneToMany(() => StepLog, (l) => l.kycStep)
+  logs: StepLog;
+
+  // Mail
+  @Column({ type: 'datetime2', nullable: true })
+  reminderSentDate: Date;
 
   // --- GETTERS --- //
   get sessionInfo(): { url: string; type: UrlType } {
@@ -70,6 +78,18 @@ export class KycStep extends IEntity {
     });
   }
 
+  // --- MAIL --- //
+
+  reminderSent(): UpdateResult<KycStep> {
+    const update: Partial<KycStep> = {
+      reminderSentDate: new Date(),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   // --- KYC PROCESS --- //
 
   get isInProgress(): boolean {
@@ -88,8 +108,13 @@ export class KycStep extends IEntity {
     return this.status === KycStepStatus.FAILED;
   }
 
+  get isDone(): boolean {
+    return this.isInReview || this.isCompleted;
+  }
+
   update(status: KycStepStatus, result?: KycStepResult): this {
     this.status = status;
+
     return this.setResult(result);
   }
 
@@ -105,8 +130,9 @@ export class KycStep extends IEntity {
     return this.setResult(result);
   }
 
-  cancel(result?: KycStepResult) {
+  cancel(result?: KycStepResult): this {
     this.status = KycStepStatus.IN_PROGRESS;
+    this.reminderSentDate = null;
 
     return this.setResult(result);
   }

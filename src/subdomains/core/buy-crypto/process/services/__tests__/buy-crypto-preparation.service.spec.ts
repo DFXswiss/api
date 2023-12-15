@@ -12,6 +12,7 @@ import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../../entities/__
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
 import { BuyCryptoPreparationService } from '../buy-crypto-preparation.service';
 import { BuyCryptoWebhookService } from '../buy-crypto-webhook.service';
+import { BuyCryptoService } from '../buy-crypto.service';
 
 describe('BuyCryptoPreparationService', () => {
   let service: BuyCryptoPreparationService;
@@ -26,6 +27,7 @@ describe('BuyCryptoPreparationService', () => {
   let bankDataService: BankDataService;
   let buyCryptoWebhookService: BuyCryptoWebhookService;
   let feeService: FeeService;
+  let buyCryptoService: BuyCryptoService;
 
   /*** Spies ***/
 
@@ -72,6 +74,7 @@ describe('BuyCryptoPreparationService', () => {
     bankDataService = mock<BankDataService>();
     buyCryptoWebhookService = mock<BuyCryptoWebhookService>();
     feeService = mock<FeeService>();
+    buyCryptoService = mock<BuyCryptoService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -84,6 +87,7 @@ describe('BuyCryptoPreparationService', () => {
         { provide: BankDataService, useValue: bankDataService },
         { provide: BuyCryptoWebhookService, useValue: buyCryptoWebhookService },
         { provide: FeeService, useValue: feeService },
+        { provide: BuyCryptoService, useValue: buyCryptoService },
         TestUtil.provideConfig(),
       ],
     }).compile();
