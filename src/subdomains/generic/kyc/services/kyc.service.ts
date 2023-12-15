@@ -23,7 +23,7 @@ import { KycSessionDto, KycStatusDto } from '../dto/output/kyc-info.dto';
 import { MergedDto } from '../dto/output/kyc-merged.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { KycStep } from '../entities/kyc-step.entity';
-import { KycLogType, KycStepName, KycStepStatus, KycStepType } from '../enums/kyc.enum';
+import { KycLogType, KycStepName, KycStepStatus, KycStepType, requiredKycSteps } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { StepLogRepository } from '../repositories/step-log.repository';
 import { DocumentStorageService } from './integration/document-storage.service';
@@ -289,41 +289,47 @@ export class KycService {
     nextStep: { name: KycStepName; type?: KycStepType; preventDirectEvaluation?: boolean } | undefined;
     nextLevel?: KycLevel;
   }> {
-    const lastStep = user.getLastStep();
-    if (lastStep?.isInProgress) throw new Error('Step still in progress');
+    const missingSteps = requiredKycSteps().filter(
+      (rs) => !user.getStepsWith(rs).some((us) => us.name === rs && us.isDone),
+    );
 
-    if (lastStep?.isFailed) {
-      // on failure
-      switch (lastStep.name) {
+    const nextStep = missingSteps[0];
+
+    const lastTry = nextStep && Util.maxObj(user.getStepsWith(nextStep), 'sequenceNumber');
+    if (lastTry) {
+      // retry
+      if (lastTry.isInProgress) throw new Error('Step still in progress');
+
+      switch (lastTry.name) {
         case KycStepName.CONTACT_DATA:
-          return { nextStep: { name: KycStepName.CONTACT_DATA, preventDirectEvaluation: true } };
+          return { nextStep: { name: lastTry.name, preventDirectEvaluation: true } };
 
         case KycStepName.IDENT:
-          return { nextStep: { name: KycStepName.IDENT, type: await this.userDataService.getIdentMethod(user) } };
+          return { nextStep: { name: lastTry.name, type: await this.userDataService.getIdentMethod(user) } };
 
         default:
           return { nextStep: undefined };
       }
     } else {
-      // on success
-      switch (lastStep?.name) {
-        case undefined:
-          return { nextStep: { name: KycStepName.CONTACT_DATA } };
-
+      // next
+      switch (nextStep) {
         case KycStepName.CONTACT_DATA:
-          return { nextStep: { name: KycStepName.PERSONAL_DATA }, nextLevel: KycLevel.LEVEL_10 };
+          return { nextStep: { name: nextStep } };
 
         case KycStepName.PERSONAL_DATA:
+          return { nextStep: { name: nextStep }, nextLevel: KycLevel.LEVEL_10 };
+
+        case KycStepName.IDENT:
           return {
             nextStep: {
-              name: KycStepName.IDENT,
+              name: nextStep,
               type: await this.userDataService.getIdentMethod(user),
             },
             nextLevel: KycLevel.LEVEL_20,
           };
 
-        case KycStepName.IDENT:
-          return { nextStep: { name: KycStepName.FINANCIAL_DATA } };
+        case KycStepName.FINANCIAL_DATA:
+          return { nextStep: { name: nextStep } };
 
         default:
           return { nextStep: undefined };

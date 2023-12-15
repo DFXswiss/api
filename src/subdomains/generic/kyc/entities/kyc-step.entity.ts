@@ -108,6 +108,10 @@ export class KycStep extends IEntity {
     return this.status === KycStepStatus.FAILED;
   }
 
+  get isDone(): boolean {
+    return this.isInReview || this.isCompleted;
+  }
+
   update(status: KycStepStatus, result?: KycStepResult): this {
     this.status = status;
 

@@ -10,6 +10,10 @@ export function getKycStepIndex(stepName: KycStepName): number {
   return Object.values(KycStepName).indexOf(stepName);
 }
 
+export function requiredKycSteps(): KycStepName[] {
+  return [KycStepName.CONTACT_DATA, KycStepName.PERSONAL_DATA, KycStepName.IDENT, KycStepName.FINANCIAL_DATA];
+}
+
 export enum KycStepType {
   // ident
   AUTO = 'Auto',
