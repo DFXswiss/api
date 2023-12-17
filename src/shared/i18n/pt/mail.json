@@ -129,6 +129,11 @@
         "dfx_ambassador": "You are a true DFX Ambassador - thanks for spreading the word of DFX!"
     },
     "kyc": {
+        "start": {
+            "title": "Start verification",
+            "salutation": "Start your verification",
+            "message": "To start or continue the verification process, use the following URL [url:hier]."
+        },
         "success": {
             "title": "Verification successful",
             "salutation": "Verification successful",

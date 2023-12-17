@@ -129,6 +129,11 @@
         "dfx_ambassador": "Eres un auténtico embajador de DFX - Gracias por compartir DFX!"
     },
     "kyc": {
+        "start": {
+            "title": "Iniciar verificación",
+            "salutation": "Iniciar la verificación",
+            "message": "Para iniciar o continuar el proceso de verificación, utilice la siguiente URL [url:aquí]."
+        },
         "success": {
             "title": "Verificación exitosa",
             "salutation": "Verificación exitosa",
