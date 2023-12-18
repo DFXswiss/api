@@ -148,6 +148,7 @@ export class UserDataService {
     // Columns are not updatable
     if (userData.letterSentDate) dto.letterSentDate = userData.letterSentDate;
     if (userData.identificationType) dto.identificationType = userData.identificationType;
+    if (userData.verifiedName) dto.verifiedName = userData.verifiedName;
 
     return this.userDataRepo.save({ ...userData, ...dto });
   }
