@@ -9,6 +9,11 @@
         "personal_questions": "Please do not hesitate to contact me if you have any questions.",
         "personal_closing": "Kind regards,<br>{closingName}"
     },
+    "login": {
+        "title": "DFX Login",
+        "salutation": "DFX Login",
+        "message": "Click on the following link to log in to DFX [url:hier]."
+    },
     "payment": {
         "buy_fiat": {
             "initiated": {
@@ -129,11 +134,6 @@
         "dfx_ambassador": "You are a true DFX Ambassador - thanks for spreading the word of DFX!"
     },
     "kyc": {
-        "start": {
-            "title": "Start verification",
-            "salutation": "Start your verification",
-            "message": "To start or continue the verification process, use the following URL [url:hier]."
-        },
         "success": {
             "title": "Verification successful",
             "salutation": "Verification successful",

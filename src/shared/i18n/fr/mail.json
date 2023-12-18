@@ -9,6 +9,11 @@
         "personal_questions": "Please do not hesitate to contact me if you have any questions.",
         "personal_closing": "Kind regards,<br>{closingName}"
     },
+    "login": {
+        "title": "Connexion DFX",
+        "salutation": "Connexion DFX",
+        "message": "Clique sur le lien ci-dessous pour te connecter à l'IAD [url:ici]."
+    },
     "payment": {
         "buy_fiat": {
             "initiated": {
@@ -129,11 +134,6 @@
         "dfx_ambassador": "Vous êtes un véritable ambassadeur. Merci de passer le mot à propos de DFX !"
     },
     "kyc": {
-        "start": {
-            "title": "Début de la vérification",
-            "salutation": "Commencez votre vérification",
-            "message": "Pour lancer ou poursuivre la procédure de vérification, utilisez l'URL suivante [url:ici]."
-        },
         "success": {
             "title": "Vérification réussie",
             "salutation": "Vérification réussie",

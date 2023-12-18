@@ -121,12 +121,12 @@ export class AuthService {
         type: MailType.USER,
         input: {
           userData: userData,
-          title: `${MailTranslationKey.KYC_START}.title`,
-          salutation: { key: `${MailTranslationKey.KYC_START}.salutation` },
+          title: `${MailTranslationKey.LOGIN}.title`,
+          salutation: { key: `${MailTranslationKey.LOGIN}.salutation` },
           suffix: [
             { key: MailKey.SPACE, params: { value: '1' } },
             {
-              key: `${MailTranslationKey.KYC_START}.message`,
+              key: `${MailTranslationKey.LOGIN}.message`,
               params: { url: `${Config.frontend.services}/kyc?code=${userData.kycHash}` },
             },
             { key: MailKey.SPACE, params: { value: '2' } },
