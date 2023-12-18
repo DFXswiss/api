@@ -114,8 +114,8 @@ export class AuthService {
     return { accessToken: this.generateUserToken(user, ip) };
   }
 
-  async sendAuthKycMail(dto: AuthMailDto): Promise<void> {
-    const userData = await this.userDataService.getUserDataByKey('mail', dto.mail);
+  async signInByMail(dto: AuthMailDto): Promise<void> {
+    const userData = await this.userDataService.getUsersByMail(dto.mail).then((list) => list[0]);
     if (userData)
       await this.notificationService.sendMail({
         type: MailType.USER,

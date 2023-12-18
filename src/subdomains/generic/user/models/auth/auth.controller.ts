@@ -37,9 +37,9 @@ export class AuthController {
 
   @Post('mail')
   @UseGuards(IpCountryGuard)
-  @ApiCreatedResponse({ type: AuthResponseDto })
-  authKycMail(@Body() dto: AuthMailDto): Promise<void> {
-    return this.authService.sendAuthKycMail(dto);
+  @ApiCreatedResponse()
+  signInByMail(@Body() dto: AuthMailDto): Promise<void> {
+    return this.authService.signInByMail(dto);
   }
 
   @Get('signMessage')
