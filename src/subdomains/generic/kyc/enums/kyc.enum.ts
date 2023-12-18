@@ -26,7 +26,7 @@ export enum KycStepType {
 export enum KycLogType {
   KYC_STEP = 'KycStep',
   NAME_CHECK = 'NameCheck',
-  TOTP_AUTH = 'TotpAuth',
+  TFA = '2FA',
 }
 
 export function getKycTypeIndex(stepType?: KycStepType): number {

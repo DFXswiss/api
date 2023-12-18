@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Headers,
@@ -13,7 +14,14 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiConflictResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiConflictResponse,
+  ApiCreatedResponse,
+  ApiExcludeEndpoint,
+  ApiOkResponse,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { Response } from 'express';
 import { RealIP } from 'nestjs-real-ip';
 import { Config, GetConfig } from 'src/config/config';
@@ -25,11 +33,14 @@ import { IdentResultDto } from '../dto/input/ident-result.dto';
 import { KycContactData } from '../dto/input/kyc-contact-data.dto';
 import { KycFinancialInData } from '../dto/input/kyc-financial-in.dto';
 import { KycPersonalData } from '../dto/input/kyc-personal-data.dto';
+import { Verify2faDto } from '../dto/input/verify-2fa.dto';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycSessionDto, KycStatusDto } from '../dto/output/kyc-info.dto';
 import { MergedDto } from '../dto/output/kyc-merged.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
+import { Setup2faDto } from '../dto/output/setup-2fa.dto';
 import { KycService } from '../services/kyc.service';
+import { TfaService } from '../services/tfa.service';
 
 const CodeHeaderName = 'x-kyc-code';
 const MergedResponse = {
@@ -42,7 +53,7 @@ const MergedResponse = {
 export class KycController {
   private readonly logger = new DfxLogger(KycController);
 
-  constructor(private readonly kycService: KycService) {}
+  constructor(private readonly kycService: KycService, private readonly tfaService: TfaService) {}
 
   @Get()
   @ApiOkResponse({ type: KycStatusDto })
@@ -56,9 +67,10 @@ export class KycController {
   @ApiConflictResponse(MergedResponse)
   async continueKyc(
     @Headers(CodeHeaderName) code: string,
+    @RealIP() ip: string,
     @Query('autoStep') autoStep?: string,
   ): Promise<KycSessionDto> {
-    return this.kycService.continue(code, autoStep !== 'false');
+    return this.kycService.continue(code, ip, autoStep !== 'false');
   }
 
   @Get('countries')
@@ -106,10 +118,11 @@ export class KycController {
   @ApiConflictResponse(MergedResponse)
   async getFinancialData(
     @Headers(CodeHeaderName) code: string,
+    @RealIP() ip: string,
     @Param('id') id: string,
     @Query('lang') lang: string,
   ): Promise<KycFinancialOutData> {
-    return this.kycService.getFinancialData(code, +id, lang);
+    return this.kycService.getFinancialData(code, ip, +id, lang);
   }
 
   @Put('data/financial/:id')
@@ -117,10 +130,11 @@ export class KycController {
   @ApiConflictResponse(MergedResponse)
   async updateFinancialData(
     @Headers(CodeHeaderName) code: string,
+    @RealIP() ip: string,
     @Param('id') id: string,
     @Body() data: KycFinancialInData,
   ): Promise<KycResultDto> {
-    return this.kycService.updateFinancialData(code, +id, data);
+    return this.kycService.updateFinancialData(code, ip, +id, data);
   }
 
   @Post('ident/:type')
@@ -152,6 +166,33 @@ export class KycController {
     @UploadedFile() file: Express.Multer.File,
   ): Promise<KycResultDto> {
     return this.kycService.uploadDocument(code, +id, file);
+  }
+
+  // --- 2FA --- //
+  @Post('2fa')
+  @ApiCreatedResponse({ type: Setup2faDto })
+  @ApiConflictResponse(MergedResponse)
+  async createSecret(@Headers(CodeHeaderName) code: string): Promise<Setup2faDto> {
+    return this.tfaService.setup(code);
+  }
+
+  @Delete('2fa')
+  @ApiOkResponse()
+  @ApiConflictResponse(MergedResponse)
+  async deleteSecret(@Headers(CodeHeaderName) code: string, @RealIP() ip: string): Promise<void> {
+    return this.tfaService.delete(code, ip);
+  }
+
+  @Post('2fa/verify')
+  @ApiCreatedResponse({ description: '2FA successful' })
+  @ApiConflictResponse(MergedResponse)
+  @ApiUnauthorizedResponse({ description: 'Invalid or expired 2FA token' })
+  async verifyToken(
+    @Headers(CodeHeaderName) code: string,
+    @RealIP() ip: string,
+    @Body() dto: Verify2faDto,
+  ): Promise<void> {
+    return this.tfaService.verify(code, dto.token, ip);
   }
 
   // --- HELPER METHODS --- //

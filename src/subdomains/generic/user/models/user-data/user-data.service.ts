@@ -17,6 +17,7 @@ import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
+import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
@@ -65,11 +66,31 @@ export class UserDataService {
     return this.userDataRepo.findOne({ where: { id: userDataId }, relations });
   }
 
-  async getUserDataByKycHash(
-    kycHash: string,
-    relations?: FindOptionsRelations<UserData>,
-  ): Promise<UserData | undefined> {
-    return this.userDataRepo.findOne({ where: { kycHash }, relations });
+  async getByKycHashOrThrow(kycHash: string, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
+    let user = await this.userDataRepo.findOne({ where: { kycHash }, relations });
+    if (!user) throw new NotFoundException('User not found');
+
+    if (user.status === UserDataStatus.MERGED) {
+      user = await this.getMasterUser(user);
+      if (user) {
+        const payload: MergedDto = {
+          error: 'Conflict',
+          message: 'User is merged',
+          statusCode: 409,
+          switchToCode: user.kycHash,
+        };
+        throw new ConflictException(payload);
+      } else {
+        throw new BadRequestException('User is merged');
+      }
+    }
+
+    return user;
+  }
+
+  private async getMasterUser(user: UserData): Promise<UserData | undefined> {
+    const masterUserId = +user.firstname.replace(MergedPrefix, '');
+    if (!isNaN(masterUserId)) return this.getUserData(masterUserId);
   }
 
   async getUsersByMail(mail: string): Promise<UserData[]> {
@@ -175,6 +196,10 @@ export class UserDataService {
     }
 
     return this.userDataRepo.save(Object.assign(user, data));
+  }
+
+  async updateTotpSecret(user: UserData, secret: string): Promise<void> {
+    await this.userDataRepo.update(user.id, { totpSecret: secret });
   }
 
   async updateUserSettings(

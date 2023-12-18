@@ -11,11 +11,9 @@ import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
 import { KycModule } from '../kyc/kyc.module';
-import { TotpAuthLogRepository } from '../kyc/repositories/totp-auth-log.repository';
 import { AuthAlbyService } from './models/auth/auth-alby.service';
 import { AuthLnurlController } from './models/auth/auth-lnurl.controller';
 import { AuthLnUrlService } from './models/auth/auth-lnurl.service';
-import { AuthTotpService } from './models/auth/auth-totp.service';
 import { AuthController } from './models/auth/auth.controller';
 import { AuthService } from './models/auth/auth.service';
 import { BankDataController } from './models/bank-data/bank-data.controller';
@@ -74,7 +72,6 @@ import { WebhookService } from './services/webhook/webhook.service';
   providers: [
     UserRepository,
     UserDataRepository,
-    TotpAuthLogRepository,
     SpiderDataRepository,
     WalletRepository,
     BankDataRepository,
@@ -88,7 +85,6 @@ import { WebhookService } from './services/webhook/webhook.service';
     AuthService,
     AuthAlbyService,
     AuthLnUrlService,
-    AuthTotpService,
     LimitRequestService,
     LinkService,
     WebhookService,

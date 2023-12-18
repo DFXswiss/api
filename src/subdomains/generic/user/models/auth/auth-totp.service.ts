@@ -5,7 +5,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { KycLogType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
-import { TotpAuthLogRepository } from 'src/subdomains/generic/kyc/repositories/totp-auth-log.repository';
+import { TfaLogRepository } from 'src/subdomains/generic/kyc/repositories/tfa-log.repository';
 import { UserData } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
 
@@ -23,15 +23,12 @@ export interface SecretCacheDto {
 export class AuthTotpService {
   private secretCache: Map<string, SecretCacheDto> = new Map();
 
-  constructor(
-    private readonly totpAuthLogRepository: TotpAuthLogRepository,
-    private readonly userDataRepository: UserDataRepository,
-  ) {}
+  constructor(private readonly tfaLogRepo: TfaLogRepository, private readonly userDataRepository: UserDataRepository) {}
 
   @Cron(CronExpression.EVERY_5_MINUTES)
   @Lock()
   processCleanupSecretCache() {
-    if (DisabledProcess(Process.TOTP_AUTH_CACHE)) return;
+    if (DisabledProcess(Process.TFA_CACHE)) return;
 
     const before5MinTime = Util.minutesBefore(5).getTime();
 
@@ -128,13 +125,13 @@ export class AuthTotpService {
 
   // --- HELPER METHODS --- //
   private async createTotpAuthLog(kycHash: string, ip: string, message: string) {
-    const logEntity = this.totpAuthLogRepository.create({
-      type: KycLogType.TOTP_AUTH,
+    const logEntity = this.tfaLogRepo.create({
+      type: KycLogType.TFA,
       ipAddress: ip,
       userData: await this.getUserData(kycHash),
       comment: message,
     });
 
-    await this.totpAuthLogRepository.save(logEntity);
+    await this.tfaLogRepo.save(logEntity);
   }
 }

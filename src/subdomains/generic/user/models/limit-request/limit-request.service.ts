@@ -29,7 +29,7 @@ export class LimitRequestService {
     // get user data
     const user = userId
       ? await this.userDataService.getUserDataByUser(userId)
-      : await this.userDataService.getUserDataByKycHash(kycHash);
+      : await this.userDataService.getByKycHashOrThrow(kycHash);
     if (!KycCompleted(user?.kycStatus)) throw new BadRequestException('KYC not yet completed');
 
     // create entity
