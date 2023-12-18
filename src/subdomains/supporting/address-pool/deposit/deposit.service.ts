@@ -88,7 +88,7 @@ export class DepositService {
   }
 
   private async createEvmDeposits(blockchain: Blockchain, count: number) {
-    const addresses: string[] = [];
+    const addresses: string[] = await this.getDepositsByBlockchain(blockchain).then((d) => d.map((d) => d.address));
 
     const nextDepositIndex = await this.getNextDepositIndex(this.cryptoService.EthereumBasedChains);
 
@@ -101,9 +101,6 @@ export class DepositService {
 
       addresses.push(deposit.address);
     }
-
-    const existingAddresses = await this.getDepositsByBlockchain(blockchain).then((d) => d.map((d) => d.address));
-    addresses.push(...existingAddresses);
 
     await this.alchemyWebhookService.createAddressWebhook({ blockchain: blockchain, addresses: addresses });
   }
