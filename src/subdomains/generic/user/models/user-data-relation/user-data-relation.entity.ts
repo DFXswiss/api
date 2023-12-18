@@ -12,9 +12,9 @@ export class UserDataRelation extends IEntity {
   signatory: SignatoryState;
 
   // --- REFERENCES --- //
-  @ManyToOne(() => UserData, (user) => user.accounts, { nullable: false })
+  @ManyToOne(() => UserData, { nullable: false })
   account: UserData;
 
-  @ManyToOne(() => UserData, (user) => user.relatedAccounts, { nullable: false })
+  @ManyToOne(() => UserData, { nullable: false })
   relatedAccount: UserData;
 }
