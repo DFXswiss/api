@@ -50,7 +50,7 @@ export class AlchemyWebhookService {
       allWebhooks.webhooks.filter((wh) => wh.network === network).map((wh) => this.alchemy.notify.deleteWebhook(wh.id)),
     );
 
-    const url = `${Config.url}/alchemy/addressWebhook`;
+    const url = `${Config.url()}/alchemy/addressWebhook`;
 
     return (
       await Util.doInBatches(
