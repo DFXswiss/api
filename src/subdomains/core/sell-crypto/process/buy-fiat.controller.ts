@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -24,8 +24,8 @@ export class BuyFiatController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateVolumes(): Promise<void> {
-    return this.buyFiatService.updateVolumes();
+  async updateVolumes(@Query('start') start?: string, @Query('end') end?: string): Promise<void> {
+    return this.buyFiatService.updateVolumes(start ? +start : undefined, end ? +end : undefined);
   }
 
   @Put('refVolumes')

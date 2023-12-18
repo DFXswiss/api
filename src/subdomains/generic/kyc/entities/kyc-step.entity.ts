@@ -1,9 +1,10 @@
 import { Config } from 'src/config/config';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
-import { Column, Entity, Index, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycStepName, KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
 import { IdentService } from '../services/integration/ident.service';
+import { StepLog } from './step-log.entity';
 
 export type KycStepResult = string | object;
 
@@ -33,6 +34,9 @@ export class KycStep extends IEntity {
 
   @Column({ length: 'MAX', nullable: true })
   result?: string;
+
+  @OneToMany(() => StepLog, (l) => l.kycStep)
+  logs: StepLog;
 
   // Mail
   @Column({ type: 'datetime2', nullable: true })
@@ -102,6 +106,10 @@ export class KycStep extends IEntity {
 
   get isFailed(): boolean {
     return this.status === KycStepStatus.FAILED;
+  }
+
+  get isDone(): boolean {
+    return this.isInReview || this.isCompleted;
   }
 
   update(status: KycStepStatus, result?: KycStepResult): this {

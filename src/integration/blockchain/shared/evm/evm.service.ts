@@ -8,8 +8,6 @@ export abstract class EvmService {
 
   constructor(
     http: HttpService,
-    scanApiUrl: string,
-    scanApiKey: string,
     gatewayUrl: string,
     apiKey: string,
     walletPrivateKey: string,
@@ -17,15 +15,17 @@ export abstract class EvmService {
     client: {
       new (
         http: HttpService,
-        scanApiUrl: string,
-        scanApiKey: string,
         gatewayUrl: string,
         privateKey: string,
         chainId: ChainId,
+        scanApiUrl?: string,
+        scanApiKey?: string,
       ): EvmClient;
     },
+    scanApiUrl?: string,
+    scanApiKey?: string,
   ) {
-    this.client = new client(http, scanApiUrl, scanApiKey, `${gatewayUrl}/${apiKey ?? ''}`, walletPrivateKey, chainId);
+    this.client = new client(http, `${gatewayUrl}/${apiKey ?? ''}`, walletPrivateKey, chainId, scanApiUrl, scanApiKey);
   }
 
   getDefaultClient<T extends EvmClient>(): T {

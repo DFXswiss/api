@@ -2,7 +2,14 @@ import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.m
 import { Util } from 'src/shared/utils/util';
 import { UserData } from '../../../user/models/user-data/user-data.entity';
 import { KycStep } from '../../entities/kyc-step.entity';
-import { KycStepName, KycStepStatus, KycStepType, getKycStepIndex, getKycTypeIndex } from '../../enums/kyc.enum';
+import {
+  KycStepName,
+  KycStepStatus,
+  KycStepType,
+  getKycStepIndex,
+  getKycTypeIndex,
+  requiredKycSteps,
+} from '../../enums/kyc.enum';
 import { KycSessionDto, KycStatusDto } from '../output/kyc-info.dto';
 import { KycStepMapper } from './kyc-step.mapper';
 
@@ -19,7 +26,7 @@ export class KycInfoMapper {
     const dto: KycStatusDto | KycSessionDto = {
       kycLevel: userData.kycLevel,
       tradingLimit: userData.tradingLimit,
-      twoFactorEnabled: false, // TODO
+      twoFactorEnabled: userData.totpSecret != null,
       language: LanguageDtoMapper.entityToDto(userData.language),
       kycSteps: kycSteps.map((s) => KycStepMapper.toStep(s, currentStep)),
       currentStep: withSession && currentStep ? KycStepMapper.toStepSession(currentStep) : undefined,
@@ -31,7 +38,7 @@ export class KycInfoMapper {
   // --- HELPER METHODS --- //
   private static getUiSteps(userData: UserData): KycStep[] {
     // add open steps
-    const openSteps: KycStep[] = KycInfoMapper.getDefaultSteps().map((s) =>
+    const openSteps: KycStep[] = requiredKycSteps().map((s) =>
       Object.assign(new KycStep(), {
         name: s,
         status: KycStepStatus.NOT_STARTED,
@@ -40,10 +47,6 @@ export class KycInfoMapper {
     );
 
     return KycInfoMapper.sortSteps(userData.kycSteps.concat(openSteps));
-  }
-
-  private static getDefaultSteps(): KycStepName[] {
-    return [KycStepName.CONTACT_DATA, KycStepName.PERSONAL_DATA, KycStepName.IDENT, KycStepName.FINANCIAL_DATA];
   }
 
   private static sortSteps(steps: KycStep[]): KycStep[] {

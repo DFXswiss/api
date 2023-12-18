@@ -5,7 +5,7 @@ import { KycStep } from './kyc-step.entity';
 
 @ChildEntity()
 export class StepLog extends KycLog {
-  @ManyToOne(() => KycStep)
+  @ManyToOne(() => KycStep, (s) => s.logs, { onDelete: 'CASCADE' })
   kycStep: KycStep;
 
   @Column()

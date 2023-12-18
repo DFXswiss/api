@@ -1,19 +1,18 @@
-import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-mapper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInOptimismService } from '../../../services/payin-optimism.service';
 import { EvmStrategy } from './base/evm.strategy';
 
 @Injectable()
-export class OptimismStrategy extends EvmStrategy {
+export class OptimismStrategy extends EvmStrategy implements OnModuleInit {
   protected readonly logger = new DfxLogger(OptimismStrategy);
 
   constructor(
@@ -23,6 +22,16 @@ export class OptimismStrategy extends EvmStrategy {
     repos: RepositoryFactory,
   ) {
     super('ETH', optimismService, payInRepository, assetService, repos);
+  }
+
+  onModuleInit() {
+    super.onModuleInit();
+
+    this.addressWebhookMessageQueue = new QueueHandler();
+
+    this.alchemyWebhookService
+      .getAddressWebhookObservable(AlchemyNetworkMapper.toAlchemyNetworkByBlockchain(this.blockchain))
+      .subscribe((dto) => this.processAddressWebhookMessageQueue(dto));
   }
 
   get blockchain(): Blockchain {
@@ -63,14 +72,5 @@ export class OptimismStrategy extends EvmStrategy {
    */
   protected getOwnAddresses(): string[] {
     return [Config.blockchain.optimism.optimismWalletAddress];
-  }
-
-  //*** JOBS ***//
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(7200)
-  async checkPayInEntries(): Promise<void> {
-    if (DisabledProcess(Process.PAY_IN)) return;
-
-    await this.processNewPayInEntries();
   }
 }

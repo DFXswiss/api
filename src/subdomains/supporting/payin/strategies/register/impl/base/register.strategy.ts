@@ -43,7 +43,6 @@ export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy 
 
   abstract get blockchain(): Blockchain;
 
-  abstract checkPayInEntries(): Promise<void>;
   abstract addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void>;
   abstract doAmlCheck(payIn: CryptoInput, route: Staking | Sell | CryptoRoute): Promise<CheckStatus> | CheckStatus;
 

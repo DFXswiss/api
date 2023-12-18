@@ -9,6 +9,11 @@
         "personal_questions": "Bei Fragen zögere bitte nicht, mich anzusprechen.",
         "personal_closing": "Freundliche Grüsse,<br>{closingName}"
     },
+    "login": {
+        "title": "DFX Login",
+        "salutation": "DFX Login",
+        "message": "Klicke den nachfolgenden Link um dich bei DFX einzuloggen [url:hier]."
+    },
     "payment": {
         "buy_fiat": {
             "initiated": {

@@ -110,12 +110,6 @@
     "ethChainId": {
       "value": "5"
     },
-    "ethScanApiUrl": {
-      "value": "https://api-goerli.etherscan.io/api"
-    },
-    "ethScanApiKey": {
-      "value": "xxx"
-    },
     "optimismWalletAddress": {
       "value": "xxx"
     },
@@ -131,12 +125,6 @@
     "optimismChainId": {
       "value": "420"
     },
-    "optimismScanApiUrl": {
-      "value": "https://api-goerli-optimistic.etherscan.io/api"
-    },
-    "optimismScanApiKey": {
-      "value": "xxx"
-    },
     "arbitrumWalletAddress": {
       "value": "xxx"
     },
@@ -151,12 +139,6 @@
     },
     "arbitrumChainId": {
       "value": "421613"
-    },
-    "arbitrumScanApiUrl": {
-      "value": "https://api-goerli.arbiscan.io/api"
-    },
-    "arbitrumScanApiKey": {
-      "value": "xxx"
     },
     "bscWalletAddress": {
       "value": "xxx"
@@ -360,6 +342,12 @@
       "value": "/home/Data/Dilisense/consolidated.json"
     },
     "delisenseKey": {
+      "value": "xxx"
+    },
+    "alchemyApiKey": {
+      "value": "xxx"
+    },
+    "alchemyAuthToken": {
       "value": "xxx"
     }
   }
