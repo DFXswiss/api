@@ -14,7 +14,6 @@ import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.e
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
 import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { SpiderData } from '../spider-data/spider-data.entity';
-import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
 import { TradingLimit } from '../user/dto/user.dto';
 import { AccountType } from './account-type.enum';
 
@@ -277,12 +276,6 @@ export class UserData extends IEntity {
   totpSecret: string;
 
   // References
-  @OneToMany(() => UserDataRelation, (userDataRelation) => userDataRelation.account)
-  accounts: UserDataRelation[];
-
-  @OneToMany(() => UserDataRelation, (userDataRelation) => userDataRelation.relatedAccount)
-  relatedAccounts: UserDataRelation[];
-
   @OneToMany(() => BankAccount, (bankAccount) => bankAccount.userData)
   bankAccounts: BankAccount[];
 
