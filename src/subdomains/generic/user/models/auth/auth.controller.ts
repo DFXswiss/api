@@ -11,6 +11,7 @@ import { AuthAlbyService } from './auth-alby.service';
 import { AuthTotpService } from './auth-totp.service';
 import { AuthService } from './auth.service';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
+import { AuthMailDto } from './dto/auth-mail.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { AuthTotpDto } from './dto/auth-totp.dto';
 import { ChallengeDto } from './dto/challenge.dto';
@@ -38,6 +39,13 @@ export class AuthController {
   @ApiCreatedResponse({ type: AuthResponseDto })
   signIn(@Body() credentials: AuthCredentialsDto, @RealIP() ip: string): Promise<AuthResponseDto> {
     return this.authService.signIn(credentials, ip);
+  }
+
+  @Post('mail')
+  @UseGuards(IpCountryGuard)
+  @ApiCreatedResponse({ type: AuthResponseDto })
+  authKycMail(@Body() dto: AuthMailDto): Promise<void> {
+    return this.authService.sendAuthKycMail(dto);
   }
 
   @Get('signMessage')
