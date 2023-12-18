@@ -35,6 +35,9 @@ import { LinkController } from './models/link/link.controller';
 import { LinkService } from './models/link/link.service';
 import { SpiderData } from './models/spider-data/spider-data.entity';
 import { SpiderDataRepository } from './models/spider-data/spider-data.repository';
+import { UserDataRelationController } from './models/user-data-relation/user-data-relation.controller';
+import { UserDataRelationRepository } from './models/user-data-relation/user-data-relation.repository';
+import { UserDataRelationService } from './models/user-data-relation/user-data-relation.service';
 import { UserDataNotificationService } from './models/user-data/user-data-notification.service';
 import { UserData } from './models/user-data/user-data.entity';
 import { UserController } from './models/user/user.controller';
@@ -66,6 +69,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     LinkController,
     LimitRequestController,
     WalletController,
+    UserDataRelationController,
   ],
   providers: [
     UserRepository,
@@ -76,6 +80,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     BankDataRepository,
     LimitRequestRepository,
     LinkAddressRepository,
+    UserDataRelationRepository,
     UserService,
     WalletService,
     UserDataService,
@@ -90,6 +95,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     KycService,
     LimitRequestNotificationService,
     UserDataNotificationService,
+    UserDataRelationService,
   ],
   exports: [UserService, UserDataService, LinkService, WebhookService, BankDataService],
 })
