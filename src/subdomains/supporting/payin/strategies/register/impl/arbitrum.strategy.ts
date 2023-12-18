@@ -25,6 +25,8 @@ export class ArbitrumStrategy extends EvmStrategy implements OnModuleInit {
   }
 
   onModuleInit() {
+    super.onModuleInit();
+
     this.addressWebhookMessageQueue = new QueueHandler();
 
     this.alchemyWebhookService
