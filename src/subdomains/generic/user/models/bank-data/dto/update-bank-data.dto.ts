@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
+import { BankDataType } from '../bank-data.entity';
 
 export class UpdateBankDataDto {
   @ApiPropertyOptional()
@@ -11,4 +12,8 @@ export class UpdateBankDataDto {
   @IsOptional()
   @IsBoolean()
   active: boolean;
+
+  @IsOptional()
+  @IsEnum(BankDataType)
+  type: BankDataType;
 }
