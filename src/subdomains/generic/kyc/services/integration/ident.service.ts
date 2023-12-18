@@ -6,6 +6,7 @@ import { HttpError, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IdentConfig, IdentDocument } from '../../dto/ident.dto';
+import { IdentResultDto } from '../../dto/input/ident-result.dto';
 import { KycContentType } from '../../dto/kyc-file.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
 import { KycStepType } from '../../enums/kyc.enum';
@@ -24,6 +25,10 @@ export class IdentService {
     return this.callApi<{ id: string }>(`identifications/${kycStep.transactionId}/start`, kycStep.type, 'POST').then(
       (r) => r.id,
     );
+  }
+
+  async getResult(kycStep: KycStep): Promise<IdentResultDto> {
+    return this.callApi<IdentResultDto>(`identifications/${kycStep.transactionId}`, kycStep.type, 'GET', {});
   }
 
   async getDocuments(kycStep: KycStep): Promise<IdentDocument[]> {
