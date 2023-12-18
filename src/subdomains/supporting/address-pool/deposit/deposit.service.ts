@@ -43,8 +43,12 @@ export class DepositService {
     return this.depositRepo.findOneBy({ address, blockchain });
   }
 
-  async getAllDeposit(): Promise<Deposit[]> {
+  async getAllDeposits(): Promise<Deposit[]> {
     return this.depositRepo.find();
+  }
+
+  async getDepositsByBlockchain(blockchain: Blockchain): Promise<Deposit[]> {
+    return this.depositRepo.findBy({ blockchain: blockchain });
   }
 
   async getNextDeposit(blockchain: Blockchain): Promise<Deposit> {
@@ -97,6 +101,9 @@ export class DepositService {
 
       addresses.push(deposit.address);
     }
+
+    const existingAddresses = await this.getDepositsByBlockchain(blockchain).then((d) => d.map((d) => d.address));
+    addresses.push(...existingAddresses);
 
     await this.alchemyWebhookService.createAddressWebhook({ blockchain: blockchain, addresses: addresses });
   }
