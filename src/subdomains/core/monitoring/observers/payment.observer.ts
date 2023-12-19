@@ -14,7 +14,7 @@ interface PaymentData {
   lastOutputDates: LastOutputDates;
   incomplete: IncompleteTransactions;
   bankTxWithoutType: number;
-  freeDeposit: number;
+  freeDeposit: { blockchain: string; count: number }[];
   unhandledCryptoInputs: number;
 }
 
@@ -57,9 +57,11 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
       bankTxWithoutType: await this.repos.bankTx.countBy({ type: IsNull() }),
       freeDeposit: await this.repos.deposit
         .createQueryBuilder('deposit')
+        .select('deposit.blockchain, COUNT(deposit.blockchain) as count')
         .leftJoin('deposit.route', 'route')
         .where('route.id IS NULL')
-        .getCount(),
+        .groupBy('deposit.blockchain')
+        .getRawMany<{ blockchain: string; count: number }>(),
       unhandledCryptoInputs: await this.repos.payIn.countBy({
         amlCheck: Not(CheckStatus.FAIL),
         status: Not(

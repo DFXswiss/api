@@ -11,11 +11,9 @@ import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
 import { KycModule } from '../kyc/kyc.module';
-import { TotpAuthLogRepository } from '../kyc/repositories/totp-auth-log.repository';
 import { AuthAlbyService } from './models/auth/auth-alby.service';
 import { AuthLnurlController } from './models/auth/auth-lnurl.controller';
 import { AuthLnUrlService } from './models/auth/auth-lnurl.service';
-import { AuthTotpService } from './models/auth/auth-totp.service';
 import { AuthController } from './models/auth/auth.controller';
 import { AuthService } from './models/auth/auth.service';
 import { BankDataController } from './models/bank-data/bank-data.controller';
@@ -35,6 +33,9 @@ import { LinkController } from './models/link/link.controller';
 import { LinkService } from './models/link/link.service';
 import { SpiderData } from './models/spider-data/spider-data.entity';
 import { SpiderDataRepository } from './models/spider-data/spider-data.repository';
+import { UserDataRelationController } from './models/user-data-relation/user-data-relation.controller';
+import { UserDataRelationRepository } from './models/user-data-relation/user-data-relation.repository';
+import { UserDataRelationService } from './models/user-data-relation/user-data-relation.service';
 import { UserDataNotificationService } from './models/user-data/user-data-notification.service';
 import { UserData } from './models/user-data/user-data.entity';
 import { UserController } from './models/user/user.controller';
@@ -66,16 +67,17 @@ import { WebhookService } from './services/webhook/webhook.service';
     LinkController,
     LimitRequestController,
     WalletController,
+    UserDataRelationController,
   ],
   providers: [
     UserRepository,
     UserDataRepository,
-    TotpAuthLogRepository,
     SpiderDataRepository,
     WalletRepository,
     BankDataRepository,
     LimitRequestRepository,
     LinkAddressRepository,
+    UserDataRelationRepository,
     UserService,
     WalletService,
     UserDataService,
@@ -83,13 +85,13 @@ import { WebhookService } from './services/webhook/webhook.service';
     AuthService,
     AuthAlbyService,
     AuthLnUrlService,
-    AuthTotpService,
     LimitRequestService,
     LinkService,
     WebhookService,
     KycService,
     LimitRequestNotificationService,
     UserDataNotificationService,
+    UserDataRelationService,
   ],
   exports: [UserService, UserDataService, LinkService, WebhookService, BankDataService],
 })

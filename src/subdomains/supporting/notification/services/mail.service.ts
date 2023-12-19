@@ -66,7 +66,10 @@ export class MailService {
         1000,
       );
     } catch (e) {
-      this.logger.error(`Exception sending mail (from:${mail.from}, to:${mail.to}, subject:${mail.subject}):`, e);
+      this.logger.error(
+        `Exception sending mail (from:${mail.from.name}<${mail.from.address}>, to:${mail.to}, subject:${mail.subject}):`,
+        e,
+      );
       throw e;
     }
   }
