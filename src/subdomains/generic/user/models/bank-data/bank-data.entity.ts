@@ -4,9 +4,9 @@ import { Column, Entity, Index, ManyToOne } from 'typeorm';
 
 export enum BankDataType {
   IDENT = 'Ident',
-  BANK_TX_INP = 'BankTxInp',
-  BANK_TX_OUT = 'BankTxOut',
-  CREDIT_CARD_INP = 'CreditCardInp',
+  BANK_IN = 'BankIn',
+  BANK_OUT = 'BankOut',
+  CARD_IN = 'CardIn',
 }
 
 @Entity()
