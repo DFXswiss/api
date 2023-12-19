@@ -84,10 +84,12 @@ export class KycController {
   @ApiExcludeEndpoint()
   async initiateStep(
     @Headers(CodeHeaderName) code: string,
+    @RealIP() ip: string,
     @Param('step') stepName: string,
     @Query('type') stepType?: string,
+    @Query('sequence') sequence?: string,
   ): Promise<KycSessionDto> {
-    return this.kycService.getOrCreateStep(code, stepName, stepType);
+    return this.kycService.getOrCreateStep(code, ip, stepName, stepType, sequence ? +sequence : undefined);
   }
 
   // --- UPDATE ENDPOINTS --- //
