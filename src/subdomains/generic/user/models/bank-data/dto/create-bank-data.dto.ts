@@ -1,6 +1,7 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { Util } from 'src/shared/utils/util';
+import { BankDataType } from '../bank-data.entity';
 
 export class CreateBankDataDto {
   @IsNotEmpty()
@@ -15,4 +16,8 @@ export class CreateBankDataDto {
   @IsOptional()
   @IsBoolean()
   active: boolean;
+
+  @IsOptional()
+  @IsEnum(BankDataType)
+  type: BankDataType;
 }

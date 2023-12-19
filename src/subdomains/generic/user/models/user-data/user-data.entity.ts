@@ -455,12 +455,17 @@ export class UserData extends IEntity {
     return kycStep;
   }
 
-  getStepsWith(name?: KycStepName, type?: KycStepType): KycStep[] {
-    return this.kycSteps.filter((s) => (!name || s.name === name) && (!type || s.type === type));
+  getStepsWith(name?: KycStepName, type?: KycStepType, sequenceNumber?: number): KycStep[] {
+    return this.kycSteps.filter(
+      (s) =>
+        (!name || s.name === name) &&
+        (!type || s.type === type) &&
+        (!sequenceNumber || s.sequenceNumber === sequenceNumber),
+    );
   }
 
-  getPendingStepWith(name?: KycStepName, type?: KycStepType): KycStep | undefined {
-    return this.getStepsWith(name, type).find((s) => s.isInProgress);
+  getPendingStepWith(name?: KycStepName, type?: KycStepType, sequenceNumber?: number): KycStep | undefined {
+    return this.getStepsWith(name, type, sequenceNumber).find((s) => s.isInProgress);
   }
 
   getPendingStepOrThrow(stepId: number): KycStep {
