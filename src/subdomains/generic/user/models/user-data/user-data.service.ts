@@ -337,6 +337,8 @@ export class UserDataService {
   }
 
   async mergeUserData(masterId: number, slaveId: number): Promise<void> {
+    if (masterId === slaveId) throw new BadRequestException('Merging with oneself is not possible');
+
     const [master, slave] = await Promise.all([
       this.userDataRepo.findOne({
         where: { id: masterId },
