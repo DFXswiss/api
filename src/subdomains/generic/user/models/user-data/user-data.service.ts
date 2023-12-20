@@ -368,10 +368,12 @@ export class UserDataService {
 
     await this.updateBankTxTime(slave.id);
 
-    // reassign bank accounts, datas and users
+    // reassign bank accounts, datas, users and userDataRelations
     master.bankAccounts = master.bankAccounts.concat(bankAccountsToReassign);
     master.bankDatas = master.bankDatas.concat(slave.bankDatas);
     master.users = master.users.concat(slave.users);
+    master.accountRelations = master.accountRelations.concat(slave.accountRelations);
+    master.relatedAccountRelations = master.relatedAccountRelations.concat(slave.relatedAccountRelations);
     await this.userDataRepo.save(master);
 
     // update slave status
