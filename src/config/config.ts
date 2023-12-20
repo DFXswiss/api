@@ -431,10 +431,6 @@ export class Configuration {
     ref: '',
   };
 
-  chainalysis = {
-    apiKey: process.env.CHAINALYSIS_API_KEY,
-  };
-
   azure = {
     subscriptionId: process.env.AZURE_SUBSCRIPTION_ID,
     tenantId: process.env.AZURE_TENANT_ID,
