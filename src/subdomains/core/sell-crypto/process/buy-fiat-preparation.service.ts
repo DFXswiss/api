@@ -36,7 +36,7 @@ export class BuyFiatPreparationService {
         percentFee: IsNull(),
         inputReferenceAmount: Not(IsNull()),
       },
-      relations: ['sell', 'sell.user', 'sell.user.userData', 'cryptoInput'],
+      relations: ['sell', 'sell.user', 'sell.user.wallet', 'sell.user.userData', 'cryptoInput'],
     });
 
     // CHF/EUR Price
@@ -60,7 +60,7 @@ export class BuyFiatPreparationService {
           entity.cryptoInput.asset,
           entity.sell.fiat,
           inputReferencePrice,
-          entity.sell.user.userData,
+          entity.sell.user,
           CryptoPaymentMethod.CRYPTO,
         );
 

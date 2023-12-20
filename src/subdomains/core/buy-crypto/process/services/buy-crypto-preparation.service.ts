@@ -67,7 +67,7 @@ export class BuyCryptoPreparationService {
           inputCurrency,
           entity.target.asset,
           inputReferencePrice,
-          entity.user.userData,
+          entity.user,
           entity.paymentMethod,
         );
 
@@ -116,10 +116,12 @@ export class BuyCryptoPreparationService {
         'checkoutTx',
         'buy',
         'buy.user',
+        'buy.user.wallet',
         'buy.user.userData',
         'cryptoInput',
         'cryptoRoute',
         'cryptoRoute.user',
+        'cryptoRoute.user.wallet',
         'cryptoRoute.user.userData',
       ],
     });
@@ -146,7 +148,7 @@ export class BuyCryptoPreparationService {
           inputCurrency,
           entity.target.asset,
           inputReferencePrice,
-          entity.user.userData,
+          entity.user,
           entity.paymentMethod,
         );
 

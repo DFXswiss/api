@@ -135,8 +135,8 @@ export class UserService {
     user = await this.userRepo.save(user);
 
     try {
-      if (discountCode) await this.feeService.addDiscountCodeUser(user.userData, discountCode);
-      if (usedRef || wallet) await this.feeService.addCustomSignUpFees(user.userData, user.usedRef, wallet?.id);
+      if (discountCode) await this.feeService.addDiscountCodeUser(user, discountCode);
+      if (usedRef || wallet) await this.feeService.addCustomSignUpFees(user, user.usedRef);
     } catch (e) {
       this.logger.warn(`Error while adding discountCode to new user ${user.id}:`, e);
     }
@@ -278,7 +278,7 @@ export class UserService {
     const user = await this.getUser(userId, { userData: true });
     if (!user) throw new NotFoundException('User not found');
 
-    return this.feeService.getUserFee({ userData: user.userData, direction, asset, txVolume });
+    return this.feeService.getUserFee({ user, direction, asset, txVolume });
   }
 
   // --- REF --- //

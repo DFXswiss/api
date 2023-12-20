@@ -106,7 +106,7 @@ export class AuthService {
     }
 
     try {
-      if (dto.discountCode) await this.feeService.addDiscountCodeUser(user.userData, dto.discountCode);
+      if (dto.discountCode) await this.feeService.addDiscountCodeUser(user, dto.discountCode);
     } catch (e) {
       this.logger.warn(`Error while adding discountCode in user signIn ${user.id}:`, e);
     }

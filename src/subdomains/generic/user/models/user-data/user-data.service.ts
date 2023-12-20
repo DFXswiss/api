@@ -379,6 +379,7 @@ export class UserDataService {
       slave.accountRelations.length > 0 && `accountRelations ${slave.accountRelations.map((a) => a.id)}`,
       slave.relatedAccountRelations.length > 0 &&
         `relatedAccountRelations ${slave.relatedAccountRelations.map((a) => a.id)}`,
+      slave.individualFees && `individualFees ${slave.individualFees}`,
     ]
       .filter((i) => i)
       .join(' and ');
@@ -393,6 +394,7 @@ export class UserDataService {
     master.users = master.users.concat(slave.users);
     master.accountRelations = master.accountRelations.concat(slave.accountRelations);
     master.relatedAccountRelations = master.relatedAccountRelations.concat(slave.relatedAccountRelations);
+    slave.individualFeeList?.forEach((fee) => !master.individualFeeList?.includes(fee) && master.addFee(fee));
     await this.userDataRepo.save(master);
 
     // update slave status
