@@ -22,7 +22,7 @@ export interface UserFeeRequest extends FeeRequestBase {
 
 export interface FeeRequest extends FeeRequestBase {
   accountType: AccountType;
-  wallet?: Wallet;
+  wallet: Wallet;
 }
 
 export interface OptionalFeeRequest extends FeeRequestBase {

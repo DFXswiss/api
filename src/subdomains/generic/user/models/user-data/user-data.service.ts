@@ -392,7 +392,7 @@ export class UserDataService {
     master.users = master.users.concat(slave.users);
     master.accountRelations = master.accountRelations.concat(slave.accountRelations);
     master.relatedAccountRelations = master.relatedAccountRelations.concat(slave.relatedAccountRelations);
-    slave.individualFeeList?.forEach((fee) => master.individualFeeList?.includes(fee) && master.addFee(fee));
+    slave.individualFeeList?.forEach((fee) => !master.individualFeeList?.includes(fee) && master.addFee(fee));
     await this.userDataRepo.save(master);
 
     // update slave status

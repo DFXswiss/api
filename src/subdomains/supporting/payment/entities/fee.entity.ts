@@ -55,7 +55,7 @@ export class Fee extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   assets: string; // semicolon separated id's
 
-  @ManyToOne(() => Wallet, { nullable: true })
+  @ManyToOne(() => Wallet, { nullable: true, eager: true })
   wallet: Wallet;
 
   // Acceptance columns
@@ -104,7 +104,7 @@ export class Fee extends IEntity {
       !(
         this.isExpired() ||
         (this.accountType && this.accountType !== request.accountType) ||
-        (this.wallet && this.wallet !== request.wallet) ||
+        (this.wallet && this.wallet?.id !== request.wallet?.id) ||
         (this.direction && this.direction !== request.direction) ||
         (this.assetList?.length && !this.assetList.includes(request.asset?.id)) ||
         (this.maxTxVolume && this.maxTxVolume < request.txVolume) ||
