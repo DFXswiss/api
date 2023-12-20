@@ -340,11 +340,25 @@ export class UserDataService {
     const [master, slave] = await Promise.all([
       this.userDataRepo.findOne({
         where: { id: masterId },
-        relations: ['users', 'users.wallet', 'bankDatas', 'bankAccounts'],
+        relations: [
+          'users',
+          'users.wallet',
+          'bankDatas',
+          'bankAccounts',
+          'accountRelations',
+          'relatedAccountRelations',
+        ],
       }),
       this.userDataRepo.findOne({
         where: { id: slaveId },
-        relations: ['users', 'users.wallet', 'bankDatas', 'bankAccounts'],
+        relations: [
+          'users',
+          'users.wallet',
+          'bankDatas',
+          'bankAccounts',
+          'accountRelations',
+          'relatedAccountRelations',
+        ],
       }),
     ]);
     if (!master.isDfxUser) throw new BadRequestException(`Master ${master.id} not allowed to merge. Wrong KYC type`);
