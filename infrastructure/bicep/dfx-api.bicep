@@ -158,9 +158,6 @@ param btcVmUser string
 param btcVmPassword string
 
 @secure()
-param chainalysisApiKey string
-
-@secure()
 param coinGeckoApiKey string
 
 param myDeFiChainUser string
@@ -838,10 +835,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'FRICK_PRIVATE_KEY'
           value: frickPrivateKey
-        }
-        {
-          name: 'CHAINALYSIS_API_KEY'
-          value: chainalysisApiKey
         }
         {
           name: 'COIN_GECKO_API_KEY'
