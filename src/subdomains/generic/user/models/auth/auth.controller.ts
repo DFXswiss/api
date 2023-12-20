@@ -36,7 +36,6 @@ export class AuthController {
   }
 
   @Post('mail')
-  @UseGuards(IpCountryGuard)
   @ApiCreatedResponse()
   signInByMail(@Body() dto: AuthMailDto): Promise<void> {
     return this.authService.signInByMail(dto);
