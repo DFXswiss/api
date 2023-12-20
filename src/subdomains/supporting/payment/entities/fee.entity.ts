@@ -78,7 +78,7 @@ export class Fee extends IEntity {
     this.verifyForUser(accountType, wallet);
 
     const update: Partial<Fee> = {
-      usages: this.usages++,
+      usages: this.usages + 1,
     };
 
     Object.assign(this, update);
