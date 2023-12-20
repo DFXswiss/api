@@ -12,7 +12,7 @@
     "login": {
         "title": "DFX Login",
         "salutation": "DFX Login",
-        "message": "Click on the following link to log in to DFX [url:hier]."
+        "message": "Click on the following link to log in to DFX [url:here]"
     },
     "payment": {
         "buy_fiat": {

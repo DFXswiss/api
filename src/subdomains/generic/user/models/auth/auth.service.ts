@@ -130,7 +130,6 @@ export class AuthService {
               params: { url: `${Config.frontend.services}/kyc?code=${userData.kycHash}` },
             },
             { key: MailKey.SPACE, params: { value: '2' } },
-            { key: `${MailTranslationKey.KYC}.last_step` },
             { key: MailKey.DFX_TEAM_CLOSING },
           ],
         },
