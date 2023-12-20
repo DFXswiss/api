@@ -36,10 +36,8 @@ export class BitcoinStrategy extends JellyfishStrategy {
 
   //*** PUBLIC API ***//
 
-  async doAmlCheck(payIn: CryptoInput, route: Staking | Sell | CryptoRoute): Promise<CheckStatus> {
-    if (route.user.userData.kycStatus === KycStatus.REJECTED) return CheckStatus.FAIL;
-
-    return CheckStatus.PASS;
+  async doAmlCheck(_: CryptoInput, route: Staking | Sell | CryptoRoute): Promise<CheckStatus> {
+    return route.user.userData.kycStatus === KycStatus.REJECTED ? CheckStatus.FAIL : CheckStatus.PASS;
   }
 
   /**
