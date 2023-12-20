@@ -104,7 +104,7 @@ export class Fee extends IEntity {
       !(
         this.isExpired() ||
         (this.accountType && this.accountType !== request.accountType) ||
-        (this.wallet && this.wallet?.id !== request.wallet?.id) ||
+        (this.wallet && this.wallet.id !== request.wallet?.id) ||
         (this.direction && this.direction !== request.direction) ||
         (this.assetList?.length && !this.assetList.includes(request.asset?.id)) ||
         (this.maxTxVolume && this.maxTxVolume < request.txVolume) ||
