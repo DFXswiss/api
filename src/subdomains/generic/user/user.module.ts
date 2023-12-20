@@ -93,6 +93,6 @@ import { WebhookService } from './services/webhook/webhook.service';
     UserDataNotificationService,
     UserDataRelationService,
   ],
-  exports: [UserService, UserDataService, LinkService, WebhookService, BankDataService],
+  exports: [UserService, UserDataService, LinkService, WebhookService, BankDataService, WalletService],
 })
 export class UserModule {}

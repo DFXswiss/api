@@ -2,7 +2,8 @@ import { BadRequestException } from '@nestjs/common';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
-import { Column, Entity, Index } from 'typeorm';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
+import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { FeeRequest } from '../services/fee.service';
 
 export enum FeeType {
@@ -54,6 +55,9 @@ export class Fee extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   assets: string; // semicolon separated id's
 
+  @ManyToOne(() => Wallet, { nullable: true })
+  wallet: Wallet;
+
   // Acceptance columns
 
   @Column({ type: 'integer', nullable: true })
@@ -100,6 +104,7 @@ export class Fee extends IEntity {
       !(
         this.isExpired() ||
         (this.accountType && this.accountType !== request.accountType) ||
+        (this.wallet && this.wallet !== request.wallet) ||
         (this.direction && this.direction !== request.direction) ||
         (this.assetList?.length && !this.assetList.includes(request.asset?.id)) ||
         (this.maxTxVolume && this.maxTxVolume < request.txVolume) ||

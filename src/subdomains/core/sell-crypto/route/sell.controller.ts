@@ -174,7 +174,7 @@ export class SellController {
       dto.asset,
       dto.currency,
       CryptoPaymentMethod.CRYPTO,
-      user.userData,
+      user,
     );
 
     return {
