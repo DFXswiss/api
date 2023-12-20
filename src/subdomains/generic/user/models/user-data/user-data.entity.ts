@@ -111,6 +111,9 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   verifiedName: string;
 
+  @ManyToOne(() => Country, { eager: true, nullable: true })
+  verifiedCountry: Country;
+
   @Column({ length: 256, nullable: true })
   street: string;
 

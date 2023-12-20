@@ -182,4 +182,10 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsString()
   verifiedName: string;
+
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  verifiedCountry: Country;
 }
