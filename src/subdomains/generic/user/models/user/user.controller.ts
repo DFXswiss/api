@@ -67,9 +67,9 @@ export class UserController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse()
   async addDiscountCode(@GetJwt() jwt: JwtPayload, @Query('code') code: string): Promise<void> {
-    const user = await this.userService.getUser(jwt.id, { userData: true });
+    const user = await this.userService.getUser(jwt.id, { userData: true, wallet: true });
 
-    return this.feeService.addDiscountCodeUser(user.userData, code);
+    return this.feeService.addDiscountCodeUser(user, code);
   }
 
   @Post('change')

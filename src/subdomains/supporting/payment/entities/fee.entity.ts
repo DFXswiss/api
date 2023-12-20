@@ -74,8 +74,8 @@ export class Fee extends IEntity {
 
   //*** FACTORY METHODS ***//
 
-  increaseUsage(accountType: AccountType): UpdateResult<Fee> {
-    this.verifyForUser(accountType);
+  increaseUsage(accountType: AccountType, wallet?: Wallet): UpdateResult<Fee> {
+    this.verifyForUser(accountType, wallet);
 
     const update: Partial<Fee> = {
       usages: this.usages++,
@@ -121,10 +121,11 @@ export class Fee extends IEntity {
     );
   }
 
-  verifyForUser(accountType: AccountType): void {
+  verifyForUser(accountType: AccountType, wallet?: Wallet): void {
     if (this.isExpired()) throw new BadRequestException('Discount code is expired');
     if (this.accountType && this.accountType !== accountType)
       throw new BadRequestException('Account Type not matching');
+    if (this.wallet && wallet && this.wallet.id !== wallet.id) throw new BadRequestException('Wallet not matching');
 
     if (this.maxUsages && this.usages >= this.maxUsages)
       throw new BadRequestException('Max usages for discount code taken');

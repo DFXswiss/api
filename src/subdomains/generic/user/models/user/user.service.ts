@@ -135,8 +135,8 @@ export class UserService {
     user = await this.userRepo.save(user);
 
     try {
-      if (discountCode) await this.feeService.addDiscountCodeUser(user.userData, discountCode);
-      if (usedRef || wallet) await this.feeService.addCustomSignUpFees(user.userData, user.usedRef, wallet?.id);
+      if (discountCode) await this.feeService.addDiscountCodeUser(user, discountCode);
+      if (usedRef || wallet) await this.feeService.addCustomSignUpFees(user, user.usedRef);
     } catch (e) {
       this.logger.warn(`Error while adding discountCode to new user ${user.id}:`, e);
     }

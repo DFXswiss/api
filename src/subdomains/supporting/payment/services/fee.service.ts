@@ -88,30 +88,30 @@ export class FeeService {
     return this.feeRepo.save(fee);
   }
 
-  async addCustomSignUpFees(
-    userData: UserData,
-    ref?: string | undefined,
-    walletId?: number | undefined,
-  ): Promise<void> {
-    const customSignUpFees = await this.settingService.getCustomSignUpFees(ref, walletId);
+  async addCustomSignUpFees(user: User, ref?: string | undefined): Promise<void> {
+    const customSignUpFees = await this.settingService.getCustomSignUpFees(ref, user.wallet.id);
     if (customSignUpFees.length == 0) return;
 
     for (const feeId of customSignUpFees) {
       try {
-        await this.addFeeInternal(userData, feeId);
+        const fee = await this.feeRepo.findOneBy({ id: feeId });
+
+        await this.feeRepo.update(...fee.increaseUsage(user.userData.accountType, user.wallet));
+
+        await this.userDataService.addFee(user.userData, fee.id);
       } catch (e) {
-        this.logger.warn(`Fee mapping error: ${e}; userDataId: ${userData.id}; feeId: ${feeId}`);
+        this.logger.warn(`Fee mapping error: ${e}; userId: ${user.id}; feeId: ${feeId}`);
         continue;
       }
     }
   }
 
-  async addDiscountCodeUser(userData: UserData, discountCode: string): Promise<void> {
+  async addDiscountCodeUser(user: User, discountCode: string): Promise<void> {
     const fee = await this.getFeeByDiscountCode(discountCode);
 
-    await this.feeRepo.update(...fee.increaseUsage(userData.accountType));
+    await this.feeRepo.update(...fee.increaseUsage(user.userData.accountType, user.wallet));
 
-    await this.userDataService.addFee(userData, fee.id);
+    await this.userDataService.addFee(user.userData, fee.id);
   }
 
   async addFeeInternal(userData: UserData, feeId: number): Promise<void> {
