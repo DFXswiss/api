@@ -194,6 +194,7 @@ export class BuyCryptoService {
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('cryptoRouteUser.userData', 'cryptoRouteUserData')
       .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
       .leftJoinAndSelect('users.wallet', 'wallet')
       .leftJoinAndSelect('cryptoRouteUserData.users', 'cryptoRouteUsers')
       .leftJoinAndSelect('cryptoRouteUsers.wallet', 'cryptoRouteWallet')
@@ -426,7 +427,7 @@ export class BuyCryptoService {
         { buy: { user: { id: In(userIds) } }, bankTx: { created: Between(dateFrom, dateTo) } },
         { cryptoRoute: { user: { id: In(userIds) } }, cryptoInput: { created: Between(dateFrom, dateTo) } },
       ],
-      relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
+      relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'checkoutTx', 'cryptoRoute', 'cryptoRoute.user'],
       order: { id: 'DESC' },
     });
   }
