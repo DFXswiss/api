@@ -131,7 +131,7 @@ export class UserService {
     user.wallet = wallet ?? (await this.walletService.getDefault());
     user.usedRef = await this.checkRef(user, usedRef);
     user.origin = userOrigin;
-    user.userData = await this.userDataService.createUserData(user.wallet.customKyc ?? KycType.DFX);
+    user.userData = await this.userDataService.createUserData({ kycType: user.wallet.customKyc ?? KycType.DFX });
     user = await this.userRepo.save(user);
 
     try {

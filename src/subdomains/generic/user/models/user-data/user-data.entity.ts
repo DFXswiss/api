@@ -83,6 +83,7 @@ export enum UserDataStatus {
   ACTIVE = 'Active',
   BLOCKED = 'Blocked',
   MERGED = 'Merged',
+  KYC_ONLY = 'KycOnly',
 }
 
 @Entity()

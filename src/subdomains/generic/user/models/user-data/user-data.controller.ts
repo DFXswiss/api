@@ -9,8 +9,9 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UploadFileDto } from 'src/subdomains/generic/user/models/user-data/dto/upload-file.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
+import { CreateUserDataDto } from './dto/create-user-data.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
-import { UserData } from './user-data.entity';
+import { UserData, UserDataStatus } from './user-data.entity';
 import { UserDataRepository } from './user-data.repository';
 import { UserDataService } from './user-data.service';
 
@@ -72,6 +73,14 @@ export class UserDataController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async updateVolumes(@Param('id') id: string): Promise<void> {
     return this.userDataService.updateVolumes(+id);
+  }
+
+  @Post()
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async createEmptyUserData(@Body() dto: CreateUserDataDto): Promise<UserData> {
+    return this.userDataService.createUserData({ ...dto, status: UserDataStatus.KYC_ONLY });
   }
 
   // --- DISCOUNT CODES --- //
