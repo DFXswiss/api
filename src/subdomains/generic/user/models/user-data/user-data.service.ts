@@ -337,14 +337,30 @@ export class UserDataService {
   }
 
   async mergeUserData(masterId: number, slaveId: number): Promise<void> {
+    if (masterId === slaveId) throw new BadRequestException('Merging with oneself is not possible');
+
     const [master, slave] = await Promise.all([
       this.userDataRepo.findOne({
         where: { id: masterId },
-        relations: ['users', 'users.wallet', 'bankDatas', 'bankAccounts'],
+        relations: [
+          'users',
+          'users.wallet',
+          'bankDatas',
+          'bankAccounts',
+          'accountRelations',
+          'relatedAccountRelations',
+        ],
       }),
       this.userDataRepo.findOne({
         where: { id: slaveId },
-        relations: ['users', 'users.wallet', 'bankDatas', 'bankAccounts'],
+        relations: [
+          'users',
+          'users.wallet',
+          'bankDatas',
+          'bankAccounts',
+          'accountRelations',
+          'relatedAccountRelations',
+        ],
       }),
     ]);
     if (!master.isDfxUser) throw new BadRequestException(`Master ${master.id} not allowed to merge. Wrong KYC type`);
@@ -360,6 +376,10 @@ export class UserDataService {
       bankAccountsToReassign.length > 0 && `bank accounts ${bankAccountsToReassign.map((ba) => ba.id)}`,
       slave.bankDatas.length > 0 && `bank datas ${slave.bankDatas.map((b) => b.id)}`,
       slave.users.length > 0 && `users ${slave.users.map((u) => u.id)}`,
+      slave.accountRelations.length > 0 && `accountRelations ${slave.accountRelations.map((a) => a.id)}`,
+      slave.relatedAccountRelations.length > 0 &&
+        `relatedAccountRelations ${slave.relatedAccountRelations.map((a) => a.id)}`,
+      slave.individualFees && `individualFees ${slave.individualFees}`,
     ]
       .filter((i) => i)
       .join(' and ');
@@ -368,10 +388,13 @@ export class UserDataService {
 
     await this.updateBankTxTime(slave.id);
 
-    // reassign bank accounts, datas and users
+    // reassign bank accounts, datas, users and userDataRelations
     master.bankAccounts = master.bankAccounts.concat(bankAccountsToReassign);
     master.bankDatas = master.bankDatas.concat(slave.bankDatas);
     master.users = master.users.concat(slave.users);
+    master.accountRelations = master.accountRelations.concat(slave.accountRelations);
+    master.relatedAccountRelations = master.relatedAccountRelations.concat(slave.relatedAccountRelations);
+    slave.individualFeeList?.forEach((fee) => !master.individualFeeList?.includes(fee) && master.addFee(fee));
     await this.userDataRepo.save(master);
 
     // update slave status

@@ -340,7 +340,7 @@ export class Configuration {
         [FeeTier.TIER4]: 0.0299,
       },
       card: 0.08,
-      limit: +(process.env.BUY_CRYPTO_FEE_LIMIT ?? 0.005),
+      limit: +(process.env.BUY_CRYPTO_FEE_LIMIT ?? 0.001),
 
       get: (tier: FeeTier, accountType: AccountType) =>
         accountType === AccountType.PERSONAL ? this.buy.fee.private[tier] : this.buy.fee.organization[tier],
@@ -429,10 +429,6 @@ export class Configuration {
     transfer: 'SCT',
     char: '',
     ref: '',
-  };
-
-  chainalysis = {
-    apiKey: process.env.CHAINALYSIS_API_KEY,
   };
 
   azure = {

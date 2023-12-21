@@ -13,6 +13,7 @@ import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.e
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
 import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { SpiderData } from '../spider-data/spider-data.entity';
+import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
 import { TradingLimit } from '../user/dto/user.dto';
 import { AccountType } from './account-type.enum';
 
@@ -110,6 +111,9 @@ export class UserData extends IEntity {
 
   @Column({ length: 256, nullable: true })
   verifiedName: string;
+
+  @ManyToOne(() => Country, { eager: true, nullable: true })
+  verifiedCountry: Country;
 
   @Column({ length: 256, nullable: true })
   street: string;
@@ -280,6 +284,12 @@ export class UserData extends IEntity {
   totpSecret: string;
 
   // References
+  @OneToMany(() => UserDataRelation, (userDataRelation) => userDataRelation.account)
+  accountRelations: UserDataRelation[];
+
+  @OneToMany(() => UserDataRelation, (userDataRelation) => userDataRelation.relatedAccount)
+  relatedAccountRelations: UserDataRelation[];
+
   @OneToMany(() => BankAccount, (bankAccount) => bankAccount.userData)
   bankAccounts: BankAccount[];
 
@@ -353,7 +363,7 @@ export class UserData extends IEntity {
     return this.kycType === KycType.DFX;
   }
 
-  get individualFeeList(): number[] {
+  get individualFeeList(): number[] | undefined {
     return this.individualFees?.split(';')?.map(Number);
   }
 

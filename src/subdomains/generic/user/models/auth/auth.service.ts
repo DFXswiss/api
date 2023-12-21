@@ -106,7 +106,7 @@ export class AuthService {
     }
 
     try {
-      if (dto.discountCode) await this.feeService.addDiscountCodeUser(user.userData, dto.discountCode);
+      if (dto.discountCode) await this.feeService.addDiscountCodeUser(user, dto.discountCode);
     } catch (e) {
       this.logger.warn(`Error while adding discountCode in user signIn ${user.id}:`, e);
     }
@@ -130,7 +130,6 @@ export class AuthService {
               params: { url: `${Config.frontend.services}/kyc?code=${userData.kycHash}` },
             },
             { key: MailKey.SPACE, params: { value: '2' } },
-            { key: `${MailTranslationKey.KYC}.last_step` },
             { key: MailKey.DFX_TEAM_CLOSING },
           ],
         },

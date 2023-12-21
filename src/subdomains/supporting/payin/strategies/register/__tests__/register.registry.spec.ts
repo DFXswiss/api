@@ -1,6 +1,5 @@
 import { mock } from 'jest-mock-extended';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { ChainalysisService } from 'src/integration/chainalysis/services/chainalysis.service';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -39,7 +38,6 @@ describe('RegisterStrategyRegistry', () => {
     bitcoinStrategy = new BitcoinStrategy(
       mock<AssetService>(),
       mock<PayInBitcoinService>(),
-      mock<ChainalysisService>(),
       mock<PayInRepository>(),
     );
 

@@ -7,7 +7,9 @@ import { Util } from 'src/shared/utils/util';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
+import { FeeDirectionType, User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
+import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { In, IsNull } from 'typeorm';
 import { CreateFeeDto } from '../dto/create-fee.dto';
 import { FeeDto } from '../dto/fee.dto';
@@ -15,15 +17,16 @@ import { Fee, FeeType } from '../entities/fee.entity';
 import { FeeRepository } from '../repositories/fee.repository';
 
 export interface UserFeeRequest extends FeeRequestBase {
-  userData: UserData;
+  user: User;
 }
 
 export interface FeeRequest extends FeeRequestBase {
   accountType: AccountType;
+  wallet: Wallet;
 }
 
 export interface OptionalFeeRequest extends FeeRequestBase {
-  userData?: UserData;
+  user?: User;
   accountType?: AccountType;
 }
 
@@ -42,6 +45,7 @@ export class FeeService {
     private readonly assetService: AssetService,
     private readonly userDataService: UserDataService,
     private readonly settingService: SettingService,
+    private readonly walletService: WalletService,
   ) {}
 
   async createFee(dto: CreateFeeDto): Promise<Fee> {
@@ -72,6 +76,8 @@ export class FeeService {
       fee.assets = assets.join(';');
     }
 
+    if (dto.wallet) fee.wallet = await this.walletService.getByIdOrName(dto.wallet.id);
+
     if (dto.createDiscountCode) {
       // create hash
       const hash = Util.createHash(fee.label + fee.type).toUpperCase();
@@ -82,30 +88,30 @@ export class FeeService {
     return this.feeRepo.save(fee);
   }
 
-  async addCustomSignUpFees(
-    userData: UserData,
-    ref?: string | undefined,
-    walletId?: number | undefined,
-  ): Promise<void> {
-    const customSignUpFees = await this.settingService.getCustomSignUpFees(ref, walletId);
+  async addCustomSignUpFees(user: User, ref?: string | undefined): Promise<void> {
+    const customSignUpFees = await this.settingService.getCustomSignUpFees(ref, user.wallet.id);
     if (customSignUpFees.length == 0) return;
 
     for (const feeId of customSignUpFees) {
       try {
-        await this.addFeeInternal(userData, feeId);
+        const fee = await this.feeRepo.findOneBy({ id: feeId });
+
+        await this.feeRepo.update(...fee.increaseUsage(user.userData.accountType, user.wallet));
+
+        await this.userDataService.addFee(user.userData, fee.id);
       } catch (e) {
-        this.logger.warn(`Fee mapping error: ${e}; userDataId: ${userData.id}; feeId: ${feeId}`);
+        this.logger.warn(`Fee mapping error: ${e}; userId: ${user.id}; feeId: ${feeId}`);
         continue;
       }
     }
   }
 
-  async addDiscountCodeUser(userData: UserData, discountCode: string): Promise<void> {
+  async addDiscountCodeUser(user: User, discountCode: string): Promise<void> {
     const fee = await this.getFeeByDiscountCode(discountCode);
 
-    await this.feeRepo.update(...fee.increaseUsage(userData.accountType));
+    await this.feeRepo.update(...fee.increaseUsage(user.userData.accountType, user.wallet));
 
-    await this.userDataService.addFee(userData, fee.id);
+    await this.userDataService.addFee(user.userData, fee.id);
   }
 
   async addFeeInternal(userData: UserData, feeId: number): Promise<void> {
@@ -129,7 +135,7 @@ export class FeeService {
   async getUserFee(request: UserFeeRequest): Promise<FeeDto> {
     const userFees = await this.getValidFees(request);
 
-    return this.calculateFee(userFees, request.userData.id);
+    return this.calculateFee(userFees, request.user.userData?.id);
   }
 
   async getDefaultFee(request: FeeRequestBase, accountType = AccountType.PERSONAL): Promise<FeeDto> {
@@ -194,9 +200,10 @@ export class FeeService {
   }
 
   private async getValidFees(request: OptionalFeeRequest): Promise<Fee[]> {
-    const accountType = request.userData ? request.userData.accountType : request.accountType;
+    const accountType = request.user?.userData ? request.user.userData?.accountType : request.accountType;
+    const wallet = request.user?.wallet;
 
-    const discountFeeIds = request.userData?.individualFeeList ?? [];
+    const discountFeeIds = request.user?.userData?.individualFeeList ?? [];
 
     const userFees = await this.feeRepo.findBy([
       { type: FeeType.BASE },
@@ -207,8 +214,8 @@ export class FeeService {
     // remove ExpiredFee
     userFees
       .filter((fee) => discountFeeIds.includes(fee.id) && fee.isExpired())
-      .forEach((fee) => this.userDataService.removeFee(request.userData, fee.id));
+      .forEach((fee) => this.userDataService.removeFee(request.user.userData, fee.id));
 
-    return userFees.filter((fee) => fee.verifyForTx({ ...request, accountType }));
+    return userFees.filter((fee) => fee.verifyForTx({ ...request, accountType, wallet }));
   }
 }

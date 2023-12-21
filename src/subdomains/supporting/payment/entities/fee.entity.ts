@@ -2,7 +2,8 @@ import { BadRequestException } from '@nestjs/common';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
-import { Column, Entity, Index } from 'typeorm';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
+import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { FeeRequest } from '../services/fee.service';
 
 export enum FeeType {
@@ -54,6 +55,9 @@ export class Fee extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   assets: string; // semicolon separated id's
 
+  @ManyToOne(() => Wallet, { nullable: true, eager: true })
+  wallet: Wallet;
+
   // Acceptance columns
 
   @Column({ type: 'integer', nullable: true })
@@ -70,11 +74,11 @@ export class Fee extends IEntity {
 
   //*** FACTORY METHODS ***//
 
-  increaseUsage(accountType: AccountType): UpdateResult<Fee> {
-    this.verifyForUser(accountType);
+  increaseUsage(accountType: AccountType, wallet?: Wallet): UpdateResult<Fee> {
+    this.verifyForUser(accountType, wallet);
 
     const update: Partial<Fee> = {
-      usages: this.usages++,
+      usages: this.usages + 1,
     };
 
     Object.assign(this, update);
@@ -100,6 +104,7 @@ export class Fee extends IEntity {
       !(
         this.isExpired() ||
         (this.accountType && this.accountType !== request.accountType) ||
+        (this.wallet && this.wallet.id !== request.wallet?.id) ||
         (this.direction && this.direction !== request.direction) ||
         (this.assetList?.length && !this.assetList.includes(request.asset?.id)) ||
         (this.maxTxVolume && this.maxTxVolume < request.txVolume) ||
@@ -116,10 +121,11 @@ export class Fee extends IEntity {
     );
   }
 
-  verifyForUser(accountType: AccountType): void {
+  verifyForUser(accountType: AccountType, wallet?: Wallet): void {
     if (this.isExpired()) throw new BadRequestException('Discount code is expired');
     if (this.accountType && this.accountType !== accountType)
       throw new BadRequestException('Account Type not matching');
+    if (this.wallet && wallet && this.wallet.id !== wallet.id) throw new BadRequestException('Wallet not matching');
 
     if (this.maxUsages && this.usages >= this.maxUsages)
       throw new BadRequestException('Max usages for discount code taken');

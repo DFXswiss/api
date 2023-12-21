@@ -189,7 +189,7 @@ export class CryptoRouteController {
       dto.sourceAsset,
       dto.targetAsset,
       CryptoPaymentMethod.CRYPTO,
-      user.userData,
+      user,
     );
 
     return {

@@ -6,8 +6,7 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
+import { FeeDirectionType, User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/min-amount.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
@@ -124,13 +123,13 @@ export class TransactionHelper implements OnModuleInit {
     from: Asset | Fiat,
     to: Asset | Fiat,
     referencePrice: Price,
-    userData: UserData,
+    user: User,
     paymentMethod: PaymentMethod,
   ): Promise<TxFeeDetails> {
     // get fee
     const { direction, feeAsset } = this.getTxInfo(from, to);
 
-    const fee = await this.getTxFee(userData, direction, feeAsset, inputAmount, from, paymentMethod);
+    const fee = await this.getTxFee(user, direction, feeAsset, inputAmount, from, paymentMethod);
 
     // get specs
     const specs = this.getSpecs(from, to);
@@ -156,13 +155,13 @@ export class TransactionHelper implements OnModuleInit {
     from: Asset | Fiat,
     to: Asset | Fiat,
     paymentMethod: PaymentMethod,
-    userData?: UserData,
+    user?: User,
   ): Promise<TransactionDetails> {
     // get fee
     const { direction, feeAsset } = this.getTxInfo(from, to);
 
     const fee = await this.getTxFee(
-      userData,
+      user,
       direction,
       feeAsset,
       targetAmount ? targetAmount : sourceAmount,
@@ -174,7 +173,7 @@ export class TransactionHelper implements OnModuleInit {
     const specs = this.getSpecs(from, to);
     const extendedSpecs = {
       ...specs,
-      maxVolume: userData?.availableTradingLimit,
+      maxVolume: user?.userData?.availableTradingLimit,
       fixedFee: fee.fixed,
     };
 
@@ -213,7 +212,7 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   private async getTxFee(
-    userData: UserData | undefined,
+    user: User | undefined,
     direction: FeeDirectionType,
     asset: Asset,
     txVolume: number,
@@ -226,8 +225,8 @@ export class TransactionHelper implements OnModuleInit {
 
     return paymentMethod === FiatPaymentMethod.CARD
       ? { fees: [], rate: Config.buy.fee.card, fixed: 0, payoutRefBonus: true }
-      : userData
-      ? this.feeService.getUserFee({ userData, direction, asset, txVolume: txVolumeInEur })
+      : user
+      ? this.feeService.getUserFee({ user, direction, asset, txVolume: txVolumeInEur })
       : this.feeService.getDefaultFee({ direction, asset, txVolume: txVolumeInEur });
   }
 
