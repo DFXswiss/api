@@ -9,6 +9,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
+import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
@@ -137,11 +138,9 @@ export abstract class EvmStrategy extends RegisterStrategy {
     toAddress: string,
     transactions: T[],
   ): T[] {
-    const notFromOwnAddresses = transactions.filter(
-      (tx) => !fromAddresses.map((a) => a.toLowerCase()).includes(tx.from.toLowerCase()),
-    );
+    const notFromOwnAddresses = transactions.filter((tx) => !Util.includesIgnoreCase(fromAddresses, tx.from));
 
-    return notFromOwnAddresses.filter((tx) => tx.to.toLowerCase() === toAddress.toLowerCase());
+    return notFromOwnAddresses.filter((tx) => Util.equalsIgnoreCase(tx.to, toAddress));
   }
 
   private mapCoinEntries(coinTransactions: EvmCoinHistoryEntry[], supportedAssets: Asset[]): PayInEntry[] {
@@ -204,12 +203,10 @@ export abstract class EvmStrategy extends RegisterStrategy {
     dto: AlchemyWebhookDto,
   ): AlchemyWebhookActivityDto[] {
     const notFromOwnAddresses = dto.event.activity.filter(
-      (tx) => !fromAddresses.map((a) => a.toLowerCase()).includes(tx.fromAddress.toLowerCase()),
+      (tx) => !Util.includesIgnoreCase(fromAddresses, tx.fromAddress),
     );
 
-    return notFromOwnAddresses.filter((tx) =>
-      toAddresses.map((a) => a.toLowerCase()).includes(tx.toAddress.toLowerCase()),
-    );
+    return notFromOwnAddresses.filter((tx) => Util.includesIgnoreCase(toAddresses, tx.toAddress));
   }
 
   private async mapWebhookTransactions(transactions: AlchemyWebhookActivityDto[]): Promise<PayInEntry[]> {
@@ -306,10 +303,8 @@ export abstract class EvmStrategy extends RegisterStrategy {
     toAddresses: string[],
     assetTransfers: AssetTransfersWithMetadataResult[],
   ): AssetTransfersWithMetadataResult[] {
-    const notFromOwnAddresses = assetTransfers.filter(
-      (tx) => !fromAddresses.map((a) => a.toLowerCase()).includes(tx.from.toLowerCase()),
-    );
+    const notFromOwnAddresses = assetTransfers.filter((tx) => !Util.includesIgnoreCase(fromAddresses, tx.from));
 
-    return notFromOwnAddresses.filter((tx) => toAddresses.map((a) => a.toLowerCase()).includes(tx.to.toLowerCase()));
+    return notFromOwnAddresses.filter((tx) => Util.includesIgnoreCase(toAddresses, tx.to));
   }
 }

@@ -200,6 +200,16 @@ export class Util {
     return Uint8Array.from(Buffer.from(value, encoding));
   }
 
+  // --- COMPARE --- //
+
+  static equalsIgnoreCase(left: string, right: string): boolean {
+    return left?.toLowerCase() === right?.toLowerCase();
+  }
+
+  static includesIgnoreCase(left: string[], right: string): boolean | undefined {
+    return left?.map((s) => s?.toLowerCase()).includes(right?.toLowerCase());
+  }
+
   // --- MISC --- //
 
   static async readFileFromDisk(fileName: string): Promise<string> {

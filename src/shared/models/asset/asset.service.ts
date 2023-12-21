@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetRepository } from 'src/shared/models/asset/asset.repository';
+import { Util } from 'src/shared/utils/util';
 import { In } from 'typeorm';
 import { Asset, AssetType } from './asset.entity';
 
@@ -69,8 +70,7 @@ export class AssetService {
 
   getByChainIdSync(assets: Asset[], blockchain: Blockchain, chainId: string): Asset | undefined {
     return assets.find(
-      (a) =>
-        a.blockchain === blockchain && a.type === AssetType.TOKEN && a.chainId.toLowerCase() === chainId.toLowerCase(),
+      (a) => a.blockchain === blockchain && a.type === AssetType.TOKEN && Util.equalsIgnoreCase(a.chainId, chainId),
     );
   }
 
