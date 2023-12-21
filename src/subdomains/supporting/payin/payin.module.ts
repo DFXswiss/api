@@ -2,7 +2,6 @@ import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AlchemyModule } from 'src/integration/alchemy/alchemy.module';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
-import { ChainalysisModule } from 'src/integration/chainalysis/chainalysis.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
 import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
@@ -54,7 +53,6 @@ import { OptimismTokenStrategy as OptimismTokenStrategyS } from './strategies/se
     PricingModule,
     PayoutModule,
     DexModule,
-    ChainalysisModule,
     forwardRef(() => SellCryptoModule),
     PaymentModule,
     NotificationModule,

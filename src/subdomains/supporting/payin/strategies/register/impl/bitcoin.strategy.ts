@@ -2,7 +2,6 @@ import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { ChainalysisService } from 'src/integration/chainalysis/services/chainalysis.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -26,7 +25,6 @@ export class BitcoinStrategy extends JellyfishStrategy {
   constructor(
     private readonly assetService: AssetService,
     private readonly bitcoinService: PayInBitcoinService,
-    private readonly chainalysisService: ChainalysisService,
     protected readonly payInRepository: PayInRepository,
   ) {
     super(payInRepository);
@@ -38,18 +36,8 @@ export class BitcoinStrategy extends JellyfishStrategy {
 
   //*** PUBLIC API ***//
 
-  async doAmlCheck(payIn: CryptoInput, route: Staking | Sell | CryptoRoute): Promise<CheckStatus> {
-    if (route.user.userData.kycStatus === KycStatus.REJECTED) return CheckStatus.FAIL;
-
-    // TODO just check chainalysis if amount in EUR > 10k or userData.highRisk
-    const highRisk = await this.chainalysisService.isHighRiskTx(
-      route.user.userData.id,
-      payIn.inTxId,
-      payIn.txSequence,
-      'BTC',
-      Blockchain.BITCOIN,
-    );
-    return highRisk ? CheckStatus.FAIL : CheckStatus.PASS;
+  async doAmlCheck(_: CryptoInput, route: Staking | Sell | CryptoRoute): Promise<CheckStatus> {
+    return route.user.userData.kycStatus === KycStatus.REJECTED ? CheckStatus.FAIL : CheckStatus.PASS;
   }
 
   /**

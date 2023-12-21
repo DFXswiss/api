@@ -364,7 +364,7 @@ export class UserData extends IEntity {
     return this.kycType === KycType.DFX;
   }
 
-  get individualFeeList(): number[] {
+  get individualFeeList(): number[] | undefined {
     return this.individualFees?.split(';')?.map(Number);
   }
 

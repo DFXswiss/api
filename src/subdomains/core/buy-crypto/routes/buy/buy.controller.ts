@@ -169,7 +169,7 @@ export class BuyController {
       dto.currency,
       dto.asset,
       dto.paymentMethod,
-      user.userData,
+      user,
     );
     const bankInfo = await this.getBankInfo(buy, { ...dto, amount });
 
