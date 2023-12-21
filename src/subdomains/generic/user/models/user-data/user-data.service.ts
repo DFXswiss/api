@@ -397,7 +397,7 @@ export class UserDataService {
     master.relatedAccountRelations = master.relatedAccountRelations.concat(slave.relatedAccountRelations);
     slave.individualFeeList?.forEach((fee) => !master.individualFeeList?.includes(fee) && master.addFee(fee));
 
-    master.status = master.status === UserDataStatus.KYC_ONLY ? slave.status : master.status;
+    if (master.status === UserDataStatus.KYC_ONLY) master.status = slave.status;
     await this.userDataRepo.save(master);
 
     // update slave status
