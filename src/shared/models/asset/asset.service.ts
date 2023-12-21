@@ -68,7 +68,10 @@ export class AssetService {
   }
 
   getByChainIdSync(assets: Asset[], blockchain: Blockchain, chainId: string): Asset | undefined {
-    return assets.find((a) => a.blockchain === blockchain && a.type === AssetType.TOKEN && a.chainId === chainId);
+    return assets.find(
+      (a) =>
+        a.blockchain === blockchain && a.type === AssetType.TOKEN && a.chainId.toLowerCase() === chainId.toLowerCase(),
+    );
   }
 
   async getDfiCoin(): Promise<Asset> {

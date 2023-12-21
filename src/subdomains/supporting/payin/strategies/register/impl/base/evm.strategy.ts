@@ -151,12 +151,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
       txType: null,
       blockHeight: parseInt(tx.blockNumber),
       amount: this.payInEvmService.fromWeiAmount(tx.value),
-      asset:
-        this.assetService.getByQuerySync(supportedAssets, {
-          dexName: this.nativeCoin,
-          blockchain: this.blockchain,
-          type: AssetType.COIN,
-        }) ?? null,
+      asset: this.getTransactionAsset(supportedAssets) ?? null,
     }));
   }
 
@@ -167,7 +162,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
       txType: null,
       blockHeight: parseInt(tx.blockNumber),
       amount: this.payInEvmService.fromWeiAmount(tx.value, parseInt(tx.tokenDecimal)),
-      asset: this.assetService.getByChainIdSync(supportedAssets, this.blockchain, tx.contractAddress) ?? null,
+      asset: this.getTransactionAsset(supportedAssets, tx.contractAddress) ?? null,
     }));
   }
 
@@ -226,16 +221,13 @@ export abstract class EvmStrategy extends RegisterStrategy {
       txType: null,
       blockHeight: Number(tx.blockNum),
       amount: this.payInEvmService.fromWeiAmount(tx.rawContract.rawValue, tx.rawContract.decimals),
-      asset: this.getWebhookTransactionAsset(supportedAssets, tx) ?? null,
+      asset: this.getTransactionAsset(supportedAssets, tx.rawContract.address) ?? null,
     }));
   }
 
-  private getWebhookTransactionAsset(
-    supportedAssets: Asset[],
-    transaction: AlchemyWebhookActivityDto,
-  ): Asset | undefined {
-    if (transaction.rawContract.address) {
-      return this.assetService.getByChainIdSync(supportedAssets, this.blockchain, transaction.rawContract.address);
+  private getTransactionAsset(supportedAssets: Asset[], chainId?: string): Asset | undefined {
+    if (chainId) {
+      return this.assetService.getByChainIdSync(supportedAssets, this.blockchain, chainId);
     }
 
     return this.assetService.getByQuerySync(supportedAssets, {
@@ -263,11 +255,13 @@ export abstract class EvmStrategy extends RegisterStrategy {
       assetTransfers,
     );
 
+    const supportedAssets = await this.assetService.getAllAsset([this.blockchain]);
+
     const payInEntries: PayInEntry[] = [];
 
     for (const assetTransfer of relevantAssetTransfers) {
       const txId = assetTransfer.hash;
-      const asset = await this.assetService.getAssetByChainId(this.blockchain, assetTransfer.rawContract.address);
+      const asset = this.getTransactionAsset(supportedAssets, assetTransfer.rawContract.address) ?? null;
 
       if (asset) {
         const dbPayInEntry = await this.payInRepository.findOne({
