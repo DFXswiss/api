@@ -7,10 +7,12 @@ import { KycController } from './api/kyc.controller';
 import { KycAdminController } from './controllers/kyc-admin.controller';
 import { KycLog } from './entities/kyc-log.entity';
 import { KycStep } from './entities/kyc-step.entity';
+import { MergeLog } from './entities/merge-log.entity';
 import { NameCheckLog } from './entities/name-check-log.entity';
 import { StepLog } from './entities/step-log.entity';
 import { KycLogRepository } from './repositories/kyc-log.repository';
 import { KycStepRepository } from './repositories/kyc-step.repository';
+import { MergeLogRepository } from './repositories/merge-log.repository';
 import { NameCheckLogRepository } from './repositories/name-check-log.repository';
 import { StepLogRepository } from './repositories/step-log.repository';
 import { TfaLogRepository } from './repositories/tfa-log.repository';
@@ -26,7 +28,7 @@ import { TfaService } from './services/tfa.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([KycStep, KycLog, NameCheckLog, StepLog]),
+    TypeOrmModule.forFeature([KycStep, KycLog, NameCheckLog, StepLog, MergeLog]),
     SharedModule,
     NotificationModule,
     forwardRef(() => UserModule),
@@ -45,9 +47,10 @@ import { TfaService } from './services/tfa.service';
     IdentService,
     FinancialService,
     KycLogRepository,
+    MergeLogRepository,
     KycStepRepository,
     KycNotificationService,
   ],
-  exports: [DocumentStorageService, NameCheckService, KycAdminService, KycNotificationService],
+  exports: [DocumentStorageService, NameCheckService, KycAdminService, KycNotificationService, MergeLogRepository],
 })
 export class KycModule {}

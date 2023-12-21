@@ -18,7 +18,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
-import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycLogType, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { MergeLogRepository } from 'src/subdomains/generic/kyc/repositories/merge-log.repository';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { FindOptionsRelations, In, IsNull, Not } from 'typeorm';
@@ -48,6 +49,7 @@ export class UserDataService {
     private readonly fiatService: FiatService,
     private readonly settingService: SettingService,
     private readonly kycNotificationService: KycNotificationService,
+    private readonly mergeLogRepo: MergeLogRepository,
     @Inject(forwardRef(() => LinkService)) private readonly linkService: LinkService,
   ) {}
 
@@ -392,7 +394,8 @@ export class UserDataService {
       .filter((i) => i)
       .join(' and ');
 
-    this.logger.info(`Merging user ${master.id} (master) and ${slave.id} (slave): reassigning ${mergedEntitiesString}`);
+    const log = `Merging user ${master.id} (master) and ${slave.id} (slave): reassigning ${mergedEntitiesString}`;
+    this.logger.info(log);
 
     await this.updateBankTxTime(slave.id);
 
@@ -428,6 +431,14 @@ export class UserDataService {
         await this.userRepo.activateUser(user);
       }
     }
+
+    const entity = this.mergeLogRepo.create({
+      type: KycLogType.MERGE,
+      result: log,
+      masterUser: master,
+    });
+
+    await this.mergeLogRepo.save(entity);
   }
 
   private async updateBankTxTime(userDataId: number): Promise<void> {
