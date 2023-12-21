@@ -27,8 +27,9 @@ import { LinkService } from '../link/link.service';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { UserRepository } from '../user/user.repository';
 import { AccountType } from './account-type.enum';
+import { CreateUserDataDto } from './dto/create-user-data.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
-import { KycCompleted, KycStatus, KycType, UserData, UserDataStatus } from './user-data.entity';
+import { KycCompleted, KycStatus, UserData, UserDataStatus } from './user-data.entity';
 import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
@@ -111,11 +112,11 @@ export class UserDataService {
       .getOne();
   }
 
-  async createUserData(kycType: KycType): Promise<UserData> {
+  async createUserData(dto: CreateUserDataDto): Promise<UserData> {
     const userData = this.userDataRepo.create({
-      language: await this.languageService.getLanguageBySymbol(Config.defaultLanguage),
-      currency: await this.fiatService.getFiatByName(Config.defaultCurrency),
-      kycType: kycType,
+      ...dto,
+      language: dto.language ?? (await this.languageService.getLanguageBySymbol(Config.defaultLanguage)),
+      currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaultCurrency)),
     });
 
     return this.userDataRepo.save(userData);
@@ -393,6 +394,8 @@ export class UserDataService {
     master.users = master.users.concat(slave.users);
     master.accountRelations = master.accountRelations.concat(slave.accountRelations);
     master.relatedAccountRelations = master.relatedAccountRelations.concat(slave.relatedAccountRelations);
+
+    master.status = master.status === UserDataStatus.KYC_ONLY ? slave.status : master.status;
     await this.userDataRepo.save(master);
 
     // update slave status
