@@ -26,6 +26,10 @@ export class AlchemyNetworkMapper {
     [80001, Network.MATIC_MUMBAI],
   ]);
 
+  static getChainId(blockchain: Blockchain): number | undefined {
+    return this.blockchainToChainIdMap.get(blockchain);
+  }
+
   static toAlchemyNetworkByChainId(chainId: number): Network | undefined {
     return this.chainIdToNetworkMap.get(chainId);
   }

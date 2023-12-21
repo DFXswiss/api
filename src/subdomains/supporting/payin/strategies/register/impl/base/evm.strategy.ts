@@ -1,6 +1,8 @@
 import { Inject } from '@nestjs/common';
+import { AssetTransfersWithMetadataResult } from 'alchemy-sdk';
 import { AlchemyWebhookActivityDto, AlchemyWebhookDto } from 'src/integration/alchemy/dto/alchemy-webhook.dto';
 import { AlchemyWebhookService } from 'src/integration/alchemy/services/alchemy-webhook.service';
+import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -20,9 +22,13 @@ import { PayInInputLog, RegisterStrategy } from './register.strategy';
 
 export abstract class EvmStrategy extends RegisterStrategy {
   protected addressWebhookMessageQueue: QueueHandler;
+  protected assetTransfersMessageQueue: QueueHandler;
 
   @Inject()
   protected readonly alchemyWebhookService: AlchemyWebhookService;
+
+  @Inject()
+  protected readonly alchemyService: AlchemyService;
 
   constructor(
     protected readonly nativeCoin: string,
@@ -237,5 +243,79 @@ export abstract class EvmStrategy extends RegisterStrategy {
       blockchain: this.blockchain,
       type: AssetType.COIN,
     });
+  }
+
+  protected processAssetTransfersMessageQueue(assetTransfers: AssetTransfersWithMetadataResult[]): void {
+    this.assetTransfersMessageQueue
+      .handle<void>(async () => this.processAssetTransfers(assetTransfers))
+      .catch((e) => {
+        this.logger.error('Error while process payin entries', e);
+      });
+  }
+
+  private async processAssetTransfers(assetTransfers: AssetTransfersWithMetadataResult[]): Promise<void> {
+    const fromAddresses = this.getOwnAddresses();
+    const toAdresses = await this.getPayInAddresses();
+
+    const relevantAssetTransfers = this.filterAssetTransfersByRelevantAddresses(
+      fromAddresses,
+      toAdresses,
+      assetTransfers,
+    );
+
+    const payInEntries: PayInEntry[] = [];
+
+    for (const assetTransfer of relevantAssetTransfers) {
+      const txId = assetTransfer.hash;
+      const asset = await this.assetService.getAssetByChainId(this.blockchain, assetTransfer.rawContract.address);
+
+      if (asset) {
+        const dbPayInEntry = await this.payInRepository.findOne({
+          where: {
+            inTxId: txId,
+            asset: { id: asset.id },
+            address: {
+              address: assetTransfer.to,
+              blockchain: this.blockchain,
+            },
+          },
+        });
+
+        if (!dbPayInEntry) {
+          const payInEntry: PayInEntry = {
+            address: BlockchainAddress.create(assetTransfer.to, this.blockchain),
+            txId: txId,
+            txType: null,
+            blockHeight: Number(assetTransfer.blockNum),
+            amount: this.payInEvmService.fromWeiAmount(
+              assetTransfer.rawContract.value,
+              Number(assetTransfer.rawContract.decimal),
+            ),
+            asset: asset,
+          };
+
+          payInEntries.push(payInEntry);
+        }
+      }
+    }
+
+    if (payInEntries.length) {
+      await this.addReferenceAmounts(payInEntries);
+
+      const log = this.createNewLogObject();
+      await this.createPayInsAndSave(payInEntries, log);
+    }
+  }
+
+  private filterAssetTransfersByRelevantAddresses(
+    fromAddresses: string[],
+    toAddresses: string[],
+    assetTransfers: AssetTransfersWithMetadataResult[],
+  ): AssetTransfersWithMetadataResult[] {
+    const notFromOwnAddresses = assetTransfers.filter(
+      (tx) => !fromAddresses.map((a) => a.toLowerCase()).includes(tx.from.toLowerCase()),
+    );
+
+    return notFromOwnAddresses.filter((tx) => toAddresses.map((a) => a.toLowerCase()).includes(tx.to.toLowerCase()));
   }
 }

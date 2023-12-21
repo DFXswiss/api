@@ -1,19 +1,10 @@
+import { Inject } from '@nestjs/common';
 import { ChainId, CurrencyAmount, Percent, Token, TradeType } from '@uniswap/sdk-core';
 import { AlphaRouter, SwapType } from '@uniswap/smart-order-router';
-import {
-  Alchemy,
-  BigNumber as AlchemyBigNumber,
-  Network as AlchemyNetwork,
-  Utils as AlchemyUtils,
-  AssetTransfersCategory,
-  AssetTransfersWithMetadataResponse,
-  AssetTransfersWithMetadataResult,
-  OwnedToken,
-} from 'alchemy-sdk';
+import { BigNumber as AlchemyBigNumber, AssetTransfersCategory, OwnedToken } from 'alchemy-sdk';
 import BigNumber from 'bignumber.js';
 import { BigNumberish, Contract, BigNumber as EthersNumber, ethers } from 'ethers';
-import { Config } from 'src/config/config';
-import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-mapper';
+import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
@@ -31,13 +22,15 @@ interface AssetTransfersParams {
 }
 
 export abstract class EvmClient {
+  @Inject()
+  protected readonly alchemyService: AlchemyService;
+
   protected provider: ethers.providers.JsonRpcProvider;
   protected randomReceiverAddress = '0x4975f78e8903548bD33aF404B596690D47588Ff5';
   protected wallet: ethers.Wallet;
   protected nonce = new Map<string, number>();
   protected tokens = new AsyncCache<Token>();
   private router: AlphaRouter;
-  private alchemy: Alchemy;
 
   constructor(protected http: HttpService, gatewayUrl: string, privateKey: string, protected chainId: ChainId) {
     this.provider = new ethers.providers.JsonRpcProvider(gatewayUrl);
@@ -47,36 +40,20 @@ export abstract class EvmClient {
       chainId: this.chainId,
       provider: this.provider,
     });
-
-    const alchemyNetwork = AlchemyNetworkMapper.toAlchemyNetworkByChainId(chainId);
-
-    if (alchemyNetwork) {
-      this.setupAlchemy(alchemyNetwork);
-    }
-  }
-
-  private setupAlchemy(alchemyNetwork: AlchemyNetwork) {
-    const alchemySettings = {
-      apiKey: Config.alchemy.apiKey,
-      authToken: Config.alchemy.authToken,
-      network: alchemyNetwork,
-    };
-
-    this.alchemy = new Alchemy(alchemySettings);
   }
 
   // --- PUBLIC API - GETTERS --- //
 
   async getNativeCoinTransactions(walletAddress: string, fromBlock: number): Promise<EvmCoinHistoryEntry[]> {
-    const category = [AlchemyNetwork.ETH_MAINNET, AlchemyNetwork.ETH_GOERLI].includes(this.alchemy.config.network)
-      ? [AssetTransfersCategory.EXTERNAL, AssetTransfersCategory.INTERNAL]
-      : [AssetTransfersCategory.EXTERNAL];
+    const categories = this.alchemyService.getNativeCoinCategories(this.chainId);
 
-    return this.getHistory(walletAddress, fromBlock, category);
+    return this.getHistory(walletAddress, fromBlock, categories);
   }
 
   async getERC20Transactions(walletAddress: string, fromBlock: number): Promise<EvmTokenHistoryEntry[]> {
-    return this.getHistory(walletAddress, fromBlock, [AssetTransfersCategory.ERC20]);
+    const categories = this.alchemyService.getERC20Categories(this.chainId);
+
+    return this.getHistory(walletAddress, fromBlock, categories);
   }
 
   async getNativeCoinBalance(): Promise<number> {
@@ -383,12 +360,12 @@ export abstract class EvmClient {
       categories: categories,
     };
 
-    const assetTransferResult = await this.getAssetTransfers(params);
+    const assetTransferResult = await this.alchemyService.getAssetTransfers(this.chainId, params);
 
     params.fromAddress = undefined;
     params.toAddress = walletAddress;
 
-    assetTransferResult.push(...(await this.getAssetTransfers(params)));
+    assetTransferResult.push(...(await this.alchemyService.getAssetTransfers(this.chainId, params)));
 
     assetTransferResult.sort((atr1, atr2) => Number(atr1.blockNum) - Number(atr2.blockNum));
 
@@ -405,60 +382,11 @@ export abstract class EvmClient {
     }));
   }
 
-  private async getAssetTransfers(params: AssetTransfersParams): Promise<AssetTransfersWithMetadataResult[]> {
-    let assetTransfersResponse = await this.alchemyGetAssetTransfers(params);
-    let pageKey = assetTransfersResponse.pageKey;
-
-    const assetTransferResult = assetTransfersResponse.transfers;
-
-    while (pageKey) {
-      assetTransfersResponse = await this.alchemyGetAssetTransfers(params, pageKey);
-      pageKey = assetTransfersResponse.pageKey;
-
-      assetTransferResult.push(...assetTransfersResponse.transfers);
-    }
-
-    return assetTransferResult;
-  }
-
-  private async alchemyGetAssetTransfers(
-    params: AssetTransfersParams,
-    pageKey?: string,
-  ): Promise<AssetTransfersWithMetadataResponse> {
-    if (!this.alchemy) throw new Error('Alchemy not available');
-
-    return this.alchemy.core.getAssetTransfers({
-      fromBlock: AlchemyUtils.hexlify(params.fromBlock),
-      fromAddress: params.fromAddress,
-      toAddress: params.toAddress,
-      category: params.categories,
-      excludeZeroValue: false,
-      pageKey: pageKey,
-      withMetadata: true,
-    });
-  }
-
   async getNativeCoinBalanceByAlchemy(): Promise<AlchemyBigNumber> {
-    if (!this.alchemy) throw new Error('Alchemy not available');
-
-    return this.alchemy.core.getBalance(this.dfxAddress, 'latest');
+    return this.alchemyService.getNativeCoinBalance(this.chainId, this.dfxAddress);
   }
 
   async getTokenBalancesByAlchemy(): Promise<OwnedToken[]> {
-    if (!this.alchemy) throw new Error('Alchemy not available');
-
-    let tokensForOwnerResponse = await this.alchemy.core.getTokensForOwner(this.dfxAddress);
-    let pageKey = tokensForOwnerResponse.pageKey;
-
-    const ownedTokens = tokensForOwnerResponse.tokens;
-
-    while (pageKey) {
-      tokensForOwnerResponse = await this.alchemy.core.getTokensForOwner(this.dfxAddress, { pageKey: pageKey });
-      pageKey = tokensForOwnerResponse.pageKey;
-
-      ownedTokens.push(...tokensForOwnerResponse.tokens);
-    }
-
-    return ownedTokens;
+    return this.alchemyService.getTokenBalances(this.chainId, this.dfxAddress);
   }
 }
