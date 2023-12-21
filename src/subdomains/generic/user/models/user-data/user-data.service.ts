@@ -326,10 +326,17 @@ export class UserDataService {
   async isKnownKycUser(user: UserData): Promise<boolean> {
     if (user.isDfxUser) {
       const users = await this.getUsersByMail(user.mail);
-      const completedUser = users.find((u) => u.id !== user.id && KycCompleted(u.kycStatus) && u.isDfxUser);
-      if (completedUser) {
+      const matchingUser = users.find(
+        (u) =>
+          u.id !== user.id &&
+          KycCompleted(u.kycStatus) &&
+          u.isDfxUser &&
+          u.verifiedName &&
+          (!user.verifiedName || user.verifiedName === u.verifiedName),
+      );
+      if (matchingUser) {
         // send an address link request
-        await this.linkService.createNewLinkAddress(user, completedUser);
+        await this.linkService.createNewLinkAddress(user, matchingUser);
         return true;
       }
     }
