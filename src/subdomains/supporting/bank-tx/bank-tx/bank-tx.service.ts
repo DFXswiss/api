@@ -138,6 +138,7 @@ export class BankTxService {
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('sellUser.userData', 'sellUserData')
       .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
       .leftJoinAndSelect('sellUserData.users', 'sellUsers')
       .leftJoinAndSelect('users.wallet', 'wallet')
       .leftJoinAndSelect('sellUsers.wallet', 'sellUsersWallet')

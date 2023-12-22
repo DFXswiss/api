@@ -119,6 +119,7 @@ export class BuyService {
       .leftJoinAndSelect('buy.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`${key.includes('.') ? key : `buy.${key}`} = :param`, { param: value })
       .getOne();
