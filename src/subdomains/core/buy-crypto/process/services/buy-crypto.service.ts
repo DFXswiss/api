@@ -222,9 +222,19 @@ export class BuyCryptoService {
     await this.buyCryptoNotificationService.sendNotificationMails();
   }
 
-  async updateVolumes(start = 1, end = 100000): Promise<void> {
-    const buyIds = await this.buyRepo.findBy({ id: Between(start, end) }).then((l) => l.map((b) => b.id));
-    await this.updateBuyVolume(buyIds);
+  async updateVolumes(type: 'buy' | 'crypto', start = 1, end = 100000): Promise<void> {
+    if (type === 'buy' || !type) {
+      const buyIds = await this.buyRepo.findBy({ id: Between(start, end) }).then((l) => l.map((b) => b.id));
+      await this.updateBuyVolume(buyIds);
+    }
+
+    if (type === 'crypto' || !type) {
+      const cryptoIds = await this.cryptoRouteService
+        .getCryptoRouteRepo()
+        .findBy({ id: Between(start, end) })
+        .then((l) => l.map((b) => b.id));
+      await this.updateCryptoRouteVolume(cryptoIds);
+    }
   }
 
   async updateRefVolumes(): Promise<void> {
