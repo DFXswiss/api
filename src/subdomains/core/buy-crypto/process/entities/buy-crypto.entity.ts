@@ -581,14 +581,6 @@ export class BuyCrypto extends IEntity {
         };
   }
 
-  get inputReference(): { amount: number; currency: string } {
-    return this.bankTx
-      ? { amount: this.bankTx.txAmount, currency: this.bankTx.txCurrency }
-      : this.checkoutTx
-      ? { amount: this.checkoutTx.amount, currency: this.checkoutTx.currency }
-      : { amount: this.cryptoInput.amount, currency: this.cryptoInput.asset.dexName };
-  }
-
   //*** HELPER METHODS ***//
 
   private resetTransaction(): Partial<BuyCrypto> {

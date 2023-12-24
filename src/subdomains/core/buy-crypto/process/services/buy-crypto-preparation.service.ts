@@ -161,8 +161,8 @@ export class BuyCryptoPreparationService {
 
         await this.buyCryptoRepo.update(
           ...entity.setFeeAndFiatReference(
-            referenceEurPrice.convert(entity.inputReference.amount, 2),
-            referenceChfPrice.convert(entity.inputReference.amount, 2),
+            referenceEurPrice.convert(entity.inputReferenceAmount, 2),
+            referenceChfPrice.convert(entity.inputReferenceAmount, 2),
             fee.fees,
             fee.rate,
             fee.fixed,
