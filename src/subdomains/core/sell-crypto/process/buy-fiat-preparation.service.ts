@@ -68,7 +68,7 @@ export class BuyFiatPreparationService {
         const referenceChfPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatChf);
 
         for (const feeId of fee.fees) {
-          await this.feeService.increaseTxUsage(feeId);
+          await this.feeService.increaseTxUsages(feeId, entity.sell.user.userData);
         }
 
         await this.buyFiatRepo.update(

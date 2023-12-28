@@ -72,7 +72,19 @@ export class Fee extends IEntity {
   @Column({ type: 'integer', default: 0 })
   txUsages: number;
 
+  @Column({ type: 'integer', nullable: true })
+  maxUserTxUsages: number;
+
+  @Column({ length: 'MAX', nullable: true })
+  userTxUsages: string;
+
   //*** FACTORY METHODS ***//
+
+  getUserTxUsage(userDataId: number): number {
+    const userTxUsage = this.userTxUsages?.split(';').find((userTxUsage) => +userTxUsage?.split(':')[0] === userDataId);
+
+    return +userTxUsage?.split(':')[1] ?? 0;
+  }
 
   increaseUsage(accountType: AccountType, wallet?: Wallet): UpdateResult<Fee> {
     this.verifyForUser(accountType, wallet);
@@ -98,11 +110,35 @@ export class Fee extends IEntity {
     return [this.id, update];
   }
 
+  increaseUserTxUsage(userDataId: number): UpdateResult<Fee> {
+    if (this.isExpired(userDataId) || !this.active)
+      throw new BadRequestException('Fee is expired - increaseUserTxUsage forbidden');
+
+    const oldUserTxUsage = this.userTxUsages
+      ?.split(';')
+      .find((userTxUsage) => +userTxUsage?.split(':')[0] === userDataId);
+
+    const newUserTxUsage = `${oldUserTxUsage?.split(':')[0] ?? userDataId}:${
+      +(oldUserTxUsage?.split(':')[1] ?? 0) + 1
+    }`;
+
+    const update: Partial<Fee> = {
+      userTxUsages:
+        !oldUserTxUsage && this.userTxUsages
+          ? `${this.userTxUsages};${newUserTxUsage}`
+          : this.userTxUsages?.replace(new RegExp(`\\b${oldUserTxUsage}\\b`, 'g'), newUserTxUsage) ?? newUserTxUsage,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   verifyForTx(request: FeeRequest): boolean {
     return (
       this?.active &&
       !(
-        this.isExpired() ||
+        this.isExpired(request.userDataId) ||
         (this.accountType && this.accountType !== request.accountType) ||
         (this.wallet && this.wallet.id !== request.wallet?.id) ||
         (this.direction && this.direction !== request.direction) ||
@@ -113,11 +149,14 @@ export class Fee extends IEntity {
     );
   }
 
-  isExpired(): boolean {
+  isExpired(userDataId?: number): boolean {
+    const userTxUsage = this.getUserTxUsage(userDataId);
+
     return (
       !this ||
       (this.expiryDate && this.expiryDate < new Date()) ||
-      (this.maxTxUsages && this.txUsages >= this.maxTxUsages)
+      (this.maxTxUsages && this.txUsages >= this.maxTxUsages) ||
+      (this.maxUserTxUsages && userTxUsage >= this.maxUserTxUsages)
     );
   }
 
