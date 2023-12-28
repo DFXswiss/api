@@ -28,20 +28,16 @@ export class BuyCryptoController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateBuyVolumes(
-    @Query('type') type?: 'buy' | 'crypto',
-    @Query('start') start?: string,
-    @Query('end') end?: string,
-  ): Promise<void> {
-    return this.buyCryptoService.updateVolumes(type, start ? +start : undefined, end ? +end : undefined);
+  async updateBuyVolumes(@Query('start') start?: string, @Query('end') end?: string): Promise<void> {
+    return this.buyCryptoService.updateVolumes(start ? +start : undefined, end ? +end : undefined);
   }
 
   @Put('refVolumes')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateRefVolumes(): Promise<void> {
-    return this.buyCryptoService.updateRefVolumes();
+  async updateRefVolumes(@Query('start') start?: string, @Query('end') end?: string): Promise<void> {
+    return this.buyCryptoService.updateRefVolumes(start ? +start : undefined, end ? +end : undefined);
   }
 
   @Put(':id')
