@@ -403,6 +403,17 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
+  resetSentMail(): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
+      recipientMail: null,
+      mailSendDate: null,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   setFeeAndFiatReference(
     amountInEur: number,
     amountInChf: number,

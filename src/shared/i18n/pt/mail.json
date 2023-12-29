@@ -36,8 +36,15 @@
             "payment_link": "Here you can find the transaction ID with your withdrawal: [url:Link]"
         },
         "buy_crypto": {
-            "title": "Deposit processed",
-            "salutation": "Your deposit has been successfully processed",
+            "confirmed": {
+                "title": "Deposit processed",
+                "salutation": "Your deposit has been successfully processed"
+            },
+            "waitingForLowerFee": {
+                "title": "Deposit arrived - blockchain fees too high",
+                "salutation": "Blockchain fees too high",
+                "message": "Your deposit has arrived at DFX. The blockchain fees are currently too high to send your assets to you. Your assets will be sent as soon as the blockchain fees are lower again. This is usually the case within 24 hours."
+            },
             "input_amount": "Deposited",
             "output_amount": "Crypto payment",
             "payment_link": "Here you can find the transaction ID with your payout: [url:Link]"

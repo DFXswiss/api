@@ -36,8 +36,15 @@
             "payment_link": "Dies ist die Transaktions-ID zu deiner Auszahlung: [url:Link]"
         },
         "buy_crypto": {
-            "title": "Einzahlung abgearbeitet",
-            "salutation": "Deine Einzahlung wurde erfolgreich bearbeitet",
+            "confirmed": {
+                "title": "Einzahlung abgearbeitet",
+                "salutation": "Deine Einzahlung wurde erfolgreich bearbeitet"
+            },
+            "waitingForLowerFee": {
+                "title": "Einzahlung angekommen - Blockchain Gebühren zu hoch",
+                "salutation": "Blockchain Gebühren zu hoch",
+                "message": "Deine Einzahlung ist bei DFX angekommen. Die Blockchain Gebühren sind derzeit zu hoch um deine Assets an dich zu schicken. Deine Assets werden losgeschickt sobald die Blockchain Gebühren wieder niedriger sind. Meistens ist dies innerhalb von 24h der Fall."
+            },
             "input_amount": "Einzahlung",
             "output_amount": "Krypto Auszahlung",
             "payment_link": "Dies ist die Transaktions-ID zur Krypto-Auszahlung: [url:Link]"

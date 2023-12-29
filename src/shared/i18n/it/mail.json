@@ -36,8 +36,15 @@
             "payment_link": "Qui puoi trovare l'ID della transazione con il tuo prelievo: [url:Link]"
         },
         "buy_crypto": {
-            "title": "Deposito effetuato",
-            "salutation": "Il tuo deposito e' stato processato con successo",
+            "confirmed": {
+                "title": "Deposito effetuato",
+                "salutation": "Il tuo deposito e' stato processato con successo"
+            },
+            "waitingForLowerFee": {
+                "title": "Deposito arrivato - commissioni blockchain troppo alte",
+                "salutation": "Tariffe blockchain troppo alte",
+                "message": "Il vostro deposito è arrivato a DFX. Le commissioni della blockchain sono attualmente troppo alte per potervi inviare i vostri beni. I vostri beni saranno inviati non appena le commissioni della blockchain saranno nuovamente inferiori. Di solito ciò avviene entro 24 ore."
+            },
             "input_amount": "Depositato",
             "output_amount": "Pagamento Crypto",
             "payment_link": "Qui puoi trovare l'ID della transazione con il tuo pagamento: [url:Link]"

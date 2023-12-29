@@ -97,6 +97,7 @@ export class BuyCryptoBatch extends IEntity {
         continue;
       }
 
+      tx.resetSentMail();
       reBatchTransactions.push(tx);
     }
 
