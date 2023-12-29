@@ -9,6 +9,14 @@ export class BscService extends EvmService {
   constructor(http: HttpService) {
     const { bscGatewayUrl, bscWalletPrivateKey, bscChainId, bscScanApiUrl, bscScanApiKey } = GetConfig().blockchain.bsc;
 
-    super(http, bscGatewayUrl, '', bscWalletPrivateKey, bscChainId, BscClient, bscScanApiUrl, bscScanApiKey);
+    super(BscClient, {
+      http,
+      gatewayUrl: bscGatewayUrl,
+      apiKey: '',
+      walletPrivateKey: bscWalletPrivateKey,
+      chainId: bscChainId,
+      scanApiUrl: bscScanApiUrl,
+      scanApiKey: bscScanApiKey,
+    });
   }
 }

@@ -1,27 +1,25 @@
-import { ChainId } from '@uniswap/sdk-core';
 import { Contract, ethers } from 'ethers';
 import { GetConfig } from 'src/config/config';
 import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
 import UNISWAP_ROUTER_02_ABI from 'src/integration/blockchain/shared/evm/abi/uniswap-router02.abi.json';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
+import { HttpRequestConfig } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { ScanApiResponse } from '../shared/evm/dto/scan-api-response.dto';
-import { EvmClient } from '../shared/evm/evm-client';
+import { EvmClient, EvmClientParams } from '../shared/evm/evm-client';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from '../shared/evm/interfaces';
 
 export class BscClient extends EvmClient {
   private routerV2: Contract;
 
-  constructor(
-    http: HttpService,
-    gatewayUrl: string,
-    privateKey: string,
-    chainId: ChainId,
-    private scanApiUrl: string,
-    private scanApiKey: string,
-  ) {
-    super(http, gatewayUrl, privateKey, chainId);
+  private scanApiUrl: string;
+  private scanApiKey: string;
+
+  constructor(params: EvmClientParams) {
+    super(params);
+
+    this.scanApiUrl = params.scanApiUrl;
+    this.scanApiKey = params.scanApiKey;
 
     // old v2 router
     this.routerV2 = new ethers.Contract(

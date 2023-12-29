@@ -13,6 +13,17 @@ import { WalletAccount } from './domain/wallet-account';
 import { EvmUtil } from './evm.util';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
 
+export interface EvmClientParams {
+  http: HttpService;
+  alchemyService?: AlchemyService;
+  gatewayUrl: string;
+  apiKey: string;
+  walletPrivateKey: string;
+  chainId: ChainId;
+  scanApiUrl?: string;
+  scanApiKey?: string;
+}
+
 interface AssetTransfersParams {
   fromAddress?: string;
   toAddress?: string;
@@ -21,18 +32,26 @@ interface AssetTransfersParams {
 }
 
 export abstract class EvmClient {
-  alchemyService: AlchemyService;
+  protected http: HttpService;
+  private alchemyService: AlchemyService;
+  private chainId: ChainId;
 
   protected provider: ethers.providers.JsonRpcProvider;
   protected randomReceiverAddress = '0x4975f78e8903548bD33aF404B596690D47588Ff5';
   protected wallet: ethers.Wallet;
-  protected nonce = new Map<string, number>();
-  protected tokens = new AsyncCache<Token>();
+  private nonce = new Map<string, number>();
+  private tokens = new AsyncCache<Token>();
   private router: AlphaRouter;
 
-  constructor(protected http: HttpService, gatewayUrl: string, privateKey: string, protected chainId: ChainId) {
-    this.provider = new ethers.providers.JsonRpcProvider(gatewayUrl);
-    this.wallet = new ethers.Wallet(privateKey, this.provider);
+  constructor(params: EvmClientParams) {
+    this.http = params.http;
+    this.alchemyService = params.alchemyService;
+    this.chainId = params.chainId;
+
+    const url = `${params.gatewayUrl}/${params.apiKey ?? ''}`;
+    this.provider = new ethers.providers.JsonRpcProvider(url);
+
+    this.wallet = new ethers.Wallet(params.walletPrivateKey, this.provider);
 
     this.router = new AlphaRouter({
       chainId: this.chainId,
