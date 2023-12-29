@@ -1,4 +1,3 @@
-import { Inject } from '@nestjs/common';
 import { ChainId, CurrencyAmount, Percent, Token, TradeType } from '@uniswap/sdk-core';
 import { AlphaRouter, SwapType } from '@uniswap/smart-order-router';
 import { BigNumber as AlchemyBigNumber, AssetTransfersCategory, OwnedToken } from 'alchemy-sdk';
@@ -22,8 +21,7 @@ interface AssetTransfersParams {
 }
 
 export abstract class EvmClient {
-  @Inject()
-  protected readonly alchemyService: AlchemyService;
+  alchemyService: AlchemyService;
 
   protected provider: ethers.providers.JsonRpcProvider;
   protected randomReceiverAddress = '0x4975f78e8903548bD33aF404B596690D47588Ff5';
