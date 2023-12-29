@@ -46,7 +46,9 @@ export class AlchemyService {
   getNativeCoinCategories(chainId: ChainId): AssetTransfersCategory[] {
     const alchemy = this.getAlchemy(chainId);
 
-    return [AlchemyNetwork.ETH_MAINNET, AlchemyNetwork.ETH_GOERLI].includes(alchemy.config.network)
+    return [AlchemyNetwork.ETH_MAINNET, AlchemyNetwork.ETH_GOERLI, AlchemyNetwork.MATIC_MAINNET].includes(
+      alchemy.config.network,
+    )
       ? [AssetTransfersCategory.EXTERNAL, AssetTransfersCategory.INTERNAL]
       : [AssetTransfersCategory.EXTERNAL];
   }

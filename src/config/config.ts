@@ -306,6 +306,13 @@ export class Configuration {
       walletAddress: process.env.MONERO_WALLET_ADDRESS,
       certificate: process.env.MONERO_RPC_CERTIFICATE?.split('<br>').join('\n'),
     },
+    polygon: {
+      polygonWalletAddress: process.env.POLYGON_WALLET_ADDRESS,
+      polygonWalletPrivateKey: process.env.POLYGON_WALLET_PRIVATE_KEY,
+      polygonGatewayUrl: process.env.POLYGON_GATEWAY_URL,
+      polygonApiKey: process.env.POLYGON_API_KEY,
+      polygonChainId: +process.env.POLYGON_CHAIN_ID,
+    },
   };
 
   payIn = {

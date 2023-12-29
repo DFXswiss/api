@@ -6,18 +6,29 @@ import { BscModule } from './bsc/bsc.module';
 import { EthereumModule } from './ethereum/ethereum.module';
 import { MoneroModule } from './monero/monero.module';
 import { OptimismModule } from './optimism/optimism.module';
+import { PolygonModule } from './polygon/polygon.module';
 import { EvmRegistryService } from './shared/evm/evm-registry.service';
 import { CryptoService } from './shared/services/crypto.service';
 
 @Module({
   providers: [EvmRegistryService, CryptoService],
-  imports: [AinModule, BscModule, EthereumModule, OptimismModule, ArbitrumModule, LightningModule, MoneroModule],
+  imports: [
+    AinModule,
+    BscModule,
+    EthereumModule,
+    OptimismModule,
+    ArbitrumModule,
+    PolygonModule,
+    LightningModule,
+    MoneroModule,
+  ],
   exports: [
     AinModule,
     BscModule,
     EthereumModule,
     OptimismModule,
     ArbitrumModule,
+    PolygonModule,
     LightningModule,
     MoneroModule,
     EvmRegistryService,
