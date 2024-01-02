@@ -10,6 +10,7 @@ import { WalletRepository } from 'src/subdomains/generic/user/models/wallet/wall
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
+import { KycModule } from '../kyc/kyc.module';
 import { AuthAlbyService } from './models/auth/auth-alby.service';
 import { AuthLnurlController } from './models/auth/auth-lnurl.controller';
 import { AuthLnUrlService } from './models/auth/auth-lnurl.service';
@@ -19,9 +20,6 @@ import { BankDataController } from './models/bank-data/bank-data.controller';
 import { BankData } from './models/bank-data/bank-data.entity';
 import { BankDataRepository } from './models/bank-data/bank-data.repository';
 import { BankDataService } from './models/bank-data/bank-data.service';
-import { IdentController } from './models/ident/ident.controller';
-import { IdentService } from './models/ident/ident.service';
-import { KycProcessService } from './models/kyc/kyc-process.service';
 import { KycClientController, KycController } from './models/kyc/kyc.controller';
 import { KycService } from './models/kyc/kyc.service';
 import { LimitRequestNotificationService } from './models/limit-request/limit-request-notification.service';
@@ -35,6 +33,9 @@ import { LinkController } from './models/link/link.controller';
 import { LinkService } from './models/link/link.service';
 import { SpiderData } from './models/spider-data/spider-data.entity';
 import { SpiderDataRepository } from './models/spider-data/spider-data.repository';
+import { UserDataRelationController } from './models/user-data-relation/user-data-relation.controller';
+import { UserDataRelationRepository } from './models/user-data-relation/user-data-relation.repository';
+import { UserDataRelationService } from './models/user-data-relation/user-data-relation.service';
 import { UserDataNotificationService } from './models/user-data/user-data-notification.service';
 import { UserData } from './models/user-data/user-data.entity';
 import { UserController } from './models/user/user.controller';
@@ -43,9 +44,6 @@ import { UserRepository } from './models/user/user.repository';
 import { UserService } from './models/user/user.service';
 import { WalletController } from './models/wallet/wallet.controller';
 import { Wallet } from './models/wallet/wallet.entity';
-import { SpiderApiService } from './services/spider/spider-api.service';
-import { SpiderSyncService } from './services/spider/spider-sync.service';
-import { SpiderService } from './services/spider/spider.service';
 import { WebhookService } from './services/webhook/webhook.service';
 
 @Module({
@@ -56,6 +54,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     BlockchainModule,
     ReferralModule,
     forwardRef(() => PaymentModule),
+    forwardRef(() => KycModule),
   ],
   controllers: [
     UserController,
@@ -63,12 +62,12 @@ import { WebhookService } from './services/webhook/webhook.service';
     BankDataController,
     AuthController,
     AuthLnurlController,
-    IdentController,
     KycClientController,
     KycController,
     LinkController,
     LimitRequestController,
     WalletController,
+    UserDataRelationController,
   ],
   providers: [
     UserRepository,
@@ -78,34 +77,22 @@ import { WebhookService } from './services/webhook/webhook.service';
     BankDataRepository,
     LimitRequestRepository,
     LinkAddressRepository,
+    UserDataRelationRepository,
     UserService,
     WalletService,
     UserDataService,
     BankDataService,
-    KycService,
-    KycProcessService,
-    SpiderService,
-    SpiderApiService,
-    SpiderSyncService,
     AuthService,
     AuthAlbyService,
     AuthLnUrlService,
     LimitRequestService,
-    IdentService,
     LinkService,
     WebhookService,
+    KycService,
     LimitRequestNotificationService,
     UserDataNotificationService,
+    UserDataRelationService,
   ],
-  exports: [
-    UserService,
-    UserDataService,
-    KycService,
-    SpiderService,
-    SpiderApiService,
-    LinkService,
-    WebhookService,
-    BankDataService,
-  ],
+  exports: [UserService, UserDataService, LinkService, WebhookService, BankDataService, WalletService],
 })
 export class UserModule {}

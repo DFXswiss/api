@@ -10,6 +10,7 @@ import { AlbySignupDto } from '../user/dto/alby.dto';
 import { AuthAlbyService } from './auth-alby.service';
 import { AuthService } from './auth.service';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
+import { AuthMailDto } from './dto/auth-mail.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { ChallengeDto } from './dto/challenge.dto';
 import { SignMessageDto } from './dto/sign-message.dto';
@@ -32,6 +33,12 @@ export class AuthController {
   @ApiCreatedResponse({ type: AuthResponseDto })
   signIn(@Body() credentials: AuthCredentialsDto, @RealIP() ip: string): Promise<AuthResponseDto> {
     return this.authService.signIn(credentials, ip);
+  }
+
+  @Post('mail')
+  @ApiCreatedResponse()
+  signInByMail(@Body() dto: AuthMailDto): Promise<void> {
+    return this.authService.signInByMail(dto);
   }
 
   @Get('signMessage')

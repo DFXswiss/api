@@ -1,6 +1,8 @@
 import { ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
+import { Lock } from 'src/shared/utils/lock';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
@@ -8,8 +10,6 @@ import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/pa
 import { PayoutRequest } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { PayoutRequestContext, PayoutRequestDto } from './dto/payout-request.dto';
-import { Config, Process } from 'src/config/config';
-import { Lock } from 'src/shared/utils/lock';
 
 @Injectable()
 export class AdminService {
@@ -58,7 +58,7 @@ export class AdminService {
   @Cron(CronExpression.EVERY_5_MINUTES)
   @Lock(3600)
   async completeLiquidityOrders() {
-    if (Config.processDisabled(Process.LIQUIDITY_MANAGEMENT)) return;
+    if (DisabledProcess(Process.LIQUIDITY_MANAGEMENT)) return;
     for (const context of Object.values(PayoutRequestContext)) {
       const lContext = context as unknown as LiquidityOrderContext;
       const pContext = context as unknown as PayoutOrderContext;

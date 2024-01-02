@@ -64,23 +64,23 @@ export class LightningHelper {
   // --- LNURLp --- //
   static createEncodedLnurlp(id: string): string {
     // create an encoded LNURLp with the HTTPS address of DFX API and the LNbits ID
-    const url = `${Config.url}/lnurlp/${id}`;
+    const url = `${Config.url()}/lnurlp/${id}`;
     return this.encodeLnurl(url);
   }
 
   static createLnurlpCallbackUrl(id: string): string {
-    return `${Config.url}/lnurlp/cb/${id}`;
+    return `${Config.url()}/lnurlp/cb/${id}`;
   }
 
   // --- LNURLw --- //
   static createEncodedLnurlw(id: string): string {
     // create an encoded LNURLw with the HTTPS address of DFX API and the LNbits ID
-    const url = `${Config.url}/lnurlw/${id}`;
+    const url = `${Config.url()}/lnurlw/${id}`;
     return this.encodeLnurl(url);
   }
 
   static createLnurlwCallbackUrl(id: string): string {
-    return `${Config.url}/lnurlw/cb/${id}`;
+    return `${Config.url()}/lnurlw/cb/${id}`;
   }
 
   // --- LNURL --- //

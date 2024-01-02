@@ -25,8 +25,13 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Install packages
-        run: |
-          npm ci
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_on: error
+          command: |
+            npm ci
 
       - name: Build code
         run: |

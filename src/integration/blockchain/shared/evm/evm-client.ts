@@ -1,18 +1,28 @@
 import { ChainId, CurrencyAmount, Percent, Token, TradeType } from '@uniswap/sdk-core';
 import { AlphaRouter, SwapType } from '@uniswap/smart-order-router';
+import { BigNumber as AlchemyBigNumber, AssetTransfersCategory, OwnedToken } from 'alchemy-sdk';
 import BigNumber from 'bignumber.js';
 import { BigNumberish, Contract, BigNumber as EthersNumber, ethers } from 'ethers';
+import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
+import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import ERC20_ABI from './abi/erc20.abi.json';
 import { WalletAccount } from './domain/wallet-account';
-import { ScanApiResponse } from './dto/scan-api-response.dto';
 import { EvmUtil } from './evm.util';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
 
+interface AssetTransfersParams {
+  fromAddress?: string;
+  toAddress?: string;
+  fromBlock: number;
+  categories: AssetTransfersCategory[];
+}
+
 export abstract class EvmClient {
+  alchemyService: AlchemyService;
+
   protected provider: ethers.providers.JsonRpcProvider;
   protected randomReceiverAddress = '0x4975f78e8903548bD33aF404B596690D47588Ff5';
   protected wallet: ethers.Wallet;
@@ -20,14 +30,7 @@ export abstract class EvmClient {
   protected tokens = new AsyncCache<Token>();
   private router: AlphaRouter;
 
-  constructor(
-    protected http: HttpService,
-    protected scanApiUrl: string,
-    protected scanApiKey: string,
-    protected chainId: ChainId,
-    gatewayUrl: string,
-    privateKey: string,
-  ) {
+  constructor(protected http: HttpService, gatewayUrl: string, privateKey: string, protected chainId: ChainId) {
     this.provider = new ethers.providers.JsonRpcProvider(gatewayUrl);
     this.wallet = new ethers.Wallet(privateKey, this.provider);
 
@@ -40,11 +43,15 @@ export abstract class EvmClient {
   // --- PUBLIC API - GETTERS --- //
 
   async getNativeCoinTransactions(walletAddress: string, fromBlock: number): Promise<EvmCoinHistoryEntry[]> {
-    return this.getHistory(walletAddress, fromBlock, 'txlist');
+    const categories = this.alchemyService.getNativeCoinCategories(this.chainId);
+
+    return this.getHistory(walletAddress, fromBlock, categories);
   }
 
   async getERC20Transactions(walletAddress: string, fromBlock: number): Promise<EvmTokenHistoryEntry[]> {
-    return this.getHistory(walletAddress, fromBlock, 'tokentx');
+    const categories = this.alchemyService.getERC20Categories(this.chainId);
+
+    return this.getHistory(walletAddress, fromBlock, categories);
   }
 
   async getNativeCoinBalance(): Promise<number> {
@@ -339,38 +346,45 @@ export abstract class EvmClient {
     return currentNonce;
   }
 
-  private async getHistory<T>(walletAddress: string, fromBlock: number, type: string): Promise<T[]> {
-    const params = {
-      module: 'account',
-      address: walletAddress,
-      startblock: fromBlock,
-      apikey: this.scanApiKey,
-      sort: 'asc',
-      action: type,
+  private async getHistory<T>(
+    walletAddress: string,
+    fromBlock: number,
+    categories: AssetTransfersCategory[],
+  ): Promise<T[]> {
+    const params: AssetTransfersParams = {
+      fromAddress: walletAddress,
+      toAddress: undefined,
+      fromBlock: fromBlock,
+      categories: categories,
     };
 
-    const { result, message } = await this.callScanApi({ method: 'GET', params });
+    const assetTransferResult = await this.alchemyService.getAssetTransfers(this.chainId, params);
 
-    if (!Array.isArray(result)) throw new Error(`Failed to get ${type} transactions: ${result ?? message}`);
+    params.fromAddress = undefined;
+    params.toAddress = walletAddress;
 
-    return result;
+    assetTransferResult.push(...(await this.alchemyService.getAssetTransfers(this.chainId, params)));
+
+    assetTransferResult.sort((atr1, atr2) => Number(atr1.blockNum) - Number(atr2.blockNum));
+
+    return <T[]>assetTransferResult.map((atr) => ({
+      blockNumber: Number(atr.blockNum).toString(),
+      timeStamp: Number(new Date(atr.metadata.blockTimestamp).getTime() / 1000).toString(),
+      hash: atr.hash,
+      from: atr.from,
+      to: atr.to,
+      value: Number(atr.rawContract.value).toString(),
+      contractAddress: atr.rawContract.address ?? '',
+      tokenName: atr.asset,
+      tokenDecimal: Number(atr.rawContract.decimal).toString(),
+    }));
   }
 
-  private async callScanApi<T>(config: HttpRequestConfig, nthTry = 10): Promise<ScanApiResponse<T>> {
-    const requestConfig = { url: this.scanApiUrl, ...config };
+  async getNativeCoinBalanceByAlchemy(): Promise<AlchemyBigNumber> {
+    return this.alchemyService.getNativeCoinBalance(this.chainId, this.dfxAddress);
+  }
 
-    try {
-      const response = await this.http.request<ScanApiResponse<T>>(requestConfig);
-      if (response.status === '0' && typeof response.result === 'string') throw new Error(response.result);
-
-      return response;
-    } catch (e) {
-      if (nthTry > 1 && (e.message?.includes('Max rate limit reached') || e.response?.status === 429)) {
-        await Util.delay(1000);
-        return this.callScanApi(requestConfig, nthTry - 1);
-      }
-
-      throw e;
-    }
+  async getTokenBalancesByAlchemy(): Promise<OwnedToken[]> {
+    return this.alchemyService.getTokenBalances(this.chainId, this.dfxAddress);
   }
 }

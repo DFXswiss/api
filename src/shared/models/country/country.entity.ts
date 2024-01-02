@@ -1,5 +1,5 @@
 import { KycType } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { Entity, Column } from 'typeorm';
+import { Column, Entity } from 'typeorm';
 import { IEntity } from '../entity';
 
 @Entity()
@@ -21,6 +21,12 @@ export class Country extends IEntity {
 
   @Column({ default: false })
   maerkiBaumannEnable: boolean;
+
+  @Column({ default: true })
+  fatfEnable: boolean;
+
+  @Column({ default: true })
+  nationalityEnable: boolean;
 
   isEnabled(kycType: KycType): boolean {
     switch (kycType) {

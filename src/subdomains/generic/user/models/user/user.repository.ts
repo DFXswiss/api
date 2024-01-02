@@ -19,7 +19,7 @@ export class UserRepository extends BaseRepository<User> {
       // retry (in case of ref conflict)
       await Util.retry(async () => {
         const ref = user.ref ?? (await this.getNextRef());
-        await this.update(user.id, { status: UserStatus.ACTIVE, ref });
+        await this.update(...user.activateUser(ref));
       }, 3);
     }
   }

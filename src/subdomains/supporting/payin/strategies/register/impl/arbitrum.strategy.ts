@@ -1,18 +1,18 @@
-import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Config } from 'src/config/config';
+import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-mapper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Lock } from 'src/shared/utils/lock';
+import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInArbitrumService } from '../../../services/payin-arbitrum.service';
 import { EvmStrategy } from './base/evm.strategy';
 
 @Injectable()
-export class ArbitrumStrategy extends EvmStrategy {
+export class ArbitrumStrategy extends EvmStrategy implements OnModuleInit {
   protected readonly logger = new DfxLogger(ArbitrumStrategy);
 
   constructor(
@@ -22,6 +22,21 @@ export class ArbitrumStrategy extends EvmStrategy {
     repos: RepositoryFactory,
   ) {
     super('ETH', arbitrumService, payInRepository, assetService, repos);
+  }
+
+  onModuleInit() {
+    super.onModuleInit();
+
+    this.addressWebhookMessageQueue = new QueueHandler();
+    this.assetTransfersMessageQueue = new QueueHandler();
+
+    this.alchemyWebhookService
+      .getAddressWebhookObservable(AlchemyNetworkMapper.toAlchemyNetworkByBlockchain(this.blockchain))
+      .subscribe((dto) => this.processAddressWebhookMessageQueue(dto));
+
+    this.alchemyService
+      .getAssetTransfersObservable(this.blockchain)
+      .subscribe((at) => this.processAssetTransfersMessageQueue(at));
   }
 
   get blockchain(): Blockchain {
@@ -62,15 +77,5 @@ export class ArbitrumStrategy extends EvmStrategy {
    */
   protected getOwnAddresses(): string[] {
     return [Config.blockchain.arbitrum.arbitrumWalletAddress];
-  }
-
-  //*** JOBS ***//
-
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(7200)
-  async checkPayInEntries(): Promise<void> {
-    if (Config.processDisabled(Process.PAY_IN)) return;
-
-    await this.processNewPayInEntries();
   }
 }

@@ -109,7 +109,7 @@ export class BuyService {
   }
 
   async getByBankUsage(bankUsage: string): Promise<Buy> {
-    return this.buyRepo.findOneBy({ bankUsage });
+    return this.buyRepo.findOne({ where: { bankUsage }, relations: ['user', 'user.userData'] });
   }
 
   async getBuyByKey(key: string, value: any): Promise<Buy> {
@@ -119,6 +119,7 @@ export class BuyService {
       .leftJoinAndSelect('buy.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`${key.includes('.') ? key : `buy.${key}`} = :param`, { param: value })
       .getOne();

@@ -20,9 +20,9 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
-import { KycService } from '../kyc/kyc.service';
 import { KycStatus, KycType, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { Wallet } from '../wallet/wallet.entity';
@@ -45,7 +45,6 @@ export class UserService {
     private readonly userRepo: UserRepository,
     private readonly userDataRepo: UserDataRepository,
     private readonly userDataService: UserDataService,
-    private readonly kycService: KycService,
     private readonly walletService: WalletService,
     private readonly dfiTaxService: DfiTaxService,
     private readonly apiKeyService: ApiKeyService,
@@ -73,6 +72,7 @@ export class UserService {
       .select('user')
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`${key.includes('.') ? key : `user.${key}`} = :param`, { param: value })
       .getOne();
@@ -132,12 +132,12 @@ export class UserService {
     user.wallet = wallet ?? (await this.walletService.getDefault());
     user.usedRef = await this.checkRef(user, usedRef);
     user.origin = userOrigin;
-    user.userData = await this.userDataService.createUserData(user.wallet.customKyc ?? KycType.DFX);
+    user.userData = await this.userDataService.createUserData({ kycType: user.wallet.customKyc ?? KycType.DFX });
     user = await this.userRepo.save(user);
 
     try {
-      if (discountCode) await this.feeService.addDiscountCodeUser(user.userData, discountCode);
-      if (usedRef || wallet) await this.feeService.addCustomSignUpFees(user.userData, user.usedRef, wallet?.id);
+      if (discountCode) await this.feeService.addDiscountCodeUser(user, discountCode);
+      if (usedRef || wallet) await this.feeService.addCustomSignUpFees(user, user.usedRef);
     } catch (e) {
       this.logger.warn(`Error while adding discountCode to new user ${user.id}:`, e);
     }
@@ -275,11 +275,11 @@ export class UserService {
   }
 
   // --- FEES --- //
-  async getUserFee(userId: number, direction: FeeDirectionType, asset: Asset, txVolume?: number): Promise<number> {
+  async getUserFee(userId: number, direction: FeeDirectionType, asset: Asset, txVolume?: number): Promise<FeeDto> {
     const user = await this.getUser(userId, { userData: true });
     if (!user) throw new NotFoundException('User not found');
 
-    return this.feeService.getUserFee({ userData: user.userData, direction, asset, txVolume });
+    return this.feeService.getUserFee({ user, direction, asset, txVolume });
   }
 
   // --- REF --- //
@@ -427,9 +427,10 @@ export class UserService {
       currency: user.userData?.currency,
       kycStatus: user.userData?.kycStatus,
       kycState: user.userData?.kycState,
+      kycLevel: user.userData?.kycLevel,
       kycHash: user.userData?.kycHash,
       tradingLimit: user.userData?.tradingLimit,
-      kycDataComplete: this.kycService.isDataComplete(user.userData),
+      kycDataComplete: user.userData?.isDataComplete,
       apiKeyCT: user.apiKeyCT,
       apiFilterCT: this.apiKeyService.getFilterArray(user.apiFilterCT),
       ...(detailed ? await this.getUserDetails(user) : undefined),

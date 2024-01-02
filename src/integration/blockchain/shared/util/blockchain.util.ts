@@ -14,12 +14,17 @@ export function assetExplorerUrl(asset: Asset): string | undefined {
   return assetPath ? `${BlockchainExplorerUrls[asset.blockchain]}/${assetPath}` : undefined;
 }
 
+export function isBtcChain(blockchain: Blockchain): boolean {
+  return [Blockchain.BITCOIN, Blockchain.LIGHTNING, Blockchain.MONERO].includes(blockchain);
+}
+
 // --- HELPERS --- //
 
 const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.DEFICHAIN]: 'https://defiscan.live',
   [Blockchain.BITCOIN]: 'https://explorer.lightning.space',
   [Blockchain.LIGHTNING]: undefined,
+  [Blockchain.MONERO]: 'https://xmrscan.org',
   [Blockchain.ETHEREUM]: 'https://etherscan.io',
   [Blockchain.BINANCE_SMART_CHAIN]: 'https://bscscan.com',
   [Blockchain.OPTIMISM]: 'https://optimistic.etherscan.io',
@@ -32,6 +37,7 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.DEFICHAIN]: 'transactions',
   [Blockchain.BITCOIN]: 'tx',
   [Blockchain.LIGHTNING]: undefined,
+  [Blockchain.MONERO]: 'tx',
   [Blockchain.ETHEREUM]: 'tx',
   [Blockchain.BINANCE_SMART_CHAIN]: 'tx',
   [Blockchain.OPTIMISM]: 'tx',
@@ -47,6 +53,7 @@ function assetPaths(asset: Asset): string | undefined {
 
     case Blockchain.BITCOIN:
     case Blockchain.LIGHTNING:
+    case Blockchain.MONERO:
       return undefined;
 
     case Blockchain.ETHEREUM:

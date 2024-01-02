@@ -11,10 +11,13 @@ import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { DataSource } from 'typeorm';
+import { KycFile } from '../kyc/dto/kyc-file.dto';
+import { DocumentStorageService } from '../kyc/services/integration/document-storage.service';
+import { AccountType } from '../user/models/user-data/account-type.enum';
 import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { UserService } from '../user/models/user/user.service';
-import { DbQueryBaseDto, DbQueryDto } from './dto/db-query.dto';
+import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 
 export enum SupportTable {
@@ -45,39 +48,20 @@ export class GsService {
     private readonly bankTxService: BankTxService,
     private readonly fiatOutputService: FiatOutputService,
     private readonly dataSource: DataSource,
+    private readonly documentStorageService: DocumentStorageService,
   ) {}
 
-  async getRawData(query: DbQueryDto): Promise<any> {
-    const request = this.dataSource
-      .createQueryBuilder()
-      .from(query.table, query.table)
-      .orderBy(`${query.table}.id`, query.sorting)
-      .limit(query.maxLine)
-      .where(`${query.table}.id >= :id`, { id: query.min })
-      .andWhere(`${query.table}.updated >= :updated`, { updated: query.updatedSince });
+  async getDbData(query: DbQueryDto): Promise<DbReturnData> {
+    const data = await this.getRawDbData({ ...query, select: query.select?.filter((s) => !s.includes('documents')) });
 
-    if (query.select) request.select(query.select);
-
-    for (const where of query.where) {
-      request.andWhere(where[0], where[1]);
-    }
-
-    for (const join of query.join) {
-      request.leftJoin(join[0], join[1]);
-    }
-
-    const data = await request.getRawMany().catch((e: Error) => {
-      throw new BadRequestException(e.message);
-    });
+    if (query.table === 'user_data' && (!query.select || query.select.some((s) => s.includes('documents'))))
+      await this.setUserDataDocs(data, query.select);
 
     // transform to array
     return this.transformResultArray(data, query.table);
   }
 
-  async getExtendedData(query: DbQueryBaseDto): Promise<{
-    keys: string[];
-    values: any;
-  }> {
+  async getExtendedDbData(query: DbQueryBaseDto): Promise<DbReturnData> {
     switch (query.table) {
       case 'bank_tx':
         return this.transformResultArray(await this.getExtendedBankTxData(query), query.table);
@@ -93,6 +77,7 @@ export class GsService {
 
     return {
       userData,
+      documents: await this.getAllUserDocuments(userData.id, userData.accountType),
       buyCrypto: await this.buyCryptoService.getAllUserTransactions(userIds),
       buyFiat: await this.buyFiatService.getAllUserTransactions(userIds),
       ref: await this.buyCryptoService.getAllRefTransactions(refCodes),
@@ -103,6 +88,69 @@ export class GsService {
   }
 
   //*** HELPER METHODS ***//
+
+  private async setUserDataDocs(data: UserData[], select: string[]): Promise<void> {
+    const selectPaths = this.filterSelectDocumentColumn(select);
+    const commonPrefix = this.getBiggestCommonPrefix(selectPaths);
+
+    for (const userData of data) {
+      const userDataId = userData.id ?? (userData['user_data_id'] as number);
+      const commonPathPrefix = this.toDocPath(commonPrefix, userDataId);
+
+      const docs = commonPathPrefix
+        ? await this.documentStorageService.listFilesByPrefix(commonPathPrefix)
+        : await this.getAllUserDocuments(userDataId, userData.accountType);
+
+      for (const selectPath of selectPaths) {
+        const docPath = this.toDocPath(selectPath, userDataId);
+        userData[selectPath] = docPath === commonPathPrefix ? docs : docs.filter((doc) => doc.url.includes(docPath));
+      }
+    }
+  }
+
+  private async getAllUserDocuments(userDataId: number, accountType: AccountType): Promise<KycFile[]> {
+    return [
+      ...(await this.documentStorageService.listUserFiles(userDataId)),
+      ...(await this.documentStorageService.listSpiderFiles(userDataId, false)),
+      ...(accountType !== AccountType.PERSONAL
+        ? await this.documentStorageService.listSpiderFiles(userDataId, true)
+        : []),
+    ];
+  }
+
+  private getBiggestCommonPrefix(selects: string[]): string | undefined {
+    const first = selects[0];
+    if (!first || selects.length === 1) return first || undefined;
+
+    let i = 0;
+    while (first[i] && selects.every((w) => w[i] === first[i])) i++;
+
+    return first.substring(0, i);
+  }
+
+  private async getRawDbData(query: DbQueryDto): Promise<any[]> {
+    const request = this.dataSource
+      .createQueryBuilder()
+      .from(query.table, query.table)
+      .orderBy(`${query.table}.${query.sortColumn}`, query.sorting)
+      .limit(query.maxLine)
+      .where(`${query.table}.id >= :id`, { id: query.min })
+      .andWhere(`${query.table}.updated >= :updated`, { updated: query.updatedSince });
+
+    if (query.select) request.select(query.select);
+
+    for (const where of query.where) {
+      request.andWhere(where[0], where[1]);
+    }
+
+    for (const join of query.join) {
+      request.leftJoin(join[0], join[1]);
+    }
+
+    return request.getRawMany().catch((e: Error) => {
+      throw new BadRequestException(e.message);
+    });
+  }
 
   private async getUserData(query: SupportDataQuery): Promise<UserData> {
     switch (query.table) {
@@ -213,13 +261,17 @@ export class GsService {
       );
   }
 
-  private transformResultArray(
-    data: any[],
-    table: string,
-  ): {
-    keys: string[];
-    values: any;
-  } {
+  private filterSelectDocumentColumn(select: string[]): string[] {
+    return (
+      select?.filter((s) => s.includes('documents')).map((doc) => doc.split('user_data.').join('')) ?? ['documents']
+    );
+  }
+
+  private toDocPath(selectPath: string, userDataId: number): string {
+    return selectPath.split('-')[1]?.split('.').join('/').split('{userData}').join(`${userDataId}`);
+  }
+
+  private transformResultArray(data: any[], table: string): DbReturnData {
     // transform to array
     return data.length > 0
       ? {
@@ -230,7 +282,9 @@ export class GsService {
   }
 
   private renameDbKeys(table: string, keys: string[]): string[] {
-    return keys.map((k) => k.replace(`${table}_`, '')).map((k) => (k.includes('_') ? this.toDotSeparation(k) : k));
+    return keys
+      .map((k) => k.replace(`${table}_`, ''))
+      .map((k) => (k.includes('_') && !k.includes('documents') ? this.toDotSeparation(k) : k));
   }
 
   private toDotSeparation(str: string): string {

@@ -7,6 +7,9 @@ param knownIps string
 param limitCheck string
 param bsLink string
 
+param apiSkuName string
+param apiSkuTier string
+
 param dbAllowAllIps bool
 param dbAdminLogin string
 @secure()
@@ -20,6 +23,15 @@ param jwtSecret string = newGuid()
 param mailUser string
 @secure()
 param mailPass string
+
+param kycGatewayHost string
+param kycCustomerAuto string
+@secure()
+param kycApiKeyAuto string
+param kycCustomerVideo string
+@secure()
+param kycApiKeyVideo string
+param kycTransactionPrefix string
 
 param kycMandator string
 @secure()
@@ -49,9 +61,6 @@ param ethGatewayUrl string
 @secure()
 param ethApiKey string
 param ethChainId string
-param ethScanApiUrl string
-@secure()
-param ethScanApiKey string
 
 param optimismWalletAddress string
 @secure()
@@ -60,9 +69,6 @@ param optimismGatewayUrl string
 @secure()
 param optimismApiKey string
 param optimismChainId string
-param optimismScanApiUrl string
-@secure()
-param optimismScanApiKey string
 
 param arbitrumWalletAddress string
 @secure()
@@ -71,9 +77,6 @@ param arbitrumGatewayUrl string
 @secure()
 param arbitrumApiKey string
 param arbitrumChainId string
-param arbitrumScanApiUrl string
-@secure()
-param arbitrumScanApiKey string
 
 param bscWalletAddress string
 @secure()
@@ -85,11 +88,16 @@ param bscScanApiUrl string
 @secure()
 param bscScanApiKey string
 
+@secure()
 param lightningApiCertificate string
 @secure()
 param lightningLnbitsApiKey string
 @secure()
 param lightningLndAdminMacaroon string
+
+param moneroWalletAddress string
+@secure()
+param moneroRpcCertificate string
 
 param buyCryptoFeeLimit string
 
@@ -115,6 +123,7 @@ param binanceKey string
 param binanceSecret string
 
 param binanceWithdrawKeys string
+param binanceBtcDepositAddress string
 
 param olkyClient string
 @secure()
@@ -149,9 +158,6 @@ param btcVmUser string
 param btcVmPassword string
 
 @secure()
-param chainalysisApiKey string
-
-@secure()
 param coinGeckoApiKey string
 
 param myDeFiChainUser string
@@ -160,9 +166,6 @@ param myDeFiChainPassword string
 
 param paymentUrl string
 param servicesUrl string
-
-@secure()
-param lockApiKey string
 
 param limitRequestSupportBanner string
 param limitRequestSupportMail string
@@ -173,13 +176,12 @@ param azureTenantId string
 param azureClientId string
 @secure()
 param azureClientSecret string
+@secure()
+param azureStorageConnectionString string
 
 param albyClientId string
 @secure()
 param albyClientSecret string
-
-@secure()
-param taliumApiKey string
 
 @secure()
 param iknaKey string
@@ -188,6 +190,15 @@ param iknaKey string
 param ckoPublicKey string
 @secure()
 param ckoSecretKey string
+
+param delisenseJsonPath string
+@secure()
+param delisenseKey string
+
+@secure()
+param alchemyApiKey string
+@secure()
+param alchemyAuthToken string
 
 // --- VARIABLES --- //
 var compName = 'dfx'
@@ -201,6 +212,7 @@ var vmNsgName = 'nsg-${compName}-vm-${env}'
 
 var storageAccountName = replace('st-${compName}-${apiName}-${env}', '-', '')
 var dbBackupContainerName = 'db-bak'
+var kycDocumentContainerName = 'kyc'
 
 var sqlServerName = 'sql-${compName}-${apiName}-${env}'
 var sqlDbName = 'sqldb-${compName}-${apiName}-${env}'
@@ -211,6 +223,8 @@ var appInsightsName = 'appi-${compName}-${apiName}-${env}'
 
 var btcNodePort = '8332'
 var lnBitsPort = '5000'
+var moneroNodePort = '18081'
+var moneroRpcPort = '18082'
 
 var nodeProps = [
   {
@@ -322,6 +336,10 @@ resource dbBackupContainer 'Microsoft.Storage/storageAccounts/blobServices/conta
   name: '${storageAccount.name}/default/${dbBackupContainerName}'
 }
 
+resource kycDocumentContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2021-04-01' = {
+  name: '${storageAccount.name}/default/${kycDocumentContainerName}'
+}
+
 // SQL Database
 resource sqlServer 'Microsoft.Sql/servers@2021-02-01-preview' = {
   name: sqlServerName
@@ -389,8 +407,8 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2018-02-01' = {
     reserved: true
   }
   sku: {
-    name: 'P1v2'
-    tier: 'PremiumV2'
+    name: apiSkuName
+    tier: apiSkuTier
     capacity: 1
   }
 }
@@ -469,6 +487,30 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'MAIL_PASS'
           value: mailPass
+        }
+        {
+          name: 'KYC_GATEWAY_HOST'
+          value: kycGatewayHost
+        }
+        {
+          name: 'KYC_CUSTOMER_AUTO'
+          value: kycCustomerAuto
+        }
+        {
+          name: 'KYC_API_KEY_AUTO'
+          value: kycApiKeyAuto
+        }
+        {
+          name: 'KYC_CUSTOMER_VIDEO'
+          value: kycCustomerVideo
+        }
+        {
+          name: 'KYC_API_KEY_VIDEO'
+          value: kycApiKeyVideo
+        }
+        {
+          name: 'KYC_TRANSACTION_PREFIX'
+          value: kycTransactionPrefix
         }
         {
           name: 'KYC_MANDATOR'
@@ -567,14 +609,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: ethChainId
         }
         {
-          name: 'ETH_SCAN_API_URL'
-          value: ethScanApiUrl
-        }
-        {
-          name: 'ETH_SCAN_API_KEY'
-          value: ethScanApiKey
-        }
-        {
           name: 'OPTIMISM_WALLET_ADDRESS'
           value: optimismWalletAddress
         }
@@ -595,14 +629,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: optimismChainId
         }
         {
-          name: 'OPTIMISM_SCAN_API_URL'
-          value: optimismScanApiUrl
-        }
-        {
-          name: 'OPTIMISM_SCAN_API_KEY'
-          value: optimismScanApiKey
-        }
-        {
           name: 'ARBITRUM_WALLET_ADDRESS'
           value: arbitrumWalletAddress
         }
@@ -621,14 +647,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'ARBITRUM_CHAIN_ID'
           value: arbitrumChainId
-        }
-        {
-          name: 'ARBITRUM_SCAN_API_URL'
-          value: arbitrumScanApiUrl
-        }
-        {
-          name: 'ARBITRUM_SCAN_API_KEY'
-          value: arbitrumScanApiKey
         }
         {
           name: 'BSC_WALLET_ADDRESS'
@@ -687,6 +705,22 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: lightningLndAdminMacaroon
         }
         {
+          name: 'MONERO_WALLET_ADDRESS'
+          value: moneroWalletAddress
+        }
+        {
+          name: 'MONERO_NODE_URL'
+          value: 'https://${btcNodes[0].outputs.ip}:${moneroNodePort}'
+        }
+        {
+          name: 'MONERO_RPC_URL'
+          value: 'https://${btcNodes[0].outputs.ip}:${moneroRpcPort}'
+        }
+        {
+          name: 'MONERO_RPC_CERTIFICATE'
+          value: moneroRpcCertificate
+        }
+        {
           name: 'BTC_OUT_WALLET_ADDRESS'
           value: btcOutWalletAddress
         }
@@ -737,6 +771,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'BINANCE_WITHDRAW_KEYS'
           value: binanceWithdrawKeys
+        }
+        {
+          name: 'BINANCE_BTC_DEPOSIT_ADDRESS'
+          value: binanceBtcDepositAddress
         }
         {
           name: 'LETTER_URL'
@@ -799,10 +837,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: frickPrivateKey
         }
         {
-          name: 'CHAINALYSIS_API_KEY'
-          value: chainalysisApiKey
-        }
-        {
           name: 'COIN_GECKO_API_KEY'
           value: coinGeckoApiKey
         }
@@ -821,10 +855,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'SERVICES_URL'
           value: servicesUrl
-        }
-        {
-          name: 'LOCK_API_KEY'
-          value: lockApiKey
         }
         {
           name: 'LIMIT_REQUEST_SUPPORT_BANNER'
@@ -855,16 +885,16 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: azureClientSecret
         }
         {
+          name: 'AZURE_STORAGE_CONNECTION_STRING'
+          value: azureStorageConnectionString
+        }
+        {
           name: 'ALBY_CLIENT_ID'
           value: albyClientId
         }
         {
           name: 'ALBY_CLIENT_SECRET'
           value: albyClientSecret
-        }
-        {
-          name: 'TALIUM_API_KEY'
-          value: taliumApiKey
         }
         {
           name: 'REQUEST_KNOWN_IPS'
@@ -889,6 +919,22 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'WEBSITE_RUN_FROM_PACKAGE'
           value: '1'
+        }
+        {
+          name: 'DILISENSE_JSON_PATH'
+          value: delisenseJsonPath
+        }
+        {
+          name: 'DILISENSE_KEY'
+          value: delisenseKey
+        }
+        {
+          name: 'ALCHEMY_API_KEY'
+          value: alchemyApiKey
+        }
+        {
+          name: 'ALCHEMY_AUTH_TOKEN'
+          value: alchemyAuthToken
         }
       ]
     }

@@ -205,7 +205,7 @@ describe('Pricing Module Integration Tests', () => {
 
     expect(result.path[0].price).toBeInstanceOf(Price);
     expect(result.path[0].price.source).toBe('GBP');
-    expect(result.path[0].price.target).toBe('BTC');
+    expect(result.path[0].price.target).toBe('USDT');
     expect(result.path[0].price.price).toBe(0.000058);
 
     expect(result.path[0].timestamp).toBeInstanceOf(Date);
@@ -213,7 +213,7 @@ describe('Pricing Module Integration Tests', () => {
     expect(result.path[1].provider).toBe('Binance');
 
     expect(result.path[1].price).toBeInstanceOf(Price);
-    expect(result.path[1].price.source).toBe('BTC');
+    expect(result.path[1].price.source).toBe('USDT');
     expect(result.path[1].price.target).toBe('BNB');
     expect(result.path[1].price.price).toBe(71.3);
 
@@ -254,7 +254,7 @@ describe('Pricing Module Integration Tests', () => {
 
     expect(result.path[0].price).toBeInstanceOf(Price);
     expect(result.path[0].price.source).toBe('ETH');
-    expect(result.path[0].price.target).toBe('BTC');
+    expect(result.path[0].price.target).toBe('USDT');
     expect(result.path[0].price.price).toBe(0.081);
 
     expect(result.path[0].timestamp).toBeInstanceOf(Date);
@@ -262,7 +262,7 @@ describe('Pricing Module Integration Tests', () => {
     expect(result.path[1].provider).toBe('Binance');
 
     expect(result.path[1].price).toBeInstanceOf(Price);
-    expect(result.path[1].price.source).toBe('BTC');
+    expect(result.path[1].price.source).toBe('USDT');
     expect(result.path[1].price.target).toBe('BNB');
     expect(result.path[1].price.price).toBe(71.3);
 

@@ -1,8 +1,7 @@
 import { MailerOptions, MailerService } from '@nestjs-modules/mailer';
 import { Injectable } from '@nestjs/common';
-import { Util } from 'src/shared/utils/util';
-import { Mail } from '../entities/mail/base/mail';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Mail } from '../entities/mail/base/mail';
 
 export interface MailOptions {
   options: MailerOptions;
@@ -23,22 +22,20 @@ export class MailService {
 
   async send(mail: Mail): Promise<void> {
     try {
-      await Util.retry(
-        () =>
-          this.mailerService.sendMail({
-            from: mail.from,
-            to: mail.to,
-            cc: mail.cc,
-            bcc: mail.bcc,
-            subject: mail.subject,
-            template: mail.template,
-            context: mail.templateParams,
-          }),
-        3,
-        1000,
-      );
+      await this.mailerService.sendMail({
+        from: mail.from,
+        to: mail.to,
+        cc: mail.cc,
+        bcc: mail.bcc,
+        subject: mail.subject,
+        template: mail.template,
+        context: mail.templateParams,
+      });
     } catch (e) {
-      this.logger.error(`Exception sending mail (from:${mail.from}, to:${mail.to}, subject:${mail.subject}):`, e);
+      this.logger.error(
+        `Exception sending mail (from:${mail.from.name}<${mail.from.address}>, to:${mail.to}, subject:${mail.subject}):`,
+        e,
+      );
       throw e;
     }
   }

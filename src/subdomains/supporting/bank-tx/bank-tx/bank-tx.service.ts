@@ -1,8 +1,9 @@
 import { ConflictException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
@@ -49,7 +50,7 @@ export class BankTxService {
   }
 
   async checkTransactions(): Promise<void> {
-    if (Config.processDisabled(Process.BANK_TX)) return;
+    if (DisabledProcess(Process.BANK_TX)) return;
 
     // Get settings
     const settingKeyOlky = 'lastBankOlkyDate';
@@ -81,6 +82,7 @@ export class BankTxService {
 
       if (match) {
         const buy = await this.buyService.getByBankUsage(match[0]);
+
         if (buy) {
           await this.update(tx.id, { type: BankTxType.BUY_CRYPTO, buyId: buy.id });
           continue;
@@ -136,6 +138,7 @@ export class BankTxService {
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('sellUser.userData', 'sellUserData')
       .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
       .leftJoinAndSelect('sellUserData.users', 'sellUsers')
       .leftJoinAndSelect('users.wallet', 'wallet')
       .leftJoinAndSelect('sellUsers.wallet', 'sellUsersWallet')

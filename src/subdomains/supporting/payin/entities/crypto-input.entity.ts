@@ -1,5 +1,6 @@
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { isBtcChain } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
@@ -258,10 +259,7 @@ export class CryptoInput extends IEntity {
   }
 
   addReferenceAmounts(btcAmount: number, usdtAmount: number): this {
-    if (
-      btcAmount == null ||
-      (usdtAmount == null && ![Blockchain.BITCOIN, Blockchain.LIGHTNING].includes(this.address.blockchain))
-    ) {
+    if (btcAmount == null || (usdtAmount == null && !isBtcChain(this.address.blockchain))) {
       this.status = PayInStatus.WAITING_FOR_PRICE_REFERENCE;
       return this;
     }

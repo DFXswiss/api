@@ -1,7 +1,7 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -17,6 +17,7 @@ import { SellHistoryDto } from '../route/dto/sell-history.dto';
 import { Sell } from '../route/sell.entity';
 import { SellRepository } from '../route/sell.repository';
 import { SellService } from '../route/sell.service';
+import { BuyFiatPreparationService } from './buy-fiat-preparation.service';
 import { BuyFiatRegistrationService } from './buy-fiat-registration.service';
 import { BuyFiat } from './buy-fiat.entity';
 import { BuyFiatRepository } from './buy-fiat.repository';
@@ -36,13 +37,15 @@ export class BuyFiatService {
     private readonly bankTxService: BankTxService,
     private readonly fiatOutputService: FiatOutputService,
     private readonly webhookService: WebhookService,
+    @Inject(forwardRef(() => BuyFiatPreparationService))
+    private readonly buyFiatPreparationService: BuyFiatPreparationService,
   ) {}
 
   // --- CHECK BUY FIAT --- //
   @Cron(CronExpression.EVERY_10_MINUTES)
   @Lock(7200)
   async addFiatOutputs(): Promise<void> {
-    if (Config.processDisabled(Process.BUY_FIAT)) return;
+    if (DisabledProcess(Process.BUY_FIAT)) return;
     const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
       relations: ['fiatOutput'],
       where: { amlCheck: CheckStatus.PASS, fiatOutput: IsNull() },
@@ -59,8 +62,9 @@ export class BuyFiatService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async checkCryptoPayIn() {
-    if (Config.processDisabled(Process.BUY_FIAT)) return;
+    if (DisabledProcess(Process.BUY_FIAT)) return;
     await this.buyFiatRegistrationService.registerSellPayIn();
+    if (!DisabledProcess(Process.BUY_FIAT_SET_FEE)) await this.buyFiatPreparationService.refreshFee();
   }
 
   async update(id: number, dto: UpdateBuyFiatDto): Promise<BuyFiat> {
@@ -110,8 +114,8 @@ export class BuyFiatService {
     )
       await this.triggerWebhook(entity);
 
-    await this.updateSellVolume([sellIdBefore, entity.sell?.id]);
-    await this.updateRefVolume([usedRefBefore, entity.usedRef]);
+    if (dto.amountInChf) await this.updateSellVolume([sellIdBefore, entity.sell?.id]);
+    if (dto.usedRef || dto.amountInEur) await this.updateRefVolume([usedRefBefore, entity.usedRef]);
 
     return entity;
   }
@@ -124,6 +128,7 @@ export class BuyFiatService {
       .leftJoinAndSelect('sell.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`${key.includes('.') ? key : `buyFiat.${key}`} = :param`, { param: value })
       .getOne();
@@ -156,8 +161,8 @@ export class BuyFiatService {
     await this.fiatOutputService.delete(fiatOutputId);
   }
 
-  async updateVolumes(): Promise<void> {
-    const sellIds = await this.sellRepo.find().then((l) => l.map((b) => b.id));
+  async updateVolumes(start = 1, end = 100000): Promise<void> {
+    const sellIds = await this.sellRepo.findBy({ id: Between(start, end) }).then((l) => l.map((b) => b.id));
     await this.updateSellVolume(sellIds);
   }
 
@@ -225,7 +230,7 @@ export class BuyFiatService {
     return sell;
   }
 
-  private async updateSellVolume(sellIds: number[]): Promise<void> {
+  async updateSellVolume(sellIds: number[]): Promise<void> {
     sellIds = sellIds.filter((u, j) => sellIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 
     for (const id of sellIds) {
@@ -250,7 +255,7 @@ export class BuyFiatService {
     }
   }
 
-  private async updateRefVolume(refs: string[]): Promise<void> {
+  async updateRefVolume(refs: string[]): Promise<void> {
     refs = refs.filter((u, j) => refs.indexOf(u) === j).filter((i) => i); // distinct, not null
 
     for (const ref of refs) {

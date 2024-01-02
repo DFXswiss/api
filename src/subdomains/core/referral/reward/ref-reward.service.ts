@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -20,10 +20,11 @@ import { RefRewardRepository } from './ref-reward.repository';
 
 // min. payout limits (EUR), undefined -> payout disabled
 const PayoutLimits: { [k in Blockchain]: number } = {
-  [Blockchain.DEFICHAIN]: 1,
+  [Blockchain.DEFICHAIN]: undefined,
   [Blockchain.ARBITRUM]: 10,
   [Blockchain.BITCOIN]: 100,
   [Blockchain.LIGHTNING]: undefined,
+  [Blockchain.MONERO]: 1,
   [Blockchain.CARDANO]: undefined,
   [Blockchain.ETHEREUM]: undefined,
   [Blockchain.BINANCE_SMART_CHAIN]: undefined,
@@ -50,7 +51,7 @@ export class RefRewardService {
   @Cron(CronExpression.EVERY_DAY_AT_6AM)
   @Lock(1800)
   async createPendingRefRewards() {
-    if (Config.processDisabled(Process.REF_PAYOUT)) return;
+    if (DisabledProcess(Process.REF_PAYOUT)) return;
 
     const openCreditUser = await this.userService.getOpenRefCreditUser();
     if (openCreditUser.length == 0) return;
@@ -96,7 +97,7 @@ export class RefRewardService {
   @Cron(CronExpression.EVERY_10_MINUTES)
   @Lock(1800)
   async processPendingRefRewards() {
-    if (Config.processDisabled(Process.REF_PAYOUT)) return;
+    if (DisabledProcess(Process.REF_PAYOUT)) return;
 
     await this.refRewardDexService.secureLiquidity();
     await this.refRewardOutService.checkPaidTransaction();

@@ -107,6 +107,6 @@ export class HistoryController {
   // --- HELPER METHODS --- //
 
   private formatDate(date: Date = new Date()): string {
-    return date.toISOString().split('-').join('').split(':').join('').split('T').join('_').split('.')[0];
+    return Util.isoDateTime(date).split('-').join('');
   }
 }

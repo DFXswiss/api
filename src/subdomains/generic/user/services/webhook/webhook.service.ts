@@ -10,7 +10,6 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { KycCompleted, KycStatus, KycType, UserData } from '../../models/user-data/user-data.entity';
 import { User } from '../../models/user/user.entity';
 import { UserRepository } from '../../models/user/user.repository';
-import { WalletService } from '../../models/wallet/wallet.service';
 import { KycWebhookData, KycWebhookStatus } from './dto/kyc-webhook.dto';
 import { PaymentWebhookData } from './dto/payment-webhook.dto';
 import { WebhookDto, WebhookType } from './dto/webhook.dto';
@@ -21,7 +20,6 @@ export class WebhookService {
 
   constructor(
     private readonly http: HttpService,
-    private readonly walletService: WalletService,
     private readonly userRepo: UserRepository,
     private readonly notificationService: NotificationService,
   ) {}
@@ -75,10 +73,8 @@ export class WebhookService {
     reason?: string,
   ): Promise<void> {
     try {
-      if (!user.wallet.isKycClient || !user.wallet.apiUrl) return;
-
-      const apiKey = this.walletService.getApiKeyInternal(user.wallet.name);
-      if (!apiKey) throw new Error(`ApiKey for wallet ${user.wallet.name} not available`);
+      if (!user.wallet.apiUrl) return;
+      if (!user.wallet.apiKey) throw new Error(`ApiKey for wallet ${user.wallet.name} not available`);
 
       const webhookDto: WebhookDto<T> = {
         id: user.address,
@@ -88,7 +84,7 @@ export class WebhookService {
       };
 
       await this.http.post(user.wallet.apiUrl, webhookDto, {
-        headers: { 'x-api-key': apiKey },
+        headers: { 'x-api-key': user.wallet.apiKey },
         retryDelay: 5000,
         tryCount: 3,
       });
@@ -118,6 +114,7 @@ export class WebhookService {
       zip: userData.zip,
       phone: userData.phone,
       kycStatus: this.getKycWebhookStatus(userData.kycStatus, userData.kycType),
+      kycLevel: userData.kycLevel,
       kycHash: userData.kycHash,
       tradingLimit: userData.tradingLimit,
     };

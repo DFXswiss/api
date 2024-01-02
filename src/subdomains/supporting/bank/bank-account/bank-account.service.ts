@@ -1,10 +1,10 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
 import { IbanDetailsDto, IbanService } from 'src/integration/bank/services/iban.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { IEntity } from 'src/shared/models/entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { KycType, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -39,6 +39,7 @@ export class BankAccountService {
       .select('bankAccount')
       .leftJoinAndSelect('bankAccount.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`${key.includes('.') ? key : `bankAccount.${key}`} = :param`, { param: value })
       .getOne();
@@ -87,7 +88,7 @@ export class BankAccountService {
   @Cron(CronExpression.EVERY_WEEK)
   @Lock(3600)
   async checkFailedBankAccounts(): Promise<void> {
-    if (Config.processDisabled(Process.BANK_ACCOUNT)) return;
+    if (DisabledProcess(Process.BANK_ACCOUNT)) return;
 
     const failedBankAccounts = await this.bankAccountRepo.findBy({ returnCode: 256 });
     for (const bankAccount of failedBankAccounts) {

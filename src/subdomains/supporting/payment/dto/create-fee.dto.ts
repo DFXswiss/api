@@ -1,4 +1,3 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray,
@@ -7,69 +6,84 @@ import {
   IsEnum,
   IsNotEmpty,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   ValidateIf,
+  ValidateNested,
 } from 'class-validator';
+import { EntityDto } from 'src/shared/dto/entity.dto';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { FeeType } from '../entities/fee.entity';
 
 export class CreateFeeDto {
-  @ApiProperty()
   @IsNotEmpty()
   @IsString()
   label: string;
 
-  @ApiProperty({ enum: FeeType })
   @IsNotEmpty()
   @IsEnum(FeeType)
   type: FeeType;
 
-  @ApiProperty()
   @IsNotEmpty()
   @IsNumber()
-  value: number;
+  rate: number;
 
-  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  fixed: number;
+
   @IsOptional()
   @IsBoolean()
   createDiscountCode = false;
 
-  @ApiPropertyOptional({ enum: AccountType })
   @IsOptional()
   @IsEnum(AccountType)
   accountType: AccountType;
 
-  @ApiPropertyOptional({ enum: FeeDirectionType })
   @IsOptional()
   @IsEnum(FeeDirectionType)
   direction: FeeDirectionType;
 
-  @ApiPropertyOptional()
   @IsOptional()
   @IsDate()
   @Type(() => Date)
   expiryDate: Date;
 
-  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  minTxVolume: number; // EUR
+
   @IsOptional()
   @IsNumber()
   maxTxVolume: number; // EUR
 
-  @ApiPropertyOptional()
   @ValidateIf((dto: CreateFeeDto) => dto.type === FeeType.BASE)
   @IsNotEmpty()
   @IsArray()
   assetIds: number[];
 
-  @ApiPropertyOptional()
   @IsOptional()
   @IsNumber()
   maxUsages: number;
 
-  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  maxTxUsages: number;
+
   @IsOptional()
   @IsBoolean()
   active = true;
+
+  @IsOptional()
+  @IsBoolean()
+  payoutRefBonus: boolean;
+
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  wallet: Wallet;
 }

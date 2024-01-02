@@ -12,6 +12,7 @@ import { createCustomSellHistory } from '../../route/dto/__mocks__/sell-history.
 import { SellRepository } from '../../route/sell.repository';
 import { SellService } from '../../route/sell.service';
 import { createCustomBuyFiat } from '../__mocks__/buy-fiat.entity.mock';
+import { BuyFiatPreparationService } from '../buy-fiat-preparation.service';
 import { BuyFiatRegistrationService } from '../buy-fiat-registration.service';
 import { BuyFiat } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
@@ -36,6 +37,7 @@ describe('BuyFiatService', () => {
   let buyCryptoService: BuyCryptoService;
   let buyFiatRegistrationService: BuyFiatRegistrationService;
   let webhookService: WebhookService;
+  let buyFiatPreparationService: BuyFiatPreparationService;
 
   beforeEach(async () => {
     buyFiatRepo = createMock<BuyFiatRepository>();
@@ -47,6 +49,7 @@ describe('BuyFiatService', () => {
     buyCryptoService = createMock<BuyCryptoService>();
     buyFiatRegistrationService = createMock<BuyFiatRegistrationService>();
     webhookService = createMock<WebhookService>();
+    buyFiatPreparationService = createMock<BuyFiatPreparationService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -61,6 +64,7 @@ describe('BuyFiatService', () => {
         { provide: BuyCryptoService, useValue: buyCryptoService },
         { provide: BuyFiatRegistrationService, useValue: buyFiatRegistrationService },
         { provide: WebhookService, useValue: webhookService },
+        { provide: BuyFiatPreparationService, useValue: buyFiatPreparationService },
       ],
     }).compile();
 

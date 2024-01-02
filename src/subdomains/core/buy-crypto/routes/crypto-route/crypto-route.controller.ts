@@ -16,6 +16,7 @@ import { HistoryDtoDeprecated } from 'src/subdomains/core/history/dto/history.dt
 import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
+import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { CryptoRoute } from './crypto-route.entity';
 import { CryptoRouteService } from './crypto-route.service';
@@ -83,7 +84,13 @@ export class CryptoRouteController {
       feeAmount,
       estimatedAmount,
       sourceAmount: amount,
-    } = await this.transactionHelper.getTxDetails(sourceAmount, targetAmount, sourceAsset, targetAsset);
+    } = await this.transactionHelper.getTxDetails(
+      sourceAmount,
+      targetAmount,
+      sourceAsset,
+      targetAsset,
+      CryptoPaymentMethod.CRYPTO,
+    );
 
     return {
       feeAmount,
@@ -149,7 +156,7 @@ export class CryptoRouteController {
       deposit: DepositDtoMapper.entityToDto(crypto.deposit),
       asset: AssetDtoMapper.entityToDto(crypto.asset),
       blockchain: crypto.deposit.blockchain,
-      fee: Util.round(fee * 100, Config.defaultPercentageDecimal),
+      fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposits: [minDeposit],
       minFee,
     };
@@ -181,12 +188,13 @@ export class CryptoRouteController {
       dto.targetAmount,
       dto.sourceAsset,
       dto.targetAsset,
-      user.userData,
+      CryptoPaymentMethod.CRYPTO,
+      user,
     );
 
     return {
       routeId: cryptoRoute.id,
-      fee: Util.round(fee * 100, Config.defaultPercentageDecimal),
+      fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       depositAddress: cryptoRoute.deposit.address,
       blockchain: cryptoRoute.deposit.blockchain,
       minDeposit: { amount: minVolume, asset: dto.sourceAsset.dexName },

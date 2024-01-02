@@ -18,7 +18,11 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
 import { CreateUserDto } from 'src/subdomains/generic/user/models/user/dto/create-user.dto';
+import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
+import { UserDataService } from '../user-data/user-data.service';
 import { LinkedUserInDto } from '../user/dto/linked-user.dto';
 import { User, UserStatus } from '../user/user.entity';
 import { UserRepository } from '../user/user.repository';
@@ -26,6 +30,7 @@ import { UserService } from '../user/user.service';
 import { Wallet } from '../wallet/wallet.entity';
 import { WalletService } from '../wallet/wallet.service';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
+import { AuthMailDto } from './dto/auth-mail.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { ChallengeDto } from './dto/challenge.dto';
 import { SignMessageDto } from './dto/sign-message.dto';
@@ -49,6 +54,8 @@ export class AuthService {
     private readonly lightningService: LightningService,
     private readonly refService: RefService,
     private readonly feeService: FeeService,
+    private readonly userDataService: UserDataService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -99,12 +106,34 @@ export class AuthService {
     }
 
     try {
-      if (dto.discountCode) await this.feeService.addDiscountCodeUser(user.userData, dto.discountCode);
+      if (dto.discountCode) await this.feeService.addDiscountCodeUser(user, dto.discountCode);
     } catch (e) {
       this.logger.warn(`Error while adding discountCode in user signIn ${user.id}:`, e);
     }
 
     return { accessToken: this.generateUserToken(user, ip) };
+  }
+
+  async signInByMail(dto: AuthMailDto): Promise<void> {
+    const userData = await this.userDataService.getUsersByMail(dto.mail).then((list) => list[0]);
+    if (userData)
+      await this.notificationService.sendMail({
+        type: MailType.USER,
+        input: {
+          userData: userData,
+          title: `${MailTranslationKey.LOGIN}.title`,
+          salutation: { key: `${MailTranslationKey.LOGIN}.salutation` },
+          suffix: [
+            { key: MailKey.SPACE, params: { value: '1' } },
+            {
+              key: `${MailTranslationKey.LOGIN}.message`,
+              params: { url: `${Config.frontend.services}/kyc?code=${userData.kycHash}` },
+            },
+            { key: MailKey.SPACE, params: { value: '2' } },
+            { key: MailKey.DFX_TEAM_CLOSING },
+          ],
+        },
+      });
   }
 
   private async companySignIn(dto: AuthCredentialsDto, ip: string): Promise<AuthResponseDto> {
@@ -186,8 +215,8 @@ export class AuthService {
       key = await this.lightningService.getPublicKeyOfAddress(address);
     }
 
-    let isValid = this.cryptoService.verifySignature(defaultMessage, address, signature, key);
-    if (!isValid) isValid = this.cryptoService.verifySignature(fallbackMessage, address, signature, key);
+    let isValid = await this.cryptoService.verifySignature(defaultMessage, address, signature, key);
+    if (!isValid) isValid = await this.cryptoService.verifySignature(fallbackMessage, address, signature, key);
 
     return isValid;
   }

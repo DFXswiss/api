@@ -7,22 +7,26 @@ import { Util } from 'src/shared/utils/util';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
+import { FeeDirectionType, User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
+import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { In, IsNull } from 'typeorm';
 import { CreateFeeDto } from '../dto/create-fee.dto';
+import { FeeDto } from '../dto/fee.dto';
 import { Fee, FeeType } from '../entities/fee.entity';
 import { FeeRepository } from '../repositories/fee.repository';
 
 export interface UserFeeRequest extends FeeRequestBase {
-  userData: UserData;
+  user: User;
 }
 
 export interface FeeRequest extends FeeRequestBase {
   accountType: AccountType;
+  wallet: Wallet;
 }
 
 export interface OptionalFeeRequest extends FeeRequestBase {
-  userData?: UserData;
+  user?: User;
   accountType?: AccountType;
 }
 
@@ -41,6 +45,7 @@ export class FeeService {
     private readonly assetService: AssetService,
     private readonly userDataService: UserDataService,
     private readonly settingService: SettingService,
+    private readonly walletService: WalletService,
   ) {}
 
   async createFee(dto: CreateFeeDto): Promise<Fee> {
@@ -71,6 +76,8 @@ export class FeeService {
       fee.assets = assets.join(';');
     }
 
+    if (dto.wallet) fee.wallet = await this.walletService.getByIdOrName(dto.wallet.id);
+
     if (dto.createDiscountCode) {
       // create hash
       const hash = Util.createHash(fee.label + fee.type).toUpperCase();
@@ -81,36 +88,42 @@ export class FeeService {
     return this.feeRepo.save(fee);
   }
 
-  async addCustomSignUpFees(
-    userData: UserData,
-    ref?: string | undefined,
-    walletId?: number | undefined,
-  ): Promise<void> {
-    const customSignUpFees = await this.settingService.getCustomSignUpFees(ref, walletId);
+  async addCustomSignUpFees(user: User, ref?: string | undefined): Promise<void> {
+    const customSignUpFees = await this.settingService.getCustomSignUpFees(ref, user.wallet.id);
     if (customSignUpFees.length == 0) return;
 
     for (const feeId of customSignUpFees) {
       try {
-        await this.addFeeInternal(userData, feeId);
+        const fee = await this.feeRepo.findOneBy({ id: feeId });
+
+        await this.feeRepo.update(...fee.increaseUsage(user.userData.accountType, user.wallet));
+
+        await this.userDataService.addFee(user.userData, fee.id);
       } catch (e) {
-        this.logger.warn(`Fee mapping error: ${e}; userDataId: ${userData.id}; feeId: ${feeId}`);
+        this.logger.warn(`Fee mapping error: ${e}; userId: ${user.id}; feeId: ${feeId}`);
         continue;
       }
     }
   }
 
-  async addDiscountCodeUser(userData: UserData, discountCode: string): Promise<void> {
+  async addDiscountCodeUser(user: User, discountCode: string): Promise<void> {
     const fee = await this.getFeeByDiscountCode(discountCode);
-    await this.verifyFee(fee, userData.accountType);
 
-    await this.userDataService.addFee(userData, fee.id);
+    await this.feeRepo.update(...fee.increaseUsage(user.userData.accountType, user.wallet));
+
+    await this.userDataService.addFee(user.userData, fee.id);
   }
 
   async addFeeInternal(userData: UserData, feeId: number): Promise<void> {
     const fee = await this.feeRepo.findOneBy({ id: feeId });
-    await this.verifyFee(fee, userData.accountType);
+
+    await this.feeRepo.update(...fee.increaseUsage(userData.accountType));
 
     await this.userDataService.addFee(userData, fee.id);
+  }
+
+  async increaseTxUsage(fee: Fee): Promise<void> {
+    await this.feeRepo.update(...fee.increaseTxUsage());
   }
 
   async getFeeByDiscountCode(discountCode: string): Promise<Fee> {
@@ -119,13 +132,13 @@ export class FeeService {
     return fee;
   }
 
-  async getUserFee(request: UserFeeRequest): Promise<number> {
+  async getUserFee(request: UserFeeRequest): Promise<FeeDto> {
     const userFees = await this.getValidFees(request);
 
-    return this.calculateFee(userFees, request.userData.id);
+    return this.calculateFee(userFees, request.user.userData?.id);
   }
 
-  async getDefaultFee(request: FeeRequestBase, accountType = AccountType.PERSONAL): Promise<number> {
+  async getDefaultFee(request: FeeRequestBase, accountType = AccountType.PERSONAL): Promise<FeeDto> {
     const defaultFees = await this.getValidFees({ ...request, accountType });
 
     return this.calculateFee(defaultFees);
@@ -133,28 +146,64 @@ export class FeeService {
 
   // --- HELPER METHODS --- //
 
-  private calculateFee(fees: Fee[], userDataId?: number): number {
-    const customFee = Math.min(...fees.filter((f) => f.type === FeeType.CUSTOM).map((f) => f.value));
-    if (customFee !== Infinity) return customFee;
+  private calculateFee(fees: Fee[], userDataId?: number): FeeDto {
+    // get min custom fee
+    const customFee = Util.minObj(
+      fees.filter((fee) => fee.type === FeeType.CUSTOM),
+      'rate',
+    );
+    if (customFee)
+      return {
+        fees: [customFee],
+        rate: customFee.rate,
+        fixed: customFee.fixed ?? 0,
+        payoutRefBonus: customFee.payoutRefBonus,
+      };
 
-    const baseFee = Math.min(...fees.filter((f) => f.type === FeeType.BASE).map((f) => f.value));
-    const positiveDiscountFee = Math.max(...fees.filter((f) => f.type === FeeType.DISCOUNT).map((f) => f.value), 0);
-    const negativeDiscountFee = Math.min(...fees.filter((f) => f.type === FeeType.DISCOUNT).map((f) => f.value), 0);
-    const discountFee = positiveDiscountFee + negativeDiscountFee;
+    // get min base fee
+    const baseFee = Util.minObj(
+      fees.filter((fee) => fee.type === FeeType.BASE),
+      'rate',
+    );
 
-    if (baseFee === Infinity) throw new InternalServerErrorException('Base fee is missing');
-    if (baseFee - discountFee < 0) {
+    // get max discount > 0
+    const positiveDiscountFee = Util.maxObj(
+      fees.filter((fee) => fee.type === FeeType.DISCOUNT && fee.rate > 0),
+      'rate',
+    );
+
+    // get min discount < 0
+    const negativeDiscountFee = Util.minObj(
+      fees.filter((fee) => fee.type === FeeType.DISCOUNT && fee.rate < 0),
+      'rate',
+    );
+
+    const discountFee: FeeDto = {
+      fees: [positiveDiscountFee, negativeDiscountFee],
+      rate: (positiveDiscountFee?.rate ?? 0) + (negativeDiscountFee?.rate ?? 0),
+      fixed: (positiveDiscountFee?.fixed ?? 0) + (negativeDiscountFee?.fixed ?? 0),
+      payoutRefBonus: (positiveDiscountFee?.payoutRefBonus ?? true) && (negativeDiscountFee?.payoutRefBonus ?? true),
+    };
+
+    if (!baseFee) throw new InternalServerErrorException('Base fee is missing');
+    if (baseFee.rate - discountFee.rate < 0) {
       this.logger.warn(`UserDiscount higher userBaseFee! UserDataId: ${userDataId}`);
-      return baseFee;
+      return { fees: [baseFee], rate: baseFee.rate, fixed: baseFee.fixed, payoutRefBonus: true };
     }
 
-    return baseFee - discountFee;
+    return {
+      fees: [baseFee, ...discountFee.fees].filter((e) => e != null),
+      rate: baseFee.rate - discountFee.rate,
+      fixed: Math.max(baseFee.fixed - discountFee.fixed, 0),
+      payoutRefBonus: baseFee.payoutRefBonus && discountFee.payoutRefBonus,
+    };
   }
 
   private async getValidFees(request: OptionalFeeRequest): Promise<Fee[]> {
-    const accountType = request.userData ? request.userData.accountType : request.accountType;
+    const accountType = request.user?.userData ? request.user.userData?.accountType : request.accountType;
+    const wallet = request.user?.wallet;
 
-    const discountFeeIds = request.userData?.individualFeeList ?? [];
+    const discountFeeIds = request.user?.userData?.individualFeeList ?? [];
 
     const userFees = await this.feeRepo.findBy([
       { type: FeeType.BASE },
@@ -164,36 +213,9 @@ export class FeeService {
 
     // remove ExpiredFee
     userFees
-      .filter((fee) => discountFeeIds.includes(fee.id) && this.isExpiredFee(fee))
-      .forEach((fee) => this.userDataService.removeFee(request.userData, fee.id));
+      .filter((fee) => discountFeeIds.includes(fee.id) && fee.isExpired())
+      .forEach((fee) => this.userDataService.removeFee(request.user.userData, fee.id));
 
-    return userFees.filter((fee) => this.isValidFee(fee, { ...request, accountType }));
-  }
-
-  private isValidFee(fee: Fee, request: FeeRequest): boolean {
-    return !(
-      this.isExpiredFee(fee) ||
-      (fee.accountType && fee.accountType !== request.accountType) ||
-      (fee.direction && fee.direction !== request.direction) ||
-      (fee.assetList?.length && !fee.assetList.includes(request.asset?.id)) ||
-      (fee.maxTxVolume && fee.maxTxVolume < request.txVolume)
-    );
-  }
-
-  private isExpiredFee(fee: Fee): boolean {
-    return !fee || !fee.active || (fee.expiryDate && fee.expiryDate < new Date());
-  }
-
-  private async verifyFee(fee: Fee, accountType: AccountType): Promise<void> {
-    if (this.isExpiredFee(fee)) throw new BadRequestException('Discount code is expired');
-    if (fee.accountType && fee.accountType !== accountType) throw new BadRequestException('Account Type not matching');
-
-    if (fee.maxUsages && (await this.hasMaxUsageExceeded(fee)))
-      throw new BadRequestException('Max usages for discount code taken');
-  }
-
-  private async hasMaxUsageExceeded(fee: Fee): Promise<boolean> {
-    const usages = await this.userDataService.getFeeUsages(fee.id);
-    return usages >= fee.maxUsages;
+    return userFees.filter((fee) => fee.verifyForTx({ ...request, accountType, wallet }));
   }
 }
