@@ -18,7 +18,7 @@ export class TransactionDtoMapper {
       outputBlockchain: buyCrypto.target.asset.blockchain,
       feeAmount: buyCrypto.totalFeeAmount,
       feeAsset: buyCrypto.totalFeeAmount ? buyCrypto.inputReferenceAsset : null,
-      inputTxId: buyCrypto.bankTx.remittanceInfo,
+      inputTxId: null,
       inputTxUrl: null,
       outputTxId: buyCrypto.txId,
       outputTxUrl: buyCrypto.txId ? txExplorerUrl(buyCrypto.target.asset.blockchain, buyCrypto.txId) : null,

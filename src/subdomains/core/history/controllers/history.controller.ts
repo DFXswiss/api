@@ -50,7 +50,9 @@ export class HistoryController {
   @ApiOkResponse({ type: TypedHistoryDto, isArray: true })
   @ApiExcludeEndpoint()
   @Redirect('transaction', 301)
-  async getHistory(): Promise<void> {}
+  async getHistory(): Promise<void> {
+    // nothing to do (redirect to transaction)
+  }
 
   @Get('CT')
   @ApiOkResponse({ type: CoinTrackingApiHistoryDto, isArray: true })
