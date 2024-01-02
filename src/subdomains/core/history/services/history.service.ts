@@ -113,17 +113,17 @@ export class HistoryService {
         return this.fixDuplicateTxCT([
           ...CoinTrackingHistoryDtoMapper.mapBuyCryptoFiatTransactions(buyCryptos),
           ...CoinTrackingHistoryDtoMapper.mapBuyCryptoCryptoTransactions(buyCryptos),
-        ]).sort((tx1, tx2) => (tx1.date.getTime() > tx2.date.getTime() ? -1 : 1)) as HistoryDto<T>[];
+        ]).sort((tx1, tx2) => tx2.date.getTime() - tx1.date.getTime()) as HistoryDto<T>[];
 
       case ExportType.CHAIN_REPORT:
         return this.fixDuplicateTxCR([
           ...ChainReportHistoryDtoMapper.mapBuyCryptoFiatTransactions(buyCryptos),
           ...ChainReportHistoryDtoMapper.mapBuyCryptoCryptoTransactions(buyCryptos),
-        ]).sort((tx1, tx2) => (tx1.timestamp.getTime() > tx2.timestamp.getTime() ? -1 : 1)) as HistoryDto<T>[];
+        ]).sort((tx1, tx2) => tx2.timestamp.getTime() - tx1.timestamp.getTime()) as HistoryDto<T>[];
 
       case ExportType.COMPACT:
-        return TransactionDtoMapper.mapBuyCryptoTransactions(buyCryptos).sort((tx1, tx2) =>
-          tx1.date.getTime() > tx2.date.getTime() ? -1 : 1,
+        return TransactionDtoMapper.mapBuyCryptoTransactions(buyCryptos).sort(
+          (tx1, tx2) => tx2.date.getTime() - tx1.date.getTime(),
         ) as HistoryDto<T>[];
     }
   }
@@ -131,18 +131,18 @@ export class HistoryService {
   private getBuyFiatTransactions<T>(buyFiats: BuyFiat[], exportFormat: T): HistoryDto<T>[] {
     switch (exportFormat) {
       case ExportType.COIN_TRACKING:
-        return this.fixDuplicateTxCT(CoinTrackingHistoryDtoMapper.mapBuyFiatTransactions(buyFiats)).sort((tx1, tx2) =>
-          tx1.date.getTime() > tx2.date.getTime() ? -1 : 1,
+        return this.fixDuplicateTxCT(CoinTrackingHistoryDtoMapper.mapBuyFiatTransactions(buyFiats)).sort(
+          (tx1, tx2) => tx2.date.getTime() - tx1.date.getTime(),
         ) as HistoryDto<T>[];
 
       case ExportType.CHAIN_REPORT:
-        return this.fixDuplicateTxCR(ChainReportHistoryDtoMapper.mapBuyFiatTransactions(buyFiats)).sort((tx1, tx2) =>
-          tx1.timestamp.getTime() > tx2.timestamp.getTime() ? -1 : 1,
+        return this.fixDuplicateTxCR(ChainReportHistoryDtoMapper.mapBuyFiatTransactions(buyFiats)).sort(
+          (tx1, tx2) => tx2.timestamp.getTime() - tx1.timestamp.getTime(),
         ) as HistoryDto<T>[];
 
       case ExportType.COMPACT:
-        return TransactionDtoMapper.mapBuyFiatTransactions(buyFiats).sort((tx1, tx2) =>
-          tx1.date.getTime() > tx2.date.getTime() ? -1 : 1,
+        return TransactionDtoMapper.mapBuyFiatTransactions(buyFiats).sort(
+          (tx1, tx2) => tx2.date.getTime() - tx1.date.getTime(),
         ) as HistoryDto<T>[];
     }
   }
@@ -157,13 +157,13 @@ export class HistoryService {
         return this.fixDuplicateTxCT([
           ...CoinTrackingHistoryDtoMapper.mapStakingDeposits(deposits),
           ...CoinTrackingHistoryDtoMapper.mapStakingWithdrawals(withdrawals),
-        ]).sort((tx1, tx2) => (tx1.date.getTime() > tx2.date.getTime() ? -1 : 1)) as HistoryDto<T>[];
+        ]).sort((tx1, tx2) => tx2.date.getTime() - tx1.date.getTime()) as HistoryDto<T>[];
 
       case ExportType.CHAIN_REPORT:
         return this.fixDuplicateTxCR([
           ...ChainReportHistoryDtoMapper.mapStakingDeposits(deposits),
           ...ChainReportHistoryDtoMapper.mapStakingWithdrawals(withdrawals),
-        ]).sort((tx1, tx2) => (tx1.timestamp.getTime() > tx2.timestamp.getTime() ? -1 : 1)) as HistoryDto<T>[];
+        ]).sort((tx1, tx2) => tx2.timestamp.getTime() - tx1.timestamp.getTime()) as HistoryDto<T>[];
 
       case ExportType.COMPACT:
         return [];
@@ -180,13 +180,13 @@ export class HistoryService {
         return this.fixDuplicateTxCT([
           ...CoinTrackingHistoryDtoMapper.mapStakingRewards(stakingRewards),
           ...CoinTrackingHistoryDtoMapper.mapStakingRefRewards(stakingRefRewards),
-        ]).sort((tx1, tx2) => (tx1.date.getTime() > tx2.date.getTime() ? -1 : 1)) as HistoryDto<T>[];
+        ]).sort((tx1, tx2) => tx2.date.getTime() - tx1.date.getTime()) as HistoryDto<T>[];
 
       case ExportType.CHAIN_REPORT:
         return this.fixDuplicateTxCR([
           ...ChainReportHistoryDtoMapper.mapStakingRewards(stakingRewards),
           ...ChainReportHistoryDtoMapper.mapStakingRefRewards(stakingRefRewards),
-        ]).sort((tx1, tx2) => (tx1.timestamp.getTime() > tx2.timestamp.getTime() ? -1 : 1)) as HistoryDto<T>[];
+        ]).sort((tx1, tx2) => tx2.timestamp.getTime() - tx1.timestamp.getTime()) as HistoryDto<T>[];
 
       case ExportType.COMPACT:
         return [];
@@ -212,21 +212,21 @@ export class HistoryService {
     }
   }
 
-  private fixDuplicateTxCT(historyDto: CoinTrackingCsvHistoryDto[]): CoinTrackingCsvHistoryDto[] {
-    Array.from(Util.groupBy(historyDto, 'txId'))
-      .map(([_, rewards]) => rewards)
+  private fixDuplicateTxCT(history: CoinTrackingCsvHistoryDto[]): CoinTrackingCsvHistoryDto[] {
+    Array.from(Util.groupBy(history, 'txId'))
+      .map(([_, tx]) => tx)
       .filter((r) => r.length > 1)
-      .forEach((rewards) => rewards.forEach((r, i) => (r.txId += i > 0 ? i : '')));
+      .forEach((tx) => tx.forEach((r, i) => (r.txId += i > 0 ? i : '')));
 
-    return historyDto;
+    return history;
   }
 
-  private fixDuplicateTxCR(historyDto: ChainReportCsvHistoryDto[]): ChainReportCsvHistoryDto[] {
-    Array.from(Util.groupBy(historyDto, 'txId'))
-      .map(([_, rewards]) => rewards)
+  private fixDuplicateTxCR(history: ChainReportCsvHistoryDto[]): ChainReportCsvHistoryDto[] {
+    Array.from(Util.groupBy(history, 'txId'))
+      .map(([_, tx]) => tx)
       .filter((r) => r.length > 1)
-      .forEach((rewards) => rewards.forEach((r, i) => (r.txId += i > 0 ? i : '')));
+      .forEach((tx) => tx.forEach((r, i) => (r.txId += i > 0 ? i : '')));
 
-    return historyDto;
+    return history;
   }
 }

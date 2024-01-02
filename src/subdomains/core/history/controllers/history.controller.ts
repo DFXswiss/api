@@ -26,10 +26,8 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
-import { BuyFiatService } from '../../sell-crypto/process/buy-fiat.service';
 import { ExportFormat, HistoryQuery, HistoryQueryExportType } from '../dto/history-query.dto';
-import { HistoryDtoDeprecated, HistoryTransactionType, TypedHistoryDto } from '../dto/history.dto';
+import { TypedHistoryDto } from '../dto/history.dto';
 import { CoinTrackingApiHistoryDto } from '../dto/output/coin-tracking-history.dto';
 import { ExportType, HistoryService } from '../services/history.service';
 
@@ -43,8 +41,6 @@ export class HistoryController {
     private readonly historyService: HistoryService,
     private readonly userService: UserService,
     private readonly apiKeyService: ApiKeyService,
-    private readonly buyFiatService: BuyFiatService,
-    private readonly buyCryptoService: BuyCryptoService,
   ) {}
 
   // --- DEPRECATED ENDPOINTS --- //
@@ -54,15 +50,7 @@ export class HistoryController {
   @ApiOkResponse({ type: TypedHistoryDto, isArray: true })
   @ApiExcludeEndpoint()
   @Redirect('transaction', 301)
-  async getHistory(@GetJwt() jwt: JwtPayload): Promise<TypedHistoryDto[]> {
-    return [
-      await this.buyCryptoService.getBuyHistory(jwt.id).then(this.addType(HistoryTransactionType.BUY)),
-      await this.buyCryptoService.getCryptoHistory(jwt.id).then(this.addType(HistoryTransactionType.CRYPTO)),
-      await this.buyFiatService.getSellHistory(jwt.id).then(this.addType(HistoryTransactionType.SELL)),
-    ]
-      .reduce((prev, curr) => prev.concat(curr), [])
-      .sort((tx1, tx2) => (tx1.date > tx2.date ? -1 : 1));
-  }
+  async getHistory(): Promise<void> {}
 
   @Get('CT')
   @ApiOkResponse({ type: CoinTrackingApiHistoryDto, isArray: true })
@@ -117,9 +105,6 @@ export class HistoryController {
   }
 
   // --- HELPER METHODS --- //
-  private addType(type: HistoryTransactionType): (history: HistoryDtoDeprecated[]) => TypedHistoryDto[] {
-    return (history) => history.map((c) => ({ type, ...c }));
-  }
 
   private formatDate(date: Date = new Date()): string {
     return date.toISOString().split('-').join('').split(':').join('').split('T').join('_').split('.')[0];

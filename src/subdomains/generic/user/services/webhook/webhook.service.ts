@@ -3,7 +3,7 @@ import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
-import { TransactionState, TransactionType } from 'src/subdomains/core/history/dto/output/transaction.dto';
+import { TransactionDtoMapper } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -34,20 +34,20 @@ export class WebhookService {
     await this.triggerUserDataWebhook(userData, this.getKycWebhookData(userData), WebhookType.KYC_FAILED, reason);
   }
 
-  async fiatCryptoUpdate(user: User, payment: BuyCrypto, state: TransactionState): Promise<void> {
-    await this.triggerUserWebhook(user, this.getFiatCryptoData(payment, state), WebhookType.PAYMENT);
+  async fiatCryptoUpdate(user: User, payment: BuyCrypto): Promise<void> {
+    await this.triggerUserWebhook(user, this.getFiatCryptoData(payment), WebhookType.PAYMENT);
   }
 
-  async cryptoCryptoUpdate(user: User, payment: BuyCrypto, state: TransactionState): Promise<void> {
-    await this.triggerUserWebhook(user, this.getCryptoCryptoData(payment, state), WebhookType.PAYMENT);
+  async cryptoCryptoUpdate(user: User, payment: BuyCrypto): Promise<void> {
+    await this.triggerUserWebhook(user, this.getCryptoCryptoData(payment), WebhookType.PAYMENT);
   }
 
-  async cryptoFiatUpdate(user: User, payment: BuyFiat, state: TransactionState): Promise<void> {
-    await this.triggerUserWebhook(user, this.getCryptoFiatData(payment, state), WebhookType.PAYMENT);
+  async cryptoFiatUpdate(user: User, payment: BuyFiat): Promise<void> {
+    await this.triggerUserWebhook(user, this.getCryptoFiatData(payment), WebhookType.PAYMENT);
   }
 
-  async fiatFiatUpdate(user: User, payment: BuyFiat, state: TransactionState): Promise<void> {
-    await this.triggerUserWebhook(user, this.getFiatFiatData(payment, state), WebhookType.PAYMENT);
+  async fiatFiatUpdate(user: User, payment: BuyFiat): Promise<void> {
+    await this.triggerUserWebhook(user, this.getFiatFiatData(payment), WebhookType.PAYMENT);
   }
 
   // --- HELPER METHODS --- //
@@ -123,79 +123,37 @@ export class WebhookService {
     };
   }
 
-  private getCryptoFiatData(payment: BuyFiat, state: TransactionState): PaymentWebhookData {
+  private getCryptoFiatData(payment: BuyFiat): PaymentWebhookData {
     return {
-      type: TransactionType.SELL,
+      ...TransactionDtoMapper.mapBuyFiatTransaction(payment),
       dfxReference: payment.id,
-      state,
-      inputAmount: payment.inputAmount,
-      inputAsset: payment.inputAsset,
-      outputAmount: payment.outputAmount,
-      outputAsset: payment.outputAsset,
-      feeAmount: payment.percentFee,
-      feeAsset: payment.percentFee ? payment.inputReferenceAsset : null,
-      inputTxId: payment.cryptoInput.inTxId,
-      inputTxUrl: txExplorerUrl(payment.cryptoInput.asset.blockchain, payment.cryptoInput.inTxId),
-      outputTxId: payment.fiatOutput?.remittanceInfo,
-      outputTxUrl: null,
-      date: payment.outputDate,
       paymentReference: payment.sell.deposit.address,
     };
   }
 
-  private getFiatFiatData(payment: BuyFiat, state: TransactionState): PaymentWebhookData {
+  private getFiatFiatData(payment: BuyFiat): PaymentWebhookData {
     return {
-      type: TransactionType.CONVERT,
+      ...TransactionDtoMapper.mapBuyFiatTransaction(payment),
       dfxReference: payment.id,
-      state,
-      inputAmount: payment.inputAmount,
-      inputAsset: payment.inputAsset,
-      outputAmount: payment.outputAmount,
-      outputAsset: payment.outputAsset,
-      feeAmount: payment.percentFee,
-      feeAsset: payment.percentFee ? payment.inputReferenceAsset : null,
-      outputTxId: payment.fiatOutput?.remittanceInfo,
-      outputTxUrl: null,
-      date: payment.outputDate,
       //TODO add PaymentReference for FiatFiat
       paymentReference: null,
     };
   }
 
-  private getCryptoCryptoData(payment: BuyCrypto, state: TransactionState): PaymentWebhookData {
+  private getCryptoCryptoData(payment: BuyCrypto): PaymentWebhookData {
     return {
-      type: TransactionType.CONVERT,
+      ...TransactionDtoMapper.mapBuyCryptoTransaction(payment),
       dfxReference: payment.id,
-      state,
-      inputAmount: payment.inputAmount,
-      inputAsset: payment.inputAsset,
-      outputAmount: payment.outputAmount,
-      outputAsset: payment.outputAsset?.name,
-      feeAmount: payment.percentFee,
-      feeAsset: payment.percentFee ? payment.inputReferenceAsset : null,
       inputTxId: payment.cryptoInput.inTxId,
       inputTxUrl: txExplorerUrl(payment.cryptoInput.asset.blockchain, payment.cryptoInput.inTxId),
-      outputTxId: payment.txId,
-      outputTxUrl: txExplorerUrl(payment.target.asset.blockchain, payment.txId),
-      date: payment.outputDate,
       paymentReference: payment.cryptoRoute?.deposit.address,
     };
   }
 
-  private getFiatCryptoData(payment: BuyCrypto, state: TransactionState): PaymentWebhookData {
+  private getFiatCryptoData(payment: BuyCrypto): PaymentWebhookData {
     return {
-      type: TransactionType.BUY,
+      ...TransactionDtoMapper.mapBuyCryptoTransaction(payment),
       dfxReference: payment.id,
-      state,
-      inputAmount: payment.inputAmount,
-      inputAsset: payment.inputAsset,
-      outputAmount: payment.outputAmount,
-      outputAsset: payment.outputAsset?.name,
-      feeAmount: payment.percentFee,
-      feeAsset: payment.percentFee ? payment.inputReferenceAsset : null,
-      outputTxId: payment.txId,
-      outputTxUrl: txExplorerUrl(payment.target.asset.blockchain, payment.txId),
-      date: payment.outputDate,
       paymentReference: payment.buy.bankUsage,
     };
   }

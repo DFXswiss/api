@@ -1,8 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { TransactionState } from 'src/subdomains/core/history/dto/output/transaction.dto';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
-import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
-import { CheckStatus } from '../enums/check-status.enum';
+import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 
 @Injectable()
@@ -30,28 +28,8 @@ export class BuyCryptoWebhookService {
   }
 
   async triggerWebhook(buyCrypto: BuyCrypto): Promise<void> {
-    const state = BuyCryptoWebhookService.getWebhookState(buyCrypto);
     buyCrypto.isCryptoCryptoTransaction
-      ? await this.webhookService.cryptoCryptoUpdate(buyCrypto.user, buyCrypto, state)
-      : await this.webhookService.fiatCryptoUpdate(buyCrypto.user, buyCrypto, state);
-  }
-
-  static getWebhookState(buyCrypto: BuyCrypto): TransactionState {
-    if (buyCrypto.chargebackDate) return TransactionState.RETURNED;
-
-    switch (buyCrypto.amlCheck) {
-      case CheckStatus.PENDING:
-        return TransactionState.AML_PENDING;
-      case CheckStatus.FAIL:
-        return TransactionState.FAILED;
-      case CheckStatus.PASS:
-        if (buyCrypto.isComplete) return TransactionState.COMPLETED;
-        if (buyCrypto.status === BuyCryptoStatus.WAITING_FOR_LOWER_FEE) return TransactionState.FEE_TOO_HIGH;
-        break;
-    }
-
-    if (buyCrypto.outputReferenceAsset) return TransactionState.PROCESSING;
-
-    return TransactionState.CREATED;
+      ? await this.webhookService.cryptoCryptoUpdate(buyCrypto.user, buyCrypto)
+      : await this.webhookService.fiatCryptoUpdate(buyCrypto.user, buyCrypto);
   }
 }

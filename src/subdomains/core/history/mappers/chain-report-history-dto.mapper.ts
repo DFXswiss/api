@@ -58,11 +58,15 @@ export class ChainReportHistoryDtoMapper {
               timestamp: buyCrypto.outputDate ? buyCrypto.outputDate : null,
               transactionType: ChainReportTransactionType.TRADE,
               inputAmount: buyCrypto.outputAmount,
-              inputAsset: buyCrypto.cryptoRoute?.deposit ? 'DFI' : this.getAssetSymbol(buyCrypto.cryptoRoute?.asset?.dexName),
+              inputAsset: buyCrypto.cryptoRoute?.deposit
+                ? 'DFI'
+                : this.getAssetSymbol(buyCrypto.cryptoRoute?.asset?.dexName),
               outputAmount: buyCrypto.inputAmount,
               outputAsset: this.getAssetSymbol(buyCrypto.inputAsset),
-              feeAmount: buyCrypto.percentFee ? buyCrypto.percentFee * buyCrypto.inputAmount : null,
-              feeAsset: buyCrypto.percentFee ? this.getAssetSymbol(buyCrypto.inputAsset) : null,
+              feeAmount: buyCrypto.totalFeeAmount
+                ? (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount
+                : null,
+              feeAsset: buyCrypto.totalFeeAmount ? this.getAssetSymbol(buyCrypto.inputAsset) : null,
               txId: buyCrypto.txId,
               description: 'DFX Purchase',
             },
@@ -86,7 +90,9 @@ export class ChainReportHistoryDtoMapper {
       )
       .map((buyCrypto) => [
         {
-          timestamp: buyCrypto.outputDate ? this.createRandomDate(buyCrypto.outputDate, -20, buyCrypto.inputAmount) : null,
+          timestamp: buyCrypto.outputDate
+            ? this.createRandomDate(buyCrypto.outputDate, -20, buyCrypto.inputAmount)
+            : null,
           transactionType: ChainReportTransactionType.DEPOSIT,
           inputAmount: buyCrypto.inputAmount,
           inputAsset: buyCrypto.inputAsset,
@@ -104,7 +110,9 @@ export class ChainReportHistoryDtoMapper {
           inputAsset: buyCrypto.buy?.deposit ? 'DFI' : this.getAssetSymbol(buyCrypto.buy?.asset?.dexName),
           outputAmount: buyCrypto.inputAmount,
           outputAsset: buyCrypto.inputAsset,
-          feeAmount: buyCrypto.totalFeeAmount ? (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount : null,
+          feeAmount: buyCrypto.totalFeeAmount
+            ? (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount
+            : null,
           feeAsset: buyCrypto.totalFeeAmount ? buyCrypto.inputAsset : null,
           txId: buyCrypto.txId,
           description: 'DFX Purchase',
@@ -134,7 +142,9 @@ export class ChainReportHistoryDtoMapper {
           inputAsset: buyFiat.outputAsset,
           outputAmount: buyFiat.inputAmount,
           outputAsset: this.getAssetSymbol(buyFiat.cryptoInput.asset?.dexName),
-          feeAmount: buyFiat.totalFeeAmount ? (buyFiat.totalFeeAmount / buyFiat.inputReferenceAmount) * buyFiat.inputAmount : null,
+          feeAmount: buyFiat.totalFeeAmount
+            ? (buyFiat.totalFeeAmount / buyFiat.inputReferenceAmount) * buyFiat.inputAmount
+            : null,
           feeAsset: buyFiat.totalFeeAmount ? buyFiat.inputAsset : null,
           txId: buyFiat.cryptoInput.inTxId,
           description: 'DFX Sale',
@@ -165,12 +175,16 @@ export class ChainReportHistoryDtoMapper {
           inputAsset: this.getAssetSymbol(stakingReward.outputAsset),
           outputAmount: null,
           outputAsset: null,
-          feeAmount: stakingReward.fee && stakingReward.fee != 0 ? (stakingReward.outputAmount * stakingReward.fee) / (1 - stakingReward.fee) : null,
+          feeAmount:
+            stakingReward.fee && stakingReward.fee != 0
+              ? (stakingReward.outputAmount * stakingReward.fee) / (1 - stakingReward.fee)
+              : null,
           feeAsset: stakingReward.fee && stakingReward.fee != 0 ? this.getAssetSymbol(stakingReward.outputAsset) : null,
           txId: stakingReward.txId,
           description: 'DFX Staking Reward',
           isReinvest: stakingReward.payoutType === PayoutType.REINVEST,
-          target: stakingReward.payoutType === PayoutType.REINVEST ? ChainReportTarget.STAKING : ChainReportTarget.WALLET,
+          target:
+            stakingReward.payoutType === PayoutType.REINVEST ? ChainReportTarget.STAKING : ChainReportTarget.WALLET,
         },
       ])
       .reduce((prev, curr) => prev.concat(curr), []);
@@ -244,7 +258,9 @@ export class ChainReportHistoryDtoMapper {
               outputAsset: this.getAssetSymbol(withdrawal.inputAsset),
               feeAmount: null,
               feeAsset: null,
-              txId: Util.createHash(withdrawal.outputDate.toUTCString() + withdrawal.outputAmount + withdrawal.inputAmount),
+              txId: Util.createHash(
+                withdrawal.outputDate.toUTCString() + withdrawal.outputAmount + withdrawal.inputAmount,
+              ),
               description: null,
             }
           : null,

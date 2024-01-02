@@ -12,7 +12,6 @@ import { FiatOutputService } from '../../../supporting/fiat-output/fiat-output.s
 import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
 import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
 import { PaymentStatus } from '../../history/dto/history.dto';
-import { TransactionState } from '../../history/dto/output/transaction.dto';
 import { TransactionDetailsDto } from '../../statistic/dto/statistic.dto';
 import { SellHistoryDto } from '../route/dto/sell-history.dto';
 import { Sell } from '../route/sell.entity';
@@ -142,8 +141,7 @@ export class BuyFiatService {
 
   async triggerWebhook(buyFiat: BuyFiat): Promise<void> {
     // TODO add fiatFiatUpdate here
-    const state = BuyFiatService.getWebhookState(buyFiat);
-    buyFiat.sell ? await this.webhookService.cryptoFiatUpdate(buyFiat.sell.user, buyFiat, state) : undefined;
+    buyFiat.sell ? await this.webhookService.cryptoFiatUpdate(buyFiat.sell.user, buyFiat) : undefined;
   }
 
   async resetAmlCheck(id: number): Promise<void> {
@@ -203,24 +201,6 @@ export class BuyFiatService {
   }
 
   // --- HELPER METHODS --- //
-
-  static getWebhookState(buyFiat: BuyFiat): TransactionState {
-    if (buyFiat.cryptoReturnDate) return TransactionState.RETURNED;
-
-    switch (buyFiat.amlCheck) {
-      case CheckStatus.PENDING:
-        return TransactionState.AML_PENDING;
-      case CheckStatus.FAIL:
-        return TransactionState.FAILED;
-      case CheckStatus.PASS:
-        if (buyFiat.isComplete) return TransactionState.COMPLETED;
-        break;
-    }
-
-    if (buyFiat.outputReferenceAsset) return TransactionState.PROCESSING;
-
-    return TransactionState.CREATED;
-  }
 
   private toHistoryDto(buyFiat: BuyFiat): SellHistoryDto {
     return {

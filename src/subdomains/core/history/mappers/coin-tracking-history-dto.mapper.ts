@@ -66,8 +66,10 @@ export class CoinTrackingHistoryDtoMapper {
                 : this.getAssetSymbol(buyCrypto.cryptoRoute?.asset?.dexName),
               sellAmount: buyCrypto.inputAmount,
               sellAsset: this.getAssetSymbol(buyCrypto.inputAsset),
-              fee: buyCrypto.percentFee ? buyCrypto.percentFee * buyCrypto.inputAmount : null,
-              feeAsset: buyCrypto.percentFee ? this.getAssetSymbol(buyCrypto.inputAsset) : null,
+              fee: buyCrypto.totalFeeAmount
+                ? (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount
+                : null,
+              feeAsset: buyCrypto.totalFeeAmount ? this.getAssetSymbol(buyCrypto.inputAsset) : null,
               exchange: 'DFX',
               tradeGroup: null,
               comment: 'DFX Purchase',
@@ -195,7 +197,9 @@ export class CoinTrackingHistoryDtoMapper {
           sellAmount: null,
           sellAsset: null,
           fee:
-            stakingReward.fee && stakingReward.fee != 0 ? (stakingReward.outputAmount * stakingReward.fee) / (1 - stakingReward.fee) : null,
+            stakingReward.fee && stakingReward.fee != 0
+              ? (stakingReward.outputAmount * stakingReward.fee) / (1 - stakingReward.fee)
+              : null,
           feeAsset: stakingReward.fee && stakingReward.fee != 0 ? this.getAssetSymbol(stakingReward.outputAsset) : null,
           exchange: stakingReward.payoutType === PayoutType.REINVEST ? 'DFX Staking' : 'DFX',
           tradeGroup: stakingReward.payoutType === PayoutType.REINVEST ? 'Staking' : null,
