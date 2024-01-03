@@ -324,11 +324,17 @@ export class Util {
     return sign.sign(key, 'base64');
   }
 
-  static async retry<T>(action: () => Promise<T>, tryCount = 3, delay = 0): Promise<T> {
+  static async retry<T>(
+    action: () => Promise<T>,
+    tryCount = 3,
+    delay = 0,
+    onError?: () => Promise<unknown>,
+  ): Promise<T> {
     try {
       return await action();
     } catch (e) {
       if (tryCount > 1) {
+        await onError?.();
         await this.delay(delay);
         return this.retry(action, tryCount - 1, delay);
       }

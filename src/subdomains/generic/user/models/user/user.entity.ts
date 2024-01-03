@@ -131,4 +131,15 @@ export class User extends IEntity {
 
     return [this.id, update];
   }
+
+  activateUser(ref: string): UpdateResult<User> {
+    const update: Partial<User> = {
+      status: UserStatus.ACTIVE,
+      ref,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
 }
