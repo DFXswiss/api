@@ -16,11 +16,14 @@ export class UserRepository extends BaseRepository<User> {
 
   async activateUser(user: User): Promise<void> {
     if (user.status === UserStatus.NA) {
+      let ref = user.ref ?? (await this.getNextRef());
       // retry (in case of ref conflict)
-      await Util.retry(async () => {
-        const ref = user.ref ?? (await this.getNextRef());
-        await this.update(...user.activateUser(ref));
-      }, 3);
+      await Util.retry(
+        () => this.update(...user.activateUser(ref)),
+        3,
+        0,
+        async () => (ref = await this.getNextRef()),
+      );
     }
   }
 
