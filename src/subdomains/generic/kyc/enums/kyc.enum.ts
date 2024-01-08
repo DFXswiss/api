@@ -26,6 +26,7 @@ export enum KycStepType {
 export enum KycLogType {
   KYC_STEP = 'KycStep',
   NAME_CHECK = 'NameCheck',
+  MERGE = 'Merge',
   TFA = '2FA',
 }
 

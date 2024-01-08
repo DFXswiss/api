@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
+import { KycLogType } from '../enums/kyc.enum';
 import { KycLogRepository } from '../repositories/kyc-log.repository';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 
@@ -20,5 +22,15 @@ export class KycAdminService {
 
     kycStep.update(dto.status, dto.result);
     await this.kycStepRepo.save(kycStep);
+  }
+
+  async createMergeLog(user: UserData, log: string): Promise<void> {
+    const entity = this.kycLogRepo.create({
+      type: KycLogType.MERGE,
+      result: log,
+      userData: user,
+    });
+
+    await this.kycLogRepo.save(entity);
   }
 }
