@@ -11,6 +11,9 @@ import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { AuthService } from '../auth/auth.service';
 import { AuthResponseDto } from '../auth/dto/auth-response.dto';
+import { KycInfo } from '../kyc/dto/kyc-info.dto';
+import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
+import { KycService } from '../kyc/kyc.service';
 import { ApiKeyDto } from './dto/api-key.dto';
 import { LinkedUserInDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
@@ -28,6 +31,7 @@ export class UserController {
     private readonly userService: UserService,
     private readonly authService: AuthService,
     private readonly feeService: FeeService,
+    private readonly kycService: KycService,
   ) {}
 
   // --- USER --- //
@@ -82,6 +86,20 @@ export class UserController {
     @RealIP() ip: string,
   ): Promise<AuthResponseDto> {
     return this.authService.changeUser(jwt.id, changeUser, ip);
+  }
+
+  @Post('data')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiCreatedResponse({ type: KycInfo })
+  async updateKycData(@GetJwt() jwt: JwtPayload, @Body() data: KycUserDataDto): Promise<KycInfo> {
+    return this.kycService.updateKycData('', data, jwt.id);
+  }
+
+  @Put(':code/data')
+  @ApiOkResponse({ type: KycInfo })
+  async updateKycDataByCode(@Param('code') code: string, @Body() data: KycUserDataDto): Promise<KycInfo> {
+    return this.kycService.updateKycData(code, data);
   }
 
   @Delete()

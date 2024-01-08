@@ -1,40 +1,37 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { AccountType } from '../../user-data/account-type.enum';
-import { KycStatus, KycState } from '../../user-data/user-data.entity';
-import { TradingLimit } from '../../user/dto/user.dto';
 import { LanguageDto } from 'src/shared/models/language/dto/language.dto';
+import { AccountType } from '../../user-data/account-type.enum';
+import { KycStatus } from '../../user-data/user-data.entity';
+import { TradingLimit } from '../../user/dto/user.dto';
 
 export class KycInfo {
-  @ApiProperty({ enum: KycStatus })
+  @ApiProperty({ enum: KycStatus, deprecated: true })
   kycStatus: KycStatus;
 
-  @ApiProperty({ enum: KycState })
-  kycState: KycState;
-
-  @ApiProperty()
+  @ApiProperty({ deprecated: true })
   kycHash: string;
 
-  @ApiProperty()
+  @ApiProperty({ deprecated: true })
   kycDataComplete: boolean;
 
-  @ApiProperty({ enum: AccountType })
+  @ApiProperty({ enum: AccountType, deprecated: true })
   accountType: AccountType;
 
-  @ApiProperty({ type: TradingLimit })
+  @ApiProperty({ type: TradingLimit, deprecated: true })
   tradingLimit: TradingLimit;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ deprecated: true })
   sessionUrl?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ deprecated: true })
   setupUrl?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ deprecated: true })
   blankedPhone?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ deprecated: true })
   blankedMail?: string;
 
-  @ApiProperty()
+  @ApiProperty({ deprecated: true })
   language: LanguageDto;
 }

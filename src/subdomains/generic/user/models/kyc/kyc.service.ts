@@ -17,7 +17,6 @@ import {
   Blank,
   BlankType,
   KycCompleted,
-  KycState,
   KycStatus,
   UserData,
 } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -93,17 +92,6 @@ export class KycService {
     await this.userDataService.mergeUserData(dfxUser.userData.id, externalUser.userData.id);
   }
 
-  async triggerWebhook(userDataId: number, reason?: string): Promise<void> {
-    const user = await this.userDataService.getUserData(userDataId, { users: true });
-    if (!user) throw new NotFoundException('User not found');
-
-    if (user.kycState === KycState.FAILED) {
-      await this.webhookService.kycFailed(user, reason ?? 'KYC failed');
-    } else {
-      await this.webhookService.kycChanged(user);
-    }
-  }
-
   async uploadDocument(
     code: string,
     document: Express.Multer.File,
@@ -136,10 +124,8 @@ export class KycService {
   // --- CREATE KYC INFO --- //
 
   private createKycInfoBasedOn(userData: UserData): KycInfo {
-    const hasSecondUrl = Boolean(userData.spiderData?.secondUrl);
     return {
       kycStatus: userData.kycStatus,
-      kycState: userData.kycState,
       kycHash: userData.kycHash,
       kycDataComplete: userData.isDataComplete,
       accountType: userData.accountType,
@@ -147,8 +133,8 @@ export class KycService {
       blankedPhone: Blank(userData.phone, BlankType.PHONE),
       blankedMail: Blank(userData.mail, BlankType.MAIL),
       language: LanguageDtoMapper.entityToDto(userData.language),
-      sessionUrl: hasSecondUrl ? userData.spiderData?.secondUrl : userData.spiderData?.url,
-      setupUrl: hasSecondUrl ? userData.spiderData?.url : undefined,
+      sessionUrl: undefined,
+      setupUrl: undefined,
     };
   }
 

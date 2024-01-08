@@ -7,9 +7,9 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
-import { IdentCompletedStates, KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
-import { In, IsNull, LessThan } from 'typeorm';
+import { IsNull } from 'typeorm';
 
 interface UserData {
   kycStatus: {
@@ -63,11 +63,11 @@ export class UserObserver extends MetricObserver<UserData> {
       kycStatusData[kycStatus] = await this.repos.userData.countBy([
         {
           kycStatus,
-          kycStatusChangeDate: LessThan(date),
+          //kycStatusChangeDate: LessThan(date), // TODO
         },
         {
           kycStatus,
-          kycStatusChangeDate: IsNull(),
+          //kycStatusChangeDate: IsNull(), // TODO
         },
       ]);
     }
@@ -84,10 +84,7 @@ export class UserObserver extends MetricObserver<UserData> {
         .where('user.status != :status', { status: UserStatus.NA })
         .andWhere('userData.riskState is NULL')
         .getCount(),
-      pdfUrl: await this.repos.spiderData.count({
-        where: { identPdf: IsNull(), userData: { kycStatus: In(IdentCompletedStates) } },
-        relations: ['userData'],
-      }),
+      pdfUrl: null, //TODO
     };
   }
 }

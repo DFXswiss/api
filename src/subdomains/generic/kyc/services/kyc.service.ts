@@ -10,12 +10,15 @@ import { Util } from 'src/shared/utils/util';
 import { LessThan } from 'typeorm';
 import { KycLevel, UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
+import { User } from '../../user/models/user/user.entity';
+import { UserService } from '../../user/models/user/user.service';
+import { WalletService } from '../../user/models/wallet/wallet.service';
 import { IdentStatus } from '../dto/ident.dto';
 import { IdentResultDto, IdentShortResult, getIdentResult } from '../dto/input/ident-result.dto';
 import { KycContactData } from '../dto/input/kyc-contact-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { KycPersonalData } from '../dto/input/kyc-personal-data.dto';
-import { KycContentType, KycFileType } from '../dto/kyc-file.dto';
+import { KycContentType, KycDataDto, KycFile, KycFileDto, KycFileType, KycReportType } from '../dto/kyc-file.dto';
 import { KycDataMapper } from '../dto/mapper/kyc-data.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
@@ -46,6 +49,8 @@ export class KycService {
     private readonly stepLogRepo: StepLogRepository,
     private readonly tfaService: TfaService,
     private readonly kycNotificationService: KycNotificationService,
+    private readonly userService: UserService,
+    private readonly walletService: WalletService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
@@ -382,6 +387,39 @@ export class KycService {
     return kycStep;
   }
 
+  // --- GET COMPANY KYC --- //
+
+  async getAllKycData(walletId: number): Promise<KycDataDto[]> {
+    const wallet = await this.walletService.getByIdOrName(walletId, undefined, { users: { userData: true } });
+    if (!wallet) throw new NotFoundException('Wallet not found');
+
+    return wallet.users.map((b) => this.toKycDataDto(b));
+  }
+
+  async getKycFiles(userAddress: string, walletId: number): Promise<KycFileDto[]> {
+    const user = await this.userService.getUserByAddress(userAddress, { userData: true, wallet: true });
+    if (!user || user.wallet.id !== walletId) throw new NotFoundException('User not found');
+
+    const allDocuments = await this.storageService.listUserFiles(user.userData.id);
+
+    return Object.values(KycReportType)
+      .map((type) => ({ type, info: this.getFileFor(type, allDocuments) }))
+      .filter((d) => d.info != null)
+      .map(({ type, info }) => this.toKycFileDto(type, info));
+  }
+
+  async getKycFile(userAddress: string, walletId: number, type: KycReportType): Promise<any> {
+    const user = await this.userService.getUserByAddress(userAddress, { userData: true, wallet: true });
+    if (!user || user.wallet.id !== walletId) throw new NotFoundException('User not found');
+
+    const allDocuments = await this.storageService.listUserFiles(user.userData.id);
+
+    const document = this.getFileFor(type, allDocuments);
+    if (!document) throw new NotFoundException('File not found');
+
+    return this.storageService.downloadFile(user.userData.id, document.type, document.name).then((b) => b.data);
+  }
+
   // --- HELPER METHODS --- //
   private async createStepLog(user: UserData, kycStep: KycStep): Promise<void> {
     const entity = this.stepLogRepo.create({
@@ -440,5 +478,34 @@ export class KycService {
         contentType,
       );
     }
+  }
+
+  private getFileFor(type: KycReportType, documents: KycFile[]): KycFile | undefined {
+    switch (type) {
+      case KycReportType.IDENTIFICATION:
+        return documents.find((d) => d.type === KycFileType.IDENTIFICATION && d.contentType === KycContentType.PDF);
+
+      case KycReportType.FINANCIAL_DATA:
+        // TODO: find PDF result
+        return undefined;
+
+      case KycReportType.INCORPORATION_CERTIFICATE:
+        return documents.find((d) => d.type === KycFileType.USER_NOTES && d.name.includes('incorporation-certificate'));
+
+      default:
+        throw new BadRequestException(`Document type ${type} is not supported`);
+    }
+  }
+
+  private toKycDataDto(user: User): KycDataDto {
+    return {
+      id: user.address,
+      kycLevel: user.userData.kycLevel,
+      kycHash: user.userData.kycHash,
+    };
+  }
+
+  private toKycFileDto(type: KycReportType, { contentType }: KycFile): KycFileDto {
+    return { type, contentType };
   }
 }

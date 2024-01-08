@@ -62,8 +62,8 @@ export class UserService {
     return this.userRepo.findOne({ where: { id: userId }, relations });
   }
 
-  async getUserByAddress(address: string): Promise<User> {
-    return this.userRepo.findOneBy({ address });
+  async getUserByAddress(address: string, relations: FindOptionsRelations<User> = {}): Promise<User> {
+    return this.userRepo.findOne({ where: { address }, relations });
   }
 
   async getUserByKey(key: string, value: any): Promise<User> {
@@ -426,7 +426,7 @@ export class UserService {
       language: user.userData?.language,
       currency: user.userData?.currency,
       kycStatus: user.userData?.kycStatus,
-      kycState: user.userData?.kycState,
+      kycState: null,
       kycLevel: user.userData?.kycLevel,
       kycHash: user.userData?.kycHash,
       tradingLimit: user.userData?.tradingLimit,

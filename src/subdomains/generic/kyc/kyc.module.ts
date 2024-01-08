@@ -3,8 +3,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { SharedModule } from 'src/shared/shared.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { UserModule } from '../user/user.module';
-import { KycController } from './api/kyc.controller';
 import { KycAdminController } from './controllers/kyc-admin.controller';
+import { KycClientController } from './controllers/kyc-client.controller';
+import { KycController } from './controllers/kyc.controller';
 import { KycLog } from './entities/kyc-log.entity';
 import { KycStep } from './entities/kyc-step.entity';
 import { NameCheckLog } from './entities/name-check-log.entity';
@@ -31,7 +32,7 @@ import { TfaService } from './services/tfa.service';
     NotificationModule,
     forwardRef(() => UserModule),
   ],
-  controllers: [KycController, KycAdminController],
+  controllers: [KycController, KycAdminController, KycClientController],
   providers: [
     KycService,
     KycAdminService,

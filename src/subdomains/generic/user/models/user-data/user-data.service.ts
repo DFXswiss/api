@@ -145,11 +145,6 @@ export class UserDataService {
       if (!userData.organizationCountry) throw new BadRequestException('Country not found');
     }
 
-    if (dto.mainBankDataId) {
-      userData.mainBankData = await this.bankDataRepo.findOneBy({ id: dto.mainBankDataId });
-      if (!userData.mainBankData) throw new BadRequestException('Bank data not found');
-    }
-
     if (dto.nationality || dto.identDocumentId) {
       const existing = await this.userDataRepo.findOneBy({
         nationality: { id: userData.nationality.id },

@@ -7,9 +7,9 @@ export enum KycDocumentType {
 }
 
 export class KycFileDto {
-  @ApiProperty({ enum: KycDocumentType })
+  @ApiProperty({ enum: KycDocumentType, deprecated: true })
   type: KycDocumentType;
 
-  @ApiProperty()
+  @ApiProperty({ deprecated: true })
   contentType: string;
 }

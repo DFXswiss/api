@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { WalletRepository } from 'src/subdomains/generic/user/models/wallet/wallet.repository';
+import { FindOptionsRelations } from 'typeorm';
 import { Wallet } from './wallet.entity';
 
 @Injectable()
@@ -10,8 +11,12 @@ export class WalletService {
     return this.repo.findOneBy({ address });
   }
 
-  async getByIdOrName(id?: number, name?: string): Promise<Wallet | undefined> {
-    return id || name ? this.repo.findOneBy([{ id }, { name }]) : undefined;
+  async getByIdOrName(
+    id?: number,
+    name?: string,
+    relations: FindOptionsRelations<Wallet> = {},
+  ): Promise<Wallet | undefined> {
+    return id || name ? this.repo.findOne({ where: [{ id }, { name }], relations }) : undefined;
   }
 
   async getDefault(): Promise<Wallet> {
