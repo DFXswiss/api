@@ -179,7 +179,7 @@ export class BuyFiatService {
       .createQueryBuilder('buyFiat')
       .select('usedRef')
       .groupBy('usedRef')
-      .where('buyFiat.id = :id', { id: Between(start, end) })
+      .where('buyFiat.id >= :start AND buyFiat.id <= :end', { start, end })
       .getRawMany<{ usedRef: string }>()
       .then((refs) => refs.map((r) => r.usedRef));
 
