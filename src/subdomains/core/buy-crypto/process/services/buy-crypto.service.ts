@@ -240,7 +240,7 @@ export class BuyCryptoService {
       .createQueryBuilder('buyCrypto')
       .select('usedRef')
       .groupBy('usedRef')
-      .where('buyCrypto.id = :id', { id: Between(start, end) })
+      .where('buyCrypto.id >= :start AND buyCrypto.id <= :end', { start, end })
       .getRawMany<{ usedRef: string }>()
       .then((refs) => refs.map((r) => r.usedRef));
 
