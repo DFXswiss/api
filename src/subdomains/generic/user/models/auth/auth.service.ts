@@ -135,7 +135,16 @@ export class AuthService {
           { key: MailKey.SPACE, params: { value: '1' } },
           {
             key: `${MailTranslationKey.LOGIN}.message`,
-            params: { url: `${Config.frontend.services}/kyc?code=${userData.kycHash}` },
+            params: {
+              url: `${Config.frontend.services}/kyc?code=${userData.kycHash}`,
+              urlText: `${Config.frontend.services}/kyc?code=${userData.kycHash}`,
+            },
+          },
+          {
+            key: `${MailTranslationKey.LOGIN}.button`,
+            params: {
+              url: `${Config.frontend.services}/kyc?code=${userData.kycHash}`,
+            },
           },
           { key: MailKey.SPACE, params: { value: '2' } },
           { key: MailKey.DFX_TEAM_CLOSING },

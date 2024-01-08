@@ -12,7 +12,8 @@
     "login": {
         "title": "Connexion DFX",
         "salutation": "Connexion DFX",
-        "message": "Cliquez sur le lien suivant pour vous connecter à DFX [url:ici]"
+        "message": "Cliquez sur le lien suivant pour vous connecter à DFX:<br>[url:{urlText}]",
+        "button": "ou<br>[url:Cliquez ici]"
     },
     "payment": {
         "buy_fiat": {
