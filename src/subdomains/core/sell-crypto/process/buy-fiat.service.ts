@@ -164,17 +164,26 @@ export class BuyFiatService {
   }
 
   async updateVolumes(start = 1, end = 100000): Promise<void> {
-    const sellIds = await this.sellRepo.findBy({ id: Between(start, end) }).then((l) => l.map((b) => b.id));
-    await this.updateSellVolume(sellIds);
+    const sellIds = await this.buyFiatRepo
+      .find({
+        where: { id: Between(start, end) },
+        relations: { sell: true },
+      })
+      .then((l) => l.map((b) => b.sell.id));
+
+    await this.updateSellVolume([...new Set(sellIds)]);
   }
 
-  async updateRefVolumes(): Promise<void> {
+  async updateRefVolumes(start = 1, end = 100000): Promise<void> {
     const refs = await this.buyFiatRepo
       .createQueryBuilder('buyFiat')
       .select('usedRef')
       .groupBy('usedRef')
-      .getRawMany<{ usedRef: string }>();
-    await this.updateRefVolume(refs.map((r) => r.usedRef));
+      .where('buyFiat.id = :id', { id: Between(start, end) })
+      .getRawMany<{ usedRef: string }>()
+      .then((refs) => refs.map((r) => r.usedRef));
+
+    await this.updateRefVolume([...new Set(refs)]);
   }
 
   async getUserTransactions(

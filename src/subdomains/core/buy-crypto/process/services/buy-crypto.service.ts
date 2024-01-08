@@ -223,17 +223,28 @@ export class BuyCryptoService {
   }
 
   async updateVolumes(start = 1, end = 100000): Promise<void> {
-    const buyIds = await this.buyRepo.findBy({ id: Between(start, end) }).then((l) => l.map((b) => b.id));
-    await this.updateBuyVolume(buyIds);
+    const buyCryptos = await this.buyCryptoRepo.find({
+      where: { id: Between(start, end) },
+      relations: { buy: true, cryptoRoute: true },
+    });
+
+    const buyIds = buyCryptos.filter((b) => b.buy).map((b) => b.buy.id);
+    const cryptoRouteIds = buyCryptos.filter((b) => b.cryptoRoute).map((b) => b.cryptoRoute.id);
+
+    await this.updateBuyVolume([...new Set(buyIds)]);
+    await this.updateCryptoRouteVolume([...new Set(cryptoRouteIds)]);
   }
 
-  async updateRefVolumes(): Promise<void> {
+  async updateRefVolumes(start = 1, end = 100000): Promise<void> {
     const refs = await this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
       .select('usedRef')
       .groupBy('usedRef')
-      .getRawMany<{ usedRef: string }>();
-    await this.updateRefVolume(refs.map((r) => r.usedRef));
+      .where('buyCrypto.id = :id', { id: Between(start, end) })
+      .getRawMany<{ usedRef: string }>()
+      .then((refs) => refs.map((r) => r.usedRef));
+
+    await this.updateRefVolume([...new Set(refs)]);
   }
 
   async resetAmlCheck(id: number): Promise<void> {

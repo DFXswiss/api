@@ -32,8 +32,8 @@ export class BuyFiatController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateRefVolumes(): Promise<void> {
-    return this.buyFiatService.updateRefVolumes();
+  async updateRefVolumes(@Query('start') start?: string, @Query('end') end?: string): Promise<void> {
+    return this.buyFiatService.updateRefVolumes(start ? +start : undefined, end ? +end : undefined);
   }
 
   @Put(':id')
