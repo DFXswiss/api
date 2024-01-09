@@ -97,12 +97,14 @@ export class Fee extends IEntity {
   }
 
   private getUserTxUsage(userDataId: number, txUsages?: UserTxUsage[]): UserTxUsage {
-    return (
-      (txUsages ? txUsages : this.getUserTxUsages())?.find((u) => u.userDataId === userDataId) ?? {
-        userDataId,
-        usages: 0,
-      }
-    );
+    const userTxUsage = (txUsages ? txUsages : this.getUserTxUsages())?.find((u) => u.userDataId === userDataId);
+
+    if (!userTxUsage && txUsages) {
+      txUsages.push({ userDataId, usages: 0 });
+      return txUsages.find((u) => u.userDataId === userDataId);
+    }
+    
+    return userTxUsage ?? { userDataId, usages: 0 };
   }
 
   increaseUsage(accountType: AccountType, wallet?: Wallet): UpdateResult<Fee> {
@@ -133,7 +135,7 @@ export class Fee extends IEntity {
     if (this.isExpired(userDataId) || !this.active)
       throw new BadRequestException('Fee is expired - increaseUserTxUsage forbidden');
 
-    const userTxUsages = this.getUserTxUsages();
+    const userTxUsages = this.getUserTxUsages() ?? [{ userDataId, usages: 0 }];
     this.getUserTxUsage(userDataId, userTxUsages).usages++;
 
     this.setUserTxUsages(userTxUsages);
