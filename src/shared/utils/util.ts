@@ -329,11 +329,12 @@ export class Util {
     tryCount = 3,
     delay = 0,
     onError?: () => Promise<unknown>,
+    retryIf?: (e: Error) => boolean,
   ): Promise<T> {
     try {
       return await action();
     } catch (e) {
-      if (tryCount > 1) {
+      if (tryCount > 1 && (!retryIf || retryIf(e))) {
         await onError?.();
         await this.delay(delay);
         return this.retry(action, tryCount - 1, delay);

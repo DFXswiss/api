@@ -79,6 +79,16 @@ export class KycService {
   }
 
   async continue(kycHash: string, ip: string, autoStep: boolean): Promise<KycSessionDto> {
+    return Util.retry(
+      () => this.tryContinue(kycHash, ip, autoStep),
+      2,
+      0,
+      undefined,
+      (e) => e.message?.includes('duplicate key'),
+    );
+  }
+
+  private async tryContinue(kycHash: string, ip: string, autoStep: boolean): Promise<KycSessionDto> {
     let user = await this.getUser(kycHash);
 
     user = await this.updateProgress(user, true, autoStep);
