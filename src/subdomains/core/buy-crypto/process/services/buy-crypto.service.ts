@@ -195,6 +195,10 @@ export class BuyCryptoService {
       .leftJoinAndSelect('cryptoRouteUser.userData', 'cryptoRouteUserData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
+      .leftJoinAndSelect('userData.country', 'country')
+      .leftJoinAndSelect('userData.nationality', 'nationality')
+      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+      .leftJoinAndSelect('userData.language', 'language')
       .leftJoinAndSelect('users.wallet', 'wallet')
       .leftJoinAndSelect('cryptoRouteUserData.users', 'cryptoRouteUsers')
       .leftJoinAndSelect('cryptoRouteUsers.wallet', 'cryptoRouteWallet')
@@ -240,7 +244,7 @@ export class BuyCryptoService {
       .createQueryBuilder('buyCrypto')
       .select('usedRef')
       .groupBy('usedRef')
-      .where('buyCrypto.id = :id', { id: Between(start, end) })
+      .where('buyCrypto.id BETWEEN :start AND :end', { start, end })
       .getRawMany<{ usedRef: string }>()
       .then((refs) => refs.map((r) => r.usedRef));
 

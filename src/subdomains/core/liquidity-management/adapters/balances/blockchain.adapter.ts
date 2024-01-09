@@ -195,6 +195,8 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
       return;
     }
 
+    this.logger.verbose(`${blockchain} balances: ${JSON.stringify(tokenBalances)}`);
+
     const tokenToBalanceMap = new Map<string, number>(
       tokenBalances
         .filter((t) => t.contractAddress)
