@@ -119,6 +119,8 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
       }
 
       this.updateTimestamps.set(blockchain, updated);
+    } catch (e) {
+      this.logger.error(`Failed to update balances for ${blockchain}:`, e);
     } finally {
       this.updateCalls.delete(blockchain);
     }
@@ -194,8 +196,6 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
       this.invalidateCacheFor(assets);
       return;
     }
-
-    this.logger.verbose(`${blockchain} balances: ${JSON.stringify(tokenBalances)}`);
 
     const tokenToBalanceMap = new Map<string, number>(
       tokenBalances
