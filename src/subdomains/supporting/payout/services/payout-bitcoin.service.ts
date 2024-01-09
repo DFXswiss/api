@@ -3,10 +3,10 @@ import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { BtcFeeService } from 'src/integration/blockchain/ain/services/btc-fee.service';
 import { PayoutOrderContext } from '../entities/payout-order.entity';
-import { PayoutGroup, PayoutJellyfishService } from './base/payout-jellyfish.service';
+import { PayoutBitcoinBasedService, PayoutGroup } from './base/payout-bitcoinbased.service';
 
 @Injectable()
-export class PayoutBitcoinService extends PayoutJellyfishService {
+export class PayoutBitcoinService extends PayoutBitcoinBasedService {
   #client: BtcClient;
 
   constructor(readonly nodeService: NodeService, private readonly feeService: BtcFeeService) {

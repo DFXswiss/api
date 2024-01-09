@@ -3,20 +3,20 @@ import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import {
+  PayoutBitcoinBasedService,
   PayoutGroup,
-  PayoutJellyfishService,
-} from 'src/subdomains/supporting/payout/services/base/payout-jellyfish.service';
+} from 'src/subdomains/supporting/payout/services/base/payout-bitcoinbased.service';
 import { PayoutOrder, PayoutOrderContext } from '../../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../../repositories/payout-order.repository';
 import { PayoutStrategy } from './payout.strategy';
 
-export abstract class JellyfishStrategy extends PayoutStrategy {
+export abstract class BitcoinbasedStrategy extends PayoutStrategy {
   protected abstract readonly logger: DfxLogger;
 
   constructor(
     protected readonly notificationService: NotificationService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
-    protected readonly jellyfishService: PayoutJellyfishService,
+    protected readonly bitcoinbasedService: PayoutBitcoinBasedService,
   ) {
     super();
   }
@@ -26,7 +26,7 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
       const groups = Util.groupBy<PayoutOrder, PayoutOrderContext>(orders, 'context');
 
       for (const [context, group] of groups.entries()) {
-        if (!(await this.jellyfishService.isHealthy(context))) continue;
+        if (!(await this.bitcoinbasedService.isHealthy(context))) continue;
 
         await this.doPayoutForContext(context, group);
       }
@@ -40,7 +40,7 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
       const groups = Util.groupBy<PayoutOrder, PayoutOrderContext>(orders, 'context');
 
       for (const [context, group] of groups.entries()) {
-        if (!(await this.jellyfishService.isHealthy(context))) continue;
+        if (!(await this.bitcoinbasedService.isHealthy(context))) continue;
 
         await this.checkPayoutCompletionDataForContext(context, group);
       }
@@ -74,7 +74,7 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
     orders: PayoutOrder[],
     payoutTxId: string,
   ): Promise<void> {
-    const [isComplete, totalPayoutFee] = await this.jellyfishService.getPayoutCompletionData(context, payoutTxId);
+    const [isComplete, totalPayoutFee] = await this.bitcoinbasedService.getPayoutCompletionData(context, payoutTxId);
     const totalPayoutAmount = Util.sumObjValue<PayoutOrder>(orders, 'amount');
 
     if (isComplete) {

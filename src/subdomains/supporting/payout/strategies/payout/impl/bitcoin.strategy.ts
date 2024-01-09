@@ -8,12 +8,12 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { PayoutOrder, PayoutOrderContext } from '../../../entities/payout-order.entity';
 import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
-import { PayoutGroup } from '../../../services/base/payout-jellyfish.service';
+import { PayoutGroup } from '../../../services/base/payout-bitcoinbased.service';
 import { PayoutBitcoinService } from '../../../services/payout-bitcoin.service';
-import { JellyfishStrategy } from './base/jellyfish.strategy';
+import { BitcoinbasedStrategy } from './base/bitcoinbased.strategy';
 
 @Injectable()
-export class BitcoinStrategy extends JellyfishStrategy {
+export class BitcoinStrategy extends BitcoinbasedStrategy {
   protected readonly logger = new DfxLogger(BitcoinStrategy);
 
   private readonly averageTransactionSize = 180; // vBytes

@@ -7,12 +7,12 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { PayoutOrder, PayoutOrderContext } from '../../../entities/payout-order.entity';
 import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
-import { PayoutGroup } from '../../../services/base/payout-jellyfish.service';
+import { PayoutGroup } from '../../../services/base/payout-bitcoinbased.service';
 import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
-import { JellyfishStrategy } from './base/jellyfish.strategy';
+import { BitcoinbasedStrategy } from './base/bitcoinbased.strategy';
 
 @Injectable()
-export class DeFiChainCoinStrategy extends JellyfishStrategy {
+export class DeFiChainCoinStrategy extends BitcoinbasedStrategy {
   protected readonly logger = new DfxLogger(DeFiChainCoinStrategy);
 
   constructor(
