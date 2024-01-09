@@ -12,6 +12,11 @@ export enum FeeType {
   CUSTOM = 'Custom',
 }
 
+interface UserTxUsage {
+  userDataId: number;
+  usages: number;
+}
+
 @Entity()
 @Index((fee: Fee) => [fee.label, fee.direction], { unique: true })
 export class Fee extends IEntity {
@@ -80,10 +85,19 @@ export class Fee extends IEntity {
 
   //*** FACTORY METHODS ***//
 
-  getUserTxUsage(userDataId: number): number {
-    const userTxUsage = this.userTxUsages?.split(';').find((userTxUsage) => +userTxUsage?.split(':')[0] === userDataId);
+  private getUserTxUsages(): UserTxUsage[] {
+    return this.userTxUsages
+      ?.split(';')
+      .map((u) => u.split(':'))
+      .map(([id, usages]) => ({ userDataId: +id, usages: +usages }));
+  }
 
-    return +userTxUsage?.split(':')[1] ?? 0;
+  private setUserTxUsages(usages: UserTxUsage[]): void {
+    this.userTxUsages = usages.map(({ userDataId, usages }) => `${userDataId}:${usages}`).join(';');
+  }
+
+  private getUserTxUsage(userDataId: number): UserTxUsage {
+    return this.getUserTxUsages()?.find((u) => u.userDataId === userDataId) ?? { userDataId, usages: 0 };
   }
 
   increaseUsage(accountType: AccountType, wallet?: Wallet): UpdateResult<Fee> {
@@ -114,24 +128,13 @@ export class Fee extends IEntity {
     if (this.isExpired(userDataId) || !this.active)
       throw new BadRequestException('Fee is expired - increaseUserTxUsage forbidden');
 
-    const oldUserTxUsage = this.userTxUsages
-      ?.split(';')
-      .find((userTxUsage) => +userTxUsage?.split(':')[0] === userDataId);
+    const userTxUsages = this.getUserTxUsages();
 
-    const newUserTxUsage = `${oldUserTxUsage?.split(':')[0] ?? userDataId}:${
-      +(oldUserTxUsage?.split(':')[1] ?? 0) + 1
-    }`;
+    userTxUsages.find((u) => u.userDataId === userDataId).usages++;
 
-    const update: Partial<Fee> = {
-      userTxUsages:
-        !oldUserTxUsage && this.userTxUsages
-          ? `${this.userTxUsages};${newUserTxUsage}`
-          : this.userTxUsages?.replace(new RegExp(`\\b${oldUserTxUsage}\\b`, 'g'), newUserTxUsage) ?? newUserTxUsage,
-    };
+    this.setUserTxUsages(userTxUsages);
 
-    Object.assign(this, update);
-
-    return [this.id, update];
+    return [this.id, this];
   }
 
   verifyForTx(request: FeeRequest): boolean {
@@ -150,7 +153,7 @@ export class Fee extends IEntity {
   }
 
   isExpired(userDataId?: number): boolean {
-    const userTxUsage = this.getUserTxUsage(userDataId);
+    const userTxUsage = this.getUserTxUsage(userDataId).usages;
 
     return (
       !this ||
