@@ -37,8 +37,15 @@
             "payment_link": "Aqui puedes encontrar el identificador de tu transacción con tu retiro: [url:Link]"
         },
         "buy_crypto": {
-            "title": "Depósito procesado",
-            "salutation": "Tu deposito se ha procesado satisfactoriamente",
+            "confirmed": {
+                "title": "Depósito procesado",
+                "salutation": "Tu deposito se ha procesado satisfactoriamente"
+            },
+            "waitingForLowerFee": {
+                "title": "El depósito ha llegado - las comisiones de blockchain son demasiado altas",
+                "salutation": "Las comisiones de Blockchain son demasiado elevadas",
+                "message": "Su depósito ha llegado a DFX. Las tasas de blockchain son actualmente demasiado altas para enviarle sus activos. Sus activos serán enviados tan pronto como las tasas de blockchain sean más bajas de nuevo. Esto suele ocurrir en 24 horas."
+            },
             "input_amount": "Depositado",
             "output_amount": "Pago en criptomonedas",
             "payment_link": "Aquí puedes encontrar el Identificador de tu transacción con tu pago: [url:Link]"
