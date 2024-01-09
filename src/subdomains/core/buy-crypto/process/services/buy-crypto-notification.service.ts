@@ -60,9 +60,9 @@ export class BuyCryptoNotificationService {
 
       txOutput.length &&
         this.logger.verbose(
-          `Sending notifications for ${txOutput.length} buy-crypto transaction(s). Transaction ID(s): ${txOutput.map(
-            (t) => t.id,
-          )}`,
+          `Sending waiting-for-lower-fee notifications for ${
+            txOutput.length
+          } buy-crypto transaction(s). Transaction ID(s): ${txOutput.map((t) => t.id)}`,
         );
 
       for (const tx of txOutput) {
