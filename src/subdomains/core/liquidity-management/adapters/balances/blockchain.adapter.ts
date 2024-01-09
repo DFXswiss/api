@@ -119,6 +119,8 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
       }
 
       this.updateTimestamps.set(blockchain, updated);
+    } catch (e) {
+      this.logger.error(`Failed to update balances for ${blockchain}:`, e);
     } finally {
       this.updateCalls.delete(blockchain);
     }
@@ -195,19 +197,17 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
       return;
     }
 
-    this.logger.verbose(`${blockchain} balances: ${JSON.stringify(tokenBalances)}`);
-
     const tokenToBalanceMap = new Map<string, number>(
       tokenBalances
         .filter((t) => t.contractAddress)
-        .map((t) => [t.contractAddress.toUpperCase(), t.balance ? Number(t.balance) : 0]),
+        .map((t) => [t.contractAddress.toLowerCase(), t.balance ? Number(t.balance) : 0]),
     );
 
     for (const asset of assets) {
       const balance =
         asset.type === AssetType.COIN
           ? client.fromWeiAmount(coinBalance)
-          : tokenToBalanceMap.get(asset.chainId.toUpperCase()) ?? 0;
+          : tokenToBalanceMap.get(asset.chainId?.toLowerCase()) ?? 0;
 
       this.balanceCache.set(asset.id, balance);
     }
