@@ -96,9 +96,16 @@ export class BuyController {
     @Body() dto: GetBuyPaymentInfoDto,
   ): Promise<BuyPaymentInfoDto> {
     dto = await this.paymentInfoService.buyCheck(dto, jwt);
-    return this.buyService
-      .createBuy(jwt.id, jwt.address, dto, true)
-      .then((buy) => this.toPaymentInfoDto(jwt.id, buy, dto));
+    return Util.retry(
+      () =>
+        this.buyService
+          .createBuy(jwt.id, jwt.address, dto, true)
+          .then((buy) => this.toPaymentInfoDto(jwt.id, buy, dto)),
+      2,
+      0,
+      undefined,
+      (e) => e.message?.includes('duplicate key'),
+    );
   }
 
   @Put(':id')

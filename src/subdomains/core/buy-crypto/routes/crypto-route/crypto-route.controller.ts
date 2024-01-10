@@ -109,9 +109,16 @@ export class CryptoRouteController {
     @Body() dto: GetCryptoPaymentInfoDto,
   ): Promise<CryptoPaymentInfoDto> {
     dto = await this.paymentInfoService.cryptoCheck(dto, jwt);
-    return this.cryptoRouteService
-      .createCrypto(jwt.id, dto.sourceAsset.blockchain, dto.targetAsset, true)
-      .then((crypto) => this.toPaymentInfoDto(jwt.id, crypto, dto));
+    return Util.retry(
+      () =>
+        this.cryptoRouteService
+          .createCrypto(jwt.id, dto.sourceAsset.blockchain, dto.targetAsset, true)
+          .then((crypto) => this.toPaymentInfoDto(jwt.id, crypto, dto)),
+      2,
+      0,
+      undefined,
+      (e) => e.message?.includes('duplicate key'),
+    );
   }
 
   @Put(':id')
