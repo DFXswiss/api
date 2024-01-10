@@ -12,11 +12,6 @@ export enum FeeType {
   CUSTOM = 'Custom',
 }
 
-interface UserTxUsage {
-  userDataId: number;
-  usages: number;
-}
-
 @Entity()
 @Index((fee: Fee) => [fee.label, fee.direction], { unique: true })
 export class Fee extends IEntity {
@@ -85,26 +80,26 @@ export class Fee extends IEntity {
 
   //*** FACTORY METHODS ***//
 
-  private getUserTxUsages(): UserTxUsage[] {
-    return this.userTxUsages
-      ?.split(';')
-      .map((u) => u.split(':'))
-      .map(([id, usages]) => ({ userDataId: +id, usages: +usages }));
+  private getUserTxUsages(): Record<number, number> {
+    return (
+      this.userTxUsages
+        ?.split(';')
+        .map((u) => u.split(':'))
+        .reduce((prev, [id, usages]) => {
+          prev[+id] = +usages;
+          return prev;
+        }, {}) ?? {}
+    );
   }
 
-  private setUserTxUsages(usages: UserTxUsage[]): void {
-    this.userTxUsages = usages.map(({ userDataId, usages }) => `${userDataId}:${usages}`).join(';');
+  private setUserTxUsages(usages: Record<number, number>): void {
+    this.userTxUsages = Object.entries(usages)
+      .map(([userDataId, usages]) => `${userDataId}:${usages}`)
+      .join(';');
   }
 
-  private getUserTxUsage(userDataId: number, txUsages?: UserTxUsage[]): UserTxUsage {
-    const userTxUsage = (txUsages ? txUsages : this.getUserTxUsages())?.find((u) => u.userDataId === userDataId);
-
-    if (!userTxUsage && txUsages) {
-      txUsages.push({ userDataId, usages: 0 });
-      return txUsages.find((u) => u.userDataId === userDataId);
-    }
-    
-    return userTxUsage ?? { userDataId, usages: 0 };
+  private getUserTxUsage(userDataId: number): number {
+    return this.getUserTxUsages()[userDataId] ?? 0;
   }
 
   increaseUsage(accountType: AccountType, wallet?: Wallet): UpdateResult<Fee> {
@@ -135,9 +130,8 @@ export class Fee extends IEntity {
     if (this.isExpired(userDataId) || !this.active)
       throw new BadRequestException('Fee is expired - increaseUserTxUsage forbidden');
 
-    const userTxUsages = this.getUserTxUsages() ?? [{ userDataId, usages: 0 }];
-    this.getUserTxUsage(userDataId, userTxUsages).usages++;
-
+    const userTxUsages = this.getUserTxUsages();
+    userTxUsages[userDataId] = (userTxUsages[userDataId] ?? 0) + 1;
     this.setUserTxUsages(userTxUsages);
 
     return [this.id, { userTxUsages: this.userTxUsages }];
@@ -159,7 +153,7 @@ export class Fee extends IEntity {
   }
 
   isExpired(userDataId?: number): boolean {
-    const userTxUsage = this.getUserTxUsage(userDataId).usages;
+    const userTxUsage = this.getUserTxUsage(userDataId);
 
     return (
       !this ||
