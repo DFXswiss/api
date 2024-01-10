@@ -28,10 +28,15 @@ export class PolygonStrategy extends EvmStrategy implements OnModuleInit {
     super.onModuleInit();
 
     this.addressWebhookMessageQueue = new QueueHandler();
+    this.assetTransfersMessageQueue = new QueueHandler();
 
     this.alchemyWebhookService
       .getAddressWebhookObservable(AlchemyNetworkMapper.toAlchemyNetworkByBlockchain(this.blockchain))
       .subscribe((dto) => this.processAddressWebhookMessageQueue(dto));
+
+    this.alchemyService
+      .getAssetTransfersObservable(this.blockchain)
+      .subscribe((at) => this.processAssetTransfersMessageQueue(at));
   }
 
   get blockchain(): Blockchain {
