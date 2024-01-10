@@ -145,4 +145,12 @@ export class AssetService {
       type: AssetType.COIN,
     });
   }
+
+  async getPolygonCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      dexName: 'MATIC',
+      blockchain: Blockchain.POLYGON,
+      type: AssetType.COIN,
+    });
+  }
 }

@@ -140,6 +140,21 @@
     "arbitrumChainId": {
       "value": "42161"
     },
+    "polygonWalletAddress": {
+      "value": "xxx"
+    },
+    "polygonWalletPrivateKey": {
+      "value": "xxx"
+    },
+    "polygonGatewayUrl": {
+      "value": "https://polygon-mainnet.infura.io/v3"
+    },
+    "polygonApiKey": {
+      "value": "xxx"
+    },
+    "polygonChainId": {
+      "value": "137"
+    },
     "bscWalletAddress": {
       "value": "xxx"
     },

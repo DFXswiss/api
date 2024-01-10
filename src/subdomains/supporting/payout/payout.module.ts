@@ -17,6 +17,7 @@ import { PayoutLightningService } from './services/payout-lightning.service';
 import { PayoutLogService } from './services/payout-log.service';
 import { PayoutMoneroService } from './services/payout-monero.service';
 import { PayoutOptimismService } from './services/payout-optimism.service';
+import { PayoutPolygonService } from './services/payout-polygon.service';
 import { PayoutService } from './services/payout.service';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyPO } from './strategies/payout/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategyPO } from './strategies/payout/impl/arbitrum-token.strategy';
@@ -32,6 +33,8 @@ import { LightningStrategy as LightningStrategyPO } from './strategies/payout/im
 import { MoneroStrategy as MoneroStrategyPO } from './strategies/payout/impl/monero.strategy';
 import { OptimismCoinStrategy as OptimismCoinStrategyPO } from './strategies/payout/impl/optimism-coin.strategy';
 import { OptimismTokenStrategy as OptimismTokenStrategyPO } from './strategies/payout/impl/optimism-token.strategy';
+import { PolygonCoinStrategy as PolygonCoinStrategyPO } from './strategies/payout/impl/polygon-coin.strategy';
+import { PolygonTokenStrategy as PolygonTokenStrategyPO } from './strategies/payout/impl/polygon-token.strategy';
 import { ArbitrumStrategy as ArbitrumStrategyPR } from './strategies/prepare/impl/arbitrum.strategy';
 import { PrepareStrategyRegistry } from './strategies/prepare/impl/base/prepare.strategy-registry';
 import { BitcoinStrategy as BitcoinStrategyPR } from './strategies/prepare/impl/bitcoin.strategy';
@@ -41,6 +44,7 @@ import { EthereumStrategy as EthereumStrategyPR } from './strategies/prepare/imp
 import { LightningStrategy as LightningStrategyPR } from './strategies/prepare/impl/lightning.strategy';
 import { MoneroStrategy as MoneroStrategyPR } from './strategies/prepare/impl/monero.strategy';
 import { OptimismStrategy as OptimismStrategyPR } from './strategies/prepare/impl/optimism.strategy';
+import { PolygonStrategy as PolygonStrategyPR } from './strategies/prepare/impl/polygon.strategy';
 
 @Module({
   imports: [TypeOrmModule.forFeature([PayoutOrder]), BlockchainModule, SharedModule, DexModule, NotificationModule],
@@ -55,6 +59,7 @@ import { OptimismStrategy as OptimismStrategyPR } from './strategies/prepare/imp
     PayoutMoneroService,
     PayoutArbitrumService,
     PayoutOptimismService,
+    PayoutPolygonService,
     PayoutDeFiChainService,
     PayoutEthereumService,
     PayoutBscService,
@@ -73,6 +78,8 @@ import { OptimismStrategy as OptimismStrategyPR } from './strategies/prepare/imp
     EthereumTokenStrategyPO,
     OptimismCoinStrategyPO,
     OptimismTokenStrategyPO,
+    PolygonCoinStrategyPO,
+    PolygonTokenStrategyPO,
     BitcoinStrategyPR,
     LightningStrategyPR,
     MoneroStrategyPR,
@@ -81,6 +88,7 @@ import { OptimismStrategy as OptimismStrategyPR } from './strategies/prepare/imp
     EthereumStrategyPR,
     ArbitrumStrategyPR,
     OptimismStrategyPR,
+    PolygonStrategyPR,
   ],
   exports: [PayoutService],
 })

@@ -1,13 +1,11 @@
 import { CrossChainMessenger, L2Provider, MessageStatus, asL2Provider, estimateTotalGasCost } from '@eth-optimism/sdk';
-import { ChainId } from '@uniswap/sdk-core';
 import { BigNumber, Contract, ethers } from 'ethers';
 import { GetConfig } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
-import { EvmClient } from '../shared/evm/evm-client';
+import { EvmClient, EvmClientParams } from '../shared/evm/evm-client';
 import { L2BridgeEvmClient } from '../shared/evm/interfaces';
 
 interface OptimismTransactionReceipt extends ethers.providers.TransactionReceipt {
@@ -24,8 +22,8 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
 
   #crossChainMessenger: CrossChainMessenger;
 
-  constructor(http: HttpService, gatewayUrl: string, privateKey: string, chainId: ChainId) {
-    super(http, gatewayUrl, privateKey, chainId);
+  constructor(params: EvmClientParams) {
+    super(params);
 
     const { ethGatewayUrl, ethApiKey, ethWalletPrivateKey, ethChainId } = GetConfig().blockchain.ethereum;
     const { optimismChainId } = GetConfig().blockchain.optimism;
