@@ -64,7 +64,7 @@ export class PolygonStrategy extends EvmStrategy implements OnModuleInit {
     return this.assetService.getAssetByQuery({
       dexName: asset.dexName,
       blockchain: Blockchain.ETHEREUM,
-      type: asset.type,
+      type: AssetType.TOKEN,
     });
   }
 
