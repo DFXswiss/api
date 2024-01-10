@@ -20,8 +20,10 @@ export class TransactionDtoMapper {
         ? (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount
         : null,
       feeAsset: buyCrypto.totalFeeAmount ? buyCrypto.inputAsset : null,
-      inputTxId: buyCrypto.cryptoInput.inTxId,
-      inputTxUrl: txExplorerUrl(buyCrypto.cryptoInput.asset.blockchain, buyCrypto.cryptoInput.inTxId),
+      inputTxId: buyCrypto?.cryptoInput ? buyCrypto.cryptoInput.inTxId : null,
+      inputTxUrl: buyCrypto?.cryptoInput
+        ? txExplorerUrl(buyCrypto.cryptoInput.asset.blockchain, buyCrypto.cryptoInput.inTxId)
+        : null,
       outputTxId: buyCrypto.txId,
       outputTxUrl: buyCrypto.txId ? txExplorerUrl(buyCrypto.target.asset.blockchain, buyCrypto.txId) : null,
       date: buyCrypto.outputDate,

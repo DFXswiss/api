@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
@@ -141,8 +140,6 @@ export class WebhookService {
     return {
       ...TransactionDtoMapper.mapBuyCryptoTransaction(payment),
       dfxReference: payment.id,
-      inputTxId: payment.cryptoInput.inTxId,
-      inputTxUrl: txExplorerUrl(payment.cryptoInput.asset.blockchain, payment.cryptoInput.inTxId),
       paymentReference: payment.cryptoRoute?.deposit.address,
     };
   }
