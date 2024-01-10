@@ -90,7 +90,12 @@ describe('PayoutStrategyRegistry', () => {
       mock<AssetService>(),
       mock<PayoutOrderRepository>(),
     );
-    monero = new MoneroStrategy(mock<AssetService>(), mock<PayoutMoneroService>(), mock<PayoutOrderRepository>());
+    monero = new MoneroStrategy(
+      mock<NotificationService>(),
+      mock<PayoutMoneroService>(),
+      mock<PayoutOrderRepository>(),
+      mock<AssetService>(),
+    );
     optimismCoin = new OptimismCoinStrategy(
       mock<PayoutOptimismService>(),
       mock<AssetService>(),

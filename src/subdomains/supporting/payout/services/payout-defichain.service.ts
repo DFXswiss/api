@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { WhaleService } from 'src/integration/blockchain/ain/whale/whale.service';
-import { Config } from 'src/config/config';
 import { PayoutOrderContext } from '../entities/payout-order.entity';
-import { PayoutGroup, PayoutJellyfishService } from './base/payout-jellyfish.service';
+import { PayoutBitcoinBasedService, PayoutGroup } from './base/payout-bitcoin-based.service';
 
 @Injectable()
-export class PayoutDeFiChainService extends PayoutJellyfishService {
+export class PayoutDeFiChainService extends PayoutBitcoinBasedService {
   #client: DeFiClient;
 
   constructor(readonly nodeService: NodeService, readonly whaleService: WhaleService) {
