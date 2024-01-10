@@ -110,15 +110,12 @@ export class CryptoRouteController {
   ): Promise<CryptoPaymentInfoDto> {
     dto = await this.paymentInfoService.cryptoCheck(dto, jwt);
     return Util.retry(
-      () =>
-        this.cryptoRouteService
-          .createCrypto(jwt.id, dto.sourceAsset.blockchain, dto.targetAsset, true)
-          .then((crypto) => this.toPaymentInfoDto(jwt.id, crypto, dto)),
+      () => this.cryptoRouteService.createCrypto(jwt.id, dto.sourceAsset.blockchain, dto.targetAsset, true),
       2,
       0,
       undefined,
       (e) => e.message?.includes('duplicate key'),
-    );
+    ).then((crypto) => this.toPaymentInfoDto(jwt.id, crypto, dto));
   }
 
   @Put(':id')
