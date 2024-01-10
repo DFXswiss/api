@@ -140,6 +140,21 @@
     "arbitrumChainId": {
       "value": "421613"
     },
+    "polygonWalletAddress": {
+      "value": "xxx"
+    },
+    "polygonWalletPrivateKey": {
+      "value": "xxx"
+    },
+    "polygonGatewayUrl": {
+      "value": "https://polygon-mumbai.infura.io/v3"
+    },
+    "polygonApiKey": {
+      "value": "xxx"
+    },
+    "polygonChainId": {
+      "value": "80001"
+    },
     "bscWalletAddress": {
       "value": "xxx"
     },
