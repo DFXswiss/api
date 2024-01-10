@@ -106,6 +106,12 @@ export class BuyCryptoBatch extends IEntity {
     return filteredOutTransactions;
   }
 
+  removeInvalidTransactions(invalidTransactions: BuyCrypto[]) {
+    const validTransactions = this.transactions.filter((t) => !invalidTransactions.map((i) => i.id).includes(t.id));
+
+    this.overwriteTransactions(validTransactions);
+  }
+
   checkByPurchaseFeeEstimation(estimatePurchaseFeeAmount: number): this {
     this.checkPurchaseFees(estimatePurchaseFeeAmount);
     this.recordPurchaseFees(estimatePurchaseFeeAmount);

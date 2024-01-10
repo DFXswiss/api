@@ -331,6 +331,16 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
+  resetTransactionButKeepState(): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
+      ...this.resetTransaction(),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   batched(): this {
     this.status = BuyCryptoStatus.BATCHED;
 
