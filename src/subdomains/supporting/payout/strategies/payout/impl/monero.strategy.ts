@@ -3,24 +3,27 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { PayoutOrder } from '../../../entities/payout-order.entity';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { PayoutOrder, PayoutOrderContext } from '../../../entities/payout-order.entity';
 import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
+import { PayoutGroup } from '../../../services/base/payout-bitcoin-based.service';
 import { PayoutMoneroService } from '../../../services/payout-monero.service';
-import { PayoutStrategy } from './base/payout.strategy';
+import { BitcoinBasedStrategy } from './base/bitcoin-based.strategy';
 
 @Injectable()
-export class MoneroStrategy extends PayoutStrategy {
-  private readonly logger = new DfxLogger(MoneroStrategy);
+export class MoneroStrategy extends BitcoinBasedStrategy {
+  protected readonly logger = new DfxLogger(MoneroStrategy);
 
   private readonly averageTransactionSize = 1600; // Bytes
 
   constructor(
-    private readonly assetService: AssetService,
-    private readonly payoutMoneroService: PayoutMoneroService,
-    private readonly payoutOrderRepo: PayoutOrderRepository,
+    notificationService: NotificationService,
+    protected readonly payoutMoneroService: PayoutMoneroService,
+    protected readonly payoutOrderRepo: PayoutOrderRepository,
+    protected readonly assetService: AssetService,
   ) {
-    super();
+    super(notificationService, payoutOrderRepo, payoutMoneroService);
   }
 
   get blockchain(): Blockchain {
@@ -31,59 +34,6 @@ export class MoneroStrategy extends PayoutStrategy {
     return undefined;
   }
 
-  async doPayout(orders: PayoutOrder[]): Promise<void> {
-    if (await this.isHealthy()) {
-      for (const order of orders) {
-        await this.executePayout(order);
-      }
-    }
-  }
-
-  private async executePayout(order: PayoutOrder): Promise<void> {
-    try {
-      const address = order.destinationAddress;
-      const amount = order.amount;
-
-      const unlockedBalance = await this.payoutMoneroService.getUnlockedBalance();
-      const estimateFee = await this.payoutMoneroService.getEstimatedFee();
-
-      // use factor 2 for the estimate fee to be on the save side
-      const checkPayoutAmount = amount + estimateFee * 2;
-
-      if (unlockedBalance < checkPayoutAmount) {
-        this.logger.info(`Insufficient unlocked balance ${unlockedBalance} for payout ${amount} with id ${order.id}`);
-      } else {
-        const txId = await this.payoutMoneroService.sendTransfer(address, amount);
-        await this.finishDoPayout(order, txId);
-      }
-    } catch (e) {
-      this.logger.error(`Error while executing Monero payout order ${order.id}:`, e);
-    }
-  }
-
-  private async finishDoPayout(order: PayoutOrder, txId: string): Promise<void> {
-    order.pendingPayout(txId);
-    await this.payoutOrderRepo.save(order);
-  }
-
-  async checkPayoutCompletionData(orders: PayoutOrder[]): Promise<void> {
-    if (await this.isHealthy()) {
-      for (const order of orders) {
-        try {
-          const [isComplete, payoutFee] = await this.payoutMoneroService.getPayoutCompletionData(order.payoutTxId);
-
-          if (isComplete) {
-            order.complete();
-            order.recordPayoutFee(await this.feeAsset(), payoutFee);
-            await this.payoutOrderRepo.save(order);
-          }
-        } catch (e) {
-          this.logger.error(`Error in checking completion of Monero payout order ${order.id}:`, e);
-        }
-      }
-    }
-  }
-
   async estimateFee(): Promise<FeeResult> {
     const feeRate = await this.payoutMoneroService.getEstimatedFee();
     const feeAmount = this.averageTransactionSize * feeRate;
@@ -91,11 +41,38 @@ export class MoneroStrategy extends PayoutStrategy {
     return { asset: await this.feeAsset(), amount: feeAmount };
   }
 
-  private async isHealthy(): Promise<boolean> {
-    return this.payoutMoneroService.isHealthy();
+  protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
+    const payoutGroups = this.createPayoutGroups(orders, 100);
+
+    for (const group of payoutGroups) {
+      try {
+        if (group.length === 0) {
+          continue;
+        }
+
+        this.logger.verbose(`Paying out ${group.length} XMR orders(s). Order ID(s): ${group.map((o) => o.id)}`);
+
+        await this.sendXMR(context, group);
+      } catch (e) {
+        this.logger.error(
+          `Error in paying out a group of ${group.length} XMR orders(s). Order ID(s): ${group.map((o) => o.id)}`,
+          e,
+        );
+        // continue with next group in case payout failed
+        continue;
+      }
+    }
+  }
+
+  protected dispatchPayout(context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {
+    return this.payoutMoneroService.sendToMany(context, payout);
   }
 
   async getFeeAsset(): Promise<Asset> {
     return this.assetService.getMoneroCoin();
+  }
+
+  private async sendXMR(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
+    await this.send(context, orders, 'XMR');
   }
 }

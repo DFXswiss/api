@@ -11,15 +11,13 @@ import {
   L1ContractCallTransactionReceipt,
   L1EthDepositTransactionReceipt,
 } from '@arbitrum/sdk/dist/lib/message/L1Transaction';
-import { ChainId } from '@uniswap/sdk-core';
 import { Contract, ethers } from 'ethers';
 import { GetConfig } from 'src/config/config';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
-import { EvmClient } from '../shared/evm/evm-client';
+import { EvmClient, EvmClientParams } from '../shared/evm/evm-client';
 import { L2BridgeEvmClient } from '../shared/evm/interfaces';
 
 export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
@@ -29,8 +27,8 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
   #l1Wallet: ethers.Wallet;
   #l2Network: L2Network;
 
-  constructor(http: HttpService, gatewayUrl: string, privateKey: string, chainId: ChainId) {
-    super(http, gatewayUrl, privateKey, chainId);
+  constructor(params: EvmClientParams) {
+    super(params);
 
     const { ethGatewayUrl, ethApiKey, ethWalletPrivateKey } = GetConfig().blockchain.ethereum;
     const ethereumGateway = `${ethGatewayUrl}/${ethApiKey ?? ''}`;

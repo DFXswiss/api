@@ -78,6 +78,14 @@ param arbitrumGatewayUrl string
 param arbitrumApiKey string
 param arbitrumChainId string
 
+param polygonWalletAddress string
+@secure()
+param polygonWalletPrivateKey string
+param polygonGatewayUrl string
+@secure()
+param polygonApiKey string
+param polygonChainId string
+
 param bscWalletAddress string
 @secure()
 param bscWalletPrivateKey string
@@ -647,6 +655,26 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'ARBITRUM_CHAIN_ID'
           value: arbitrumChainId
+        }
+        {
+          name: 'POLYGON_WALLET_ADDRESS'
+          value: polygonWalletAddress
+        }
+        {
+          name: 'POLYGON_WALLET_PRIVATE_KEY'
+          value: polygonWalletPrivateKey
+        }
+        {
+          name: 'POLYGON_GATEWAY_URL'
+          value: polygonGatewayUrl
+        }
+        {
+          name: 'POLYGON_API_KEY'
+          value: polygonApiKey
+        }
+        {
+          name: 'POLYGON_CHAIN_ID'
+          value: polygonChainId
         }
         {
           name: 'BSC_WALLET_ADDRESS'
