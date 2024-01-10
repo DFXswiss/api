@@ -5,18 +5,18 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import {
   PayoutBitcoinBasedService,
   PayoutGroup,
-} from 'src/subdomains/supporting/payout/services/base/payout-bitcoinbased.service';
+} from 'src/subdomains/supporting/payout/services/base/payout-bitcoin-based.service';
 import { PayoutOrder, PayoutOrderContext } from '../../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../../repositories/payout-order.repository';
 import { PayoutStrategy } from './payout.strategy';
 
-export abstract class BitcoinbasedStrategy extends PayoutStrategy {
+export abstract class BitcoinBasedStrategy extends PayoutStrategy {
   protected abstract readonly logger: DfxLogger;
 
   constructor(
     protected readonly notificationService: NotificationService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
-    protected readonly bitcoinbasedService: PayoutBitcoinBasedService,
+    protected readonly bitcoinBasedService: PayoutBitcoinBasedService,
   ) {
     super();
   }
@@ -26,7 +26,7 @@ export abstract class BitcoinbasedStrategy extends PayoutStrategy {
       const groups = Util.groupBy<PayoutOrder, PayoutOrderContext>(orders, 'context');
 
       for (const [context, group] of groups.entries()) {
-        if (!(await this.bitcoinbasedService.isHealthy(context))) continue;
+        if (!(await this.bitcoinBasedService.isHealthy(context))) continue;
 
         await this.doPayoutForContext(context, group);
       }
@@ -40,7 +40,7 @@ export abstract class BitcoinbasedStrategy extends PayoutStrategy {
       const groups = Util.groupBy<PayoutOrder, PayoutOrderContext>(orders, 'context');
 
       for (const [context, group] of groups.entries()) {
-        if (!(await this.bitcoinbasedService.isHealthy(context))) continue;
+        if (!(await this.bitcoinBasedService.isHealthy(context))) continue;
 
         await this.checkPayoutCompletionDataForContext(context, group);
       }
@@ -74,7 +74,7 @@ export abstract class BitcoinbasedStrategy extends PayoutStrategy {
     orders: PayoutOrder[],
     payoutTxId: string,
   ): Promise<void> {
-    const [isComplete, totalPayoutFee] = await this.bitcoinbasedService.getPayoutCompletionData(context, payoutTxId);
+    const [isComplete, totalPayoutFee] = await this.bitcoinBasedService.getPayoutCompletionData(context, payoutTxId);
     const totalPayoutAmount = Util.sumObjValue<PayoutOrder>(orders, 'amount');
 
     if (isComplete) {

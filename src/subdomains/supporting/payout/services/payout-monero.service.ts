@@ -4,7 +4,7 @@ import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
 import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { PayoutOrderContext } from '../entities/payout-order.entity';
-import { PayoutBitcoinBasedService, PayoutGroup } from './base/payout-bitcoinbased.service';
+import { PayoutBitcoinBasedService, PayoutGroup } from './base/payout-bitcoin-based.service';
 
 @Injectable()
 export class PayoutMoneroService extends PayoutBitcoinBasedService {

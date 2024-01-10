@@ -4,7 +4,7 @@ import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { WhaleService } from 'src/integration/blockchain/ain/whale/whale.service';
 import { PayoutOrderContext } from '../entities/payout-order.entity';
-import { PayoutBitcoinBasedService, PayoutGroup } from './base/payout-bitcoinbased.service';
+import { PayoutBitcoinBasedService, PayoutGroup } from './base/payout-bitcoin-based.service';
 
 @Injectable()
 export class PayoutDeFiChainService extends PayoutBitcoinBasedService {

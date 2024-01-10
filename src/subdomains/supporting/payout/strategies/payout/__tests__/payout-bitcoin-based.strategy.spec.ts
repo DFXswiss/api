@@ -12,10 +12,10 @@ import { PayoutOrder, PayoutOrderStatus } from '../../../entities/payout-order.e
 import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
-import { BitcoinbasedStrategy } from '../impl/base/bitcoinbased.strategy';
+import { BitcoinBasedStrategy } from '../impl/base/bitcoin-based.strategy';
 
-describe('PayoutBitcoinbasedStrategy', () => {
-  let strategy: PayoutBitcoinbasedStrategyWrapper;
+describe('PayoutBitcoinBasedStrategy', () => {
+  let strategy: PayoutBitcoinBasedStrategyWrapper;
 
   let notificationService: NotificationService;
   let payoutOrderRepo: PayoutOrderRepository;
@@ -32,7 +32,7 @@ describe('PayoutBitcoinbasedStrategy', () => {
     repoSaveSpy = jest.spyOn(payoutOrderRepo, 'save');
     sendErrorMailSpy = jest.spyOn(notificationService, 'sendMail');
 
-    strategy = new PayoutBitcoinbasedStrategyWrapper(notificationService, payoutOrderRepo, defichainService);
+    strategy = new PayoutBitcoinBasedStrategyWrapper(notificationService, payoutOrderRepo, defichainService);
   });
 
   afterEach(() => {
@@ -241,8 +241,8 @@ describe('PayoutBitcoinbasedStrategy', () => {
   });
 });
 
-class PayoutBitcoinbasedStrategyWrapper extends BitcoinbasedStrategy {
-  protected readonly logger = new DfxLogger(PayoutBitcoinbasedStrategyWrapper);
+class PayoutBitcoinBasedStrategyWrapper extends BitcoinBasedStrategy {
+  protected readonly logger = new DfxLogger(PayoutBitcoinBasedStrategyWrapper);
 
   constructor(
     notificationService: NotificationService,

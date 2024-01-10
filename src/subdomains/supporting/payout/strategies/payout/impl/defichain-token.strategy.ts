@@ -9,24 +9,24 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { PayoutOrder, PayoutOrderContext } from '../../../entities/payout-order.entity';
 import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
-import { PayoutGroup } from '../../../services/base/payout-bitcoinbased.service';
+import { PayoutGroup } from '../../../services/base/payout-bitcoin-based.service';
 import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
-import { BitcoinbasedStrategy } from './base/bitcoinbased.strategy';
+import { BitcoinBasedStrategy } from './base/bitcoin-based.strategy';
 
 type TokenName = string;
 
 @Injectable()
-export class DeFiChainTokenStrategy extends BitcoinbasedStrategy {
+export class DeFiChainTokenStrategy extends BitcoinBasedStrategy {
   protected readonly logger = new DfxLogger(DeFiChainTokenStrategy);
 
   constructor(
     notificationService: NotificationService,
     private readonly dexService: DexService,
-    protected readonly bitcoinbasedService: PayoutDeFiChainService,
+    protected readonly bitcoinBasedService: PayoutDeFiChainService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
     protected readonly assetService: AssetService,
   ) {
-    super(notificationService, payoutOrderRepo, bitcoinbasedService);
+    super(notificationService, payoutOrderRepo, bitcoinBasedService);
   }
 
   get blockchain(): Blockchain {
@@ -94,11 +94,11 @@ export class DeFiChainTokenStrategy extends BitcoinbasedStrategy {
   }
 
   private isEligibleForMinimalUtxo(address: string): boolean {
-    return this.bitcoinbasedService.isLightWalletAddress(address);
+    return this.bitcoinBasedService.isLightWalletAddress(address);
   }
 
   private async checkUtxo(address: string): Promise<void> {
-    const utxo = await this.bitcoinbasedService.getUtxoForAddress(address);
+    const utxo = await this.bitcoinBasedService.getUtxoForAddress(address);
 
     if (!utxo) {
       await this.dexService.transferMinimalCoin(BlockchainAddress.create(address, Blockchain.DEFICHAIN));
@@ -106,7 +106,7 @@ export class DeFiChainTokenStrategy extends BitcoinbasedStrategy {
   }
 
   protected dispatchPayout(context: PayoutOrderContext, payout: PayoutGroup, outputAsset: string): Promise<string> {
-    return this.bitcoinbasedService.sendTokenToMany(context, payout, outputAsset);
+    return this.bitcoinBasedService.sendTokenToMany(context, payout, outputAsset);
   }
 
   protected getFeeAsset(): Promise<Asset> {

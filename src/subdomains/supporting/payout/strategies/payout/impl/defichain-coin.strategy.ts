@@ -7,12 +7,12 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { PayoutOrder, PayoutOrderContext } from '../../../entities/payout-order.entity';
 import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
-import { PayoutGroup } from '../../../services/base/payout-bitcoinbased.service';
+import { PayoutGroup } from '../../../services/base/payout-bitcoin-based.service';
 import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
-import { BitcoinbasedStrategy } from './base/bitcoinbased.strategy';
+import { BitcoinBasedStrategy } from './base/bitcoin-based.strategy';
 
 @Injectable()
-export class DeFiChainCoinStrategy extends BitcoinbasedStrategy {
+export class DeFiChainCoinStrategy extends BitcoinBasedStrategy {
   protected readonly logger = new DfxLogger(DeFiChainCoinStrategy);
 
   constructor(

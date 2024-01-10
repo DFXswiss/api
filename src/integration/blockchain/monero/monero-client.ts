@@ -2,7 +2,7 @@ import { Agent } from 'https';
 import { Config } from 'src/config/config';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
-import { PayoutGroup } from 'src/subdomains/supporting/payout/services/base/payout-bitcoinbased.service';
+import { PayoutGroup } from 'src/subdomains/supporting/payout/services/base/payout-bitcoin-based.service';
 import {
   AddressResultDto,
   GetAddressResultDto,

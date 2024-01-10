@@ -3,7 +3,7 @@ import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { BtcFeeService } from 'src/integration/blockchain/ain/services/btc-fee.service';
 import { PayoutOrderContext } from '../entities/payout-order.entity';
-import { PayoutBitcoinBasedService, PayoutGroup } from './base/payout-bitcoinbased.service';
+import { PayoutBitcoinBasedService, PayoutGroup } from './base/payout-bitcoin-based.service';
 
 @Injectable()
 export class PayoutBitcoinService extends PayoutBitcoinBasedService {
