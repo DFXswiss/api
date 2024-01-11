@@ -226,7 +226,7 @@ export class BuyCryptoBatchService {
 
         optimizedBatches.push(batch);
       } catch (e) {
-        this.logger.warn(`Error in optimizing new batch for ${batch.outputAsset.uniqueName}:`, e);
+        this.logger.error(`Error in optimizing new batch for ${batch.outputAsset.uniqueName}:`, e);
       }
     }
 
@@ -235,10 +235,23 @@ export class BuyCryptoBatchService {
 
   // --- PAYOUT FEE OPTIMIZING --- //
   private async optimizeByPayoutFee(batch: BuyCryptoBatch) {
+    const invalidTransactions: BuyCrypto[] = [];
+
     // add fee estimation
     for (const tx of batch.transactions) {
-      const payoutFee = await this.getPayoutFee(tx);
-      await this.buyCryptoRepo.updateFee(...tx.fee.addPayoutFeeEstimation(payoutFee, tx));
+      try {
+        const payoutFee = await this.getPayoutFee(tx);
+        await this.buyCryptoRepo.updateFee(...tx.fee.addPayoutFeeEstimation(payoutFee, tx));
+      } catch (e) {
+        this.logger.error(`Error when optimizing by payout fee, buy_crypto id ${tx.id} is removed from batch:`, e);
+        invalidTransactions.push(tx);
+      }
+    }
+
+    // reset invalid transactions
+    if (invalidTransactions.length) {
+      batch.removeInvalidTransactions(invalidTransactions);
+      await this.resetTransactionButKeepState(invalidTransactions);
     }
 
     // optimize
@@ -405,6 +418,12 @@ export class BuyCryptoBatchService {
   private async setMissingLiquidityStatus(transactions: BuyCrypto[]): Promise<void> {
     for (const tx of transactions) {
       await this.buyCryptoRepo.update(...tx.setMissingLiquidityStatus());
+    }
+  }
+
+  private async resetTransactionButKeepState(transactions: BuyCrypto[]): Promise<void> {
+    for (const tx of transactions) {
+      await this.buyCryptoRepo.update(...tx.resetTransactionButKeepState());
     }
   }
 
