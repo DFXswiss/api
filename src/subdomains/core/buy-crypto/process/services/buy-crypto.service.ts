@@ -14,7 +14,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { CryptoRouteService } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.service';
-import { HistoryDto, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
+import { HistoryDtoDeprecated, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -300,7 +300,7 @@ export class BuyCryptoService {
       .then((buyCryptos) => buyCryptos.map(this.toHistoryDto));
   }
 
-  async getCryptoHistory(userId: number, routeId?: number): Promise<HistoryDto[]> {
+  async getCryptoHistory(userId: number, routeId?: number): Promise<HistoryDtoDeprecated[]> {
     const where = { user: { id: userId }, id: routeId };
     Util.removeNullFields(where);
     return this.buyCryptoRepo
@@ -313,7 +313,7 @@ export class BuyCryptoService {
 
   // --- HELPER METHODS --- //
 
-  private toHistoryDto(buyCrypto: BuyCrypto): HistoryDto {
+  private toHistoryDto(buyCrypto: BuyCrypto): HistoryDtoDeprecated {
     return {
       inputAmount: buyCrypto.inputAmount,
       inputAsset: buyCrypto.inputAsset,

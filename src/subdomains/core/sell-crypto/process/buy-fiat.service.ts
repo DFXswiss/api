@@ -5,7 +5,6 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
 import { Between, In, IsNull } from 'typeorm';
@@ -71,7 +70,7 @@ export class BuyFiatService {
   async update(id: number, dto: UpdateBuyFiatDto): Promise<BuyFiat> {
     let entity = await this.buyFiatRepo.findOne({
       where: { id },
-      relations: ['sell', 'sell.user', 'sell.user.wallet', 'sell.user.userData'],
+      relations: ['sell', 'sell.user', 'sell.user.wallet', 'sell.user.userData', 'fiatOutput'],
     });
     if (!entity) throw new NotFoundException('Buy-fiat not found');
 
@@ -151,8 +150,7 @@ export class BuyFiatService {
 
   async triggerWebhook(buyFiat: BuyFiat): Promise<void> {
     // TODO add fiatFiatUpdate here
-    const state = this.getWebhookState(buyFiat);
-    buyFiat.sell ? await this.webhookService.cryptoFiatUpdate(buyFiat.sell.user, buyFiat, state) : undefined;
+    buyFiat.sell ? await this.webhookService.cryptoFiatUpdate(buyFiat.sell.user, buyFiat) : undefined;
   }
 
   async resetAmlCheck(id: number): Promise<void> {
@@ -221,24 +219,6 @@ export class BuyFiatService {
   }
 
   // --- HELPER METHODS --- //
-
-  private getWebhookState(buyFiat: BuyFiat): PaymentWebhookState {
-    if (buyFiat.cryptoReturnDate) return PaymentWebhookState.RETURNED;
-
-    switch (buyFiat.amlCheck) {
-      case CheckStatus.PENDING:
-        return PaymentWebhookState.AML_PENDING;
-      case CheckStatus.FAIL:
-        return PaymentWebhookState.FAILED;
-      case CheckStatus.PASS:
-        if (buyFiat.isComplete) return PaymentWebhookState.COMPLETED;
-        break;
-    }
-
-    if (buyFiat.outputReferenceAsset) return PaymentWebhookState.PROCESSING;
-
-    return PaymentWebhookState.CREATED;
-  }
 
   private toHistoryDto(buyFiat: BuyFiat): SellHistoryDto {
     return {
