@@ -243,7 +243,7 @@ export class BuyCryptoBatchService {
         const payoutFee = await this.getPayoutFee(tx);
         await this.buyCryptoRepo.updateFee(...tx.fee.addPayoutFeeEstimation(payoutFee, tx));
       } catch (e) {
-        this.logger.error(`Error by optimizing payout fee, buy_crypto id ${tx.id} is removed from batch`, e);
+        this.logger.error(`Error when optimizing by payout fee, buy_crypto id ${tx.id} is removed from batch:`, e);
         invalidTransactions.push(tx);
       }
     }
