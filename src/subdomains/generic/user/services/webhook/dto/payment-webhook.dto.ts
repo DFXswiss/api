@@ -24,6 +24,9 @@ export class PaymentWebhookData extends TransactionDto {
 
   @ApiProperty()
   dfxReference: number;
+
+  @ApiProperty()
+  bankAccount: string;
 }
 
 export class PaymentWebhookDto extends WebhookDto<PaymentWebhookData> {

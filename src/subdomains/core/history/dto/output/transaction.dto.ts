@@ -35,6 +35,9 @@ export class TransactionDto {
   inputBlockchain?: Blockchain;
 
   @ApiPropertyOptional()
+  exchangeRate: string;
+
+  @ApiPropertyOptional()
   outputAmount?: number;
 
   @ApiPropertyOptional()
