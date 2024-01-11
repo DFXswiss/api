@@ -1,31 +1,33 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsOptional } from 'class-validator';
+import { Util } from 'src/shared/utils/util';
 
 export class HistoryFilter {
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
-  buy?: string;
+  @Transform(Util.mapBooleanQuery)
+  buy?: boolean;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
-  sell?: string;
+  @Transform(Util.mapBooleanQuery)
+  sell?: boolean;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
-  staking?: string;
+  @Transform(Util.mapBooleanQuery)
+  staking?: boolean;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
-  ref?: string;
+  @Transform(Util.mapBooleanQuery)
+  ref?: boolean;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
-  lm?: string;
+  @Transform(Util.mapBooleanQuery)
+  lm?: boolean;
 }
 
 export type HistoryFilterKey = keyof HistoryFilter;

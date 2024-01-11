@@ -23,6 +23,7 @@ export interface UserFeeRequest extends FeeRequestBase {
 export interface FeeRequest extends FeeRequestBase {
   accountType: AccountType;
   wallet: Wallet;
+  userDataId?: number;
 }
 
 export interface OptionalFeeRequest extends FeeRequestBase {
@@ -122,8 +123,9 @@ export class FeeService {
     await this.userDataService.addFee(userData, fee.id);
   }
 
-  async increaseTxUsage(fee: Fee): Promise<void> {
+  async increaseTxUsages(fee: Fee, userData: UserData): Promise<void> {
     await this.feeRepo.update(...fee.increaseTxUsage());
+    if (fee.maxUserTxUsages) await this.feeRepo.update(...fee.increaseUserTxUsage(userData.id));
   }
 
   async getFeeByDiscountCode(discountCode: string): Promise<Fee> {
@@ -168,13 +170,13 @@ export class FeeService {
 
     // get max discount > 0
     const positiveDiscountFee = Util.maxObj(
-      fees.filter((fee) => fee.type === FeeType.DISCOUNT && fee.rate > 0),
+      fees.filter((fee) => fee.type === FeeType.DISCOUNT && (fee.rate > 0 || (fee.rate == 0 && fee.fixed > 0))),
       'rate',
     );
 
     // get min discount < 0
     const negativeDiscountFee = Util.minObj(
-      fees.filter((fee) => fee.type === FeeType.DISCOUNT && fee.rate < 0),
+      fees.filter((fee) => fee.type === FeeType.DISCOUNT && (fee.rate < 0 || (fee.rate == 0 && fee.fixed < 0))),
       'rate',
     );
 
@@ -202,6 +204,7 @@ export class FeeService {
   private async getValidFees(request: OptionalFeeRequest): Promise<Fee[]> {
     const accountType = request.user?.userData ? request.user.userData?.accountType : request.accountType;
     const wallet = request.user?.wallet;
+    const userDataId = request.user?.userData?.id;
 
     const discountFeeIds = request.user?.userData?.individualFeeList ?? [];
 
@@ -213,9 +216,9 @@ export class FeeService {
 
     // remove ExpiredFee
     userFees
-      .filter((fee) => discountFeeIds.includes(fee.id) && fee.isExpired())
+      .filter((fee) => discountFeeIds.includes(fee.id) && fee.isExpired(userDataId))
       .forEach((fee) => this.userDataService.removeFee(request.user.userData, fee.id));
 
-    return userFees.filter((fee) => fee.verifyForTx({ ...request, accountType, wallet }));
+    return userFees.filter((fee) => fee.verifyForTx({ ...request, accountType, wallet, userDataId }));
   }
 }

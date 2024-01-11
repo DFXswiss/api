@@ -1,3 +1,3 @@
-import { HistoryDto } from 'src/subdomains/core/history/dto/history.dto';
+import { HistoryDtoDeprecated } from 'src/subdomains/core/history/dto/history.dto';
 
-export class BuyHistoryDto extends HistoryDto {}
+export class BuyHistoryDto extends HistoryDtoDeprecated {}

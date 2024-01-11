@@ -119,7 +119,9 @@ export class BuyFiatNotificationService {
                 [`${MailTranslationKey.PAYMENT}.blockchain`]: `${entity.cryptoInputBlockchain}`,
                 [`${MailTranslationKey.PAYMENT}.dfx_fee`]: `${entity.percentFeeString}` + minFee,
                 [`${MailTranslationKey.PAYMENT}.exchange_rate`]: `${entity.exchangeRateString}`,
-                [`${MailTranslationKey.BUY_FIAT}.output_amount`]: `${entity.outputAmount} ${entity.outputAsset}`,
+                [`${MailTranslationKey.BUY_FIAT}.output_amount`]: `${Util.round(entity.outputAmount, 2)} ${
+                  entity.outputAsset
+                }`,
               },
               suffix: [
                 { key: MailKey.SPACE, params: { value: '4' } },
@@ -160,7 +162,9 @@ export class BuyFiatNotificationService {
               title: `${MailTranslationKey.BUY_FIAT}.processed.title`,
               salutation: { key: `${MailTranslationKey.BUY_FIAT}.processed.salutation` },
               table: {
-                [`${MailTranslationKey.BUY_FIAT}.output_amount`]: `${entity.outputAmount} ${entity.outputAsset}`,
+                [`${MailTranslationKey.BUY_FIAT}.output_amount`]: `${Util.round(entity.outputAmount, 2)} ${
+                  entity.outputAsset
+                }`,
                 [`${MailTranslationKey.PAYMENT}.bank_account`]: Util.blankStart(entity.sell.iban),
                 [`${MailTranslationKey.PAYMENT}.remittance_info`]: entity.fiatOutput.remittanceInfo,
               },
