@@ -354,7 +354,7 @@ export class Util {
     return value?.split(' ').join('');
   }
 
-  static mapHistoryQueryDto({ value }: TransformFnParams): boolean | undefined {
+  static mapBooleanQuery({ value }: TransformFnParams): boolean | undefined {
     return Boolean(value || value === '');
   }
 }

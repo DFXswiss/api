@@ -6,27 +6,27 @@ import { Util } from 'src/shared/utils/util';
 export class HistoryFilter {
   @ApiPropertyOptional()
   @IsOptional()
-  @Transform(Util.mapHistoryQueryDto)
+  @Transform(Util.mapBooleanQuery)
   buy?: boolean;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Transform(Util.mapHistoryQueryDto)
+  @Transform(Util.mapBooleanQuery)
   sell?: boolean;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Transform(Util.mapHistoryQueryDto)
+  @Transform(Util.mapBooleanQuery)
   staking?: boolean;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Transform(Util.mapHistoryQueryDto)
+  @Transform(Util.mapBooleanQuery)
   ref?: boolean;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Transform(Util.mapHistoryQueryDto)
+  @Transform(Util.mapBooleanQuery)
   lm?: boolean;
 }
 
