@@ -41,7 +41,7 @@ export class HistoryController {
 
   constructor(
     private readonly historyService: HistoryService,
-    private readonly transactionController:TransactionController,
+    private readonly transactionController: TransactionController,
     private readonly userService: UserService,
     private readonly apiKeyService: ApiKeyService,
   ) {}
