@@ -104,7 +104,7 @@ export class TransactionController {
     return Util.isoDateTime(date).split('-').join('');
   }
 
-  private async getHistoryData<T extends ExportType>(
+  public async getHistoryData<T extends ExportType>(
     query: HistoryQueryUser,
     exportType: T,
     res: any,

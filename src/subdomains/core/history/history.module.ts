@@ -7,12 +7,13 @@ import { ReferralModule } from '../referral/referral.module';
 import { SellCryptoModule } from '../sell-crypto/sell-crypto.module';
 import { StakingModule } from '../staking/staking.module';
 import { HistoryController } from './controllers/history.controller';
+import { TransactionController } from './controllers/transaction.controller';
 import { HistoryService } from './services/history.service';
 
 @Module({
   imports: [SharedModule, BuyCryptoModule, ReferralModule, SellCryptoModule, UserModule, AinModule, StakingModule],
-  controllers: [HistoryController],
-  providers: [HistoryService],
+  controllers: [HistoryController, TransactionController],
+  providers: [HistoryService, TransactionController],
   exports: [],
 })
 export class HistoryModule {}

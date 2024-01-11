@@ -353,4 +353,8 @@ export class Util {
   static trim({ value }: TransformFnParams): string | undefined {
     return value?.split(' ').join('');
   }
+
+  static mapHistoryQueryDto({ value }: TransformFnParams): boolean | undefined {
+    return Boolean(value || value === '');
+  }
 }

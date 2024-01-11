@@ -54,28 +54,28 @@ export class HistoryService {
     query: HistoryQueryUser,
     exportFormat: T,
   ): Promise<HistoryDto<T>[] | StreamableFile> {
-    const userId = (await this.userService.getUserByAddress(query.userAddress)).id;
+    const user = await this.userService.getUserByAddress(query.userAddress);
+    if (!user) throw new NotFoundException('User not found');
 
     const all =
       query.buy == null && query.sell == null && query.staking == null && query.ref == null && query.lm == null;
 
     const buyCryptos =
-      (all || query.buy) && (await this.buyCryptoService.getUserTransactions(userId, query.from, query.to));
+      (all || query.buy) && (await this.buyCryptoService.getUserTransactions(user.id, query.from, query.to));
     const buyFiats =
-      (all || query.sell) && (await this.buyFiatService.getUserTransactions(userId, query.from, query.to));
+      (all || query.sell) && (await this.buyFiatService.getUserTransactions(user.id, query.from, query.to));
     const stakingRewards =
-      query.staking && (await this.stakingService.getUserStakingRewards([userId], query.from, query.to));
-    const { deposits, withdrawals } =
-      query.staking && (await this.stakingService.getUserInvests(userId, query.from, query.to));
+      query.staking && (await this.stakingService.getUserStakingRewards([user.id], query.from, query.to));
+    const stakingInvests = query.staking && (await this.stakingService.getUserInvests(user.id, query.from, query.to));
     const refRewards =
-      (all || query.ref) && (await this.refRewardService.getUserRewards([userId], query.from, query.to));
+      (all || query.ref) && (await this.refRewardService.getUserRewards([user.id], query.from, query.to));
     const refStakingReward =
-      query.staking && (await this.stakingService.getUserStakingRefRewards([userId], query.from, query.to));
+      query.staking && (await this.stakingService.getUserStakingRefRewards([user.id], query.from, query.to));
 
     const txArray: HistoryDto<T>[] = [
       ...this.getBuyCryptoTransactions(buyCryptos, exportFormat),
       ...this.getBuyFiatTransactions(buyFiats, exportFormat),
-      ...this.getStakingInvests(deposits, withdrawals, exportFormat),
+      ...this.getStakingInvests(stakingInvests?.deposits, stakingInvests?.withdrawals, exportFormat),
       ...this.getStakingRewards(stakingRewards, refStakingReward, exportFormat),
       ...this.getRefRewards(refRewards, exportFormat),
     ].reduce((prev, curr) => prev.concat(curr), []);
@@ -107,7 +107,7 @@ export class HistoryService {
     return [headers].concat(values).join('\n');
   }
 
-  private getBuyCryptoTransactions<T>(buyCryptos: BuyCrypto[], exportFormat: T): HistoryDto<T>[] {
+  private getBuyCryptoTransactions<T>(buyCryptos: BuyCrypto[] = [], exportFormat: T): HistoryDto<T>[] {
     switch (exportFormat) {
       case ExportType.COIN_TRACKING:
         return this.fixDuplicateTxCT([
@@ -128,7 +128,7 @@ export class HistoryService {
     }
   }
 
-  private getBuyFiatTransactions<T>(buyFiats: BuyFiat[], exportFormat: T): HistoryDto<T>[] {
+  private getBuyFiatTransactions<T>(buyFiats: BuyFiat[] = [], exportFormat: T): HistoryDto<T>[] {
     switch (exportFormat) {
       case ExportType.COIN_TRACKING:
         return this.fixDuplicateTxCT(CoinTrackingHistoryDtoMapper.mapBuyFiatTransactions(buyFiats)).sort(
@@ -148,8 +148,8 @@ export class HistoryService {
   }
 
   private getStakingInvests<T>(
-    deposits: CryptoStaking[],
-    withdrawals: CryptoStaking[],
+    deposits: CryptoStaking[] = [],
+    withdrawals: CryptoStaking[] = [],
     exportFormat: T,
   ): HistoryDto<T>[] {
     switch (exportFormat) {
@@ -171,8 +171,8 @@ export class HistoryService {
   }
 
   private getStakingRewards<T>(
-    stakingRewards: StakingReward[],
-    stakingRefRewards: StakingRefReward[],
+    stakingRewards: StakingReward[] = [],
+    stakingRefRewards: StakingRefReward[] = [],
     exportFormat: T,
   ): HistoryDto<T>[] {
     switch (exportFormat) {
@@ -193,7 +193,7 @@ export class HistoryService {
     }
   }
 
-  private getRefRewards<T>(refRewards: RefReward[], exportFormat: T): HistoryDto<T>[] {
+  private getRefRewards<T>(refRewards: RefReward[] = [], exportFormat: T): HistoryDto<T>[] {
     switch (exportFormat) {
       case ExportType.COIN_TRACKING:
         return this.fixDuplicateTxCT(CoinTrackingHistoryDtoMapper.mapRefRewards(refRewards)).sort(
