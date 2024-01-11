@@ -11,6 +11,7 @@ export function createDefaultBuyCrypto(): BuyCrypto {
 
 export function createCustomBuyCrypto(customValues: Partial<BuyCrypto>): BuyCrypto {
   const {
+    id,
     buy,
     batch,
     inputAmount,
@@ -44,6 +45,7 @@ export function createCustomBuyCrypto(customValues: Partial<BuyCrypto>): BuyCryp
   const keys = Object.keys(customValues);
   const entity = new BuyCrypto();
 
+  entity.id = keys.includes('id') ? id : undefined;
   entity.buy = keys.includes('buy') ? buy : createDefaultBuy();
   entity.batch = keys.includes('batch') ? batch : createCustomBuyCryptoBatch({ transactions: [entity] });
   entity.inputAmount = keys.includes('inputAmount') ? inputAmount : 100;
