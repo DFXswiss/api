@@ -20,7 +20,7 @@ export class TransactionDtoMapper {
         ? (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount
         : null,
       feeAsset: buyCrypto.totalFeeAmount ? buyCrypto.inputAsset : null,
-      inputTxId: buyCrypto?.cryptoInput ? buyCrypto.cryptoInput.inTxId : null,
+      inputTxId: buyCrypto.cryptoInput?.inTxId ?? null,
       inputTxUrl: buyCrypto?.cryptoInput
         ? txExplorerUrl(buyCrypto.cryptoInput.asset.blockchain, buyCrypto.cryptoInput.inTxId)
         : null,
@@ -50,9 +50,11 @@ export class TransactionDtoMapper {
         ? (buyFiat.totalFeeAmount / buyFiat.inputReferenceAmount) * buyFiat.inputAmount
         : null,
       feeAsset: buyFiat.totalFeeAmount ? buyFiat.inputAsset : null,
-      inputTxId: buyFiat.cryptoInput.inTxId,
-      inputTxUrl: txExplorerUrl(buyFiat.cryptoInput.asset.blockchain, buyFiat.cryptoInput.inTxId),
-      outputTxId: buyFiat.fiatOutput?.remittanceInfo,
+      inputTxId: buyFiat.cryptoInput?.inTxId ?? null,
+      inputTxUrl: buyFiat?.cryptoInput
+        ? txExplorerUrl(buyFiat.cryptoInput.asset.blockchain, buyFiat.cryptoInput.inTxId)
+        : null,
+      outputTxId: buyFiat.fiatOutput?.remittanceInfo ?? null,
       outputTxUrl: null,
       date: buyFiat.outputDate,
     };
