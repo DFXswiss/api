@@ -19,7 +19,7 @@ export class KrakenAdapter extends CcxtExchangeAdapter {
     Ethereum: 'ethereum',
     Optimism: 'optimism',
     Polygon: 'polygon',
-    Base: 'base',
+    Base: undefined,
   };
 
   constructor(

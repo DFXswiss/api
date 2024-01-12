@@ -19,7 +19,7 @@ export class BinanceAdapter extends CcxtExchangeAdapter {
     Ethereum: 'ETH',
     Optimism: 'OPTIMISM',
     Polygon: 'MATIC',
-    Base: 'BASE',
+    Base: undefined,
   };
 
   constructor(
