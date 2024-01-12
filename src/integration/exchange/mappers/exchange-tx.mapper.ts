@@ -1,7 +1,7 @@
 import { Trade, Transaction } from 'ccxt';
 import { ExchangeTxDto, ExchangeTxType } from '../entities/exchange-tx.entity';
 
-export class ExchangeTxKrakenMapper {
+export class ExchangeTxMapper {
   static mapDeposits(transactions: Transaction[], exchange: string): ExchangeTxDto[] {
     return transactions
       .filter((d) => d.type === 'deposit')
@@ -14,8 +14,8 @@ export class ExchangeTxKrakenMapper {
         status: d.status,
         amount: d.amount,
         currency: d.currency,
-        feeAmount: d.fee.cost,
-        feeCurrency: d.fee.currency,
+        feeAmount: d.fee?.cost ?? 0,
+        feeCurrency: d.fee?.currency,
         method: d.info.method,
         asset: d.info.asset,
         address: d.address,
@@ -35,8 +35,8 @@ export class ExchangeTxKrakenMapper {
         status: w.status,
         amount: w.amount,
         currency: w.currency,
-        feeAmount: w.fee.cost,
-        feeCurrency: w.fee.currency,
+        feeAmount: w.fee?.cost ?? 0,
+        feeCurrency: w.fee?.currency,
         method: w.info.method,
         asset: w.info.asset,
         address: w.address,
@@ -54,8 +54,8 @@ export class ExchangeTxKrakenMapper {
       status: 'ok',
       amount: t.amount,
       cost: t.cost,
-      feeAmount: t.fee.cost,
-      feeCurrency: t.fee.currency,
+      feeAmount: t.fee?.cost ?? 0,
+      feeCurrency: t.fee?.currency,
       order: t.order,
       pair: t.info.pair,
       orderType: t.info.ordertype,

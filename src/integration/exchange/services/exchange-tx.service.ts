@@ -1,19 +1,24 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { ExchangeSyncs, ExchangeTokens, ExchangeTxDto } from '../entities/exchange-tx.entity';
-import { ExchangeTxKrakenMapper } from '../mappers/exchange-tx-kraken.mapper';
+import { ExchangeSync, ExchangeSyncs, ExchangeTxDto } from '../entities/exchange-tx.entity';
+import { ExchangeTxMapper } from '../mappers/exchange-tx.mapper';
 import { ExchangeTxRepository } from '../repositories/exchange-tx.repository';
 import { ExchangeRegistryService } from './exchange-registry.service';
 
 @Injectable()
 export class ExchangeTxService {
+  private readonly logger = new DfxLogger(ExchangeTxService);
+
   constructor(
     private readonly exchangeTxRepo: ExchangeTxRepository,
     private readonly registryService: ExchangeRegistryService,
+    private readonly assetService: AssetService,
   ) {}
 
   //*** JOBS ***//
@@ -24,48 +29,77 @@ export class ExchangeTxService {
     if (DisabledProcess(Process.EXCHANGE_TX_SYNC)) return;
 
     const since = Util.minutesBefore(Config.exchangeTxSyncLimit);
+    const transactions = await Promise.all(ExchangeSyncs.map((s) => this.getTransactionsFor(s, since))).then((tx) =>
+      tx.flat(),
+    );
 
-    for (const exchange of ExchangeSyncs) {
-      const exchangeService = this.registryService.getExchange(exchange);
+    // sort by date
+    transactions.sort((a, b) => a.externalCreated.getTime() - b.externalCreated.getTime());
+
+    for (const transaction of transactions) {
+      let entity = await this.exchangeTxRepo.findOneBy({
+        exchange: transaction.exchange,
+        externalId: transaction.externalId,
+        type: transaction.type,
+      });
+      entity = entity ? Object.assign(entity, transaction) : this.exchangeTxRepo.create(transaction);
+
+      await this.exchangeTxRepo.save(entity);
+    }
+  }
+
+  private async getTransactionsFor(sync: ExchangeSync, since: Date): Promise<ExchangeTxDto[]> {
+    try {
+      const exchangeService = this.registryService.getExchange(sync.exchange);
+
+      const tokens = sync.tokens ?? (await this.assetService.getAssetsUsedOn(sync.exchange));
 
       const transactions: ExchangeTxDto[] = [];
 
-      // trades
-      transactions.push(
-        ...(await exchangeService
-          .getTrades(undefined, undefined, since)
-          .then((t) => ExchangeTxKrakenMapper.mapTrades(t, exchange))),
-      );
-
-      for (const asset of ExchangeTokens) {
+      for (const token of tokens) {
         // deposits
         transactions.push(
           ...(await exchangeService
-            .getDeposits(asset, since)
-            .then((d) => ExchangeTxKrakenMapper.mapDeposits(d, exchange))),
+            .getDeposits(token, since)
+            .then((d) => ExchangeTxMapper.mapDeposits(d, sync.exchange))),
         );
 
         // withdrawals
         transactions.push(
           ...(await exchangeService
-            .getWithdrawals(asset, since)
-            .then((w) => ExchangeTxKrakenMapper.mapWithdrawals(w, exchange))),
+            .getWithdrawals(token, since)
+            .then((w) => ExchangeTxMapper.mapWithdrawals(w, sync.exchange))),
         );
       }
 
-      // sort by date
-      transactions.sort((a, b) => a.externalCreated.getTime() - b.externalCreated.getTime());
+      // trades
+      const tradePairs = sync.tradeTokens
+        ? sync.tradeTokens
+            .reduce((prev, curr) => {
+              prev.push(tokens.filter((t) => t !== curr).map((t) => [curr, t]));
+              return prev;
+            }, [])
+            .flat(1)
+            .filter((p, i, l) => l.findIndex((p1) => p.every((t) => p1.includes(t))) === i)
+        : [[undefined, undefined]];
 
-      for (const transaction of transactions) {
-        let entity = await this.exchangeTxRepo.findOneBy({
-          exchange: exchange,
-          externalId: transaction.externalId,
-          type: transaction.type,
-        });
-        entity = entity ? Object.assign(entity, transaction) : this.exchangeTxRepo.create(transaction);
-
-        await this.exchangeTxRepo.save(entity);
+      for (const [from, to] of tradePairs) {
+        try {
+          transactions.push(
+            ...(await exchangeService
+              .getTrades(from, to, since)
+              .then((t) => ExchangeTxMapper.mapTrades(t, sync.exchange))),
+          );
+        } catch (e) {
+          if (!e.message?.includes('not supported')) throw e;
+        }
       }
+
+      return transactions;
+    } catch (e) {
+      this.logger.error(`Failed to synchronize transactions from ${sync.exchange}:`, e);
     }
+
+    return [];
   }
 }
