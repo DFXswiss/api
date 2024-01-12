@@ -29,7 +29,6 @@ export class BuyCryptoNotificationService {
   async sendNotificationMails(): Promise<void> {
     try {
       if (DisabledProcess(Process.BUY_CRYPTO_MAIL)) return;
-      await this.waitingForLowerFee();
       await this.buyCryptoConfirmed();
       await this.paybackToAddressInitiated();
       await this.pendingBuyCrypto();
