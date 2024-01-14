@@ -98,7 +98,7 @@ export class UserDataService {
 
   async getUsersByMail(mail: string): Promise<UserData[]> {
     return this.userDataRepo.find({
-      where: { mail: mail, status: In([UserDataStatus.ACTIVE, UserDataStatus.NA]) },
+      where: { mail: mail, status: In([UserDataStatus.ACTIVE, UserDataStatus.NA, UserDataStatus.KYC_ONLY]) },
       relations: ['users'],
     });
   }
