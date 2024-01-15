@@ -126,6 +126,13 @@ export class UserDataService {
       currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaultCurrency)),
     });
 
+    if (dto.kycFileId) {
+      const userWithSameFileId = await this.userDataRepo.findOneBy({ kycFileId: dto.kycFileId });
+      if (userWithSameFileId) throw new ConflictException('A user with this KYC file ID already exists');
+    }
+
+    await this.loadDtoRelations(userData, dto);
+
     return this.userDataRepo.save(userData);
   }
 
@@ -136,32 +143,14 @@ export class UserDataService {
     });
     if (!userData) throw new NotFoundException('User data not found');
 
-    if (dto.countryId) {
-      userData.country = await this.countryService.getCountry(dto.countryId);
-      if (!userData.country) throw new BadRequestException('Country not found');
-    }
-
-    if (dto.nationality) {
-      userData.nationality = await this.countryService.getCountry(dto.nationality.id);
-      if (!userData.nationality) throw new BadRequestException('Nationality not found');
-    }
-
-    if (dto.organizationCountryId) {
-      userData.organizationCountry = await this.countryService.getCountry(dto.organizationCountryId);
-      if (!userData.organizationCountry) throw new BadRequestException('Country not found');
-    }
-
-    if (dto.mainBankDataId) {
-      userData.mainBankData = await this.bankDataRepo.findOneBy({ id: dto.mainBankDataId });
-      if (!userData.mainBankData) throw new BadRequestException('Bank data not found');
-    }
-
     if (dto.kycFileId) {
       const userWithSameFileId = await this.userDataRepo.findOneBy({ id: Not(userDataId), kycFileId: dto.kycFileId });
       if (userWithSameFileId) throw new ConflictException('A user with this KYC file ID already exists');
 
       await this.userDataRepo.save({ ...userData, ...{ kycFileId: dto.kycFileId } });
     }
+
+    await this.loadDtoRelations(userData, dto);
 
     if (dto.kycLevel && dto.kycLevel !== userData.kycLevel)
       await this.kycNotificationService.kycChanged(userData, dto.kycLevel);
@@ -265,6 +254,43 @@ export class UserDataService {
 
   private async hasRole(userDataId: number, role: UserRole): Promise<boolean> {
     return this.userRepo.exist({ where: { userData: { id: userDataId }, role } });
+  }
+
+  private async loadDtoRelations(userData: UserData, dto: UpdateUserDataDto | CreateUserDataDto): Promise<void> {
+    if (dto.countryId) {
+      userData.country = await this.countryService.getCountry(dto.countryId);
+      if (!userData.country) throw new BadRequestException('Country not found');
+    }
+
+    if (dto.nationality) {
+      userData.nationality = await this.countryService.getCountry(dto.nationality.id);
+      if (!userData.nationality) throw new BadRequestException('Nationality not found');
+    }
+
+    if (dto.organizationCountryId) {
+      userData.organizationCountry = await this.countryService.getCountry(dto.organizationCountryId);
+      if (!userData.organizationCountry) throw new BadRequestException('Country not found');
+    }
+
+    if (dto.verifiedCountry) {
+      userData.verifiedCountry = await this.countryService.getCountry(dto.verifiedCountry.id);
+      if (!userData.verifiedCountry) throw new BadRequestException('VerifiedCountry not found');
+    }
+
+    if (dto.mainBankDataId) {
+      userData.mainBankData = await this.bankDataRepo.findOneBy({ id: dto.mainBankDataId });
+      if (!userData.mainBankData) throw new BadRequestException('Bank data not found');
+    }
+
+    if (dto.language) {
+      userData.language = await this.languageService.getLanguage(dto.language.id);
+      if (!userData.language) throw new BadRequestException('Language not found');
+    }
+
+    if (dto.currency) {
+      userData.currency = await this.fiatService.getFiat(dto.currency.id);
+      if (!userData.currency) throw new BadRequestException('Currency not found');
+    }
   }
 
   async save(userData: UserData): Promise<UserData> {
