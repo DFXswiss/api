@@ -30,7 +30,7 @@ import { UserRepository } from '../user/user.repository';
 import { AccountType } from './account-type.enum';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
-import { KycCompleted, KycStatus, UserData, UserDataStatus } from './user-data.entity';
+import { KycLevel, KycStatus, UserData, UserDataStatus } from './user-data.entity';
 import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
@@ -354,7 +354,7 @@ export class UserDataService {
       const matchingUser = users.find(
         (u) =>
           u.id !== user.id &&
-          KycCompleted(u.kycStatus) &&
+          u.kycLevel >= KycLevel.LEVEL_30 &&
           u.isDfxUser &&
           u.verifiedName &&
           (!user.verifiedName || user.verifiedName === u.verifiedName),

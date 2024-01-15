@@ -66,8 +66,8 @@ export class AssetService {
     return this.assetRepo
       .createQueryBuilder('asset')
       .select('DISTINCT asset.name', 'name')
-      .innerJoin('asset.liquidityManagementRules', 'lmRules')
-      .innerJoin('lmRules.deficitStartAction', 'deficitAction')
+      .innerJoin('asset.liquidityManagementRule', 'lmRule')
+      .innerJoin('lmRule.deficitStartAction', 'deficitAction')
       .where('asset.buyable = 1')
       .andWhere('deficitAction.system = :exchange', { exchange })
       .getRawMany<{ name: string }>()

@@ -1,13 +1,13 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { Column, Entity, Index, ManyToOne } from 'typeorm';
-import { LiquidityBalance } from './liquidity-balance.entity';
-import { LiquidityManagementAction } from './liquidity-management-action.entity';
+import { Util } from 'src/shared/utils/util';
+import { Column, Entity, Index, JoinColumn, ManyToOne, ManyToOne as OneToOne } from 'typeorm';
 import { LiquidityManagementContext, LiquidityManagementRuleStatus, LiquidityOptimizationType } from '../enums';
 import { LiquidityState } from '../interfaces';
-import { Util } from 'src/shared/utils/util';
 import { LiquidityManagementRuleInitSpecification } from '../specifications/liquidity-management-rule-init.specification';
+import { LiquidityBalance } from './liquidity-balance.entity';
+import { LiquidityManagementAction } from './liquidity-management-action.entity';
 
 @Entity()
 export class LiquidityManagementRule extends IEntity {
@@ -17,8 +17,8 @@ export class LiquidityManagementRule extends IEntity {
   @Column({ length: 256, nullable: true })
   status: LiquidityManagementRuleStatus;
 
-  @ManyToOne(() => Asset, { eager: true, nullable: true })
-  @Index({ unique: true, where: 'targetAssetId IS NOT NULL' })
+  @OneToOne(() => Asset, { eager: true, nullable: true })
+  @JoinColumn()
   targetAsset: Asset;
 
   @ManyToOne(() => Fiat, { eager: true, nullable: true })
