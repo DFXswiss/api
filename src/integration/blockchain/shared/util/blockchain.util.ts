@@ -30,6 +30,7 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.OPTIMISM]: 'https://optimistic.etherscan.io',
   [Blockchain.ARBITRUM]: 'https://arbiscan.io',
   [Blockchain.POLYGON]: 'https://polygonscan.com',
+  [Blockchain.BASE]: 'https://basescan.org',
   [Blockchain.CARDANO]: 'https://cardanoscan.io',
 };
 
@@ -43,6 +44,7 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.OPTIMISM]: 'tx',
   [Blockchain.ARBITRUM]: 'tx',
   [Blockchain.POLYGON]: 'tx',
+  [Blockchain.BASE]: 'tx',
   [Blockchain.CARDANO]: 'transaction',
 };
 
@@ -61,6 +63,7 @@ function assetPaths(asset: Asset): string | undefined {
     case Blockchain.OPTIMISM:
     case Blockchain.ARBITRUM:
     case Blockchain.POLYGON:
+    case Blockchain.BASE:
       return asset.chainId ? `address/${asset.chainId}` : undefined;
 
     case Blockchain.CARDANO:
