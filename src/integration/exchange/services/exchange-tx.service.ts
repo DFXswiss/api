@@ -85,11 +85,10 @@ export class ExchangeTxService {
 
       for (const [from, to] of tradePairs) {
         try {
-          transactions.push(
-            ...(await exchangeService
-              .getTrades(from, to, since)
-              .then((t) => ExchangeTxMapper.mapTrades(t, sync.exchange))),
-          );
+          const txs = await exchangeService
+            .getTrades(from, to, since)
+            .then((t) => ExchangeTxMapper.mapTrades(t, sync.exchange));
+          transactions.push(...txs);
         } catch (e) {
           if (!e.message?.includes('not supported')) throw e;
         }
