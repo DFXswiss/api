@@ -488,6 +488,7 @@ export class Configuration {
       apiKey: process.env.BINANCE_KEY,
       secret: process.env.BINANCE_SECRET,
       withdrawKeys: splitWithdrawKeys(process.env.BINANCE_WITHDRAW_KEYS),
+      quoteJsonNumbers: false,
       ...this.exchange,
     };
   }
