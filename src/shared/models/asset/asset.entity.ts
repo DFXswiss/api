@@ -1,6 +1,6 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LiquidityManagementRule } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-rule.entity';
-import { Column, Entity, Index, OneToMany } from 'typeorm';
+import { Column, Entity, Index, OneToOne } from 'typeorm';
 import { IEntity } from '../entity';
 
 export enum AssetType {
@@ -74,6 +74,6 @@ export class Asset extends IEntity {
   @Column({ type: 'float', nullable: true })
   approxPriceUsd: number;
 
-  @OneToMany(() => LiquidityManagementRule, (lmr) => lmr.targetAsset)
-  liquidityManagementRules: LiquidityManagementRule[];
+  @OneToOne(() => LiquidityManagementRule, (lmr) => lmr.targetAsset)
+  liquidityManagementRule: LiquidityManagementRule;
 }
