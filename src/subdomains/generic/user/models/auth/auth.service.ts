@@ -117,9 +117,9 @@ export class AuthService {
 
   async signInByMail(dto: AuthMailDto): Promise<void> {
     const userData =
-      (await this.userDataService.getUsersByMail(dto.mail)).reduce((maxLevelUser, currentUser) =>
-        currentUser.kycLevel >= maxLevelUser.kycLevel ? currentUser : maxLevelUser,
-      ) ??
+      (await this.userDataService
+        .getUsersByMail(dto.mail)
+        .then((u) => u.sort((a, b) => b.id - a.id) && Util.maxObj(u, 'kycLevel'))) ??
       (await this.userDataService.createUserData({
         kycType: KycType.DFX,
         mail: dto.mail,

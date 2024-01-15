@@ -101,5 +101,5 @@ export interface ExchangeSync {
 
 export const ExchangeSyncs: ExchangeSync[] = [
   { exchange: 'Kraken', tokens: ['EUR', 'CHF', 'USD', 'BTC', 'USDT', 'USDC', 'ETH', 'DAI'] },
-  //{ exchange: 'Binance', tradeTokens: ['BTC', 'USDT'] },
+  { exchange: 'Binance', tradeTokens: ['BTC', 'USDT'] },
 ];
