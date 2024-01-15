@@ -569,6 +569,19 @@ export class BuyCrypto extends IEntity {
     return this.bankTx != null;
   }
 
+  get exchangeRate(): { exchangeRate: number; rate: number } {
+    const exchangeRate =
+      (this.inputAmount / this.inputReferenceAmount) * (this.inputReferenceAmountMinusFee / this.outputAmount);
+    const rate = this.inputAmount / this.outputAmount;
+
+    return {
+      exchangeRate: this.isCryptoCryptoTransaction
+        ? Util.roundByPrecision(exchangeRate, 5)
+        : Util.round(exchangeRate, 2),
+      rate: this.isCryptoCryptoTransaction ? Util.roundByPrecision(rate, 5) : Util.round(rate, 2),
+    };
+  }
+
   get exchangeRateString(): string {
     const rate =
       (this.inputAmount / this.inputReferenceAmount) * (this.inputReferenceAmountMinusFee / this.outputAmount);

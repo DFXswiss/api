@@ -20,13 +20,13 @@ export enum PaymentWebhookState {
 
 export class PaymentWebhookData extends TransactionDto {
   @ApiProperty()
-  paymentReference: string;
-
-  @ApiProperty()
   dfxReference: number;
 
   @ApiProperty()
-  bankAccount: string;
+  sourceAccount: string;
+
+  @ApiProperty()
+  targetAccount: string;
 }
 
 export class PaymentWebhookDto extends WebhookDto<PaymentWebhookData> {
