@@ -139,6 +139,10 @@ export class BankTxService {
       .leftJoinAndSelect('sellUser.userData', 'sellUserData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
+      .leftJoinAndSelect('userData.country', 'country')
+      .leftJoinAndSelect('userData.nationality', 'nationality')
+      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+      .leftJoinAndSelect('userData.language', 'language')
       .leftJoinAndSelect('sellUserData.users', 'sellUsers')
       .leftJoinAndSelect('users.wallet', 'wallet')
       .leftJoinAndSelect('sellUsers.wallet', 'sellUsersWallet')
@@ -179,7 +183,7 @@ export class BankTxService {
     // store batch and entries in one transaction
     await this.bankTxBatchRepo.manager.transaction(async (manager) => {
       batch = await manager.save(batch);
-      newTxs = await new BankTxRepository(manager).saveMany(newTxs);
+      newTxs = await new BankTxRepository(manager).saveMany(newTxs, 1000, 20);
     });
 
     // avoid infinite loop in JSON

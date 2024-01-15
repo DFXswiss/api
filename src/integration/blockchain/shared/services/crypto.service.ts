@@ -22,6 +22,7 @@ export class CryptoService {
     Blockchain.ARBITRUM,
     Blockchain.OPTIMISM,
     Blockchain.POLYGON,
+    Blockchain.BASE,
   ];
 
   constructor(
@@ -47,10 +48,11 @@ export class CryptoService {
       case Blockchain.BITCOIN:
         return this.nodeService.getBtcPaymentRequest(address, amount);
 
+      case Blockchain.ETHEREUM:
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
+      case Blockchain.POLYGON:
       case Blockchain.BINANCE_SMART_CHAIN:
-      case Blockchain.ETHEREUM:
         const evmService = this.evmRegistryService.getService(asset.blockchain);
         return evmService.getPaymentRequest(address, asset, amount);
 

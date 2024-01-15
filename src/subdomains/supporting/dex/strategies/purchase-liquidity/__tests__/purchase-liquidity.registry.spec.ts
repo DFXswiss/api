@@ -12,6 +12,7 @@ import { DexBscService } from '../../../services/dex-bsc.service';
 import { DexDeFiChainService } from '../../../services/dex-defichain.service';
 import { DexMoneroService } from '../../../services/dex-monero.service';
 import { DexOptimismService } from '../../../services/dex-optimism.service';
+import { DexPolygonService } from '../../../services/dex-polygon.service';
 import { DexService } from '../../../services/dex.service';
 import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy } from '../impl/arbitrum-token.strategy';
@@ -28,6 +29,8 @@ import { EthereumTokenStrategy } from '../impl/ethereum-token.strategy';
 import { MoneroStrategy } from '../impl/monero.strategy';
 import { OptimismCoinStrategy } from '../impl/optimism-coin.strategy';
 import { OptimismTokenStrategy } from '../impl/optimism-token.strategy';
+import { PolygonCoinStrategy } from '../impl/polygon-coin.strategy';
+import { PolygonTokenStrategy } from '../impl/polygon-token.strategy';
 
 describe('PurchaseLiquidityStrategyRegistry', () => {
   let arbitrumCoin: ArbitrumCoinStrategy;
@@ -44,6 +47,8 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
   let monero: MoneroStrategy;
   let optimismCoin: OptimismCoinStrategy;
   let optimismToken: OptimismTokenStrategy;
+  let polygonCoin: PolygonCoinStrategy;
+  let polygonToken: PolygonTokenStrategy;
 
   let registry: PurchaseLiquidityStrategyRegistryWrapper;
 
@@ -108,6 +113,13 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
       mock<DexOptimismService>(),
     );
 
+    polygonCoin = new PolygonCoinStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexPolygonService>());
+    polygonToken = new PolygonTokenStrategy(
+      mock<AssetService>(),
+      mock<NotificationService>(),
+      mock<DexPolygonService>(),
+    );
+
     registry = new PurchaseLiquidityStrategyRegistryWrapper(
       arbitrumCoin,
       arbitrumToken,
@@ -123,6 +135,8 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
       monero,
       optimismCoin,
       optimismToken,
+      polygonCoin,
+      polygonToken,
     );
   });
 
@@ -236,6 +250,22 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
         expect(strategy).toBeInstanceOf(OptimismTokenStrategy);
       });
 
+      it('gets POLYGON_COIN strategy', () => {
+        const strategy = registry.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.POLYGON, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(PolygonCoinStrategy);
+      });
+
+      it('gets POLYGON_TOKEN strategy', () => {
+        const strategy = registry.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.POLYGON, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(PolygonTokenStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const testCall = () =>
           registry.getPurchaseLiquidityStrategy(createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }));
@@ -273,6 +303,8 @@ class PurchaseLiquidityStrategyRegistryWrapper extends PurchaseLiquidityStrategy
     monero: MoneroStrategy,
     optimismCoin: OptimismCoinStrategy,
     optimismToken: OptimismTokenStrategy,
+    polygonCoin: PolygonCoinStrategy,
+    polygonToken: PolygonTokenStrategy,
   ) {
     super();
 
@@ -293,5 +325,7 @@ class PurchaseLiquidityStrategyRegistryWrapper extends PurchaseLiquidityStrategy
     this.addStrategy({ blockchain: Blockchain.MONERO, assetType: AssetType.COIN }, monero);
     this.addStrategy({ blockchain: Blockchain.OPTIMISM, assetType: AssetType.COIN }, optimismCoin);
     this.addStrategy({ blockchain: Blockchain.OPTIMISM, assetType: AssetType.TOKEN }, optimismToken);
+    this.addStrategy({ blockchain: Blockchain.POLYGON, assetType: AssetType.COIN }, polygonCoin);
+    this.addStrategy({ blockchain: Blockchain.POLYGON, assetType: AssetType.TOKEN }, polygonToken);
   }
 }

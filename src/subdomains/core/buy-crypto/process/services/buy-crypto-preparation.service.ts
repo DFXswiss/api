@@ -156,7 +156,7 @@ export class BuyCryptoPreparationService {
         const referenceChfPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatChf);
 
         for (const feeId of fee.fees) {
-          await this.feeService.increaseTxUsage(feeId);
+          await this.feeService.increaseTxUsages(feeId, entity.user.userData);
         }
 
         await this.buyCryptoRepo.update(

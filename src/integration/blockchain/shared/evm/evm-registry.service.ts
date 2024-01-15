@@ -3,6 +3,7 @@ import { ArbitrumService } from '../../arbitrum/arbitrum.service';
 import { BscService } from '../../bsc/bsc.service';
 import { EthereumService } from '../../ethereum/ethereum.service';
 import { OptimismService } from '../../optimism/optimism.service';
+import { PolygonService } from '../../polygon/polygon.service';
 import { Blockchain } from '../enums/blockchain.enum';
 import { EvmClient } from './evm-client';
 import { EvmService } from './evm.service';
@@ -15,6 +16,7 @@ export class EvmRegistryService {
     private readonly bscService: BscService,
     private readonly arbitrumService: ArbitrumService,
     private readonly optimismService: OptimismService,
+    private readonly polygonService: PolygonService,
   ) {}
 
   getClient(blockchain: Blockchain): EvmClient {
@@ -31,6 +33,8 @@ export class EvmRegistryService {
         return this.arbitrumService;
       case Blockchain.OPTIMISM:
         return this.optimismService;
+      case Blockchain.POLYGON:
+        return this.polygonService;
 
       default:
         throw new Error(`No evm service found for blockchain ${blockchain}`);

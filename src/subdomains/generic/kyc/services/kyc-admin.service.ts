@@ -1,8 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { UserData } from '../../user/models/user-data/user-data.entity';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
 import { KycWebhookTriggerDto } from '../dto/kyc-webhook-trigger.dto';
-import { KycStepStatus } from '../enums/kyc.enum';
+import { KycLogType, KycStepStatus } from '../enums/kyc.enum';
 import { KycLogRepository } from '../repositories/kyc-log.repository';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 
@@ -42,5 +43,15 @@ export class KycAdminService {
     } else {
       await this.webhookService.kycChanged(kycStep.userData);
     }
+  }
+
+  async createMergeLog(user: UserData, log: string): Promise<void> {
+    const entity = this.kycLogRepo.create({
+      type: KycLogType.MERGE,
+      result: log,
+      userData: user,
+    });
+
+    await this.kycLogRepo.save(entity);
   }
 }

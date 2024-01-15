@@ -102,9 +102,13 @@ export class SellController {
     @Body() dto: GetSellPaymentInfoDto,
   ): Promise<SellPaymentInfoDto> {
     dto = await this.paymentInfoService.sellCheck(dto, jwt);
-    return this.sellService
-      .createSell(jwt.id, { ...dto, blockchain: dto.asset.blockchain }, true)
-      .then((sell) => this.toPaymentInfoDto(jwt.id, sell, dto));
+    return Util.retry(
+      () => this.sellService.createSell(jwt.id, { ...dto, blockchain: dto.asset.blockchain }, true),
+      2,
+      0,
+      undefined,
+      (e) => e.message?.includes('duplicate key'),
+    ).then((sell) => this.toPaymentInfoDto(jwt.id, sell, dto));
   }
 
   @Put(':id')

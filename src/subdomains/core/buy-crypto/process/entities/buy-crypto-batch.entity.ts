@@ -87,8 +87,7 @@ export class BuyCryptoBatch extends IEntity {
   }
 
   optimizeByPayoutFeeEstimation(): BuyCrypto[] {
-    const reBatchTransactions = [];
-    const filteredOutTransactions = [];
+    const filteredOutTransactions: BuyCrypto[] = [];
 
     for (const tx of this.transactions) {
       if (tx.fee.estimatePayoutFeePercent > tx.fee.allowedTotalFeePercent) {
@@ -97,12 +96,18 @@ export class BuyCryptoBatch extends IEntity {
         continue;
       }
 
-      reBatchTransactions.push(tx);
+      tx.resetSentMail();
     }
 
-    this.overwriteTransactions(reBatchTransactions);
+    this.removeInvalidTransactions(filteredOutTransactions);
 
     return filteredOutTransactions;
+  }
+
+  removeInvalidTransactions(invalidTransactions: BuyCrypto[]) {
+    const validTransactions = this.transactions.filter((t) => !invalidTransactions.map((i) => i.id).includes(t.id));
+
+    this.overwriteTransactions(validTransactions);
   }
 
   checkByPurchaseFeeEstimation(estimatePurchaseFeeAmount: number): this {

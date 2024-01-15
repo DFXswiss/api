@@ -5,6 +5,7 @@ export enum UserDataRelationState {
   CONTROL_HOLDER = 'ControlHolder',
   WIFE = 'Wife',
   HUSBAND = 'Husband',
+  SIGNATORY_ONLY = 'SignatoryOnly',
 }
 
 export enum SignatoryState {

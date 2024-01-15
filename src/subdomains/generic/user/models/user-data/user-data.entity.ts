@@ -157,6 +157,18 @@ export class UserData extends IEntity {
   @ManyToOne(() => Country, { eager: true })
   organizationCountry: Country;
 
+  @Column({ type: 'float', nullable: true })
+  totalVolumeChfAuditPeriod: number;
+
+  @Column({ length: 256, nullable: true })
+  allBeneficialOwnersName: string;
+
+  @Column({ length: 256, nullable: true })
+  allBeneficialOwnersDomicile: string;
+
+  @Column({ length: 256, nullable: true })
+  accountOpenerAuthorization: string;
+
   @Column({ length: 256, nullable: true })
   phone: string;
 
@@ -269,6 +281,10 @@ export class UserData extends IEntity {
   totpSecret: string;
 
   // References
+  @OneToOne(() => UserData, { nullable: true })
+  @JoinColumn()
+  accountOpener: UserData;
+
   @OneToMany(() => UserDataRelation, (userDataRelation) => userDataRelation.account)
   accountRelations: UserDataRelation[];
 

@@ -256,8 +256,29 @@ export class Configuration {
       ethWalletAddress: process.env.ETH_WALLET_ADDRESS,
       ethWalletPrivateKey: process.env.ETH_WALLET_PRIVATE_KEY,
       ethGatewayUrl: process.env.ETH_GATEWAY_URL,
-      ethApiKey: process.env.ETH_API_KEY,
+      ethApiKey: process.env.ALCHEMY_API_KEY,
       ethChainId: +process.env.ETH_CHAIN_ID,
+    },
+    optimism: {
+      optimismWalletAddress: process.env.OPTIMISM_WALLET_ADDRESS,
+      optimismWalletPrivateKey: process.env.OPTIMISM_WALLET_PRIVATE_KEY,
+      optimismGatewayUrl: process.env.OPTIMISM_GATEWAY_URL,
+      optimismApiKey: process.env.ALCHEMY_API_KEY,
+      optimismChainId: +process.env.OPTIMISM_CHAIN_ID,
+    },
+    arbitrum: {
+      arbitrumWalletAddress: process.env.ARBITRUM_WALLET_ADDRESS,
+      arbitrumWalletPrivateKey: process.env.ARBITRUM_WALLET_PRIVATE_KEY,
+      arbitrumGatewayUrl: process.env.ARBITRUM_GATEWAY_URL,
+      arbitrumApiKey: process.env.ALCHEMY_API_KEY,
+      arbitrumChainId: +process.env.ARBITRUM_CHAIN_ID,
+    },
+    polygon: {
+      polygonWalletAddress: process.env.POLYGON_WALLET_ADDRESS,
+      polygonWalletPrivateKey: process.env.POLYGON_WALLET_PRIVATE_KEY,
+      polygonGatewayUrl: process.env.POLYGON_GATEWAY_URL,
+      polygonApiKey: process.env.ALCHEMY_API_KEY,
+      polygonChainId: +process.env.POLYGON_CHAIN_ID,
     },
     bsc: {
       bscScanApiUrl: process.env.BSC_SCAN_API_URL,
@@ -267,20 +288,6 @@ export class Configuration {
       bscGatewayUrl: process.env.BSC_GATEWAY_URL,
       bscChainId: +process.env.BSC_CHAIN_ID,
       pancakeRouterAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
-    },
-    optimism: {
-      optimismWalletAddress: process.env.OPTIMISM_WALLET_ADDRESS,
-      optimismWalletPrivateKey: process.env.OPTIMISM_WALLET_PRIVATE_KEY,
-      optimismGatewayUrl: process.env.OPTIMISM_GATEWAY_URL,
-      optimismApiKey: process.env.OPTIMISM_API_KEY,
-      optimismChainId: +process.env.OPTIMISM_CHAIN_ID,
-    },
-    arbitrum: {
-      arbitrumWalletAddress: process.env.ARBITRUM_WALLET_ADDRESS,
-      arbitrumWalletPrivateKey: process.env.ARBITRUM_WALLET_PRIVATE_KEY,
-      arbitrumGatewayUrl: process.env.ARBITRUM_GATEWAY_URL,
-      arbitrumApiKey: process.env.ARBITRUM_API_KEY,
-      arbitrumChainId: +process.env.ARBITRUM_CHAIN_ID,
     },
     lightning: {
       lnbits: {
@@ -481,6 +488,7 @@ export class Configuration {
       apiKey: process.env.BINANCE_KEY,
       secret: process.env.BINANCE_SECRET,
       withdrawKeys: splitWithdrawKeys(process.env.BINANCE_WITHDRAW_KEYS),
+      quoteJsonNumbers: false,
       ...this.exchange,
     };
   }

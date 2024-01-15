@@ -5,7 +5,6 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
 import { Between, In, IsNull } from 'typeorm';
@@ -71,7 +70,7 @@ export class BuyFiatService {
   async update(id: number, dto: UpdateBuyFiatDto): Promise<BuyFiat> {
     let entity = await this.buyFiatRepo.findOne({
       where: { id },
-      relations: ['sell', 'sell.user', 'sell.user.wallet', 'sell.user.userData'],
+      relations: ['sell', 'sell.user', 'sell.user.wallet', 'sell.user.userData', 'fiatOutput', 'cryptoInput'],
     });
     if (!entity) throw new NotFoundException('Buy-fiat not found');
 
@@ -130,6 +129,10 @@ export class BuyFiatService {
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
+      .leftJoinAndSelect('userData.country', 'country')
+      .leftJoinAndSelect('userData.nationality', 'nationality')
+      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+      .leftJoinAndSelect('userData.language', 'language')
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`${key.includes('.') ? key : `buyFiat.${key}`} = :param`, { param: value })
       .getOne();
@@ -138,7 +141,7 @@ export class BuyFiatService {
   async triggerWebhookManual(id: number): Promise<void> {
     const buyFiat = await this.buyFiatRepo.findOne({
       where: { id },
-      relations: ['sell', 'sell.user', 'sell.user.wallet', 'sell.user.userData'],
+      relations: ['sell', 'sell.user', 'sell.user.wallet', 'sell.user.userData', 'cryptoInput'],
     });
     if (!buyFiat) throw new NotFoundException('BuyFiat not found');
 
@@ -147,8 +150,7 @@ export class BuyFiatService {
 
   async triggerWebhook(buyFiat: BuyFiat): Promise<void> {
     // TODO add fiatFiatUpdate here
-    const state = this.getWebhookState(buyFiat);
-    buyFiat.sell ? await this.webhookService.cryptoFiatUpdate(buyFiat.sell.user, buyFiat, state) : undefined;
+    buyFiat.sell ? await this.webhookService.cryptoFiatUpdate(buyFiat.sell.user, buyFiat) : undefined;
   }
 
   async resetAmlCheck(id: number): Promise<void> {
@@ -164,17 +166,26 @@ export class BuyFiatService {
   }
 
   async updateVolumes(start = 1, end = 100000): Promise<void> {
-    const sellIds = await this.sellRepo.findBy({ id: Between(start, end) }).then((l) => l.map((b) => b.id));
-    await this.updateSellVolume(sellIds);
+    const sellIds = await this.buyFiatRepo
+      .find({
+        where: { id: Between(start, end) },
+        relations: { sell: true },
+      })
+      .then((l) => l.map((b) => b.sell.id));
+
+    await this.updateSellVolume([...new Set(sellIds)]);
   }
 
-  async updateRefVolumes(): Promise<void> {
+  async updateRefVolumes(start = 1, end = 100000): Promise<void> {
     const refs = await this.buyFiatRepo
       .createQueryBuilder('buyFiat')
       .select('usedRef')
       .groupBy('usedRef')
-      .getRawMany<{ usedRef: string }>();
-    await this.updateRefVolume(refs.map((r) => r.usedRef));
+      .where('buyFiat.id BETWEEN :start AND :end', { start, end })
+      .getRawMany<{ usedRef: string }>()
+      .then((refs) => refs.map((r) => r.usedRef));
+
+    await this.updateRefVolume([...new Set(refs)]);
   }
 
   async getUserTransactions(
@@ -208,24 +219,6 @@ export class BuyFiatService {
   }
 
   // --- HELPER METHODS --- //
-
-  private getWebhookState(buyFiat: BuyFiat): PaymentWebhookState {
-    if (buyFiat.cryptoReturnDate) return PaymentWebhookState.RETURNED;
-
-    switch (buyFiat.amlCheck) {
-      case CheckStatus.PENDING:
-        return PaymentWebhookState.AML_PENDING;
-      case CheckStatus.FAIL:
-        return PaymentWebhookState.FAILED;
-      case CheckStatus.PASS:
-        if (buyFiat.isComplete) return PaymentWebhookState.COMPLETED;
-        break;
-    }
-
-    if (buyFiat.outputReferenceAsset) return PaymentWebhookState.PROCESSING;
-
-    return PaymentWebhookState.CREATED;
-  }
 
   private toHistoryDto(buyFiat: BuyFiat): SellHistoryDto {
     return {

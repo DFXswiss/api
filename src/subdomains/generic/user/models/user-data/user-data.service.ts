@@ -19,6 +19,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { FindOptionsRelations, In, IsNull, Not } from 'typeorm';
@@ -29,7 +30,7 @@ import { UserRepository } from '../user/user.repository';
 import { AccountType } from './account-type.enum';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
-import { KycCompleted, KycStatus, UserData, UserDataStatus } from './user-data.entity';
+import { KycLevel, KycStatus, UserData, UserDataStatus } from './user-data.entity';
 import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
@@ -48,6 +49,7 @@ export class UserDataService {
     private readonly fiatService: FiatService,
     private readonly settingService: SettingService,
     private readonly kycNotificationService: KycNotificationService,
+    private readonly kycAdminService: KycAdminService,
     @Inject(forwardRef(() => LinkService)) private readonly linkService: LinkService,
   ) {}
 
@@ -96,7 +98,7 @@ export class UserDataService {
 
   async getUsersByMail(mail: string): Promise<UserData[]> {
     return this.userDataRepo.find({
-      where: { mail: mail, status: In([UserDataStatus.ACTIVE, UserDataStatus.NA]) },
+      where: { mail: mail, status: In([UserDataStatus.ACTIVE, UserDataStatus.NA, UserDataStatus.KYC_ONLY]) },
       relations: ['users'],
     });
   }
@@ -107,6 +109,10 @@ export class UserDataService {
       .select('userData')
       .leftJoinAndSelect('userData.users', 'users')
       .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
+      .leftJoinAndSelect('userData.country', 'country')
+      .leftJoinAndSelect('userData.nationality', 'nationality')
+      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+      .leftJoinAndSelect('userData.language', 'language')
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`${key.includes('.') ? key : `userData.${key}`} = :param`, { param: value })
       .andWhere(`userData.status != :status`, { status: UserDataStatus.MERGED })
@@ -119,6 +125,13 @@ export class UserDataService {
       language: dto.language ?? (await this.languageService.getLanguageBySymbol(Config.defaultLanguage)),
       currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaultCurrency)),
     });
+
+    if (dto.kycFileId) {
+      const userWithSameFileId = await this.userDataRepo.findOneBy({ kycFileId: dto.kycFileId });
+      if (userWithSameFileId) throw new ConflictException('A user with this KYC file ID already exists');
+    }
+
+    await this.loadDtoRelations(userData, dto);
 
     return this.userDataRepo.save(userData);
   }
@@ -159,6 +172,8 @@ export class UserDataService {
 
       await this.userDataRepo.save({ ...userData, ...{ kycFileId: dto.kycFileId } });
     }
+
+    await this.loadDtoRelations(userData, dto);
 
     if (dto.kycLevel && dto.kycLevel !== userData.kycLevel)
       await this.kycNotificationService.kycChanged(userData, dto.kycLevel);
@@ -264,6 +279,48 @@ export class UserDataService {
     return this.userRepo.exist({ where: { userData: { id: userDataId }, role } });
   }
 
+  private async loadDtoRelations(userData: UserData, dto: UpdateUserDataDto | CreateUserDataDto): Promise<void> {
+    if (dto.countryId) {
+      userData.country = await this.countryService.getCountry(dto.countryId);
+      if (!userData.country) throw new BadRequestException('Country not found');
+    }
+
+    if (dto.nationality) {
+      userData.nationality = await this.countryService.getCountry(dto.nationality.id);
+      if (!userData.nationality) throw new BadRequestException('Nationality not found');
+    }
+
+    if (dto.organizationCountryId) {
+      userData.organizationCountry = await this.countryService.getCountry(dto.organizationCountryId);
+      if (!userData.organizationCountry) throw new BadRequestException('Country not found');
+    }
+
+    if (dto.verifiedCountry) {
+      userData.verifiedCountry = await this.countryService.getCountry(dto.verifiedCountry.id);
+      if (!userData.verifiedCountry) throw new BadRequestException('VerifiedCountry not found');
+    }
+
+    if (dto.mainBankDataId) {
+      userData.mainBankData = await this.bankDataRepo.findOneBy({ id: dto.mainBankDataId });
+      if (!userData.mainBankData) throw new BadRequestException('Bank data not found');
+    }
+
+    if (dto.language) {
+      userData.language = await this.languageService.getLanguage(dto.language.id);
+      if (!userData.language) throw new BadRequestException('Language not found');
+    }
+
+    if (dto.currency) {
+      userData.currency = await this.fiatService.getFiat(dto.currency.id);
+      if (!userData.currency) throw new BadRequestException('Currency not found');
+    }
+
+    if (dto.accountOpener) {
+      userData.accountOpener = await this.userDataRepo.findOneBy({ id: dto.accountOpener.id });
+      if (!userData.accountOpener) throw new BadRequestException('AccountOpener not found');
+    }
+  }
+
   async save(userData: UserData): Promise<UserData> {
     return this.userDataRepo.save(userData);
   }
@@ -325,7 +382,7 @@ export class UserDataService {
       const matchingUser = users.find(
         (u) =>
           u.id !== user.id &&
-          KycCompleted(u.kycStatus) &&
+          u.kycLevel >= KycLevel.LEVEL_30 &&
           u.isDfxUser &&
           u.verifiedName &&
           (!user.verifiedName || user.verifiedName === u.verifiedName),
@@ -388,7 +445,8 @@ export class UserDataService {
       .filter((i) => i)
       .join(' and ');
 
-    this.logger.info(`Merging user ${master.id} (master) and ${slave.id} (slave): reassigning ${mergedEntitiesString}`);
+    const log = `Merging user ${master.id} (master) and ${slave.id} (slave): reassigning ${mergedEntitiesString}`;
+    this.logger.info(log);
 
     await this.updateBankTxTime(slave.id);
 
@@ -424,6 +482,8 @@ export class UserDataService {
         await this.userRepo.activateUser(user);
       }
     }
+
+    await this.kycAdminService.createMergeLog(master, log);
   }
 
   private async updateBankTxTime(userDataId: number): Promise<void> {

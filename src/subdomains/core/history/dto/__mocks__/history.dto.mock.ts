@@ -1,7 +1,7 @@
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
-import { HistoryDto, PaymentStatus } from 'src/subdomains/core/history/dto/history.dto';
+import { HistoryDtoDeprecated, PaymentStatus } from 'src/subdomains/core/history/dto/history.dto';
 
-const defaultHistory: HistoryDto = {
+const defaultHistory: HistoryDtoDeprecated = {
   inputAmount: 0.0006,
   inputAsset: 'BTC',
   outputAmount: 0.0005,
@@ -14,10 +14,10 @@ const defaultHistory: HistoryDto = {
   status: PaymentStatus.PENDING,
 };
 
-export function createDefaultHistory(): HistoryDto {
+export function createDefaultHistory(): HistoryDtoDeprecated {
   return defaultHistory;
 }
 
-export function createCustomHistory(customValues: Partial<HistoryDto>): HistoryDto {
+export function createCustomHistory(customValues: Partial<HistoryDtoDeprecated>): HistoryDtoDeprecated {
   return { ...defaultHistory, ...customValues };
 }

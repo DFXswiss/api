@@ -102,10 +102,7 @@
       "value": "xxx"
     },
     "ethGatewayUrl": {
-      "value": "https://goerli.infura.io/v3"
-    },
-    "ethApiKey": {
-      "value": "xxx"
+      "value": "https://eth-goerli.g.alchemy.com/v2"
     },
     "ethChainId": {
       "value": "5"
@@ -117,10 +114,7 @@
       "value": "xxx"
     },
     "optimismGatewayUrl": {
-      "value": "https://goerli.optimism.io"
-    },
-    "optimismApiKey": {
-      "value": "xxx"
+      "value": "https://opt-goerli.g.alchemy.com/v2"
     },
     "optimismChainId": {
       "value": "420"
@@ -132,13 +126,22 @@
       "value": "xxx"
     },
     "arbitrumGatewayUrl": {
-      "value": "https://goerli-rollup.arbitrum.io/rpc"
-    },
-    "arbitrumApiKey": {
-      "value": "xxx"
+      "value": "https://arb-goerli.g.alchemy.com/v2"
     },
     "arbitrumChainId": {
       "value": "421613"
+    },
+    "polygonWalletAddress": {
+      "value": "xxx"
+    },
+    "polygonWalletPrivateKey": {
+      "value": "xxx"
+    },
+    "polygonGatewayUrl": {
+      "value": "https://polygon-mumbai.g.alchemy.com/v2"
+    },
+    "polygonChainId": {
+      "value": "80001"
     },
     "bscWalletAddress": {
       "value": "xxx"

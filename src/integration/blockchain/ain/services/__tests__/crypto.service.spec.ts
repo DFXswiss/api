@@ -65,6 +65,7 @@ describe('CryptoService', () => {
       Blockchain.ARBITRUM,
       Blockchain.OPTIMISM,
       Blockchain.POLYGON,
+      Blockchain.BASE,
     ]);
   });
 

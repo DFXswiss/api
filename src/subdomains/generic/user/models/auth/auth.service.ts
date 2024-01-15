@@ -22,6 +22,7 @@ import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
+import { KycType, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataService } from '../user-data/user-data.service';
 import { LinkedUserInDto } from '../user/dto/linked-user.dto';
 import { User, UserStatus } from '../user/user.entity';
@@ -115,25 +116,43 @@ export class AuthService {
   }
 
   async signInByMail(dto: AuthMailDto): Promise<void> {
-    const userData = await this.userDataService.getUsersByMail(dto.mail).then((list) => list[0]);
-    if (userData)
-      await this.notificationService.sendMail({
-        type: MailType.USER,
-        input: {
-          userData: userData,
-          title: `${MailTranslationKey.LOGIN}.title`,
-          salutation: { key: `${MailTranslationKey.LOGIN}.salutation` },
-          suffix: [
-            { key: MailKey.SPACE, params: { value: '1' } },
-            {
-              key: `${MailTranslationKey.LOGIN}.message`,
-              params: { url: `${Config.frontend.services}/kyc?code=${userData.kycHash}` },
+    const userData =
+      (await this.userDataService
+        .getUsersByMail(dto.mail)
+        .then((u) => u.sort((a, b) => b.id - a.id) && Util.maxObj(u, 'kycLevel'))) ??
+      (await this.userDataService.createUserData({
+        kycType: KycType.DFX,
+        mail: dto.mail,
+        language: dto.language,
+        status: UserDataStatus.KYC_ONLY,
+      }));
+
+    await this.notificationService.sendMail({
+      type: MailType.USER,
+      input: {
+        userData: userData,
+        title: `${MailTranslationKey.LOGIN}.title`,
+        salutation: { key: `${MailTranslationKey.LOGIN}.salutation` },
+        suffix: [
+          { key: MailKey.SPACE, params: { value: '1' } },
+          {
+            key: `${MailTranslationKey.LOGIN}.message`,
+            params: {
+              url: `${Config.frontend.services}/kyc?code=${userData.kycHash}`,
+              urlText: `${Config.frontend.services}/kyc?code=${userData.kycHash}`,
             },
-            { key: MailKey.SPACE, params: { value: '2' } },
-            { key: MailKey.DFX_TEAM_CLOSING },
-          ],
-        },
-      });
+          },
+          {
+            key: `${MailTranslationKey.LOGIN}.button`,
+            params: {
+              url: `${Config.frontend.services}/kyc?code=${userData.kycHash}`,
+            },
+          },
+          { key: MailKey.SPACE, params: { value: '2' } },
+          { key: MailKey.DFX_TEAM_CLOSING },
+        ],
+      },
+    });
   }
 
   private async companySignIn(dto: AuthCredentialsDto, ip: string): Promise<AuthResponseDto> {

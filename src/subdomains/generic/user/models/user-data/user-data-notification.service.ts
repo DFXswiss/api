@@ -29,6 +29,7 @@ export class UserDataNotificationService {
     const entities = await this.userDataRepo
       .createQueryBuilder('userData')
       .select('userData')
+      .leftJoinAndSelect('userData.language', 'language')
       .where('userData.blackSquadMailSendDate IS NULL')
       .andWhere('userData.buyVolume + userData.sellVolume + userData.cryptoVolume >= :limit', {
         limit: Config.support.blackSquad.limit,

@@ -220,6 +220,7 @@ export class BuyCrypto extends IEntity {
       case Blockchain.ETHEREUM:
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
+      case Blockchain.POLYGON:
       case Blockchain.BINANCE_SMART_CHAIN:
       case Blockchain.MONERO:
         this.setOutputReferenceAsset(this.outputAsset);
@@ -325,6 +326,16 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
+  resetTransactionButKeepState(): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
+      ...this.resetTransaction(),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   batched(): this {
     this.status = BuyCryptoStatus.BATCHED;
 
@@ -391,6 +402,17 @@ export class BuyCrypto extends IEntity {
     const update: Partial<BuyCrypto> = {
       recipientMail: this.user.userData.mail,
       mailSendDate: new Date(),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  resetSentMail(): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
+      recipientMail: null,
+      mailSendDate: null,
     };
 
     Object.assign(this, update);
@@ -585,8 +607,6 @@ export class BuyCrypto extends IEntity {
       isComplete: false,
       outputAmount: null,
       outputDate: null,
-      mailSendDate: null,
-      recipientMail: null,
     };
 
     Object.assign(this, update);
