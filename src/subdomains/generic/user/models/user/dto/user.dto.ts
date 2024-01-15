@@ -49,7 +49,7 @@ export class UserDto {
   kycStatus: KycStatus;
 
   @ApiProperty({ enum: KycState, deprecated: true })
-  kycState?: KycState;
+  kycState: KycState;
 
   @ApiProperty({ enum: KycLevel })
   kycLevel: KycLevel;

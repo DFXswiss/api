@@ -1,14 +1,7 @@
 import { Body, Controller, Get, Param, Post, Put, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import {
-  ApiBearerAuth,
-  ApiCreatedResponse,
-  ApiExcludeEndpoint,
-  ApiOkResponse,
-  ApiOperation,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -22,6 +15,7 @@ import { KycDataTransferDto } from './dto/kyc-data-transfer.dto';
 import { KycDataDto } from './dto/kyc-data.dto';
 import { KycDocumentType, KycFileDto } from './dto/kyc-file.dto';
 import { KycInfo } from './dto/kyc-info.dto';
+import { KycUserDataDto } from './dto/kyc-user-data.dto';
 import { KycService } from './kyc.service';
 
 @ApiTags('KYC')
@@ -37,15 +31,6 @@ export class KycController {
   @ApiOperation({ deprecated: true })
   async transferKycData(@GetJwt() jwt: JwtPayload, @Body() data: KycDataTransferDto): Promise<void> {
     await this.kycService.transferKycData(jwt.id, data);
-  }
-
-  @Post('webhook')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  @ApiExcludeEndpoint()
-  @ApiOperation({ deprecated: true })
-  async triggerWebhook(): Promise<void> {
-    // Moved to new kyc admin controller
   }
 
   // --- JWT Calls --- //
@@ -85,6 +70,15 @@ export class KycController {
     return this.limitRequestService.increaseLimit(request, '', jwt.id);
   }
 
+  @Post('data')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiCreatedResponse({ type: KycInfo })
+  @ApiOperation({ deprecated: true })
+  async updateKycData(@GetJwt() jwt: JwtPayload, @Body() data: KycUserDataDto): Promise<KycInfo> {
+    return this.kycService.updateKycData('', data, jwt.id);
+  }
+
   @Post('incorporationCertificate')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
@@ -118,6 +112,13 @@ export class KycController {
   @ApiOperation({ deprecated: true })
   async getKycCountriesByCode(@Param('code') code: string): Promise<CountryDto[]> {
     return this.kycService.getKycCountries(code).then(CountryDtoMapper.entitiesToDto);
+  }
+
+  @Put(':code/data')
+  @ApiOkResponse({ type: KycInfo })
+  @ApiOperation({ deprecated: true })
+  async updateKycDataByCode(@Param('code') code: string, @Body() data: KycUserDataDto): Promise<KycInfo> {
+    return this.kycService.updateKycData(code, data);
   }
 
   @Post(':code/limit')

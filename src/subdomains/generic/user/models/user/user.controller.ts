@@ -23,6 +23,7 @@ import { UserDetailDto, UserDto } from './dto/user.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
 import { User } from './user.entity';
 import { UserService } from './user.service';
+import { KycDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 
 @ApiTags('User')
 @Controller('user')
@@ -92,14 +93,8 @@ export class UserController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiCreatedResponse({ type: KycInfo })
-  async updateKycData(@GetJwt() jwt: JwtPayload, @Body() data: KycUserDataDto): Promise<KycInfo> {
+  async updateKycData(@GetJwt() jwt: JwtPayload, @Body() data: KycDataDto): Promise<KycInfo> {
     return this.kycService.updateKycData('', data, jwt.id);
-  }
-
-  @Put(':code/data')
-  @ApiOkResponse({ type: KycInfo })
-  async updateKycDataByCode(@Param('code') code: string, @Body() data: KycUserDataDto): Promise<KycInfo> {
-    return this.kycService.updateKycData(code, data);
   }
 
   @Delete()

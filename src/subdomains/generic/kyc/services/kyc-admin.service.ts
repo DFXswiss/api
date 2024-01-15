@@ -33,6 +33,7 @@ export class KycAdminService {
     const kycStep = await this.kycStepRepo.findOne({
       where: [{ id: dto.kycStepId }, { userData: { id: dto.userDataId } }],
       relations: { userData: true },
+      order: { updated: 'DESC' },
     });
     if (!kycStep) throw new NotFoundException('No kycSteps found');
 

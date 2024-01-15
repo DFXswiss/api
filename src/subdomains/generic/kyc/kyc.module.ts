@@ -20,6 +20,7 @@ import { DocumentStorageService } from './services/integration/document-storage.
 import { FinancialService } from './services/integration/financial.service';
 import { IdentService } from './services/integration/ident.service';
 import { KycAdminService } from './services/kyc-admin.service';
+import { KycClientService } from './services/kyc-client.service';
 import { KycNotificationService } from './services/kyc-notification.service';
 import { KycService } from './services/kyc.service';
 import { NameCheckService } from './services/name-check.service';
@@ -48,6 +49,7 @@ import { TfaService } from './services/tfa.service';
     KycLogRepository,
     KycStepRepository,
     KycNotificationService,
+    KycClientService,
   ],
   exports: [DocumentStorageService, NameCheckService, KycAdminService, KycNotificationService],
 })

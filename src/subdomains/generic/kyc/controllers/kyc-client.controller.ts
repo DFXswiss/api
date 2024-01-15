@@ -6,28 +6,28 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { KycDataDto, KycFileDto, KycReportType } from '../dto/kyc-file.dto';
-import { KycService } from '../services/kyc.service';
+import { KycDataDto, KycReportDto, KycReportType } from '../dto/kyc-file.dto';
+import { KycClientService } from '../services/kyc-client.service';
 
 @ApiTags('KYC Client')
 @Controller({ path: 'kyc/client', version: [GetConfig().kycVersion] })
 export class KycClientController {
-  constructor(private readonly kycService: KycService) {}
+  constructor(private readonly kycClientService: KycClientService) {}
 
   @Get('users')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
   @ApiOkResponse({ type: KycDataDto, isArray: true })
   async getAllKycData(@GetJwt() jwt: JwtPayload): Promise<KycDataDto[]> {
-    return this.kycService.getAllKycData(jwt.id);
+    return this.kycClientService.getAllKycData(jwt.id);
   }
 
   @Get('users/:id/documents')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
-  @ApiOkResponse({ type: KycFileDto, isArray: true })
-  async getKycFiles(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<KycFileDto[]> {
-    return this.kycService.getKycFiles(id, jwt.id);
+  @ApiOkResponse({ type: KycReportDto, isArray: true })
+  async getKycFiles(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<KycReportDto[]> {
+    return this.kycClientService.getKycFiles(id, jwt.id);
   }
 
   @Get('users/:id/documents/:type')
@@ -39,6 +39,6 @@ export class KycClientController {
     @Param('id') id: string,
     @Param('type') type: KycReportType,
   ): Promise<Buffer> {
-    return this.kycService.getKycFile(id, jwt.id, type);
+    return this.kycClientService.getKycFile(id, jwt.id, type);
   }
 }

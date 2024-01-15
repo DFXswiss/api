@@ -22,8 +22,6 @@ export enum KycContentType {
 
 export enum KycReportType {
   IDENTIFICATION = 'Identification',
-  FINANCIAL_DATA = 'FinancialData',
-  INCORPORATION_CERTIFICATE = 'IncorporationCertificate',
 }
 
 export interface KycFile {
@@ -36,7 +34,7 @@ export interface KycFile {
   metadata: Record<string, string>;
 }
 
-export class KycFileDto {
+export class KycReportDto {
   @ApiProperty({ enum: KycReportType })
   type: KycReportType;
 

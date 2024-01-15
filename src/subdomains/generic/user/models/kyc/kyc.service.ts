@@ -17,6 +17,7 @@ import {
   Blank,
   BlankType,
   KycCompleted,
+  KycState,
   KycStatus,
   UserData,
 } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -126,6 +127,7 @@ export class KycService {
   private createKycInfoBasedOn(userData: UserData): KycInfo {
     return {
       kycStatus: userData.kycStatus,
+      kycState: KycState.NA,
       kycHash: userData.kycHash,
       kycDataComplete: userData.isDataComplete,
       accountType: userData.accountType,

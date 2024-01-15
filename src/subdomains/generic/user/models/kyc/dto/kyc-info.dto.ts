@@ -1,12 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { LanguageDto } from 'src/shared/models/language/dto/language.dto';
 import { AccountType } from '../../user-data/account-type.enum';
-import { KycStatus } from '../../user-data/user-data.entity';
+import { KycState, KycStatus } from '../../user-data/user-data.entity';
 import { TradingLimit } from '../../user/dto/user.dto';
 
 export class KycInfo {
   @ApiProperty({ enum: KycStatus, deprecated: true })
   kycStatus: KycStatus;
+
+  @ApiProperty({ enum: KycState, deprecated: true })
+  kycState: KycState;
 
   @ApiProperty({ deprecated: true })
   kycHash: string;

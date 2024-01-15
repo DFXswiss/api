@@ -23,7 +23,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
-import { KycStatus, KycType, UserDataStatus } from '../user-data/user-data.entity';
+import { KycState, KycStatus, KycType, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { Wallet } from '../wallet/wallet.entity';
 import { WalletService } from '../wallet/wallet.service';
@@ -426,7 +426,7 @@ export class UserService {
       language: user.userData?.language,
       currency: user.userData?.currency,
       kycStatus: user.userData?.kycStatus,
-      kycState: null,
+      kycState: KycState.NA,
       kycLevel: user.userData?.kycLevel,
       kycHash: user.userData?.kycHash,
       tradingLimit: user.userData?.tradingLimit,
