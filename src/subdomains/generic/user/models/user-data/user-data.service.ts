@@ -291,6 +291,11 @@ export class UserDataService {
       userData.currency = await this.fiatService.getFiat(dto.currency.id);
       if (!userData.currency) throw new BadRequestException('Currency not found');
     }
+
+    if (dto.accountOpener) {
+      userData.accountOpener = await this.userDataRepo.findOneBy({ id: dto.accountOpener.id });
+      if (!userData.accountOpener) throw new BadRequestException('AccountOpener not found');
+    }
   }
 
   async save(userData: UserData): Promise<UserData> {
