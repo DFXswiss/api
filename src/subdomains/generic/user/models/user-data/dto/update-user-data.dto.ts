@@ -212,17 +212,17 @@ export class UpdateUserDataDto {
 
   @IsOptional()
   @IsString()
-  accountOpenerAuthorization: string;
+  accountOpenerAuthorization?: string;
 
   @IsOptional()
   @IsString()
-  allBeneficialOwnersDomicile: string;
+  allBeneficialOwnersDomicile?: string;
 
   @IsOptional()
   @IsString()
-  allBeneficialOwnersName: string;
+  allBeneficialOwnersName?: string;
 
   @IsOptional()
   @IsNumber()
-  totalVolumeChfAuditPeriod: number;
+  totalVolumeChfAuditPeriod?: number;
 }
