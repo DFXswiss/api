@@ -63,7 +63,7 @@ export class Configuration {
   defichainAddressFormat =
     this.environment === Environment.PRD ? '8\\w{33}|d\\w{33}|d\\w{41}' : '[78]\\w{33}|[td]\\w{33}|[td]\\w{41}';
 
-  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}`;
+  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}`;
 
   masterKeySignatureFormat = '[0-9a-fA-F]{8}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{12}';
   bitcoinSignatureFormat = '.{87}=';
@@ -73,7 +73,7 @@ export class Configuration {
   ethereumSignatureFormat = '(0x)?[a-f0-9]{130}';
   cardanoSignatureFormat = '[a-f0-9]{582}';
 
-  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.liquidAddressFormat}|${this.cardanoSignatureFormat}`;
+  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.cardanoSignatureFormat}`;
 
   formats = {
     address: new RegExp(`^(${this.allAddressFormat})$`),
