@@ -300,11 +300,6 @@ export class UserDataService {
       if (!userData.verifiedCountry) throw new BadRequestException('VerifiedCountry not found');
     }
 
-    if (dto.mainBankDataId) {
-      userData.mainBankData = await this.bankDataRepo.findOneBy({ id: dto.mainBankDataId });
-      if (!userData.mainBankData) throw new BadRequestException('Bank data not found');
-    }
-
     if (dto.language) {
       userData.language = await this.languageService.getLanguage(dto.language.id);
       if (!userData.language) throw new BadRequestException('Language not found');
