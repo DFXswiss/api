@@ -31,6 +31,7 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.ARBITRUM]: 'https://arbiscan.io',
   [Blockchain.POLYGON]: 'https://polygonscan.com',
   [Blockchain.BASE]: 'https://basescan.org',
+  [Blockchain.LIQUID]: 'https://blockstream.info/liquid',
   [Blockchain.CARDANO]: 'https://cardanoscan.io',
 };
 
@@ -45,6 +46,7 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.ARBITRUM]: 'tx',
   [Blockchain.POLYGON]: 'tx',
   [Blockchain.BASE]: 'tx',
+  [Blockchain.LIQUID]: 'tx',
   [Blockchain.CARDANO]: 'transaction',
 };
 
