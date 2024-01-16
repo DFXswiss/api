@@ -9,11 +9,12 @@ import {
   AssetTransfersCategory,
   AssetTransfersWithMetadataResponse,
   AssetTransfersWithMetadataResult,
-  OwnedToken,
+  TokenBalance,
 } from 'alchemy-sdk';
 import { Observable, Subject, filter, map } from 'rxjs';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AlchemyNetworkMapper } from '../alchemy-network-mapper';
 import { AlchemyAssetTransfersDto } from '../dto/alchemy-asset-transfers.dto';
 import { AlchemySyncTransactionsDto } from '../dto/alchemy-sync-transactions.dto';
@@ -63,22 +64,14 @@ export class AlchemyService {
     return alchemy.core.getBalance(address, 'latest');
   }
 
-  async getTokenBalances(chainId: ChainId, address: string): Promise<OwnedToken[]> {
+  async getTokenBalances(chainId: ChainId, address: string, assets: Asset[]): Promise<TokenBalance[]> {
     const alchemy = this.getAlchemy(chainId);
 
-    let tokensForOwnerResponse = await alchemy.core.getTokensForOwner(address);
-    let pageKey = tokensForOwnerResponse.pageKey;
+    const contractAddresses = assets.filter((a) => a.chainId !== null).map((a) => a.chainId);
 
-    const ownedTokens = tokensForOwnerResponse.tokens;
+    const tokenBalancesResponse = await alchemy.core.getTokenBalances(address, contractAddresses);
 
-    while (pageKey) {
-      tokensForOwnerResponse = await alchemy.core.getTokensForOwner(address, { pageKey: pageKey });
-      pageKey = tokensForOwnerResponse.pageKey;
-
-      ownedTokens.push(...tokensForOwnerResponse.tokens);
-    }
-
-    return ownedTokens;
+    return tokenBalancesResponse.tokenBalances;
   }
 
   async getAssetTransfers(chainId: ChainId, params: AssetTransfersParams): Promise<AssetTransfersWithMetadataResult[]> {
