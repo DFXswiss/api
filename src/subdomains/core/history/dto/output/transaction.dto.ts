@@ -34,6 +34,12 @@ export class TransactionDto {
   @ApiPropertyOptional({ enum: Blockchain })
   inputBlockchain?: Blockchain;
 
+  @ApiPropertyOptional({ description: 'Exchange rate in input/output' })
+  exchangeRate?: number;
+
+  @ApiPropertyOptional({ description: 'Final rate (incl. fees) in input/output' })
+  rate?: number;
+
   @ApiPropertyOptional()
   outputAmount?: number;
 

@@ -123,7 +123,8 @@ export class WebhookService {
     return {
       ...TransactionDtoMapper.mapBuyFiatTransaction(payment),
       dfxReference: payment.id,
-      paymentReference: payment.sell.deposit.address,
+      sourceAccount: null,
+      targetAccount: payment.bankTx?.iban,
     };
   }
 
@@ -131,8 +132,8 @@ export class WebhookService {
     return {
       ...TransactionDtoMapper.mapBuyFiatTransaction(payment),
       dfxReference: payment.id,
-      //TODO add PaymentReference for FiatFiat
-      paymentReference: null,
+      sourceAccount: null,
+      targetAccount: payment.bankTx?.iban,
     };
   }
 
@@ -140,7 +141,8 @@ export class WebhookService {
     return {
       ...TransactionDtoMapper.mapBuyCryptoTransaction(payment),
       dfxReference: payment.id,
-      paymentReference: payment.cryptoRoute?.deposit.address,
+      sourceAccount: null,
+      targetAccount: payment.user?.address,
     };
   }
 
@@ -148,7 +150,8 @@ export class WebhookService {
     return {
       ...TransactionDtoMapper.mapBuyCryptoTransaction(payment),
       dfxReference: payment.id,
-      paymentReference: payment.buy.bankUsage,
+      sourceAccount: payment.bankTx?.iban,
+      targetAccount: payment.user?.address,
     };
   }
 
