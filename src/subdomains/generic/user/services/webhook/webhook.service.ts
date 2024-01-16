@@ -49,6 +49,23 @@ export class WebhookService {
 
   // --- HELPER METHODS --- //
 
+  public getKycWebhookData(userData: UserData): KycWebhookData {
+    return {
+      mail: userData.mail,
+      firstName: userData.firstname,
+      lastName: userData.surname,
+      street: userData.street,
+      houseNumber: userData.houseNumber,
+      city: userData.location,
+      zip: userData.zip,
+      phone: userData.phone,
+      kycStatus: this.getKycWebhookStatus(userData.kycStatus, userData.kycType),
+      kycLevel: userData.kycLevel,
+      kycHash: userData.kycHash,
+      tradingLimit: userData.tradingLimit,
+    };
+  }
+
   private async triggerUserDataWebhook<T extends PaymentWebhookData | KycWebhookData>(
     userData: UserData,
     data: T,
@@ -100,23 +117,6 @@ export class WebhookService {
         },
       });
     }
-  }
-
-  private getKycWebhookData(userData: UserData): KycWebhookData {
-    return {
-      mail: userData.mail,
-      firstName: userData.firstname,
-      lastName: userData.surname,
-      street: userData.street,
-      houseNumber: userData.houseNumber,
-      city: userData.location,
-      zip: userData.zip,
-      phone: userData.phone,
-      kycStatus: this.getKycWebhookStatus(userData.kycStatus, userData.kycType),
-      kycLevel: userData.kycLevel,
-      kycHash: userData.kycHash,
-      tradingLimit: userData.tradingLimit,
-    };
   }
 
   private getCryptoFiatData(payment: BuyFiat): PaymentWebhookData {

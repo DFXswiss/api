@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { KycLevel } from '../../user/models/user-data/user-data.entity';
+import { KycWebhookData } from '../../user/services/webhook/dto/kyc-webhook.dto';
 
 export enum KycFileType {
   NAME_CHECK = 'NameCheck',
@@ -42,13 +42,7 @@ export class KycReportDto {
   contentType: string;
 }
 
-export class KycDataDto {
+export class KycDataDto extends KycWebhookData {
   @ApiProperty()
   id: string;
-
-  @ApiProperty()
-  kycLevel: KycLevel;
-
-  @ApiProperty()
-  kycHash: string;
 }
