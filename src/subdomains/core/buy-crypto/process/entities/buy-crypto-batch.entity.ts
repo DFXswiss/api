@@ -262,6 +262,6 @@ export class BuyCryptoBatch extends IEntity {
   }
 
   private sortTransactionsAsc(): BuyCrypto[] {
-    return this.transactions.sort((a, b) => a.outputReferenceAmount - b.outputReferenceAmount);
+    return Util.sort(this.transactions, 'outputReferenceAmount');
   }
 }

@@ -65,6 +65,7 @@ describe('CryptoService', () => {
       Blockchain.ARBITRUM,
       Blockchain.OPTIMISM,
       Blockchain.POLYGON,
+      Blockchain.BASE,
     ]);
   });
 
@@ -102,5 +103,17 @@ describe('CryptoService', () => {
         '88q8rtLE9zsPjdvoY4WmBFJ9WXj3zghijeeDbihZAFg8EDPdJPhYj5Q9w9K1k5ghSQgyALKHrQiNUYdG2An8PSFnBwFpvC1',
       ),
     ).toEqual([Blockchain.MONERO]);
+  });
+
+  it('should return Blockchain.LIQUID for address VTpzTic2n6uzefaDsrwtUJJYEXTdw1Q9hTk5G9XGFRM9WUhbAbjwgbZ3pr71QnuAmTFSfzPEzF7CWuBy', () => {
+    expect(
+      service.getBlockchainsBasedOn('VTpzTic2n6uzefaDsrwtUJJYEXTdw1Q9hTk5G9XGFRM9WUhbAbjwgbZ3pr71QnuAmTFSfzPEzF7CWuBy'),
+    ).toEqual([Blockchain.LIQUID]);
+  });
+
+  it('should return Blockchain.LIQUID for address VJL8r24A8tovW2f1hmFsHNXPTqBU1rp77hFp7wwj6pkkEboKYUb1qqsf2ZT8P5MCsiZTsnS7Eh4y6Z67', () => {
+    expect(
+      service.getBlockchainsBasedOn('VJL8r24A8tovW2f1hmFsHNXPTqBU1rp77hFp7wwj6pkkEboKYUb1qqsf2ZT8P5MCsiZTsnS7Eh4y6Z67'),
+    ).toEqual([Blockchain.LIQUID]);
   });
 });

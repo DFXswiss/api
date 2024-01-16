@@ -62,6 +62,18 @@ export class AssetService {
     await this.assetRepo.update(assetId, { approxPriceUsd: usdPrice });
   }
 
+  async getAssetsUsedOn(exchange: string): Promise<string[]> {
+    return this.assetRepo
+      .createQueryBuilder('asset')
+      .select('DISTINCT asset.name', 'name')
+      .innerJoin('asset.liquidityManagementRule', 'lmRule')
+      .innerJoin('lmRule.deficitStartAction', 'deficitAction')
+      .where('asset.buyable = 1')
+      .andWhere('deficitAction.system = :exchange', { exchange })
+      .getRawMany<{ name: string }>()
+      .then((l) => l.map((a) => a.name));
+  }
+
   //*** UTILITY METHODS ***//
 
   getByQuerySync(assets: Asset[], { dexName, blockchain, type }: AssetQuery): Asset | undefined {

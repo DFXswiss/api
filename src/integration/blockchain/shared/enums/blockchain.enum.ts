@@ -7,6 +7,8 @@ export enum Blockchain {
   OPTIMISM = 'Optimism',
   ARBITRUM = 'Arbitrum',
   POLYGON = 'Polygon',
+  BASE = 'Base',
+  LIQUID = 'Liquid',
   CARDANO = 'Cardano',
   DEFICHAIN = 'DeFiChain',
 }
