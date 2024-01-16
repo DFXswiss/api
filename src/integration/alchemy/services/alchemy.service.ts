@@ -67,7 +67,7 @@ export class AlchemyService {
   async getTokenBalances(chainId: ChainId, address: string, assets: Asset[]): Promise<TokenBalance[]> {
     const alchemy = this.getAlchemy(chainId);
 
-    const contractAddresses = assets.filter((a) => a.chainId !== null).map((a) => a.chainId);
+    const contractAddresses = assets.filter((a) => a.chainId != null).map((a) => a.chainId);
 
     const tokenBalancesResponse = await alchemy.core.getTokenBalances(address, contractAddresses);
 

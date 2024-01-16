@@ -250,7 +250,7 @@ export abstract class EvmClient {
 
   fromWeiAmount(amountWeiLike: BigNumberish, decimals?: number): number {
     const amount =
-      decimals !== null ? ethers.utils.formatUnits(amountWeiLike, decimals) : ethers.utils.formatEther(amountWeiLike);
+      decimals != null ? ethers.utils.formatUnits(amountWeiLike, decimals) : ethers.utils.formatEther(amountWeiLike);
 
     return parseFloat(amount);
   }
