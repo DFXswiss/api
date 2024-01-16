@@ -31,6 +31,7 @@ const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.OPTIMISM]: undefined,
   [Blockchain.POLYGON]: undefined,
   [Blockchain.BASE]: undefined,
+  [Blockchain.LIQUID]: undefined,
 };
 
 @Injectable()

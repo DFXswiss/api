@@ -67,6 +67,7 @@
     "handlebars": "^4.7.7",
     "helmet": "^6.0.1",
     "ibantools": "^4.2.2",
+    "liquidjs-lib": "^6.0.2-liquid.32",
     "lnurl": "^0.24.2",
     "lodash": "^4.17.21",
     "morgan": "^1.10.0",

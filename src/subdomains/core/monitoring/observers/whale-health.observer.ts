@@ -4,6 +4,7 @@ import { WhaleService } from 'src/integration/blockchain/ain/whale/whale.service
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
+import { Util } from 'src/shared/utils/util';
 import { MetricObserver } from '../metric.observer';
 import { MonitoringService } from '../monitoring.service';
 
@@ -52,7 +53,7 @@ export class WhaleHealthObserver extends MetricObserver<WhalesState> {
 
   private handleErrors(state: WhalesState): WhalesState {
     // check, if swap required
-    const preferredWhale = state.sort((a, b) => a.index - b.index).find((n) => !n.isDown);
+    const preferredWhale = Util.sort(state, 'index').find((n) => !n.isDown);
 
     if (!preferredWhale) {
       // all available whales down

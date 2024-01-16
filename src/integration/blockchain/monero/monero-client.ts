@@ -235,7 +235,7 @@ export class MoneroClient {
   }
 
   private sortTransfers(transfers: MoneroTransferDto[]): MoneroTransferDto[] {
-    return transfers.sort((t1, t2) => t2.timestamp - t1.timestamp);
+    return Util.sort(transfers, 'timestamp', 'DESC');
   }
 
   private convertTransferAuToXmr(transfer: MoneroTransferDto): MoneroTransferDto {
