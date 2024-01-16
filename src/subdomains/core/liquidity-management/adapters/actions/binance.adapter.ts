@@ -20,6 +20,7 @@ export class BinanceAdapter extends CcxtExchangeAdapter {
     Optimism: 'OPTIMISM',
     Polygon: 'MATIC',
     Base: undefined,
+    Liquid: undefined,
   };
 
   constructor(
