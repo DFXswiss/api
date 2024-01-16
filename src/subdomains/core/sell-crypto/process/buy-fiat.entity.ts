@@ -298,7 +298,7 @@ export class BuyFiat extends IEntity {
   }
 
   get exchangeRateString(): string {
-    return `${Util.round(this.exchangeRate.exchangeRate, 2)} ${this.outputAsset}/${this.inputAsset}`;
+    return `${Util.round(1 / this.exchangeRate.exchangeRate, 2)} ${this.outputAsset}/${this.inputAsset}`;
   }
 
   get percentFeeString(): string {
