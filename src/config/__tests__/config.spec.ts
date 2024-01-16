@@ -36,6 +36,22 @@ describe('Config', () => {
     // Ethereum
     expect(addrExp.test('0x000341705b2bED92e0D6938Cc206fB0CD7F57d74')).toEqual(true);
 
+    // Monero
+    expect(
+      addrExp.test('43W78fdGV2ncSmu8EbSUTZU53huYiS5HoVDVvxaRrUpz3syHrBfsAQPGbMnhtY19xk6dXJSMoPt9wZCksK98ncq7NUSFTBU'),
+    ).toEqual(true);
+    expect(
+      addrExp.test('88q8rtLE9zsPjdvoY4WmBFJ9WXj3zghijeeDbihZAFg8EDPdJPhYj5Q9w9K1k5ghSQgyALKHrQiNUYdG2An8PSFnBwFpvC1'),
+    ).toEqual(true);
+
+    // Liquid
+    expect(addrExp.test('VTpwKsrwasw7VnNf4GHMmcjNY3MR2Q81GaxDv7EyhVS8rzj5exX5b5PF6g29Szb4jrMqKSUwP2ZGnXt4')).toEqual(
+      true,
+    );
+    expect(addrExp.test('VJL8GbXwhTdzGtNEqRTLGvd3ELddCstc3kwCHgymUEkBDgB1goXxa2nPeyzyTuSRXu5ic3miVt4JGdfQ')).toEqual(
+      true,
+    );
+
     // Defichain
     expect(addrExp.test('8a2jKb8p6FWix6Q7prhWaCA8ghoTBttEBk')).toEqual(true);
     expect(addrExp.test('dak7adNN4FtfT4wADqZFPmPEDCfUfhaqD3')).toEqual(true);
