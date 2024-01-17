@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { User } from '../../user/models/user/user.entity';
 import { UserService } from '../../user/models/user/user.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
-import { WebhookService } from '../../user/services/webhook/webhook.service';
+import { WebhookDataMapper } from '../../user/services/webhook/mapper/webhook-data.mapper';
 import { KycContentType, KycDataDto, KycFile, KycFileType, KycReportDto, KycReportType } from '../dto/kyc-file.dto';
 import { DocumentStorageService } from './integration/document-storage.service';
 
@@ -12,7 +12,6 @@ export class KycClientService {
     private readonly storageService: DocumentStorageService,
     private readonly userService: UserService,
     private readonly walletService: WalletService,
-    private readonly webhookService: WebhookService,
   ) {}
 
   async getAllKycData(walletId: number): Promise<KycDataDto[]> {
@@ -60,7 +59,7 @@ export class KycClientService {
   private toKycDataDto(user: User): KycDataDto {
     return {
       id: user.address,
-      ...this.webhookService.getKycWebhookData(user.userData),
+      ...WebhookDataMapper.mapKycData(user.userData),
     };
   }
 

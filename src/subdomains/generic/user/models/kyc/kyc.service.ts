@@ -21,7 +21,7 @@ import {
   KycStatus,
   UserData,
 } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { WebhookService } from '../../services/webhook/webhook.service';
+import { getKycWebhookStatus } from '../../services/webhook/mapper/webhook-data.mapper';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { UserDataService } from '../user-data/user-data.service';
 import { User } from '../user/user.entity';
@@ -44,7 +44,6 @@ export class KycService {
     private readonly walletRepo: WalletRepository,
     private readonly countryService: CountryService,
     private readonly http: HttpService,
-    private readonly webhookService: WebhookService,
     private readonly storageService: DocumentStorageService,
   ) {}
 
@@ -205,7 +204,7 @@ export class KycService {
   private toKycDataDto(user: User): KycDataDto {
     return {
       id: user.address,
-      kycStatus: this.webhookService.getKycWebhookStatus(user.userData.kycStatus, user.userData.kycType),
+      kycStatus: getKycWebhookStatus(user.userData.kycStatus, user.userData.kycType),
       kycHash: user.userData.kycHash,
     };
   }
