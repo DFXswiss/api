@@ -16,7 +16,6 @@ interface UserData {
 interface UserWithout {
   ipCountry: number;
   riskState: number;
-  pdfUrl: number;
 }
 
 @Injectable()
@@ -56,7 +55,6 @@ export class UserObserver extends MetricObserver<UserData> {
         .where('user.status != :status', { status: UserStatus.NA })
         .andWhere('userData.riskState is NULL')
         .getCount(),
-      pdfUrl: null, //TODO
     };
   }
 }

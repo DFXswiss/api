@@ -8,11 +8,11 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
+import { KycDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { AuthService } from '../auth/auth.service';
 import { AuthResponseDto } from '../auth/dto/auth-response.dto';
 import { KycInfo } from '../kyc/dto/kyc-info.dto';
-import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { KycService } from '../kyc/kyc.service';
 import { ApiKeyDto } from './dto/api-key.dto';
 import { LinkedUserInDto } from './dto/linked-user.dto';
@@ -23,7 +23,6 @@ import { UserDetailDto, UserDto } from './dto/user.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
 import { User } from './user.entity';
 import { UserService } from './user.service';
-import { KycDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 
 @ApiTags('User')
 @Controller('user')
