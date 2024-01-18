@@ -37,6 +37,8 @@ export class KycInfoMapper {
 
   // --- HELPER METHODS --- //
   private static getUiSteps(userData: UserData): KycStep[] {
+    if (userData.isKycTerminated) return [];
+
     // add open steps
     const openSteps: KycStep[] = requiredKycSteps().map((s) =>
       Object.assign(new KycStep(), {

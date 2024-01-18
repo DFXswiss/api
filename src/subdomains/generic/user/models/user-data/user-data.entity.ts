@@ -394,7 +394,7 @@ export class UserData extends IEntity {
   get tradingLimit(): TradingLimit {
     if (KycCompleted(this.kycStatus)) {
       return { limit: this.depositLimit, period: LimitPeriod.YEAR };
-    } else if (this.kycStatus === KycStatus.REJECTED) {
+    } else if (this.isKycTerminated) {
       return { limit: 0, period: LimitPeriod.DAY };
     } else {
       return { limit: Config.defaultDailyTradingLimit, period: LimitPeriod.DAY };
@@ -405,6 +405,13 @@ export class UserData extends IEntity {
     return this.tradingLimit.period === LimitPeriod.YEAR
       ? this.tradingLimit.limit - this.annualBuyVolume - this.annualSellVolume - this.annualCryptoVolume
       : this.tradingLimit.limit;
+  }
+
+  get isKycTerminated(): boolean {
+    return (
+      [KycStatus.REJECTED, KycStatus.TERMINATED].includes(this.kycStatus) ||
+      [KycLevel.REJECTED, KycLevel.TERMINATED].includes(this.kycLevel)
+    );
   }
 
   // --- KYC PROCESS --- //
