@@ -17,8 +17,9 @@ import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
+import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
-import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
@@ -154,6 +155,13 @@ export class UserDataService {
 
     if (dto.kycLevel && dto.kycLevel !== userData.kycLevel)
       await this.kycNotificationService.kycChanged(userData, dto.kycLevel);
+
+    if (dto.bankTransactionVerification === CheckStatus.PASS) {
+      // cancel a pending video ident, if ident is completed
+      const identCompleted = userData.hasCompletedStep(KycStepName.IDENT);
+      const pendingVideo = userData.getPendingStepWith(KycStepName.IDENT, KycStepType.VIDEO);
+      if (identCompleted && pendingVideo) userData.cancelStep(pendingVideo);
+    }
 
     // Columns are not updatable
     if (userData.letterSentDate) dto.letterSentDate = userData.letterSentDate;

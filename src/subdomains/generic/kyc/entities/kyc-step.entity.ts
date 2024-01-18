@@ -130,11 +130,17 @@ export class KycStep extends IEntity {
     return this.setResult(result);
   }
 
-  cancel(result?: KycStepResult): this {
+  pause(result?: KycStepResult): this {
     this.status = KycStepStatus.IN_PROGRESS;
     this.reminderSentDate = null;
 
     return this.setResult(result);
+  }
+
+  cancel(): this {
+    this.status = KycStepStatus.CANCELED;
+
+    return this;
   }
 
   finish(): this {
