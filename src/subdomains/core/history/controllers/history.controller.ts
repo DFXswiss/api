@@ -89,7 +89,10 @@ export class HistoryController {
   @ApiExcludeEndpoint()
   @ApiCreatedResponse()
   async createCsv(@GetJwt() jwt: JwtPayload, @Query() query: HistoryQueryExportType): Promise<number> {
-    const csvFile = await this.historyService.getCsvHistory({ ...query, userAddress: jwt.address }, query.type);
+    const csvFile = await this.historyService.getCsvHistory(
+      { ...query, userAddress: jwt.address, format: ExportFormat.CSV },
+      query.type,
+    );
     const fileKey = Util.randomId();
     this.files[fileKey] = csvFile;
 
