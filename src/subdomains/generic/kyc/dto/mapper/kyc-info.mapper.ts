@@ -48,7 +48,9 @@ export class KycInfoMapper {
       }),
     );
 
-    return KycInfoMapper.sortSteps(userData.kycSteps.concat(openSteps));
+    return KycInfoMapper.sortSteps(
+      userData.kycSteps.filter((s) => s.status !== KycStepStatus.CANCELED).concat(openSteps),
+    );
   }
 
   private static sortSteps(steps: KycStep[]): KycStep[] {

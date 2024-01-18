@@ -195,7 +195,7 @@ export class KycService {
 
     switch (getIdentResult(dto)) {
       case IdentShortResult.CANCEL:
-        user = user.cancelStep(kycStep, dto);
+        user = user.pauseStep(kycStep, dto);
         break;
 
       case IdentShortResult.REVIEW:
@@ -314,9 +314,7 @@ export class KycService {
     nextStep: { name: KycStepName; type?: KycStepType; preventDirectEvaluation?: boolean } | undefined;
     nextLevel?: KycLevel;
   }> {
-    const missingSteps = requiredKycSteps().filter(
-      (rs) => !user.getStepsWith(rs).some((us) => us.name === rs && us.isDone),
-    );
+    const missingSteps = requiredKycSteps().filter((rs) => !user.hasDoneStep(rs));
 
     const nextStep = missingSteps[0];
 
@@ -370,6 +368,10 @@ export class KycService {
   ): Promise<KycStep> {
     const nextSequenceNumber = user.getNextSequenceNumber(stepName, stepType);
     const kycStep = KycStep.create(user, stepName, nextSequenceNumber, stepType);
+
+    // cancel a pending step with same type
+    const pendingStep = user.getPendingStepWith(stepName);
+    if (pendingStep) user.cancelStep(pendingStep);
 
     switch (stepName) {
       case KycStepName.CONTACT_DATA:

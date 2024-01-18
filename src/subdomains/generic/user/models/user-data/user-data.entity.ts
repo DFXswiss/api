@@ -439,8 +439,15 @@ export class UserData extends IEntity {
     return this;
   }
 
-  cancelStep(kycStep: KycStep, result?: KycStepResult): this {
-    kycStep.cancel(result);
+  pauseStep(kycStep: KycStep, result?: KycStepResult): this {
+    kycStep.pause(result);
+    this.logger.verbose(`User ${this.id} pauses step ${kycStep.name} (${kycStep.id})`);
+
+    return this;
+  }
+
+  cancelStep(kycStep: KycStep): this {
+    kycStep.cancel();
     this.logger.verbose(`User ${this.id} cancels step ${kycStep.name} (${kycStep.id})`);
 
     return this;
@@ -518,6 +525,14 @@ export class UserData extends IEntity {
 
   getNextSequenceNumber(stepName: KycStepName, stepType?: KycStepType): number {
     return Math.max(...this.getStepsWith(stepName, stepType).map((s) => s.sequenceNumber + 1), 0);
+  }
+
+  hasCompletedStep(stepName: KycStepName): boolean {
+    return this.getStepsWith(stepName).some((s) => s.isCompleted);
+  }
+
+  hasDoneStep(stepName: KycStepName): boolean {
+    return this.getStepsWith(stepName).some((s) => s.isDone);
   }
 
   get isDataComplete(): boolean {
