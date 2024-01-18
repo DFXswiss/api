@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Country } from 'src/shared/models/country/country.entity';
@@ -90,6 +90,9 @@ export class KycService {
 
   private async tryContinue(kycHash: string, ip: string, autoStep: boolean): Promise<KycSessionDto> {
     let user = await this.getUser(kycHash);
+
+    const isKnownUser = await this.userDataService.isKnownKycUser(user);
+    if (isKnownUser) throw new ConflictException('Account already exists');
 
     user = await this.updateProgress(user, true, autoStep);
 

@@ -57,14 +57,15 @@ export class KycController {
 
   @Get()
   @ApiOkResponse({ type: KycStatusDto })
-  @ApiConflictResponse(MergedResponse)
+  @ApiUnauthorizedResponse(MergedResponse)
   async getKycStatus(@Headers(CodeHeaderName) code: string): Promise<KycStatusDto> {
     return this.kycService.getInfo(code);
   }
 
   @Put()
   @ApiOkResponse({ type: KycSessionDto })
-  @ApiConflictResponse(MergedResponse)
+  @ApiUnauthorizedResponse(MergedResponse)
+  @ApiConflictResponse({ description: 'There is already a verified account with the same mail address.' })
   async continueKyc(
     @Headers(CodeHeaderName) code: string,
     @RealIP() ip: string,
@@ -75,7 +76,7 @@ export class KycController {
 
   @Get('countries')
   @ApiOkResponse({ type: CountryDto, isArray: true })
-  @ApiConflictResponse(MergedResponse)
+  @ApiUnauthorizedResponse(MergedResponse)
   async getKycCountries(@Headers(CodeHeaderName) code: string): Promise<CountryDto[]> {
     return this.kycService.getCountries(code).then(CountryDtoMapper.entitiesToDto);
   }
@@ -95,7 +96,7 @@ export class KycController {
   // --- UPDATE ENDPOINTS --- //
   @Put('data/contact/:id')
   @ApiOkResponse({ type: KycResultDto })
-  @ApiConflictResponse(MergedResponse)
+  @ApiUnauthorizedResponse(MergedResponse)
   async updateContactData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
@@ -106,7 +107,7 @@ export class KycController {
 
   @Put('data/personal/:id')
   @ApiOkResponse({ type: KycResultDto })
-  @ApiConflictResponse(MergedResponse)
+  @ApiUnauthorizedResponse(MergedResponse)
   async updatePersonalData(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
@@ -117,7 +118,7 @@ export class KycController {
 
   @Get('data/financial/:id')
   @ApiOkResponse({ type: KycFinancialOutData })
-  @ApiConflictResponse(MergedResponse)
+  @ApiUnauthorizedResponse(MergedResponse)
   async getFinancialData(
     @Headers(CodeHeaderName) code: string,
     @RealIP() ip: string,
@@ -129,7 +130,7 @@ export class KycController {
 
   @Put('data/financial/:id')
   @ApiOkResponse({ type: KycResultDto })
-  @ApiConflictResponse(MergedResponse)
+  @ApiUnauthorizedResponse(MergedResponse)
   async updateFinancialData(
     @Headers(CodeHeaderName) code: string,
     @RealIP() ip: string,
@@ -161,7 +162,7 @@ export class KycController {
   @Put('document/:id')
   @UseInterceptors(FileInterceptor('file'))
   @ApiOkResponse({ type: KycResultDto })
-  @ApiConflictResponse(MergedResponse)
+  @ApiUnauthorizedResponse(MergedResponse)
   async uploadDocument(
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
@@ -173,21 +174,21 @@ export class KycController {
   // --- 2FA --- //
   @Post('2fa')
   @ApiCreatedResponse({ type: Setup2faDto })
-  @ApiConflictResponse(MergedResponse)
+  @ApiUnauthorizedResponse(MergedResponse)
   async createSecret(@Headers(CodeHeaderName) code: string): Promise<Setup2faDto> {
     return this.tfaService.setup(code);
   }
 
   @Delete('2fa')
   @ApiOkResponse()
-  @ApiConflictResponse(MergedResponse)
+  @ApiUnauthorizedResponse(MergedResponse)
   async deleteSecret(@Headers(CodeHeaderName) code: string, @RealIP() ip: string): Promise<void> {
     return this.tfaService.delete(code, ip);
   }
 
   @Post('2fa/verify')
   @ApiCreatedResponse({ description: '2FA successful' })
-  @ApiConflictResponse(MergedResponse)
+  @ApiUnauthorizedResponse(MergedResponse)
   @ApiUnauthorizedResponse({ description: 'Invalid or expired 2FA token' })
   async verifyToken(
     @Headers(CodeHeaderName) code: string,
