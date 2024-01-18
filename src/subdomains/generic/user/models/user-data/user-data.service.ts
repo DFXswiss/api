@@ -5,6 +5,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
@@ -78,12 +79,12 @@ export class UserDataService {
       user = await this.getMasterUser(user);
       if (user) {
         const payload: MergedDto = {
-          error: 'Conflict',
+          error: 'Unauthorized',
           message: 'User is merged',
-          statusCode: 409,
+          statusCode: 401,
           switchToCode: user.kycHash,
         };
-        throw new ConflictException(payload);
+        throw new UnauthorizedException(payload);
       } else {
         throw new BadRequestException('User is merged');
       }
