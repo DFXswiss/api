@@ -18,6 +18,7 @@ import {
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiExcludeEndpoint,
+  ApiForbiddenResponse,
   ApiOkResponse,
   ApiTags,
   ApiUnauthorizedResponse,
@@ -44,9 +45,10 @@ import { TfaService } from '../services/tfa.service';
 
 const CodeHeaderName = 'x-kyc-code';
 const MergedResponse = {
-  description: 'User is merged. Reload the user or switch to the KYC code provided in the response.',
+  description: 'User is merged, reload the user or switch to the KYC code provided in the response',
   type: MergedDto,
 };
+const TfaResponse = { description: '2FA is required' };
 
 @ApiTags('KYC')
 @Controller({ path: 'kyc', version: [GetConfig().kycVersion] })
@@ -65,7 +67,8 @@ export class KycController {
   @Put()
   @ApiOkResponse({ type: KycSessionDto })
   @ApiUnauthorizedResponse(MergedResponse)
-  @ApiConflictResponse({ description: 'There is already a verified account with the same mail address.' })
+  @ApiConflictResponse({ description: 'There is already a verified account with the same mail address' })
+  @ApiForbiddenResponse(TfaResponse)
   async continueKyc(
     @Headers(CodeHeaderName) code: string,
     @RealIP() ip: string,
@@ -119,6 +122,7 @@ export class KycController {
   @Get('data/financial/:id')
   @ApiOkResponse({ type: KycFinancialOutData })
   @ApiUnauthorizedResponse(MergedResponse)
+  @ApiForbiddenResponse(TfaResponse)
   async getFinancialData(
     @Headers(CodeHeaderName) code: string,
     @RealIP() ip: string,
@@ -131,6 +135,7 @@ export class KycController {
   @Put('data/financial/:id')
   @ApiOkResponse({ type: KycResultDto })
   @ApiUnauthorizedResponse(MergedResponse)
+  @ApiForbiddenResponse(TfaResponse)
   async updateFinancialData(
     @Headers(CodeHeaderName) code: string,
     @RealIP() ip: string,
@@ -189,7 +194,7 @@ export class KycController {
   @Post('2fa/verify')
   @ApiCreatedResponse({ description: '2FA successful' })
   @ApiUnauthorizedResponse(MergedResponse)
-  @ApiUnauthorizedResponse({ description: 'Invalid or expired 2FA token' })
+  @ApiForbiddenResponse({ description: 'Invalid or expired 2FA token' })
   async verifyToken(
     @Headers(CodeHeaderName) code: string,
     @RealIP() ip: string,
