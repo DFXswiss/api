@@ -91,8 +91,11 @@ export class KycService {
   private async tryContinue(kycHash: string, ip: string, autoStep: boolean): Promise<KycSessionDto> {
     let user = await this.getUser(kycHash);
 
-    const isKnownUser = await this.userDataService.isKnownKycUser(user);
-    if (isKnownUser) throw new ConflictException('Account already exists');
+    const verifyDuplicate = user.hasCompletedStep(KycStepName.CONTACT_DATA);
+    if (verifyDuplicate) {
+      const isKnownUser = await this.userDataService.isKnownKycUser(user);
+      if (isKnownUser) throw new ConflictException('Account already exists');
+    }
 
     user = await this.updateProgress(user, true, autoStep);
 

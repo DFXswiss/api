@@ -363,7 +363,7 @@ export class UserDataService {
   }
 
   async isKnownKycUser(user: UserData): Promise<boolean> {
-    if (user.isDfxUser) {
+    if (user.isDfxUser && user.mail) {
       const users = await this.getUsersByMail(user.mail);
       const matchingUser = users.find(
         (u) =>
