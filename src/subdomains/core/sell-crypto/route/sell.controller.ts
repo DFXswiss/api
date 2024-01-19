@@ -73,6 +73,7 @@ export class SellController {
     const { amount: sourceAmount, asset, currency, targetAmount } = await this.paymentInfoService.sellCheck(dto);
 
     const {
+      rate,
       exchangeRate,
       feeAmount,
       estimatedAmount,
@@ -87,6 +88,7 @@ export class SellController {
 
     return {
       feeAmount,
+      rate,
       exchangeRate,
       estimatedAmount,
       amount,
