@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { Util } from 'src/shared/utils/util';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -96,7 +97,7 @@ export class LinkService {
   }
 
   private sortOldToNew(users: User[]): User[] {
-    return users.sort((a, b) => (a.created > b.created ? 1 : -1));
+    return Util.sort(users, 'created');
   }
 
   private buildLinkUrl(authentication: string): string {

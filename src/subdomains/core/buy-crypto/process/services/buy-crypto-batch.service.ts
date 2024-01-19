@@ -213,6 +213,9 @@ export class BuyCryptoBatchService {
         const inputBatchLength = batch.transactions.length;
 
         await this.optimizeByPayoutFee(batch);
+
+        if (batch.transactions.length === 0) continue;
+
         const purchaseFee = await this.optimizeByLiquidity(batch);
         await this.optimizeByPurchaseFee(batch, purchaseFee);
 
@@ -257,12 +260,6 @@ export class BuyCryptoBatchService {
     // optimize
     const filteredOutTransactions = batch.optimizeByPayoutFeeEstimation();
     await this.setWaitingForLowerFeeStatus(filteredOutTransactions);
-
-    if (batch.transactions.length === 0) {
-      throw new FeeLimitExceededException(
-        `Cannot re-batch transactions by payout fee, no transaction exceeds the fee limit. Out asset: ${batch.outputAsset.uniqueName}`,
-      );
-    }
   }
 
   private async getPayoutFee(tx: BuyCrypto): Promise<number> {

@@ -67,6 +67,20 @@ export class BscClient extends EvmClient {
     return result;
   }
 
+  async getNativeCoinBalance(): Promise<number> {
+    const balance = await this.provider.getBalance(this.dfxAddress);
+
+    return this.fromWeiAmount(balance);
+  }
+
+  async getTokenBalance(asset: Asset): Promise<number> {
+    const contract = this.getERC20ContractForDex(asset.chainId);
+    const balance = await contract.balanceOf(this.dfxAddress);
+    const token = await this.getToken(contract);
+
+    return this.fromWeiAmount(balance, token.decimals);
+  }
+
   private async callBscScanApi<T>(config: HttpRequestConfig, nthTry = 10): Promise<ScanApiResponse<T>> {
     const requestConfig = { url: this.scanApiUrl, ...config };
 

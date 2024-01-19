@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { RefRewardService } from 'src/subdomains/core/referral/reward/ref-reward.service';
@@ -248,17 +249,11 @@ export class GsService {
         throw new BadRequestException(e.message);
       });
 
-    return buyCryptoData
-      .concat(buyFiatData, bankTxRestData)
-      .sort((a, b) =>
-        dbQuery.sorting == 'ASC'
-          ? dbQuery.select
-            ? a.id - b.id
-            : a.bank_tx_id - b.bank_tx_id
-          : dbQuery.select
-          ? b.id - a.id
-          : b.bank_tx_id - a.bank_tx_id,
-      );
+    return Util.sort(
+      buyCryptoData.concat(buyFiatData, bankTxRestData),
+      dbQuery.select ? 'id' : 'bank_tx_id',
+      dbQuery.sorting,
+    );
   }
 
   private filterSelectDocumentColumn(select: string[]): string[] {

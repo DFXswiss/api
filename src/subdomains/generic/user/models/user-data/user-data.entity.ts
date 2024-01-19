@@ -158,6 +158,18 @@ export class UserData extends IEntity {
   @ManyToOne(() => Country, { eager: true })
   organizationCountry: Country;
 
+  @Column({ type: 'float', nullable: true })
+  totalVolumeChfAuditPeriod: number;
+
+  @Column({ length: 256, nullable: true })
+  allBeneficialOwnersName: string;
+
+  @Column({ length: 256, nullable: true })
+  allBeneficialOwnersDomicile: string;
+
+  @Column({ length: 256, nullable: true })
+  accountOpenerAuthorization: string;
+
   @Column({ length: 256, nullable: true })
   phone: string;
 
@@ -288,6 +300,10 @@ export class UserData extends IEntity {
   totpSecret: string;
 
   // References
+  @OneToOne(() => UserData, { nullable: true })
+  @JoinColumn()
+  accountOpener: UserData;
+
   @OneToMany(() => UserDataRelation, (userDataRelation) => userDataRelation.account)
   accountRelations: UserDataRelation[];
 
@@ -378,7 +394,7 @@ export class UserData extends IEntity {
   get tradingLimit(): TradingLimit {
     if (KycCompleted(this.kycStatus)) {
       return { limit: this.depositLimit, period: LimitPeriod.YEAR };
-    } else if (this.kycStatus === KycStatus.REJECTED) {
+    } else if (this.isKycTerminated) {
       return { limit: 0, period: LimitPeriod.DAY };
     } else {
       return { limit: Config.defaultDailyTradingLimit, period: LimitPeriod.DAY };
@@ -389,6 +405,13 @@ export class UserData extends IEntity {
     return this.tradingLimit.period === LimitPeriod.YEAR
       ? this.tradingLimit.limit - this.annualBuyVolume - this.annualSellVolume - this.annualCryptoVolume
       : this.tradingLimit.limit;
+  }
+
+  get isKycTerminated(): boolean {
+    return (
+      [KycStatus.REJECTED, KycStatus.TERMINATED].includes(this.kycStatus) ||
+      [KycLevel.REJECTED, KycLevel.TERMINATED].includes(this.kycLevel)
+    );
   }
 
   // --- KYC PROCESS --- //
@@ -416,8 +439,15 @@ export class UserData extends IEntity {
     return this;
   }
 
-  cancelStep(kycStep: KycStep, result?: KycStepResult): this {
-    kycStep.cancel(result);
+  pauseStep(kycStep: KycStep, result?: KycStepResult): this {
+    kycStep.pause(result);
+    this.logger.verbose(`User ${this.id} pauses step ${kycStep.name} (${kycStep.id})`);
+
+    return this;
+  }
+
+  cancelStep(kycStep: KycStep): this {
+    kycStep.cancel();
     this.logger.verbose(`User ${this.id} cancels step ${kycStep.name} (${kycStep.id})`);
 
     return this;
@@ -497,6 +527,14 @@ export class UserData extends IEntity {
     return Math.max(...this.getStepsWith(stepName, stepType).map((s) => s.sequenceNumber + 1), 0);
   }
 
+  hasCompletedStep(stepName: KycStepName): boolean {
+    return this.getStepsWith(stepName).some((s) => s.isCompleted);
+  }
+
+  hasDoneStep(stepName: KycStepName): boolean {
+    return this.getStepsWith(stepName).some((s) => s.isDone);
+  }
+
   get isDataComplete(): boolean {
     const requiredFields = ['mail', 'phone', 'firstname', 'surname', 'street', 'location', 'zip', 'country'].concat(
       this.accountType === AccountType.PERSONAL
@@ -504,6 +542,10 @@ export class UserData extends IEntity {
         : ['organizationName', 'organizationStreet', 'organizationLocation', 'organizationZip', 'organizationCountry'],
     );
     return requiredFields.filter((f) => !this[f]).length === 0;
+  }
+
+  get hasBankTxVerification(): boolean {
+    return [CheckStatus.PASS, CheckStatus.UNNECESSARY].includes(this.bankTransactionVerification);
   }
 }
 

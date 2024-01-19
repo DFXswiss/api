@@ -119,7 +119,7 @@ export class AuthService {
     const userData =
       (await this.userDataService
         .getUsersByMail(dto.mail)
-        .then((u) => u.sort((a, b) => b.id - a.id) && Util.maxObj(u, 'kycLevel'))) ??
+        .then((u) => Util.sort(u, 'id', 'DESC') && Util.maxObj(u, 'kycLevel'))) ??
       (await this.userDataService.createUserData({
         kycType: KycType.DFX,
         mail: dto.mail,

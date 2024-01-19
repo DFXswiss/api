@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Country } from 'src/shared/models/country/country.entity';
@@ -90,6 +90,12 @@ export class KycService {
 
   private async tryContinue(kycHash: string, ip: string, autoStep: boolean): Promise<KycSessionDto> {
     let user = await this.getUser(kycHash);
+
+    const verifyDuplicate = user.hasCompletedStep(KycStepName.CONTACT_DATA);
+    if (verifyDuplicate) {
+      const isKnownUser = await this.userDataService.isKnownKycUser(user);
+      if (isKnownUser) throw new ConflictException('Account already exists');
+    }
 
     user = await this.updateProgress(user, true, autoStep);
 
@@ -195,7 +201,7 @@ export class KycService {
 
     switch (getIdentResult(dto)) {
       case IdentShortResult.CANCEL:
-        user = user.cancelStep(kycStep, dto);
+        user = user.pauseStep(kycStep, dto);
         break;
 
       case IdentShortResult.REVIEW:
@@ -314,9 +320,7 @@ export class KycService {
     nextStep: { name: KycStepName; type?: KycStepType; preventDirectEvaluation?: boolean } | undefined;
     nextLevel?: KycLevel;
   }> {
-    const missingSteps = requiredKycSteps().filter(
-      (rs) => !user.getStepsWith(rs).some((us) => us.name === rs && us.isDone),
-    );
+    const missingSteps = requiredKycSteps().filter((rs) => !user.hasDoneStep(rs));
 
     const nextStep = missingSteps[0];
 
@@ -370,6 +374,10 @@ export class KycService {
   ): Promise<KycStep> {
     const nextSequenceNumber = user.getNextSequenceNumber(stepName, stepType);
     const kycStep = KycStep.create(user, stepName, nextSequenceNumber, stepType);
+
+    // cancel a pending step with same type
+    const pendingStep = user.getPendingStepWith(stepName);
+    if (pendingStep) user.cancelStep(pendingStep);
 
     switch (stepName) {
       case KycStepName.CONTACT_DATA:

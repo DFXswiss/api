@@ -69,6 +69,8 @@ export class CryptoRouteController {
       .then((b) => this.toDto(jwt.id, b));
   }
 
+  // TODO: enable quote + info endpoints after refactoring (move to convert)
+  @ApiExcludeEndpoint()
   @Put('/quote')
   @ApiOkResponse({ type: CryptoQuoteDto })
   async getCryptoQuote(@Body() dto: GetCryptoQuoteDto): Promise<CryptoQuoteDto> {
@@ -100,6 +102,7 @@ export class CryptoRouteController {
     };
   }
 
+  @ApiExcludeEndpoint()
   @Put('/paymentInfos')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
