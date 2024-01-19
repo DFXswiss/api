@@ -543,6 +543,10 @@ export class UserData extends IEntity {
     );
     return requiredFields.filter((f) => !this[f]).length === 0;
   }
+
+  get hasBankTxVerification(): boolean {
+    return [CheckStatus.PASS, CheckStatus.UNNECESSARY].includes(this.bankTransactionVerification);
+  }
 }
 
 export const KycInProgressStates = [KycStatus.CHATBOT, KycStatus.ONLINE_ID, KycStatus.VIDEO_ID];
