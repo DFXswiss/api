@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { generateSecret, verifyToken } from 'node-2fa';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -89,13 +89,13 @@ export class TfaService {
         created: MoreThan(Util.hoursBefore(TfaValidityHours)),
       },
     });
-    if (!isVerified) throw new UnauthorizedException('2FA required');
+    if (!isVerified) throw new ForbiddenException('2FA required');
   }
 
   // --- HELPER METHODS --- //
   private verifyOrThrow(secret: string, token: string): void {
     const result = verifyToken(secret, token);
-    if (!result || result.delta !== 0) throw new UnauthorizedException('Invalid or expired 2FA token');
+    if (!result || result.delta !== 0) throw new ForbiddenException('Invalid or expired 2FA token');
   }
 
   private async createTfaLog(userData: UserData, ipAddress: string, comment: TfaComment) {
