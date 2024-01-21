@@ -6,6 +6,9 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
+import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
+import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
+import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { FeeDirectionType, User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/min-amount.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -40,6 +43,8 @@ export class TransactionHelper implements OnModuleInit {
     private readonly priceProviderService: PriceProviderService,
     private readonly fiatService: FiatService,
     private readonly feeService: FeeService,
+    private readonly buyCryptoService: BuyCryptoService,
+    private readonly buyFiatService: BuyFiatService,
   ) {}
 
   onModuleInit() {
@@ -190,11 +195,12 @@ export class TransactionHelper implements OnModuleInit {
       from,
       to,
     );
+    const txAmount = await this.getDailyInputAmount(target.sourceAmount, from, user);
 
     const error =
       target.sourceAmount < txSpecSource.minVolume
         ? TransactionError.AMOUNT_TOO_LOW
-        : target.sourceAmount > txSpecSource.maxVolume
+        : txAmount > txSpecSource.maxVolume
         ? TransactionError.AMOUNT_TOO_HIGH
         : undefined;
 
@@ -260,6 +266,31 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   // --- HELPER METHODS --- //
+  private async getDailyInputAmount(inputAmount: number, from: Asset | Fiat, user?: User): Promise<number> {
+    if (!user) return inputAmount;
+
+    const buyCryptos = await this.buyCryptoService
+      .getUserTransactions(user.id, Util.daysBefore(1))
+      .then((buyCryptos) =>
+        buyCryptos.filter(
+          (b) => b.amlCheck === CheckStatus.PASS || b.amlCheck === CheckStatus.PENDING || b.amlCheck === null,
+        ),
+      );
+
+    const buyFiats = await this.buyFiatService
+      .getUserTransactions(user.id, Util.daysBefore(1))
+      .then((buyCryptos) =>
+        buyCryptos.filter(
+          (b) => b.amlCheck === CheckStatus.PASS || b.amlCheck === CheckStatus.PENDING || b.amlCheck === null,
+        ),
+      );
+
+    const price = await this.priceProviderService.getPrice(from, this.eur).then((p) => p.invert());
+    const txEurAmount = Util.sumObjValue(buyCryptos, 'amountInEur') + Util.sumObjValue(buyFiats, 'amountInEur');
+
+    return inputAmount + price.convert(txEurAmount);
+  }
+
   private getProps(param: Asset | Fiat): { system: string; asset: string } {
     return param instanceof Fiat
       ? { system: 'Fiat', asset: param.name }

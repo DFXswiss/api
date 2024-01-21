@@ -1,5 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.module';
+import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { SharedModule } from '../../../shared/shared.module';
@@ -17,6 +19,8 @@ import { TransactionHelper } from './services/transaction-helper';
     SharedModule,
     TypeOrmModule.forFeature([TransactionSpecification, Fee]),
     forwardRef(() => UserModule),
+    SellCryptoModule,
+    BuyCryptoModule,
   ],
   controllers: [FeeController],
   providers: [TransactionHelper, TransactionSpecificationRepository, FeeService, FeeRepository],

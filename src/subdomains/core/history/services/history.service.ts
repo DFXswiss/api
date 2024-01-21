@@ -7,7 +7,7 @@ import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.s
 import { RefReward } from '../../referral/reward/ref-reward.entity';
 import { RefRewardService } from '../../referral/reward/ref-reward.service';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
-import { BuyFiatService } from '../../sell-crypto/process/buy-fiat.service';
+import { BuyFiatService } from '../../sell-crypto/process/services/buy-fiat.service';
 import { CryptoStaking } from '../../staking/entities/crypto-staking.entity';
 import { StakingRefReward } from '../../staking/entities/staking-ref-reward.entity';
 import { StakingReward } from '../../staking/entities/staking-reward.entity';

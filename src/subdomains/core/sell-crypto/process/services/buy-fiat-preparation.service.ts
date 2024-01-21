@@ -9,8 +9,8 @@ import { TransactionHelper } from 'src/subdomains/supporting/payment/services/tr
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { IsNull, Not } from 'typeorm';
-import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
-import { BuyFiatRepository } from './buy-fiat.repository';
+import { CheckStatus } from '../../../buy-crypto/process/enums/check-status.enum';
+import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatService } from './buy-fiat.service';
 
 @Injectable()
