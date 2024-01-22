@@ -58,7 +58,7 @@ import { PolygonTokenStrategy as PolygonTokenStrategyS } from './strategies/send
     PayoutModule,
     DexModule,
     forwardRef(() => SellCryptoModule),
-    PaymentModule,
+    forwardRef(() => PaymentModule),
     NotificationModule,
     AlchemyModule,
   ],

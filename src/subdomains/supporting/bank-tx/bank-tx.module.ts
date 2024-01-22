@@ -27,7 +27,7 @@ import { BankTxService } from './bank-tx/bank-tx.service';
     SharedModule,
     BankIntegrationModule,
     NotificationModule,
-    UserModule,
+    forwardRef(() => UserModule),
     forwardRef(() => BuyCryptoModule),
     BankModule,
   ],

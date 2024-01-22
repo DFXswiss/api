@@ -29,9 +29,9 @@ import { SellService } from './route/sell.service';
   imports: [
     TypeOrmModule.forFeature([BuyFiat, Sell]),
     SharedModule,
-    UserModule,
+    forwardRef(() => UserModule),
     NotificationModule,
-    PaymentModule,
+    forwardRef(() => PaymentModule),
     BlockchainModule,
     forwardRef(() => BankModule),
     forwardRef(() => BankTxModule),

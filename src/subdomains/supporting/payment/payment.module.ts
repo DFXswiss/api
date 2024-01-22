@@ -20,7 +20,7 @@ import { TransactionHelper } from './services/transaction-helper';
     TypeOrmModule.forFeature([TransactionSpecification, Fee]),
     forwardRef(() => UserModule),
     SellCryptoModule,
-    BuyCryptoModule,
+    forwardRef(() => BuyCryptoModule),
   ],
   controllers: [FeeController],
   providers: [TransactionHelper, TransactionSpecificationRepository, FeeService, FeeRepository],
