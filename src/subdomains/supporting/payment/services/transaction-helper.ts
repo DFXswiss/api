@@ -30,6 +30,7 @@ export enum ValidationError {
 export enum TransactionError {
   AMOUNT_TOO_LOW = 'AmountTooLow',
   AMOUNT_TOO_HIGH = 'AmountTooHigh',
+  MISSING_BUY_CRYPTO = 'MissingBuyCrypto',
 }
 
 @Injectable()
@@ -195,10 +196,16 @@ export class TransactionHelper implements OnModuleInit {
       from,
       to,
     );
+
     const txAmount = await this.getDailyInputAmount(target.sourceAmount, from, user);
+    const chfPrice = await this.priceProviderService.getPrice(from, this.chf).then((p) => p.invert());
 
     const error =
-      target.sourceAmount < txSpecSource.minVolume
+      to instanceof Fiat &&
+      !user?.userData?.hasBankTxVerification &&
+      chfPrice.convert(txAmount) > Config.defaultDailyTradingLimit
+        ? TransactionError.MISSING_BUY_CRYPTO
+        : target.sourceAmount < txSpecSource.minVolume
         ? TransactionError.AMOUNT_TOO_LOW
         : txAmount > txSpecSource.maxVolume
         ? TransactionError.AMOUNT_TOO_HIGH
