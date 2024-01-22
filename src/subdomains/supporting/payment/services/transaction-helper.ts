@@ -30,7 +30,7 @@ export enum ValidationError {
 export enum TransactionError {
   AMOUNT_TOO_LOW = 'AmountTooLow',
   AMOUNT_TOO_HIGH = 'AmountTooHigh',
-  MISSING_BUY_CRYPTO = 'MissingBuyCrypto',
+  BANK_TRANSACTION_MISSING = 'BankTransactionMissing',
 }
 
 @Injectable()
@@ -204,7 +204,7 @@ export class TransactionHelper implements OnModuleInit {
       to instanceof Fiat &&
       !user?.userData?.hasBankTxVerification &&
       chfPrice.convert(txAmount) > Config.defaultDailyTradingLimit
-        ? TransactionError.MISSING_BUY_CRYPTO
+        ? TransactionError.BANK_TRANSACTION_MISSING
         : target.sourceAmount < txSpecSource.minVolume
         ? TransactionError.AMOUNT_TOO_LOW
         : txAmount > txSpecSource.maxVolume
