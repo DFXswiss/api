@@ -143,7 +143,7 @@ export class AuthService {
             },
           },
           {
-            key: `${MailTranslationKey.LOGIN}.button`,
+            key: `${MailTranslationKey.GENERAL}.button`,
             params: {
               url: `${Config.frontend.services}/kyc?code=${userData.kycHash}`,
             },

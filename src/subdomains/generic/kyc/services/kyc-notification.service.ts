@@ -62,7 +62,16 @@ export class KycNotificationService {
                 { key: MailKey.SPACE, params: { value: '2' } },
                 {
                   key: `${MailTranslationKey.KYC}.next_step`,
-                  params: { url: `${Config.frontend.services}/kyc?code=${entity.userData.kycHash}` },
+                  params: {
+                    url: `${Config.frontend.services}/kyc?code=${entity.userData.kycHash}`,
+                    urlText: `${Config.frontend.services}/kyc?code=${entity.userData.kycHash}`,
+                  },
+                },
+                {
+                  key: `${MailTranslationKey.GENERAL}.button`,
+                  params: {
+                    url: `${Config.frontend.services}/kyc?code=${entity.userData.kycHash}`,
+                  },
                 },
                 { key: MailKey.SPACE, params: { value: '2' } },
                 { key: `${MailTranslationKey.KYC}.last_step` },
@@ -94,7 +103,16 @@ export class KycNotificationService {
               { key: MailKey.SPACE, params: { value: '1' } },
               {
                 key: `${MailTranslationKey.KYC_FAILED}.message`,
-                params: { url: `${Config.frontend.payment}/kyc?code=${entity.userData.kycHash}` },
+                params: {
+                  url: `${Config.frontend.payment}/kyc?code=${entity.userData.kycHash}`,
+                  urlText: `${Config.frontend.payment}/kyc?code=${entity.userData.kycHash}`,
+                },
+              },
+              {
+                key: `${MailTranslationKey.GENERAL}.button`,
+                params: {
+                  url: `${Config.frontend.services}/kyc?code=${entity.userData.kycHash}`,
+                },
               },
               { key: MailKey.SPACE, params: { value: '2' } },
               { key: `${MailTranslationKey.KYC}.last_step` },
