@@ -9,7 +9,7 @@ import { KycCompleted } from 'src/subdomains/generic/user/models/user-data/user-
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { IsNull, Not } from 'typeorm';
-import { User, UserStatus } from '../../../../generic/user/models/user/user.entity';
+import { User } from '../../../../generic/user/models/user/user.entity';
 import { DepositService } from '../../../../supporting/address-pool/deposit/deposit.service';
 import { CryptoRoute } from './crypto-route.entity';
 import { CryptoRouteRepository } from './crypto-route.repository';
@@ -87,11 +87,9 @@ export class CryptoRouteService {
     ignoreExisting = false,
   ): Promise<CryptoRoute> {
     // KYC check
-    const { kycStatus } = await this.userDataService.getUserDataByUser(userId);
-    if (!KycCompleted(kycStatus)) throw new BadRequestException('Missing KYC');
-
-    const user = await this.userService.getUser(userId);
-    if (user.status !== UserStatus.ACTIVE) throw new BadRequestException('Missing bank transaction');
+    const userData = await this.userDataService.getUserDataByUser(userId);
+    if (!KycCompleted(userData.kycStatus)) throw new BadRequestException('Missing KYC');
+    if (!userData.hasBankTxVerification) throw new BadRequestException('Missing bank transaction');
 
     // check if exists
     const existing = await this.cryptoRepo.findOne({
@@ -126,6 +124,9 @@ export class CryptoRouteService {
   }
 
   async getUserCryptos(userId: number): Promise<CryptoRoute[]> {
+    const userData = await this.userDataService.getUserDataByUser(userId);
+    if (!userData.hasBankTxVerification) return [];
+
     return this.cryptoRepo.findBy({ user: { id: userId }, asset: { buyable: true } });
   }
 

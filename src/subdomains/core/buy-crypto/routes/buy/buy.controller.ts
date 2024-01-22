@@ -73,6 +73,7 @@ export class BuyController {
     const { amount: sourceAmount, currency, asset, targetAmount } = await this.paymentInfoService.buyCheck(dto);
 
     const {
+      rate,
       exchangeRate,
       feeAmount,
       estimatedAmount,
@@ -81,6 +82,7 @@ export class BuyController {
 
     return {
       feeAmount,
+      rate,
       exchangeRate,
       estimatedAmount,
       amount,
