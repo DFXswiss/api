@@ -300,7 +300,7 @@ export class UserData extends IEntity {
   totpSecret: string;
 
   // References
-  @OneToOne(() => UserData, { nullable: true })
+  @ManyToOne(() => UserData, { nullable: true })
   @JoinColumn()
   accountOpener: UserData;
 
