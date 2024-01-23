@@ -19,7 +19,7 @@ import { TransactionHelper } from './services/transaction-helper';
     SharedModule,
     TypeOrmModule.forFeature([TransactionSpecification, Fee]),
     forwardRef(() => UserModule),
-    SellCryptoModule,
+    forwardRef(() => SellCryptoModule),
     forwardRef(() => BuyCryptoModule),
   ],
   controllers: [FeeController],

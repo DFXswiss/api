@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
@@ -17,7 +17,6 @@ export class BuyCryptoJobService {
     private readonly buyCryptoDexService: BuyCryptoDexService,
     private readonly buyCryptoRegistrationService: BuyCryptoRegistrationService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
-    @Inject(forwardRef(() => BuyCryptoPreparationService))
     private readonly buyCryptoPreparationService: BuyCryptoPreparationService,
   ) {}
 
