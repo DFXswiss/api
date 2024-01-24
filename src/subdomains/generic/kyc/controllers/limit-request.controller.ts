@@ -1,11 +1,11 @@
 import { Body, Controller, Param, Put, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { UpdateLimitRequestDto } from './dto/update-limit-request.dto';
-import { LimitRequest } from './limit-request.entity';
-import { LimitRequestService } from './limit-request.service';
+import { UpdateLimitRequestDto } from '../dto/input/update-limit-request.dto';
+import { LimitRequest } from '../entities/limit-request.entity';
+import { LimitRequestService } from '../services/limit-request.service';
 
 @ApiTags('limitRequest')
 @Controller('limitRequest')

@@ -22,11 +22,6 @@ import { BankDataRepository } from './models/bank-data/bank-data.repository';
 import { BankDataService } from './models/bank-data/bank-data.service';
 import { KycClientController, KycController } from './models/kyc/kyc.controller';
 import { KycService } from './models/kyc/kyc.service';
-import { LimitRequestNotificationService } from './models/limit-request/limit-request-notification.service';
-import { LimitRequestController } from './models/limit-request/limit-request.controller';
-import { LimitRequest } from './models/limit-request/limit-request.entity';
-import { LimitRequestRepository } from './models/limit-request/limit-request.repository';
-import { LimitRequestService } from './models/limit-request/limit-request.service';
 import { LinkAddress } from './models/link/link-address.entity';
 import { LinkAddressRepository } from './models/link/link-address.repository';
 import { LinkController } from './models/link/link.controller';
@@ -45,7 +40,7 @@ import { WebhookService } from './services/webhook/webhook.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, UserData, Wallet, BankData, LimitRequest, LinkAddress]),
+    TypeOrmModule.forFeature([User, UserData, Wallet, BankData, LinkAddress]),
     SharedModule,
     NotificationModule,
     BlockchainModule,
@@ -63,7 +58,6 @@ import { WebhookService } from './services/webhook/webhook.service';
     KycClientController,
     KycController,
     LinkController,
-    LimitRequestController,
     UserDataRelationController,
   ],
   providers: [
@@ -71,7 +65,6 @@ import { WebhookService } from './services/webhook/webhook.service';
     UserDataRepository,
     WalletRepository,
     BankDataRepository,
-    LimitRequestRepository,
     LinkAddressRepository,
     UserDataRelationRepository,
     UserService,
@@ -81,11 +74,9 @@ import { WebhookService } from './services/webhook/webhook.service';
     AuthService,
     AuthAlbyService,
     AuthLnUrlService,
-    LimitRequestService,
     LinkService,
     WebhookService,
     KycService,
-    LimitRequestNotificationService,
     UserDataNotificationService,
     UserDataRelationService,
   ],

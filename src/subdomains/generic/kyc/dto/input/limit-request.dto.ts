@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
-import { InvestmentDate, FundOrigin } from '../limit-request.entity';
+import { FundOrigin, InvestmentDate } from '../../entities/limit-request.entity';
 
 export class LimitRequestDto {
   @ApiProperty()
@@ -28,7 +28,7 @@ export class LimitRequestDto {
   @IsString()
   documentProof?: string;
 
-  @ApiPropertyOptional({description: 'Name of the proof document'})
+  @ApiPropertyOptional({ description: 'Name of the proof document' })
   @ValidateIf((l: LimitRequestDto) => l.documentProof != null)
   @IsNotEmpty()
   @IsString()
