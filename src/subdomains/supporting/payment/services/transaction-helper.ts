@@ -179,7 +179,7 @@ export class TransactionHelper implements OnModuleInit {
     const specs = this.getSpecs(from, to);
     const extendedSpecs = {
       ...specs,
-      maxVolume: user?.userData?.availableTradingLimit,
+      maxVolume: user?.userData?.availableTradingLimit ?? Config.defaultDailyTradingLimit,
       fixedFee: fee.fixed,
     };
 
@@ -202,7 +202,8 @@ export class TransactionHelper implements OnModuleInit {
 
     const error =
       to instanceof Fiat &&
-      !user?.userData?.hasBankTxVerification &&
+      user &&
+      !user?.userData.hasBankTxVerification &&
       chfPrice.convert(txAmount) > Config.defaultDailyTradingLimit
         ? TransactionError.BANK_TRANSACTION_MISSING
         : target.sourceAmount < txSpecSource.minVolume
