@@ -1,5 +1,5 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler/dist/throttler.decorator';
 import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
 import { Util } from 'src/shared/utils/util';
@@ -53,7 +53,7 @@ export class StatisticController {
   }
 
   @Get('cfp/latest')
-  @ApiOkResponse({ type: CfpResult, isArray: true })
+  @ApiExcludeEndpoint()
   async getCfpResults(): Promise<CfpResult[]> {
     return this.cfpService.getCfpResults();
   }

@@ -196,8 +196,7 @@ export class TransactionHelper implements OnModuleInit {
       from,
       to,
     );
-
-    const txAmount = await this.getDailyInputAmount(target.sourceAmount, from, user);
+    const txAmount = await this.getVolumeLast24h(target.sourceAmount, from, user);
     const chfPrice = await this.priceProviderService.getPrice(from, this.chf).then((p) => p.invert());
 
     const error =
@@ -274,24 +273,16 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   // --- HELPER METHODS --- //
-  private async getDailyInputAmount(inputAmount: number, from: Asset | Fiat, user?: User): Promise<number> {
+  private async getVolumeLast24h(inputAmount: number, from: Asset | Fiat, user?: User): Promise<number> {
     if (!user) return inputAmount;
 
     const buyCryptos = await this.buyCryptoService
       .getUserTransactions(user.id, Util.daysBefore(1))
-      .then((buyCryptos) =>
-        buyCryptos.filter(
-          (b) => b.amlCheck === CheckStatus.PASS || b.amlCheck === CheckStatus.PENDING || b.amlCheck === null,
-        ),
-      );
+      .then((buyCryptos) => buyCryptos.filter((b) => b.amlCheck !== CheckStatus.FAIL));
 
     const buyFiats = await this.buyFiatService
       .getUserTransactions(user.id, Util.daysBefore(1))
-      .then((buyCryptos) =>
-        buyCryptos.filter(
-          (b) => b.amlCheck === CheckStatus.PASS || b.amlCheck === CheckStatus.PENDING || b.amlCheck === null,
-        ),
-      );
+      .then((buyFiats) => buyFiats.filter((b) => b.amlCheck !== CheckStatus.FAIL));
 
     const price = await this.priceProviderService.getPrice(from, this.eur).then((p) => p.invert());
     const txEurAmount = Util.sumObjValue(buyCryptos, 'amountInEur') + Util.sumObjValue(buyFiats, 'amountInEur');

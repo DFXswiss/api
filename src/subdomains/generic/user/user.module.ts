@@ -42,7 +42,6 @@ import { UserController } from './models/user/user.controller';
 import { User } from './models/user/user.entity';
 import { UserRepository } from './models/user/user.repository';
 import { UserService } from './models/user/user.service';
-import { WalletController } from './models/wallet/wallet.controller';
 import { Wallet } from './models/wallet/wallet.entity';
 import { WebhookService } from './services/webhook/webhook.service';
 
@@ -67,7 +66,6 @@ import { WebhookService } from './services/webhook/webhook.service';
     KycController,
     LinkController,
     LimitRequestController,
-    WalletController,
     UserDataRelationController,
   ],
   providers: [
