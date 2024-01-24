@@ -53,7 +53,7 @@ export class StatisticController {
   }
 
   @Get('cfp/latest')
-  @ApiOkResponse({ type: CfpResult, isArray: true })
+  @ApiExcludeEndpoint()
   async getCfpResults(): Promise<CfpResult[]> {
     return this.cfpService.getCfpResults();
   }
