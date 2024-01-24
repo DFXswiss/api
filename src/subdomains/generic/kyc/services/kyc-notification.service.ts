@@ -63,14 +63,14 @@ export class KycNotificationService {
                 {
                   key: `${MailTranslationKey.KYC}.next_step`,
                   params: {
-                    url: `${Config.frontend.services}/kyc?code=${entity.userData.kycHash}`,
-                    urlText: `${Config.frontend.services}/kyc?code=${entity.userData.kycHash}`,
+                    url: entity.userData.kycUrl,
+                    urlText: entity.userData.kycUrl,
                   },
                 },
                 {
                   key: `${MailTranslationKey.GENERAL}.button`,
                   params: {
-                    url: `${Config.frontend.services}/kyc?code=${entity.userData.kycHash}`,
+                    url: entity.userData.kycUrl,
                   },
                 },
                 { key: MailKey.SPACE, params: { value: '2' } },
@@ -104,14 +104,14 @@ export class KycNotificationService {
               {
                 key: `${MailTranslationKey.KYC_FAILED}.message`,
                 params: {
-                  url: `${Config.frontend.payment}/kyc?code=${entity.userData.kycHash}`,
-                  urlText: `${Config.frontend.payment}/kyc?code=${entity.userData.kycHash}`,
+                  url: entity.userData.kycUrl,
+                  urlText: entity.userData.kycUrl,
                 },
               },
               {
                 key: `${MailTranslationKey.GENERAL}.button`,
                 params: {
-                  url: `${Config.frontend.services}/kyc?code=${entity.userData.kycHash}`,
+                  url: entity.userData.kycUrl,
                 },
               },
               { key: MailKey.SPACE, params: { value: '2' } },

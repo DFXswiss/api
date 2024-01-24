@@ -379,6 +379,10 @@ export class UserData extends IEntity {
     return [this.id, update];
   }
 
+  get kycUrl(): string {
+    return `${Config.frontend.services}/kyc?code=${this.kycHash}`;
+  }
+
   get isDfxUser(): boolean {
     return this.kycType === KycType.DFX;
   }

@@ -138,14 +138,14 @@ export class AuthService {
           {
             key: `${MailTranslationKey.LOGIN}.message`,
             params: {
-              url: `${Config.frontend.services}/kyc?code=${userData.kycHash}`,
-              urlText: `${Config.frontend.services}/kyc?code=${userData.kycHash}`,
+              url: userData.kycUrl,
+              urlText: userData.kycUrl,
             },
           },
           {
             key: `${MailTranslationKey.GENERAL}.button`,
             params: {
-              url: `${Config.frontend.services}/kyc?code=${userData.kycHash}`,
+              url: userData.kycUrl,
             },
           },
           { key: MailKey.SPACE, params: { value: '2' } },

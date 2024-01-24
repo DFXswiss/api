@@ -84,7 +84,7 @@
                 "line2": "Dopo una verifica KYC eseguita con successo procederemo con le tue transazioni.",
                 "line3": "In assenza di verifica, il denaro verrà automaticamente restituito dopo 7 giorni.",
                 "line4": "Incrementare il limite con la KYC?<br>Clicca [url:qui] per avviare il processo di KYC.",
-                "line5": "Alternativamente, potete anche cliccare sulla voce di menu in alto a destra del sito web del servizio DFX <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\"."
+                "line5": "In alternativa, potete anche cliccare sulla voce di menu in alto a destra del sito DFX-Services <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\"."
             },
             "annual_limit": {
                 "title": "Limite annuale superato",
@@ -101,7 +101,7 @@
                 "line1": "Caro affezionato cliente, molte grazie per la tua fiducia in DFX AG.",
                 "line2": "Sfortunatamente non possiamo procedere senza una verifica completa poiché hai superato il tuo limite annuale.",
                 "line3": "Ti chiediamo dunque di usare questo link [url:qui] per eseguire la KYC con la tua carta d'identità.",
-                "line4": "Alternativamente, potete anche cliccare sulla voce di menu in alto a destra del sito web del servizio DFX <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\".",
+                "line4": "In alternativa, potete anche cliccare sulla voce di menu in alto a destra del sito DFX-Services <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\".",
                 "line5": "Se non vuoi eseguire la verifica, i tuoi soldi saranno rimborsati completamente in automatico dopo 7 giorni."
             },
             "olky_no_kyc": {
@@ -109,7 +109,7 @@
                 "salutation": "La verifica KYC è richiesta per usare la nostra banca in Lussemburgo",
                 "line1": "Per usare il nostro conto corrente in Lussemburgo con la funzionalità SEPA istantanea, una verifica completa è sfortunatamente obbligatoria.",
                 "line2": "Ti chiediamo quindi di usare questo link [url:qui] per eseguire la KYC col tuo documento d'identità.",
-                "line3": "Alternativamente, potete anche cliccare sulla voce di menu in alto a destra del sito web del servizio DFX <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\".",
+                "line3": "In alternativa, potete anche cliccare sulla voce di menu in alto a destra del sito DFX-Services <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\".",
                 "line4": "Senza verifica, puoi continuare a usare il nostro conto corrente svizzero fino a 1000 EUR al giorno senza KYC utilizzando il SEPA standard.",
                 "line5": "Se non vuoi eseguire la verifica, i soldi saranno pienamente rimborsati in modo automatico dopo 7 giorni."
             },
@@ -119,7 +119,7 @@
                 "line1": "Caro affezionato cliente, molte grazie per la tua fiducia in DFX AG.",
                 "line2": "Sfortunatamente non possiamo processare il tuo ordine senza una verifica completa (KYC).",
                 "line3": "Ti chiediamo dunque di usare questo link [url:qui] per eseguire la KYC con la tua carta d'identità.",
-                "line4": "Alternativamente, potete anche cliccare sulla voce di menu in alto a destra del sito web del servizio DFX <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\".",
+                "line4": "In alternativa, potete anche cliccare sulla voce di menu in alto a destra del sito DFX-Services <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\".",
                 "line5": "Se non vuoi eseguire la verifica, i tuoi soldi saranno rimborsati completamente in automatico dopo 7 giorni."
             }
         },
@@ -157,7 +157,7 @@
             "salutation": "Completa la tua verifica",
             "message": "Abbiamo notato che non hai completato la tua verifica."
         },
-        "next_step": "Per iniziare il processo di identificazione online, clicca sul pulsante di aggiornamento nella sezione dei limiti della pagina di pagamento (accedi tramite il bottone \"My DFX\" nell'app) o<br>[url:{urlText}]",
+        "next_step": "Per procedere alla verifica, cliccare sulla voce di menu in alto a destra del sito web di DFX-Services<br> e poi su \"KYC\"<br> e cliccare sul pulsante \"Continua\" o utilizzare il seguente link:<br>[url:{urlText}]",
         "last_step": "Fai il passo finale e inizia a lavorare sulla tua libertà finanziaria oggi stesso"
     },
     "link_address": {
