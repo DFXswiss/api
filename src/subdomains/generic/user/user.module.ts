@@ -31,8 +31,6 @@ import { LinkAddress } from './models/link/link-address.entity';
 import { LinkAddressRepository } from './models/link/link-address.repository';
 import { LinkController } from './models/link/link.controller';
 import { LinkService } from './models/link/link.service';
-import { SpiderData } from './models/spider-data/spider-data.entity';
-import { SpiderDataRepository } from './models/spider-data/spider-data.repository';
 import { UserDataRelationController } from './models/user-data-relation/user-data-relation.controller';
 import { UserDataRelationRepository } from './models/user-data-relation/user-data-relation.repository';
 import { UserDataRelationService } from './models/user-data-relation/user-data-relation.service';
@@ -42,13 +40,12 @@ import { UserController } from './models/user/user.controller';
 import { User } from './models/user/user.entity';
 import { UserRepository } from './models/user/user.repository';
 import { UserService } from './models/user/user.service';
-import { WalletController } from './models/wallet/wallet.controller';
 import { Wallet } from './models/wallet/wallet.entity';
 import { WebhookService } from './services/webhook/webhook.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, UserData, SpiderData, Wallet, BankData, LimitRequest, LinkAddress]),
+    TypeOrmModule.forFeature([User, UserData, Wallet, BankData, LimitRequest, LinkAddress]),
     SharedModule,
     NotificationModule,
     BlockchainModule,
@@ -67,13 +64,11 @@ import { WebhookService } from './services/webhook/webhook.service';
     KycController,
     LinkController,
     LimitRequestController,
-    WalletController,
     UserDataRelationController,
   ],
   providers: [
     UserRepository,
     UserDataRepository,
-    SpiderDataRepository,
     WalletRepository,
     BankDataRepository,
     LimitRequestRepository,

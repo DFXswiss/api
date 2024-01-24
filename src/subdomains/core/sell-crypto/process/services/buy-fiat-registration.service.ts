@@ -5,10 +5,10 @@ import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entit
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionHelper, ValidationError } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { IsNull, Not } from 'typeorm';
-import { Sell } from '../route/sell.entity';
-import { SellRepository } from '../route/sell.repository';
-import { BuyFiat } from './buy-fiat.entity';
-import { BuyFiatRepository } from './buy-fiat.repository';
+import { Sell } from '../../route/sell.entity';
+import { SellRepository } from '../../route/sell.repository';
+import { BuyFiat } from '../buy-fiat.entity';
+import { BuyFiatRepository } from '../buy-fiat.repository';
 
 @Injectable()
 export class BuyFiatRegistrationService {

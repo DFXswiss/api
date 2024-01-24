@@ -12,7 +12,6 @@ import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
 import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
-import { SpiderData } from '../spider-data/spider-data.entity';
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
 import { TradingLimit } from '../user/dto/user.dto';
 import { AccountType } from './account-type.enum';
@@ -184,9 +183,6 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   riskState: RiskState;
 
-  @Column({ length: 'MAX', nullable: true })
-  riskRoots: string;
-
   @Column({ nullable: true })
   highRisk: boolean;
 
@@ -196,17 +192,8 @@ export class UserData extends IEntity {
   @Column({ length: 256, default: KycStatus.NA })
   kycStatus: KycStatus;
 
-  @Column({ length: 256, default: KycState.NA })
-  kycState: KycState;
-
-  @Column({ type: 'datetime2', nullable: true })
-  kycStatusChangeDate: Date;
-
   @Column({ type: 'integer', nullable: true })
   kycFileId: number;
-
-  @Column({ type: 'integer', nullable: true })
-  kycCustomerId: number;
 
   @Column({ default: KycLevel.LEVEL_0 })
   kycLevel: KycLevel;
@@ -224,12 +211,6 @@ export class UserData extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   depositLimit: number;
-
-  @Column({ type: 'integer', nullable: true })
-  contribution: number;
-
-  @Column({ length: 256, nullable: true })
-  plannedContribution: string;
 
   @Column({ type: 'datetime2', nullable: true })
   letterSentDate: Date;
@@ -300,7 +281,7 @@ export class UserData extends IEntity {
   totpSecret: string;
 
   // References
-  @OneToOne(() => UserData, { nullable: true })
+  @ManyToOne(() => UserData, { nullable: true })
   @JoinColumn()
   accountOpener: UserData;
 
@@ -316,15 +297,8 @@ export class UserData extends IEntity {
   @OneToMany(() => BankData, (bankData) => bankData.userData)
   bankDatas: BankData[];
 
-  @OneToOne(() => BankData, { nullable: true })
-  @JoinColumn()
-  mainBankData: BankData;
-
   @OneToMany(() => User, (user) => user.userData)
   users: User[];
-
-  @OneToOne(() => SpiderData, (c) => c.userData, { nullable: true })
-  spiderData: SpiderData;
 
   // --- ENTITY METHODS --- //
   sendMail(): UpdateResult<UserData> {

@@ -4,12 +4,7 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
-import {
-  KycStatus,
-  RiskState,
-  UserData,
-  UserDataStatus,
-} from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycStatus, UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
@@ -509,7 +504,7 @@ export class BuyCrypto extends IEntity {
       this.user.userData.kycStatus === KycStatus.COMPLETED &&
       this.user.status === UserStatus.ACTIVE &&
       this.user.userData.status === UserDataStatus.ACTIVE &&
-      this.user.userData.riskState === RiskState.C &&
+      // this.user.userData.riskState === RiskState.C && // TODO
       monthlyAmountInEur <= Config.amlCheckMonthlyTradingLimit
     );
   }

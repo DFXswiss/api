@@ -5,7 +5,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { CryptoRouteService } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.service';
 import { createCustomHistory } from 'src/subdomains/core/history/dto/__mocks__/history.dto.mock';
-import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
+import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';

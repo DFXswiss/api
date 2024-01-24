@@ -1,4 +1,6 @@
+import { Test } from '@nestjs/testing';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
+import { TestUtil } from 'src/shared/utils/test.util';
 import { Util } from 'src/shared/utils/util';
 import { createCustomBuy } from 'src/subdomains/core/buy-crypto/routes/buy/__mocks__/buy.entity.mock';
 import { createCustomUser } from 'src/subdomains/generic/user/models/user/__mocks__/user.entity.mock';
@@ -7,13 +9,13 @@ import { createCustomBuyCryptoBatch, createDefaultBuyCryptoBatch } from '../__mo
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-crypto.entity.mock';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../buy-crypto-batch.entity';
 
-jest.mock('src/config/config', () => ({
-  Config: {
-    buy: { fee: { limit: 0.001 } },
-  },
-}));
-
 describe('BuyCryptoBatch', () => {
+  beforeEach(async () => {
+    await Test.createTestingModule({
+      providers: [TestUtil.provideConfig()],
+    }).compile();
+  });
+
   describe('#addTransaction(...)', () => {
     it('sets transactions to empty array in case it is undefined', () => {
       const entity = createCustomBuyCryptoBatch({ transactions: undefined });

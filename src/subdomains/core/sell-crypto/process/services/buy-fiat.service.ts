@@ -1,27 +1,22 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
-import { Between, In, IsNull } from 'typeorm';
-import { FiatOutputService } from '../../../supporting/fiat-output/fiat-output.service';
-import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
-import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
-import { PaymentStatus } from '../../history/dto/history.dto';
-import { TransactionDetailsDto } from '../../statistic/dto/statistic.dto';
-import { SellHistoryDto } from '../route/dto/sell-history.dto';
-import { Sell } from '../route/sell.entity';
-import { SellRepository } from '../route/sell.repository';
-import { SellService } from '../route/sell.service';
-import { BuyFiatPreparationService } from './buy-fiat-preparation.service';
-import { BuyFiatRegistrationService } from './buy-fiat-registration.service';
-import { BuyFiat } from './buy-fiat.entity';
-import { BuyFiatRepository } from './buy-fiat.repository';
-import { UpdateBuyFiatDto } from './dto/update-buy-fiat.dto';
+import { Between, In } from 'typeorm';
+import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
+import { CheckStatus } from '../../../buy-crypto/process/enums/check-status.enum';
+import { BuyCryptoService } from '../../../buy-crypto/process/services/buy-crypto.service';
+import { PaymentStatus } from '../../../history/dto/history.dto';
+import { TransactionDetailsDto } from '../../../statistic/dto/statistic.dto';
+import { SellHistoryDto } from '../../route/dto/sell-history.dto';
+import { Sell } from '../../route/sell.entity';
+import { SellRepository } from '../../route/sell.repository';
+import { SellService } from '../../route/sell.service';
+import { BuyFiat } from '../buy-fiat.entity';
+import { BuyFiatRepository } from '../buy-fiat.repository';
+import { UpdateBuyFiatDto } from '../dto/update-buy-fiat.dto';
 
 @Injectable()
 export class BuyFiatService {
@@ -29,7 +24,6 @@ export class BuyFiatService {
     private readonly buyFiatRepo: BuyFiatRepository,
     @Inject(forwardRef(() => BuyCryptoService))
     private readonly buyCryptoService: BuyCryptoService,
-    private readonly buyFiatRegistrationService: BuyFiatRegistrationService,
     private readonly userService: UserService,
     private readonly sellRepo: SellRepository,
     private readonly sellService: SellService,
@@ -37,35 +31,7 @@ export class BuyFiatService {
     private readonly bankTxService: BankTxService,
     private readonly fiatOutputService: FiatOutputService,
     private readonly webhookService: WebhookService,
-    @Inject(forwardRef(() => BuyFiatPreparationService))
-    private readonly buyFiatPreparationService: BuyFiatPreparationService,
   ) {}
-
-  // --- CHECK BUY FIAT --- //
-  @Cron(CronExpression.EVERY_10_MINUTES)
-  @Lock(7200)
-  async addFiatOutputs(): Promise<void> {
-    if (DisabledProcess(Process.BUY_FIAT)) return;
-    const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
-      relations: ['fiatOutput'],
-      where: { amlCheck: CheckStatus.PASS, fiatOutput: IsNull() },
-    });
-
-    for (const buyFiat of buyFiatsWithoutOutput) {
-      await this.fiatOutputService.create({
-        buyFiatId: buyFiat.id,
-        type: 'BuyFiat',
-      });
-    }
-  }
-
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(1800)
-  async checkCryptoPayIn() {
-    if (DisabledProcess(Process.BUY_FIAT)) return;
-    await this.buyFiatRegistrationService.registerSellPayIn();
-    if (!DisabledProcess(Process.BUY_FIAT_SET_FEE)) await this.buyFiatPreparationService.refreshFee();
-  }
 
   async update(id: number, dto: UpdateBuyFiatDto): Promise<BuyFiat> {
     let entity = await this.buyFiatRepo.findOne({
