@@ -145,6 +145,29 @@ export class UserDataService {
     });
     if (!userData) throw new NotFoundException('User data not found');
 
+    if (dto.countryId) {
+      userData.country = await this.countryService.getCountry(dto.countryId);
+      if (!userData.country) throw new BadRequestException('Country not found');
+    }
+
+    if (dto.nationality) {
+      userData.nationality = await this.countryService.getCountry(dto.nationality.id);
+      if (!userData.nationality) throw new BadRequestException('Nationality not found');
+    }
+
+    if (dto.organizationCountryId) {
+      userData.organizationCountry = await this.countryService.getCountry(dto.organizationCountryId);
+      if (!userData.organizationCountry) throw new BadRequestException('Country not found');
+    }
+
+    if (dto.nationality || dto.identDocumentId) {
+      const existing = await this.userDataRepo.findOneBy({
+        nationality: { id: userData.nationality.id },
+        identDocumentId: dto.identDocumentId ?? userData.identDocumentId,
+      });
+      if (existing) throw new ConflictException('A user with the same nationality and identDocumentId already exists');
+    }
+
     if (dto.kycFileId) {
       const userWithSameFileId = await this.userDataRepo.findOneBy({ id: Not(userDataId), kycFileId: dto.kycFileId });
       if (userWithSameFileId) throw new ConflictException('A user with this KYC file ID already exists');
@@ -284,11 +307,6 @@ export class UserDataService {
     if (dto.verifiedCountry) {
       userData.verifiedCountry = await this.countryService.getCountry(dto.verifiedCountry.id);
       if (!userData.verifiedCountry) throw new BadRequestException('VerifiedCountry not found');
-    }
-
-    if (dto.mainBankDataId) {
-      userData.mainBankData = await this.bankDataRepo.findOneBy({ id: dto.mainBankDataId });
-      if (!userData.mainBankData) throw new BadRequestException('Bank data not found');
     }
 
     if (dto.language) {

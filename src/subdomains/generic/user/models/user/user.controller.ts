@@ -8,9 +8,12 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
+import { KycDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { AuthService } from '../auth/auth.service';
 import { AuthResponseDto } from '../auth/dto/auth-response.dto';
+import { KycInfo } from '../kyc/dto/kyc-info.dto';
+import { KycService } from '../kyc/kyc.service';
 import { ApiKeyDto } from './dto/api-key.dto';
 import { LinkedUserInDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
@@ -28,6 +31,7 @@ export class UserController {
     private readonly userService: UserService,
     private readonly authService: AuthService,
     private readonly feeService: FeeService,
+    private readonly kycService: KycService,
   ) {}
 
   // --- USER --- //
@@ -82,6 +86,14 @@ export class UserController {
     @RealIP() ip: string,
   ): Promise<AuthResponseDto> {
     return this.authService.changeUser(jwt.id, changeUser, ip);
+  }
+
+  @Post('data')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiCreatedResponse({ type: KycInfo })
+  async updateKycData(@GetJwt() jwt: JwtPayload, @Body() data: KycDataDto): Promise<KycInfo> {
+    return this.kycService.updateKycData('', data, jwt.id);
   }
 
   @Delete()

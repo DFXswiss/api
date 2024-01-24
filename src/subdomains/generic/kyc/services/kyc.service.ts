@@ -12,9 +12,8 @@ import { KycLevel, UserData } from '../../user/models/user-data/user-data.entity
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { IdentStatus } from '../dto/ident.dto';
 import { IdentResultDto, IdentShortResult, getIdentResult } from '../dto/input/ident-result.dto';
-import { KycContactData } from '../dto/input/kyc-contact-data.dto';
+import { KycContactData, KycPersonalData } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
-import { KycPersonalData } from '../dto/input/kyc-personal-data.dto';
 import { KycContentType, KycFileType } from '../dto/kyc-file.dto';
 import { KycDataMapper } from '../dto/mapper/kyc-data.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';

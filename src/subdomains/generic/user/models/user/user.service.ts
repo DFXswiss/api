@@ -23,7 +23,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
-import { KycStatus, KycType, UserDataStatus } from '../user-data/user-data.entity';
+import { KycState, KycStatus, KycType, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { Wallet } from '../wallet/wallet.entity';
 import { WalletService } from '../wallet/wallet.service';
@@ -62,8 +62,8 @@ export class UserService {
     return this.userRepo.findOne({ where: { id: userId }, relations });
   }
 
-  async getUserByAddress(address: string): Promise<User> {
-    return this.userRepo.findOneBy({ address });
+  async getUserByAddress(address: string, relations: FindOptionsRelations<User> = {}): Promise<User> {
+    return this.userRepo.findOne({ where: { address }, relations });
   }
 
   async getUserByKey(key: string, value: any): Promise<User> {
@@ -430,7 +430,7 @@ export class UserService {
       language: user.userData?.language,
       currency: user.userData?.currency,
       kycStatus: user.userData?.kycStatus,
-      kycState: user.userData?.kycState,
+      kycState: KycState.NA,
       kycLevel: user.userData?.kycLevel,
       kycHash: user.userData?.kycHash,
       tradingLimit: user.userData?.tradingLimit,

@@ -140,10 +140,6 @@ export class UpdateUserDataDto {
   complexOrgStructure?: boolean;
 
   @IsOptional()
-  @IsInt()
-  mainBankDataId?: number;
-
-  @IsOptional()
   @IsDate()
   @Type(() => Date)
   letterSentDate?: Date;

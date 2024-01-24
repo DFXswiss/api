@@ -3,8 +3,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { SharedModule } from 'src/shared/shared.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { UserModule } from '../user/user.module';
-import { KycController } from './api/kyc.controller';
 import { KycAdminController } from './controllers/kyc-admin.controller';
+import { KycClientController } from './controllers/kyc-client.controller';
+import { KycController } from './controllers/kyc.controller';
 import { KycLog } from './entities/kyc-log.entity';
 import { KycStep } from './entities/kyc-step.entity';
 import { NameCheckLog } from './entities/name-check-log.entity';
@@ -19,6 +20,7 @@ import { DocumentStorageService } from './services/integration/document-storage.
 import { FinancialService } from './services/integration/financial.service';
 import { IdentService } from './services/integration/ident.service';
 import { KycAdminService } from './services/kyc-admin.service';
+import { KycClientService } from './services/kyc-client.service';
 import { KycNotificationService } from './services/kyc-notification.service';
 import { KycService } from './services/kyc.service';
 import { NameCheckService } from './services/name-check.service';
@@ -31,7 +33,7 @@ import { TfaService } from './services/tfa.service';
     NotificationModule,
     forwardRef(() => UserModule),
   ],
-  controllers: [KycController, KycAdminController],
+  controllers: [KycController, KycAdminController, KycClientController],
   providers: [
     KycService,
     KycAdminService,
@@ -47,6 +49,7 @@ import { TfaService } from './services/tfa.service';
     KycLogRepository,
     KycStepRepository,
     KycNotificationService,
+    KycClientService,
   ],
   exports: [DocumentStorageService, NameCheckService, KycAdminService, KycNotificationService],
 })
