@@ -1,4 +1,4 @@
-import { Inject, Injectable, forwardRef } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -9,8 +9,8 @@ import { TransactionHelper } from 'src/subdomains/supporting/payment/services/tr
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { IsNull, Not } from 'typeorm';
-import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
-import { BuyFiatRepository } from './buy-fiat.repository';
+import { CheckStatus } from '../../../buy-crypto/process/enums/check-status.enum';
+import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatService } from './buy-fiat.service';
 
 @Injectable()
@@ -24,7 +24,6 @@ export class BuyFiatPreparationService {
     private readonly fiatService: FiatService,
     private readonly assetService: AssetService,
     private readonly feeService: FeeService,
-    @Inject(forwardRef(() => BuyFiatService))
     private readonly buyFiatService: BuyFiatService,
   ) {}
 

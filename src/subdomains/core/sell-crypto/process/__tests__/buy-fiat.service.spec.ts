@@ -12,11 +12,11 @@ import { createCustomSellHistory } from '../../route/dto/__mocks__/sell-history.
 import { SellRepository } from '../../route/sell.repository';
 import { SellService } from '../../route/sell.service';
 import { createCustomBuyFiat } from '../__mocks__/buy-fiat.entity.mock';
-import { BuyFiatPreparationService } from '../buy-fiat-preparation.service';
-import { BuyFiatRegistrationService } from '../buy-fiat-registration.service';
 import { BuyFiat } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
-import { BuyFiatService } from '../buy-fiat.service';
+import { BuyFiatPreparationService } from '../services/buy-fiat-preparation.service';
+import { BuyFiatRegistrationService } from '../services/buy-fiat-registration.service';
+import { BuyFiatService } from '../services/buy-fiat.service';
 
 enum MockBuyData {
   DEFAULT,

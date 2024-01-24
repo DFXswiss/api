@@ -4,7 +4,7 @@ import { Throttle } from '@nestjs/throttler/dist/throttler.decorator';
 import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
 import { Util } from 'src/shared/utils/util';
 import { RefRewardService } from 'src/subdomains/core/referral/reward/ref-reward.service';
-import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
+import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { BuyCryptoService } from '../buy-crypto/process/services/buy-crypto.service';
 import { CfpService } from './cfp.service';
 import { CfpResult } from './dto/cfp.dto';

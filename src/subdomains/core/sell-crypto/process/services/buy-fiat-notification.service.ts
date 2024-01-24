@@ -14,9 +14,9 @@ import {
 } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, IsNull, Not } from 'typeorm';
-import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
-import { BuyFiatAmlReasonPendingStates } from './buy-fiat.entity';
-import { BuyFiatRepository } from './buy-fiat.repository';
+import { CheckStatus } from '../../../buy-crypto/process/enums/check-status.enum';
+import { BuyFiatAmlReasonPendingStates } from '../buy-fiat.entity';
+import { BuyFiatRepository } from '../buy-fiat.repository';
 
 @Injectable()
 export class BuyFiatNotificationService {
