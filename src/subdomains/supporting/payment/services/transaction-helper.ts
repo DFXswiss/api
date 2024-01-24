@@ -202,7 +202,7 @@ export class TransactionHelper implements OnModuleInit {
     const error =
       to instanceof Fiat &&
       user &&
-      !user?.userData.hasBankTxVerification &&
+      !user.userData.hasBankTxVerification &&
       chfPrice.convert(txAmount) > Config.defaultDailyTradingLimit
         ? TransactionError.BANK_TRANSACTION_MISSING
         : target.sourceAmount < txSpecSource.minVolume
