@@ -19,6 +19,8 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
+import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
+import { KycDataMapper } from 'src/subdomains/generic/kyc/dto/mapper/kyc-data.mapper';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -158,6 +160,18 @@ export class UserService {
 
     // update
     user = await this.userRepo.save({ ...user, ...dto });
+    const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(user.userData, dto);
+    user.userData = update;
+
+    return { user: await this.toDto(user, true), isKnownUser };
+  }
+
+  async updateUserData(id: number, dto: KycInputDataDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
+    const user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
+    if (user.userData.kycStatus !== KycStatus.NA) throw new BadRequestException('KYC already started');
+
+    user.userData = await this.userDataService.updateKycData(user.userData, KycDataMapper.toUserData(dto));
+
     const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(user.userData, dto);
     user.userData = update;
 

@@ -1,6 +1,13 @@
 import { Body, Controller, Delete, Get, HttpStatus, Param, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiCreatedResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiAcceptedResponse,
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiExcludeEndpoint,
+  ApiOkResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Response } from 'express';
 import { RealIP } from 'nestjs-real-ip';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -12,8 +19,6 @@ import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.d
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { AuthService } from '../auth/auth.service';
 import { AuthResponseDto } from '../auth/dto/auth-response.dto';
-import { KycInfo } from '../kyc/dto/kyc-info.dto';
-import { KycService } from '../kyc/kyc.service';
 import { ApiKeyDto } from './dto/api-key.dto';
 import { LinkedUserInDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
@@ -24,6 +29,11 @@ import { VolumeQuery } from './dto/volume-query.dto';
 import { User } from './user.entity';
 import { UserService } from './user.service';
 
+const AccountExistsResponse = {
+  type: UserDetailDto,
+  description: 'There is already a verified account with the same mail address',
+};
+
 @ApiTags('User')
 @Controller('user')
 export class UserController {
@@ -31,7 +41,6 @@ export class UserController {
     private readonly userService: UserService,
     private readonly authService: AuthService,
     private readonly feeService: FeeService,
-    private readonly kycService: KycService,
   ) {}
 
   // --- USER --- //
@@ -55,6 +64,7 @@ export class UserController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: UserDetailDto })
+  @ApiAcceptedResponse(AccountExistsResponse)
   async updateUser(
     @GetJwt() jwt: JwtPayload,
     @Body() newUser: UpdateUserDto,
@@ -91,9 +101,17 @@ export class UserController {
   @Post('data')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiCreatedResponse({ type: KycInfo })
-  async updateKycData(@GetJwt() jwt: JwtPayload, @Body() data: KycInputDataDto): Promise<KycInfo> {
-    return this.kycService.updateKycData('', data, jwt.id);
+  @ApiCreatedResponse({ type: UserDetailDto })
+  @ApiAcceptedResponse(AccountExistsResponse)
+  async updateKycData(
+    @GetJwt() jwt: JwtPayload,
+    @Body() data: KycInputDataDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<UserDetailDto> {
+    const { user, isKnownUser } = await this.userService.updateUserData(jwt.id, data);
+    if (isKnownUser) res.status(HttpStatus.ACCEPTED);
+
+    return user;
   }
 
   @Delete()

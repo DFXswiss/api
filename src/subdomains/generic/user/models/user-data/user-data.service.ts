@@ -241,12 +241,6 @@ export class UserDataService {
       if (!dto.language) throw new BadRequestException('Language not found');
     }
 
-    // check currency
-    if (dto.currency) {
-      dto.currency = await this.fiatService.getFiat(dto.currency.id);
-      if (!dto.currency) throw new BadRequestException('Currency not found');
-    }
-
     const mailChanged = dto.mail && dto.mail !== user.mail;
 
     user = await this.userDataRepo.save(Object.assign(user, dto));
