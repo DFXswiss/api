@@ -42,7 +42,7 @@ export class KycReportDto {
   contentType: string;
 }
 
-export class KycDataDto extends KycWebhookData {
+export class KycClientDataDto extends KycWebhookData {
   @ApiProperty()
   id: string;
 }

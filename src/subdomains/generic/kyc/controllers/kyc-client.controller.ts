@@ -6,7 +6,7 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { KycDataDto, KycReportDto, KycReportType } from '../dto/kyc-file.dto';
+import { KycClientDataDto, KycReportDto, KycReportType } from '../dto/kyc-file.dto';
 import { KycClientService } from '../services/kyc-client.service';
 
 @ApiTags('KYC Client')
@@ -17,8 +17,8 @@ export class KycClientController {
   @Get('users')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
-  @ApiOkResponse({ type: KycDataDto, isArray: true })
-  async getAllKycData(@GetJwt() jwt: JwtPayload): Promise<KycDataDto[]> {
+  @ApiOkResponse({ type: KycClientDataDto, isArray: true })
+  async getAllKycData(@GetJwt() jwt: JwtPayload): Promise<KycClientDataDto[]> {
     return this.kycClientService.getAllKycData(jwt.id);
   }
 

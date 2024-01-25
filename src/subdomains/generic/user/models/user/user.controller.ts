@@ -8,7 +8,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
-import { KycDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
+import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { AuthService } from '../auth/auth.service';
 import { AuthResponseDto } from '../auth/dto/auth-response.dto';
@@ -92,7 +92,7 @@ export class UserController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiCreatedResponse({ type: KycInfo })
-  async updateKycData(@GetJwt() jwt: JwtPayload, @Body() data: KycDataDto): Promise<KycInfo> {
+  async updateKycData(@GetJwt() jwt: JwtPayload, @Body() data: KycInputDataDto): Promise<KycInfo> {
     return this.kycService.updateKycData('', data, jwt.id);
   }
 

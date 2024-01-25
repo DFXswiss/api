@@ -3,7 +3,14 @@ import { User } from '../../user/models/user/user.entity';
 import { UserService } from '../../user/models/user/user.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookDataMapper } from '../../user/services/webhook/mapper/webhook-data.mapper';
-import { KycContentType, KycDataDto, KycFile, KycFileType, KycReportDto, KycReportType } from '../dto/kyc-file.dto';
+import {
+  KycClientDataDto,
+  KycContentType,
+  KycFile,
+  KycFileType,
+  KycReportDto,
+  KycReportType,
+} from '../dto/kyc-file.dto';
 import { DocumentStorageService } from './integration/document-storage.service';
 
 @Injectable()
@@ -14,7 +21,7 @@ export class KycClientService {
     private readonly walletService: WalletService,
   ) {}
 
-  async getAllKycData(walletId: number): Promise<KycDataDto[]> {
+  async getAllKycData(walletId: number): Promise<KycClientDataDto[]> {
     const wallet = await this.walletService.getByIdOrName(walletId, undefined, { users: { userData: true } });
     if (!wallet) throw new NotFoundException('Wallet not found');
 
@@ -56,7 +63,7 @@ export class KycClientService {
     }
   }
 
-  private toKycDataDto(user: User): KycDataDto {
+  private toKycDataDto(user: User): KycClientDataDto {
     return {
       id: user.address,
       ...WebhookDataMapper.mapKycData(user.userData),

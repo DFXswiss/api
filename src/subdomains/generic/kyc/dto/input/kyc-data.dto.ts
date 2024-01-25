@@ -94,7 +94,7 @@ export class KycPersonalData {
   organizationAddress?: KycAddress;
 }
 
-export class KycDataDto extends KycPersonalData {
+export class KycInputDataDto extends KycPersonalData {
   @ApiProperty()
   @IsNotEmpty()
   @IsEmail()
