@@ -82,7 +82,7 @@
                 "salutation": "Has excedido tu volumen máximo durante 24 horas",
                 "line1": "Por favor, verificate a través de KYC (conoce a tu cliente) para incrementar tu límite.",
                 "line2": "Después de que pases el KYC empezaremos con tu transacción.",
-                "line3": "Sin verificación, su dinero será devuelto automáticamente al cabo de 7 días.",
+                "line3": "Sin verificación, su dinero será devuelto automáticamente al cabo de 2 días.",
                 "line4": "¿Quieres incrementar el límite a través del KYC?<br>Aprieta [url:aquí] para empezar el proceso KYC.",
                 "line5": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\"."
             },
@@ -102,7 +102,7 @@
                 "line2": "Desafortunadamente, no podemos procesar la transferencia sin una verificación completa, ya que has excedido el límite anual.",
                 "line3": "Te proponemos que uses este enlace [url:aquí] para pasar el KYC con tu tarjeta de identidad.",
                 "line4": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\".",
-                "line5": "Si no quieres llevar a cabo la verificación, el dinero se devolverá después de 7 días."
+                "line5": "Si no quieres llevar a cabo la verificación, el dinero se devolverá después de 2 días."
             },
             "olky_no_kyc": {
                 "title": "Se requiere el registro KYC para usar las transferencias SEPA instantáneas",
@@ -111,7 +111,7 @@
                 "line2": "Por ello, les pedimos que usen este enlace [url:aquí] para ejecutar el KYC con tu tarjeta de identificación.",
                 "line3": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\".",
                 "line4": "Sin la verificación, puedes continuar usando nuestro banco en Suiza hasta 1,000 euros al día sin el KYC con transferencias SEPA ordinarias.",
-                "line5": "Si no quieres pasar el proceso de verificación, el dinero se devolverá en su totalidad a partir del séptimo día."
+                "line5": "Si no quieres llevar a cabo la verificación, el dinero se devolverá después de 2 días."
             },
             "name_check_without_kyc": {
                 "title": "Se requiere KYC para ejecutar la transacción pendiente",
@@ -120,7 +120,7 @@
                 "line2": "Desafortunadamente, no podemos procesar tu orden sin una verificación KYC completa.",
                 "line3": "Por ello, te invitamos a que uses el enlace a continuación [url:aquí] para pasar la verificación KYC con tu tarjeta de identidad.",
                 "line4": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\".",
-                "line5": "Si no quieres llevar a cabo la verificación, el dinero se devolverá después de 7 días."
+                "line5": "Si no quieres llevar a cabo la verificación, el dinero se devolverá después de 2 días."
             }
         },
         "blockchain": "Blockchain",

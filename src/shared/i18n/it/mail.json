@@ -82,7 +82,7 @@
                 "salutation": "Hai superato il tuo limite di volume nelle 24 ore",
                 "line1": "Per favore, completa la verifica KYC (conosci il tuo cliente) per incrementare il tuo limite.",
                 "line2": "Dopo una verifica KYC eseguita con successo procederemo con le tue transazioni.",
-                "line3": "In assenza di verifica, il denaro verrà automaticamente restituito dopo 7 giorni.",
+                "line3": "In assenza di verifica, il denaro verrà automaticamente restituito dopo 2 giorni.",
                 "line4": "Incrementare il limite con la KYC?<br>Clicca [url:qui] per avviare il processo di KYC.",
                 "line5": "In alternativa, potete anche cliccare sulla voce di menu in alto a destra del sito DFX-Services <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\"."
             },
@@ -102,7 +102,7 @@
                 "line2": "Sfortunatamente non possiamo procedere senza una verifica completa poiché hai superato il tuo limite annuale.",
                 "line3": "Ti chiediamo dunque di usare questo link [url:qui] per eseguire la KYC con la tua carta d'identità.",
                 "line4": "In alternativa, potete anche cliccare sulla voce di menu in alto a destra del sito DFX-Services <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\".",
-                "line5": "Se non vuoi eseguire la verifica, i tuoi soldi saranno rimborsati completamente in automatico dopo 7 giorni."
+                "line5": "Se non vuoi eseguire la verifica, i tuoi soldi saranno rimborsati completamente in automatico dopo 2 giorni."
             },
             "olky_no_kyc": {
                 "title": "KYC richiesta per utilizzare i trasferimenti immediati SEPA",
@@ -111,7 +111,7 @@
                 "line2": "Ti chiediamo quindi di usare questo link [url:qui] per eseguire la KYC col tuo documento d'identità.",
                 "line3": "In alternativa, potete anche cliccare sulla voce di menu in alto a destra del sito DFX-Services <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\".",
                 "line4": "Senza verifica, puoi continuare a usare il nostro conto corrente svizzero fino a 1000 EUR al giorno senza KYC utilizzando il SEPA standard.",
-                "line5": "Se non vuoi eseguire la verifica, i soldi saranno pienamente rimborsati in modo automatico dopo 7 giorni."
+                "line5": "Se non vuoi eseguire la verifica, i soldi saranno pienamente rimborsati in modo automatico dopo 2 giorni."
             },
             "name_check_without_kyc": {
                 "title": "KYC richiesta per eseguire la transazione in sospeso",
@@ -120,7 +120,7 @@
                 "line2": "Sfortunatamente non possiamo processare il tuo ordine senza una verifica completa (KYC).",
                 "line3": "Ti chiediamo dunque di usare questo link [url:qui] per eseguire la KYC con la tua carta d'identità.",
                 "line4": "In alternativa, potete anche cliccare sulla voce di menu in alto a destra del sito DFX-Services <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\".",
-                "line5": "Se non vuoi eseguire la verifica, i tuoi soldi saranno rimborsati completamente in automatico dopo 7 giorni."
+                "line5": "Se non vuoi eseguire la verifica, i tuoi soldi saranno rimborsati completamente in automatico dopo 2 giorni."
             }
         },
         "blockchain": "Blockchain",
