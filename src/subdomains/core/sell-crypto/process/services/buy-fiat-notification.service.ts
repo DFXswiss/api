@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config } from 'src/config/config';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -272,15 +271,24 @@ export class BuyFiatNotificationService {
                 { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line1` },
                 {
                   key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line2`,
-                  params: { url: `${Config.frontend.services}/kyc?code=${entity.sell.user.userData.kycHash}` },
+                  params: {
+                    url: entity.sell.user.userData.kycUrl,
+                    urlText: entity.sell.user.userData.kycUrl,
+                  },
                 },
                 {
                   key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line3`,
-                  params: { url: `${Config.frontend.services}/kyc?code=${entity.sell.user.userData.kycHash}` },
+                  params: {
+                    url: entity.sell.user.userData.kycUrl,
+                    urlText: entity.sell.user.userData.kycUrl,
+                  },
                 },
                 {
                   key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line4`,
-                  params: { url: `${Config.frontend.services}/kyc?code=${entity.sell.user.userData.kycHash}` },
+                  params: {
+                    url: entity.sell.user.userData.kycUrl,
+                    urlText: entity.sell.user.userData.kycUrl,
+                  },
                 },
                 { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line5` },
                 { key: MailKey.SPACE, params: { value: '1' } },

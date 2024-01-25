@@ -7,13 +7,13 @@
         "happy_trading": "Bon trading",
         "welcome": "Bonjour {name},",
         "personal_questions": "Please do not hesitate to contact me if you have any questions.",
-        "personal_closing": "Kind regards,<br>{closingName}"
+        "personal_closing": "Kind regards,<br>{closingName}",
+        "button": "ou<br>[url:Cliquez ici]"
     },
     "login": {
         "title": "Connexion DFX",
         "salutation": "Connexion DFX",
-        "message": "Cliquez sur le lien suivant pour vous connecter à DFX:<br>[url:{urlText}]",
-        "button": "ou<br>[url:Cliquez ici]"
+        "message": "Cliquez sur le lien suivant pour vous connecter à DFX:<br>[url:{urlText}]"
     },
     "payment": {
         "buy_fiat": {
@@ -84,7 +84,7 @@
                 "line2": "Nous traiterons votre transaction après la réussite du KYC.",
                 "line3": "Sans vérification, ton argent te sera automatiquement retourné après 7 jours.",
                 "line4": "Augmenter la limite par un KYC ?<br>Cliquer [url:ici] pour commencer la procédure de KYC.",
-                "line5": "Autrement, vous pouvez aussi utiliser l'appli DFX sur votre page de paiement,<br> cliquer sur la flèche rouge en face de \"Votre limite\"<br> et commencer la vérification."
+                "line5": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\"."
             },
             "annual_limit": {
                 "title": "Limite annuelle dépassée",
@@ -101,7 +101,7 @@
                 "line1": "Cher client, merci beaucoup pour votre confiance en DFX AG.",
                 "line2": "Malheureusement, comme vous avez dépassé votre limite annuelle, nous ne pouvons pas traiter votre commande sans vérifier votre compte.",
                 "line3": "Nous vous invitions donc à utiliser ce lien [url:ici] pour réaliser le KYC avec votre pièce d'identité.",
-                "line4": "Vous pouvez aussi utiliser l'appli DFX et, sur votre page de paiement, <br> cliquer sur la flèche rouge à côté de \"Votre limite\" <br> pour commencer le KYC.",
+                "line4": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
                 "line5": "Si vous ne souhaitez pas réaliser la vérification, les fonds seront intégralement retournés après 7 jours."
             },
             "olky_no_kyc": {
@@ -109,7 +109,7 @@
                 "salutation": "Une vérification KYC est nécessaire pour utiliser notre banque luxembourgeoise",
                 "line1": "Pour utiliser notre compte bancaire au Luxembourg lors d'un virement instantané, une vérification complète doit être réalisée.",
                 "line2": "Nous vous demandons donc d'utiliser ce lien [url:ici] pour réaliser le KYC avec votre carte d'identité.",
-                "line3": "Autrement, vous pouvez utiliser l'appli DFX et vous rendre sur votre page de paiement <br> pour cliquer sur la flèche rouge à côté de \"Votre limite\" <br> et démarrer le KYC.",
+                "line3": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
                 "line4": "Sans vérification, vous pouvez continuer à utiliser notre compte bancaire suisse jusqu'à 1 000 euros par jour en SEPA standard.",
                 "line5": "Si vous ne réalisez pas la vérification, l'argent sera retourné automatiquement après 7 jours."
             },
@@ -119,7 +119,7 @@
                 "line1": "Cher client, merci beaucoup pour votre confiance en DFX AG.",
                 "line2": "Nous ne pouvons malheureusement pas traiter votre commande sans une vérification KYC complète.",
                 "line3": "Nous vous invitions donc à utiliser ce lien [url:ici] pour réaliser le KYC avec votre pièce d'identité.",
-                "line4": "Vous pouvez aussi utiliser l'appli DFX et, sur votre page de paiement, <br> cliquer sur la flèche rouge à côté de \"Votre limite\" <br> pour commencer le KYC.",
+                "line4": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
                 "line5": "Si vous ne souhaitez pas réaliser la vérification, les fonds seront intégralement retournés après 7 jours."
             }
         },
@@ -150,14 +150,14 @@
         "failed": {
             "title": "Votre identification a échoué",
             "salutation": "Votre identification a échoué",
-            "message": "Nous avons remarqué que votre identification a échoué. Veuillez réessayer avec l'URL suivante: [url:ici]"
+            "message": "Nous avons remarqué que votre identification a échoué. Veuillez réessayer avec l'URL suivante:<br>[url:{urlText}]"
         },
         "reminder": {
             "title": "Terminez votre vérification",
             "salutation": "Terminez votre vérification",
             "message": "Nous avons remarqué que vous n'avez pas terminé votre vérification."
         },
-        "next_step": "Pour commencer l'identification en ligne, cliquez sur le bouton d'actualisation dans la section Limites de la page de paiement (via le bouton \"My DFX\" dans l'appli) ou [url:ici].",
+        "next_step": "Pour procéder à votre vérification, cliquez sur l'élément de menu en haut à droite du site Web de DFX-Services<br>, puis sur \"KYC\"<br> et cliquez sur le bouton \"Continuer\" ou utilisez le lien suivant :<br>[url:{urlText}]",
         "last_step": "Franchissez le dernier pas et développez votre liberté financière dès aujourd'hui"
     },
     "link_address": {
