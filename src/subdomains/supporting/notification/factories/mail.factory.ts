@@ -28,6 +28,7 @@ export enum MailTranslationKey {
   KYC_REMINDER = 'mail.kyc.reminder',
   LOGIN = 'mail.login',
   LINK_ADDRESS = 'mail.link_address',
+  ACCOUNT_MERGE = 'mail.account_merge',
   LIMIT_REQUEST = 'mail.limit_request',
   BLACK_SQUAD = 'mail.black_squad',
 }

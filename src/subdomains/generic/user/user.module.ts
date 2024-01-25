@@ -11,6 +11,10 @@ import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
 import { KycModule } from '../kyc/kyc.module';
+import { AccountMergeController } from './models/account-merge/account-merge.controller';
+import { AccountMerge } from './models/account-merge/account-merge.entity';
+import { AccountMergeRepository } from './models/account-merge/account-merge.repository';
+import { AccountMergeService } from './models/account-merge/account-merge.service';
 import { AuthAlbyService } from './models/auth/auth-alby.service';
 import { AuthLnurlController } from './models/auth/auth-lnurl.controller';
 import { AuthLnUrlService } from './models/auth/auth-lnurl.service';
@@ -40,7 +44,7 @@ import { WebhookService } from './services/webhook/webhook.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, UserData, Wallet, BankData, LinkAddress]),
+    TypeOrmModule.forFeature([User, UserData, Wallet, BankData, LinkAddress, AccountMerge]),
     SharedModule,
     NotificationModule,
     BlockchainModule,
@@ -59,6 +63,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     KycController,
     LinkController,
     UserDataRelationController,
+    AccountMergeController,
   ],
   providers: [
     UserRepository,
@@ -67,6 +72,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     BankDataRepository,
     LinkAddressRepository,
     UserDataRelationRepository,
+    AccountMergeRepository,
     UserService,
     WalletService,
     UserDataService,
@@ -79,6 +85,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     KycService,
     UserDataNotificationService,
     UserDataRelationService,
+    AccountMergeService,
   ],
   exports: [UserService, UserDataService, LinkService, WebhookService, BankDataService, WalletService],
 })
