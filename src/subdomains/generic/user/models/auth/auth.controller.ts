@@ -6,6 +6,7 @@ import { RealIP } from 'nestjs-real-ip';
 import { IpCountryGuard } from 'src/shared/auth/ip-country.guard';
 import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
 import { CreateUserDto } from 'src/subdomains/generic/user/models/user/dto/create-user.dto';
+import { AccountMergeService } from '../account-merge/account-merge.service';
 import { AlbySignupDto } from '../user/dto/alby.dto';
 import { AuthAlbyService } from './auth-alby.service';
 import { AuthService } from './auth.service';
@@ -18,7 +19,11 @@ import { SignMessageDto } from './dto/sign-message.dto';
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService, private readonly albyService: AuthAlbyService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly albyService: AuthAlbyService,
+    private readonly mergeService: AccountMergeService,
+  ) {}
 
   @Post('signUp')
   @UseGuards(RateLimitGuard, IpCountryGuard)
@@ -39,6 +44,13 @@ export class AuthController {
   @ApiCreatedResponse()
   signInByMail(@Body() dto: AuthMailDto): Promise<void> {
     return this.authService.signInByMail(dto);
+  }
+
+  @Get('mail/confirm')
+  @ApiExcludeEndpoint()
+  async executeLinkAddress(@Query('code') code: string, @Res() res: Response): Promise<void> {
+    const { master } = await this.mergeService.executeMerge(code);
+    res.redirect(master.kycUrl);
   }
 
   @Get('signMessage')

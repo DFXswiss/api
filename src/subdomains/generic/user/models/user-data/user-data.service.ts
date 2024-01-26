@@ -23,10 +23,9 @@ import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto'
 import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
-import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { FindOptionsRelations, In, IsNull, Not } from 'typeorm';
+import { AccountMergeService } from '../account-merge/account-merge.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
-import { LinkService } from '../link/link.service';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { UserRepository } from '../user/user.repository';
 import { AccountType } from './account-type.enum';
@@ -45,14 +44,13 @@ export class UserDataService {
     private readonly repos: RepositoryFactory,
     private readonly userDataRepo: UserDataRepository,
     private readonly userRepo: UserRepository,
-    private readonly bankDataRepo: BankDataRepository,
     private readonly countryService: CountryService,
     private readonly languageService: LanguageService,
     private readonly fiatService: FiatService,
     private readonly settingService: SettingService,
     private readonly kycNotificationService: KycNotificationService,
     private readonly kycAdminService: KycAdminService,
-    @Inject(forwardRef(() => LinkService)) private readonly linkService: LinkService,
+    @Inject(forwardRef(() => AccountMergeService)) private readonly mergeService: AccountMergeService,
   ) {}
 
   async getUserDataByUser(userId: number): Promise<UserData> {
@@ -386,8 +384,8 @@ export class UserDataService {
           (!user.verifiedName || user.verifiedName === u.verifiedName),
       );
       if (matchingUser) {
-        // send an address link request
-        await this.linkService.createNewLinkAddress(user, matchingUser);
+        // send a merge request
+        await this.mergeService.sendMergeRequest(matchingUser, user);
         return true;
       }
     }
