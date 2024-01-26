@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  Delete,
   ForbiddenException,
   Get,
   Headers,
@@ -187,13 +186,6 @@ export class KycController {
   @ApiUnauthorizedResponse(MergedResponse)
   async createSecret(@Headers(CodeHeaderName) code: string): Promise<Setup2faDto> {
     return this.tfaService.setup(code);
-  }
-
-  @Delete('2fa')
-  @ApiOkResponse()
-  @ApiUnauthorizedResponse(MergedResponse)
-  async deleteSecret(@Headers(CodeHeaderName) code: string, @RealIP() ip: string): Promise<void> {
-    return this.tfaService.delete(code, ip);
   }
 
   @Post('2fa/verify')
