@@ -25,29 +25,28 @@ export class AccountMergeService {
   ) {}
 
   async sendMergeRequest(master: UserData, slave: UserData): Promise<void> {
-    const existing = await this.accountMergeRepo.exist({
-      where: {
-        master: { id: master.id },
-        slave: { id: slave.id },
-        expiration: MoreThan(new Date()),
-      },
-    });
-    if (existing) return;
+    const request =
+      (await this.accountMergeRepo.findOne({
+        where: {
+          master: { id: master.id },
+          slave: { id: slave.id },
+          expiration: MoreThan(new Date()),
+        },
+        relations: { master: true, slave: true },
+      })) ?? (await this.accountMergeRepo.save(AccountMerge.create(master, slave)));
 
-    const accountMerge = await this.accountMergeRepo.save(AccountMerge.create(master, slave));
-
-    const url = this.buildConfirmationUrl(accountMerge.code);
+    const url = this.buildConfirmationUrl(request.code);
     await this.notificationService.sendMail({
       type: MailType.USER,
       input: {
-        userData: slave,
+        userData: request.slave,
         title: `${MailTranslationKey.ACCOUNT_MERGE}.title`,
         salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE}.salutation` },
         prefix: [
           { key: MailKey.SPACE, params: { value: '3' } },
           {
             key: `${MailTranslationKey.GENERAL}.welcome`,
-            params: { name: master.organizationName ?? master.firstname },
+            params: { name: request.master.organizationName ?? request.master.firstname },
           },
           { key: MailKey.SPACE, params: { value: '2' } },
           {
