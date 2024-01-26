@@ -210,7 +210,7 @@ export abstract class ExchangeService implements PricingProvider {
     const trades = await this.callApi((e) => e.fetchTrades(pair));
     if (trades.length === 0) throw new Error(`${this.name}: no trades found for ${pair}`);
 
-    return trades.sort((a, b) => b.timestamp - a.timestamp)[0].price;
+    return Util.sort(trades, 'timestamp', 'DESC')[0].price;
   }
 
   private async getCurrentPrice(from: string, to: string): Promise<number> {

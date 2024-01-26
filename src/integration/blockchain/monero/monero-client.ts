@@ -2,6 +2,7 @@ import { Agent } from 'https';
 import { Config } from 'src/config/config';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
+import { PayoutGroup } from 'src/subdomains/supporting/payout/services/base/payout-bitcoin-based.service';
 import {
   AddressResultDto,
   GetAddressResultDto,
@@ -183,13 +184,17 @@ export class MoneroClient {
   }
 
   async sendTransfer(destinationAddress: string, amount: number): Promise<MoneroTransferDto> {
+    return this.sendTransfers([{ addressTo: destinationAddress, amount: amount }]);
+  }
+
+  async sendTransfers(payout: PayoutGroup): Promise<MoneroTransferDto> {
     return this.http
       .post<GetSendTransferResultDto>(
         `${Config.blockchain.monero.rpc.url}/json_rpc`,
         {
           method: 'transfer',
           params: {
-            destinations: [{ amount: MoneroHelper.xmrToAu(amount), address: destinationAddress }],
+            destinations: payout.map((p) => ({ address: p.addressTo, amount: MoneroHelper.xmrToAu(p.amount) })),
             account_index: 0,
             priority: 0,
           },
@@ -230,7 +235,7 @@ export class MoneroClient {
   }
 
   private sortTransfers(transfers: MoneroTransferDto[]): MoneroTransferDto[] {
-    return transfers.sort((t1, t2) => t2.timestamp - t1.timestamp);
+    return Util.sort(transfers, 'timestamp', 'DESC');
   }
 
   private convertTransferAuToXmr(transfer: MoneroTransferDto): MoneroTransferDto {

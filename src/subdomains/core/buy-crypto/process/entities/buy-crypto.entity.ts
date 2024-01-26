@@ -4,12 +4,7 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
-import {
-  KycStatus,
-  RiskState,
-  UserData,
-  UserDataStatus,
-} from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycStatus, UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
@@ -225,6 +220,7 @@ export class BuyCrypto extends IEntity {
       case Blockchain.ETHEREUM:
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
+      case Blockchain.POLYGON:
       case Blockchain.BINANCE_SMART_CHAIN:
       case Blockchain.MONERO:
         this.setOutputReferenceAsset(this.outputAsset);
@@ -330,6 +326,16 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
+  resetTransactionButKeepState(): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
+      ...this.resetTransaction(),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   batched(): this {
     this.status = BuyCryptoStatus.BATCHED;
 
@@ -396,6 +402,17 @@ export class BuyCrypto extends IEntity {
     const update: Partial<BuyCrypto> = {
       recipientMail: this.user.userData.mail,
       mailSendDate: new Date(),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  resetSentMail(): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
+      recipientMail: null,
+      mailSendDate: null,
     };
 
     Object.assign(this, update);
@@ -487,7 +504,7 @@ export class BuyCrypto extends IEntity {
       this.user.userData.kycStatus === KycStatus.COMPLETED &&
       this.user.status === UserStatus.ACTIVE &&
       this.user.userData.status === UserDataStatus.ACTIVE &&
-      this.user.userData.riskState === RiskState.C &&
+      // this.user.userData.riskState === RiskState.C && // TODO
       monthlyAmountInEur <= Config.amlCheckMonthlyTradingLimit
     );
   }
@@ -547,10 +564,23 @@ export class BuyCrypto extends IEntity {
     return this.bankTx != null;
   }
 
-  get exchangeRateString(): string {
-    const rate =
+  get exchangeRate(): { exchangeRate: number; rate: number } {
+    const exchangeRate =
       (this.inputAmount / this.inputReferenceAmount) * (this.inputReferenceAmountMinusFee / this.outputAmount);
-    const amount = this.isCryptoCryptoTransaction ? Util.roundByPrecision(rate, 5) : Util.round(rate, 2);
+    const rate = this.inputAmount / this.outputAmount;
+
+    return {
+      exchangeRate: this.isCryptoCryptoTransaction
+        ? Util.roundByPrecision(exchangeRate, 5)
+        : Util.round(exchangeRate, 2),
+      rate: this.isCryptoCryptoTransaction ? Util.roundByPrecision(rate, 5) : Util.round(rate, 2),
+    };
+  }
+
+  get exchangeRateString(): string {
+    const amount = this.isCryptoCryptoTransaction
+      ? Util.roundByPrecision(this.exchangeRate.exchangeRate, 5)
+      : Util.round(this.exchangeRate.exchangeRate, 2);
     return `${amount} ${this.inputAsset}/${this.outputAsset.name}`;
   }
 
@@ -581,14 +611,6 @@ export class BuyCrypto extends IEntity {
         };
   }
 
-  get inputReference(): { amount: number; currency: string } {
-    return this.bankTx
-      ? { amount: this.bankTx.txAmount, currency: this.bankTx.txCurrency }
-      : this.checkoutTx
-      ? { amount: this.checkoutTx.amount, currency: this.checkoutTx.currency }
-      : { amount: this.cryptoInput.amount, currency: this.cryptoInput.asset.dexName };
-  }
-
   //*** HELPER METHODS ***//
 
   private resetTransaction(): Partial<BuyCrypto> {
@@ -598,8 +620,6 @@ export class BuyCrypto extends IEntity {
       isComplete: false,
       outputAmount: null,
       outputDate: null,
-      mailSendDate: null,
-      recipientMail: null,
     };
 
     Object.assign(this, update);

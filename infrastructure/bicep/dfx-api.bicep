@@ -58,25 +58,25 @@ param ethWalletAddress string
 @secure()
 param ethWalletPrivateKey string
 param ethGatewayUrl string
-@secure()
-param ethApiKey string
 param ethChainId string
 
 param optimismWalletAddress string
 @secure()
 param optimismWalletPrivateKey string
 param optimismGatewayUrl string
-@secure()
-param optimismApiKey string
 param optimismChainId string
 
 param arbitrumWalletAddress string
 @secure()
 param arbitrumWalletPrivateKey string
 param arbitrumGatewayUrl string
-@secure()
-param arbitrumApiKey string
 param arbitrumChainId string
+
+param polygonWalletAddress string
+@secure()
+param polygonWalletPrivateKey string
+param polygonGatewayUrl string
+param polygonChainId string
 
 param bscWalletAddress string
 @secure()
@@ -601,10 +601,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: ethGatewayUrl
         }
         {
-          name: 'ETH_API_KEY'
-          value: ethApiKey
-        }
-        {
           name: 'ETH_CHAIN_ID'
           value: ethChainId
         }
@@ -619,10 +615,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'OPTIMISM_GATEWAY_URL'
           value: optimismGatewayUrl
-        }
-        {
-          name: 'OPTIMISM_API_KEY'
-          value: optimismApiKey
         }
         {
           name: 'OPTIMISM_CHAIN_ID'
@@ -641,12 +633,24 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: arbitrumGatewayUrl
         }
         {
-          name: 'ARBITRUM_API_KEY'
-          value: arbitrumApiKey
-        }
-        {
           name: 'ARBITRUM_CHAIN_ID'
           value: arbitrumChainId
+        }
+        {
+          name: 'POLYGON_WALLET_ADDRESS'
+          value: polygonWalletAddress
+        }
+        {
+          name: 'POLYGON_WALLET_PRIVATE_KEY'
+          value: polygonWalletPrivateKey
+        }
+        {
+          name: 'POLYGON_GATEWAY_URL'
+          value: polygonGatewayUrl
+        }
+        {
+          name: 'POLYGON_CHAIN_ID'
+          value: polygonChainId
         }
         {
           name: 'BSC_WALLET_ADDRESS'

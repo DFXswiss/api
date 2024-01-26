@@ -7,12 +7,13 @@
         "happy_trading": "Viel Erfolg beim Traden",
         "welcome": "Hi {name},",
         "personal_questions": "Bei Fragen zögere bitte nicht, mich anzusprechen.",
-        "personal_closing": "Freundliche Grüsse,<br>{closingName}"
+        "personal_closing": "Freundliche Grüsse,<br>{closingName}",
+        "button": "oder<br>[url:Klick hier]"
     },
     "login": {
         "title": "DFX Login",
         "salutation": "DFX Login",
-        "message": "Klicke den nachfolgenden Link um dich bei DFX einzuloggen [url:hier]"
+        "message": "Klicke den nachfolgenden Link um dich bei DFX einzuloggen:<br>[url:{urlText}]"
     },
     "payment": {
         "buy_fiat": {
@@ -36,8 +37,15 @@
             "payment_link": "Dies ist die Transaktions-ID zu deiner Auszahlung: [url:Link]"
         },
         "buy_crypto": {
-            "title": "Einzahlung abgearbeitet",
-            "salutation": "Deine Einzahlung wurde erfolgreich bearbeitet",
+            "confirmed": {
+                "title": "Einzahlung abgearbeitet",
+                "salutation": "Deine Einzahlung wurde erfolgreich bearbeitet"
+            },
+            "waitingForLowerFee": {
+                "title": "Einzahlung angekommen - Blockchain Gebühren zu hoch",
+                "salutation": "Blockchain Gebühren zu hoch",
+                "message": "Deine Einzahlung ist bei DFX angekommen. Die Blockchain Gebühren sind derzeit zu hoch um deine Assets an dich zu schicken. Deine Assets werden losgeschickt sobald die Blockchain Gebühren wieder niedriger sind. Meistens ist dies innerhalb von 24h der Fall."
+            },
             "input_amount": "Einzahlung",
             "output_amount": "Krypto Auszahlung",
             "payment_link": "Dies ist die Transaktions-ID zur Krypto-Auszahlung: [url:Link]"
@@ -65,7 +73,8 @@
                 "name_check_without_kyc": "Deine Transaktion wurde aufgrund fehlender Verifizierung storniert",
                 "annual_limit_without_kyc": "Du hast das Jahreslimit ohne Verifizierung (KYC) überschritten",
                 "asset_currently_not_available": "Der Vermögenswert ist derzeit nicht für den Handel mit DFX verfügbar",
-                "staking_discontinued": "Staking-Einzahlungen sind nicht mehr möglich"
+                "staking_discontinued": "Staking-Einzahlungen sind nicht mehr möglich",
+                "bank_not_allowed": "Die von dir verwendete Absenderbank ist nicht erlaubt. Bitte nutze eine andere Bank für deine Einzahlung."
             }           
         },
         "pending": {
@@ -74,9 +83,9 @@
                 "salutation": "Du hast dein 24h Volumenlimit überschritten",
                 "line1": "Bitte verifiziere dich, um dein Limit zu erhöhen.",
                 "line2": "Nach der vollständigen Verifizierung wird deine Transaktion weiter bearbeitet.",
-                "line3": "Ohne Verifizierung wird dein Geld nach 7 Tagen automatisch retourniert.",
-                "line4": "Limit erhöhen mit Verifizierung?<br>Klicke bitte [url:hier] um dich zu verifizieren.",
-                "line5": "Alternativ kannst du auch über die DFX App auf deiner Paymentseite <br> bei \"Dein Limit\" auf den roten Pfeil klicken <br> und die Verifizierung starten."
+                "line3": "Ohne Verifizierung wird dein Geld nach 2 Tagen automatisch retourniert.",
+                "line4": "Limit erhöhen mit Verifizierung?<br>Klicke den nachfolgenden Link um dich zu verifizieren:<br>[url:{urlText}]",
+                "line5": "Alternativ kannst du auch über die DFX-Services Webseite <br> oben rechts auf den Menüpunkt und dann auf \"KYC\" klicken <br> und die Verifizierung über den \"Weiter\" Button starten."
             },
             "annual_limit": {
                 "title": "Jährliches Limit überschritten",
@@ -92,27 +101,27 @@
                 "salutation": "Du hast dein jährliches Volumenlimit ohne KYC überschritten",
                 "line1": "Lieber Kunde, vielen Dank für dein Vertrauen in die DFX AG.",
                 "line2": "Leider können wir ohne eine vollständige Verifizierung deine Order nicht verarbeiten, da dein Jahreslimit überschritten ist.",
-                "line3": "Wir bitten dich daher mit diesem Link mittels Ausweis [url:hier] zu verifizieren.",
-                "line4": "Alternativ kannst du auch über die DFX App auf deiner Paymentseite <br> bei \"Dein Limit\" auf den roten Pfeil klicken <br> und die Verifizierung starten.",
-                "line5": "Solltest du die Verifizierung nicht vornehmen wollen, wird das Geld vollautomatisch nach 7 Tagen retourniert."
+                "line3": "Klicke daher den nachfolgenden Link um dich zu verifizieren:<br>[url:{urlText}]",
+                "line4": "Alternativ kannst du auch über die DFX-Services Webseite <br> oben rechts auf den Menüpunkt und dann auf \"KYC\" klicken <br> und die Verifizierung über den \"Weiter\" Button starten.",
+                "line5": "Solltest du die Verifizierung nicht vornehmen wollen, wird das Geld vollautomatisch nach 2 Tagen retourniert."
             },
             "olky_no_kyc": {
                 "title": "Verifizierung für SEPA Instant notwendig",
                 "salutation": "Für Nutzung unserer Bank in Luxemburg ist eine Verifzierung notwendig",
                 "line1": "Um unser Bankkonto in Luxemburg mit SEPA Instant Funktion zu verwenden, ist eine vollständige Verifizierung leider zwingend erforderlich.",
-                "line2": "Wir bitten dich daher mit diesem Link mittels Ausweis [url:hier] zu verifizieren.",
-                "line3": "Alternativ kannst du auch über die DFX App auf deiner Paymentseite <br> bei \"Dein Limit\" auf den roten Pfeil klicken <br> und die Verifizierung starten.",
+                "line2": "Klicke daher den nachfolgenden Link um dich zu verifizieren:<br>[url:{urlText}]",
+                "line3": "Alternativ kannst du auch über die DFX-Services Webseite <br> oben rechts auf den Menüpunkt und dann auf \"KYC\" klicken <br> und die Verifizierung über den \"Weiter\" Button starten.",
                 "line4": "Ohne Verifizierung kannst Du auch unser Bankkonto aus der CH weiterhin bis zu 1'000 EUR pro Tag ohne Verifizierung per Standard Sepa verwenden.",
-                "line5": "Solltest du die Verifizierung nicht vornehmen wollen, wird das Geld vollautomatisch nach 7 Tagen retourniert."
+                "line5": "Solltest du die Verifizierung nicht vornehmen wollen, wird das Geld vollautomatisch nach 2 Tagen retourniert."
             },
             "name_check_without_kyc": {
                 "title": "Du musst dich vollständig verifzieren, bevor wir deine ausstehende Transaktion ausführen können",
                 "salutation": "Verifizierung (KYC) ist erforderlich, um deine ausstehende Transaktion auszuführen",
                 "line1": "Lieber Kunde, vielen Dank für dein Vertrauen in die DFX AG.",
                 "line2": "Leider können wir ohne eine vollständige Verifizierung deine Order nicht verarbeiten.",
-                "line3": "Wir bitten dich daher mit diesem Link mittels Ausweis [url:hier] zu verifizieren.",
-                "line4": "Alternativ kannst du auch über die DFX App auf deiner Paymentseite <br> bei \"Dein Limit\" auf den roten Pfeil klicken <br> und die Verifizierung starten.",
-                "line5": "Solltest du die Verifizierung nicht vornehmen wollen, wird das Geld vollautomatisch nach 7 Tagen retourniert."
+                "line3": "Klicke daher den nachfolgenden Link um dich zu verifizieren:<br>[url:{urlText}]",
+                "line4": "Alternativ kannst du auch über die DFX-Services Webseite <br> oben rechts auf den Menüpunkt und dann auf \"KYC\" klicken <br> und die Verifizierung über den \"Weiter\" Button starten.",
+                "line5": "Solltest du die Verifizierung nicht vornehmen wollen, wird das Geld vollautomatisch nach 2 Tagen retourniert."
             }
         },
         "blockchain": "Blockchain",
@@ -142,14 +151,14 @@
         "failed": {
             "title": "Identifikation fehlgeschlagen",
             "salutation": "Deine Identifikation ist fehlgeschlagen",
-            "message": "Wir haben festgestellt, dass deine Identifizierung fehlgeschlagen ist. Bitte versuche es über die folgende URL erneut: [url:hier]"
+            "message": "Wir haben festgestellt, dass deine Identifizierung fehlgeschlagen ist. Bitte versuche es über die folgende URL erneut:<br>[url:{urlText}]"
         },
         "reminder": {
             "title": "Vervollständige Verifizierung",
             "salutation": "Vervollständige deine Verifizierung",
             "message": "Uns ist aufgefallen, dass deine Verifizierung noch nicht vollständig abgeschlossen wurde."
         },
-        "next_step": "Um den Online-Identifizierungsprozess zu starten, klicke auf der Payment Seite (Zugang über den \"My DFX\" Button in der App) auf den Refresh Button (roter Pfeil in Kreisoptik) oder [url:hier].",
+        "next_step": "Um mit deiner Verifizierung fortzufahren, klicke auf der DFX-Services Webseite<br> oben rechts auf den Menüpunkt und dann auf \"KYC\"<br> und klicke den \"Weiter\" Button oder nutze den folgenden Link:<br>[url:{urlText}]",
         "last_step": "Mache den letzten Schritt und beginne noch heute deine Reise zur finanziellen Freiheit"
     },
     "link_address": {

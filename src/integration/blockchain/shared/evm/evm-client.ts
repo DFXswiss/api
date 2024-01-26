@@ -1,7 +1,6 @@
-import { Inject } from '@nestjs/common';
 import { ChainId, CurrencyAmount, Percent, Token, TradeType } from '@uniswap/sdk-core';
 import { AlphaRouter, SwapType } from '@uniswap/smart-order-router';
-import { BigNumber as AlchemyBigNumber, AssetTransfersCategory, OwnedToken } from 'alchemy-sdk';
+import { AssetTransfersCategory } from 'alchemy-sdk';
 import BigNumber from 'bignumber.js';
 import { BigNumberish, Contract, BigNumber as EthersNumber, ethers } from 'ethers';
 import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
@@ -11,8 +10,20 @@ import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import ERC20_ABI from './abi/erc20.abi.json';
 import { WalletAccount } from './domain/wallet-account';
+import { EvmTokenBalance } from './dto/evm-token-balance.dto';
 import { EvmUtil } from './evm.util';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
+
+export interface EvmClientParams {
+  http: HttpService;
+  alchemyService?: AlchemyService;
+  gatewayUrl: string;
+  apiKey: string;
+  walletPrivateKey: string;
+  chainId: ChainId;
+  scanApiUrl?: string;
+  scanApiKey?: string;
+}
 
 interface AssetTransfersParams {
   fromAddress?: string;
@@ -22,19 +33,26 @@ interface AssetTransfersParams {
 }
 
 export abstract class EvmClient {
-  @Inject()
-  protected readonly alchemyService: AlchemyService;
+  protected http: HttpService;
+  private alchemyService: AlchemyService;
+  private chainId: ChainId;
 
   protected provider: ethers.providers.JsonRpcProvider;
   protected randomReceiverAddress = '0x4975f78e8903548bD33aF404B596690D47588Ff5';
   protected wallet: ethers.Wallet;
-  protected nonce = new Map<string, number>();
-  protected tokens = new AsyncCache<Token>();
+  private nonce = new Map<string, number>();
+  private tokens = new AsyncCache<Token>();
   private router: AlphaRouter;
 
-  constructor(protected http: HttpService, gatewayUrl: string, privateKey: string, protected chainId: ChainId) {
-    this.provider = new ethers.providers.JsonRpcProvider(gatewayUrl);
-    this.wallet = new ethers.Wallet(privateKey, this.provider);
+  constructor(params: EvmClientParams) {
+    this.http = params.http;
+    this.alchemyService = params.alchemyService;
+    this.chainId = params.chainId;
+
+    const url = `${params.gatewayUrl}/${params.apiKey ?? ''}`;
+    this.provider = new ethers.providers.JsonRpcProvider(url);
+
+    this.wallet = new ethers.Wallet(params.walletPrivateKey, this.provider);
 
     this.router = new AlphaRouter({
       chainId: this.chainId,
@@ -57,25 +75,30 @@ export abstract class EvmClient {
   }
 
   async getNativeCoinBalance(): Promise<number> {
-    return this.getNativeCoinBalanceOfAddress(this.dfxAddress);
-  }
-
-  async getTokenBalance(token: Asset): Promise<number> {
-    return this.getTokenBalanceOfAddress(this.dfxAddress, token);
-  }
-
-  async getNativeCoinBalanceOfAddress(address: string): Promise<number> {
-    const balance = await this.provider.getBalance(address);
+    const balance = await this.alchemyService.getNativeCoinBalance(this.chainId, this.dfxAddress);
 
     return this.fromWeiAmount(balance);
   }
 
-  async getTokenBalanceOfAddress(address: string, asset: Asset): Promise<number> {
-    const contract = this.getERC20ContractForDex(asset.chainId);
-    const balance = await contract.balanceOf(address);
-    const token = await this.getToken(contract);
+  async getTokenBalance(asset: Asset): Promise<number> {
+    const evmTokenBalances = await this.getTokenBalances([asset]);
 
-    return this.fromWeiAmount(balance, token.decimals);
+    return evmTokenBalances[0]?.balance ?? 0;
+  }
+
+  async getTokenBalances(assets: Asset[]): Promise<EvmTokenBalance[]> {
+    const evmTokenBalances: EvmTokenBalance[] = [];
+
+    const tokenBalances = await this.alchemyService.getTokenBalances(this.chainId, this.dfxAddress, assets);
+
+    for (const tokenBalance of tokenBalances) {
+      const token = await this.getTokenByAddress(tokenBalance.contractAddress);
+      const balance = this.fromWeiAmount(tokenBalance.tokenBalance ?? 0, token.decimals);
+
+      evmTokenBalances.push({ contractAddress: tokenBalance.contractAddress, balance: balance });
+    }
+
+    return evmTokenBalances;
   }
 
   async getRecommendedGasPrice(): Promise<EthersNumber> {
@@ -226,9 +249,8 @@ export abstract class EvmClient {
   // --- PUBLIC HELPER METHODS --- //
 
   fromWeiAmount(amountWeiLike: BigNumberish, decimals?: number): number {
-    const amount = decimals
-      ? ethers.utils.formatUnits(amountWeiLike, decimals)
-      : ethers.utils.formatEther(amountWeiLike);
+    const amount =
+      decimals != null ? ethers.utils.formatUnits(amountWeiLike, decimals) : ethers.utils.formatEther(amountWeiLike);
 
     return parseFloat(amount);
   }
@@ -380,13 +402,5 @@ export abstract class EvmClient {
       tokenName: atr.asset,
       tokenDecimal: Number(atr.rawContract.decimal).toString(),
     }));
-  }
-
-  async getNativeCoinBalanceByAlchemy(): Promise<AlchemyBigNumber> {
-    return this.alchemyService.getNativeCoinBalance(this.chainId, this.dfxAddress);
-  }
-
-  async getTokenBalancesByAlchemy(): Promise<OwnedToken[]> {
-    return this.alchemyService.getTokenBalances(this.chainId, this.dfxAddress);
   }
 }

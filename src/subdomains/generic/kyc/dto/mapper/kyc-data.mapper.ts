@@ -1,5 +1,5 @@
 import { KycUserDataDto } from 'src/subdomains/generic/user/models/kyc/dto/kyc-user-data.dto';
-import { KycPersonalData } from '../input/kyc-personal-data.dto';
+import { KycPersonalData } from '../input/kyc-data.dto';
 
 export class KycDataMapper {
   static toUserData(data: KycPersonalData): KycUserDataDto {

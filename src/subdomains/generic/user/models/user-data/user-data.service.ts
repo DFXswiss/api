@@ -5,6 +5,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
@@ -17,8 +18,9 @@ import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
+import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
-import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
@@ -30,7 +32,7 @@ import { UserRepository } from '../user/user.repository';
 import { AccountType } from './account-type.enum';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
-import { KycCompleted, KycStatus, UserData, UserDataStatus } from './user-data.entity';
+import { KycLevel, KycStatus, UserData, UserDataStatus } from './user-data.entity';
 import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
@@ -77,12 +79,12 @@ export class UserDataService {
       user = await this.getMasterUser(user);
       if (user) {
         const payload: MergedDto = {
-          error: 'Conflict',
+          error: 'Unauthorized',
           message: 'User is merged',
-          statusCode: 409,
+          statusCode: 401,
           switchToCode: user.kycHash,
         };
-        throw new ConflictException(payload);
+        throw new UnauthorizedException(payload);
       } else {
         throw new BadRequestException('User is merged');
       }
@@ -98,7 +100,7 @@ export class UserDataService {
 
   async getUsersByMail(mail: string): Promise<UserData[]> {
     return this.userDataRepo.find({
-      where: { mail: mail, status: In([UserDataStatus.ACTIVE, UserDataStatus.NA]) },
+      where: { mail: mail, status: In([UserDataStatus.ACTIVE, UserDataStatus.NA, UserDataStatus.KYC_ONLY]) },
       relations: ['users'],
     });
   }
@@ -108,6 +110,11 @@ export class UserDataService {
       .createQueryBuilder('userData')
       .select('userData')
       .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
+      .leftJoinAndSelect('userData.country', 'country')
+      .leftJoinAndSelect('userData.nationality', 'nationality')
+      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+      .leftJoinAndSelect('userData.language', 'language')
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`${key.includes('.') ? key : `userData.${key}`} = :param`, { param: value })
       .andWhere(`userData.status != :status`, { status: UserDataStatus.MERGED })
@@ -120,6 +127,13 @@ export class UserDataService {
       language: dto.language ?? (await this.languageService.getLanguageBySymbol(Config.defaultLanguage)),
       currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaultCurrency)),
     });
+
+    if (dto.kycFileId) {
+      const userWithSameFileId = await this.userDataRepo.findOneBy({ kycFileId: dto.kycFileId });
+      if (userWithSameFileId) throw new ConflictException('A user with this KYC file ID already exists');
+    }
+
+    await this.loadDtoRelations(userData, dto);
 
     return this.userDataRepo.save(userData);
   }
@@ -146,11 +160,6 @@ export class UserDataService {
       if (!userData.organizationCountry) throw new BadRequestException('Country not found');
     }
 
-    if (dto.mainBankDataId) {
-      userData.mainBankData = await this.bankDataRepo.findOneBy({ id: dto.mainBankDataId });
-      if (!userData.mainBankData) throw new BadRequestException('Bank data not found');
-    }
-
     if (dto.nationality || dto.identDocumentId) {
       const existing = await this.userDataRepo.findOneBy({
         nationality: { id: userData.nationality.id },
@@ -166,8 +175,17 @@ export class UserDataService {
       await this.userDataRepo.save({ ...userData, ...{ kycFileId: dto.kycFileId } });
     }
 
+    await this.loadDtoRelations(userData, dto);
+
     if (dto.kycLevel && dto.kycLevel !== userData.kycLevel)
       await this.kycNotificationService.kycChanged(userData, dto.kycLevel);
+
+    if (dto.bankTransactionVerification === CheckStatus.PASS) {
+      // cancel a pending video ident, if ident is completed
+      const identCompleted = userData.hasCompletedStep(KycStepName.IDENT);
+      const pendingVideo = userData.getPendingStepWith(KycStepName.IDENT, KycStepType.VIDEO);
+      if (identCompleted && pendingVideo) userData.cancelStep(pendingVideo);
+    }
 
     // Columns are not updatable
     if (userData.letterSentDate) dto.letterSentDate = userData.letterSentDate;
@@ -223,12 +241,6 @@ export class UserDataService {
       if (!dto.language) throw new BadRequestException('Language not found');
     }
 
-    // check currency
-    if (dto.currency) {
-      dto.currency = await this.fiatService.getFiat(dto.currency.id);
-      if (!dto.currency) throw new BadRequestException('Currency not found');
-    }
-
     const mailChanged = dto.mail && dto.mail !== user.mail;
 
     user = await this.userDataRepo.save(Object.assign(user, dto));
@@ -268,6 +280,43 @@ export class UserDataService {
 
   private async hasRole(userDataId: number, role: UserRole): Promise<boolean> {
     return this.userRepo.exist({ where: { userData: { id: userDataId }, role } });
+  }
+
+  private async loadDtoRelations(userData: UserData, dto: UpdateUserDataDto | CreateUserDataDto): Promise<void> {
+    if (dto.countryId) {
+      userData.country = await this.countryService.getCountry(dto.countryId);
+      if (!userData.country) throw new BadRequestException('Country not found');
+    }
+
+    if (dto.nationality) {
+      userData.nationality = await this.countryService.getCountry(dto.nationality.id);
+      if (!userData.nationality) throw new BadRequestException('Nationality not found');
+    }
+
+    if (dto.organizationCountryId) {
+      userData.organizationCountry = await this.countryService.getCountry(dto.organizationCountryId);
+      if (!userData.organizationCountry) throw new BadRequestException('Country not found');
+    }
+
+    if (dto.verifiedCountry) {
+      userData.verifiedCountry = await this.countryService.getCountry(dto.verifiedCountry.id);
+      if (!userData.verifiedCountry) throw new BadRequestException('VerifiedCountry not found');
+    }
+
+    if (dto.language) {
+      userData.language = await this.languageService.getLanguage(dto.language.id);
+      if (!userData.language) throw new BadRequestException('Language not found');
+    }
+
+    if (dto.currency) {
+      userData.currency = await this.fiatService.getFiat(dto.currency.id);
+      if (!userData.currency) throw new BadRequestException('Currency not found');
+    }
+
+    if (dto.accountOpener) {
+      userData.accountOpener = await this.userDataRepo.findOneBy({ id: dto.accountOpener.id });
+      if (!userData.accountOpener) throw new BadRequestException('AccountOpener not found');
+    }
   }
 
   async save(userData: UserData): Promise<UserData> {
@@ -326,12 +375,12 @@ export class UserDataService {
   }
 
   async isKnownKycUser(user: UserData): Promise<boolean> {
-    if (user.isDfxUser) {
+    if (user.isDfxUser && user.mail) {
       const users = await this.getUsersByMail(user.mail);
       const matchingUser = users.find(
         (u) =>
           u.id !== user.id &&
-          KycCompleted(u.kycStatus) &&
+          u.kycLevel >= KycLevel.LEVEL_30 &&
           u.isDfxUser &&
           u.verifiedName &&
           (!user.verifiedName || user.verifiedName === u.verifiedName),

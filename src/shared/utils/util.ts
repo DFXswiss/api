@@ -45,6 +45,10 @@ export class Util {
     return list.reduce((i, j) => (i && j[key] <= i[key] ? i : j), undefined);
   }
 
+  static sort<T>(list: T[], key: KeyType<T, number> | KeyType<T, Date>, sorting: 'ASC' | 'DESC' = 'ASC'): T[] {
+    return list.sort((a, b) => (sorting === 'ASC' ? Number(a[key]) - Number(b[key]) : Number(b[key]) - Number(a[key])));
+  }
+
   static avg(list: number[]): number {
     return this.sum(list) / list.length;
   }
@@ -324,11 +328,18 @@ export class Util {
     return sign.sign(key, 'base64');
   }
 
-  static async retry<T>(action: () => Promise<T>, tryCount = 3, delay = 0): Promise<T> {
+  static async retry<T>(
+    action: () => Promise<T>,
+    tryCount = 3,
+    delay = 0,
+    onError?: () => Promise<unknown>,
+    retryIf?: (e: Error) => boolean,
+  ): Promise<T> {
     try {
       return await action();
     } catch (e) {
-      if (tryCount > 1) {
+      if (tryCount > 1 && (!retryIf || retryIf(e))) {
+        await onError?.();
         await this.delay(delay);
         return this.retry(action, tryCount - 1, delay);
       }
@@ -352,5 +363,9 @@ export class Util {
 
   static trim({ value }: TransformFnParams): string | undefined {
     return value?.split(' ').join('');
+  }
+
+  static mapBooleanQuery({ value }: TransformFnParams): boolean | undefined {
+    return Boolean(value || value === '');
   }
 }

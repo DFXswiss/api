@@ -20,6 +20,7 @@ import { PayInEthereumService } from './services/payin-ethereum.service';
 import { PayInMoneroService } from './services/payin-monero.service';
 import { PayInNotificationService } from './services/payin-notification.service';
 import { PayInOptimismService } from './services/payin-optimism.service';
+import { PayInPolygonService } from './services/payin-polygon.service';
 import { PayInService } from './services/payin.service';
 import { ArbitrumStrategy as ArbitrumStrategyR } from './strategies/register/impl/arbitrum.strategy';
 import { RegisterStrategyRegistry } from './strategies/register/impl/base/register.strategy-registry';
@@ -30,6 +31,7 @@ import { EthereumStrategy as EthereumStrategyR } from './strategies/register/imp
 import { LightningStrategy as LightningStrategyR } from './strategies/register/impl/lightning.strategy';
 import { MoneroStrategy as MoneroStrategyR } from './strategies/register/impl/monero.strategy';
 import { OptimismStrategy as OptimismStrategyR } from './strategies/register/impl/optimism.strategy';
+import { PolygonStrategy as PolygonStrategyR } from './strategies/register/impl/polygon.strategy';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyS } from './strategies/send/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategyS } from './strategies/send/impl/arbitrum-token.strategy';
 import { SendStrategyRegistry } from './strategies/send/impl/base/send.strategy-registry';
@@ -44,6 +46,8 @@ import { LightningStrategy as LightningStrategyS } from './strategies/send/impl/
 import { MoneroStrategy as MoneroStrategyS } from './strategies/send/impl/monero.strategy';
 import { OptimismCoinStrategy as OptimismCoinStrategyS } from './strategies/send/impl/optimism-coin.strategy';
 import { OptimismTokenStrategy as OptimismTokenStrategyS } from './strategies/send/impl/optimism-token.strategy';
+import { PolygonCoinStrategy as PolygonCoinStrategyS } from './strategies/send/impl/polygon-coin.strategy';
+import { PolygonTokenStrategy as PolygonTokenStrategyS } from './strategies/send/impl/polygon-token.strategy';
 
 @Module({
   imports: [
@@ -54,7 +58,7 @@ import { OptimismTokenStrategy as OptimismTokenStrategyS } from './strategies/se
     PayoutModule,
     DexModule,
     forwardRef(() => SellCryptoModule),
-    PaymentModule,
+    forwardRef(() => PaymentModule),
     NotificationModule,
     AlchemyModule,
   ],
@@ -67,6 +71,7 @@ import { OptimismTokenStrategy as OptimismTokenStrategyS } from './strategies/se
     PayInBscService,
     PayInEthereumService,
     PayInOptimismService,
+    PayInPolygonService,
     PayInBitcoinService,
     PayInMoneroService,
     PayInDeFiChainService,
@@ -80,6 +85,7 @@ import { OptimismTokenStrategy as OptimismTokenStrategyS } from './strategies/se
     DeFiChainStrategyR,
     EthereumStrategyR,
     OptimismStrategyR,
+    PolygonStrategyR,
     ArbitrumCoinStrategyS,
     ArbitrumTokenStrategyS,
     BitcoinStrategyS,
@@ -93,6 +99,8 @@ import { OptimismTokenStrategy as OptimismTokenStrategyS } from './strategies/se
     EthereumTokenStrategyS,
     OptimismCoinStrategyS,
     OptimismTokenStrategyS,
+    PolygonCoinStrategyS,
+    PolygonTokenStrategyS,
     PayInNotificationService,
   ],
   exports: [PayInService],

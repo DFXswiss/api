@@ -4,8 +4,8 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { BuyFiat } from './buy-fiat.entity';
-import { BuyFiatService } from './buy-fiat.service';
 import { UpdateBuyFiatDto } from './dto/update-buy-fiat.dto';
+import { BuyFiatService } from './services/buy-fiat.service';
 
 @ApiTags('buyFiat')
 @Controller('buyFiat')
@@ -32,8 +32,8 @@ export class BuyFiatController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateRefVolumes(): Promise<void> {
-    return this.buyFiatService.updateRefVolumes();
+  async updateRefVolumes(@Query('start') start?: string, @Query('end') end?: string): Promise<void> {
+    return this.buyFiatService.updateRefVolumes(start ? +start : undefined, end ? +end : undefined);
   }
 
   @Put(':id')

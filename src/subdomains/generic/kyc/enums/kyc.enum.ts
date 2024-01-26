@@ -42,6 +42,7 @@ export enum KycStepStatus {
   IN_REVIEW = 'InReview',
   FAILED = 'Failed',
   COMPLETED = 'Completed',
+  CANCELED = 'Canceled',
 }
 
 export enum UrlType {

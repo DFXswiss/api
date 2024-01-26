@@ -16,7 +16,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
-import { BuyFiatService } from '../process/buy-fiat.service';
+import { BuyFiatService } from '../process/services/buy-fiat.service';
 import { CreateSellDto } from './dto/create-sell.dto';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { GetSellQuoteDto } from './dto/get-sell-quote.dto';
@@ -73,6 +73,7 @@ export class SellController {
     const { amount: sourceAmount, asset, currency, targetAmount } = await this.paymentInfoService.sellCheck(dto);
 
     const {
+      rate,
       exchangeRate,
       feeAmount,
       estimatedAmount,
@@ -87,6 +88,7 @@ export class SellController {
 
     return {
       feeAmount,
+      rate,
       exchangeRate,
       estimatedAmount,
       amount,
@@ -102,9 +104,13 @@ export class SellController {
     @Body() dto: GetSellPaymentInfoDto,
   ): Promise<SellPaymentInfoDto> {
     dto = await this.paymentInfoService.sellCheck(dto, jwt);
-    return this.sellService
-      .createSell(jwt.id, { ...dto, blockchain: dto.asset.blockchain }, true)
-      .then((sell) => this.toPaymentInfoDto(jwt.id, sell, dto));
+    return Util.retry(
+      () => this.sellService.createSell(jwt.id, { ...dto, blockchain: dto.asset.blockchain }, true),
+      2,
+      0,
+      undefined,
+      (e) => e.message?.includes('duplicate key'),
+    ).then((sell) => this.toPaymentInfoDto(jwt.id, sell, dto));
   }
 
   @Put(':id')

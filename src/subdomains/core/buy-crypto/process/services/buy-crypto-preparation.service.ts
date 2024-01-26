@@ -1,4 +1,4 @@
-import { Inject, Injectable, forwardRef } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -30,7 +30,6 @@ export class BuyCryptoPreparationService {
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly assetService: AssetService,
     private readonly feeService: FeeService,
-    @Inject(forwardRef(() => BuyCryptoService))
     private readonly buyCryptoService: BuyCryptoService,
   ) {}
 
@@ -156,13 +155,13 @@ export class BuyCryptoPreparationService {
         const referenceChfPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatChf);
 
         for (const feeId of fee.fees) {
-          await this.feeService.increaseTxUsage(feeId);
+          await this.feeService.increaseTxUsages(feeId, entity.user.userData);
         }
 
         await this.buyCryptoRepo.update(
           ...entity.setFeeAndFiatReference(
-            referenceEurPrice.convert(entity.inputReference.amount, 2),
-            referenceChfPrice.convert(entity.inputReference.amount, 2),
+            referenceEurPrice.convert(entity.inputReferenceAmount, 2),
+            referenceChfPrice.convert(entity.inputReferenceAmount, 2),
             fee.fees,
             fee.rate,
             fee.fixed,

@@ -7,9 +7,12 @@ export class SellQuoteDto {
   @ApiProperty({ description: 'Amount in source asset' })
   amount: number;
 
+  @ApiProperty({ description: 'Estimated amount in target currency' })
+  estimatedAmount: number;
+
   @ApiProperty({ description: 'Exchange rate in source/target' })
   exchangeRate: number;
 
-  @ApiProperty({ description: 'Estimated amount in target currency' })
-  estimatedAmount: number;
+  @ApiProperty({ description: 'Final rate (incl. fees) in source/target' })
+  rate: number;
 }

@@ -12,7 +12,7 @@ import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
-import { HistoryDto } from 'src/subdomains/core/history/dto/history.dto';
+import { HistoryDtoDeprecated } from 'src/subdomains/core/history/dto/history.dto';
 import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
@@ -69,6 +69,8 @@ export class CryptoRouteController {
       .then((b) => this.toDto(jwt.id, b));
   }
 
+  // TODO: enable quote + info endpoints after refactoring (move to convert)
+  @ApiExcludeEndpoint()
   @Put('/quote')
   @ApiOkResponse({ type: CryptoQuoteDto })
   async getCryptoQuote(@Body() dto: GetCryptoQuoteDto): Promise<CryptoQuoteDto> {
@@ -100,6 +102,7 @@ export class CryptoRouteController {
     };
   }
 
+  @ApiExcludeEndpoint()
   @Put('/paymentInfos')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
@@ -109,9 +112,13 @@ export class CryptoRouteController {
     @Body() dto: GetCryptoPaymentInfoDto,
   ): Promise<CryptoPaymentInfoDto> {
     dto = await this.paymentInfoService.cryptoCheck(dto, jwt);
-    return this.cryptoRouteService
-      .createCrypto(jwt.id, dto.sourceAsset.blockchain, dto.targetAsset, true)
-      .then((crypto) => this.toPaymentInfoDto(jwt.id, crypto, dto));
+    return Util.retry(
+      () => this.cryptoRouteService.createCrypto(jwt.id, dto.sourceAsset.blockchain, dto.targetAsset, true),
+      2,
+      0,
+      undefined,
+      (e) => e.message?.includes('duplicate key'),
+    ).then((crypto) => this.toPaymentInfoDto(jwt.id, crypto, dto));
   }
 
   @Put(':id')
@@ -130,7 +137,7 @@ export class CryptoRouteController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
-  async getCryptoRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<HistoryDto[]> {
+  async getCryptoRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<HistoryDtoDeprecated[]> {
     return this.buyCryptoService.getCryptoHistory(jwt.id, +id);
   }
 

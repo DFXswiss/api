@@ -15,6 +15,7 @@ import { DexEthereumService } from './services/dex-ethereum.service';
 import { DexLightningService } from './services/dex-lightning.service';
 import { DexMoneroService } from './services/dex-monero.service';
 import { DexOptimismService } from './services/dex-optimism.service';
+import { DexPolygonService } from './services/dex-polygon.service';
 import { DexService } from './services/dex.service';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyCL } from './strategies/check-liquidity/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategyCL } from './strategies/check-liquidity/impl/arbitrum-token.strategy';
@@ -30,6 +31,8 @@ import { LightningStrategy as LightningStrategyCL } from './strategies/check-liq
 import { MoneroStrategy as MoneroStrategyCL } from './strategies/check-liquidity/impl/monero.strategy';
 import { OptimismCoinStrategy as OptimismCoinStrategyCL } from './strategies/check-liquidity/impl/optimism-coin.strategy';
 import { OptimismTokenStrategy as OptimismTokenStrategyCL } from './strategies/check-liquidity/impl/optimism-token.strategy';
+import { PolygonCoinStrategy as PolygonCoinStrategyCL } from './strategies/check-liquidity/impl/polygon-coin.strategy';
+import { PolygonTokenStrategy as PolygonTokenStrategyCL } from './strategies/check-liquidity/impl/polygon-token.strategy';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyPL } from './strategies/purchase-liquidity/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategyPL } from './strategies/purchase-liquidity/impl/arbitrum-token.strategy';
 import { PurchaseLiquidityStrategyRegistry } from './strategies/purchase-liquidity/impl/base/purchase-liquidity.strategy-registry';
@@ -45,6 +48,8 @@ import { EthereumTokenStrategy as EthereumTokenStrategyPL } from './strategies/p
 import { MoneroStrategy as MoneroStrategyPL } from './strategies/purchase-liquidity/impl/monero.strategy';
 import { OptimismCoinStrategy as OptimismCoinStrategyPL } from './strategies/purchase-liquidity/impl/optimism-coin.strategy';
 import { OptimismTokenStrategy as OptimismTokenStrategyPL } from './strategies/purchase-liquidity/impl/optimism-token.strategy';
+import { PolygonCoinStrategy as PolygonCoinStrategyPL } from './strategies/purchase-liquidity/impl/polygon-coin.strategy';
+import { PolygonTokenStrategy as PolygonTokenStrategyPL } from './strategies/purchase-liquidity/impl/polygon-token.strategy';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategySL } from './strategies/sell-liquidity/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategySL } from './strategies/sell-liquidity/impl/arbitrum-token.strategy';
 import { SellLiquidityStrategyRegistry } from './strategies/sell-liquidity/impl/base/sell-liquidity.strategy-registry';
@@ -58,6 +63,8 @@ import { EthereumTokenStrategy as EthereumTokenStrategySL } from './strategies/s
 import { MoneroStrategy as MoneroStrategySL } from './strategies/sell-liquidity/impl/monero.strategy';
 import { OptimismCoinStrategy as OptimismCoinStrategySL } from './strategies/sell-liquidity/impl/optimism-coin.strategy';
 import { OptimismTokenStrategy as OptimismTokenStrategySL } from './strategies/sell-liquidity/impl/optimism-token.strategy';
+import { PolygonCoinStrategy as PolygonCoinStrategySL } from './strategies/sell-liquidity/impl/polygon-coin.strategy';
+import { PolygonTokenStrategy as PolygonTokenStrategySL } from './strategies/sell-liquidity/impl/polygon-token.strategy';
 import { ArbitrumStrategy as ArbitrumStrategyS } from './strategies/supplementary/impl/arbitrum.strategy';
 import { SupplementaryStrategyRegistry } from './strategies/supplementary/impl/base/supplementary.strategy-registry';
 import { BitcoinStrategy as BitcoinStrategyS } from './strategies/supplementary/impl/bitcoin.strategy';
@@ -66,6 +73,7 @@ import { DeFiChainStrategy as DeFiChainStrategyS } from './strategies/supplement
 import { EthereumStrategy as EthereumStrategyS } from './strategies/supplementary/impl/ethereum.strategy';
 import { MoneroStrategy as MoneroStrategyS } from './strategies/supplementary/impl/monero.strategy';
 import { OptimismStrategy as OptimismStrategyS } from './strategies/supplementary/impl/optimism.strategy';
+import { PolygonStrategy as PolygonStrategyS } from './strategies/supplementary/impl/polygon.strategy';
 
 @Module({
   imports: [TypeOrmModule.forFeature([LiquidityOrder]), BlockchainModule, NotificationModule, SharedModule],
@@ -78,6 +86,7 @@ import { OptimismStrategy as OptimismStrategyS } from './strategies/supplementar
     DexEthereumService,
     DexArbitrumService,
     DexOptimismService,
+    DexPolygonService,
     DexBscService,
     DexBitcoinService,
     DexLightningService,
@@ -99,6 +108,8 @@ import { OptimismStrategy as OptimismStrategyS } from './strategies/supplementar
     EthereumTokenStrategyCL,
     OptimismCoinStrategyCL,
     OptimismTokenStrategyCL,
+    PolygonCoinStrategyCL,
+    PolygonTokenStrategyCL,
     DeFiChainDfiStrategyPL,
     DeFiChainCryptoStrategyPL,
     DeFiChainPoolPairStrategyPL,
@@ -113,6 +124,8 @@ import { OptimismStrategy as OptimismStrategyS } from './strategies/supplementar
     EthereumTokenStrategyPL,
     OptimismCoinStrategyPL,
     OptimismTokenStrategyPL,
+    PolygonCoinStrategyPL,
+    PolygonTokenStrategyPL,
     BitcoinStrategySL,
     MoneroStrategySL,
     ArbitrumCoinStrategySL,
@@ -125,6 +138,8 @@ import { OptimismStrategy as OptimismStrategyS } from './strategies/supplementar
     EthereumTokenStrategySL,
     OptimismCoinStrategySL,
     OptimismTokenStrategySL,
+    PolygonCoinStrategySL,
+    PolygonTokenStrategySL,
     ArbitrumStrategyS,
     BitcoinStrategyS,
     MoneroStrategyS,
@@ -132,6 +147,7 @@ import { OptimismStrategy as OptimismStrategyS } from './strategies/supplementar
     DeFiChainStrategyS,
     EthereumStrategyS,
     OptimismStrategyS,
+    PolygonStrategyS,
   ],
   exports: [DexService],
 })

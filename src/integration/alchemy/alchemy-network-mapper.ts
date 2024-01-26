@@ -9,7 +9,7 @@ export class AlchemyNetworkMapper {
     [Blockchain.ETHEREUM, this.blockchainConfig.ethereum.ethChainId],
     [Blockchain.ARBITRUM, this.blockchainConfig.arbitrum.arbitrumChainId],
     [Blockchain.OPTIMISM, this.blockchainConfig.optimism.optimismChainId],
-    //[Blockchain.POLYGON, this.blockchainConfig.polygon.polygonChainId],
+    [Blockchain.POLYGON, this.blockchainConfig.polygon.polygonChainId],
   ]);
 
   private static readonly chainIdToNetworkMap = new Map<number, Network>([

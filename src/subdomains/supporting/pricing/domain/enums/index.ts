@@ -29,6 +29,7 @@ export enum Bitcoin {
 
 export enum AltCoin {
   ETH = 'ETH',
+  WETH = 'WETH',
   BNB = 'BNB',
   MATIC = 'MATIC',
   DAI = 'DAI',

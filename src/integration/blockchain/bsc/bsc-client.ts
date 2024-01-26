@@ -1,27 +1,25 @@
-import { ChainId } from '@uniswap/sdk-core';
 import { Contract, ethers } from 'ethers';
 import { GetConfig } from 'src/config/config';
 import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
 import UNISWAP_ROUTER_02_ABI from 'src/integration/blockchain/shared/evm/abi/uniswap-router02.abi.json';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
+import { HttpRequestConfig } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { ScanApiResponse } from '../shared/evm/dto/scan-api-response.dto';
-import { EvmClient } from '../shared/evm/evm-client';
+import { EvmClient, EvmClientParams } from '../shared/evm/evm-client';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from '../shared/evm/interfaces';
 
 export class BscClient extends EvmClient {
   private routerV2: Contract;
 
-  constructor(
-    http: HttpService,
-    gatewayUrl: string,
-    privateKey: string,
-    chainId: ChainId,
-    private scanApiUrl: string,
-    private scanApiKey: string,
-  ) {
-    super(http, gatewayUrl, privateKey, chainId);
+  private scanApiUrl: string;
+  private scanApiKey: string;
+
+  constructor(params: EvmClientParams) {
+    super(params);
+
+    this.scanApiUrl = params.scanApiUrl;
+    this.scanApiKey = params.scanApiKey;
 
     // old v2 router
     this.routerV2 = new ethers.Contract(
@@ -67,6 +65,20 @@ export class BscClient extends EvmClient {
     if (!Array.isArray(result)) throw new Error(`Failed to get ${type} transactions: ${result ?? message}`);
 
     return result;
+  }
+
+  async getNativeCoinBalance(): Promise<number> {
+    const balance = await this.provider.getBalance(this.dfxAddress);
+
+    return this.fromWeiAmount(balance);
+  }
+
+  async getTokenBalance(asset: Asset): Promise<number> {
+    const contract = this.getERC20ContractForDex(asset.chainId);
+    const balance = await contract.balanceOf(this.dfxAddress);
+    const token = await this.getToken(contract);
+
+    return this.fromWeiAmount(balance, token.decimals);
   }
 
   private async callBscScanApi<T>(config: HttpRequestConfig, nthTry = 10): Promise<ScanApiResponse<T>> {

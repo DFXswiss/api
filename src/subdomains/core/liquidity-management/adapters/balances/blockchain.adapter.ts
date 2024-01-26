@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { BigNumber as AlchemyBigNumber, OwnedToken } from 'alchemy-sdk';
 import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
 import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { EvmTokenBalance } from 'src/integration/blockchain/shared/evm/dto/evm-token-balance.dto';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
@@ -107,6 +107,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
         case Blockchain.ETHEREUM:
         case Blockchain.OPTIMISM:
         case Blockchain.ARBITRUM:
+        case Blockchain.POLYGON:
           await this.getForEvm(assets);
           break;
 
@@ -119,6 +120,8 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
       }
 
       this.updateTimestamps.set(blockchain, updated);
+    } catch (e) {
+      this.logger.error(`Failed to update balances for ${blockchain}:`, e);
     } finally {
       this.updateCalls.delete(blockchain);
     }
@@ -183,12 +186,12 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     const blockchain = assets[0].blockchain;
     const client = this.evmRegistryService.getClient(blockchain);
 
-    let coinBalance: AlchemyBigNumber;
-    let tokenBalances: OwnedToken[];
+    let coinBalance: number;
+    let tokenBalances: EvmTokenBalance[];
 
     try {
-      coinBalance = await client.getNativeCoinBalanceByAlchemy();
-      tokenBalances = await client.getTokenBalancesByAlchemy();
+      coinBalance = await client.getNativeCoinBalance();
+      tokenBalances = await client.getTokenBalances(assets);
     } catch (e) {
       this.logger.error(`Failed to update liquidity management balance for all assets of blockchain ${blockchain}:`, e);
       this.invalidateCacheFor(assets);
@@ -196,14 +199,12 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     }
 
     const tokenToBalanceMap = new Map<string, number>(
-      tokenBalances.filter((t) => t.symbol).map((t) => [t.symbol.toUpperCase(), t.balance ? Number(t.balance) : 0]),
+      tokenBalances.filter((t) => t.contractAddress).map((t) => [t.contractAddress.toLowerCase(), t.balance ?? 0]),
     );
 
     for (const asset of assets) {
       const balance =
-        asset.type === AssetType.COIN
-          ? client.fromWeiAmount(coinBalance)
-          : tokenToBalanceMap.get(asset.dexName.toUpperCase()) ?? 0;
+        asset.type === AssetType.COIN ? coinBalance : tokenToBalanceMap.get(asset.chainId?.toLowerCase()) ?? 0;
 
       this.balanceCache.set(asset.id, balance);
     }

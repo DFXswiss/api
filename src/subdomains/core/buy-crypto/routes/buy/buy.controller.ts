@@ -73,6 +73,7 @@ export class BuyController {
     const { amount: sourceAmount, currency, asset, targetAmount } = await this.paymentInfoService.buyCheck(dto);
 
     const {
+      rate,
       exchangeRate,
       feeAmount,
       estimatedAmount,
@@ -81,6 +82,7 @@ export class BuyController {
 
     return {
       feeAmount,
+      rate,
       exchangeRate,
       estimatedAmount,
       amount,
@@ -96,9 +98,13 @@ export class BuyController {
     @Body() dto: GetBuyPaymentInfoDto,
   ): Promise<BuyPaymentInfoDto> {
     dto = await this.paymentInfoService.buyCheck(dto, jwt);
-    return this.buyService
-      .createBuy(jwt.id, jwt.address, dto, true)
-      .then((buy) => this.toPaymentInfoDto(jwt.id, buy, dto));
+    return Util.retry(
+      () => this.buyService.createBuy(jwt.id, jwt.address, dto, true),
+      2,
+      0,
+      undefined,
+      (e) => e.message?.includes('duplicate key'),
+    ).then((buy) => this.toPaymentInfoDto(jwt.id, buy, dto));
   }
 
   @Put(':id')

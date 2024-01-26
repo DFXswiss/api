@@ -11,8 +11,7 @@ import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.e
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
-import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
-import { SpiderData } from '../spider-data/spider-data.entity';
+import { Column, Entity, Generated, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
 import { TradingLimit } from '../user/dto/user.dto';
 import { AccountType } from './account-type.enum';
@@ -87,10 +86,13 @@ export enum UserDataStatus {
 }
 
 @Entity()
-@Index((userData: UserData) => [userData.identDocumentId, userData.nationality], {
-  unique: true,
-  where: 'identDocumentId IS NOT NULL',
-})
+@Index(
+  (userData: UserData) => [userData.identDocumentId, userData.nationality, userData.accountType, userData.kycType],
+  {
+    unique: true,
+    where: 'identDocumentId IS NOT NULL AND accountType IS NOT NULL AND kycType IS NOT NULL',
+  },
+)
 export class UserData extends IEntity {
   private readonly logger = new DfxLogger(UserData);
 
@@ -155,6 +157,18 @@ export class UserData extends IEntity {
   @ManyToOne(() => Country, { eager: true })
   organizationCountry: Country;
 
+  @Column({ type: 'float', nullable: true })
+  totalVolumeChfAuditPeriod: number;
+
+  @Column({ length: 256, nullable: true })
+  allBeneficialOwnersName: string;
+
+  @Column({ length: 256, nullable: true })
+  allBeneficialOwnersDomicile: string;
+
+  @Column({ length: 256, nullable: true })
+  accountOpenerAuthorization: string;
+
   @Column({ length: 256, nullable: true })
   phone: string;
 
@@ -169,9 +183,6 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   riskState: RiskState;
 
-  @Column({ length: 'MAX', nullable: true })
-  riskRoots: string;
-
   @Column({ nullable: true })
   highRisk: boolean;
 
@@ -181,17 +192,8 @@ export class UserData extends IEntity {
   @Column({ length: 256, default: KycStatus.NA })
   kycStatus: KycStatus;
 
-  @Column({ length: 256, default: KycState.NA })
-  kycState: KycState;
-
-  @Column({ type: 'datetime2', nullable: true })
-  kycStatusChangeDate: Date;
-
   @Column({ type: 'integer', nullable: true })
   kycFileId: number;
-
-  @Column({ type: 'integer', nullable: true })
-  kycCustomerId: number;
 
   @Column({ default: KycLevel.LEVEL_0 })
   kycLevel: KycLevel;
@@ -209,12 +211,6 @@ export class UserData extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   depositLimit: number;
-
-  @Column({ type: 'integer', nullable: true })
-  contribution: number;
-
-  @Column({ length: 256, nullable: true })
-  plannedContribution: string;
 
   @Column({ type: 'datetime2', nullable: true })
   letterSentDate: Date;
@@ -285,6 +281,10 @@ export class UserData extends IEntity {
   totpSecret: string;
 
   // References
+  @ManyToOne(() => UserData, { nullable: true })
+  @JoinColumn()
+  accountOpener: UserData;
+
   @OneToMany(() => UserDataRelation, (userDataRelation) => userDataRelation.account)
   accountRelations: UserDataRelation[];
 
@@ -297,15 +297,8 @@ export class UserData extends IEntity {
   @OneToMany(() => BankData, (bankData) => bankData.userData)
   bankDatas: BankData[];
 
-  @OneToOne(() => BankData, { nullable: true })
-  @JoinColumn()
-  mainBankData: BankData;
-
   @OneToMany(() => User, (user) => user.userData)
   users: User[];
-
-  @OneToOne(() => SpiderData, (c) => c.userData, { nullable: true })
-  spiderData: SpiderData;
 
   // --- ENTITY METHODS --- //
   sendMail(): UpdateResult<UserData> {
@@ -360,6 +353,10 @@ export class UserData extends IEntity {
     return [this.id, update];
   }
 
+  get kycUrl(): string {
+    return `${Config.frontend.services}/kyc?code=${this.kycHash}`;
+  }
+
   get isDfxUser(): boolean {
     return this.kycType === KycType.DFX;
   }
@@ -375,7 +372,7 @@ export class UserData extends IEntity {
   get tradingLimit(): TradingLimit {
     if (KycCompleted(this.kycStatus)) {
       return { limit: this.depositLimit, period: LimitPeriod.YEAR };
-    } else if (this.kycStatus === KycStatus.REJECTED) {
+    } else if (this.isKycTerminated) {
       return { limit: 0, period: LimitPeriod.DAY };
     } else {
       return { limit: Config.defaultDailyTradingLimit, period: LimitPeriod.DAY };
@@ -386,6 +383,13 @@ export class UserData extends IEntity {
     return this.tradingLimit.period === LimitPeriod.YEAR
       ? this.tradingLimit.limit - this.annualBuyVolume - this.annualSellVolume - this.annualCryptoVolume
       : this.tradingLimit.limit;
+  }
+
+  get isKycTerminated(): boolean {
+    return (
+      [KycStatus.REJECTED, KycStatus.TERMINATED].includes(this.kycStatus) ||
+      [KycLevel.REJECTED, KycLevel.TERMINATED].includes(this.kycLevel)
+    );
   }
 
   // --- KYC PROCESS --- //
@@ -413,8 +417,15 @@ export class UserData extends IEntity {
     return this;
   }
 
-  cancelStep(kycStep: KycStep, result?: KycStepResult): this {
-    kycStep.cancel(result);
+  pauseStep(kycStep: KycStep, result?: KycStepResult): this {
+    kycStep.pause(result);
+    this.logger.verbose(`User ${this.id} pauses step ${kycStep.name} (${kycStep.id})`);
+
+    return this;
+  }
+
+  cancelStep(kycStep: KycStep): this {
+    kycStep.cancel();
     this.logger.verbose(`User ${this.id} cancels step ${kycStep.name} (${kycStep.id})`);
 
     return this;
@@ -494,6 +505,14 @@ export class UserData extends IEntity {
     return Math.max(...this.getStepsWith(stepName, stepType).map((s) => s.sequenceNumber + 1), 0);
   }
 
+  hasCompletedStep(stepName: KycStepName): boolean {
+    return this.getStepsWith(stepName).some((s) => s.isCompleted);
+  }
+
+  hasDoneStep(stepName: KycStepName): boolean {
+    return this.getStepsWith(stepName).some((s) => s.isDone);
+  }
+
   get isDataComplete(): boolean {
     const requiredFields = ['mail', 'phone', 'firstname', 'surname', 'street', 'location', 'zip', 'country'].concat(
       this.accountType === AccountType.PERSONAL
@@ -501,6 +520,10 @@ export class UserData extends IEntity {
         : ['organizationName', 'organizationStreet', 'organizationLocation', 'organizationZip', 'organizationCountry'],
     );
     return requiredFields.filter((f) => !this[f]).length === 0;
+  }
+
+  get hasBankTxVerification(): boolean {
+    return [CheckStatus.PASS, CheckStatus.UNNECESSARY].includes(this.bankTransactionVerification);
   }
 }
 

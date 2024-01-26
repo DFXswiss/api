@@ -39,6 +39,11 @@ export class BankAccountService {
       .select('bankAccount')
       .leftJoinAndSelect('bankAccount.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
+      .leftJoinAndSelect('userData.country', 'country')
+      .leftJoinAndSelect('userData.nationality', 'nationality')
+      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+      .leftJoinAndSelect('userData.language', 'language')
       .leftJoinAndSelect('users.wallet', 'wallet')
       .where(`${key.includes('.') ? key : `bankAccount.${key}`} = :param`, { param: value })
       .getOne();

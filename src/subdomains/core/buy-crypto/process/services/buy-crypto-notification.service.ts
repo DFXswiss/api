@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { Config } from 'src/config/config';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -13,7 +12,7 @@ import {
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, IsNull, Not } from 'typeorm';
 import { BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
-import { BuyCryptoAmlReasonPendingStates } from '../entities/buy-crypto.entity';
+import { BuyCryptoAmlReasonPendingStates, BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { CheckStatus } from '../enums/check-status.enum';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 
@@ -34,6 +33,77 @@ export class BuyCryptoNotificationService {
       await this.pendingBuyCrypto();
     } catch (e) {
       this.logger.error('Error during buy-crypto notification:', e);
+    }
+  }
+
+  async waitingForLowerFee(): Promise<void> {
+    try {
+      const txOutput = await this.buyCryptoRepo.find({
+        where: {
+          mailSendDate: IsNull(),
+          status: BuyCryptoStatus.WAITING_FOR_LOWER_FEE,
+        },
+        relations: [
+          'bankTx',
+          'buy',
+          'buy.user',
+          'buy.user.userData',
+          'batch',
+          'cryptoRoute',
+          'cryptoRoute.user',
+          'cryptoRoute.user.userData',
+          'cryptoInput',
+        ],
+      });
+
+      txOutput.length &&
+        this.logger.verbose(
+          `Sending waiting-for-lower-fee notifications for ${
+            txOutput.length
+          } buy-crypto transaction(s). Transaction ID(s): ${txOutput.map((t) => t.id)}`,
+        );
+
+      for (const tx of txOutput) {
+        try {
+          if (tx.user.userData.mail) {
+            const minFee = tx.minFeeAmountFiat
+              ? ` (min. ${tx.minFeeAmountFiat} ${tx.cryptoInput ? 'EUR' : tx.inputReferenceAsset})`
+              : '';
+
+            await this.notificationService.sendMail({
+              type: MailType.USER,
+              input: {
+                userData: tx.user.userData,
+                title: `${MailTranslationKey.BUY_CRYPTO}.waitingForLowerFee.title`,
+                salutation: { key: `${MailTranslationKey.BUY_CRYPTO}.waitingForLowerFee.salutation` },
+                prefix: [
+                  { key: `${MailTranslationKey.BUY_CRYPTO}.waitingForLowerFee.message` },
+                  { key: MailKey.SPACE, params: { value: '4' } },
+                ],
+                table: {
+                  [`${MailTranslationKey.BUY_CRYPTO}.input_amount`]: `${tx.inputAmount} ${tx.inputAsset}`,
+                  [`${MailTranslationKey.PAYMENT}.input_blockchain`]: tx.cryptoInput
+                    ? `${tx.cryptoInput.asset.blockchain}`
+                    : null,
+                  [`${MailTranslationKey.PAYMENT}.blockchain`]: tx.cryptoInput ? null : `${tx.outputAsset.blockchain}`,
+                  [`${MailTranslationKey.PAYMENT}.output_blockchain`]: tx.cryptoInput
+                    ? `${tx.outputAsset.blockchain}`
+                    : null,
+                  [`${MailTranslationKey.PAYMENT}.dfx_fee`]: `${Util.round(tx.percentFee * 100, 2)}%` + minFee,
+                  [`${MailTranslationKey.PAYMENT}.wallet_address`]: Util.blankStart(tx.target.address),
+                },
+                suffix: [{ key: MailKey.SPACE, params: { value: '4' } }, { key: MailKey.DFX_TEAM_CLOSING }],
+              },
+            });
+          }
+
+          await this.buyCryptoRepo.update(...tx.confirmSentMail());
+        } catch (e) {
+          this.logger.error(`Failed to send buy-crypto waiting-for-lower-fee mail ${tx.id}:`, e);
+        }
+      }
+    } catch (e) {
+      this.logger.error(`Failed to send buy-crypto waiting-for-lower-fee mails:`, e);
     }
   }
 
@@ -76,8 +146,8 @@ export class BuyCryptoNotificationService {
               type: MailType.USER,
               input: {
                 userData: tx.user.userData,
-                title: `${MailTranslationKey.BUY_CRYPTO}.title`,
-                salutation: { key: `${MailTranslationKey.BUY_CRYPTO}.salutation` },
+                title: `${MailTranslationKey.BUY_CRYPTO}.confirmed.title`,
+                salutation: { key: `${MailTranslationKey.BUY_CRYPTO}.confirmed.salutation` },
                 table: {
                   [`${MailTranslationKey.BUY_CRYPTO}.input_amount`]: `${tx.inputAmount} ${tx.inputAsset}`,
                   [`${MailTranslationKey.PAYMENT}.input_blockchain`]: tx.cryptoInput
@@ -264,11 +334,26 @@ export class BuyCryptoNotificationService {
               },
               suffix: [
                 { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line1` },
-                { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line2` },
-                { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line3` },
+                {
+                  key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line2`,
+                  params: {
+                    url: entity.user.userData.kycUrl,
+                    urlText: entity.user.userData.kycUrl,
+                  },
+                },
+                {
+                  key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line3`,
+                  params: {
+                    url: entity.user.userData.kycUrl,
+                    urlText: entity.user.userData.kycUrl,
+                  },
+                },
                 {
                   key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line4`,
-                  params: { url: `${Config.frontend.payment}/kyc?code=${entity.user.userData.kycHash}` },
+                  params: {
+                    url: entity.user.userData.kycUrl,
+                    urlText: entity.user.userData.kycUrl,
+                  },
                 },
                 { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line5` },
                 { key: MailKey.SPACE, params: { value: '1' } },

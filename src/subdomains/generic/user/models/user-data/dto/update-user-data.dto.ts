@@ -5,6 +5,7 @@ import {
   IsEmail,
   IsEnum,
   IsInt,
+  IsNumber,
   IsObject,
   IsOptional,
   IsString,
@@ -18,7 +19,7 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { AccountType } from '../account-type.enum';
 import { IsDfxPhone } from '../is-dfx-phone.validator';
-import { KycIdentificationType, KycLevel, KycState, KycStatus, UserDataStatus } from '../user-data.entity';
+import { KycIdentificationType, KycLevel, KycStatus, UserData, UserDataStatus } from '../user-data.entity';
 
 export class UpdateUserDataDto {
   @IsOptional()
@@ -123,10 +124,6 @@ export class UpdateUserDataDto {
   kycStatus?: KycStatus;
 
   @IsOptional()
-  @IsEnum(KycState)
-  kycState?: KycState;
-
-  @IsOptional()
   @IsInt()
   kycLevel?: KycLevel;
 
@@ -137,10 +134,6 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsBoolean()
   complexOrgStructure?: boolean;
-
-  @IsOptional()
-  @IsInt()
-  mainBankDataId?: number;
 
   @IsOptional()
   @IsDate()
@@ -202,4 +195,26 @@ export class UpdateUserDataDto {
   @ValidateNested()
   @Type(() => EntityDto)
   verifiedCountry?: Country;
+
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  accountOpener?: UserData;
+
+  @IsOptional()
+  @IsString()
+  accountOpenerAuthorization?: string;
+
+  @IsOptional()
+  @IsString()
+  allBeneficialOwnersDomicile?: string;
+
+  @IsOptional()
+  @IsString()
+  allBeneficialOwnersName?: string;
+
+  @IsOptional()
+  @IsNumber()
+  totalVolumeChfAuditPeriod?: number;
 }

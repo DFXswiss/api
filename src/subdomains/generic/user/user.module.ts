@@ -22,17 +22,10 @@ import { BankDataRepository } from './models/bank-data/bank-data.repository';
 import { BankDataService } from './models/bank-data/bank-data.service';
 import { KycClientController, KycController } from './models/kyc/kyc.controller';
 import { KycService } from './models/kyc/kyc.service';
-import { LimitRequestNotificationService } from './models/limit-request/limit-request-notification.service';
-import { LimitRequestController } from './models/limit-request/limit-request.controller';
-import { LimitRequest } from './models/limit-request/limit-request.entity';
-import { LimitRequestRepository } from './models/limit-request/limit-request.repository';
-import { LimitRequestService } from './models/limit-request/limit-request.service';
 import { LinkAddress } from './models/link/link-address.entity';
 import { LinkAddressRepository } from './models/link/link-address.repository';
 import { LinkController } from './models/link/link.controller';
 import { LinkService } from './models/link/link.service';
-import { SpiderData } from './models/spider-data/spider-data.entity';
-import { SpiderDataRepository } from './models/spider-data/spider-data.repository';
 import { UserDataRelationController } from './models/user-data-relation/user-data-relation.controller';
 import { UserDataRelationRepository } from './models/user-data-relation/user-data-relation.repository';
 import { UserDataRelationService } from './models/user-data-relation/user-data-relation.service';
@@ -42,13 +35,12 @@ import { UserController } from './models/user/user.controller';
 import { User } from './models/user/user.entity';
 import { UserRepository } from './models/user/user.repository';
 import { UserService } from './models/user/user.service';
-import { WalletController } from './models/wallet/wallet.controller';
 import { Wallet } from './models/wallet/wallet.entity';
 import { WebhookService } from './services/webhook/webhook.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, UserData, SpiderData, Wallet, BankData, LimitRequest, LinkAddress]),
+    TypeOrmModule.forFeature([User, UserData, Wallet, BankData, LinkAddress]),
     SharedModule,
     NotificationModule,
     BlockchainModule,
@@ -66,17 +58,13 @@ import { WebhookService } from './services/webhook/webhook.service';
     KycClientController,
     KycController,
     LinkController,
-    LimitRequestController,
-    WalletController,
     UserDataRelationController,
   ],
   providers: [
     UserRepository,
     UserDataRepository,
-    SpiderDataRepository,
     WalletRepository,
     BankDataRepository,
-    LimitRequestRepository,
     LinkAddressRepository,
     UserDataRelationRepository,
     UserService,
@@ -86,11 +74,9 @@ import { WebhookService } from './services/webhook/webhook.service';
     AuthService,
     AuthAlbyService,
     AuthLnUrlService,
-    LimitRequestService,
     LinkService,
     WebhookService,
     KycService,
-    LimitRequestNotificationService,
     UserDataNotificationService,
     UserDataRelationService,
   ],

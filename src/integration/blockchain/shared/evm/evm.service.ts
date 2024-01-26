@@ -1,31 +1,11 @@
-import { ChainId } from '@uniswap/sdk-core';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
-import { HttpService } from 'src/shared/services/http.service';
-import { EvmClient } from './evm-client';
+import { EvmClient, EvmClientParams } from './evm-client';
 
 export abstract class EvmService {
-  protected readonly client: EvmClient;
+  private readonly client: EvmClient;
 
-  constructor(
-    http: HttpService,
-    gatewayUrl: string,
-    apiKey: string,
-    walletPrivateKey: string,
-    chainId: ChainId,
-    client: {
-      new (
-        http: HttpService,
-        gatewayUrl: string,
-        privateKey: string,
-        chainId: ChainId,
-        scanApiUrl?: string,
-        scanApiKey?: string,
-      ): EvmClient;
-    },
-    scanApiUrl?: string,
-    scanApiKey?: string,
-  ) {
-    this.client = new client(http, `${gatewayUrl}/${apiKey ?? ''}`, walletPrivateKey, chainId, scanApiUrl, scanApiKey);
+  constructor(client: new (params) => EvmClient, params: EvmClientParams) {
+    this.client = new client(params);
   }
 
   getDefaultClient<T extends EvmClient>(): T {

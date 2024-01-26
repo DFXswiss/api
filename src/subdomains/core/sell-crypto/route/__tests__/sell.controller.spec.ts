@@ -6,7 +6,7 @@ import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
-import { BuyFiatService } from '../../process/buy-fiat.service';
+import { BuyFiatService } from '../../process/services/buy-fiat.service';
 import { SellController } from '../sell.controller';
 import { SellService } from '../sell.service';
 

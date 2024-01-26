@@ -8,7 +8,7 @@ import { Util } from 'src/shared/utils/util';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { IsNull, LessThan } from 'typeorm';
+import { IsNull, LessThan, MoreThanOrEqual } from 'typeorm';
 import { KycLevel, UserData } from '../../user/models/user-data/user-data.entity';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { KycStep } from '../entities/kyc-step.entity';
@@ -38,6 +38,7 @@ export class KycNotificationService {
         reminderSentDate: IsNull(),
         status: KycStepStatus.IN_PROGRESS,
         updated: LessThan(Util.daysBefore(Config.kyc.reminderAfterDays)),
+        userData: { kycLevel: MoreThanOrEqual(0) },
       },
       relations: ['userData'],
     });
@@ -61,7 +62,16 @@ export class KycNotificationService {
                 { key: MailKey.SPACE, params: { value: '2' } },
                 {
                   key: `${MailTranslationKey.KYC}.next_step`,
-                  params: { url: `${Config.frontend.services}/kyc?code=${entity.userData.kycHash}` },
+                  params: {
+                    url: entity.userData.kycUrl,
+                    urlText: entity.userData.kycUrl,
+                  },
+                },
+                {
+                  key: `${MailTranslationKey.GENERAL}.button`,
+                  params: {
+                    url: entity.userData.kycUrl,
+                  },
                 },
                 { key: MailKey.SPACE, params: { value: '2' } },
                 { key: `${MailTranslationKey.KYC}.last_step` },
@@ -93,7 +103,16 @@ export class KycNotificationService {
               { key: MailKey.SPACE, params: { value: '1' } },
               {
                 key: `${MailTranslationKey.KYC_FAILED}.message`,
-                params: { url: `${Config.frontend.payment}/kyc?code=${entity.userData.kycHash}` },
+                params: {
+                  url: entity.userData.kycUrl,
+                  urlText: entity.userData.kycUrl,
+                },
+              },
+              {
+                key: `${MailTranslationKey.GENERAL}.button`,
+                params: {
+                  url: entity.userData.kycUrl,
+                },
               },
               { key: MailKey.SPACE, params: { value: '2' } },
               { key: `${MailTranslationKey.KYC}.last_step` },
