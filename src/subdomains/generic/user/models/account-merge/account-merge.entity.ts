@@ -38,7 +38,7 @@ export class AccountMerge extends IEntity {
     return this;
   }
 
-  isExpired(): boolean {
+  get isExpired(): boolean {
     return this.expiration < new Date();
   }
 }

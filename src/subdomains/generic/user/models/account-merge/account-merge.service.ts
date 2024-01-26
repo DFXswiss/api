@@ -65,7 +65,7 @@ export class AccountMergeService {
     const request = await this.accountMergeRepo.findOne({ where: { code }, relations: { master: true, slave: true } });
     if (!request) throw new NotFoundException('Account merge information not found');
 
-    if (request.isExpired()) throw new BadRequestException('Merge request is expired');
+    if (request.isExpired) throw new BadRequestException('Merge request is expired');
     if (request.isCompleted) throw new ConflictException('Merge request is already completed');
 
     await this.userDataService.mergeUserData(request.master.id, request.slave.id);
