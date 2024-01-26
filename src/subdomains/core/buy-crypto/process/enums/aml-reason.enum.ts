@@ -11,4 +11,5 @@ export enum AmlReason {
   ANNUAL_LIMIT_WITHOUT_KYC = 'AnnualLimitWithoutKyc',
   ASSET_CURRENTLY_NOT_AVAILABLE = 'AssetCurrentlyNotAvailable',
   STAKING_DISCONTINUED = 'StakingDiscontinued',
+  BANK_NOT_ALLOWED = 'BankNotAllowed',
 }

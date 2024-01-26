@@ -73,7 +73,8 @@
                 "name_check_without_kyc": "La tua transazione è stata annullata a causa della KYC mancante",
                 "annual_limit_without_kyc": "Hai superato il limite annuale senza KYC",
                 "asset_currently_not_available": "L'asset non è al momento disponibile per lo scambio su DFX",
-                "staking_discontinued": "Non è possibile effettuare nuovi depositi di staking"
+                "staking_discontinued": "Non è possibile effettuare nuovi depositi di staking",
+                "bank_not_allowed": "La banca mittente utilizzata non è consentita. Si prega di utilizzare un'altra banca per il deposito."
             }
         },
         "pending": {

@@ -73,7 +73,8 @@
                 "name_check_without_kyc": "Deine Transaktion wurde aufgrund fehlender Verifizierung storniert",
                 "annual_limit_without_kyc": "Du hast das Jahreslimit ohne Verifizierung (KYC) überschritten",
                 "asset_currently_not_available": "Der Vermögenswert ist derzeit nicht für den Handel mit DFX verfügbar",
-                "staking_discontinued": "Staking-Einzahlungen sind nicht mehr möglich"
+                "staking_discontinued": "Staking-Einzahlungen sind nicht mehr möglich",
+                "bank_not_allowed": "Die von dir verwendete Absenderbank ist nicht erlaubt. Bitte nutze eine andere Bank für deine Einzahlung."
             }           
         },
         "pending": {
