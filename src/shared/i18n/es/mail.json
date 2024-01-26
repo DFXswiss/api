@@ -168,6 +168,11 @@
         "new_address": "Nueva dirección",
         "message": "Si quieres emparejar tu nueva dirección a la que ya tienes verificada, por favor sigue las instrucciones: [url:Pulse aquí]"
     },
+    "account_merge": {
+      "title": "Confirmar correo electrónico",
+      "salutation": "Confirme su correo electrónico",
+      "message": "Haga clic en el siguiente enlace para confirmar su correo electrónico:<br>[url:{urlText}]"
+    },
     "limit_request": {
         "title": "Transaction volume approved",
         "message": "Your request of {limitAmount} EUR transaction volume has been approved and is now freely available to you."

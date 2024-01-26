@@ -168,6 +168,11 @@
         "new_address": "Neue Adresse",
         "message": "Wenn du deine neue Adresse mit deinem bestehenden und bereits verifizierten Konto verknüpfen möchtest, folge bitte den Anweisungen: [url:Klick hier]"
     },
+    "account_merge": {
+      "title": "E-Mail bestätigen",
+      "salutation": "Bestätige deine E-Mail",
+      "message": "Klicke den nachfolgenden Link, um deine E-Mail zu bestätigen:<br>[url:{urlText}]"
+    },
     "limit_request": {
         "title": "Transaktionsvolumen genehmigt",
         "message": "Deine Anfrage von {limitAmount} EUR Transaktionsvolumen wurde genehmigt und steht dir nun frei zur Verfügung."
