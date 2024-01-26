@@ -115,7 +115,7 @@ export class KycService {
     const kycStep = user.getPendingStepOrThrow(stepId);
 
     const { user: updatedUser, isKnownUser } = await this.userDataService.updateUserSettings(user, data, true);
-    user = isKnownUser ? updatedUser.failStep(kycStep) : updatedUser.completeStep(kycStep);
+    user = isKnownUser ? updatedUser.failStep(kycStep, data) : updatedUser.completeStep(kycStep, data);
 
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
@@ -130,7 +130,7 @@ export class KycService {
     user = await this.userDataService.updateKycData(user, KycDataMapper.toUserData(data));
 
     if (user.isDataComplete) {
-      user = user.completeStep(kycStep);
+      user = user.completeStep(kycStep, data);
       await this.createStepLog(user, kycStep);
     }
 
@@ -324,44 +324,30 @@ export class KycService {
     const nextStep = missingSteps[0];
 
     const lastTry = nextStep && Util.maxObj(user.getStepsWith(nextStep), 'sequenceNumber');
-    if (lastTry) {
-      // retry
-      if (lastTry.isInProgress) throw new Error('Step still in progress');
+    const preventDirectEvaluation = lastTry != null;
 
-      switch (lastTry.name) {
-        case KycStepName.CONTACT_DATA:
-          return { nextStep: { name: lastTry.name, preventDirectEvaluation: true } };
+    switch (nextStep) {
+      case KycStepName.CONTACT_DATA:
+        return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
-        case KycStepName.IDENT:
-          return { nextStep: { name: lastTry.name, type: await this.userDataService.getIdentMethod(user) } };
+      case KycStepName.PERSONAL_DATA:
+        return { nextStep: { name: nextStep, preventDirectEvaluation }, nextLevel: KycLevel.LEVEL_10 };
 
-        default:
-          return { nextStep: undefined };
-      }
-    } else {
-      // next
-      switch (nextStep) {
-        case KycStepName.CONTACT_DATA:
-          return { nextStep: { name: nextStep } };
+      case KycStepName.IDENT:
+        return {
+          nextStep: {
+            name: nextStep,
+            type: await this.userDataService.getIdentMethod(user),
+            preventDirectEvaluation,
+          },
+          nextLevel: KycLevel.LEVEL_20,
+        };
 
-        case KycStepName.PERSONAL_DATA:
-          return { nextStep: { name: nextStep }, nextLevel: KycLevel.LEVEL_10 };
+      case KycStepName.FINANCIAL_DATA:
+        return { nextStep: { name: nextStep, preventDirectEvaluation } };
 
-        case KycStepName.IDENT:
-          return {
-            nextStep: {
-              name: nextStep,
-              type: await this.userDataService.getIdentMethod(user),
-            },
-            nextLevel: KycLevel.LEVEL_20,
-          };
-
-        case KycStepName.FINANCIAL_DATA:
-          return { nextStep: { name: nextStep } };
-
-        default:
-          return { nextStep: undefined };
-      }
+      default:
+        return { nextStep: undefined };
     }
   }
 
@@ -381,14 +367,17 @@ export class KycService {
     switch (stepName) {
       case KycStepName.CONTACT_DATA:
         if (user.mail && !preventDirectEvaluation) {
+          const result = { mail: user.mail };
           const isKnownUser = await this.userDataService.isKnownKycUser(user);
-          isKnownUser ? kycStep.fail() : kycStep.complete();
+          isKnownUser ? kycStep.fail(result) : kycStep.complete(result);
         }
         break;
 
-      case KycStepName.PERSONAL_DATA:
-        if (user.isDataComplete && !preventDirectEvaluation) kycStep.complete();
+      case KycStepName.PERSONAL_DATA: {
+        const result = user.requiredKycFields.reduce((prev, curr) => ({ ...prev, [curr]: user[curr] }), {});
+        if (user.isDataComplete && !preventDirectEvaluation) kycStep.complete(result);
         break;
+      }
 
       case KycStepName.IDENT:
         kycStep.transactionId = IdentService.transactionId(user, kycStep);
