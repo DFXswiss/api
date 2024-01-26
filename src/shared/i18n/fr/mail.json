@@ -73,7 +73,8 @@
                 "name_check_without_kyc": "Votre transaction a été annulée en raison d'un KYC manquant",
                 "annual_limit_without_kyc": "Vous avez dépassé la limité annuelle sans KYC",
                 "asset_currently_not_available": "Cet actif n'est actuellement pas disponible à l'échange avec DFX",
-                "staking_discontinued": "Les nouveaux dépôts en staking ne sont plus possible"
+                "staking_discontinued": "Les nouveaux dépôts en staking ne sont plus possible",
+                "bank_not_allowed": "La banque expéditrice que vous avez utilisée n'est pas autorisée. Veuillez utiliser une autre banque pour votre dépôt."
             }
         },
         "pending": {
@@ -82,8 +83,8 @@
                 "salutation": "Vous avez dépassé votre volume sur 24h",
                 "line1": "Veuillez vous faire vérifier par le KYC (know your customer) pour augmenter votre limite.",
                 "line2": "Nous traiterons votre transaction après la réussite du KYC.",
-                "line3": "Sans vérification, ton argent te sera automatiquement retourné après 7 jours.",
-                "line4": "Augmenter la limite par un KYC ?<br>Cliquer [url:ici] pour commencer la procédure de KYC.",
+                "line3": "Sans vérification, ton argent te sera automatiquement retourné après 2 jours.",
+                "line4": "Augmenter la limite avec vérification ? <br>Cliquez sur le lien suivant pour vous vérifier:<br>[url:{urlText}]",
                 "line5": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\"."
             },
             "annual_limit": {
@@ -100,27 +101,27 @@
                 "salutation": "Vous avez dépassé votre volume annuel sans KYC",
                 "line1": "Cher client, merci beaucoup pour votre confiance en DFX AG.",
                 "line2": "Malheureusement, comme vous avez dépassé votre limite annuelle, nous ne pouvons pas traiter votre commande sans vérifier votre compte.",
-                "line3": "Nous vous invitions donc à utiliser ce lien [url:ici] pour réaliser le KYC avec votre pièce d'identité.",
+                "line3": "Par conséquent, cliquez sur le lien suivant pour vérifier votre identité:<br>[url:{urlText}]",
                 "line4": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
-                "line5": "Si vous ne souhaitez pas réaliser la vérification, les fonds seront intégralement retournés après 7 jours."
+                "line5": "Si vous ne souhaitez pas réaliser la vérification, les fonds seront intégralement retournés après 2 jours."
             },
             "olky_no_kyc": {
                 "title": "Le KYC est nécessaire pour utiliser le virement SEPA instantané",
                 "salutation": "Une vérification KYC est nécessaire pour utiliser notre banque luxembourgeoise",
                 "line1": "Pour utiliser notre compte bancaire au Luxembourg lors d'un virement instantané, une vérification complète doit être réalisée.",
-                "line2": "Nous vous demandons donc d'utiliser ce lien [url:ici] pour réaliser le KYC avec votre carte d'identité.",
+                "line2": "Par conséquent, cliquez sur le lien suivant pour vérifier votre identité:<br>[url:{urlText}]",
                 "line3": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
                 "line4": "Sans vérification, vous pouvez continuer à utiliser notre compte bancaire suisse jusqu'à 1 000 euros par jour en SEPA standard.",
-                "line5": "Si vous ne réalisez pas la vérification, l'argent sera retourné automatiquement après 7 jours."
+                "line5": "Si vous ne réalisez pas la vérification, l'argent sera retourné automatiquement après 2 jours."
             },
             "name_check_without_kyc": {
                 "title": "KYC requis pour traiter votre transaction en attente",
                 "salutation": "Votre transaction en attente nécessite une vérification KYC complète pour être traitée",
                 "line1": "Cher client, merci beaucoup pour votre confiance en DFX AG.",
                 "line2": "Nous ne pouvons malheureusement pas traiter votre commande sans une vérification KYC complète.",
-                "line3": "Nous vous invitions donc à utiliser ce lien [url:ici] pour réaliser le KYC avec votre pièce d'identité.",
+                "line3": "Par conséquent, cliquez sur le lien suivant pour vérifier votre identité:<br>[url:{urlText}]",
                 "line4": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
-                "line5": "Si vous ne souhaitez pas réaliser la vérification, les fonds seront intégralement retournés après 7 jours."
+                "line5": "Si vous ne souhaitez pas réaliser la vérification, les fonds seront intégralement retournés après 2 jours."
             }
         },
         "blockchain": "Blockchain",

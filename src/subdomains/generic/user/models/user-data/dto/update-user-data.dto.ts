@@ -19,7 +19,7 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { AccountType } from '../account-type.enum';
 import { IsDfxPhone } from '../is-dfx-phone.validator';
-import { KycIdentificationType, KycLevel, KycState, KycStatus, UserData, UserDataStatus } from '../user-data.entity';
+import { KycIdentificationType, KycLevel, KycStatus, UserData, UserDataStatus } from '../user-data.entity';
 
 export class UpdateUserDataDto {
   @IsOptional()
@@ -122,10 +122,6 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsEnum(KycStatus)
   kycStatus?: KycStatus;
-
-  @IsOptional()
-  @IsEnum(KycState)
-  kycState?: KycState;
 
   @IsOptional()
   @IsInt()
