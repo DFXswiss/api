@@ -513,13 +513,16 @@ export class UserData extends IEntity {
     return this.getStepsWith(stepName).some((s) => s.isDone);
   }
 
-  get isDataComplete(): boolean {
-    const requiredFields = ['mail', 'phone', 'firstname', 'surname', 'street', 'location', 'zip', 'country'].concat(
+  get requiredKycFields(): string[] {
+    return ['accountType', 'mail', 'phone', 'firstname', 'surname', 'street', 'location', 'zip', 'country'].concat(
       this.accountType === AccountType.PERSONAL
         ? []
         : ['organizationName', 'organizationStreet', 'organizationLocation', 'organizationZip', 'organizationCountry'],
     );
-    return requiredFields.filter((f) => !this[f]).length === 0;
+  }
+
+  get isDataComplete(): boolean {
+    return this.requiredKycFields.every((f) => this[f]);
   }
 
   get hasBankTxVerification(): boolean {

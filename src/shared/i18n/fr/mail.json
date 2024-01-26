@@ -168,6 +168,11 @@
         "new_address": "Nouvelle adresse",
         "message": "Si vous souhaitez lier cette nouvelle adresse à votre compte actuel déjà vérifié, veuillez les instructions ci-dessous: [url:Cliquez ici]"
     },
+    "account_merge": {
+      "title": "Confirmer l'e-mail",
+      "salutation": "Confirmez votre e-mail",
+      "message": "Cliquez sur le lien ci-dessous pour confirmer votre e-mail:<br>[url:{urlText}]"
+    },
     "limit_request": {
         "title": "Transaction volume approved",
         "message": "Your request of {limitAmount} EUR transaction volume has been approved and is now freely available to you."

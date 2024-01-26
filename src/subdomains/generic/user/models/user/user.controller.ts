@@ -31,7 +31,8 @@ import { UserService } from './user.service';
 
 const AccountExistsResponse = {
   type: UserDetailDto,
-  description: 'There is already a verified account with the same mail address',
+  description:
+    'There is already a verified account with the same mail address, a mail confirmation request has been sent',
 };
 
 @ApiTags('User')
