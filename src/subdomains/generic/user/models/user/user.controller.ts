@@ -1,6 +1,13 @@
 import { Body, Controller, Delete, Get, HttpStatus, Param, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiCreatedResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiAcceptedResponse,
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiExcludeEndpoint,
+  ApiOkResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Response } from 'express';
 import { RealIP } from 'nestjs-real-ip';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -8,6 +15,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
+import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { AuthService } from '../auth/auth.service';
 import { AuthResponseDto } from '../auth/dto/auth-response.dto';
@@ -20,6 +28,11 @@ import { UserDetailDto, UserDto } from './dto/user.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
 import { User } from './user.entity';
 import { UserService } from './user.service';
+
+const AccountExistsResponse = {
+  type: UserDetailDto,
+  description: 'There is already a verified account with the same mail address',
+};
 
 @ApiTags('User')
 @Controller('user')
@@ -51,6 +64,7 @@ export class UserController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: UserDetailDto })
+  @ApiAcceptedResponse(AccountExistsResponse)
   async updateUser(
     @GetJwt() jwt: JwtPayload,
     @Body() newUser: UpdateUserDto,
@@ -82,6 +96,22 @@ export class UserController {
     @RealIP() ip: string,
   ): Promise<AuthResponseDto> {
     return this.authService.changeUser(jwt.id, changeUser, ip);
+  }
+
+  @Post('data')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiCreatedResponse({ type: UserDetailDto })
+  @ApiAcceptedResponse(AccountExistsResponse)
+  async updateKycData(
+    @GetJwt() jwt: JwtPayload,
+    @Body() data: KycInputDataDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<UserDetailDto> {
+    const { user, isKnownUser } = await this.userService.updateUserData(jwt.id, data);
+    if (isKnownUser) res.status(HttpStatus.ACCEPTED);
+
+    return user;
   }
 
   @Delete()

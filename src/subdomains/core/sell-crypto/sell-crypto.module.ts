@@ -12,13 +12,14 @@ import { PayInModule } from 'src/subdomains/supporting/payin/payin.module';
 import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { BuyCryptoModule } from '../buy-crypto/buy-crypto.module';
-import { BuyFiatNotificationService } from './process/buy-fiat-notification.service';
-import { BuyFiatPreparationService } from './process/buy-fiat-preparation.service';
-import { BuyFiatRegistrationService } from './process/buy-fiat-registration.service';
 import { BuyFiatController } from './process/buy-fiat.controller';
 import { BuyFiat } from './process/buy-fiat.entity';
 import { BuyFiatRepository } from './process/buy-fiat.repository';
-import { BuyFiatService } from './process/buy-fiat.service';
+import { BuyFiatJobService } from './process/services/buy-fiat-job.service';
+import { BuyFiatNotificationService } from './process/services/buy-fiat-notification.service';
+import { BuyFiatPreparationService } from './process/services/buy-fiat-preparation.service';
+import { BuyFiatRegistrationService } from './process/services/buy-fiat-registration.service';
+import { BuyFiatService } from './process/services/buy-fiat.service';
 import { SellController } from './route/sell.controller';
 import { Sell } from './route/sell.entity';
 import { SellRepository } from './route/sell.repository';
@@ -28,9 +29,9 @@ import { SellService } from './route/sell.service';
   imports: [
     TypeOrmModule.forFeature([BuyFiat, Sell]),
     SharedModule,
-    UserModule,
+    forwardRef(() => UserModule),
     NotificationModule,
-    PaymentModule,
+    forwardRef(() => PaymentModule),
     BlockchainModule,
     forwardRef(() => BankModule),
     forwardRef(() => BankTxModule),
@@ -50,6 +51,7 @@ import { SellService } from './route/sell.service';
     BuyFiatService,
     SellService,
     BuyFiatPreparationService,
+    BuyFiatJobService,
   ],
   exports: [SellController, BuyFiatService, SellService],
 })

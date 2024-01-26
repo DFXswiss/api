@@ -8,8 +8,8 @@ import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { IsNull, Not } from 'typeorm';
-import { LimitRequestDecision } from './limit-request.entity';
-import { LimitRequestRepository } from './limit-request.repository';
+import { LimitRequestDecision } from '../entities/limit-request.entity';
+import { LimitRequestRepository } from '../repositories/limit-request.repository';
 
 @Injectable()
 export class LimitRequestNotificationService {

@@ -31,9 +31,9 @@ import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { IdentStatus } from '../dto/ident.dto';
 import { IdentResultDto } from '../dto/input/ident-result.dto';
-import { KycContactData } from '../dto/input/kyc-contact-data.dto';
+import { KycContactData, KycPersonalData } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData } from '../dto/input/kyc-financial-in.dto';
-import { KycPersonalData } from '../dto/input/kyc-personal-data.dto';
+import { LimitRequestDto } from '../dto/input/limit-request.dto';
 import { Verify2faDto } from '../dto/input/verify-2fa.dto';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycSessionDto, KycStatusDto } from '../dto/output/kyc-info.dto';
@@ -41,6 +41,7 @@ import { MergedDto } from '../dto/output/kyc-merged.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { Setup2faDto } from '../dto/output/setup-2fa.dto';
 import { KycService } from '../services/kyc.service';
+import { LimitRequestService } from '../services/limit-request.service';
 import { TfaService } from '../services/tfa.service';
 
 const CodeHeaderName = 'x-kyc-code';
@@ -55,7 +56,11 @@ const TfaResponse = { description: '2FA is required' };
 export class KycController {
   private readonly logger = new DfxLogger(KycController);
 
-  constructor(private readonly kycService: KycService, private readonly tfaService: TfaService) {}
+  constructor(
+    private readonly kycService: KycService,
+    private readonly tfaService: TfaService,
+    private readonly limitService: LimitRequestService,
+  ) {}
 
   @Get()
   @ApiOkResponse({ type: KycStatusDto })
@@ -201,6 +206,14 @@ export class KycController {
     @Body() dto: Verify2faDto,
   ): Promise<void> {
     return this.tfaService.verify(code, dto.token, ip);
+  }
+
+  // --- LIMIT INCREASE --- //
+  @Post('limit')
+  @ApiCreatedResponse({ description: 'Limit request initiated' })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async increaseLimit(@Headers(CodeHeaderName) code: string, @Body() request: LimitRequestDto): Promise<void> {
+    return this.limitService.increaseLimit(request, code);
   }
 
   // --- HELPER METHODS --- //

@@ -1,17 +1,16 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { KycContentType, KycFileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { WebhookService } from '../../services/webhook/webhook.service';
-import { KycCompleted } from '../user-data/user-data.entity';
-import { UserDataService } from '../user-data/user-data.service';
-import { LimitRequestDto } from './dto/limit-request.dto';
-import { UpdateLimitRequestDto } from './dto/update-limit-request.dto';
-import { LimitRequest, LimitRequestAccepted } from './limit-request.entity';
-import { LimitRequestRepository } from './limit-request.repository';
+import { UserDataService } from '../../user/models/user-data/user-data.service';
+import { WebhookService } from '../../user/services/webhook/webhook.service';
+import { LimitRequestDto } from '../dto/input/limit-request.dto';
+import { UpdateLimitRequestDto } from '../dto/input/update-limit-request.dto';
+import { LimitRequest, LimitRequestAccepted } from '../entities/limit-request.entity';
+import { LimitRequestRepository } from '../repositories/limit-request.repository';
 
 @Injectable()
 export class LimitRequestService {
@@ -30,7 +29,6 @@ export class LimitRequestService {
     const user = userId
       ? await this.userDataService.getUserDataByUser(userId)
       : await this.userDataService.getByKycHashOrThrow(kycHash);
-    if (!KycCompleted(user?.kycStatus)) throw new BadRequestException('KYC not yet completed');
 
     // create entity
     let entity = this.limitRequestRepo.create(dto);

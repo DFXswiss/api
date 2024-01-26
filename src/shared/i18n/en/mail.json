@@ -7,13 +7,13 @@
         "happy_trading": "Happy Trading",
         "welcome": "Hi {name},",
         "personal_questions": "Please do not hesitate to contact me if you have any questions.",
-        "personal_closing": "Kind regards,<br>{closingName}"
+        "personal_closing": "Kind regards,<br>{closingName}",
+        "button": "or<br>[url:Click here]"
     },
     "login": {
         "title": "DFX Login",
         "salutation": "DFX Login",
-        "message": "Click on the following link to log in to DFX:<br>[url:{urlText}]",
-        "button": "or<br>[url:Click here]"
+        "message": "Click on the following link to log in to DFX:<br>[url:{urlText}]"
     },
     "payment": {
         "buy_fiat": {
@@ -73,7 +73,8 @@
                 "name_check_without_kyc": "Your transaction was cancelled due to missing KYC",
                 "annual_limit_without_kyc": "You exceeded the annual limit without KYC",
                 "asset_currently_not_available": "The asset is currently not available for trading with DFX",
-                "staking_discontinued": "Staking deposits are no longer possible"
+                "staking_discontinued": "Staking deposits are no longer possible",
+                "bank_not_allowed": "The sender bank you used is not allowed. Please use a different bank for your deposit."
             }
         },
         "pending": {
@@ -82,9 +83,9 @@
                 "salutation": "You have exceeded your 24h volume limit",
                 "line1": "Please verify yourself by KYC (know your customer) to increase your limit.",
                 "line2": "After a successful KYC we proceed with your transaction.",
-                "line3": "Without verification, your money will be automatically returned after 7 days.",
-                "line4": "Increase the limit by KYC?<br>Click [url:here] to start the KYC process.",
-                "line5": "Alternatively, you can also use the DFX app on your payment page,<br> click on the red arrow next to \"Your limit\"<br> and start the verification."
+                "line3": "Without verification, your money will be automatically returned after 2 days.",
+                "line4": "Increase limit with verification?<br>Click the following link to verify yourself:<br>[url:{urlText}]",
+                "line5": "Alternatively, you can also click on the menu item at the top right of the DFX-Services website <br> and then on \"KYC\" <br> and start the verification via the \"Continue\" button."
             },
             "annual_limit": {
                 "title": "Annual limit exceeded",
@@ -100,27 +101,27 @@
                 "salutation": "You have exceeded your yearly volume limit without KYC",
                 "line1": "Dear valued customer, many thanks for your trust in DFX AG.",
                 "line2": "Unfortunately, we cannot process without a full verification as you exceed your annual limit.",
-                "line3": "We therefore ask you to use this link [url:here]  to perform KYC with your ID card.",
-                "line4": "Alternatively, you can also use the DFX app on your payment page <br> to click on the red arrow next to \"Your limit\" <br> and start KYC.",
-                "line5": "If you do not want to carry out the verification, the money will be returned fully automatically after 7 days."
+                "line3": "Therefore, click on the following link to verify yourself:<br>[url:{urlText}]",
+                "line4": "Alternatively, you can also click on the menu item at the top right of the DFX-Services website <br> and then on \"KYC\" <br> and start the verification via the \"Continue\" button.",
+                "line5": "If you do not want to carry out the verification, the money will be returned fully automatically after 2 days."
             },
             "olky_no_kyc": {
                 "title": "KYC required to use SEPA instant wire transfers",
                 "salutation": "Verification by KYC is required to use our bank in Luxembourg",
                 "line1": "In order to use our bank account in Luxembourg with the SEPA Instant function, full verification is unfortunately mandatory.",
-                "line2": "We therefore ask you to use this link [url:here] to perform KYC with your ID card.",
-                "line3": "Alternatively, you can also use the DFX app on your payment page <br> to click on the red arrow next to \"Your limit\" <br> and start KYC.",
+                "line2": "Therefore, click on the following link to verify yourself:<br>[url:{urlText}]",
+                "line3": "Alternatively, you can also click on the menu item at the top right of the DFX-Services website <br> and then on \"KYC\" <br> and start the verification via the \"Continue\" button.",
                 "line4": "Without verification, you can continue to use our bank account from Switzerland up to EUR 1,000 per day without KYC via standard Sepa.",
-                "line5": "If you do not want to carry out the verification, the money will be returned fully automatically after 7 days."
+                "line5": "If you do not want to carry out the verification, the money will be returned fully automatically after 2 days."
             },
             "name_check_without_kyc": {
                 "title": "KYC required to execute your pending transaction",
                 "salutation": "Your pending transaction needs a full KYC verification before execution",
                 "line1": "Dear valued customer, many thanks for your trust in DFX AG.",
                 "line2": "Unfortunately, we cannot process your order without a full verification (KYC).",
-                "line3": "We therefore ask you to use this link [url:here] to perform KYC with your ID card.",
-                "line4": "Alternatively, you can also use the DFX app on your payment page <br> to click on the red arrow next to \"Your limit\" <br> and start KYC.",
-                "line5": "If you do not want to carry out the verification, the money will be returned fully automatically after 7 days."
+                "line3": "Therefore, click on the following link to verify yourself:<br>[url:{urlText}]",
+                "line4": "Alternatively, you can also click on the menu item at the top right of the DFX-Services website <br> and then on \"KYC\" <br> and start the verification via the \"Continue\" button.",
+                "line5": "If you do not want to carry out the verification, the money will be returned fully automatically after 2 days."
             }
         },
         "blockchain": "Blockchain",
@@ -150,14 +151,14 @@
         "failed": {
             "title": "Identification failed",
             "salutation": "Your identification has failed",
-            "message": "We have noticed that your identification has failed. Please try it again with the following URL: [url:here]"
+            "message": "We have noticed that your identification has failed. Please try it again with the following URL:<br>[url:{urlText}]"
         },
         "reminder": {
             "title": "Complete verification",
             "salutation": "Complete your verification",
             "message": "We have noticed that you have not completed your verification."
         },
-        "next_step": "To start the online identification process, click on the refresh button in the limit section on the payment page (access via the \"My DFX\" button in the app) or [url:here].",
+        "next_step": "To proceed with your verification, click on the menu item at the top right of the DFX-Services website<br> and then on \"KYC\"<br> and click the \"Continue\" button or use the following link:<br>[url:{urlText}]",
         "last_step": "Take the final step and start working on your financial freedom today"
     },
     "link_address": {

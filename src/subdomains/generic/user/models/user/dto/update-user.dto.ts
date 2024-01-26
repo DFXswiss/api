@@ -2,7 +2,6 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import { IsEmail, IsObject, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { Util } from 'src/shared/utils/util';
 import { IsDfxPhone } from '../../user-data/is-dfx-phone.validator';
@@ -26,11 +25,4 @@ export class UpdateUserDto {
   @ValidateNested()
   @Type(() => EntityDto)
   language?: Language;
-
-  @ApiPropertyOptional({ type: EntityDto })
-  @IsOptional()
-  @IsObject()
-  @ValidateNested()
-  @Type(() => EntityDto)
-  currency?: Fiat;
 }

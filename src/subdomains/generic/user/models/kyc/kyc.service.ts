@@ -21,7 +21,7 @@ import {
   KycStatus,
   UserData,
 } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { WebhookService } from '../../services/webhook/webhook.service';
+import { getKycWebhookStatus } from '../../services/webhook/mapper/webhook-data.mapper';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { UserDataService } from '../user-data/user-data.service';
 import { User } from '../user/user.entity';
@@ -44,7 +44,6 @@ export class KycService {
     private readonly walletRepo: WalletRepository,
     private readonly countryService: CountryService,
     private readonly http: HttpService,
-    private readonly webhookService: WebhookService,
     private readonly storageService: DocumentStorageService,
   ) {}
 
@@ -93,17 +92,6 @@ export class KycService {
     await this.userDataService.mergeUserData(dfxUser.userData.id, externalUser.userData.id);
   }
 
-  async triggerWebhook(userDataId: number, reason?: string): Promise<void> {
-    const user = await this.userDataService.getUserData(userDataId, { users: true });
-    if (!user) throw new NotFoundException('User not found');
-
-    if (user.kycState === KycState.FAILED) {
-      await this.webhookService.kycFailed(user, reason ?? 'KYC failed');
-    } else {
-      await this.webhookService.kycChanged(user);
-    }
-  }
-
   async uploadDocument(
     code: string,
     document: Express.Multer.File,
@@ -136,10 +124,9 @@ export class KycService {
   // --- CREATE KYC INFO --- //
 
   private createKycInfoBasedOn(userData: UserData): KycInfo {
-    const hasSecondUrl = Boolean(userData.spiderData?.secondUrl);
     return {
       kycStatus: userData.kycStatus,
-      kycState: userData.kycState,
+      kycState: KycState.NA,
       kycHash: userData.kycHash,
       kycDataComplete: userData.isDataComplete,
       accountType: userData.accountType,
@@ -147,8 +134,8 @@ export class KycService {
       blankedPhone: Blank(userData.phone, BlankType.PHONE),
       blankedMail: Blank(userData.mail, BlankType.MAIL),
       language: LanguageDtoMapper.entityToDto(userData.language),
-      sessionUrl: hasSecondUrl ? userData.spiderData?.secondUrl : userData.spiderData?.url,
-      setupUrl: hasSecondUrl ? userData.spiderData?.url : undefined,
+      sessionUrl: undefined,
+      setupUrl: undefined,
     };
   }
 
@@ -217,7 +204,7 @@ export class KycService {
   private toKycDataDto(user: User): KycDataDto {
     return {
       id: user.address,
-      kycStatus: this.webhookService.getKycWebhookStatus(user.userData.kycStatus, user.userData.kycType),
+      kycStatus: getKycWebhookStatus(user.userData.kycStatus, user.userData.kycType),
       kycHash: user.userData.kycHash,
     };
   }

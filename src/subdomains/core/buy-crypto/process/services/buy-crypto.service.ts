@@ -6,16 +6,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { CryptoRouteService } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.service';
 import { HistoryDtoDeprecated, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
-import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
+import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
@@ -31,12 +28,6 @@ import { BuyCrypto, BuyCryptoEditableAmlCheck } from '../entities/buy-crypto.ent
 import { AmlReason } from '../enums/aml-reason.enum';
 import { CheckStatus } from '../enums/check-status.enum';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
-import { BuyCryptoBatchService } from './buy-crypto-batch.service';
-import { BuyCryptoDexService } from './buy-crypto-dex.service';
-import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
-import { BuyCryptoOutService } from './buy-crypto-out.service';
-import { BuyCryptoPreparationService } from './buy-crypto-preparation.service';
-import { BuyCryptoRegistrationService } from './buy-crypto-registration.service';
 import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 
 @Injectable()
@@ -50,16 +41,9 @@ export class BuyCryptoService {
     private readonly bankTxService: BankTxService,
     private readonly buyService: BuyService,
     private readonly cryptoRouteService: CryptoRouteService,
-    private readonly buyCryptoBatchService: BuyCryptoBatchService,
-    private readonly buyCryptoOutService: BuyCryptoOutService,
-    private readonly buyCryptoDexService: BuyCryptoDexService,
-    private readonly buyCryptoRegistrationService: BuyCryptoRegistrationService,
-    private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly userService: UserService,
     private readonly assetService: AssetService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
-    @Inject(forwardRef(() => BuyCryptoPreparationService))
-    private readonly buyCryptoPreparationService: BuyCryptoPreparationService,
   ) {}
 
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<BuyCrypto> {
@@ -204,26 +188,6 @@ export class BuyCryptoService {
       .leftJoinAndSelect('cryptoRouteUsers.wallet', 'cryptoRouteWallet')
       .where(`${key.includes('.') ? key : `buyCrypto.${key}`} = :param`, { param: value })
       .getOne();
-  }
-
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(1800)
-  async checkCryptoPayIn() {
-    if (DisabledProcess(Process.BUY_CRYPTO)) return;
-    await this.buyCryptoRegistrationService.registerCryptoPayIn();
-  }
-
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(7200)
-  async process() {
-    if (DisabledProcess(Process.BUY_CRYPTO)) return;
-    if (!DisabledProcess(Process.BUY_CRYPTO_AML_CHECK)) await this.buyCryptoPreparationService.doAmlCheck();
-    if (!DisabledProcess(Process.BUY_CRYPTO_SET_FEE)) await this.buyCryptoPreparationService.refreshFee();
-    await this.buyCryptoPreparationService.prepareTransactions();
-    await this.buyCryptoBatchService.batchAndOptimizeTransactions();
-    await this.buyCryptoDexService.secureLiquidity();
-    await this.buyCryptoOutService.payoutTransactions();
-    await this.buyCryptoNotificationService.sendNotificationMails();
   }
 
   async updateVolumes(start = 1, end = 100000): Promise<void> {

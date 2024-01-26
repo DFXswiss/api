@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
 import { EntityManager } from 'typeorm';
-import { SpiderData } from './spider-data.entity';
+import { LimitRequest } from '../entities/limit-request.entity';
 
 @Injectable()
-export class SpiderDataRepository extends BaseRepository<SpiderData> {
+export class LimitRequestRepository extends BaseRepository<LimitRequest> {
   constructor(manager: EntityManager) {
-    super(SpiderData, manager);
+    super(LimitRequest, manager);
   }
 }

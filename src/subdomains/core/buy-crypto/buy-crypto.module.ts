@@ -23,6 +23,7 @@ import { BuyCryptoBatchRepository } from './process/repositories/buy-crypto-batc
 import { BuyCryptoRepository } from './process/repositories/buy-crypto.repository';
 import { BuyCryptoBatchService } from './process/services/buy-crypto-batch.service';
 import { BuyCryptoDexService } from './process/services/buy-crypto-dex.service';
+import { BuyCryptoJobService } from './process/services/buy-crypto-job.service';
 import { BuyCryptoNotificationService } from './process/services/buy-crypto-notification.service';
 import { BuyCryptoOutService } from './process/services/buy-crypto-out.service';
 import { BuyCryptoPreparationService } from './process/services/buy-crypto-preparation.service';
@@ -75,6 +76,7 @@ import { CryptoRouteService } from './routes/crypto-route/crypto-route.service';
     CryptoRouteService,
     BuyCryptoWebhookService,
     BuyCryptoPreparationService,
+    BuyCryptoJobService,
   ],
   exports: [BuyController, CryptoRouteController, BuyCryptoService, BuyService],
 })

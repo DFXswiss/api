@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  IsEmail,
   IsEnum,
   IsNotEmpty,
   IsNotEmptyObject,
@@ -14,6 +15,13 @@ import { Country } from 'src/shared/models/country/country.entity';
 import { Util } from 'src/shared/utils/util';
 import { AccountType } from '../../../user/models/user-data/account-type.enum';
 import { IsDfxPhone } from '../../../user/models/user-data/is-dfx-phone.validator';
+
+export class KycContactData {
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsEmail()
+  mail: string;
+}
 
 export class KycAddress {
   @ApiProperty()
@@ -84,4 +92,11 @@ export class KycPersonalData {
   @ValidateNested()
   @Type(() => KycAddress)
   organizationAddress?: KycAddress;
+}
+
+export class KycInputDataDto extends KycPersonalData {
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsEmail()
+  mail: string;
 }

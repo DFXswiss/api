@@ -1,6 +1,6 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Column, Entity, ManyToOne } from 'typeorm';
-import { UserData } from '../user-data/user-data.entity';
+import { UserData } from '../../user/models/user-data/user-data.entity';
 
 export enum InvestmentDate {
   NOW = 'Now',

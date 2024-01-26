@@ -1,15 +1,15 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
-import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
+import { ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler/dist/throttler.decorator';
+import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
+import { Util } from 'src/shared/utils/util';
 import { RefRewardService } from 'src/subdomains/core/referral/reward/ref-reward.service';
-import { StatisticService } from './statistic.service';
+import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { BuyCryptoService } from '../buy-crypto/process/services/buy-crypto.service';
-import { SettingStatus, StatisticDto, TransactionStatisticDto } from './dto/statistic.dto';
 import { CfpService } from './cfp.service';
 import { CfpResult } from './dto/cfp.dto';
-import { Util } from 'src/shared/utils/util';
-import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
-import { Throttle } from '@nestjs/throttler/dist/throttler.decorator';
+import { SettingStatus, StatisticDto, TransactionStatisticDto } from './dto/statistic.dto';
+import { StatisticService } from './statistic.service';
 
 @ApiTags('Statistic')
 @Controller('statistic')
@@ -53,7 +53,7 @@ export class StatisticController {
   }
 
   @Get('cfp/latest')
-  @ApiOkResponse({ type: CfpResult, isArray: true })
+  @ApiExcludeEndpoint()
   async getCfpResults(): Promise<CfpResult[]> {
     return this.cfpService.getCfpResults();
   }
