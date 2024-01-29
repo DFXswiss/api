@@ -347,7 +347,7 @@ export class Configuration {
         [FeeTier.TIER3]: 0.0225,
         [FeeTier.TIER4]: 0.0299,
       },
-      card: 0.08,
+      card: 0.0599,
       limit: +(process.env.BUY_CRYPTO_FEE_LIMIT ?? 0.001),
 
       get: (tier: FeeTier, accountType: AccountType) =>
