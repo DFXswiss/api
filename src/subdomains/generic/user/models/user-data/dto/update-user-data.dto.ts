@@ -217,4 +217,8 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsNumber()
   totalVolumeChfAuditPeriod?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  olkypayAllowed?: boolean;
 }
