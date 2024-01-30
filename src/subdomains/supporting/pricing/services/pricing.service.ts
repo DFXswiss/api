@@ -28,6 +28,7 @@ export enum PricingPathAlias {
   BTC_TO_ALT_COIN = 'BTCToAltCoin',
   FIAT_TO_SPECIAL_COIN = 'FiatToSpecialCoin',
   BTC_TO_USD_STABLE_COIN = 'BTCToUSDStableCoin',
+  BTC_TO_CHF_STABLE_COIN = 'BTCToCHFStableCoin',
   MATCHING_FIAT_TO_STABLE_COIN = 'MatchingFiatToStableCoin',
   NON_MATCHING_FIAT_TO_USD_STABLE_COIN = 'NonMatchingFiatToUSDStableCoin',
   NON_MATCHING_FIAT_TO_CHF_STABLE_COIN = 'NonMatchingFiatToChfStableCoin',
@@ -211,6 +212,21 @@ export class PricingService {
     );
 
     this.addPath(
+      new PricePath(PricingPathAlias.BTC_TO_CHF_STABLE_COIN, [
+        new PriceStep({
+          primary: {
+            overwrite: 'CHF',
+            providers: [this.krakenService],
+          },
+          reference: {
+            overwrite: 'CHF',
+            providers: [this.binanceService, this.bitstampService],
+          },
+        }),
+      ]),
+    );
+
+    this.addPath(
       new PricePath(PricingPathAlias.FIAT_TO_SPECIAL_COIN, [
         new PriceStep({
           primary: {
@@ -322,6 +338,7 @@ export class PricingService {
     if (PricingUtil.isFiat(from) && PricingUtil.isSpecialCoin(to)) return PricingPathAlias.FIAT_TO_SPECIAL_COIN;
 
     if (PricingUtil.isBTC(from) && PricingUtil.isUsdStableCoin(to)) return PricingPathAlias.BTC_TO_USD_STABLE_COIN;
+    if (PricingUtil.isBTC(from) && PricingUtil.isChfStableCoin(to)) return PricingPathAlias.BTC_TO_CHF_STABLE_COIN;
 
     if (from === 'USD' && PricingUtil.isUsdStableCoin(to)) return PricingPathAlias.MATCHING_FIAT_TO_STABLE_COIN;
     if (from === 'CHF' && PricingUtil.isChfStableCoin(to)) return PricingPathAlias.MATCHING_FIAT_TO_STABLE_COIN;
