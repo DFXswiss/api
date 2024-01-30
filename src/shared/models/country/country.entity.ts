@@ -23,6 +23,9 @@ export class Country extends IEntity {
   maerkiBaumannEnable: boolean;
 
   @Column({ default: true })
+  checkoutEnable: boolean;
+
+  @Column({ default: true })
   fatfEnable: boolean;
 
   @Column({ default: true })
