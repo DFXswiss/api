@@ -20,6 +20,7 @@ export class PriceProviderService implements OnModuleInit {
 
   private usd: Fiat;
   private eur: Fiat;
+  private chf: Fiat;
 
   constructor(
     private readonly assetService: AssetService,
@@ -32,6 +33,7 @@ export class PriceProviderService implements OnModuleInit {
   onModuleInit() {
     void this.fiatService.getFiatByName('USD').then((a) => (this.usd = a));
     void this.fiatService.getFiatByName('EUR').then((a) => (this.eur = a));
+    void this.fiatService.getFiatByName('CHF').then((a) => (this.chf = a));
   }
 
   async getPrice(from: Asset | Fiat, to: Asset | Fiat): Promise<Price> {
@@ -40,6 +42,7 @@ export class PriceProviderService implements OnModuleInit {
 
       return this.isCustom(to) ? this.fiatCustom(from, to) : this.fiatCrypto(from, to);
     } else {
+      if (this.isCustom(from)) return this.isFiat(to) ? this.customFiat(from, to) : this.customAsset(from, to);
       return this.isFiat(to) ? this.cryptoFiat(from, to) : this.cryptoCrypto(from, to);
     }
   }
@@ -101,8 +104,22 @@ export class PriceProviderService implements OnModuleInit {
 
   private async fiatCustom(from: Fiat, to: Asset): Promise<Price> {
     if (to.blockchain === ('Talium' as Blockchain)) return this.currencyService.getPrice(from.name, this.eur.name);
+    if (to.name === 'ZCHF') return this.currencyService.getPrice(from.name, this.chf.name);
 
     throw new Error(`No price available for custom asset ${to.uniqueName}`);
+  }
+
+  private async customFiat(from: Asset, to: Fiat): Promise<Price> {
+    if (from.name === 'ZCHF') return this.currencyService.getPrice(this.chf.name, to.name);
+
+    throw new Error(`No price available for custom asset ${from.uniqueName}`);
+  }
+
+  private async customAsset(from: Asset, to: Asset): Promise<Price> {
+    if (from.name === 'ZCHF') return this.fiatCrypto(this.chf, to);
+    if (to.name === 'ZCHF') return this.cryptoFiat(from, this.chf);
+
+    throw new Error(`No price available for custom asset ${this.isCustom(from) ? from.uniqueName : to.uniqueName}`);
   }
 
   // --- HELPER METHODS --- //
