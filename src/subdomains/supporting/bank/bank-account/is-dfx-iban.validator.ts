@@ -9,7 +9,14 @@ import * as ibantools from 'ibantools';
 
 @ValidatorConstraint({ name: 'IsDfxIban' })
 export class IsDfxIbanValidator implements ValidatorConstraintInterface {
-  private blockedIban = ['LT..37800000', 'AT..14200200', 'AT..20602099', 'LT..60378000', 'CH8008635008770000647'];
+  private blockedIban = [
+    'LT..37800000',
+    'AT..14200200',
+    'AT..20602099',
+    'LT..60378000',
+    'CH8008635008770000647',
+    'BG..',
+  ];
 
   validate(_: string, args: ValidationArguments) {
     return this.defaultMessage(args) == null;

@@ -74,7 +74,8 @@
                 "annual_limit_without_kyc": "Has excedido el límite anual sin KYC",
                 "asset_currently_not_available": "Este activo no está actualmente disponible para comerciar con DFX",
                 "staking_discontinued": "No se pueden depositar más en el servicio de Staking",
-                "bank_not_allowed": "El banco remitente que ha utilizado no está autorizado. Por favor, utilice un banco diferente para su depósito."
+                "bank_not_allowed": "El banco remitente que ha utilizado no está autorizado. Por favor, utilice un banco diferente para su depósito.",
+                "country_not_allowed": "Desafortunadamente, su depósito no puede ser procesado <br>porque el dinero proviene de un país que no podemos apoyar. Más información:<br><a style='color:white' href='https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html'>https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html</a>"
             }
         },
         "pending": {

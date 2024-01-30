@@ -187,6 +187,9 @@ export class UserData extends IEntity {
   highRisk: boolean;
 
   @Column({ nullable: true })
+  olkypayAllowed: boolean;
+
+  @Column({ nullable: true })
   complexOrgStructure: boolean;
 
   @Column({ length: 256, default: KycStatus.NA })

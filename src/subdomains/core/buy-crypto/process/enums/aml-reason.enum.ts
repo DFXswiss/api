@@ -12,4 +12,5 @@ export enum AmlReason {
   ASSET_CURRENTLY_NOT_AVAILABLE = 'AssetCurrentlyNotAvailable',
   STAKING_DISCONTINUED = 'StakingDiscontinued',
   BANK_NOT_ALLOWED = 'BankNotAllowed',
+  COUNTRY_NOT_ALLOWED = 'CountryNotAllowed',
 }

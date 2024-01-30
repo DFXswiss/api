@@ -74,7 +74,8 @@
                 "annual_limit_without_kyc": "You exceeded the annual limit without KYC",
                 "asset_currently_not_available": "The asset is currently not available for trading with DFX",
                 "staking_discontinued": "Staking deposits are no longer possible",
-                "bank_not_allowed": "The sender bank you used is not allowed. Please use a different bank for your deposit."
+                "bank_not_allowed": "The sender bank you used is not allowed. Please use a different bank for your deposit.",
+                "country_not_allowed": "Unfortunately, your deposit cannot be processed <br>because the money comes from a country that we cannot support. More information:<br><a style='color:white' href='https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html'>https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html</a>"
             }
         },
         "pending": {
