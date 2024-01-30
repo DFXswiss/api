@@ -19,6 +19,7 @@ export enum UsdStableCoin {
 
 export enum ChfStableCoin {
   XCHF = 'XCHF',
+  ZCHF = 'ZCHF',
 }
 
 export enum Bitcoin {
