@@ -154,7 +154,7 @@ export class KycService {
   private async getUserByKycCode(code: string): Promise<UserData> {
     const userData = await this.userDataRepo.findOne({
       where: { kycHash: code },
-      relations: ['users', 'users.wallet', 'spiderData'],
+      relations: ['users', 'users.wallet'],
     });
     if (!userData) throw new NotFoundException('User not found');
     return userData;
