@@ -10,6 +10,6 @@ import { LogService } from './log.service';
   imports: [TypeOrmModule.forFeature([Log]), SharedModule],
   controllers: [LogController],
   providers: [LogRepository, LogService],
-  exports: [],
+  exports: [LogService],
 })
 export class LogModule {}

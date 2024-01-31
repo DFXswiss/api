@@ -4,6 +4,7 @@ import { LightningModule } from '../lightning/lightning.module';
 import { ArbitrumModule } from './arbitrum/arbitrum.module';
 import { BscModule } from './bsc/bsc.module';
 import { EthereumModule } from './ethereum/ethereum.module';
+import { FrankencoinModule } from './frankencoin/frankencoin.module';
 import { MoneroModule } from './monero/monero.module';
 import { OptimismModule } from './optimism/optimism.module';
 import { PolygonModule } from './polygon/polygon.module';
@@ -21,6 +22,7 @@ import { CryptoService } from './shared/services/crypto.service';
     PolygonModule,
     LightningModule,
     MoneroModule,
+    FrankencoinModule,
   ],
   exports: [
     AinModule,
