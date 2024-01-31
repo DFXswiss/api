@@ -25,9 +25,9 @@ export class FrankencoinService {
   private readonly client: FrankencoinClient;
 
   constructor(private readonly logService: LogService) {
-    const { ethGatewayUrl, ethApiKey } = GetConfig().blockchain.ethereum;
+    const { zchfGatewayUrl, zchfApiKey } = GetConfig().blockchain.frankencoin;
 
-    this.client = new FrankencoinClient(ethGatewayUrl, ethApiKey);
+    this.client = new FrankencoinClient(zchfGatewayUrl, zchfApiKey);
   }
 
   @Cron(CronExpression.EVERY_5_MINUTES)

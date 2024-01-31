@@ -92,6 +92,9 @@
     "utxoSpenderAddress": {
       "value": "xxx"
     },
+    "btcOutWalletAddress": {
+      "value": "xxx"
+    },
     "evmDepositSeed": {
       "value": "xxx"
     },
@@ -179,8 +182,11 @@
     "moneroRpcCertificate": {
       "value": "xxx"
     },
-    "btcOutWalletAddress": {
-      "value": "xxx"
+    "zchfGatewayUrl": {
+      "value": "https://eth-mainnet.g.alchemy.com/v2"
+    },
+    "zchfGraphUrl": {
+      "value": "https://api.thegraph.com/subgraphs/name/frankencoin-zchf/frankencoin-subgraph"
     },
     "buyCryptoFeeLimit": {
       "value": "0.001"

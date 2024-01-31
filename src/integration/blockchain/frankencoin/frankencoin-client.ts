@@ -1,5 +1,6 @@
 import { Contract, ethers } from 'ethers';
 import { gql, request } from 'graphql-request';
+import { Config } from 'src/config/config';
 import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
 import FRANKENCOIN_POSITION_ABI from '../shared/evm/abi/frankencoin-position.abi.json';
 import FRANKENCOIN_ABI from '../shared/evm/abi/frankencoin.abi.json';
@@ -13,13 +14,11 @@ import {
 } from './dto/frankencoin.dto';
 
 export class FrankencoinClient {
-  private url = 'https://api.thegraph.com/subgraphs/name/frankencoin-zchf/frankencoin-subgraph';
-
   private provider: ethers.providers.JsonRpcProvider;
 
   constructor(gatewayUrl: string, apiKey: string) {
-    const url = `${gatewayUrl}/${apiKey}`;
-    this.provider = new ethers.providers.JsonRpcProvider(url);
+    const providerUrl = `${gatewayUrl}/${apiKey}`;
+    this.provider = new ethers.providers.JsonRpcProvider(providerUrl);
   }
 
   async getPositions(): Promise<FrankencoinPositionDto[]> {
@@ -36,7 +35,9 @@ export class FrankencoinClient {
       }
     `;
 
-    return request<{ positions: [FrankencoinPositionDto] }>(this.url, document).then((r) => r.positions);
+    return request<{ positions: [FrankencoinPositionDto] }>(Config.blockchain.frankencoin.zchfGraphUrl, document).then(
+      (r) => r.positions,
+    );
   }
 
   async getChallenges(): Promise<FrankencoinChallengeDto[]> {
@@ -58,7 +59,10 @@ export class FrankencoinClient {
       }
     `;
 
-    return request<{ challenges: [FrankencoinChallengeDto] }>(this.url, document).then((r) => r.challenges);
+    return request<{ challenges: [FrankencoinChallengeDto] }>(
+      Config.blockchain.frankencoin.zchfGraphUrl,
+      document,
+    ).then((r) => r.challenges);
   }
 
   async getFPS(): Promise<FrankencoinFpsDto[]> {
@@ -73,7 +77,9 @@ export class FrankencoinClient {
       }
     `;
 
-    return request<{ fpss: [FrankencoinFpsDto] }>(this.url, document).then((r) => r.fpss);
+    return request<{ fpss: [FrankencoinFpsDto] }>(Config.blockchain.frankencoin.zchfGraphUrl, document).then(
+      (r) => r.fpss,
+    );
   }
 
   async getMinters(): Promise<FrankencoinMinterDto[]> {
@@ -94,7 +100,9 @@ export class FrankencoinClient {
       }
     `;
 
-    return request<{ minters: [FrankencoinMinterDto] }>(this.url, document).then((r) => r.minters);
+    return request<{ minters: [FrankencoinMinterDto] }>(Config.blockchain.frankencoin.zchfGraphUrl, document).then(
+      (r) => r.minters,
+    );
   }
 
   async getDelegations(): Promise<FrankencoinDelegationDto[]> {
@@ -109,7 +117,10 @@ export class FrankencoinClient {
       }
     `;
 
-    return request<{ delegations: [FrankencoinDelegationDto] }>(this.url, document).then((r) => r.delegations);
+    return request<{ delegations: [FrankencoinDelegationDto] }>(
+      Config.blockchain.frankencoin.zchfGraphUrl,
+      document,
+    ).then((r) => r.delegations);
   }
 
   async getTrades(): Promise<FrankencoinTradeDto[]> {
@@ -126,7 +137,9 @@ export class FrankencoinClient {
       }
     `;
 
-    return request<{ trades: [FrankencoinTradeDto] }>(this.url, document).then((r) => r.trades);
+    return request<{ trades: [FrankencoinTradeDto] }>(Config.blockchain.frankencoin.zchfGraphUrl, document).then(
+      (r) => r.trades,
+    );
   }
 
   getFrankencoinContract(contractAddress: string): Contract {
