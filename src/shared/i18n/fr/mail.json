@@ -162,13 +162,6 @@
         "next_step": "Pour procéder à votre vérification, cliquez sur l'élément de menu en haut à droite du site Web de DFX-Services<br>, puis sur \"KYC\"<br> et cliquez sur le bouton \"Continuer\" ou utilisez le lien suivant :<br>[url:{urlText}]",
         "last_step": "Franchissez le dernier pas et développez votre liberté financière dès aujourd'hui"
     },
-    "link_address": {
-        "title": "Associez votre adresse",
-        "salutation": "Souhaitez-vous lier votre adresse à votre compte actuel ?",
-        "existing_address": "Adresse existante",
-        "new_address": "Nouvelle adresse",
-        "message": "Si vous souhaitez lier cette nouvelle adresse à votre compte actuel déjà vérifié, veuillez les instructions ci-dessous: [url:Cliquez ici]"
-    },
     "account_merge": {
       "title": "Confirmer l'e-mail",
       "salutation": "Confirmez votre e-mail",

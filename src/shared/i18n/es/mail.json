@@ -162,13 +162,6 @@
         "next_step": "Para proceder a su verificación, haga clic en el elemento de menú situado en la parte superior derecha del sitio web de DFX-Services<br> y, a continuación, en \"KYC\"<br> y haga clic en el botón \"Continuar\"<br> o utilice el siguiente enlace:<br>[url:{urlText}]",
         "last_step": "Da el último paso y empieza a crear tu libertad financiera hoy"
     },
-    "link_address": {
-        "title": "Vincular su dirección",
-        "salutation": "¿Quieres conectar la dirección de tu billetera a tu cuenta existente?",
-        "existing_address": "Dirección existente",
-        "new_address": "Nueva dirección",
-        "message": "Si quieres emparejar tu nueva dirección a la que ya tienes verificada, por favor sigue las instrucciones: [url:Pulse aquí]"
-    },
     "account_merge": {
       "title": "Confirmar correo electrónico",
       "salutation": "Confirme su correo electrónico",

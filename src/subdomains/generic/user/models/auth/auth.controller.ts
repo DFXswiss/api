@@ -48,7 +48,7 @@ export class AuthController {
 
   @Get('mail/confirm')
   @ApiExcludeEndpoint()
-  async executeLinkAddress(@Query('code') code: string, @Res() res: Response): Promise<void> {
+  async executeMerge(@Query('code') code: string, @Res() res: Response): Promise<void> {
     const { master } = await this.mergeService.executeMerge(code);
     res.redirect(master.kycUrl);
   }
