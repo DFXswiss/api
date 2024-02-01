@@ -43,7 +43,7 @@ export class ChainReportCsvHistoryDto {
   feeAsset: string;
 
   @ApiProperty()
-  txId: string;
+  txid: string;
 
   @ApiPropertyOptional()
   description: string;
