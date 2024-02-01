@@ -41,7 +41,7 @@ export class CoinTrackingHistoryBase {
   comment: string;
 
   @ApiProperty()
-  txId: string;
+  txid: string;
 
   @ApiPropertyOptional()
   buyValueInEur: number;

@@ -239,19 +239,19 @@ export class HistoryService {
   }
 
   private fixDuplicateTxCT(history: CoinTrackingCsvHistoryDto[]): CoinTrackingCsvHistoryDto[] {
-    Array.from(Util.groupBy(history, 'txId'))
+    Array.from(Util.groupBy(history, 'txid'))
       .map(([_, tx]) => tx)
       .filter((r) => r.length > 1)
-      .forEach((tx) => tx.forEach((r, i) => (r.txId += i > 0 ? i : '')));
+      .forEach((tx) => tx.forEach((r, i) => (r.txid += i > 0 ? i : '')));
 
     return history;
   }
 
   private fixDuplicateTxCR(history: ChainReportCsvHistoryDto[]): ChainReportCsvHistoryDto[] {
-    Array.from(Util.groupBy(history, 'txId'))
+    Array.from(Util.groupBy(history, 'txid'))
       .map(([_, tx]) => tx)
       .filter((r) => r.length > 1)
-      .forEach((tx) => tx.forEach((r, i) => (r.txId += i > 0 ? i : '')));
+      .forEach((tx) => tx.forEach((r, i) => (r.txid += i > 0 ? i : '')));
 
     return history;
   }
