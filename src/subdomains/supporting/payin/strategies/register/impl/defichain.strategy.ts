@@ -61,8 +61,8 @@ export class DeFiChainStrategy extends RegisterStrategy {
 
     for (const entry of entries) {
       try {
-        const btcAmount = await this.getReferenceAmount(entry.asset, entry.amount, btc);
-        const usdtAmount = await this.getReferenceAmount(entry.asset, entry.amount, usdt);
+        const btcAmount = await this.getReferenceAmount(entry.asset, btc, entry);
+        const usdtAmount = await this.getReferenceAmount(entry.asset, usdt, entry);
 
         await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
       } catch (e) {

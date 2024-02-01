@@ -13,12 +13,18 @@ import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-inp
 import { PayInFactory } from 'src/subdomains/supporting/payin/factories/payin.factory';
 import { PayInEntry } from 'src/subdomains/supporting/payin/interfaces';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
+import { PriceRequestContext } from 'src/subdomains/supporting/pricing/domain/enums';
+import { PriceRequest } from 'src/subdomains/supporting/pricing/domain/interfaces';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { v4 as uuid } from 'uuid';
 import { RegisterStrategyRegistry } from './register.strategy-registry';
 
 export interface PayInInputLog {
   newRecords: { address: string; txId: string }[];
 }
+
+const SkipTestSwapAssets = ['ZCHF'];
+
 export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy {
   protected abstract readonly logger: DfxLogger;
 
@@ -30,6 +36,9 @@ export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy 
 
   @Inject()
   private readonly registry: RegisterStrategyRegistry;
+
+  @Inject()
+  private readonly pricingService: PricingService;
 
   constructor(protected readonly payInRepository: PayInRepository) {}
 
@@ -68,8 +77,19 @@ export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy 
     }
   }
 
-  protected async getReferenceAmount(fromAsset: Asset, fromAmount: number, toAsset: Asset): Promise<number> {
-    const request = this.createLiquidityRequest(fromAsset, fromAmount, toAsset);
+  protected async getReferenceAmount(
+    fromAsset: Asset,
+    toAsset: Asset,
+    entry: CryptoInput | PayInEntry,
+  ): Promise<number> {
+    if (SkipTestSwapAssets.includes(fromAsset.dexName))
+      return this.pricingService
+        .getPrice(
+          this.createPriceRequest(entry, toAsset.dexName === 'WBTC' ? 'BTC' : toAsset.dexName, fromAsset.dexName),
+        )
+        .then((p) => p.price.invert().convert(entry.amount));
+
+    const request = this.createLiquidityRequest(fromAsset, entry.amount, toAsset);
     const liquidity = await this.dexService.checkLiquidity(request);
 
     return liquidity.target.amount;
@@ -111,6 +131,15 @@ export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy 
       referenceAsset,
       referenceAmount,
       targetAsset,
+    };
+  }
+
+  private createPriceRequest(entry: CryptoInput | PayInEntry, from: string, to: string): PriceRequest {
+    return {
+      context: PriceRequestContext.PAY_IN,
+      correlationId: `PayIn ${'txId' in entry ? entry.txId : entry.inTxId}`,
+      from,
+      to,
     };
   }
 }
