@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { BigNumberish, ethers } from 'ethers';
-import { GetConfig } from 'src/config/config';
+import { Config, GetConfig } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
@@ -9,18 +9,20 @@ import { CreateLogDto } from 'src/subdomains/supporting/log/dto/create-log.dto';
 import { LogSeverity } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
 import {
-  FrankencoinChallengeDto,
-  FrankencoinDelegationDto,
-  FrankencoinFpsDto,
-  FrankencoinLogInfoDto,
-  FrankencoinMinterDto,
-  FrankencoinTradeDto,
+  FrankencoinChallengeGraphDto,
+  FrankencoinDelegationGraphDto,
+  FrankencoinMinterGraphDto,
+  FrankencoinPoolSharesDto,
+  FrankencoinPositionDto,
+  FrankencoinTradeGraphDto,
 } from './dto/frankencoin.dto';
 import { FrankencoinClient } from './frankencoin-client';
 
 @Injectable()
 export class FrankencoinService {
   private readonly logger = new DfxLogger(FrankencoinService);
+
+  private static readonly LOG_SYSTEM = 'EvmInformation';
 
   private readonly client: FrankencoinClient;
 
@@ -35,10 +37,15 @@ export class FrankencoinService {
   async processLogInfo() {
     if (DisabledProcess(Process.FRANKENCOIN_LOG_INFO)) return;
 
+    await this.positionsLog();
+    await this.fpssLog();
+  }
+
+  private async positionsLog() {
     const positions = await this.getPositions();
 
     const log: CreateLogDto = {
-      system: 'EvmInformation',
+      system: FrankencoinService.LOG_SYSTEM,
       subsystem: 'FrankencoinSmartContract',
       severity: LogSeverity.INFO,
       message: JSON.stringify(positions),
@@ -47,8 +54,21 @@ export class FrankencoinService {
     await this.logService.create(log);
   }
 
-  async getPositions(): Promise<FrankencoinLogInfoDto[]> {
-    const logInfo: FrankencoinLogInfoDto[] = [];
+  private async fpssLog() {
+    const fpss = await this.getFPSs();
+
+    const log: CreateLogDto = {
+      system: FrankencoinService.LOG_SYSTEM,
+      subsystem: 'FrankencoinPoolSharesSmartContract',
+      severity: LogSeverity.INFO,
+      message: JSON.stringify(fpss),
+    };
+
+    await this.logService.create(log);
+  }
+
+  async getPositions(): Promise<FrankencoinPositionDto[]> {
+    const positionsResult: FrankencoinPositionDto[] = [];
 
     const positions = await this.client.getPositions();
 
@@ -74,7 +94,7 @@ export class FrankencoinService {
         const limit = await positionContract.limit();
         const expiration = await positionContract.expiration();
 
-        logInfo.push({
+        positionsResult.push({
           address: {
             position: position.position,
             frankencoin: position.zchf,
@@ -99,26 +119,55 @@ export class FrankencoinService {
       }
     }
 
-    return logInfo;
+    return positionsResult;
   }
 
-  async getChallenges(): Promise<FrankencoinChallengeDto[]> {
+  async getChallenges(): Promise<FrankencoinChallengeGraphDto[]> {
     return this.client.getChallenges();
   }
 
-  async getFPS(): Promise<FrankencoinFpsDto[]> {
-    return this.client.getFPS();
+  async getFPSs(): Promise<FrankencoinPoolSharesDto[]> {
+    const fpssResult: FrankencoinPoolSharesDto[] = [];
+
+    const equityContract = this.client.getEquityContract(Config.blockchain.frankencoin.contractAddress.equity);
+    const frankencoinContract = this.client.getFrankencoinContract(Config.blockchain.frankencoin.contractAddress.zchf);
+
+    const fpss = await this.client.getFPS();
+
+    for (const fps of fpss) {
+      try {
+        const totalSupply = await equityContract.totalSupply();
+        const price = await equityContract.price();
+        const frankenMinterReserve = await frankencoinContract.minterReserve();
+        const frankenEquity = await frankencoinContract.equity();
+
+        fpssResult.push({
+          fpsPrice: this.fromWeiAmount(price),
+          supply: this.fromWeiAmount(totalSupply),
+          marketCap: this.fromWeiAmount(totalSupply) * this.fromWeiAmount(price),
+          totalReserve: this.fromWeiAmount(frankenMinterReserve) + this.fromWeiAmount(frankenEquity),
+          equityCapital: this.fromWeiAmount(frankenEquity),
+          minterReserve: this.fromWeiAmount(frankenMinterReserve),
+          totalIncome: this.fromWeiAmount(fps.profits),
+          totalLosses: this.fromWeiAmount(fps.loss),
+        });
+      } catch (e) {
+        this.logger.error(`Error while getting pool shares ${fps.id}`, e);
+      }
+    }
+
+    return fpssResult;
   }
 
-  async getMinters(): Promise<FrankencoinMinterDto[]> {
+  async getMinters(): Promise<FrankencoinMinterGraphDto[]> {
     return this.client.getMinters();
   }
 
-  async getDelegations(): Promise<FrankencoinDelegationDto[]> {
+  async getDelegations(): Promise<FrankencoinDelegationGraphDto[]> {
     return this.client.getDelegations();
   }
 
-  async getTrades(): Promise<FrankencoinTradeDto[]> {
+  async getTrades(): Promise<FrankencoinTradeGraphDto[]> {
     return this.client.getTrades();
   }
 

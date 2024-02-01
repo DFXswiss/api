@@ -1,4 +1,4 @@
-export interface FrankencoinPositionDto {
+export interface FrankencoinPositionGraphDto {
   id: string;
   position: string;
   owner: string;
@@ -7,7 +7,7 @@ export interface FrankencoinPositionDto {
   price: string;
 }
 
-export interface FrankencoinChallengeDto {
+export interface FrankencoinChallengeGraphDto {
   id: string;
   challenger: string;
   position: string;
@@ -21,14 +21,14 @@ export interface FrankencoinChallengeDto {
   status: string;
 }
 
-export interface FrankencoinFpsDto {
+export interface FrankencoinFpsGraphDto {
   id: string;
   profits: string;
   loss: string;
   reserve: string;
 }
 
-export interface FrankencoinMinterDto {
+export interface FrankencoinMinterGraphDto {
   id: string;
   minter: string;
   applicationPeriod: string;
@@ -41,14 +41,14 @@ export interface FrankencoinMinterDto {
   vetor: string;
 }
 
-export interface FrankencoinDelegationDto {
+export interface FrankencoinDelegationGraphDto {
   id: string;
   owner: string;
   delegatedTo: string;
   pureDelegatedFrom: [string];
 }
 
-export interface FrankencoinTradeDto {
+export interface FrankencoinTradeGraphDto {
   id: string;
   trader: string;
   amount: string;
@@ -57,7 +57,7 @@ export interface FrankencoinTradeDto {
   time: string;
 }
 
-export interface FrankencoinLogInfoDto {
+export interface FrankencoinPositionDto {
   address: {
     position: string;
     frankencoin: string;
@@ -76,4 +76,15 @@ export interface FrankencoinLogInfoDto {
     limit: number;
     expirationDate: Date;
   };
+}
+
+export interface FrankencoinPoolSharesDto {
+  fpsPrice: number;
+  supply: number;
+  marketCap: number;
+  totalReserve: number;
+  equityCapital: number;
+  minterReserve: number;
+  totalIncome: number;
+  totalLosses: number;
 }

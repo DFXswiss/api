@@ -2,15 +2,16 @@ import { Contract, ethers } from 'ethers';
 import { gql, request } from 'graphql-request';
 import { Config } from 'src/config/config';
 import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
+import FRANKENCOIN_EQUITY_ABI from '../shared/evm/abi/frankencoin-equity.abi.json';
 import FRANKENCOIN_POSITION_ABI from '../shared/evm/abi/frankencoin-position.abi.json';
 import FRANKENCOIN_ABI from '../shared/evm/abi/frankencoin.abi.json';
 import {
-  FrankencoinChallengeDto,
-  FrankencoinDelegationDto,
-  FrankencoinFpsDto,
-  FrankencoinMinterDto,
-  FrankencoinPositionDto,
-  FrankencoinTradeDto,
+  FrankencoinChallengeGraphDto,
+  FrankencoinDelegationGraphDto,
+  FrankencoinFpsGraphDto,
+  FrankencoinMinterGraphDto,
+  FrankencoinPositionGraphDto,
+  FrankencoinTradeGraphDto,
 } from './dto/frankencoin.dto';
 
 export class FrankencoinClient {
@@ -21,7 +22,7 @@ export class FrankencoinClient {
     this.provider = new ethers.providers.JsonRpcProvider(providerUrl);
   }
 
-  async getPositions(): Promise<FrankencoinPositionDto[]> {
+  async getPositions(): Promise<FrankencoinPositionGraphDto[]> {
     const document = gql`
       {
         positions {
@@ -35,12 +36,13 @@ export class FrankencoinClient {
       }
     `;
 
-    return request<{ positions: [FrankencoinPositionDto] }>(Config.blockchain.frankencoin.zchfGraphUrl, document).then(
-      (r) => r.positions,
-    );
+    return request<{ positions: [FrankencoinPositionGraphDto] }>(
+      Config.blockchain.frankencoin.zchfGraphUrl,
+      document,
+    ).then((r) => r.positions);
   }
 
-  async getChallenges(): Promise<FrankencoinChallengeDto[]> {
+  async getChallenges(): Promise<FrankencoinChallengeGraphDto[]> {
     const document = gql`
       {
         challenges {
@@ -59,13 +61,13 @@ export class FrankencoinClient {
       }
     `;
 
-    return request<{ challenges: [FrankencoinChallengeDto] }>(
+    return request<{ challenges: [FrankencoinChallengeGraphDto] }>(
       Config.blockchain.frankencoin.zchfGraphUrl,
       document,
     ).then((r) => r.challenges);
   }
 
-  async getFPS(): Promise<FrankencoinFpsDto[]> {
+  async getFPS(): Promise<FrankencoinFpsGraphDto[]> {
     const document = gql`
       {
         fpss {
@@ -77,12 +79,12 @@ export class FrankencoinClient {
       }
     `;
 
-    return request<{ fpss: [FrankencoinFpsDto] }>(Config.blockchain.frankencoin.zchfGraphUrl, document).then(
+    return request<{ fpss: [FrankencoinFpsGraphDto] }>(Config.blockchain.frankencoin.zchfGraphUrl, document).then(
       (r) => r.fpss,
     );
   }
 
-  async getMinters(): Promise<FrankencoinMinterDto[]> {
+  async getMinters(): Promise<FrankencoinMinterGraphDto[]> {
     const document = gql`
       {
         minters {
@@ -100,12 +102,12 @@ export class FrankencoinClient {
       }
     `;
 
-    return request<{ minters: [FrankencoinMinterDto] }>(Config.blockchain.frankencoin.zchfGraphUrl, document).then(
+    return request<{ minters: [FrankencoinMinterGraphDto] }>(Config.blockchain.frankencoin.zchfGraphUrl, document).then(
       (r) => r.minters,
     );
   }
 
-  async getDelegations(): Promise<FrankencoinDelegationDto[]> {
+  async getDelegations(): Promise<FrankencoinDelegationGraphDto[]> {
     const document = gql`
       {
         delegations {
@@ -117,13 +119,13 @@ export class FrankencoinClient {
       }
     `;
 
-    return request<{ delegations: [FrankencoinDelegationDto] }>(
+    return request<{ delegations: [FrankencoinDelegationGraphDto] }>(
       Config.blockchain.frankencoin.zchfGraphUrl,
       document,
     ).then((r) => r.delegations);
   }
 
-  async getTrades(): Promise<FrankencoinTradeDto[]> {
+  async getTrades(): Promise<FrankencoinTradeGraphDto[]> {
     const document = gql`
       {
         trades {
@@ -137,7 +139,7 @@ export class FrankencoinClient {
       }
     `;
 
-    return request<{ trades: [FrankencoinTradeDto] }>(Config.blockchain.frankencoin.zchfGraphUrl, document).then(
+    return request<{ trades: [FrankencoinTradeGraphDto] }>(Config.blockchain.frankencoin.zchfGraphUrl, document).then(
       (r) => r.trades,
     );
   }
@@ -152,5 +154,9 @@ export class FrankencoinClient {
 
   getCollateralContract(collateralAddress: string): Contract {
     return new Contract(collateralAddress, ERC20_ABI, this.provider);
+  }
+
+  getEquityContract(collateralAddress: string): Contract {
+    return new Contract(collateralAddress, FRANKENCOIN_EQUITY_ABI, this.provider);
   }
 }
