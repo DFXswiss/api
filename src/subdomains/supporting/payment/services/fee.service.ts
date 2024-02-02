@@ -35,6 +35,7 @@ export interface FeeRequestBase {
   direction: FeeDirectionType;
   asset: Asset;
   txVolume?: number;
+  minFee: number;
 }
 
 @Injectable()
@@ -58,7 +59,11 @@ export class FeeService {
     if (existing) throw new BadRequestException('Fee already created');
     if (dto.type === FeeType.BASE && dto.createDiscountCode)
       throw new BadRequestException('Base fees cannot have a discountCode');
-    if (dto.type === FeeType.DISCOUNT && !dto.createDiscountCode && dto.maxUsages)
+    if (
+      (dto.type === FeeType.DISCOUNT || dto.type === FeeType.NEGATIVE_DISCOUNT) &&
+      !dto.createDiscountCode &&
+      dto.maxUsages
+    )
       throw new BadRequestException('Discount fees without a code cannot have a maxUsage');
     if (dto.type === FeeType.BASE && (!dto.accountType || !dto.assetIds))
       throw new BadRequestException('Base fees must have an accountType and assetIds');
@@ -137,18 +142,18 @@ export class FeeService {
   async getUserFee(request: UserFeeRequest): Promise<FeeDto> {
     const userFees = await this.getValidFees(request);
 
-    return this.calculateFee(userFees, request.user.userData?.id);
+    return this.calculateFee(userFees, request.minFee, request.user.userData?.id);
   }
 
   async getDefaultFee(request: FeeRequestBase, accountType = AccountType.PERSONAL): Promise<FeeDto> {
     const defaultFees = await this.getValidFees({ ...request, accountType });
 
-    return this.calculateFee(defaultFees);
+    return this.calculateFee(defaultFees, request.minFee);
   }
 
   // --- HELPER METHODS --- //
 
-  private calculateFee(fees: Fee[], userDataId?: number): FeeDto {
+  private calculateFee(fees: Fee[], blockchainFee: number, userDataId?: number): FeeDto {
     // get min custom fee
     const customFee = Util.minObj(
       fees.filter((fee) => fee.type === FeeType.CUSTOM),
@@ -160,6 +165,7 @@ export class FeeService {
         rate: customFee.rate,
         fixed: customFee.fixed ?? 0,
         payoutRefBonus: customFee.payoutRefBonus,
+        blockchain: customFee.blockchainFactor * blockchainFee,
       };
 
     // get min base fee
@@ -170,13 +176,13 @@ export class FeeService {
 
     // get max discount > 0
     const positiveDiscountFee = Util.maxObj(
-      fees.filter((fee) => fee.type === FeeType.DISCOUNT && (fee.rate > 0 || (fee.rate == 0 && fee.fixed > 0))),
+      fees.filter((fee) => fee.type === FeeType.DISCOUNT),
       'rate',
     );
 
     // get min discount < 0
     const negativeDiscountFee = Util.minObj(
-      fees.filter((fee) => fee.type === FeeType.DISCOUNT && (fee.rate < 0 || (fee.rate == 0 && fee.fixed < 0))),
+      fees.filter((fee) => fee.type === FeeType.NEGATIVE_DISCOUNT),
       'rate',
     );
 
@@ -185,12 +191,23 @@ export class FeeService {
       rate: (positiveDiscountFee?.rate ?? 0) + (negativeDiscountFee?.rate ?? 0),
       fixed: (positiveDiscountFee?.fixed ?? 0) + (negativeDiscountFee?.fixed ?? 0),
       payoutRefBonus: (positiveDiscountFee?.payoutRefBonus ?? true) && (negativeDiscountFee?.payoutRefBonus ?? true),
+      blockchain:
+        blockchainFee *
+        (baseFee.blockchainFactor - positiveDiscountFee?.blockchainFactor ??
+          0 + negativeDiscountFee?.blockchainFactor ??
+          0),
     };
 
     if (!baseFee) throw new InternalServerErrorException('Base fee is missing');
     if (baseFee.rate - discountFee.rate < 0) {
       this.logger.warn(`UserDiscount higher userBaseFee! UserDataId: ${userDataId}`);
-      return { fees: [baseFee], rate: baseFee.rate, fixed: baseFee.fixed, payoutRefBonus: true };
+      return {
+        fees: [baseFee],
+        rate: baseFee.rate,
+        fixed: baseFee.fixed,
+        payoutRefBonus: true,
+        blockchain: blockchainFee * baseFee.blockchainFactor,
+      };
     }
 
     return {
@@ -198,6 +215,7 @@ export class FeeService {
       rate: baseFee.rate - discountFee.rate,
       fixed: Math.max(baseFee.fixed - discountFee.fixed, 0),
       payoutRefBonus: baseFee.payoutRefBonus && discountFee.payoutRefBonus,
+      blockchain: discountFee.blockchain,
     };
   }
 
@@ -211,6 +229,7 @@ export class FeeService {
     const userFees = await this.feeRepo.findBy([
       { type: FeeType.BASE },
       { type: FeeType.DISCOUNT, discountCode: IsNull() },
+      { type: FeeType.NEGATIVE_DISCOUNT, discountCode: IsNull() },
       { id: In(discountFeeIds) },
     ]);
 

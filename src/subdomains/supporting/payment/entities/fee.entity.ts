@@ -9,6 +9,7 @@ import { FeeRequest } from '../services/fee.service';
 export enum FeeType {
   BASE = 'Base',
   DISCOUNT = 'Discount',
+  NEGATIVE_DISCOUNT = 'NegativeDiscount',
   CUSTOM = 'Custom',
 }
 
@@ -26,6 +27,9 @@ export class Fee extends IEntity {
 
   @Column({ type: 'float', default: 0 })
   fixed: number; // EUR
+
+  @Column({ type: 'float', default: 1 })
+  blockchainFactor: number;
 
   @Column({ default: true })
   payoutRefBonus: boolean;

@@ -129,14 +129,14 @@ export class BuyController {
   }
 
   private async toDto(userId: number, buy: Buy): Promise<BuyDto> {
-    const fee = await this.userService.getUserFee(userId, FeeDirectionType.BUY, buy.asset);
-
     const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
       'Fiat',
       undefined,
       buy.asset.blockchain,
       buy.asset.dexName,
     );
+
+    const fee = await this.userService.getUserFee(userId, FeeDirectionType.BUY, buy.asset, minFee.amount);
 
     return {
       id: buy.id,
@@ -148,7 +148,7 @@ export class BuyController {
       asset: AssetDtoMapper.entityToDto(buy.asset),
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposits: [minDeposit],
-      minFee,
+      minFee: { amount: fee.blockchain, asset: 'EUR' },
     };
   }
 
