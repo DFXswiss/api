@@ -8,7 +8,6 @@ import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInBscService } from '../../../services/payin-bsc.service';
 import { EvmStrategy } from './base/evm.strategy';
@@ -22,9 +21,8 @@ export class BscStrategy extends EvmStrategy {
     payInRepository: PayInRepository,
     assetService: AssetService,
     repos: RepositoryFactory,
-    pricingService: PricingService,
   ) {
-    super('BNB', bscService, payInRepository, assetService, repos, pricingService);
+    super('BNB', bscService, payInRepository, assetService, repos);
   }
 
   get blockchain(): Blockchain {
