@@ -36,7 +36,7 @@ export class ChainReportHistoryDtoMapper {
           outputAsset: null,
           feeAmount: null,
           feeAsset: null,
-          txId: buyCrypto.cryptoInput.inTxId,
+          txid: buyCrypto.cryptoInput.inTxId,
           description: 'DFX Purchase',
         },
         buyCrypto.inputAsset == buyCrypto.outputAsset?.dexName
@@ -50,7 +50,7 @@ export class ChainReportHistoryDtoMapper {
                 outputAsset: this.getAssetSymbol(buyCrypto.inputAsset),
                 feeAmount: null,
                 feeAsset: null,
-                txId: buyCrypto.txId,
+                txid: buyCrypto.txId,
                 description: 'DFX Purchase Fee',
               }
             : null
@@ -67,7 +67,7 @@ export class ChainReportHistoryDtoMapper {
                 ? (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount
                 : null,
               feeAsset: buyCrypto.totalFeeAmount ? this.getAssetSymbol(buyCrypto.inputAsset) : null,
-              txId: buyCrypto.txId,
+              txid: buyCrypto.txId,
               description: 'DFX Purchase',
             },
       ])
@@ -100,7 +100,7 @@ export class ChainReportHistoryDtoMapper {
           outputAsset: null,
           feeAmount: null,
           feeAsset: null,
-          txId: buyCrypto.bankTx?.id.toString(),
+          txid: buyCrypto.bankTx?.id.toString(),
           description: 'DFX Purchase',
         },
         {
@@ -114,7 +114,7 @@ export class ChainReportHistoryDtoMapper {
             ? (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount
             : null,
           feeAsset: buyCrypto.totalFeeAmount ? buyCrypto.inputAsset : null,
-          txId: buyCrypto.txId,
+          txid: buyCrypto.txId,
           description: 'DFX Purchase',
         },
       ])
@@ -146,7 +146,7 @@ export class ChainReportHistoryDtoMapper {
             ? (buyFiat.totalFeeAmount / buyFiat.inputReferenceAmount) * buyFiat.inputAmount
             : null,
           feeAsset: buyFiat.totalFeeAmount ? buyFiat.inputAsset : null,
-          txId: buyFiat.cryptoInput.inTxId,
+          txid: buyFiat.cryptoInput.inTxId,
           description: 'DFX Sale',
         },
         {
@@ -158,7 +158,7 @@ export class ChainReportHistoryDtoMapper {
           outputAsset: buyFiat.outputAsset,
           feeAmount: null,
           feeAsset: null,
-          txId: buyFiat.fiatOutput.remittanceInfo,
+          txid: buyFiat.fiatOutput.remittanceInfo,
           description: 'DFX Sale',
         },
       ])
@@ -180,7 +180,7 @@ export class ChainReportHistoryDtoMapper {
               ? (stakingReward.outputAmount * stakingReward.fee) / (1 - stakingReward.fee)
               : null,
           feeAsset: stakingReward.fee && stakingReward.fee != 0 ? this.getAssetSymbol(stakingReward.outputAsset) : null,
-          txId: stakingReward.txId,
+          txid: stakingReward.txId,
           description: 'DFX Staking Reward',
           isReinvest: stakingReward.payoutType === PayoutType.REINVEST,
           target:
@@ -202,7 +202,7 @@ export class ChainReportHistoryDtoMapper {
           outputAsset: null,
           feeAmount: null,
           feeAsset: null,
-          txId: deposit.inTxId + '-1',
+          txid: deposit.inTxId + '-1',
           description: 'DFX Staking Invest',
         },
         {
@@ -214,7 +214,7 @@ export class ChainReportHistoryDtoMapper {
           outputAsset: this.getAssetSymbol(deposit.inputAsset),
           feeAmount: null,
           feeAsset: null,
-          txId: deposit.inTxId + '-2',
+          txid: deposit.inTxId + '-2',
           description: 'DFX Staking Invest',
         },
       ])
@@ -233,7 +233,7 @@ export class ChainReportHistoryDtoMapper {
           outputAsset: this.getAssetSymbol(withdrawal.outputAsset),
           feeAmount: null,
           feeAsset: null,
-          txId: withdrawal.outTxId + '-1',
+          txid: withdrawal.outTxId + '-1',
           description: 'DFX Staking Invest',
         },
         {
@@ -245,7 +245,7 @@ export class ChainReportHistoryDtoMapper {
           outputAsset: null,
           feeAmount: null,
           feeAsset: null,
-          txId: withdrawal.outTxId + '-2',
+          txid: withdrawal.outTxId + '-2',
           description: 'DFX Staking Invest',
         },
         withdrawal.outputAsset != 'DFI'
@@ -258,7 +258,7 @@ export class ChainReportHistoryDtoMapper {
               outputAsset: this.getAssetSymbol(withdrawal.inputAsset),
               feeAmount: null,
               feeAsset: null,
-              txId: Util.createHash(
+              txid: Util.createHash(
                 withdrawal.outputDate.toUTCString() + withdrawal.outputAmount + withdrawal.inputAmount,
               ),
               description: null,
@@ -281,7 +281,7 @@ export class ChainReportHistoryDtoMapper {
           outputAsset: null,
           feeAmount: null,
           feeAsset: null,
-          txId: refReward.txId,
+          txid: refReward.txId,
           description: 'DFX Referral Reward',
         },
       ])
@@ -300,7 +300,7 @@ export class ChainReportHistoryDtoMapper {
           outputAsset: null,
           feeAmount: null,
           feeAsset: null,
-          txId: stakingRefReward.txId,
+          txid: stakingRefReward.txId,
           description: 'DFX Staking Referral Reward',
         },
       ])
