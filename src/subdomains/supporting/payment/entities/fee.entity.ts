@@ -9,7 +9,7 @@ import { FeeRequest } from '../services/fee.service';
 export enum FeeType {
   BASE = 'Base',
   DISCOUNT = 'Discount',
-  NEGATIVE_DISCOUNT = 'NegativeDiscount',
+  ADDITION = 'Addition',
   CUSTOM = 'Custom',
 }
 

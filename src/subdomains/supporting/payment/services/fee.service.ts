@@ -59,11 +59,7 @@ export class FeeService {
     if (existing) throw new BadRequestException('Fee already created');
     if (dto.type === FeeType.BASE && dto.createDiscountCode)
       throw new BadRequestException('Base fees cannot have a discountCode');
-    if (
-      (dto.type === FeeType.DISCOUNT || dto.type === FeeType.NEGATIVE_DISCOUNT) &&
-      !dto.createDiscountCode &&
-      dto.maxUsages
-    )
+    if ((dto.type === FeeType.DISCOUNT || dto.type === FeeType.ADDITION) && !dto.createDiscountCode && dto.maxUsages)
       throw new BadRequestException('Discount fees without a code cannot have a maxUsage');
     if (dto.type === FeeType.BASE && (!dto.accountType || !dto.assetIds))
       throw new BadRequestException('Base fees must have an accountType and assetIds');
@@ -174,28 +170,25 @@ export class FeeService {
       'rate',
     );
 
-    // get max discount > 0
+    // get max discount
     const positiveDiscountFee = Util.maxObj(
       fees.filter((fee) => fee.type === FeeType.DISCOUNT),
       'rate',
     );
 
-    // get min discount < 0
-    const negativeDiscountFee = Util.minObj(
-      fees.filter((fee) => fee.type === FeeType.NEGATIVE_DISCOUNT),
-      'rate',
-    );
+    // get addition fees
+    const additionFees = fees.filter((fee) => fee.type === FeeType.ADDITION);
 
     const discountFee: FeeDto = {
-      fees: [positiveDiscountFee, negativeDiscountFee],
-      rate: (positiveDiscountFee?.rate ?? 0) + (negativeDiscountFee?.rate ?? 0),
-      fixed: (positiveDiscountFee?.fixed ?? 0) + (negativeDiscountFee?.fixed ?? 0),
-      payoutRefBonus: (positiveDiscountFee?.payoutRefBonus ?? true) && (negativeDiscountFee?.payoutRefBonus ?? true),
+      fees: [positiveDiscountFee, ...additionFees],
+      rate: (positiveDiscountFee?.rate ?? 0) + Util.sumObjValue(additionFees, 'rate'),
+      fixed: (positiveDiscountFee?.fixed ?? 0) + Util.sumObjValue(additionFees, 'fixed'),
+      payoutRefBonus:
+        (positiveDiscountFee?.payoutRefBonus ?? true) && (additionFees?.some((fee) => !fee.payoutRefBonus) ?? true),
       blockchain:
         blockchainFee *
         (baseFee.blockchainFactor - positiveDiscountFee?.blockchainFactor ??
-          0 + negativeDiscountFee?.blockchainFactor ??
-          0),
+          0 + Util.sumObjValue(additionFees, 'blockchainFactor')),
     };
 
     if (!baseFee) throw new InternalServerErrorException('Base fee is missing');
@@ -229,7 +222,7 @@ export class FeeService {
     const userFees = await this.feeRepo.findBy([
       { type: FeeType.BASE },
       { type: FeeType.DISCOUNT, discountCode: IsNull() },
-      { type: FeeType.NEGATIVE_DISCOUNT, discountCode: IsNull() },
+      { type: FeeType.ADDITION, discountCode: IsNull() },
       { id: In(discountFeeIds) },
     ]);
 
