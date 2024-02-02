@@ -314,6 +314,15 @@ export class Configuration {
       walletAddress: process.env.MONERO_WALLET_ADDRESS,
       certificate: process.env.MONERO_RPC_CERTIFICATE?.split('<br>').join('\n'),
     },
+    frankencoin: {
+      zchfGatewayUrl: process.env.ZCHF_GATEWAY_URL,
+      zchfApiKey: process.env.ALCHEMY_API_KEY,
+      zchfGraphUrl: process.env.ZCHF_GRAPH_URL,
+      contractAddress: {
+        zchf: process.env.ZCHF_CONTRACT_ADDRESS,
+        equity: process.env.ZCHF_EQUITY_CONTRACT_ADDRESS,
+      },
+    },
   };
 
   payIn = {

@@ -16,9 +16,6 @@ import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { PriceRequestContext } from 'src/subdomains/supporting/pricing/domain/enums';
-import { PriceRequest } from 'src/subdomains/supporting/pricing/domain/interfaces';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { PayInEntry } from '../../../../interfaces';
 import { PayInRepository } from '../../../../repositories/payin.repository';
 import { PayInEvmService } from '../../../../services/base/payin-evm.service';
@@ -42,7 +39,6 @@ export abstract class EvmStrategy extends RegisterStrategy {
     protected readonly payInRepository: PayInRepository,
     protected readonly assetService: AssetService,
     private readonly repos: RepositoryFactory,
-    private readonly pricingService: PricingService,
   ) {
     super(payInRepository);
   }
@@ -76,17 +72,8 @@ export abstract class EvmStrategy extends RegisterStrategy {
 
         const asset = await this.getSourceAssetRepresentation(entry.asset);
 
-        const btcAmount = SkipTestSwapAssets.includes(asset.dexName)
-          ? await this.pricingService
-              .getPrice(this.createPriceRequest(entry, 'BTC', asset.dexName))
-              .then((p) => p.price.invert().convert(entry.amount))
-          : await this.getReferenceAmount(asset, entry.amount, btc);
-
-        const usdtAmount = SkipTestSwapAssets.includes(asset.dexName)
-          ? await this.pricingService
-              .getPrice(this.createPriceRequest(entry, 'USDT', asset.dexName))
-              .then((p) => p.price.invert().convert(entry.amount))
-          : await this.getReferenceAmount(asset, entry.amount, usdt);
+        const btcAmount = await this.getReferenceAmount(asset, btc, entry);
+        const usdtAmount = await this.getReferenceAmount(asset, usdt, entry);
 
         await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
       } catch (e) {
@@ -97,15 +84,6 @@ export abstract class EvmStrategy extends RegisterStrategy {
   }
 
   //*** HELPER METHODS ***//
-
-  private createPriceRequest(entry: CryptoInput | PayInEntry, from: string, to: string): PriceRequest {
-    return {
-      context: PriceRequestContext.PAY_IN,
-      correlationId: `PayIn ${'txId' in entry ? entry.txId : entry.inTxId}`,
-      from,
-      to,
-    };
-  }
 
   private async getPayInAddresses(): Promise<string[]> {
     const routes = await this.repos.depositRoute.find({

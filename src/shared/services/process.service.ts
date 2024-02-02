@@ -33,6 +33,7 @@ export enum Process {
   BUY_FIAT_SET_FEE = 'BuyFiatSetFee',
   LNURL_AUTH_CACHE = 'LnurlAuthCache',
   TFA_CACHE = '2faCache',
+  FRANKENCOIN_LOG_INFO = 'FrankencoinLogInfo',
 }
 
 type ProcessMap = { [p in Process]?: boolean };

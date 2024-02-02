@@ -99,6 +99,11 @@ param moneroWalletAddress string
 @secure()
 param moneroRpcCertificate string
 
+param zchfGatewayUrl string
+param zchfGraphUrl string
+param zchfContractAddress string
+param zchfEquityContractAddress string
+
 param buyCryptoFeeLimit string
 
 param nodeServicePlanSkuName string
@@ -585,6 +590,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: utxoSpenderAddress
         }
         {
+          name: 'BTC_OUT_WALLET_ADDRESS'
+          value: btcOutWalletAddress
+        }
+        {
           name: 'EVM_DEPOSIT_SEED'
           value: evmDepositSeed
         }
@@ -725,8 +734,20 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: moneroRpcCertificate
         }
         {
-          name: 'BTC_OUT_WALLET_ADDRESS'
-          value: btcOutWalletAddress
+          name: 'ZCHF_GATEWAY_URL'
+          value: zchfGatewayUrl
+        }
+        {
+          name: 'ZCHF_GRAPH_URL'
+          value: zchfGraphUrl
+        }
+        {
+          name: 'ZCHF_CONTRACT_ADDRESS'
+          value: zchfContractAddress
+        }
+        {
+          name: 'ZCHF_EQUITY_CONTRACT_ADDRESS'
+          value: zchfEquityContractAddress
         }
         {
           name: 'BUY_CRYPTO_FEE_LIMIT'

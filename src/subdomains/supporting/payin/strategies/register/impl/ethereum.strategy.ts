@@ -7,7 +7,6 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInEthereumService } from '../../../services/payin-ethereum.service';
 import { EvmStrategy } from './base/evm.strategy';
@@ -21,9 +20,8 @@ export class EthereumStrategy extends EvmStrategy implements OnModuleInit {
     payInRepository: PayInRepository,
     assetService: AssetService,
     repos: RepositoryFactory,
-    pricingService: PricingService,
   ) {
-    super('ETH', ethereumService, payInRepository, assetService, repos, pricingService);
+    super('ETH', ethereumService, payInRepository, assetService, repos);
   }
 
   onModuleInit() {

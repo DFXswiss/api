@@ -25,10 +25,6 @@ import { BankDataRepository } from './models/bank-data/bank-data.repository';
 import { BankDataService } from './models/bank-data/bank-data.service';
 import { KycClientController, KycController } from './models/kyc/kyc.controller';
 import { KycService } from './models/kyc/kyc.service';
-import { LinkAddress } from './models/link/link-address.entity';
-import { LinkAddressRepository } from './models/link/link-address.repository';
-import { LinkController } from './models/link/link.controller';
-import { LinkService } from './models/link/link.service';
 import { UserDataRelationController } from './models/user-data-relation/user-data-relation.controller';
 import { UserDataRelationRepository } from './models/user-data-relation/user-data-relation.repository';
 import { UserDataRelationService } from './models/user-data-relation/user-data-relation.service';
@@ -43,7 +39,7 @@ import { WebhookService } from './services/webhook/webhook.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, UserData, Wallet, BankData, LinkAddress, AccountMerge]),
+    TypeOrmModule.forFeature([User, UserData, Wallet, BankData, AccountMerge]),
     SharedModule,
     NotificationModule,
     BlockchainModule,
@@ -60,7 +56,6 @@ import { WebhookService } from './services/webhook/webhook.service';
     AuthLnurlController,
     KycClientController,
     KycController,
-    LinkController,
     UserDataRelationController,
   ],
   providers: [
@@ -68,7 +63,6 @@ import { WebhookService } from './services/webhook/webhook.service';
     UserDataRepository,
     WalletRepository,
     BankDataRepository,
-    LinkAddressRepository,
     UserDataRelationRepository,
     AccountMergeRepository,
     UserService,
@@ -78,13 +72,12 @@ import { WebhookService } from './services/webhook/webhook.service';
     AuthService,
     AuthAlbyService,
     AuthLnUrlService,
-    LinkService,
     WebhookService,
     KycService,
     UserDataNotificationService,
     UserDataRelationService,
     AccountMergeService,
   ],
-  exports: [UserService, UserDataService, LinkService, WebhookService, BankDataService, WalletService],
+  exports: [UserService, UserDataService, WebhookService, BankDataService, WalletService],
 })
 export class UserModule {}
