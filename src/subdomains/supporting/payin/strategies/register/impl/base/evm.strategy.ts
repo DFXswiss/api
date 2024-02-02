@@ -16,10 +16,15 @@ import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { PriceRequestContext } from 'src/subdomains/supporting/pricing/domain/enums';
+import { PriceRequest } from 'src/subdomains/supporting/pricing/domain/interfaces';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { PayInEntry } from '../../../../interfaces';
 import { PayInRepository } from '../../../../repositories/payin.repository';
 import { PayInEvmService } from '../../../../services/base/payin-evm.service';
 import { PayInInputLog, RegisterStrategy } from './register.strategy';
+
+export const SkipTestSwapAssets = ['ZCHF'];
 
 export abstract class EvmStrategy extends RegisterStrategy {
   protected addressWebhookMessageQueue: QueueHandler;
@@ -37,6 +42,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
     protected readonly payInRepository: PayInRepository,
     protected readonly assetService: AssetService,
     private readonly repos: RepositoryFactory,
+    private readonly pricingService: PricingService,
   ) {
     super(payInRepository);
   }
@@ -82,6 +88,15 @@ export abstract class EvmStrategy extends RegisterStrategy {
   }
 
   //*** HELPER METHODS ***//
+
+  private createPriceRequest(entry: CryptoInput | PayInEntry, from: string, to: string): PriceRequest {
+    return {
+      context: PriceRequestContext.PAY_IN,
+      correlationId: `PayIn ${'txId' in entry ? entry.txId : entry.inTxId}`,
+      from,
+      to,
+    };
+  }
 
   private async getPayInAddresses(): Promise<string[]> {
     const routes = await this.repos.depositRoute.find({

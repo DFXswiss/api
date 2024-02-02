@@ -4,6 +4,7 @@ import { LightningService } from 'src/integration/lightning/services/lightning.s
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInArbitrumService } from '../../../services/payin-arbitrum.service';
 import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
@@ -52,6 +53,7 @@ describe('RegisterStrategyRegistry', () => {
       mock<PayInRepository>(),
       mock<AssetService>(),
       mock<RepositoryFactory>(),
+      mock<PricingService>(),
     );
 
     bscStrategy = new BscStrategy(
@@ -59,6 +61,7 @@ describe('RegisterStrategyRegistry', () => {
       mock<PayInRepository>(),
       mock<AssetService>(),
       mock<RepositoryFactory>(),
+      mock<PricingService>(),
     );
 
     arbitrumStrategy = new ArbitrumStrategy(
@@ -66,6 +69,7 @@ describe('RegisterStrategyRegistry', () => {
       mock<PayInRepository>(),
       mock<AssetService>(),
       mock<RepositoryFactory>(),
+      mock<PricingService>(),
     );
 
     optimismStrategy = new OptimismStrategy(
@@ -73,6 +77,7 @@ describe('RegisterStrategyRegistry', () => {
       mock<PayInRepository>(),
       mock<AssetService>(),
       mock<RepositoryFactory>(),
+      mock<PricingService>(),
     );
 
     registry = new RegisterStrategyRegistryWrapper(
