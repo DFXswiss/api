@@ -86,6 +86,15 @@ export class SellService {
       return existing;
     }
 
+    if (
+      (dto.fiat?.name === 'CHF' || dto.currency?.name === 'CHF') &&
+      !dto.iban.startsWith('CH') &&
+      !dto.iban.startsWith('LI')
+    )
+      throw new ConflictException(
+        'CHF transactions are only permitted to Liechtenstein or Switzerland. Use EUR for other countries.',
+      );
+
     // create the entity
     const sell = this.sellRepo.create(dto);
     sell.user = { id: userId } as User;
