@@ -145,11 +145,11 @@ export class TransactionHelper implements OnModuleInit {
     const feeAmount = Math.max(percentFeeAmount + txSpecSource.fixedFee, txSpecSource.minFee);
 
     return {
-      minVolume: this.convert(specs.minVolume, referencePrice, from instanceof Fiat),
+      minVolume: this.convert(txSpecSource.minVolume, referencePrice, from instanceof Fiat),
       fee: {
         ...fee,
         fixed: this.convert(fee.fixed, referencePrice, from instanceof Fiat),
-        min: this.convert(specs.minFee, referencePrice, from instanceof Fiat),
+        min: this.convert(txSpecSource.minFee, referencePrice, from instanceof Fiat),
         total: this.convert(feeAmount, referencePrice, from instanceof Fiat),
       },
     };
