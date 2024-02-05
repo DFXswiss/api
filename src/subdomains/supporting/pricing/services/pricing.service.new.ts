@@ -11,6 +11,7 @@ import { Price } from '../domain/entities/price';
 import { PriceRule, PriceSource, Rule } from '../domain/entities/price-rule.entity';
 import { PricingProvider } from '../domain/interfaces';
 import { PriceRuleRepository } from '../repositories/price-rule.repository';
+import { CoinGeckoNewService } from './integration/coin-gecko.service.new';
 
 @Injectable()
 export class PricingServiceNew {
@@ -23,8 +24,13 @@ export class PricingServiceNew {
     private readonly notificationService: NotificationService,
     readonly krakenService: KrakenService,
     readonly binanceService: BinanceService,
+    readonly coinGeckoService: CoinGeckoNewService,
   ) {
-    this.providerMap = { [PriceSource.KRAKEN]: krakenService, [PriceSource.BINANCE]: binanceService };
+    this.providerMap = {
+      [PriceSource.KRAKEN]: krakenService,
+      [PriceSource.BINANCE]: binanceService,
+      [PriceSource.COIN_GECKO]: coinGeckoService,
+    };
   }
 
   async getPrice(from: Asset | Fiat, to: Asset | Fiat, allowExpired: boolean): Promise<Price> {
@@ -42,7 +48,14 @@ export class PricingServiceNew {
     return price;
   }
 
-  // --- HELPER METHODS --- //
+  async updatePrices(): Promise<void> {
+    const rules = await this.priceRuleRepo.find();
+    for (const rule of rules) {
+      await this.updatePriceFor(rule);
+    }
+  }
+
+  // --- PRIVATE METHODS --- //
   private async getPriceFor(item: Asset | Fiat): Promise<Price> {
     let rule = await this.getRuleFor(item);
     if (!rule) return Price.create(item.name, item.name, 1);
@@ -64,10 +77,11 @@ export class PricingServiceNew {
   }
 
   private async updatePriceFor(rule: PriceRule): Promise<PriceRule> {
-    const price = await this.getRulePrice(rule);
+    const price = await this.getRulePrice(rule.rule);
 
     if ((await this.isPriceValid(price, rule.check1)) && (await this.isPriceValid(price, rule.check2))) {
       rule.currentPrice = price.price;
+      rule.priceTimestamp = new Date();
       return this.priceRuleRepo.save(rule);
     }
 
@@ -75,7 +89,7 @@ export class PricingServiceNew {
   }
 
   private async getRulePrice(rule: Rule): Promise<Price> {
-    return this.providerMap[rule.source].getPrice(rule.assetName, rule.referenceName);
+    return this.providerMap[rule.source].getPrice(rule.asset, rule.reference);
   }
 
   private async isPriceValid(price: Price, rule?: Rule): Promise<boolean> {
@@ -95,7 +109,7 @@ export class PricingServiceNew {
         input: { subject: 'Price Mismatch', errors: [message] },
         metadata: {
           context: MailContext.PRICING,
-          correlationId: `PriceMismatch&${rule.assetName}&${rule.referenceName}`,
+          correlationId: `PriceMismatch&${rule.asset}&${rule.reference}`,
         },
         options: {
           debounce: 1800000,
@@ -108,6 +122,7 @@ export class PricingServiceNew {
     return true;
   }
 
+  // --- HELPER METHODS --- //
   private isFiat(item: Asset | Fiat): item is Fiat {
     return item instanceof Fiat;
   }

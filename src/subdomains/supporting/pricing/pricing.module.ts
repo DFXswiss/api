@@ -12,6 +12,7 @@ import { AssetPricingMetadataRepository } from './repositories/asset-pricing-met
 import { PriceRuleRepository } from './repositories/price-rule.repository';
 import { AssetPricesService } from './services/asset-prices.service';
 import { CoinGeckoService } from './services/integration/coin-gecko.service';
+import { CoinGeckoNewService } from './services/integration/coin-gecko.service.new';
 import { CurrencyService } from './services/integration/currency.service';
 import { FixerService } from './services/integration/fixer.service';
 import { PriceProviderDeFiChainService } from './services/integration/price-provider-defichain.service';
@@ -36,6 +37,7 @@ import { PricingServiceNew } from './services/pricing.service.new';
     PriceRuleRepository,
     AssetPricesService,
     CoinGeckoService,
+    CoinGeckoNewService,
     FixerService,
     CurrencyService,
     PriceProviderService,

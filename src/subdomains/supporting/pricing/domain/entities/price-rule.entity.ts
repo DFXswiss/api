@@ -7,12 +7,13 @@ import { Price } from './price';
 export enum PriceSource {
   KRAKEN = 'Kraken',
   BINANCE = 'Binance',
+  COIN_GECKO = 'CoinGecko',
 }
 
 export interface Rule {
-  assetName: string;
-  referenceName: string;
   source: PriceSource;
+  asset: string;
+  reference: string;
   limit?: number;
 }
 
@@ -28,36 +29,36 @@ export class PriceRule extends IEntity {
   reference: Asset;
 
   @Column()
-  assetName: string;
+  priceSource: PriceSource;
 
   @Column()
-  referenceName: string;
+  priceAsset: string;
 
   @Column()
-  source: PriceSource;
+  priceReference: string;
 
   // check 1
   @Column({ nullable: true })
-  check1AssetName: string;
-
-  @Column({ nullable: true })
-  check1ReferenceName: string;
-
-  @Column({ nullable: true })
   check1Source: PriceSource;
+
+  @Column({ nullable: true })
+  check1Asset: string;
+
+  @Column({ nullable: true })
+  check1Reference: string;
 
   @Column({ type: 'float', nullable: true })
   check1Limit: number;
 
   // check 2
   @Column({ nullable: true })
-  check2AssetName: string;
-
-  @Column({ nullable: true })
-  check2ReferenceName: string;
-
-  @Column({ nullable: true })
   check2Source: PriceSource;
+
+  @Column({ nullable: true })
+  check2Asset: string;
+
+  @Column({ nullable: true })
+  check2Reference: string;
 
   @Column({ type: 'float', nullable: true })
   check2Limit: number;
@@ -69,21 +70,36 @@ export class PriceRule extends IEntity {
   @Column({ type: 'integer' })
   priceValiditySeconds: number;
 
+  @Column({ type: 'datetime2', nullable: true })
+  priceTimestamp: Date;
+
   // getters
   get isPriceValid(): boolean {
-    return this.currentPrice != null && (Date.now() - this.updated.getTime()) / 1000 <= this.priceValiditySeconds;
+    return (
+      this.currentPrice != null &&
+      this.priceTimestamp != null &&
+      (Date.now() - this.priceTimestamp.getTime()) / 1000 <= this.priceValiditySeconds
+    );
   }
 
   get price(): Price {
-    return Price.create(this.assetName, this.referenceName, this.currentPrice, this.isPriceValid);
+    return Price.create(this.priceAsset, this.priceReference, this.currentPrice, this.isPriceValid);
+  }
+
+  get rule(): Rule {
+    return {
+      source: this.priceSource,
+      asset: this.priceAsset,
+      reference: this.priceReference,
+    };
   }
 
   get check1(): Rule {
     return this.check1Source
       ? {
-          assetName: this.check1AssetName ?? this.assetName,
-          referenceName: this.check1ReferenceName ?? this.referenceName,
           source: this.check1Source,
+          asset: this.check1Asset ?? this.priceAsset,
+          reference: this.check1Reference ?? this.priceReference,
           limit: this.check1Limit,
         }
       : undefined;
@@ -92,9 +108,9 @@ export class PriceRule extends IEntity {
   get check2(): Rule | undefined {
     return this.check2Source
       ? {
-          assetName: this.check2AssetName ?? this.assetName,
-          referenceName: this.check2ReferenceName ?? this.referenceName,
           source: this.check2Source,
+          asset: this.check2Asset ?? this.priceAsset,
+          reference: this.check2Reference ?? this.priceReference,
           limit: this.check2Limit,
         }
       : undefined;

@@ -18,7 +18,6 @@ export class PriceProviderService implements OnModuleInit {
   private readonly chainsWithSwapPricing = [Blockchain.DEFICHAIN];
   private readonly refAssetMap = new Map<Blockchain, Asset>();
 
-  private usd: Fiat;
   private eur: Fiat;
 
   constructor(
@@ -30,7 +29,6 @@ export class PriceProviderService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    void this.fiatService.getFiatByName('USD').then((a) => (this.usd = a));
     void this.fiatService.getFiatByName('EUR').then((a) => (this.eur = a));
   }
 
@@ -52,11 +50,7 @@ export class PriceProviderService implements OnModuleInit {
     if (from.blockchain === to.blockchain && this.chainsWithSwapPricing.includes(from.blockchain))
       return this.getSwapPrice(from, to);
 
-    // get exchange price via USD
-    const fromPrice = await this.cryptoFiat(from, this.usd);
-    const toPrice = await this.fiatCrypto(this.usd, to);
-
-    return Price.join(fromPrice, toPrice);
+    return this.coinGeckoService.getCryptoPrice(from, to);
   }
 
   private async cryptoFiat(from: Asset, to: Fiat): Promise<Price> {
