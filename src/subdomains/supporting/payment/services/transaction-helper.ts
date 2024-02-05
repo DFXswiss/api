@@ -240,8 +240,8 @@ export class TransactionHelper implements OnModuleInit {
     return paymentMethod === FiatPaymentMethod.CARD
       ? { fees: [], rate: Config.buy.fee.card, fixed: 0, payoutRefBonus: true, blockchain: minFeeEur }
       : user
-      ? this.feeService.getUserFee({ user, direction, asset, txVolume: txVolumeInEur, minFee: minFeeEur })
-      : this.feeService.getDefaultFee({ direction, asset, txVolume: txVolumeInEur, minFee: minFeeEur });
+      ? this.feeService.getUserFee({ user, direction, asset, txVolume: txVolumeInEur, blockchainFee: minFeeEur })
+      : this.feeService.getDefaultFee({ direction, asset, txVolume: txVolumeInEur, blockchainFee: minFeeEur });
   }
 
   private async getTargetEstimation(
