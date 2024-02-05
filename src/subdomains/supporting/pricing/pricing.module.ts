@@ -18,6 +18,7 @@ import { FixerService } from './services/integration/fixer.service';
 import { PriceProviderDeFiChainService } from './services/integration/price-provider-defichain.service';
 import { PricingCoinGeckoService } from './services/integration/pricing-coin-gecko.service';
 import { PricingDeFiChainService } from './services/integration/pricing-defichain.service';
+import { PricingDexService } from './services/integration/pricing-dex.service';
 import { PriceProviderService } from './services/price-provider.service';
 import { PricingService } from './services/pricing.service';
 import { PricingServiceNew } from './services/pricing.service.new';
@@ -46,6 +47,7 @@ import { PricingServiceNew } from './services/pricing.service.new';
     PricingServiceNew,
     PricingDeFiChainService,
     PricingCoinGeckoService,
+    PricingDexService,
   ],
   exports: [PricingService, PriceProviderService],
 })

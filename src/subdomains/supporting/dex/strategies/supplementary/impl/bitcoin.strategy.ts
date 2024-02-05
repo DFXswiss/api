@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionHistory } from 'src/integration/blockchain/ain/node/btc-client';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/utils/util';
 import { TransactionQuery, TransactionResult, TransferRequest } from '../../../interfaces';
 import { DexBitcoinService } from '../../../services/dex-bitcoin.service';
@@ -40,6 +41,10 @@ export class BitcoinStrategy extends SupplementaryStrategy {
     if (!targetEntry) return { isComplete: false };
 
     return { isComplete: true, txId: targetEntry.txid };
+  }
+
+  async getTargetAmount(_a: number, _f: Asset, _t: Asset): Promise<number> {
+    throw new Error(`Swapping is not implemented on ${this.blockchain}`);
   }
 
   //*** HELPER METHODS ***//

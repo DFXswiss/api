@@ -9,6 +9,7 @@ export enum PriceSource {
   KRAKEN = 'Kraken',
   BINANCE = 'Binance',
   COIN_GECKO = 'CoinGecko',
+  DEX = 'DEX',
 }
 
 export interface Rule {

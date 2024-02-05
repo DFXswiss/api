@@ -1,6 +1,7 @@
 import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/utils/util';
 import { TransferNotRequiredException } from '../../../exceptions/transfer-not-required.exception';
 import { TransactionQuery, TransactionResult, TransferRequest } from '../../../interfaces';
@@ -47,6 +48,10 @@ export class DeFiChainStrategy extends SupplementaryStrategy {
     if (!targetEntry) return { isComplete: false };
 
     return { isComplete: true, txId: targetEntry.txid };
+  }
+
+  async getTargetAmount(amount: number, from: Asset, to: Asset): Promise<number> {
+    return this.dexDeFiChainService.getTargetAmount(from, amount, to);
   }
 
   //*** HELPER METHODS ***//
