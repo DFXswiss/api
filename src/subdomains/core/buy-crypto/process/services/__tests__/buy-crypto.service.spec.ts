@@ -6,6 +6,7 @@ import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { CryptoRouteService } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.service';
 import { createCustomHistory } from 'src/subdomains/core/history/dto/__mocks__/history.dto.mock';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
+import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
@@ -15,12 +16,6 @@ import { createCustomBuyHistory } from '../../../routes/buy/dto/__mocks__/buy-hi
 import { createCustomBuyCrypto } from '../../entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCrypto } from '../../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
-import { BuyCryptoBatchService } from '../buy-crypto-batch.service';
-import { BuyCryptoDexService } from '../buy-crypto-dex.service';
-import { BuyCryptoNotificationService } from '../buy-crypto-notification.service';
-import { BuyCryptoOutService } from '../buy-crypto-out.service';
-import { BuyCryptoPreparationService } from '../buy-crypto-preparation.service';
-import { BuyCryptoRegistrationService } from '../buy-crypto-registration.service';
 import { BuyCryptoWebhookService } from '../buy-crypto-webhook.service';
 import { BuyCryptoService } from '../buy-crypto.service';
 
@@ -41,16 +36,11 @@ describe('BuyCryptoService', () => {
   let buyRepo: BuyRepository;
   let buyService: BuyService;
   let cryptoRouteService: CryptoRouteService;
-  let buyCryptoBatchService: BuyCryptoBatchService;
-  let buyCryptoOutService: BuyCryptoOutService;
-  let buyCryptoDexService: BuyCryptoDexService;
-  let buyCryptoRegistrationService: BuyCryptoRegistrationService;
-  let buyCryptoNotificationService: BuyCryptoNotificationService;
   let userService: UserService;
   let buyFiatService: BuyFiatService;
   let buyCryptoWebhookService: BuyCryptoWebhookService;
   let assetService: AssetService;
-  let buyCryptoPreparationService: BuyCryptoPreparationService;
+  let bankDataService: BankDataService;
 
   beforeEach(async () => {
     buyCryptoRepo = createMock<BuyCryptoRepository>();
@@ -58,16 +48,11 @@ describe('BuyCryptoService', () => {
     buyRepo = createMock<BuyRepository>();
     buyService = createMock<BuyService>();
     cryptoRouteService = createMock<CryptoRouteService>();
-    buyCryptoBatchService = createMock<BuyCryptoBatchService>();
-    buyCryptoOutService = createMock<BuyCryptoOutService>();
-    buyCryptoDexService = createMock<BuyCryptoDexService>();
-    buyCryptoNotificationService = createMock<BuyCryptoNotificationService>();
-    buyCryptoRegistrationService = createMock<BuyCryptoRegistrationService>();
     userService = createMock<UserService>();
     buyFiatService = createMock<BuyFiatService>();
     buyCryptoWebhookService = createMock<BuyCryptoWebhookService>();
     assetService = createMock<AssetService>();
-    buyCryptoPreparationService = createMock<BuyCryptoPreparationService>();
+    bankDataService = createMock<BankDataService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -78,16 +63,11 @@ describe('BuyCryptoService', () => {
         { provide: BuyRepository, useValue: buyRepo },
         { provide: BuyService, useValue: buyService },
         { provide: CryptoRouteService, useValue: cryptoRouteService },
-        { provide: BuyCryptoBatchService, useValue: buyCryptoBatchService },
-        { provide: BuyCryptoOutService, useValue: buyCryptoOutService },
-        { provide: BuyCryptoDexService, useValue: buyCryptoDexService },
-        { provide: BuyCryptoNotificationService, useValue: buyCryptoNotificationService },
-        { provide: BuyCryptoRegistrationService, useValue: buyCryptoRegistrationService },
         { provide: UserService, useValue: userService },
         { provide: BuyFiatService, useValue: buyFiatService },
         { provide: BuyCryptoWebhookService, useValue: buyCryptoWebhookService },
         { provide: AssetService, useValue: assetService },
-        { provide: BuyCryptoPreparationService, useValue: buyCryptoPreparationService },
+        { provide: BankDataService, useValue: bankDataService },
       ],
     }).compile();
 
