@@ -78,7 +78,7 @@ export class PriceRule extends IEntity {
     return (
       this.currentPrice != null &&
       this.priceTimestamp != null &&
-      (Date.now() - this.priceTimestamp.getTime()) / 1000 <= this.priceValiditySeconds
+      Util.secondsDiff(this.priceTimestamp, new Date()) <= this.priceValiditySeconds
     );
   }
 

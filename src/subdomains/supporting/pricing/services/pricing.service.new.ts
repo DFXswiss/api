@@ -34,8 +34,8 @@ export class PricingServiceNew {
   }
 
   async getPrice(from: Asset | Fiat, to: Asset | Fiat, allowExpired: boolean): Promise<Price> {
-    const fromPrice = await this.getPriceFor(from);
-    const toPrice = await this.getPriceFor(to);
+    const fromPrice = await this.getPriceFor(from, allowExpired);
+    const toPrice = await this.getPriceFor(to, allowExpired);
 
     if (fromPrice.target !== toPrice.target)
       throw new Error(`Price reference mismatch: ${this.getItemString(from)} -> ${this.getItemString(to)}`);
@@ -56,14 +56,17 @@ export class PricingServiceNew {
   }
 
   // --- PRIVATE METHODS --- //
-  private async getPriceFor(item: Asset | Fiat): Promise<Price> {
+  private async getPriceFor(item: Asset | Fiat, allowExpired: boolean): Promise<Price> {
     let rule = await this.getRuleFor(item);
     if (!rule) return Price.create(item.name, item.name, 1);
 
-    const referencePrice = await this.getPriceFor(rule.reference);
+    const referencePrice = await this.getPriceFor(rule.reference, allowExpired);
 
     if (!rule.isPriceValid) {
-      rule = await this.updatePriceFor(rule);
+      const updateTask = this.updatePriceFor(rule);
+      if (!allowExpired) {
+        rule = await updateTask;
+      }
     }
 
     return Price.join(rule.price, referencePrice);
