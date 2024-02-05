@@ -174,4 +174,11 @@ export class KycStep extends IEntity {
 
     return this;
   }
+
+  get identNumber(): string | undefined {
+    if (!this.result) return undefined;
+    
+    const resultJson = JSON.parse(this.result);
+    return resultJson['number']?.['value'];
+  }
 }

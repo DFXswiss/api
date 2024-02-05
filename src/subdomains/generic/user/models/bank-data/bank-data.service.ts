@@ -16,11 +16,15 @@ export class BankDataService {
     if (!userData) throw new NotFoundException('User data not found');
     if (userData.status === UserDataStatus.MERGED) throw new BadRequestException('User data is merged');
 
+    return this.createBankData(userData, dto);
+  }
+
+  async createBankData(userData: UserData, dto: CreateBankDataDto): Promise<UserData> {
     const bankData = this.bankDataRepo.create({ ...dto, userData });
     await this.bankDataRepo.save(bankData);
 
     // update updated time in user data
-    await this.userDataRepo.setNewUpdateTime(userDataId);
+    await this.userDataRepo.setNewUpdateTime(userData.id);
 
     userData.bankDatas.push(bankData);
     return userData;
@@ -50,9 +54,9 @@ export class BankDataService {
     return this.bankDataRepo.findOne({ where: { id }, relations: { userData: true } });
   }
 
-  async getActiveBankDataWithIban(iban: string): Promise<BankData> {
+  async getBankDataWithIban(iban: string, userDataId?: number, active?: boolean): Promise<BankData> {
     return this.bankDataRepo.findOne({
-      where: { iban, active: true },
+      where: { iban, active, userData: { id: userDataId } },
       relations: ['userData'],
     });
   }
