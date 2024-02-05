@@ -2,6 +2,7 @@ import { Config } from 'src/config/config';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { UserData } from '../../user/models/user-data/user-data.entity';
+import { IdentResultDto } from '../dto/input/ident-result.dto';
 import { KycStepName, KycStepStatus, KycStepType, UrlType } from '../enums/kyc.enum';
 import { IdentService } from '../services/integration/ident.service';
 import { StepLog } from './step-log.entity';
@@ -176,9 +177,7 @@ export class KycStep extends IEntity {
   }
 
   get identNumber(): string | undefined {
-    if (!this.result) return undefined;
-    
-    const resultJson = JSON.parse(this.result);
-    return resultJson['number']?.['value'];
+    const result = this.getResult<IdentResultDto>();
+    return result?.identificationdocument.number.value;
   }
 }

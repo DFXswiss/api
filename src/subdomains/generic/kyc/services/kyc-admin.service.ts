@@ -32,11 +32,12 @@ export class KycAdminService {
     kycStep.update(dto.status, dto.result);
 
     if (
-      (kycStep.name === KycStepName.IDENT && kycStep.status === KycStepStatus.COMPLETED,
+      kycStep.name === KycStepName.IDENT &&
+      kycStep.isCompleted &&
       kycStep.userData.status !== UserDataStatus.MERGED &&
-        kycStep.userData.kycLevel >= KycLevel.LEVEL_30 &&
-        kycStep.userData.kycType === KycType.DFX &&
-        !kycStep.userData.lastNameCheckDate)
+      kycStep.userData.kycLevel >= KycLevel.LEVEL_30 &&
+      kycStep.userData.kycType === KycType.DFX &&
+      !kycStep.userData.lastNameCheckDate
     )
       await this.bankDataService.createBankData(kycStep.userData, {
         iban: `ident${kycStep.identNumber}`,
