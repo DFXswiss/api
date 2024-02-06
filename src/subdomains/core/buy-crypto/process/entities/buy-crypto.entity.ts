@@ -23,6 +23,7 @@ import { AmlReason } from '../enums/aml-reason.enum';
 import { CheckStatus } from '../enums/check-status.enum';
 import { BuyCryptoBatch } from './buy-crypto-batch.entity';
 import { BuyCryptoFee } from './buy-crypto-fees.entity';
+import { ConflictException } from '@nestjs/common';
 
 export enum BuyCryptoStatus {
   CREATED = 'Created',
@@ -431,6 +432,8 @@ export class BuyCrypto extends IEntity {
       refFactor: payoutRefBonus ? this.refFactor : 0,
       usedFees: fees?.map((fee) => fee.id).join(';'),
     };
+
+    if (update.inputReferenceAmountMinusFee < 0) throw new ConflictException('InputReferenceAmountMinusFee smaller 0');
 
     Object.assign(this, update);
 

@@ -8,13 +8,13 @@ import { PricingService } from './services/pricing.service';
 @ApiTags('pricing')
 @Controller('pricing')
 export class PricingController {
-  constructor(private readonly pricingServiceNew: PricingService) {}
+  constructor(private readonly pricingService: PricingService) {}
 
   @Put()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async updatePrices(): Promise<void> {
-    return this.pricingServiceNew.updatePrices();
+    return this.pricingService.updatePrices();
   }
 }

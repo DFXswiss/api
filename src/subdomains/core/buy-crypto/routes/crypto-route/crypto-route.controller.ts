@@ -147,14 +147,15 @@ export class CryptoRouteController {
   }
 
   private async toDto(userId: number, crypto: CryptoRoute): Promise<CryptoRouteDto> {
-    const fee = await this.userService.getUserFee(userId, FeeDirectionType.CONVERT, crypto.asset);
-
     const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
       crypto.deposit.blockchain,
       undefined,
       crypto.asset.blockchain,
       crypto.asset.dexName,
     );
+
+    const fee = await this.userService.getUserFee(userId, FeeDirectionType.CONVERT, crypto.asset, minFee.amount);
+
     return {
       id: crypto.id,
       volume: crypto.volume,
@@ -165,7 +166,7 @@ export class CryptoRouteController {
       blockchain: crypto.deposit.blockchain,
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposits: [minDeposit],
-      minFee,
+      minFee: { amount: fee.blockchain, asset: 'EUR' },
     };
   }
 

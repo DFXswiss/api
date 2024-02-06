@@ -9,6 +9,7 @@ import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { AmlReason } from '../../buy-crypto/process/enums/aml-reason.enum';
 import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
 import { Sell } from '../route/sell.entity';
+import { ConflictException } from '@nestjs/common';
 
 @Entity()
 export class BuyFiat extends IEntity {
@@ -239,6 +240,8 @@ export class BuyFiat extends IEntity {
       refFactor: payoutRefBonus ? this.refFactor : 0,
       usedFees: fees?.map((fee) => fee.id).join(';'),
     };
+
+    if (update.inputReferenceAmountMinusFee < 0) throw new ConflictException('InputReferenceAmountMinusFee smaller 0');
 
     Object.assign(this, update);
 

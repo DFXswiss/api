@@ -455,6 +455,8 @@ export class UserDataService {
     slave.individualFeeList?.forEach((fee) => !master.individualFeeList?.includes(fee) && master.addFee(fee));
 
     if (master.status === UserDataStatus.KYC_ONLY) master.status = slave.status;
+    master.mail = slave.mail ?? master.mail;
+
     await this.userDataRepo.save(master);
 
     // update slave status

@@ -21,6 +21,8 @@ import { PayInRepository } from '../../../../repositories/payin.repository';
 import { PayInEvmService } from '../../../../services/base/payin-evm.service';
 import { PayInInputLog, RegisterStrategy } from './register.strategy';
 
+export const SkipTestSwapAssets = ['ZCHF'];
+
 export abstract class EvmStrategy extends RegisterStrategy {
   protected addressWebhookMessageQueue: QueueHandler;
   protected assetTransfersMessageQueue: QueueHandler;

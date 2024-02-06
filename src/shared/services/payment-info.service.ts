@@ -49,6 +49,11 @@ export class PaymentInfoService {
         throw new BadRequestException('Asset blockchain mismatch');
     }
 
+    if ('iban' in dto && dto.currency?.name === 'CHF' && !dto.iban.startsWith('CH') && !dto.iban.startsWith('LI'))
+      throw new BadRequestException(
+        'CHF transactions are only permitted to Liechtenstein or Switzerland. Use EUR for other countries.',
+      );
+
     if ('blockchain' in dto) {
       if (jwt && !jwt.blockchains.includes(dto.blockchain)) throw new BadRequestException('Asset blockchain mismatch');
     }
