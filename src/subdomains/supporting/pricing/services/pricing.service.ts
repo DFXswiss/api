@@ -1,392 +1,163 @@
 import { Injectable } from '@nestjs/common';
-import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
+import { BinanceService } from 'src/integration/exchange/services/binance.service';
+import { KrakenService } from 'src/integration/exchange/services/kraken.service';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { BinanceService } from '../../../../integration/exchange/services/binance.service';
-import { BitpandaService } from '../../../../integration/exchange/services/bitpanda.service';
-import { BitstampService } from '../../../../integration/exchange/services/bitstamp.service';
-import { KrakenService } from '../../../../integration/exchange/services/kraken.service';
-import { BadPriceRequestException } from '../domain/exceptions/bad-price-request.exception';
-import { PathNotConfiguredException } from '../domain/exceptions/path-not-configured.exception';
-import { PriceMismatchException } from '../domain/exceptions/price-mismatch.exception';
-import { PriceRequest, PriceResult } from '../domain/interfaces';
-import { PricePath } from '../utils/price-path';
-import { PriceStep } from '../utils/price-step';
-import { PricingUtil } from '../utils/pricing.util';
+import { Util } from 'src/shared/utils/util';
+import { MailContext, MailType } from '../../notification/enums';
+import { NotificationService } from '../../notification/services/notification.service';
+import { Price } from '../domain/entities/price';
+import { PriceRule, PriceSource, Rule } from '../domain/entities/price-rule.entity';
+import { PriceInvalidException } from '../domain/exceptions/price-invalid.exception';
+import { PricingProvider } from '../domain/interfaces';
+import { PriceRuleRepository } from '../repositories/price-rule.repository';
+import { CoinGeckoService } from './integration/coin-gecko.service';
 import { CurrencyService } from './integration/currency.service';
 import { FixerService } from './integration/fixer.service';
-import { PricingCoinGeckoService } from './integration/pricing-coin-gecko.service';
-import { PricingDeFiChainService } from './integration/pricing-defichain.service';
+import { PricingDexService } from './integration/pricing-dex.service';
 
-export enum PricingPathAlias {
-  MATCHING_ASSETS = 'MatchingAssets',
-  FIAT_TO_BTC = 'FiatToBTC',
-  ALT_COIN_TO_BTC = 'AltCoinToBTC',
-  FIAT_TO_ALT_COIN = 'FiatToAltCoin',
-  ALT_COIN_TO_ALT_COIN = 'AltCoinToAltCoin',
-  BTC_TO_ALT_COIN = 'BTCToAltCoin',
-  FIAT_TO_SPECIAL_COIN = 'FiatToSpecialCoin',
-  BTC_TO_USD_STABLE_COIN = 'BTCToUSDStableCoin',
-  BTC_TO_CHF_STABLE_COIN = 'BTCToCHFStableCoin',
-  USD_STABLE_COIN_TO_CHF_STABLE_COIN = 'USDStableCoinToCHFStableCoin',
-  MATCHING_FIAT_TO_STABLE_COIN = 'MatchingFiatToStableCoin',
-  NON_MATCHING_FIAT_TO_USD_STABLE_COIN = 'NonMatchingFiatToUSDStableCoin',
-  NON_MATCHING_FIAT_TO_CHF_STABLE_COIN = 'NonMatchingFiatToChfStableCoin',
-  FIAT_TO_DFI = 'FiatToDfi',
-}
-
-/**
- * Payment pricing service - use this service for exact swap prices
- */
 @Injectable()
 export class PricingService {
   private readonly logger = new DfxLogger(PricingService);
 
-  private readonly pricingPaths: Map<PricingPathAlias, PricePath> = new Map();
+  private readonly providerMap: { [s in PriceSource]: PricingProvider };
 
   constructor(
+    private readonly priceRuleRepo: PriceRuleRepository,
     private readonly notificationService: NotificationService,
-    private readonly krakenService: KrakenService,
-    private readonly binanceService: BinanceService,
-    private readonly bitstampService: BitstampService,
-    private readonly bitpandaService: BitpandaService,
-    private readonly kucoinService: KucoinService,
-    private readonly currencyService: CurrencyService,
-    private readonly fixerService: FixerService,
-    private readonly defichainService: PricingDeFiChainService,
-    private readonly coinGeckoService: PricingCoinGeckoService,
+    readonly krakenService: KrakenService,
+    readonly binanceService: BinanceService,
+    readonly coinGeckoService: CoinGeckoService,
+    readonly dexService: PricingDexService,
+    readonly fixerService: FixerService,
+    readonly currencyService: CurrencyService,
   ) {
-    this.configurePaths();
+    this.providerMap = {
+      [PriceSource.KRAKEN]: krakenService,
+      [PriceSource.BINANCE]: binanceService,
+      [PriceSource.COIN_GECKO]: coinGeckoService,
+      [PriceSource.DEX]: dexService,
+      [PriceSource.FIXER]: fixerService,
+      [PriceSource.CURRENCY]: currencyService,
+    };
+
+    const usdc = Object.assign(new Asset(), { id: 83 });
+    const btc = Object.assign(new Asset(), { id: 69 });
+    const chf = Object.assign(new Fiat(), { id: 1 });
+    void this.getPrice(usdc, chf, false).then(console.log).catch(console.error);
   }
 
-  //*** PUBLIC API ***//
+  async getPrice(from: Asset | Fiat, to: Asset | Fiat, allowExpired: boolean): Promise<Price> {
+    if (this.areEqual(from, to)) return Price.create(from.name, to.name, 1);
 
-  async getPrice(request: PriceRequest): Promise<PriceResult> {
-    this.validatePriceRequest(request);
+    const fromPrice = await this.getPriceFor(from, allowExpired);
+    const toPrice = await this.getPriceFor(to, allowExpired);
 
-    let path: PricePath;
+    if (fromPrice.target !== toPrice.target)
+      throw new Error(`Price reference mismatch: ${this.getItemString(from)} -> ${this.getItemString(to)}`);
 
-    try {
-      path = this.getPath(request);
-    } catch (e) {
-      this.logger.error('Failed to get price path:', e);
-      throw new PathNotConfiguredException(request.from, request.to);
+    const price = Price.join(fromPrice, toPrice.invert());
+
+    if (!price.isValid && !allowExpired)
+      throw new PriceInvalidException(
+        `No valid price found for ${this.getItemString(from)} -> ${this.getItemString(to)}`,
+      );
+
+    return price;
+  }
+
+  async updatePrices(): Promise<void> {
+    const rules = await this.priceRuleRepo.find();
+    for (const rule of rules) {
+      await this.updatePriceFor(rule);
     }
+  }
 
-    try {
-      const result = await path.execute(request);
+  // --- PRIVATE METHODS --- //
+  private async getPriceFor(item: Asset | Fiat, allowExpired: boolean): Promise<Price> {
+    let rule = await this.getRuleFor(item);
+    if (!rule) return Price.create(item.name, item.name, 1);
 
-      this.logPriceResult(request, result, path.alias);
+    const referencePrice = await this.getPriceFor(rule.reference, allowExpired);
 
-      return result;
-    } catch (e) {
-      if (e instanceof PriceMismatchException) {
-        await this.notificationService.sendMail({
-          type: MailType.ERROR_MONITORING,
-          input: { subject: 'Exchange Price Mismatch', errors: [e.message] },
-          metadata: {
-            context: MailContext.PRICING,
-            correlationId: `PriceMismatch&${request.context}&${request.correlationId}&${request.to}&${request.from}`,
-          },
-          options: {
-            debounce: 1800000,
-          },
-        });
+    if (!rule.isPriceValid) {
+      const updateTask = this.updatePriceFor(rule);
+      if (!allowExpired) {
+        rule = await updateTask;
       }
-
-      throw e;
-    }
-  }
-
-  //*** CONFIGURATION ***//
-
-  private configurePaths(): void {
-    this.addPath(
-      new PricePath(PricingPathAlias.MATCHING_ASSETS, [
-        new PriceStep({
-          fixedPrice: 1,
-        }),
-      ]),
-    );
-
-    this.addPath(
-      new PricePath(PricingPathAlias.FIAT_TO_BTC, [
-        new PriceStep({
-          primary: {
-            overwrite: 'BTC',
-            providers: [this.krakenService],
-          },
-          reference: {
-            overwrite: 'BTC',
-            providers: [this.binanceService, this.bitstampService],
-          },
-        }),
-      ]),
-    );
-
-    this.addPath(
-      new PricePath(PricingPathAlias.ALT_COIN_TO_BTC, [
-        new PriceStep({
-          primary: {
-            fallback: 'BTC',
-            providers: [this.binanceService],
-          },
-          reference: {
-            fallback: 'BTC',
-            providers: [this.kucoinService, this.krakenService, this.bitstampService, this.bitpandaService],
-          },
-        }),
-      ]),
-    );
-
-    this.addPath(
-      new PricePath(PricingPathAlias.FIAT_TO_ALT_COIN, [
-        new PriceStep({
-          to: 'USDT',
-          primary: {
-            providers: [this.krakenService],
-          },
-          reference: {
-            providers: [this.binanceService, this.bitstampService],
-          },
-        }),
-        new PriceStep({
-          from: 'USDT',
-          primary: {
-            providers: [this.binanceService],
-          },
-          reference: {
-            providers: [this.kucoinService, this.krakenService, this.bitstampService, this.bitpandaService],
-          },
-        }),
-      ]),
-    );
-
-    this.addPath(
-      new PricePath(PricingPathAlias.ALT_COIN_TO_ALT_COIN, [
-        new PriceStep({
-          to: 'USDT',
-          primary: {
-            providers: [this.binanceService],
-          },
-          reference: {
-            providers: [this.kucoinService, this.krakenService, this.bitstampService, this.bitpandaService],
-          },
-        }),
-        new PriceStep({
-          from: 'USDT',
-          primary: {
-            providers: [this.binanceService],
-          },
-          reference: {
-            providers: [this.kucoinService, this.krakenService, this.bitstampService, this.bitpandaService],
-          },
-        }),
-      ]),
-    );
-
-    this.addPath(
-      new PricePath(PricingPathAlias.BTC_TO_ALT_COIN, [
-        new PriceStep({
-          primary: {
-            providers: [this.binanceService],
-          },
-          reference: {
-            providers: [this.kucoinService, this.krakenService, this.bitstampService, this.bitpandaService],
-          },
-        }),
-      ]),
-    );
-
-    this.addPath(
-      new PricePath(PricingPathAlias.BTC_TO_USD_STABLE_COIN, [
-        new PriceStep({
-          primary: {
-            providers: [this.krakenService],
-          },
-          reference: {
-            providers: [this.binanceService, this.bitstampService],
-          },
-        }),
-      ]),
-    );
-
-    this.addPath(
-      new PricePath(PricingPathAlias.BTC_TO_CHF_STABLE_COIN, [
-        new PriceStep({
-          primary: {
-            overwrite: 'CHF',
-            providers: [this.krakenService],
-          },
-          reference: {
-            overwrite: 'CHF',
-            providers: [this.binanceService, this.bitstampService],
-          },
-        }),
-      ]),
-    );
-
-    this.addPath(
-      new PricePath(PricingPathAlias.USD_STABLE_COIN_TO_CHF_STABLE_COIN, [
-        new PriceStep({
-          primary: {
-            overwrite: 'CHF',
-            providers: [this.krakenService],
-          },
-          reference: {
-            overwrite: 'CHF',
-            providers: [this.binanceService, this.bitstampService],
-          },
-        }),
-      ]),
-    );
-
-    this.addPath(
-      new PricePath(PricingPathAlias.FIAT_TO_SPECIAL_COIN, [
-        new PriceStep({
-          primary: {
-            providers: [this.coinGeckoService],
-          },
-        }),
-      ]),
-    );
-
-    this.addPath(
-      new PricePath(PricingPathAlias.MATCHING_FIAT_TO_STABLE_COIN, [
-        new PriceStep({
-          fixedPrice: 1,
-        }),
-      ]),
-    );
-
-    this.addPath(
-      new PricePath(PricingPathAlias.NON_MATCHING_FIAT_TO_USD_STABLE_COIN, [
-        new PriceStep({
-          primary: {
-            fallback: 'USDT',
-            providers: [this.krakenService],
-          },
-          reference: {
-            overwrite: 'USD',
-            providers: [this.fixerService, this.currencyService],
-          },
-        }),
-      ]),
-    );
-
-    this.addPath(
-      new PricePath(PricingPathAlias.NON_MATCHING_FIAT_TO_CHF_STABLE_COIN, [
-        new PriceStep({
-          primary: {
-            overwrite: 'CHF',
-            providers: [this.fixerService, this.currencyService],
-          },
-          factor: 1 / 0.995,
-        }),
-      ]),
-    );
-
-    this.addPath(
-      new PricePath(PricingPathAlias.FIAT_TO_DFI, [
-        new PriceStep({
-          to: 'BTC',
-          primary: {
-            providers: [this.krakenService],
-          },
-          reference: {
-            providers: [this.binanceService, this.bitstampService],
-          },
-        }),
-        new PriceStep({
-          from: 'BTC',
-          primary: {
-            providers: [this.defichainService],
-          },
-          reference: {
-            providers: [],
-          },
-        }),
-      ]),
-    );
-  }
-
-  //*** HELPER METHODS ***//
-
-  private validatePriceRequest(request: PriceRequest): void {
-    const { from, to } = request;
-
-    const isKnownFrom = PricingUtil.isKnownAsset(from);
-    const isKnownTo = PricingUtil.isKnownAsset(to);
-
-    if (!isKnownFrom || !isKnownTo) {
-      throw new BadPriceRequestException(!isKnownFrom && from, !isKnownTo && to);
-    }
-  }
-
-  private addPath(path: PricePath): void {
-    this.pricingPaths.set(path.alias, path);
-  }
-
-  private getPath(request: PriceRequest): PricePath {
-    const alias = this.getAlias(request);
-
-    return this.pricingPaths.get(alias);
-  }
-
-  private getAlias(request: PriceRequest): PricingPathAlias {
-    const { from, to } = request;
-
-    if (from === to) return PricingPathAlias.MATCHING_ASSETS;
-
-    if (PricingUtil.isFiat(from) && PricingUtil.isBTC(to)) return PricingPathAlias.FIAT_TO_BTC;
-
-    if (PricingUtil.isAltCoin(from) && PricingUtil.isBTC(to)) return PricingPathAlias.ALT_COIN_TO_BTC;
-
-    if (PricingUtil.isFiat(from) && PricingUtil.isAltCoin(to)) return PricingPathAlias.FIAT_TO_ALT_COIN;
-
-    if (PricingUtil.isAltCoin(from) && PricingUtil.isAltCoin(to)) return PricingPathAlias.ALT_COIN_TO_ALT_COIN;
-
-    if (PricingUtil.isBTC(from) && PricingUtil.isAltCoin(to)) return PricingPathAlias.BTC_TO_ALT_COIN;
-
-    if (PricingUtil.isBTC(from) && PricingUtil.isBTC(to)) return PricingPathAlias.BTC_TO_ALT_COIN;
-
-    if (PricingUtil.isFiat(from) && PricingUtil.isSpecialCoin(to)) return PricingPathAlias.FIAT_TO_SPECIAL_COIN;
-
-    if (PricingUtil.isBTC(from) && PricingUtil.isUsdStableCoin(to)) return PricingPathAlias.BTC_TO_USD_STABLE_COIN;
-    if (PricingUtil.isBTC(from) && PricingUtil.isChfStableCoin(to)) return PricingPathAlias.BTC_TO_CHF_STABLE_COIN;
-
-    if (PricingUtil.isUsdStableCoin(from) && PricingUtil.isChfStableCoin(to))
-      return PricingPathAlias.USD_STABLE_COIN_TO_CHF_STABLE_COIN;
-
-    if (from === 'USD' && PricingUtil.isUsdStableCoin(to)) return PricingPathAlias.MATCHING_FIAT_TO_STABLE_COIN;
-    if (from === 'CHF' && PricingUtil.isChfStableCoin(to)) return PricingPathAlias.MATCHING_FIAT_TO_STABLE_COIN;
-
-    if (PricingUtil.isFiat(from) && PricingUtil.isUsdStableCoin(to))
-      return PricingPathAlias.NON_MATCHING_FIAT_TO_USD_STABLE_COIN;
-    if (PricingUtil.isFiat(from) && PricingUtil.isChfStableCoin(to))
-      return PricingPathAlias.NON_MATCHING_FIAT_TO_CHF_STABLE_COIN;
-
-    if (PricingUtil.isUsdStableCoin(from) && PricingUtil.isUsdStableCoin(to)) {
-      return PricingPathAlias.MATCHING_ASSETS;
     }
 
-    if (PricingUtil.isFiat(from) && to === 'DFI') return PricingPathAlias.FIAT_TO_DFI;
-
-    throw new Error(`No matching pricing path alias found. From: ${request.from} to: ${request.to}`);
+    return Price.join(rule.price, referencePrice);
   }
 
-  private logPriceResult(request: PriceRequest, result: PriceResult, pathAlias: PricingPathAlias): void {
-    const { from, to } = request;
-    const {
-      price: { source: resFrom, target: resTo, price },
-      path,
-    } = result;
+  private async getRuleFor(item: Asset | Fiat): Promise<PriceRule | undefined> {
+    const query = this.priceRuleRepo.createQueryBuilder('rule');
+    this.isFiat(item) ? query.innerJoin('rule.fiats', 'item') : query.innerJoin('rule.assets', 'item');
 
-    const mainMessage = `Calculated Price for request from: ${from} to: ${to}. Final price: ${resFrom}/${resTo} ${price}. Alias: ${pathAlias}. `;
-    const pathMessage =
-      'Path: ' + path.map((p) => ` ${p.provider} -> ${p.price.source}/${p.price.target} ${p.price.price}`);
+    return query.innerJoinAndSelect('rule.reference', 'reference').where('item.id = :id', { id: item.id }).getOne();
+  }
 
-    this.logger.verbose(mainMessage + pathMessage);
+  private async updatePriceFor(rule: PriceRule): Promise<PriceRule> {
+    try {
+      const price = await this.getRulePrice(rule.rule);
+
+      if ((await this.isPriceValid(price, rule.check1)) && (await this.isPriceValid(price, rule.check2))) {
+        rule.currentPrice = price.price;
+        rule.priceTimestamp = new Date();
+        return await this.priceRuleRepo.save(rule);
+      }
+    } catch (e) {
+      this.logger.error(`Failed to update price for rule ${rule.id}:`, e);
+    }
+
+    return rule;
+  }
+
+  private async getRulePrice(rule: Rule): Promise<Price> {
+    return this.providerMap[rule.source].getPrice(rule.asset, rule.reference);
+  }
+
+  private async isPriceValid(price: Price, rule?: Rule): Promise<boolean> {
+    if (!rule) return true;
+
+    const rulePrice = await this.getRulePrice(rule);
+    const difference = Math.abs(rulePrice.price - price.price) / price.price;
+
+    if (difference > rule.limit) {
+      const message = `${price.source} to ${price.target} has ${Util.toPercent(
+        difference,
+      )} price mismatch (limit is ${Util.toPercent(rule.limit)})`;
+
+      this.logger.warn(message);
+      await this.notificationService.sendMail({
+        type: MailType.ERROR_MONITORING,
+        input: { subject: 'Price Mismatch', errors: [message] },
+        metadata: {
+          context: MailContext.PRICING,
+          correlationId: `PriceMismatch&${rule.asset}&${rule.reference}`,
+        },
+        options: {
+          debounce: 1800000,
+        },
+      });
+
+      return false;
+    }
+
+    return true;
+  }
+
+  // --- HELPER METHODS --- //
+  private isFiat(item: Asset | Fiat): item is Fiat {
+    return item instanceof Fiat;
+  }
+
+  private getItemString(item: Asset | Fiat): string {
+    return `${this.isFiat(item) ? 'fiat' : 'asset'} ${item.id}`;
+  }
+
+  private areEqual(a: Asset | Fiat, b: Asset | Fiat): boolean {
+    return a.constructor === b.constructor && a.id === b.id;
   }
 }

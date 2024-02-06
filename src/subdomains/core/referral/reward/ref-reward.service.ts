@@ -9,7 +9,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Between, In, IsNull, Not } from 'typeorm';
 import { TransactionDetailsDto } from '../../statistic/dto/statistic.dto';
 import { RefRewardDexService } from './ref-reward-dex.service';
@@ -40,7 +40,7 @@ export class RefRewardService {
     private readonly rewardRepo: RefRewardRepository,
     private readonly userService: UserService,
     private readonly cryptoService: CryptoService,
-    private readonly priceProviderService: PriceProviderService,
+    private readonly pricingService: PricingService,
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
     private readonly refRewardNotificationService: RefRewardNotificationService,
@@ -61,7 +61,7 @@ export class RefRewardService {
     // CHF/EUR Price
     const fiatEur = await this.fiatService.getFiatByName('EUR');
     const fiatChf = await this.fiatService.getFiatByName('CHF');
-    const eurChfPrice = await this.priceProviderService.getPrice(fiatEur, fiatChf);
+    const eurChfPrice = await this.pricingService.getPrice(fiatEur, fiatChf, false);
 
     const groupedUser = Util.groupByAccessor<User, Blockchain>(openCreditUser, (o) =>
       this.cryptoService.getDefaultBlockchainBasedOn(o.address),

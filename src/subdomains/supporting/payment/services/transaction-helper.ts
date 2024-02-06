@@ -13,7 +13,7 @@ import { FeeDirectionType, User } from 'src/subdomains/generic/user/models/user/
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/min-amount.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
-import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
+import { PricingService } from '../../pricing/services/pricing.service';
 import { FeeDto } from '../dto/fee.dto';
 import { FiatPaymentMethod, PaymentMethod } from '../dto/payment-method.enum';
 import { TargetEstimation, TransactionDetails } from '../dto/transaction-details.dto';
@@ -41,7 +41,7 @@ export class TransactionHelper implements OnModuleInit {
 
   constructor(
     private readonly transactionSpecificationRepo: TransactionSpecificationRepository,
-    private readonly priceProviderService: PriceProviderService,
+    private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
     private readonly feeService: FeeService,
     private readonly buyCryptoService: BuyCryptoService,
@@ -197,7 +197,7 @@ export class TransactionHelper implements OnModuleInit {
       to,
     );
     const txAmount = await this.getVolumeLast24h(target.sourceAmount, from, user);
-    const chfPrice = await this.priceProviderService.getPrice(from, this.chf).then((p) => p.invert());
+    const chfPrice = await this.pricingService.getPrice(from, this.chf, false).then((p) => p.invert());
 
     const error =
       to instanceof Fiat &&
@@ -232,7 +232,7 @@ export class TransactionHelper implements OnModuleInit {
     txAsset: Asset | Fiat,
     paymentMethod: PaymentMethod,
   ): Promise<FeeDto> {
-    const price = await this.priceProviderService.getPrice(txAsset, this.eur);
+    const price = await this.pricingService.getPrice(txAsset, this.eur, false);
 
     const txVolumeInEur = price.convert(txVolume);
 
@@ -252,7 +252,7 @@ export class TransactionHelper implements OnModuleInit {
     from: Asset | Fiat,
     to: Asset | Fiat,
   ): Promise<TargetEstimation> {
-    const price = await this.priceProviderService.getPrice(from, to);
+    const price = await this.pricingService.getPrice(from, to, false);
 
     const percentFeeAmount =
       outputAmount != null
@@ -284,7 +284,7 @@ export class TransactionHelper implements OnModuleInit {
       .getUserTransactions(user.id, Util.daysBefore(1))
       .then((buyFiats) => buyFiats.filter((b) => b.amlCheck !== CheckStatus.FAIL));
 
-    const price = await this.priceProviderService.getPrice(from, this.eur).then((p) => p.invert());
+    const price = await this.pricingService.getPrice(from, this.eur, false).then((p) => p.invert());
     const txEurAmount = Util.sumObjValue(buyCryptos, 'amountInEur') + Util.sumObjValue(buyFiats, 'amountInEur');
 
     return inputAmount + price.convert(txEurAmount);
@@ -300,10 +300,10 @@ export class TransactionHelper implements OnModuleInit {
     from: Asset | Fiat,
     { minFee, minVolume, maxVolume, fixedFee }: TxSpecExtended,
   ): Promise<TxSpecExtended> {
-    const price = await this.priceProviderService.getPrice(from, this.eur).then((p) => p.invert());
+    const price = await this.pricingService.getPrice(from, this.eur, false).then((p) => p.invert());
 
     const maxVolumePrice =
-      maxVolume && (await this.priceProviderService.getPrice(from, this.chf).then((p) => p.invert()));
+      maxVolume && (await this.pricingService.getPrice(from, this.chf, false).then((p) => p.invert()));
 
     const maxVolumeSource = maxVolume && (from.name === 'CHF' ? maxVolume : maxVolumePrice.convert(maxVolume * 0.99)); // -1% for the conversion
 
@@ -319,8 +319,8 @@ export class TransactionHelper implements OnModuleInit {
     to: Asset | Fiat,
     { minFee, minVolume, maxVolume, fixedFee }: TxSpecExtended,
   ): Promise<TxSpecExtended> {
-    const price = await this.priceProviderService.getPrice(this.eur, to);
-    const maxVolumePrice = maxVolume && (await this.priceProviderService.getPrice(this.chf, to));
+    const price = await this.pricingService.getPrice(this.eur, to, false);
+    const maxVolumePrice = maxVolume && (await this.pricingService.getPrice(this.chf, to, false));
 
     const maxVolumeTarget = maxVolume && (to.name === 'CHF' ? maxVolume : maxVolumePrice.convert(maxVolume * 0.99)); // -1% for the conversion
 

@@ -10,6 +10,8 @@ export enum PriceSource {
   BINANCE = 'Binance',
   COIN_GECKO = 'CoinGecko',
   DEX = 'DEX',
+  FIXER = 'Fixer',
+  CURRENCY = 'Currency',
 }
 
 export interface Rule {

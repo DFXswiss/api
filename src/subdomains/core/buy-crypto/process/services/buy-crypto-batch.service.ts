@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityManagementRuleStatus } from 'src/subdomains/core/liquidity-management/enums';
@@ -11,10 +12,7 @@ import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
-import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
-import { PriceRequestContext } from 'src/subdomains/supporting/pricing/domain/enums';
-import { PriceMismatchException } from 'src/subdomains/supporting/pricing/domain/exceptions/price-mismatch.exception';
-import { PriceRequest, PriceResult } from 'src/subdomains/supporting/pricing/domain/interfaces';
+import { PriceInvalidException } from 'src/subdomains/supporting/pricing/domain/exceptions/price-invalid.exception';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { In, IsNull, Not } from 'typeorm';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
@@ -35,6 +33,7 @@ export class BuyCryptoBatchService {
     private readonly pricingService: PricingService,
     private readonly buyCryptoPricingService: BuyCryptoPricingService,
     private readonly assetService: AssetService,
+    private readonly fiatService: FiatService,
     private readonly dexService: DexService,
     private readonly payoutService: PayoutService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
@@ -52,7 +51,7 @@ export class BuyCryptoBatchService {
           status: In([
             BuyCryptoStatus.PREPARED,
             BuyCryptoStatus.WAITING_FOR_LOWER_FEE,
-            BuyCryptoStatus.PRICE_MISMATCH,
+            BuyCryptoStatus.PRICE_INVALID,
             BuyCryptoStatus.MISSING_LIQUIDITY,
           ]),
         },
@@ -77,8 +76,7 @@ export class BuyCryptoBatchService {
         )}`,
       );
 
-      const referencePrices = await this.getReferencePrices(txWithAssets);
-      const txWithReferenceAmount = await this.defineReferenceAmount(txWithAssets, referencePrices);
+      const txWithReferenceAmount = await this.defineReferenceAmount(txWithAssets);
       const batches = await this.createBatches(txWithReferenceAmount);
 
       for (const batch of batches) {
@@ -92,43 +90,22 @@ export class BuyCryptoBatchService {
     }
   }
 
-  private async getReferencePrices(txWithAssets: BuyCrypto[]): Promise<Price[]> {
-    try {
-      const referenceAssetPairs = [
-        ...new Set(
-          txWithAssets
-            .filter((tx) => tx.inputReferenceAsset !== tx.outputReferenceAsset.dexName)
-            .map((tx) => `${tx.inputReferenceAsset}/${tx.outputReferenceAsset.dexName}`),
-        ),
-      ].map((assets) => assets.split('/'));
-
-      const prices = await Promise.all<PriceResult>(
-        referenceAssetPairs.map(async (pair) => {
-          const priceRequest = this.createPriceRequest(pair, txWithAssets);
-
-          return this.pricingService.getPrice(priceRequest).catch((e) => {
-            this.logger.error('Failed to get price:', e);
-            return undefined;
-          });
-        }),
-      );
-
-      return prices.filter((p) => p).map((p) => p.price);
-    } catch (e) {
-      if (e instanceof PriceMismatchException) {
-        await this.setPriceMismatchStatus(txWithAssets);
-      }
-
-      throw e;
-    }
-  }
-
-  private async defineReferenceAmount(transactions: BuyCrypto[], referencePrices: Price[]): Promise<BuyCrypto[]> {
+  private async defineReferenceAmount(transactions: BuyCrypto[]): Promise<BuyCrypto[]> {
     for (const tx of transactions) {
       try {
-        tx.calculateOutputReferenceAmount(referencePrices);
+        const inputReferenceCurrency =
+          (await this.fiatService.getFiatByName(tx.inputReferenceAsset)) ??
+          (await this.assetService.getNativeMainLayerAsset(tx.inputReferenceAsset));
+
+        const price = await this.pricingService.getPrice(inputReferenceCurrency, tx.outputReferenceAsset, false);
+
+        tx.calculateOutputReferenceAmount(price);
       } catch (e) {
-        this.logger.error(`Could not calculate outputReferenceAmount for transaction ${tx.id}:`, e);
+        if (e instanceof PriceInvalidException) {
+          await this.setPriceInvalidStatus([tx]);
+        }
+
+        this.logger.warn(`Could not calculate outputReferenceAmount for transaction ${tx.id}:`, e);
       }
     }
 
@@ -406,9 +383,9 @@ export class BuyCryptoBatchService {
     }
   }
 
-  private async setPriceMismatchStatus(transactions: BuyCrypto[]): Promise<void> {
+  private async setPriceInvalidStatus(transactions: BuyCrypto[]): Promise<void> {
     for (const tx of transactions) {
-      await this.buyCryptoRepo.update(...tx.setPriceMismatchStatus());
+      await this.buyCryptoRepo.update(...tx.setPriceInvalidStatus());
     }
   }
 
@@ -422,10 +399,5 @@ export class BuyCryptoBatchService {
     for (const tx of transactions) {
       await this.buyCryptoRepo.update(...tx.resetTransactionButKeepState());
     }
-  }
-
-  private createPriceRequest(currencyPair: string[], transactions: BuyCrypto[] = []): PriceRequest {
-    const correlationId = 'BuyCryptoTransactions' + transactions.reduce((acc, t) => acc + `|${t.id}|`, '');
-    return { context: PriceRequestContext.BUY_CRYPTO, correlationId, from: currencyPair[0], to: currencyPair[1] };
   }
 }

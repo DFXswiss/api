@@ -7,7 +7,7 @@ import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payme
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
-import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../buy-crypto/process/enums/check-status.enum';
 import { BuyFiatRepository } from '../buy-fiat.repository';
@@ -20,7 +20,7 @@ export class BuyFiatPreparationService {
   constructor(
     private readonly buyFiatRepo: BuyFiatRepository,
     private readonly transactionHelper: TransactionHelper,
-    private readonly priceProviderService: PriceProviderService,
+    private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
     private readonly assetService: AssetService,
     private readonly feeService: FeeService,
@@ -63,8 +63,8 @@ export class BuyFiatPreparationService {
           CryptoPaymentMethod.CRYPTO,
         );
 
-        const referenceEurPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatEur);
-        const referenceChfPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatChf);
+        const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatEur, false);
+        const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
 
         for (const feeId of fee.fees) {
           await this.feeService.increaseTxUsages(feeId, entity.sell.user.userData);

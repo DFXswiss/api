@@ -8,7 +8,7 @@ import { CryptoInput, PayInStatus } from 'src/subdomains/supporting/payin/entiti
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
-import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { SendStrategyRegistry } from './send.strategy-registry';
 
 export type SendGroupKey = string;
@@ -31,7 +31,7 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
   protected abstract readonly logger: DfxLogger;
 
   @Inject()
-  private readonly priceProvider: PriceProviderService;
+  private readonly priceProvider: PricingService;
 
   @Inject()
   private readonly payoutService: PayoutService;
@@ -108,7 +108,7 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
   }
 
   private async getFeeReferenceAmount(fromAsset: Asset, fromAmount: number, toAsset: Asset): Promise<number> {
-    const price = await this.priceProvider.getPrice(fromAsset, toAsset);
+    const price = await this.priceProvider.getPrice(fromAsset, toAsset, true);
     return price.convert(fromAmount, 8);
   }
 }
