@@ -202,7 +202,7 @@ export class FeeService {
         baseFee.payoutRefBonus &&
         (discountFee?.payoutRefBonus ?? true) &&
         additiveFees.every((fee) => fee.payoutRefBonus),
-      blockchain: Math.min(
+      blockchain: Math.max(
         blockchainFee *
           (baseFee.blockchainFactor - discountFee?.blockchainFactor ??
             0 + Util.sumObjValue(additiveFees, 'blockchainFactor')),
