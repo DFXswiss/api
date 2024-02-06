@@ -295,11 +295,17 @@ export class UserService {
   }
 
   // --- FEES --- //
-  async getUserFee(userId: number, direction: FeeDirectionType, asset: Asset, txVolume?: number): Promise<FeeDto> {
+  async getUserFee(
+    userId: number,
+    direction: FeeDirectionType,
+    asset: Asset,
+    minFee: number,
+    txVolume?: number,
+  ): Promise<FeeDto> {
     const user = await this.getUser(userId, { userData: true });
     if (!user) throw new NotFoundException('User not found');
 
-    return this.feeService.getUserFee({ user, direction, asset, txVolume });
+    return this.feeService.getUserFee({ user, direction, asset, blockchainFee: minFee, txVolume });
   }
 
   // --- REF --- //

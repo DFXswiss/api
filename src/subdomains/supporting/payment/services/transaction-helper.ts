@@ -134,12 +134,11 @@ export class TransactionHelper implements OnModuleInit {
   ): Promise<TxFeeDetails> {
     // get fee
     const { direction, feeAsset } = this.getTxInfo(from, to);
-
-    const fee = await this.getTxFee(user, direction, feeAsset, inputAmount, from, paymentMethod);
-
-    // get specs
     const specs = this.getSpecs(from, to);
-    const txSpecSource = await this.convertToSource(from, { ...specs, fixedFee: fee.fixed });
+
+    const fee = await this.getTxFee(user, direction, feeAsset, inputAmount, from, paymentMethod, specs.minFee);
+
+    const txSpecSource = await this.convertToSource(from, { ...specs, fixedFee: fee.fixed, minFee: fee.blockchain });
 
     const percentFeeAmount = inputAmount * fee.rate;
     const feeAmount = Math.max(percentFeeAmount + txSpecSource.fixedFee, txSpecSource.minFee);
@@ -166,6 +165,7 @@ export class TransactionHelper implements OnModuleInit {
     // get fee
     const { direction, feeAsset } = this.getTxInfo(from, to);
 
+    const specs = this.getSpecs(from, to);
     const fee = await this.getTxFee(
       user,
       direction,
@@ -173,12 +173,12 @@ export class TransactionHelper implements OnModuleInit {
       targetAmount ? targetAmount : sourceAmount,
       targetAmount ? to : from,
       paymentMethod,
+      specs.minFee,
     );
 
-    // get specs
-    const specs = this.getSpecs(from, to);
     const extendedSpecs = {
       ...specs,
+      minFee: fee.blockchain,
       maxVolume: user?.userData?.availableTradingLimit ?? Config.defaultDailyTradingLimit,
       fixedFee: fee.fixed,
     };
@@ -231,16 +231,17 @@ export class TransactionHelper implements OnModuleInit {
     txVolume: number,
     txAsset: Asset | Fiat,
     paymentMethod: PaymentMethod,
+    minFeeEur: number,
   ): Promise<FeeDto> {
     const price = await this.priceProviderService.getPrice(txAsset, this.eur);
 
     const txVolumeInEur = price.convert(txVolume);
 
     return paymentMethod === FiatPaymentMethod.CARD
-      ? { fees: [], rate: Config.buy.fee.card, fixed: 0, payoutRefBonus: true }
+      ? { fees: [], rate: Config.buy.fee.card, fixed: 0, payoutRefBonus: true, blockchain: minFeeEur }
       : user
-      ? this.feeService.getUserFee({ user, direction, asset, txVolume: txVolumeInEur })
-      : this.feeService.getDefaultFee({ direction, asset, txVolume: txVolumeInEur });
+      ? this.feeService.getUserFee({ user, direction, asset, txVolume: txVolumeInEur, blockchainFee: minFeeEur })
+      : this.feeService.getDefaultFee({ direction, asset, txVolume: txVolumeInEur, blockchainFee: minFeeEur });
   }
 
   private async getTargetEstimation(

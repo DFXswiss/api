@@ -86,4 +86,8 @@ export class CreateFeeDto {
   @ValidateNested()
   @Type(() => EntityDto)
   wallet: Wallet;
+
+  @IsOptional()
+  @IsNumber()
+  blockchainFactor: number;
 }
