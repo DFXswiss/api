@@ -40,7 +40,7 @@ export class KycAdminService {
       !kycStep.userData.lastNameCheckDate
     )
       await this.bankDataService.createBankData(kycStep.userData, {
-        iban: `ident${kycStep.identNumber}`,
+        iban: `ident${kycStep.identDocumentId}`,
         type: BankDataType.IDENT,
       });
 

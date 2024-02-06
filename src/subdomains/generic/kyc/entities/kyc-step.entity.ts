@@ -176,7 +176,7 @@ export class KycStep extends IEntity {
     return this;
   }
 
-  get identNumber(): string | undefined {
+  get identDocumentId(): string | undefined {
     const result = this.getResult<IdentResultDto>();
     return result?.identificationdocument.number.value;
   }
