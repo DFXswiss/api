@@ -204,8 +204,9 @@ export class FeeService {
         additiveFees.every((fee) => fee.payoutRefBonus),
       blockchain: Math.max(
         blockchainFee *
-          (baseFee.blockchainFactor - discountFee?.blockchainFactor ??
-            0 + Util.sumObjValue(additiveFees, 'blockchainFactor')),
+          (baseFee.blockchainFactor -
+            (discountFee?.blockchainFactor ?? 0) +
+            Util.sumObjValue(additiveFees, 'blockchainFactor')),
         0,
       ),
     };
