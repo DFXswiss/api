@@ -295,6 +295,24 @@ export class DexService {
     }
   }
 
+  async getTargetAmount(amount: number, from: Asset, to: Asset): Promise<number> {
+    if (from.blockchain !== to.blockchain) throw new Error('Swapping between chains is not possible');
+
+    const strategy = this.supplementaryStrategyRegistry.getSupplementaryStrategyByAsset(from);
+
+    if (!strategy) {
+      throw new Error(`No supplementary strategy found for asset ${from.uniqueName} during #getTargetAmount(...)`);
+    }
+    try {
+      return await strategy.getTargetAmount(amount, from, to);
+    } catch (e) {
+      this.logger.error('Error while getting target amount:', e);
+
+      // default public exception
+      throw new Error(`Error while getting target amount from ${amount} ${from.uniqueName} to ${to.uniqueName}.`);
+    }
+  }
+
   //*** JOBS ***//
   @Cron(CronExpression.EVERY_30_SECONDS)
   @Lock(1800)

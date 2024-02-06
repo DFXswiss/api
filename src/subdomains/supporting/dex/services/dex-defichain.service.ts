@@ -205,6 +205,10 @@ export class DexDeFiChainService {
     return amounts.map((a) => this.getClient().parseAmount(a));
   }
 
+  async getTargetAmount(sourceAsset: Asset, sourceAmount: number, targetAsset: Asset): Promise<number> {
+    return targetAsset.id === sourceAsset.id ? sourceAmount : this.testSwap(sourceAsset, targetAsset, sourceAmount);
+  }
+
   //*** GETTERS ***//
 
   get dexWalletAddress(): string {
@@ -215,10 +219,6 @@ export class DexDeFiChainService {
 
   protected getClient(): DeFiClient {
     return this.#dexClient;
-  }
-
-  private async getTargetAmount(sourceAsset: Asset, sourceAmount: number, targetAsset: Asset): Promise<number> {
-    return targetAsset.id === sourceAsset.id ? sourceAmount : this.testSwap(sourceAsset, targetAsset, sourceAmount);
   }
 
   private async checkAssetAvailability(asset: Asset, requiredAmount: number): Promise<void> {

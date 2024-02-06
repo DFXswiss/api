@@ -4,9 +4,10 @@ export class Price {
   source: string;
   target: string;
   price: number;
+  isValid: boolean;
 
   invert(): Price {
-    return Price.create(this.target, this.source, 1 / this.price);
+    return Price.create(this.target, this.source, 1 / this.price, this.isValid);
   }
 
   convert(fromAmount: number, decimals?: number): number {
@@ -18,12 +19,13 @@ export class Price {
     return decimals != null ? Util.round(targetAmount, decimals) : targetAmount;
   }
 
-  static create(source: string, target: string, _price: number): Price {
+  static create(source: string, target: string, _price: number, _isValid = true): Price {
     const price = new Price();
 
     price.source = source;
     price.target = target;
     price.price = _price;
+    price.isValid = _isValid;
 
     return price;
   }
@@ -33,6 +35,7 @@ export class Price {
       prices[0].source,
       prices[prices.length - 1].target,
       prices.reduce((prev, curr) => prev * curr.price, 1),
+      prices.reduce((prev, curr) => prev && curr.isValid, true),
     );
   }
 }

@@ -1,28 +1,37 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
 import { CoinGeckoClient } from 'coingecko-api-v3';
+import { Config, GetConfig } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { AssetPricingMetadata } from '../../domain/entities/asset-pricing-metadata.entity';
 import { Price } from '../../domain/entities/price';
 import { MetadataNotFoundException } from '../../domain/exceptions/metadata-not-found.exception';
 import { AssetPricingMetadataRepository } from '../../repositories/asset-pricing-metadata.repository';
-import { Config, GetConfig } from 'src/config/config';
-import { AsyncCache } from 'src/shared/utils/async-cache';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
-export class CoinGeckoService {
+export class CoinGeckoService implements OnModuleInit {
   private readonly logger = new DfxLogger(CoinGeckoService);
 
   private readonly client: CoinGeckoClient;
   private readonly priceCache: AsyncCache<Price>;
+  private usd: Fiat;
 
   private metaDataCache?: AssetPricingMetadata[];
 
-  constructor(private readonly assetPricingMetadataRepo: AssetPricingMetadataRepository) {
+  constructor(
+    private readonly assetPricingMetadataRepo: AssetPricingMetadataRepository,
+    private readonly fiatService: FiatService,
+  ) {
     this.client = new CoinGeckoClient({ autoRetry: false }, GetConfig().transaction.pricing.coinGeckoApiKey);
     this.priceCache = new AsyncCache(Config.transaction.pricing.refreshRate * 60);
+  }
+
+  onModuleInit() {
+    void this.fiatService.getFiatByName('USD').then((usd) => (this.usd = usd));
   }
 
   async getFiatPrice(from: Fiat, to: Fiat): Promise<Price> {
@@ -40,6 +49,13 @@ export class CoinGeckoService {
   async fromFiat(fiat: Fiat, asset: Asset): Promise<Price> {
     const price = await this.toFiat(asset, fiat);
     return price.invert();
+  }
+
+  async getCryptoPrice(from: Asset, to: Asset): Promise<Price> {
+    const fromPrice = await this.toFiat(from, this.usd);
+    const toPrice = await this.fromFiat(this.usd, to);
+
+    return Price.join(fromPrice, toPrice);
   }
 
   async getPriceAt(asset: Asset, fiat: Fiat, date: Date): Promise<Price> {

@@ -34,6 +34,10 @@ export class AssetService {
     return this.assetRepo.findOneBy({ blockchain, chainId });
   }
 
+  async getAssetByUniqueName(uniqueName: string): Promise<Asset> {
+    return this.assetRepo.findOneBy({ uniqueName });
+  }
+
   async getAssetByQuery(query: AssetQuery): Promise<Asset> {
     return this.assetRepo.findOneBy(query);
   }
