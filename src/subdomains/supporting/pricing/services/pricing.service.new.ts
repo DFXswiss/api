@@ -12,6 +12,8 @@ import { PriceRule, PriceSource, Rule } from '../domain/entities/price-rule.enti
 import { PricingProvider } from '../domain/interfaces';
 import { PriceRuleRepository } from '../repositories/price-rule.repository';
 import { CoinGeckoNewService } from './integration/coin-gecko.service.new';
+import { CurrencyService } from './integration/currency.service';
+import { FixerService } from './integration/fixer.service';
 import { PricingDexService } from './integration/pricing-dex.service';
 
 @Injectable()
@@ -27,12 +29,16 @@ export class PricingServiceNew {
     readonly binanceService: BinanceService,
     readonly coinGeckoService: CoinGeckoNewService,
     readonly dexService: PricingDexService,
+    readonly fixerService: FixerService,
+    readonly currencyService: CurrencyService,
   ) {
     this.providerMap = {
       [PriceSource.KRAKEN]: krakenService,
       [PriceSource.BINANCE]: binanceService,
       [PriceSource.COIN_GECKO]: coinGeckoService,
       [PriceSource.DEX]: dexService,
+      [PriceSource.FIXER]: fixerService,
+      [PriceSource.CURRENCY]: currencyService,
     };
   }
 
