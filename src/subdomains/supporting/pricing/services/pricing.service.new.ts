@@ -58,6 +58,10 @@ export class PricingServiceNew {
     }
   }
 
+  async getPriceFrom(source: PriceSource, from: string, to: string): Promise<Price> {
+    return this.providerMap[source].getPrice(from, to);
+  }
+
   // --- PRIVATE METHODS --- //
   private async getPriceFor(item: Asset | Fiat, allowExpired: boolean): Promise<Price> {
     let rule = await this.getRuleFor(item);
@@ -92,10 +96,6 @@ export class PricingServiceNew {
     }
 
     return rule;
-  }
-
-  private async getRulePrice(rule: Rule): Promise<Price> {
-    return this.providerMap[rule.source].getPrice(rule.asset, rule.reference);
   }
 
   private async isPriceValid(price: Price, rule?: Rule): Promise<boolean> {
@@ -135,5 +135,9 @@ export class PricingServiceNew {
 
   private getItemString(item: Asset | Fiat): string {
     return `${this.isFiat(item) ? 'fiat' : 'asset'} ${item.id}`;
+  }
+
+  private async getRulePrice(rule: Rule): Promise<Price> {
+    return this.getPriceFrom(rule.source, rule.asset, rule.reference);
   }
 }
