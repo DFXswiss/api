@@ -36,6 +36,7 @@ export interface FeeRequestBase {
   asset: Asset;
   txVolume?: number;
   blockchainFee: number;
+  discountCodes: string[];
 }
 
 @Injectable()
@@ -224,6 +225,7 @@ export class FeeService {
       { type: FeeType.DISCOUNT, discountCode: IsNull() },
       { type: FeeType.ADDITION, discountCode: IsNull() },
       { id: In(discountFeeIds) },
+      { discountCode: In(request.discountCodes) },
     ]);
 
     // remove ExpiredFee

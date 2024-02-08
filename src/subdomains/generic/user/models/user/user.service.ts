@@ -305,7 +305,7 @@ export class UserService {
     const user = await this.getUser(userId, { userData: true });
     if (!user) throw new NotFoundException('User not found');
 
-    return this.feeService.getUserFee({ user, direction, asset, blockchainFee: minFee, txVolume });
+    return this.feeService.getUserFee({ user, direction, asset, blockchainFee: minFee, txVolume, discountCodes: [] });
   }
 
   // --- REF --- //

@@ -136,7 +136,7 @@ export class TransactionHelper implements OnModuleInit {
     const { direction, feeAsset } = this.getTxInfo(from, to);
     const specs = this.getSpecs(from, to);
 
-    const fee = await this.getTxFee(user, direction, feeAsset, inputAmount, from, paymentMethod, specs.minFee);
+    const fee = await this.getTxFee(user, direction, feeAsset, inputAmount, from, paymentMethod, specs.minFee, []);
 
     const txSpecSource = await this.convertToSource(from, { ...specs, fixedFee: fee.fixed, minFee: fee.blockchain });
 
@@ -161,6 +161,7 @@ export class TransactionHelper implements OnModuleInit {
     to: Asset | Fiat,
     paymentMethod: PaymentMethod,
     user?: User,
+    discountCodes: string[] = [],
   ): Promise<TransactionDetails> {
     // get fee
     const { direction, feeAsset } = this.getTxInfo(from, to);
@@ -174,6 +175,7 @@ export class TransactionHelper implements OnModuleInit {
       targetAmount ? to : from,
       paymentMethod,
       specs.minFee,
+      discountCodes,
     );
 
     const extendedSpecs = {
@@ -232,16 +234,26 @@ export class TransactionHelper implements OnModuleInit {
     txAsset: Asset | Fiat,
     paymentMethod: PaymentMethod,
     minFeeEur: number,
+    discountCodes: string[],
   ): Promise<FeeDto> {
     const price = await this.priceProviderService.getPrice(txAsset, this.eur);
 
     const txVolumeInEur = price.convert(txVolume);
 
+    const feeRequest = {
+      user,
+      direction,
+      asset,
+      txVolume: txVolumeInEur,
+      blockchainFee: minFeeEur,
+      discountCodes,
+    };
+
     return paymentMethod === FiatPaymentMethod.CARD
       ? { fees: [], rate: Config.buy.fee.card, fixed: 0, payoutRefBonus: true, blockchain: minFeeEur }
       : user
-      ? this.feeService.getUserFee({ user, direction, asset, txVolume: txVolumeInEur, blockchainFee: minFeeEur })
-      : this.feeService.getDefaultFee({ direction, asset, txVolume: txVolumeInEur, blockchainFee: minFeeEur });
+      ? this.feeService.getUserFee({ ...feeRequest, user })
+      : this.feeService.getDefaultFee(feeRequest);
   }
 
   private async getTargetEstimation(
