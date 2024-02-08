@@ -19,16 +19,30 @@ export class IdentService {
 
   constructor(private readonly http: HttpService) {}
 
-  async initiateIdent(kycStep: KycStep): Promise<string> {
+  async initiateIdent(user: UserData, kycStep: KycStep): Promise<string> {
     if (!kycStep.transactionId) throw new InternalServerErrorException('Transaction ID is missing');
 
-    return this.callApi<{ id: string }>(`identifications/${kycStep.transactionId}/start`, kycStep.type, 'POST').then(
-      (r) => r.id,
-    );
+    const data = {
+      firstname: user.firstname,
+      lastname: user.surname,
+      street: user.street + (user.houseNumber ? ` ${user.houseNumber}` : ''),
+      zipcode: user.zip,
+      city: user.location,
+      country: user.country?.symbol,
+      birthday: user.birthday && Util.isoDate(user.birthday),
+      nationality: user.nationality?.symbol,
+    };
+
+    return this.callApi<{ id: string }>(
+      `identifications/${kycStep.transactionId}/start`,
+      kycStep.type,
+      'POST',
+      data,
+    ).then((r) => r.id);
   }
 
   async getResult(kycStep: KycStep): Promise<IdentResultDto> {
-    return this.callApi<IdentResultDto>(`identifications/${kycStep.transactionId}`, kycStep.type, 'GET', {});
+    return this.callApi<IdentResultDto>(`identifications/${kycStep.transactionId}`, kycStep.type, 'GET');
   }
 
   async getDocuments(kycStep: KycStep): Promise<IdentDocument[]> {
