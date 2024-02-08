@@ -124,9 +124,10 @@ export class FeeService {
     await this.userDataService.addFee(userData, fee.id);
   }
 
-  async increaseTxUsages(fee: Fee, userData: UserData): Promise<void> {
+  async increaseTxUsages(txVolume: number, fee: Fee, userData: UserData): Promise<void> {
     await this.feeRepo.update(...fee.increaseTxUsage());
     if (fee.maxUserTxUsages) await this.feeRepo.update(...fee.increaseUserTxUsage(userData.id));
+    if (fee.maxAnnualUserTxVolume) await this.feeRepo.update(...fee.increaseAnnualUserTxVolume(userData.id, txVolume));
   }
 
   async getFeeByDiscountCode(discountCode: string): Promise<Fee> {
