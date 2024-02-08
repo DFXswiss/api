@@ -189,6 +189,12 @@ export class BankTx extends IEntity {
 
   @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.bankTx, { nullable: true })
   buyFiat?: BuyFiat;
+
+  //*** GETTER METHODS ***//
+
+  get completeName(): string {
+    return `${this.name} ${this.ultimateName}`;
+  }
 }
 
 export const BankTxCompletedTypes = [BankTxType.BUY_CRYPTO, BankTxType.BANK_TX_REPEAT, BankTxType.BANK_TX_RETURN];

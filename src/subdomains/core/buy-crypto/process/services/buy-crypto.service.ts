@@ -32,6 +32,8 @@ import { CheckStatus } from '../enums/check-status.enum';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 
+const externalManagedIban = ['CH3704835284238523000', 'BE48967056780227'];
+
 @Injectable()
 export class BuyCryptoService {
   constructor(
@@ -56,16 +58,26 @@ export class BuyCryptoService {
     entity = this.buyCryptoRepo.create({ bankTx });
 
     // buy
-    if (buyId) entity.buy = await this.getBuy(buyId);
+    entity.buy = await this.getBuy(buyId);
 
     const bankData = await this.bankDataService.getBankDataWithIban(bankTx.iban, entity.buy.user.userData.id);
     if (!bankData)
       await this.bankDataService.createBankData(entity.buy.user.userData, {
-        iban: bankTx.iban,
+        iban: this.getBankDataIban(bankTx),
         type: BankDataType.BANK_IN,
       });
 
     return this.buyCryptoRepo.save(entity);
+  }
+
+  private getBankDataIban(bankTx: BankTx): string {
+    if (externalManagedIban.includes(bankTx.iban)) return `${bankTx.iban};${bankTx.completeName.split(' ').join('')}`;
+    if (!bankTx.iban) {
+      if (bankTx.name.startsWith('/C/')) return bankTx.name.split('/C/')[1];
+      if (bankTx.name === 'Schaltereinzahlung') return bankTx.name;
+    }
+    if (!isNaN(+bankTx.iban)) return `NOIBAN${bankTx.iban}`;
+    return bankTx.iban;
   }
 
   async createFromCheckoutTx(checkoutTx: CheckoutTx, buyId: number): Promise<BuyCrypto> {
