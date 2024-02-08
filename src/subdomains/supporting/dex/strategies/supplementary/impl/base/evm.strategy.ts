@@ -43,6 +43,10 @@ export abstract class EvmStrategy extends SupplementaryStrategy {
     return { isComplete: true, txId: targetEntry.hash };
   }
 
+  async getTargetAmount(amount: number, from: Asset, to: Asset): Promise<number> {
+    return this.dexEvmService.getTargetAmount(from, amount, to);
+  }
+
   //*** HELPER METHODS ***//
 
   private filterRelevantHistory(

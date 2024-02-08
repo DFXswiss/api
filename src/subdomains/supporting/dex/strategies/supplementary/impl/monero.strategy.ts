@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { MoneroTransferDto } from 'src/integration/blockchain/monero/dto/monero.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/utils/util';
 import { TransactionQuery, TransactionResult, TransferRequest } from '../../../interfaces';
 import { DexMoneroService } from '../../../services/dex-monero.service';
@@ -40,6 +41,10 @@ export class MoneroStrategy extends SupplementaryStrategy {
     if (!targetEntry) return { isComplete: false };
 
     return { isComplete: true, txId: targetEntry.txid };
+  }
+
+  async getTargetAmount(_a: number, _f: Asset, _t: Asset): Promise<number> {
+    throw new Error(`Swapping is not implemented on ${this.blockchain}`);
   }
 
   //*** HELPER METHODS ***//
