@@ -79,6 +79,7 @@ export class CryptoRouteController {
       sourceAsset,
       targetAsset,
       targetAmount,
+      discountCode,
     } = await this.paymentInfoService.cryptoCheck(dto);
 
     const {
@@ -92,6 +93,8 @@ export class CryptoRouteController {
       sourceAsset,
       targetAsset,
       CryptoPaymentMethod.CRYPTO,
+      undefined,
+      discountCode ? [discountCode] : [],
     );
 
     return {
