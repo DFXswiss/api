@@ -252,7 +252,7 @@ export class TransactionHelper implements OnModuleInit {
     return paymentMethod === FiatPaymentMethod.CARD
       ? { fees: [], rate: Config.buy.fee.card, fixed: 0, payoutRefBonus: true, blockchain: minFeeEur }
       : user
-      ? this.feeService.getUserFee({ ...feeRequest, user })
+      ? this.feeService.getUserFee(feeRequest)
       : this.feeService.getDefaultFee(feeRequest);
   }
 
