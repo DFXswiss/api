@@ -19,5 +19,5 @@ export class UpdateBankAccountDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
-  active: boolean;
+  active = true;
 }

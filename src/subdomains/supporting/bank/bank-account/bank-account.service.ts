@@ -50,19 +50,9 @@ export class BankAccountService {
   }
 
   async createBankAccount(userId: number, dto: CreateBankAccountDto): Promise<BankAccount> {
-    const { id: userDataId, kycType: kycType } = await this.userDataService.getUserDataByUser(userId);
+    const { id: userDataId, kycType } = await this.userDataService.getUserDataByUser(userId);
 
-    const existing = await this.bankAccountRepo.findOne({
-      where: { iban: dto.iban, userData: { id: userDataId } },
-      relations: ['userData'],
-    });
-
-    if (existing && !existing.active) {
-      // reactivate deleted bank account
-      existing.active = true;
-    }
-
-    const bankAccount = existing ? existing : await this.getOrCreateBankAccountInternal(dto.iban, userDataId, kycType);
+    const bankAccount = await this.getOrCreateBankAccountInternal(dto.iban, userDataId, kycType);
 
     return this.updateEntity(dto, bankAccount);
   }
