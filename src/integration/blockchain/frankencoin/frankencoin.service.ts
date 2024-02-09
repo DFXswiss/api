@@ -159,6 +159,13 @@ export class FrankencoinService {
     return fpssResult;
   }
 
+  async getFPSPrice(): Promise<number> {
+    const equityContract = this.client.getEquityContract(Config.blockchain.frankencoin.contractAddress.equity);
+    const price = await equityContract.price();
+
+    return this.fromWeiAmount(price);
+  }
+
   async getMinters(): Promise<FrankencoinMinterGraphDto[]> {
     return this.client.getMinters();
   }
