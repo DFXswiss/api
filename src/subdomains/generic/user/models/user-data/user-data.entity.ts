@@ -195,6 +195,9 @@ export class UserData extends IEntity {
   @Column({ nullable: true })
   complexOrgStructure: boolean;
 
+  @Column({ length: 256, default: KycStatus.NA })
+  kycStatus: KycStatus;
+
   @Column({ type: 'integer', nullable: true })
   kycFileId: number;
 
