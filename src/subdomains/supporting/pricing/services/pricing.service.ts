@@ -41,11 +41,6 @@ export class PricingService {
       [PriceSource.FIXER]: fixerService,
       [PriceSource.CURRENCY]: currencyService,
     };
-
-    const usdc = Object.assign(new Asset(), { id: 83 });
-    const btc = Object.assign(new Asset(), { id: 69 });
-    const chf = Object.assign(new Fiat(), { id: 1 });
-    void this.getPrice(usdc, chf, false).then(console.log).catch(console.error);
   }
 
   async getPrice(from: Asset | Fiat, to: Asset | Fiat, allowExpired: boolean): Promise<Price> {
@@ -87,7 +82,7 @@ export class PricingService {
 
     if (!rule.isPriceValid) {
       const updateTask = this.updatePriceFor(rule);
-      if (!allowExpired) {
+      if (!allowExpired || rule.isPriceObsolete) {
         rule = await updateTask;
       }
     }
