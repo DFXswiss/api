@@ -9,13 +9,6 @@ import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
 import { EvmClient, EvmClientParams } from '../shared/evm/evm-client';
 import { L2BridgeEvmClient } from '../shared/evm/interfaces';
 
-use(Web3ClientPlugin);
-setProofApi('https://proof-generator.polygon.technology/');
-
-export interface WithdrawCacheDto {
-  l1Token: Asset;
-}
-
 export class PolygonClient extends EvmClient implements L2BridgeEvmClient {
   private readonly logger = new DfxLogger(PolygonClient);
 
@@ -23,8 +16,13 @@ export class PolygonClient extends EvmClient implements L2BridgeEvmClient {
   private l1Wallet: ethers.Wallet;
   private posClient: POSClient;
 
+  private l2TxIdCache: Set<string>;
+
   constructor(params: EvmClientParams) {
     super(params);
+
+    use(Web3ClientPlugin);
+    setProofApi('https://proof-generator.polygon.technology/');
 
     const { ethGatewayUrl, ethApiKey, ethWalletPrivateKey, ethWalletAddress } = GetConfig().blockchain.ethereum;
     const ethereumGateway = `${ethGatewayUrl}/${ethApiKey ?? ''}`;
@@ -35,6 +33,8 @@ export class PolygonClient extends EvmClient implements L2BridgeEvmClient {
 
     this.posClient = new POSClient();
     void this.initPolygonNetwork(ethWalletAddress, polygonWalletAddress);
+
+    this.l2TxIdCache = new Set();
   }
 
   async depositCoinOnDex(_amount: number): Promise<string> {
@@ -118,11 +118,20 @@ export class PolygonClient extends EvmClient implements L2BridgeEvmClient {
       if (!isCheckPointed) return false;
 
       const l1Erc20Token = this.posClient.erc20(l1Asset.chainId, true);
-      const withdrawExitResult = await l1Erc20Token.withdrawExitFaster(l2TxId);
-      const withdrawExitTxHash = await withdrawExitResult.getTransactionHash();
-      this.logger.info(`Polygon withdrawExitTxHash: ${withdrawExitTxHash}`);
 
-      return true;
+      if (!this.l2TxIdCache.has(l2TxId)) {
+        const withdrawExitResult = await l1Erc20Token.withdrawExitFaster(l2TxId);
+        const withdrawExitTxHash = await withdrawExitResult.getTransactionHash();
+        this.logger.info(`Polygon withdrawExitTxHash: ${withdrawExitTxHash}`);
+
+        this.l2TxIdCache.add(l2TxId);
+      }
+
+      const isWithdrawExited = await Util.timeout(l1Erc20Token.isWithdrawExited(l2TxId), 20000);
+
+      if (isWithdrawExited) this.l2TxIdCache.delete(l2TxId);
+
+      return isWithdrawExited;
     } catch {
       return false;
     }
