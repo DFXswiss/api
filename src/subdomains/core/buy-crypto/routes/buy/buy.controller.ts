@@ -70,7 +70,14 @@ export class BuyController {
   @Put('/quote')
   @ApiOkResponse({ type: BuyQuoteDto })
   async getBuyQuote(@Body() dto: GetBuyQuoteDto): Promise<BuyQuoteDto> {
-    const { amount: sourceAmount, currency, asset, targetAmount } = await this.paymentInfoService.buyCheck(dto);
+    const {
+      amount: sourceAmount,
+      currency,
+      asset,
+      targetAmount,
+      paymentMethod,
+      discountCode,
+    } = await this.paymentInfoService.buyCheck(dto);
 
     const {
       rate,
@@ -78,7 +85,15 @@ export class BuyController {
       feeAmount,
       estimatedAmount,
       sourceAmount: amount,
-    } = await this.transactionHelper.getTxDetails(sourceAmount, targetAmount, currency, asset, FiatPaymentMethod.BANK);
+    } = await this.transactionHelper.getTxDetails(
+      sourceAmount,
+      targetAmount,
+      currency,
+      asset,
+      paymentMethod,
+      undefined,
+      discountCode ? [discountCode] : [],
+    );
 
     return {
       feeAmount,
@@ -222,7 +237,7 @@ export class BuyController {
       amount: dto.amount,
       currency: dto.currency.name,
       bankAccount: buy.bankAccount,
-      kycStatus: buy.user.userData.kycStatus,
+      paymentMethod: dto.paymentMethod,
     });
 
     if (!bank) throw new BadRequestException('No Bank for the given amount/currency');

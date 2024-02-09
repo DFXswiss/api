@@ -70,7 +70,13 @@ export class SellController {
   @Put('/quote')
   @ApiOkResponse({ type: SellQuoteDto })
   async getSellQuote(@Body() dto: GetSellQuoteDto): Promise<SellQuoteDto> {
-    const { amount: sourceAmount, asset, currency, targetAmount } = await this.paymentInfoService.sellCheck(dto);
+    const {
+      amount: sourceAmount,
+      asset,
+      currency,
+      targetAmount,
+      discountCode,
+    } = await this.paymentInfoService.sellCheck(dto);
 
     const {
       rate,
@@ -84,6 +90,8 @@ export class SellController {
       asset,
       currency,
       CryptoPaymentMethod.CRYPTO,
+      undefined,
+      discountCode ? [discountCode] : [],
     );
 
     return {
