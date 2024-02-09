@@ -237,7 +237,7 @@ export class BuyController {
       amount: dto.amount,
       currency: dto.currency.name,
       bankAccount: buy.bankAccount,
-      kycStatus: buy.user.userData.kycStatus,
+      paymentMethod: dto.paymentMethod,
     });
 
     if (!bank) throw new BadRequestException('No Bank for the given amount/currency');
