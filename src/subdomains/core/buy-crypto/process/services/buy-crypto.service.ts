@@ -61,23 +61,13 @@ export class BuyCryptoService {
     entity.buy = await this.getBuy(buyId);
 
     const bankData = await this.bankDataService.getBankDataWithIban(bankTx.iban, entity.buy.user.userData.id);
-    if (!bankData)
+    if (!bankData && (bankTx.iban || bankTx.name.startsWith('/C/')))
       await this.bankDataService.createBankData(entity.buy.user.userData, {
         iban: this.getBankDataIban(bankTx),
         type: BankDataType.BANK_IN,
       });
 
     return this.buyCryptoRepo.save(entity);
-  }
-
-  private getBankDataIban(bankTx: BankTx): string {
-    if (externalManagedIban.includes(bankTx.iban)) return `${bankTx.iban};${bankTx.completeName.split(' ').join('')}`;
-    if (!bankTx.iban) {
-      if (bankTx.name.startsWith('/C/')) return bankTx.name.split('/C/')[1];
-      if (bankTx.name === 'Schaltereinzahlung') return bankTx.name;
-    }
-    if (!isNaN(+bankTx.iban)) return `NOIBAN${bankTx.iban}`;
-    return bankTx.iban;
   }
 
   async createFromCheckoutTx(checkoutTx: CheckoutTx, buyId: number): Promise<BuyCrypto> {
@@ -298,6 +288,16 @@ export class BuyCryptoService {
   }
 
   // --- HELPER METHODS --- //
+
+  private getBankDataIban(bankTx: BankTx): string {
+    if (externalManagedIban.includes(bankTx.iban)) return `${bankTx.iban};${bankTx.completeName.split(' ').join('')}`;
+    if (!bankTx.iban) {
+      if (bankTx.name.startsWith('/C/')) return bankTx.name.split('/C/')[1];
+      if (bankTx.name === 'Schaltereinzahlung') return bankTx.name;
+    }
+    if (!isNaN(+bankTx.iban)) return `NOIBAN${bankTx.iban}`;
+    return bankTx.iban;
+  }
 
   private toHistoryDto(buyCrypto: BuyCrypto): HistoryDtoDeprecated {
     return {
