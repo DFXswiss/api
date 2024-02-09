@@ -190,10 +190,10 @@ export class UserData extends IEntity {
   olkypayAllowed: boolean;
 
   @Column({ nullable: true })
-  complexOrgStructure: boolean;
+  cryptoCryptoAllowed: boolean;
 
-  @Column({ length: 256, default: KycStatus.NA })
-  kycStatus: KycStatus;
+  @Column({ nullable: true })
+  complexOrgStructure: boolean;
 
   @Column({ type: 'integer', nullable: true })
   kycFileId: number;
@@ -317,7 +317,6 @@ export class UserData extends IEntity {
   blockUserData(): UpdateResult<UserData> {
     const update: Partial<UserData> = {
       status: UserDataStatus.BLOCKED,
-      kycStatus: KycStatus.TERMINATED,
       kycLevel: KycLevel.TERMINATED,
     };
 
@@ -373,7 +372,7 @@ export class UserData extends IEntity {
   }
 
   get tradingLimit(): TradingLimit {
-    if (KycCompleted(this.kycStatus)) {
+    if (this.kycLevel >= KycLevel.LEVEL_50) {
       return { limit: this.depositLimit, period: LimitPeriod.YEAR };
     } else if (this.isKycTerminated) {
       return { limit: 0, period: LimitPeriod.DAY };
@@ -389,10 +388,7 @@ export class UserData extends IEntity {
   }
 
   get isKycTerminated(): boolean {
-    return (
-      [KycStatus.REJECTED, KycStatus.TERMINATED].includes(this.kycStatus) ||
-      [KycLevel.REJECTED, KycLevel.TERMINATED].includes(this.kycLevel)
-    );
+    return [KycLevel.REJECTED, KycLevel.TERMINATED].includes(this.kycLevel);
   }
 
   // --- KYC PROCESS --- //
@@ -533,25 +529,10 @@ export class UserData extends IEntity {
   }
 }
 
-export const KycInProgressStates = [KycStatus.CHATBOT, KycStatus.ONLINE_ID, KycStatus.VIDEO_ID];
-export const IdentInProgressStates = [KycStatus.ONLINE_ID, KycStatus.VIDEO_ID];
 export const KycCompletedStates = [KycStatus.COMPLETED];
-export const IdentCompletedStates = [KycStatus.CHECK, ...KycCompletedStates];
-
-export function KycInProgress(kycStatus?: KycStatus): boolean {
-  return KycInProgressStates.includes(kycStatus);
-}
-
-export function IdentInProgress(kycStatus?: KycStatus): boolean {
-  return IdentInProgressStates.includes(kycStatus);
-}
 
 export function KycCompleted(kycStatus?: KycStatus): boolean {
   return KycCompletedStates.includes(kycStatus);
-}
-
-export function IdentCompleted(kycStatus?: KycStatus): boolean {
-  return IdentCompletedStates.includes(kycStatus);
 }
 
 const numberOfLastVisibleNumbers = 2;

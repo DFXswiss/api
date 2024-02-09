@@ -45,7 +45,7 @@ export class UserDto {
   @ApiProperty({ type: Language })
   language: Language;
 
-  @ApiProperty({ enum: KycStatus })
+  @ApiProperty({ enum: KycStatus, deprecated: true })
   kycStatus: KycStatus;
 
   @ApiProperty({ enum: KycState, deprecated: true })

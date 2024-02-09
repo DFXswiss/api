@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { KycCompleted, KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
 import { CountryService } from '../../../../shared/models/country/country.service';
 import { Bank, BankName } from './bank.entity';
@@ -9,7 +9,8 @@ export interface BankSelectorInput {
   amount: number;
   currency: string;
   bankAccount?: BankAccount;
-  kycStatus: KycStatus;
+  kycLevel: KycLevel;
+  olkyAllowed: boolean;
 }
 
 @Injectable()
@@ -25,7 +26,7 @@ export class BankService {
   }
 
   // --- BankSelector --- //
-  async getBank({ bankAccount, amount, currency, kycStatus }: BankSelectorInput): Promise<Bank> {
+  async getBank({ bankAccount, amount, currency, kycLevel, olkyAllowed }: BankSelectorInput): Promise<Bank> {
     const frickAmountLimit = 9000;
     const olkyAmountLimit = 2000;
     const fallBackCurrency = 'EUR';
@@ -47,7 +48,8 @@ export class BankService {
       !account &&
       currency === 'EUR' &&
       (!bankAccount || bankAccount.sctInst) &&
-      KycCompleted(kycStatus) &&
+      kycLevel >= KycLevel.LEVEL_0 &&
+      olkyAllowed &&
       amount <= olkyAmountLimit
     ) {
       // instant => Olkypay / EUR

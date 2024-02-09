@@ -25,7 +25,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
-import { KycState, KycStatus, KycType, UserDataStatus } from '../user-data/user-data.entity';
+import { KycLevel, KycState, KycStatus, KycType, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { Wallet } from '../wallet/wallet.entity';
 import { WalletService } from '../wallet/wallet.service';
@@ -168,7 +168,7 @@ export class UserService {
 
   async updateUserData(id: number, dto: KycInputDataDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
     const user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
-    if (user.userData.kycStatus !== KycStatus.NA) throw new BadRequestException('KYC already started');
+    if (user.userData.kycLevel !== KycLevel.LEVEL_0) throw new BadRequestException('KYC already started');
 
     user.userData = await this.userDataService.updateKycData(user.userData, KycDataMapper.toUserData(dto));
 
@@ -451,7 +451,7 @@ export class UserService {
       phone: user.userData?.phone,
       language: user.userData?.language,
       currency: user.userData?.currency,
-      kycStatus: user.userData?.kycStatus,
+      kycStatus: KycStatus.NA,
       kycState: KycState.NA,
       kycLevel: user.userData?.kycLevel,
       kycHash: user.userData?.kycHash,

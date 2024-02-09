@@ -6,7 +6,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
-import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { createDefaultBankAccount } from 'src/subdomains/supporting/bank/bank-account/__mocks__/bank-account.entity.mock';
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
@@ -27,13 +27,15 @@ function createBankSelectorInput(
   currency = 'EUR',
   amount = 1,
   bankAccount: BankAccount = createDefaultBankAccount(),
-  kycStatus: KycStatus = KycStatus.COMPLETED,
+  kycLevel: KycLevel = KycLevel.LEVEL_50,
+  olkyAllowed = false,
 ): BankSelectorInput {
   return {
     bankAccount: bankAccount,
     amount: amount,
     currency: currency,
-    kycStatus: kycStatus,
+    kycLevel,
+    olkyAllowed,
   };
 }
 
@@ -101,7 +103,9 @@ describe('BankService', () => {
 
   it('should return Olkypay if currency = EUR & sctInst & KYC completed', async () => {
     defaultSetup();
-    await expect(service.getBank(createBankSelectorInput('EUR'))).resolves.toMatchObject({
+    await expect(
+      service.getBank(createBankSelectorInput('EUR', undefined, undefined, KycLevel.LEVEL_50, true)),
+    ).resolves.toMatchObject({
       iban: olkyEUR.iban,
       bic: olkyEUR.bic,
     });

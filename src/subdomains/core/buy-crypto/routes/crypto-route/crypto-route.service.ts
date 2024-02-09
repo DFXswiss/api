@@ -5,7 +5,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { KycCompleted } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { IsNull, Not } from 'typeorm';
@@ -88,7 +88,8 @@ export class CryptoRouteService {
   ): Promise<CryptoRoute> {
     // KYC check
     const userData = await this.userDataService.getUserDataByUser(userId);
-    if (!KycCompleted(userData.kycStatus)) throw new BadRequestException('Missing KYC');
+    if (!userData.kycLevel || userData.kycLevel < KycLevel.LEVEL_0) throw new BadRequestException('Missing KYC');
+    if (!userData.cryptoCryptoAllowed) throw new BadRequestException('User not allowed for crypto-crypto trading');
     if (!userData.hasBankTxVerification) throw new BadRequestException('Missing bank transaction');
 
     // check if exists

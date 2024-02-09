@@ -16,12 +16,12 @@ import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/inte
 import {
   Blank,
   BlankType,
-  KycCompleted,
+  KycLevel,
   KycState,
   KycStatus,
   UserData,
 } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { getKycWebhookStatus } from '../../services/webhook/mapper/webhook-data.mapper';
+import { KycWebhookStatus } from '../../services/webhook/dto/kyc-webhook.dto';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { UserDataService } from '../user-data/user-data.service';
 import { User } from '../user/user.entity';
@@ -57,7 +57,7 @@ export class KycService {
 
   async updateKycData(code: string, data: KycUserDataDto, userId?: number): Promise<KycInfo> {
     const user = await this.getUser(code, userId);
-    if (user.kycStatus !== KycStatus.NA) throw new BadRequestException('KYC already started');
+    if (user.kycLevel !== KycLevel.LEVEL_0) throw new BadRequestException('KYC already started');
 
     const updatedUser = await this.userDataService.updateKycData(user, data);
     return this.createKycInfoBasedOn(updatedUser);
@@ -71,7 +71,7 @@ export class KycService {
 
     const dfxUser = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
     if (!dfxUser) throw new NotFoundException('DFX user not found');
-    if (!KycCompleted(dfxUser.userData.kycStatus)) throw new ConflictException('KYC required');
+    if (dfxUser.userData.kycLevel < KycLevel.LEVEL_30) throw new ConflictException('KYC required');
     if (!wallet.apiKey) throw new Error(`ApiKey for wallet ${wallet.name} not available`);
 
     try {
@@ -125,7 +125,7 @@ export class KycService {
 
   private createKycInfoBasedOn(userData: UserData): KycInfo {
     return {
-      kycStatus: userData.kycStatus,
+      kycStatus: KycStatus.NA,
       kycState: KycState.NA,
       kycHash: userData.kycHash,
       kycDataComplete: userData.isDataComplete,
@@ -204,7 +204,7 @@ export class KycService {
   private toKycDataDto(user: User): KycDataDto {
     return {
       id: user.address,
-      kycStatus: getKycWebhookStatus(user.userData.kycStatus, user.userData.kycType),
+      kycStatus: KycWebhookStatus.NA,
       kycHash: user.userData.kycHash,
     };
   }

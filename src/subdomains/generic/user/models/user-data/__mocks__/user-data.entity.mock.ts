@@ -1,7 +1,7 @@
 import { createDefaultCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
 import { createDefaultLanguage } from 'src/shared/models/language/__mocks__/language.entity.mock';
 import { AccountType } from '../account-type.enum';
-import { KycStatus, KycType, UserData } from '../user-data.entity';
+import { KycLevel, KycType, UserData } from '../user-data.entity';
 
 export enum MockUserData {
   CLEAN_DB,
@@ -33,7 +33,7 @@ export function createUserDataFor(mock: MockUserData): UserData | undefined {
       return createCustomUserData({
         id: userDataIdFor(mock),
         kycHash: kycHashFor(mock),
-        kycStatus: KycStatus.NA,
+        kycLevel: KycLevel.LEVEL_0,
         kycType: KycType.DFX,
         mail: undefined,
       });
@@ -42,7 +42,7 @@ export function createUserDataFor(mock: MockUserData): UserData | undefined {
       return createCustomUserData({
         id: userDataIdFor(mock),
         kycHash: kycHashFor(mock),
-        kycStatus: mock === MockUserData.STARTED ? KycStatus.CHATBOT : KycStatus.NA,
+        kycLevel: mock === MockUserData.STARTED ? KycLevel.LEVEL_20 : KycLevel.LEVEL_0,
         kycType: KycType.DFX,
         firstname: 'FirstUserName',
         surname: 'SurUsername',
