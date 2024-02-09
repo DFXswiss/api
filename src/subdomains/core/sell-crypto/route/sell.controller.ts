@@ -14,7 +14,7 @@ import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
-import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { BuyFiatService } from '../process/services/buy-fiat.service';
 import { CreateSellDto } from './dto/create-sell.dto';
@@ -90,6 +90,7 @@ export class SellController {
       asset,
       currency,
       CryptoPaymentMethod.CRYPTO,
+      FiatPaymentMethod.BANK,
       undefined,
       discountCode ? [discountCode] : [],
     );
@@ -188,6 +189,7 @@ export class SellController {
       dto.asset,
       dto.currency,
       CryptoPaymentMethod.CRYPTO,
+      FiatPaymentMethod.BANK,
       user,
     );
 

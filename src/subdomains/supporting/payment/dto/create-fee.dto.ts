@@ -14,9 +14,9 @@ import {
 } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
-import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { FeeType } from '../entities/fee.entity';
+import { CryptoPaymentMethod, FiatPaymentMethod } from './payment-method.enum';
 
 export class CreateFeeDto {
   @IsNotEmpty()
@@ -44,8 +44,14 @@ export class CreateFeeDto {
   accountType: AccountType;
 
   @IsOptional()
-  @IsEnum(FeeDirectionType)
-  direction: FeeDirectionType;
+  @IsEnum([FiatPaymentMethod, CryptoPaymentMethod])
+  @IsArray()
+  paymentMethodIns: (FiatPaymentMethod | CryptoPaymentMethod)[];
+
+  @IsOptional()
+  @IsEnum([FiatPaymentMethod, CryptoPaymentMethod])
+  @IsArray()
+  paymentMethodOuts: (FiatPaymentMethod | CryptoPaymentMethod)[];
 
   @IsOptional()
   @IsDate()

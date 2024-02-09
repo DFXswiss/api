@@ -5,6 +5,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
@@ -65,9 +66,10 @@ export class BuyCryptoPreparationService {
           entity.inputAmount,
           inputCurrency,
           entity.target.asset,
+          entity.paymentMethod,
+          CryptoPaymentMethod.CRYPTO,
           inputReferencePrice,
           entity.user,
-          entity.paymentMethod,
         );
 
         const inputAssetEurPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatEur);
@@ -146,9 +148,10 @@ export class BuyCryptoPreparationService {
           entity.inputAmount,
           inputCurrency,
           entity.target.asset,
+          entity.paymentMethod,
+          CryptoPaymentMethod.CRYPTO,
           inputReferencePrice,
           entity.user,
-          entity.paymentMethod,
         );
 
         const referenceEurPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatEur);
