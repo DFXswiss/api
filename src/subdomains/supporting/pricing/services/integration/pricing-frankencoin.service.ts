@@ -21,7 +21,7 @@ export class PricingFrankencoinService implements PricingProvider {
     const fpsPrice = await this.frankencoinService.getFPSPrice();
 
     if (from === PricingFrankencoinService.ZCHF) {
-      return Price.create(from, to, Util.round(fpsPrice / 1, 8));
+      return Price.create(from, to, Util.round(fpsPrice, 8));
     }
 
     return Price.create(from, to, Util.round(1 / fpsPrice, 8));
