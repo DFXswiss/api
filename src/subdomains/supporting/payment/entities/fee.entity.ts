@@ -43,10 +43,10 @@ export class Fee extends IEntity {
   accountType: AccountType;
 
   @Column({ length: 'MAX', nullable: true })
-  paymentMethodsIn: string;
+  paymentMethodsIn: string; // semicolon separated payment-methods
 
   @Column({ length: 'MAX', nullable: true })
-  paymentMethodsOut: string;
+  paymentMethodsOut: string; // semicolon separated payment-methods
 
   @Column({ type: 'datetime2', nullable: true })
   expiryDate: Date;
