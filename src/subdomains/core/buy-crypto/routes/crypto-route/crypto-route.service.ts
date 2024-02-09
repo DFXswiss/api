@@ -88,7 +88,7 @@ export class CryptoRouteService {
   ): Promise<CryptoRoute> {
     // KYC check
     const userData = await this.userDataService.getUserDataByUser(userId);
-    if (!userData.kycLevel || userData.kycLevel < KycLevel.LEVEL_0) throw new BadRequestException('Missing KYC');
+    if (userData.kycLevel < KycLevel.LEVEL_0) throw new BadRequestException('Missing KYC');
     if (!userData.cryptoCryptoAllowed) throw new BadRequestException('User not allowed for crypto-crypto trading');
     if (!userData.hasBankTxVerification) throw new BadRequestException('Missing bank transaction');
 

@@ -451,7 +451,7 @@ export class UserService {
       phone: user.userData?.phone,
       language: user.userData?.language,
       currency: user.userData?.currency,
-      kycStatus: KycStatus.NA,
+      kycStatus: user.userData?.kycStatus,
       kycState: KycState.NA,
       kycLevel: user.userData?.kycLevel,
       kycHash: user.userData?.kycHash,

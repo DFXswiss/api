@@ -16,7 +16,7 @@ export class WebhookDataMapper {
       city: userData.location,
       zip: userData.zip,
       phone: userData.phone,
-      kycStatus: null,
+      kycStatus: getKycWebhookStatus(userData.kycStatus, userData.kycType),
       kycLevel: userData.kycLevel,
       kycHash: userData.kycHash,
       tradingLimit: userData.tradingLimit,
