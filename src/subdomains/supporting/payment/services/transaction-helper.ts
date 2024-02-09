@@ -31,6 +31,7 @@ export enum TransactionError {
   AMOUNT_TOO_LOW = 'AmountTooLow',
   AMOUNT_TOO_HIGH = 'AmountTooHigh',
   BANK_TRANSACTION_MISSING = 'BankTransactionMissing',
+  KYC_REQUIRED = 'KycRequired',
 }
 
 @Injectable()
@@ -192,7 +193,7 @@ export class TransactionHelper implements OnModuleInit {
     const extendedSpecs = {
       ...specs,
       minFee: fee.blockchain,
-      maxVolume: user?.userData?.availableTradingLimit ?? Config.defaultDailyTradingLimit,
+      maxVolume: user?.userData.availableTradingLimit ?? Config.defaultDailyTradingLimit,
       fixedFee: fee.fixed,
     };
 
@@ -222,6 +223,8 @@ export class TransactionHelper implements OnModuleInit {
         ? TransactionError.AMOUNT_TOO_LOW
         : txAmount > txSpecSource.maxVolume
         ? TransactionError.AMOUNT_TOO_HIGH
+        : paymentMethod === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed
+        ? TransactionError.KYC_REQUIRED
         : undefined;
 
     return {
@@ -261,7 +264,7 @@ export class TransactionHelper implements OnModuleInit {
       discountCodes,
     };
 
-    return user ? this.feeService.getUserFee({ ...feeRequest, user }) : this.feeService.getDefaultFee(feeRequest);
+    return user ? this.feeService.getUserFee(feeRequest) : this.feeService.getDefaultFee(feeRequest);
   }
 
   private async getTargetEstimation(

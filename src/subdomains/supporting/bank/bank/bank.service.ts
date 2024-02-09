@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { KycCompleted, KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
 import { CountryService } from '../../../../shared/models/country/country.service';
+import { FiatPaymentMethod } from '../../payment/dto/payment-method.enum';
 import { Bank, BankName } from './bank.entity';
 import { BankRepository } from './bank.repository';
 
@@ -9,7 +9,7 @@ export interface BankSelectorInput {
   amount: number;
   currency: string;
   bankAccount?: BankAccount;
-  kycStatus: KycStatus;
+  paymentMethod: FiatPaymentMethod;
 }
 
 @Injectable()
@@ -25,9 +25,8 @@ export class BankService {
   }
 
   // --- BankSelector --- //
-  async getBank({ bankAccount, amount, currency, kycStatus }: BankSelectorInput): Promise<Bank> {
+  async getBank({ bankAccount, amount, currency, paymentMethod }: BankSelectorInput): Promise<Bank> {
     const frickAmountLimit = 9000;
-    const olkyAmountLimit = 2000;
     const fallBackCurrency = 'EUR';
 
     const ibanCodeCountry = bankAccount
@@ -39,19 +38,13 @@ export class BankService {
     // select the matching bank account
     let account: Bank;
 
-    if (amount > frickAmountLimit || currency === 'USD') {
-      // amount > 9k => Frick || USD => Frick
-      account = this.getMatchingBank(banks, BankName.FRICK, currency, fallBackCurrency);
-    }
-    if (
-      !account &&
-      currency === 'EUR' &&
-      (!bankAccount || bankAccount.sctInst) &&
-      KycCompleted(kycStatus) &&
-      amount <= olkyAmountLimit
-    ) {
+    if (paymentMethod === FiatPaymentMethod.INSTANT) {
       // instant => Olkypay / EUR
       account = this.getMatchingBank(banks, BankName.OLKY, currency, fallBackCurrency);
+    }
+    if (!account && (amount > frickAmountLimit || currency === 'USD')) {
+      // amount > 9k => Frick || USD => Frick
+      account = this.getMatchingBank(banks, BankName.FRICK, currency, fallBackCurrency);
     }
     if (!account && (!ibanCodeCountry || ibanCodeCountry.maerkiBaumannEnable)) {
       // Valid Maerki Baumann country => MB CHF/USD/EUR

@@ -69,7 +69,7 @@ export class Fee extends IEntity {
   maxAnnualUserTxVolume: number; // EUR
 
   @Column({ length: 'MAX', nullable: true })
-  annualUserTxVolumes: string;
+  annualUserTxVolumes: string; // semicolon separated user volumes
 
   // Acceptance columns
 
@@ -188,15 +188,7 @@ export class Fee extends IEntity {
   //*** HELPER METHODS ***//
 
   private getUserTxUsages(): Record<number, number> {
-    return (
-      this.userTxUsages
-        ?.split(';')
-        .map((u) => u.split(':'))
-        .reduce((prev, [id, usages]) => {
-          prev[+id] = +usages;
-          return prev;
-        }, {}) ?? {}
-    );
+    return this.parseStringListToRecord(this.userTxUsages);
   }
 
   private setUserTxUsages(usages: Record<number, number>): void {
@@ -210,15 +202,7 @@ export class Fee extends IEntity {
   }
 
   private getAnnualUserTxVolumes(): Record<number, number> {
-    return (
-      this.annualUserTxVolumes
-        ?.split(';')
-        .map((u) => u.split(':'))
-        .reduce((prev, [id, volume]) => {
-          prev[+id] = +volume;
-          return prev;
-        }, {}) ?? {}
-    );
+    return this.parseStringListToRecord(this.annualUserTxVolumes);
   }
 
   private setAnnualUserTxVolumes(volumes: Record<number, number>): void {
@@ -229,5 +213,17 @@ export class Fee extends IEntity {
 
   private getAnnualUserTxVolume(userDataId: number): number {
     return this.getAnnualUserTxVolumes()[userDataId] ?? 0;
+  }
+
+  private parseStringListToRecord(list: string): Record<number, number> {
+    return (
+      list
+        ?.split(';')
+        .map((u) => u.split(':'))
+        .reduce((prev, [key, value]) => {
+          prev[+key] = +value;
+          return prev;
+        }, {}) ?? {}
+    );
   }
 }

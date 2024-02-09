@@ -69,10 +69,6 @@ export class BuyFiatPreparationService {
 
         const amountInEur = referenceEurPrice.convert(entity.inputReferenceAmount, 2);
 
-        for (const feeId of fee.fees) {
-          await this.feeService.increaseTxUsages(amountInEur, feeId, entity.sell.user.userData);
-        }
-
         await this.buyFiatRepo.update(
           ...entity.setFeeAndFiatReference(
             amountInEur,
@@ -87,6 +83,10 @@ export class BuyFiatPreparationService {
             referenceChfPrice.convert(fee.total, 2),
           ),
         );
+
+        for (const feeId of fee.fees) {
+          await this.feeService.increaseTxUsages(amountInEur, feeId, entity.sell.user.userData);
+        }
 
         await this.buyFiatService.updateSellVolume([entity.sell?.id]);
         await this.buyFiatService.updateRefVolume([entity.usedRef]);

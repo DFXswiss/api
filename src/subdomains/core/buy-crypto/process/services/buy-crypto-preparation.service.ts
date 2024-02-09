@@ -159,10 +159,6 @@ export class BuyCryptoPreparationService {
 
         const amountInEur = referenceEurPrice.convert(entity.inputReferenceAmount, 2);
 
-        for (const feeId of fee.fees) {
-          await this.feeService.increaseTxUsages(amountInEur, feeId, entity.user.userData);
-        }
-
         await this.buyCryptoRepo.update(
           ...entity.setFeeAndFiatReference(
             amountInEur,
@@ -177,6 +173,10 @@ export class BuyCryptoPreparationService {
             referenceChfPrice.convert(fee.total, 2),
           ),
         );
+
+        for (const feeId of fee.fees) {
+          await this.feeService.increaseTxUsages(amountInEur, feeId, entity.user.userData);
+        }
 
         await this.buyCryptoService.updateBuyVolume([entity.buy?.id]);
         await this.buyCryptoService.updateCryptoRouteVolume([entity.cryptoRoute?.id]);

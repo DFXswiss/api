@@ -137,7 +137,7 @@ export class UserDataService {
   }
 
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
-    const userData = await this.userDataRepo.findOne({
+    let userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
       relations: ['users', 'users.wallet'],
     });
@@ -175,8 +175,7 @@ export class UserDataService {
 
     await this.loadDtoRelations(userData, dto);
 
-    if (dto.kycLevel && dto.kycLevel !== userData.kycLevel)
-      await this.kycNotificationService.kycChanged(userData, dto.kycLevel);
+    const kycChanged = dto.kycLevel && dto.kycLevel !== userData.kycLevel;
 
     if (dto.bankTransactionVerification === CheckStatus.PASS) {
       // cancel a pending video ident, if ident is completed
@@ -190,7 +189,11 @@ export class UserDataService {
     if (userData.identificationType) dto.identificationType = userData.identificationType;
     if (userData.verifiedName && dto.verifiedName !== null) dto.verifiedName = userData.verifiedName;
 
-    return this.userDataRepo.save({ ...userData, ...dto });
+    userData = await this.userDataRepo.save({ ...userData, ...dto });
+
+    if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
+
+    return userData;
   }
 
   async updateKycData(user: UserData, data: KycUserDataDto): Promise<UserData> {
