@@ -46,12 +46,12 @@ export class CreateFeeDto {
   @IsOptional()
   @IsEnum([FiatPaymentMethod, CryptoPaymentMethod])
   @IsArray()
-  paymentMethodIns: (FiatPaymentMethod | CryptoPaymentMethod)[];
+  paymentMethodsInArray: (FiatPaymentMethod | CryptoPaymentMethod)[];
 
   @IsOptional()
   @IsEnum([FiatPaymentMethod, CryptoPaymentMethod])
   @IsArray()
-  paymentMethodOuts: (FiatPaymentMethod | CryptoPaymentMethod)[];
+  paymentMethodsOutArray: (FiatPaymentMethod | CryptoPaymentMethod)[];
 
   @IsOptional()
   @IsDate()

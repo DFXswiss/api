@@ -43,10 +43,10 @@ export class Fee extends IEntity {
   accountType: AccountType;
 
   @Column({ length: 'MAX', nullable: true })
-  paymentMethodIn: string;
+  paymentMethodsIn: string;
 
   @Column({ length: 'MAX', nullable: true })
-  paymentMethodOut: string;
+  paymentMethodsOut: string;
 
   @Column({ type: 'datetime2', nullable: true })
   expiryDate: Date;
@@ -148,8 +148,8 @@ export class Fee extends IEntity {
         this.isExpired(request.userDataId) ||
         (this.accountType && this.accountType !== request.accountType) ||
         (this.wallet && this.wallet.id !== request.wallet?.id) ||
-        (this.paymentMethodIn && !this.paymentMethodIn.includes(request.paymentMethodIn)) ||
-        (this.paymentMethodOut && !this.paymentMethodOut.includes(request.paymentMethodOut)) ||
+        (this.paymentMethodsIn && !this.paymentMethodsIn.includes(request.paymentMethodIn)) ||
+        (this.paymentMethodsOut && !this.paymentMethodsOut.includes(request.paymentMethodOut)) ||
         (this.assetList?.length && !this.assetList.includes(request.asset?.id)) ||
         (this.maxTxVolume && this.maxTxVolume < request.txVolume) ||
         (this.minTxVolume && this.minTxVolume > request.txVolume) ||

@@ -134,7 +134,7 @@ export class TransactionHelper implements OnModuleInit {
     user: User,
   ): Promise<TxFeeDetails> {
     // get fee
-    const feeAsset = this.getTxInfo(from, to);
+    const feeAsset = this.getFeeAsset(from, to);
     const specs = this.getSpecs(from, to);
 
     const fee = await this.getTxFee(
@@ -175,7 +175,7 @@ export class TransactionHelper implements OnModuleInit {
     discountCodes: string[] = [],
   ): Promise<TransactionDetails> {
     // get fee
-    const feeAsset = this.getTxInfo(from, to);
+    const feeAsset = this.getFeeAsset(from, to);
 
     const specs = this.getSpecs(from, to);
     const fee = await this.getTxFee(
@@ -366,7 +366,7 @@ export class TransactionHelper implements OnModuleInit {
     return isFiat ? Util.round(amount, -1) : Util.roundByPrecision(amount, 3);
   }
 
-  private getTxInfo(from: Asset | Fiat, to: Asset | Fiat): Asset {
+  private getFeeAsset(from: Asset | Fiat, to: Asset | Fiat): Asset {
     if (from instanceof Fiat && to instanceof Asset) return to;
     if (from instanceof Asset && to instanceof Fiat) return from;
     return to instanceof Asset ? to : undefined;

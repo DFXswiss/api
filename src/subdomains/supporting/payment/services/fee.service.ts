@@ -57,8 +57,8 @@ export class FeeService {
     // check if exists
     const existing = await this.feeRepo.findOneBy({
       label: dto.label,
-      paymentMethodIn: dto.paymentMethodIns.join(';'),
-      paymentMethodOut: dto.paymentMethodOuts.join(';'),
+      paymentMethodsIn: dto.paymentMethodsInArray.join(';'),
+      paymentMethodsOut: dto.paymentMethodsOutArray.join(';'),
     });
     if (existing) throw new BadRequestException('Fee already created');
     if (dto.type === FeeType.BASE && dto.createDiscountCode)
@@ -71,8 +71,8 @@ export class FeeService {
     // create the entity
     const fee = this.feeRepo.create(dto);
 
-    if (dto.paymentMethodIns) fee.paymentMethodIn = dto.paymentMethodIns.join(';');
-    if (dto.paymentMethodOuts) fee.paymentMethodOut = dto.paymentMethodOuts.join(';');
+    if (dto.paymentMethodsInArray) fee.paymentMethodsIn = dto.paymentMethodsInArray.join(';');
+    if (dto.paymentMethodsOutArray) fee.paymentMethodsOut = dto.paymentMethodsOutArray.join(';');
 
     if (dto.assetIds) {
       const assets = [];
