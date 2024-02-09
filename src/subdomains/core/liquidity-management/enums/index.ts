@@ -15,6 +15,7 @@ export enum LiquidityManagementSystem {
   DFX_DEX = 'DfxDex',
   ARBITRUM_L2_BRIDGE = 'ArbitrumL2Bridge',
   OPTIMISM_L2_BRIDGE = 'OptimismL2Bridge',
+  POLYGON_L2_BRIDGE = 'PolygonL2Bridge',
 }
 
 export enum LiquidityManagementRuleStatus {
