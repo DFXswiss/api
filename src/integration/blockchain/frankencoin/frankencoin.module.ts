@@ -6,6 +6,6 @@ import { FrankencoinService } from './frankencoin.service';
   imports: [LogModule],
   controllers: [],
   providers: [FrankencoinService],
-  exports: [],
+  exports: [FrankencoinService],
 })
 export class FrankencoinModule {}

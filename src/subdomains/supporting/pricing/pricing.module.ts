@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
+import { FrankencoinService } from 'src/integration/blockchain/frankencoin/frankencoin.service';
 import { SharedModule } from 'src/shared/shared.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { ExchangeModule } from '../../../integration/exchange/exchange.module';
 import { DexModule } from '../../../subdomains/supporting/dex/dex.module';
+import { LogModule } from '../log/log.module';
 import { AssetPricingMetadata } from './domain/entities/asset-pricing-metadata.entity';
 import { PriceRule } from './domain/entities/price-rule.entity';
 import { PricingController } from './pricing.controller';
@@ -19,6 +21,7 @@ import { PriceProviderDeFiChainService } from './services/integration/price-prov
 import { PricingCoinGeckoService } from './services/integration/pricing-coin-gecko.service';
 import { PricingDeFiChainService } from './services/integration/pricing-defichain.service';
 import { PricingDexService } from './services/integration/pricing-dex.service';
+import { PricingFrankencoinService } from './services/integration/pricing-frankencoin.service';
 import { PriceProviderService } from './services/price-provider.service';
 import { PricingService } from './services/pricing.service';
 import { PricingServiceNew } from './services/pricing.service.new';
@@ -31,6 +34,7 @@ import { PricingServiceNew } from './services/pricing.service.new';
     DexModule,
     NotificationModule,
     BlockchainModule,
+    LogModule,
   ],
   controllers: [PricingController],
   providers: [
@@ -48,6 +52,8 @@ import { PricingServiceNew } from './services/pricing.service.new';
     PricingDeFiChainService,
     PricingCoinGeckoService,
     PricingDexService,
+    PricingFrankencoinService,
+    FrankencoinService,
   ],
   exports: [PricingService, PriceProviderService],
 })
