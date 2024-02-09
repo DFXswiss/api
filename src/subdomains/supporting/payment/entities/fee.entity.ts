@@ -68,7 +68,7 @@ export class Fee extends IEntity {
   maxAnnualUserTxVolume: number; // EUR
 
   @Column({ length: 'MAX', nullable: true })
-  annualUserTxVolumes: string; // semicolon separated payment-methods
+  annualUserTxVolumes: string; // semicolon separated user volumes
 
   // Acceptance columns
 
@@ -218,8 +218,8 @@ export class Fee extends IEntity {
       list
         ?.split(';')
         .map((u) => u.split(':'))
-        .reduce((prev, [id, usages]) => {
-          prev[+id] = +usages;
+        .reduce((prev, [key, value]) => {
+          prev[+key] = +value;
           return prev;
         }, {}) ?? {}
     );
