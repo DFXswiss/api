@@ -15,7 +15,7 @@ import { FeeService } from 'src/subdomains/supporting/payment/services/fee.servi
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
 import { FeeDto } from '../dto/fee.dto';
-import { PaymentMethod } from '../dto/payment-method.enum';
+import { FiatPaymentMethod, PaymentMethod } from '../dto/payment-method.enum';
 import { TargetEstimation, TransactionDetails } from '../dto/transaction-details.dto';
 import { TxFeeDetails } from '../dto/tx-fee-details.dto';
 import { TxSpec, TxSpecExtended } from '../dto/tx-spec.dto';
@@ -223,7 +223,7 @@ export class TransactionHelper implements OnModuleInit {
         ? TransactionError.AMOUNT_TOO_LOW
         : txAmount > txSpecSource.maxVolume
         ? TransactionError.AMOUNT_TOO_HIGH
-        : paymentMethod === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed
+        : paymentMethodIn === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed
         ? TransactionError.KYC_REQUIRED
         : undefined;
 
