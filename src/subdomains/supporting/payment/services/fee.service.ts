@@ -57,8 +57,8 @@ export class FeeService {
     // check if exists
     const existing = await this.feeRepo.findOneBy({
       label: dto.label,
-      paymentMethodsIn: dto.paymentMethodsInArray.join(';'),
-      paymentMethodsOut: dto.paymentMethodsOutArray.join(';'),
+      paymentMethodsIn: dto.paymentMethodsInArray?.join(';'),
+      paymentMethodsOut: dto.paymentMethodsOutArray?.join(';'),
     });
     if (existing) throw new BadRequestException('Fee already created');
     if (dto.type === FeeType.BASE && dto.createDiscountCode)

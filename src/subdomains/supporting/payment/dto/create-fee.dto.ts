@@ -36,48 +36,8 @@ export class CreateFeeDto {
   fixed: number;
 
   @IsOptional()
-  @IsBoolean()
-  createDiscountCode = false;
-
-  @IsOptional()
-  @IsEnum(AccountType)
-  accountType: AccountType;
-
-  @IsOptional()
-  @IsEnum([FiatPaymentMethod, CryptoPaymentMethod])
-  @IsArray()
-  paymentMethodsInArray: (FiatPaymentMethod | CryptoPaymentMethod)[];
-
-  @IsOptional()
-  @IsEnum([FiatPaymentMethod, CryptoPaymentMethod])
-  @IsArray()
-  paymentMethodsOutArray: (FiatPaymentMethod | CryptoPaymentMethod)[];
-
-  @IsOptional()
-  @IsDate()
-  @Type(() => Date)
-  expiryDate: Date;
-
-  @IsOptional()
   @IsNumber()
-  minTxVolume: number; // EUR
-
-  @IsOptional()
-  @IsNumber()
-  maxTxVolume: number; // EUR
-
-  @ValidateIf((dto: CreateFeeDto) => dto.type === FeeType.BASE)
-  @IsNotEmpty()
-  @IsArray()
-  assetIds: number[];
-
-  @IsOptional()
-  @IsNumber()
-  maxUsages: number;
-
-  @IsOptional()
-  @IsNumber()
-  maxTxUsages: number;
+  blockchainFactor: number;
 
   @IsOptional()
   @IsBoolean()
@@ -87,13 +47,62 @@ export class CreateFeeDto {
   @IsBoolean()
   payoutRefBonus: boolean;
 
+  // Filter columns
+  @IsOptional()
+  @IsBoolean()
+  createDiscountCode = false;
+
+  @IsOptional()
+  @IsEnum(AccountType)
+  accountType: AccountType;
+
+  @IsOptional()
+  @IsArray()
+  paymentMethodsInArray: (FiatPaymentMethod | CryptoPaymentMethod)[];
+
+  @IsOptional()
+  @IsArray()
+  paymentMethodsOutArray: (FiatPaymentMethod | CryptoPaymentMethod)[];
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  expiryDate: Date;
+
+  @ValidateIf((dto: CreateFeeDto) => dto.type === FeeType.BASE)
+  @IsNotEmpty()
+  @IsArray()
+  assetIds: number[];
+
   @IsOptional()
   @IsObject()
   @ValidateNested()
   @Type(() => EntityDto)
   wallet: Wallet;
 
+  // Volume columns
   @IsOptional()
   @IsNumber()
-  blockchainFactor: number;
+  minTxVolume: number; // EUR
+
+  @IsOptional()
+  @IsNumber()
+  maxAnnualUserTxVolume: number; // EUR
+
+  @IsOptional()
+  @IsNumber()
+  maxTxVolume: number; // EUR
+
+  // Acceptance columns
+  @IsOptional()
+  @IsNumber()
+  maxUsages: number;
+
+  @IsOptional()
+  @IsNumber()
+  maxTxUsages: number;
+
+  @IsOptional()
+  @IsNumber()
+  maxUserTxUsages: number;
 }
