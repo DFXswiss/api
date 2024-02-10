@@ -135,14 +135,13 @@ export class TransactionHelper implements OnModuleInit {
     user: User,
   ): Promise<TxFeeDetails> {
     // get fee
-    const feeAsset = this.getFeeAsset(from, to);
     const specs = this.getSpecs(from, to);
-
     const fee = await this.getTxFee(
       user,
       paymentMethodIn,
       paymentMethodOut,
-      feeAsset,
+      from,
+      to,
       inputAmount,
       from,
       specs.minFee,
@@ -176,14 +175,13 @@ export class TransactionHelper implements OnModuleInit {
     discountCodes: string[] = [],
   ): Promise<TransactionDetails> {
     // get fee
-    const feeAsset = this.getFeeAsset(from, to);
-
     const specs = this.getSpecs(from, to);
     const fee = await this.getTxFee(
       user,
       paymentMethodIn,
       paymentMethodOut,
-      feeAsset,
+      from,
+      to,
       targetAmount ? targetAmount : sourceAmount,
       targetAmount ? to : from,
       specs.minFee,
@@ -244,7 +242,8 @@ export class TransactionHelper implements OnModuleInit {
     user: User | undefined,
     paymentMethodIn: PaymentMethod,
     paymentMethodOut: PaymentMethod,
-    asset: Asset,
+    from: Asset | Fiat,
+    to: Asset | Fiat,
     txVolume: number,
     txAsset: Asset | Fiat,
     minFeeEur: number,
@@ -258,7 +257,8 @@ export class TransactionHelper implements OnModuleInit {
       user,
       paymentMethodIn,
       paymentMethodOut,
-      asset,
+      from,
+      to,
       txVolume: txVolumeInEur,
       blockchainFee: minFeeEur,
       discountCodes,

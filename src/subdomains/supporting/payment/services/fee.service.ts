@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -35,7 +37,8 @@ export interface OptionalFeeRequest extends FeeRequestBase {
 export interface FeeRequestBase {
   paymentMethodIn: PaymentMethod;
   paymentMethodOut: PaymentMethod;
-  asset: Asset;
+  from: Asset | Fiat | undefined;
+  to: Asset | Fiat;
   txVolume?: number;
   blockchainFee: number;
   discountCodes: string[];
@@ -48,6 +51,7 @@ export class FeeService {
   constructor(
     private readonly feeRepo: FeeRepository,
     private readonly assetService: AssetService,
+    private readonly fiatService: FiatService,
     private readonly userDataService: UserDataService,
     private readonly settingService: SettingService,
     private readonly walletService: WalletService,
@@ -83,6 +87,17 @@ export class FeeService {
         assets.push(asset.id);
       }
       fee.assets = assets.join(';');
+    }
+
+    if (dto.fiatIds) {
+      const fiats = [];
+
+      for (const fiatId of dto.fiatIds) {
+        const fiat = await this.fiatService.getFiat(fiatId);
+        if (!fiat) throw new NotFoundException(`Fiat with id ${fiat} not found`);
+        fiats.push(fiat.id);
+      }
+      fee.fiats = fiats.join(';');
     }
 
     if (dto.wallet) fee.wallet = await this.walletService.getByIdOrName(dto.wallet.id);

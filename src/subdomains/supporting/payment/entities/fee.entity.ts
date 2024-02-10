@@ -1,5 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { Column, Entity, ManyToOne } from 'typeorm';
@@ -53,6 +55,9 @@ export class Fee extends IEntity {
 
   @Column({ length: 'MAX', nullable: true })
   assets: string; // semicolon separated id's
+
+  @Column({ length: 'MAX', nullable: true })
+  fiats: string; // semicolon separated id's
 
   @ManyToOne(() => Wallet, { nullable: true, eager: true })
   wallet: Wallet;
@@ -150,7 +155,12 @@ export class Fee extends IEntity {
         (this.wallet && this.wallet.id !== request.wallet?.id) ||
         (this.paymentMethodsIn && !this.paymentMethodsIn.includes(request.paymentMethodIn)) ||
         (this.paymentMethodsOut && !this.paymentMethodsOut.includes(request.paymentMethodOut)) ||
-        (this.assetList?.length && !this.assetList.includes(request.asset?.id)) ||
+        (this.assetList?.length &&
+          ((request.from && this.isAsset(request.from) && !this.assetList.includes(request.from.id)) ||
+            (this.isAsset(request.to) && !this.assetList.includes(request.to.id)))) ||
+        (this.fiatList?.length &&
+          ((request.from && !this.isAsset(request.from) && !this.fiatList.includes(request.from.id)) ||
+            (!this.isAsset(request.to) && !this.fiatList.includes(request.to.id)))) ||
         (this.maxTxVolume && this.maxTxVolume < request.txVolume) ||
         (this.minTxVolume && this.minTxVolume > request.txVolume) ||
         (this.maxAnnualUserTxVolume && this.maxAnnualUserTxVolume < annualUserTxVolume)
@@ -185,7 +195,15 @@ export class Fee extends IEntity {
     return this.assets?.split(';')?.map(Number);
   }
 
-  //*** HELPER METHODS ***//
+  get fiatList(): number[] {
+    return this.fiats?.split(';')?.map(Number);
+  }
+
+  //*** HELPER METHODS ***//+
+
+  private isAsset(asset: Asset | Fiat): boolean {
+    return asset instanceof Asset;
+  }
 
   private getUserTxUsages(): Record<number, number> {
     return this.parseStringListToRecord(this.userTxUsages);
