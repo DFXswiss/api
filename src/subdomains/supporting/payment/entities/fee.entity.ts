@@ -1,9 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
-import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
-import { Column, Entity, Index, ManyToOne } from 'typeorm';
+import { Column, Entity, ManyToOne } from 'typeorm';
 import { FeeRequest } from '../services/fee.service';
 
 export enum FeeType {
@@ -14,7 +13,6 @@ export enum FeeType {
 }
 
 @Entity()
-@Index((fee: Fee) => [fee.label, fee.direction], { unique: true })
 export class Fee extends IEntity {
   @Column({ length: 256 })
   label: string;
@@ -44,8 +42,11 @@ export class Fee extends IEntity {
   @Column({ length: 256, nullable: true })
   accountType: AccountType;
 
-  @Column({ length: 256, nullable: true })
-  direction: FeeDirectionType;
+  @Column({ length: 'MAX', nullable: true })
+  paymentMethodsIn: string; // semicolon separated payment-methods
+
+  @Column({ length: 'MAX', nullable: true })
+  paymentMethodsOut: string; // semicolon separated payment-methods
 
   @Column({ type: 'datetime2', nullable: true })
   expiryDate: Date;
@@ -147,7 +148,8 @@ export class Fee extends IEntity {
         this.isExpired(request.userDataId) ||
         (this.accountType && this.accountType !== request.accountType) ||
         (this.wallet && this.wallet.id !== request.wallet?.id) ||
-        (this.direction && this.direction !== request.direction) ||
+        (this.paymentMethodsIn && !this.paymentMethodsIn.includes(request.paymentMethodIn)) ||
+        (this.paymentMethodsOut && !this.paymentMethodsOut.includes(request.paymentMethodOut)) ||
         (this.assetList?.length && !this.assetList.includes(request.asset?.id)) ||
         (this.maxTxVolume && this.maxTxVolume < request.txVolume) ||
         (this.minTxVolume && this.minTxVolume > request.txVolume) ||

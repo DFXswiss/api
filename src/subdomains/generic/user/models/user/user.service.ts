@@ -23,6 +23,7 @@ import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.d
 import { KycDataMapper } from 'src/subdomains/generic/kyc/dto/mapper/kyc-data.mapper';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
+import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
 import { KycState, KycStatus, KycType, UserDataStatus } from '../user-data/user-data.entity';
@@ -36,7 +37,7 @@ import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
-import { FeeDirectionType, User, UserStatus } from './user.entity';
+import { User, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
 
 @Injectable()
@@ -297,7 +298,8 @@ export class UserService {
   // --- FEES --- //
   async getUserFee(
     userId: number,
-    direction: FeeDirectionType,
+    paymentMethodIn: PaymentMethod,
+    paymentMethodOut: PaymentMethod,
     asset: Asset,
     minFee: number,
     txVolume?: number,
@@ -305,7 +307,15 @@ export class UserService {
     const user = await this.getUser(userId, { userData: true });
     if (!user) throw new NotFoundException('User not found');
 
-    return this.feeService.getUserFee({ user, direction, asset, blockchainFee: minFee, txVolume, discountCodes: [] });
+    return this.feeService.getUserFee({
+      user,
+      paymentMethodIn,
+      paymentMethodOut,
+      asset,
+      blockchainFee: minFee,
+      txVolume,
+      discountCodes: [],
+    });
   }
 
   // --- REF --- //
