@@ -32,8 +32,6 @@ import { CheckStatus } from '../enums/check-status.enum';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 
-const externalManagedIban = ['CH3704835284238523000', 'BE48967056780227'];
-
 @Injectable()
 export class BuyCryptoService {
   constructor(
@@ -60,13 +58,16 @@ export class BuyCryptoService {
     // buy
     entity.buy = await this.getBuy(buyId);
 
-    const bankData = await this.bankDataService.getBankDataWithIban(bankTx.iban, entity.buy.user.userData.id);
-    const bankDataIban = this.getBankDataIban(bankTx);
-    if (!bankData && bankDataIban)
-      await this.bankDataService.createBankData(entity.buy.user.userData, {
-        iban: bankDataIban,
-        type: BankDataType.BANK_IN,
-      });
+    const senderAccount = bankTx.senderAccount;
+    if (senderAccount) {
+      const bankData = await this.bankDataService.getBankDataWithIban(senderAccount, entity.buy.user.userData.id);
+
+      if (!bankData)
+        await this.bankDataService.createBankData(entity.buy.user.userData, {
+          iban: senderAccount,
+          type: BankDataType.BANK_IN,
+        });
+    }
 
     return this.buyCryptoRepo.save(entity);
   }
@@ -289,17 +290,6 @@ export class BuyCryptoService {
   }
 
   // --- HELPER METHODS --- //
-
-  private getBankDataIban(bankTx: BankTx): string | undefined {
-    if (externalManagedIban.includes(bankTx.iban)) return `${bankTx.iban};${bankTx.completeName.split(' ').join('')}`;
-    if (!bankTx.iban) {
-      if (bankTx.name.startsWith('/C/')) return bankTx.name.split('/C/')[1];
-      if (bankTx.name === 'Schaltereinzahlung') return bankTx.name;
-    }
-    if (!isNaN(+bankTx.iban)) return `NOIBAN${bankTx.iban}`;
-    if (bankTx.iban) return bankTx.iban;
-    return undefined;
-  }
 
   private toHistoryDto(buyCrypto: BuyCrypto): HistoryDtoDeprecated {
     return {
