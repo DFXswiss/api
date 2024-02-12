@@ -66,11 +66,10 @@ export class LimitRequestNotificationService {
                 { key: MailKey.SPACE, params: { value: '4' } },
                 { key: `${MailTranslationKey.GENERAL}.thanks` },
                 { key: MailKey.SPACE, params: { value: '2' } },
-                { key: `${MailTranslationKey.GENERAL}.personal_questions` },
+                { key: `${MailTranslationKey.GENERAL}.team_questions` },
                 { key: MailKey.SPACE, params: { value: '2' } },
                 {
-                  key: `${MailTranslationKey.GENERAL}.personal_closing`,
-                  params: { closingName: Config.support.limitRequest.mailName.split(' ')[0] },
+                  key: `${MailTranslationKey.GENERAL}.dfx_team_closing`,
                 },
               ],
               from: Config.support.limitRequest.mailAddress,

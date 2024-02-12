@@ -12,10 +12,9 @@ import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
-import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
-import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { BuyCryptoService } from '../../process/services/buy-crypto.service';
 import { Buy } from './buy.entity';
@@ -70,7 +69,14 @@ export class BuyController {
   @Put('/quote')
   @ApiOkResponse({ type: BuyQuoteDto })
   async getBuyQuote(@Body() dto: GetBuyQuoteDto): Promise<BuyQuoteDto> {
-    const { amount: sourceAmount, currency, asset, targetAmount } = await this.paymentInfoService.buyCheck(dto);
+    const {
+      amount: sourceAmount,
+      currency,
+      asset,
+      targetAmount,
+      paymentMethod,
+      discountCode,
+    } = await this.paymentInfoService.buyCheck(dto);
 
     const {
       rate,
@@ -78,7 +84,16 @@ export class BuyController {
       feeAmount,
       estimatedAmount,
       sourceAmount: amount,
-    } = await this.transactionHelper.getTxDetails(sourceAmount, targetAmount, currency, asset, FiatPaymentMethod.BANK);
+    } = await this.transactionHelper.getTxDetails(
+      sourceAmount,
+      targetAmount,
+      currency,
+      asset,
+      paymentMethod,
+      CryptoPaymentMethod.CRYPTO,
+      undefined,
+      discountCode ? [discountCode] : [],
+    );
 
     return {
       feeAmount,
@@ -129,13 +144,19 @@ export class BuyController {
   }
 
   private async toDto(userId: number, buy: Buy): Promise<BuyDto> {
-    const fee = await this.userService.getUserFee(userId, FeeDirectionType.BUY, buy.asset);
-
     const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
       'Fiat',
       undefined,
       buy.asset.blockchain,
       buy.asset.dexName,
+    );
+
+    const fee = await this.userService.getUserFee(
+      userId,
+      FiatPaymentMethod.BANK,
+      CryptoPaymentMethod.CRYPTO,
+      buy.asset,
+      minFee.amount,
     );
 
     return {
@@ -148,7 +169,7 @@ export class BuyController {
       asset: AssetDtoMapper.entityToDto(buy.asset),
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposits: [minDeposit],
-      minFee,
+      minFee: { amount: fee.blockchain, asset: 'EUR' },
     };
   }
 
@@ -175,6 +196,7 @@ export class BuyController {
       dto.currency,
       dto.asset,
       dto.paymentMethod,
+      CryptoPaymentMethod.CRYPTO,
       user,
     );
     const bankInfo = await this.getBankInfo(buy, { ...dto, amount });
@@ -222,7 +244,7 @@ export class BuyController {
       amount: dto.amount,
       currency: dto.currency.name,
       bankAccount: buy.bankAccount,
-      kycStatus: buy.user.userData.kycStatus,
+      paymentMethod: dto.paymentMethod,
     });
 
     if (!bank) throw new BadRequestException('No Bank for the given amount/currency');

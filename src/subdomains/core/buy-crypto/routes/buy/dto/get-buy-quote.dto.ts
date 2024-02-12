@@ -1,10 +1,21 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsNotEmpty, IsNotEmptyObject, IsNumber, Validate, ValidateIf, ValidateNested } from 'class-validator';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsNotEmptyObject,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Validate,
+  ValidateIf,
+  ValidateNested,
+} from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { XOR } from 'src/shared/validators/xor.validator';
+import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 
 export class GetBuyQuoteDto {
   @ApiProperty({ type: EntityDto, description: 'Source currency' })
@@ -32,4 +43,14 @@ export class GetBuyQuoteDto {
   @Validate(XOR, ['amount'])
   @IsNumber()
   targetAmount: number;
+
+  @ApiPropertyOptional({ description: 'Payment method', enum: FiatPaymentMethod })
+  @IsNotEmpty()
+  @IsEnum(FiatPaymentMethod)
+  paymentMethod: FiatPaymentMethod = FiatPaymentMethod.BANK;
+
+  @ApiPropertyOptional({ description: 'Discount code' })
+  @IsOptional()
+  @IsString()
+  discountCode: string;
 }

@@ -147,8 +147,8 @@ export class CryptoInput extends IEntity {
     const maxFee = Math.max(totalAmount * Config.payIn.forwardFeeLimit, minInputFee);
 
     if (estimatedFee > maxFee) {
-      const feePercent = Util.round((estimatedFee / totalAmount) * 100, 1);
-      throw new FeeLimitExceededException(`Forward fee is too high (${estimatedFee}, ${feePercent}%)`);
+      const feePercent = Util.toPercent(estimatedFee / totalAmount);
+      throw new FeeLimitExceededException(`Forward fee is too high (${estimatedFee}, ${feePercent})`);
     }
   }
 

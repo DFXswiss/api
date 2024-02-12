@@ -13,6 +13,7 @@ import { CryptoService } from 'src/integration/blockchain/shared/services/crypto
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
@@ -23,6 +24,7 @@ import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.d
 import { KycDataMapper } from 'src/subdomains/generic/kyc/dto/mapper/kyc-data.mapper';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
+import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
 import { KycState, KycStatus, KycType, UserDataStatus } from '../user-data/user-data.entity';
@@ -36,7 +38,7 @@ import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
-import { FeeDirectionType, User, UserStatus } from './user.entity';
+import { User, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
 
 @Injectable()
@@ -295,11 +297,27 @@ export class UserService {
   }
 
   // --- FEES --- //
-  async getUserFee(userId: number, direction: FeeDirectionType, asset: Asset, txVolume?: number): Promise<FeeDto> {
+  async getUserFee(
+    userId: number,
+    paymentMethodIn: PaymentMethod,
+    paymentMethodOut: PaymentMethod,
+    to: Asset | Fiat,
+    minFee: number,
+    txVolume?: number,
+  ): Promise<FeeDto> {
     const user = await this.getUser(userId, { userData: true });
     if (!user) throw new NotFoundException('User not found');
 
-    return this.feeService.getUserFee({ user, direction, asset, txVolume });
+    return this.feeService.getUserFee({
+      user,
+      paymentMethodIn,
+      paymentMethodOut,
+      from: undefined,
+      to,
+      blockchainFee: minFee,
+      txVolume,
+      discountCodes: [],
+    });
   }
 
   // --- REF --- //

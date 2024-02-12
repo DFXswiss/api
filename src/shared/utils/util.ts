@@ -21,6 +21,10 @@ export class Util {
     return new BigNumber(Math.round(amount / value)).multipliedBy(value).toNumber();
   }
 
+  static toPercent(num: number): string {
+    return `${this.round(num * 100, 2)}%`;
+  }
+
   static roundByPrecision(amount: number, precision: number): number {
     return new BigNumber(amount).precision(precision).toNumber();
   }

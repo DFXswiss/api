@@ -1,18 +1,21 @@
 import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { FeeDirectionType, User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { In, IsNull } from 'typeorm';
 import { CreateFeeDto } from '../dto/create-fee.dto';
 import { FeeDto } from '../dto/fee.dto';
+import { PaymentMethod } from '../dto/payment-method.enum';
 import { Fee, FeeType } from '../entities/fee.entity';
 import { FeeRepository } from '../repositories/fee.repository';
 
@@ -32,9 +35,13 @@ export interface OptionalFeeRequest extends FeeRequestBase {
 }
 
 export interface FeeRequestBase {
-  direction: FeeDirectionType;
-  asset: Asset;
+  paymentMethodIn: PaymentMethod;
+  paymentMethodOut: PaymentMethod;
+  from: Asset | Fiat | undefined;
+  to: Asset | Fiat;
   txVolume?: number;
+  blockchainFee: number;
+  discountCodes: string[];
 }
 
 @Injectable()
@@ -44,6 +51,7 @@ export class FeeService {
   constructor(
     private readonly feeRepo: FeeRepository,
     private readonly assetService: AssetService,
+    private readonly fiatService: FiatService,
     private readonly userDataService: UserDataService,
     private readonly settingService: SettingService,
     private readonly walletService: WalletService,
@@ -53,18 +61,22 @@ export class FeeService {
     // check if exists
     const existing = await this.feeRepo.findOneBy({
       label: dto.label,
-      direction: dto.direction,
+      paymentMethodsIn: dto.paymentMethodsInArray?.join(';'),
+      paymentMethodsOut: dto.paymentMethodsOutArray?.join(';'),
     });
     if (existing) throw new BadRequestException('Fee already created');
     if (dto.type === FeeType.BASE && dto.createDiscountCode)
       throw new BadRequestException('Base fees cannot have a discountCode');
-    if (dto.type === FeeType.DISCOUNT && !dto.createDiscountCode && dto.maxUsages)
+    if ((dto.type === FeeType.DISCOUNT || dto.type === FeeType.ADDITION) && !dto.createDiscountCode && dto.maxUsages)
       throw new BadRequestException('Discount fees without a code cannot have a maxUsage');
     if (dto.type === FeeType.BASE && (!dto.accountType || !dto.assetIds))
       throw new BadRequestException('Base fees must have an accountType and assetIds');
 
     // create the entity
     const fee = this.feeRepo.create(dto);
+
+    if (dto.paymentMethodsInArray) fee.paymentMethodsIn = dto.paymentMethodsInArray.join(';');
+    if (dto.paymentMethodsOutArray) fee.paymentMethodsOut = dto.paymentMethodsOutArray.join(';');
 
     if (dto.assetIds) {
       const assets = [];
@@ -75,6 +87,17 @@ export class FeeService {
         assets.push(asset.id);
       }
       fee.assets = assets.join(';');
+    }
+
+    if (dto.fiatIds) {
+      const fiats = [];
+
+      for (const fiatId of dto.fiatIds) {
+        const fiat = await this.fiatService.getFiat(fiatId);
+        if (!fiat) throw new NotFoundException(`Fiat with id ${fiatId} not found`);
+        fiats.push(fiat.id);
+      }
+      fee.fiats = fiats.join(';');
     }
 
     if (dto.wallet) fee.wallet = await this.walletService.getByIdOrName(dto.wallet.id);
@@ -123,9 +146,10 @@ export class FeeService {
     await this.userDataService.addFee(userData, fee.id);
   }
 
-  async increaseTxUsages(fee: Fee, userData: UserData): Promise<void> {
+  async increaseTxUsages(txVolume: number, fee: Fee, userData: UserData): Promise<void> {
     await this.feeRepo.update(...fee.increaseTxUsage());
     if (fee.maxUserTxUsages) await this.feeRepo.update(...fee.increaseUserTxUsage(userData.id));
+    if (fee.maxAnnualUserTxVolume) await this.feeRepo.update(...fee.increaseAnnualUserTxVolume(userData.id, txVolume));
   }
 
   async getFeeByDiscountCode(discountCode: string): Promise<Fee> {
@@ -137,18 +161,18 @@ export class FeeService {
   async getUserFee(request: UserFeeRequest): Promise<FeeDto> {
     const userFees = await this.getValidFees(request);
 
-    return this.calculateFee(userFees, request.user.userData?.id);
+    return this.calculateFee(userFees, request.blockchainFee, request.user.userData?.id);
   }
 
   async getDefaultFee(request: FeeRequestBase, accountType = AccountType.PERSONAL): Promise<FeeDto> {
     const defaultFees = await this.getValidFees({ ...request, accountType });
 
-    return this.calculateFee(defaultFees);
+    return this.calculateFee(defaultFees, request.blockchainFee);
   }
 
   // --- HELPER METHODS --- //
 
-  private calculateFee(fees: Fee[], userDataId?: number): FeeDto {
+  private calculateFee(fees: Fee[], blockchainFee: number, userDataId?: number): FeeDto {
     // get min custom fee
     const customFee = Util.minObj(
       fees.filter((fee) => fee.type === FeeType.CUSTOM),
@@ -160,6 +184,7 @@ export class FeeService {
         rate: customFee.rate,
         fixed: customFee.fixed ?? 0,
         payoutRefBonus: customFee.payoutRefBonus,
+        blockchain: customFee.blockchainFactor * blockchainFee,
       };
 
     // get min base fee
@@ -168,36 +193,45 @@ export class FeeService {
       'rate',
     );
 
-    // get max discount > 0
-    const positiveDiscountFee = Util.maxObj(
-      fees.filter((fee) => fee.type === FeeType.DISCOUNT && (fee.rate > 0 || (fee.rate == 0 && fee.fixed > 0))),
+    // get max discount
+    const discountFee = Util.maxObj(
+      fees.filter((fee) => fee.type === FeeType.DISCOUNT),
       'rate',
     );
 
-    // get min discount < 0
-    const negativeDiscountFee = Util.minObj(
-      fees.filter((fee) => fee.type === FeeType.DISCOUNT && (fee.rate < 0 || (fee.rate == 0 && fee.fixed < 0))),
-      'rate',
-    );
+    // get addition fees
+    const additiveFees = fees.filter((fee) => fee.type === FeeType.ADDITION);
 
-    const discountFee: FeeDto = {
-      fees: [positiveDiscountFee, negativeDiscountFee],
-      rate: (positiveDiscountFee?.rate ?? 0) + (negativeDiscountFee?.rate ?? 0),
-      fixed: (positiveDiscountFee?.fixed ?? 0) + (negativeDiscountFee?.fixed ?? 0),
-      payoutRefBonus: (positiveDiscountFee?.payoutRefBonus ?? true) && (negativeDiscountFee?.payoutRefBonus ?? true),
-    };
+    const combinedExtraFeeRate = Util.sumObjValue(additiveFees, 'rate') - (discountFee?.rate ?? 0);
+    const combinedExtraFixedFee = Util.sumObjValue(additiveFees, 'fixed') - (discountFee?.fixed ?? 0);
 
     if (!baseFee) throw new InternalServerErrorException('Base fee is missing');
-    if (baseFee.rate - discountFee.rate < 0) {
+    if (baseFee.rate + combinedExtraFeeRate < 0) {
       this.logger.warn(`UserDiscount higher userBaseFee! UserDataId: ${userDataId}`);
-      return { fees: [baseFee], rate: baseFee.rate, fixed: baseFee.fixed, payoutRefBonus: true };
+      return {
+        fees: [baseFee],
+        rate: baseFee.rate,
+        fixed: baseFee.fixed,
+        payoutRefBonus: true,
+        blockchain: blockchainFee * baseFee.blockchainFactor,
+      };
     }
 
     return {
-      fees: [baseFee, ...discountFee.fees].filter((e) => e != null),
-      rate: baseFee.rate - discountFee.rate,
-      fixed: Math.max(baseFee.fixed - discountFee.fixed, 0),
-      payoutRefBonus: baseFee.payoutRefBonus && discountFee.payoutRefBonus,
+      fees: [baseFee, discountFee, ...additiveFees].filter((e) => e != null),
+      rate: baseFee.rate + combinedExtraFeeRate,
+      fixed: Math.max(baseFee.fixed + combinedExtraFixedFee, 0),
+      payoutRefBonus:
+        baseFee.payoutRefBonus &&
+        (discountFee?.payoutRefBonus ?? true) &&
+        additiveFees.every((fee) => fee.payoutRefBonus),
+      blockchain: Math.max(
+        blockchainFee *
+          (baseFee.blockchainFactor -
+            (discountFee?.blockchainFactor ?? 0) +
+            Util.sumObjValue(additiveFees, 'blockchainFactor')),
+        0,
+      ),
     };
   }
 
@@ -211,7 +245,9 @@ export class FeeService {
     const userFees = await this.feeRepo.findBy([
       { type: FeeType.BASE },
       { type: FeeType.DISCOUNT, discountCode: IsNull() },
+      { type: FeeType.ADDITION, discountCode: IsNull() },
       { id: In(discountFeeIds) },
+      { discountCode: In(request.discountCodes) },
     ]);
 
     // remove ExpiredFee

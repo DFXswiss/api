@@ -305,7 +305,7 @@ export class BuyFiat extends IEntity {
   }
 
   get percentFeeString(): string {
-    return `${Util.round(this.percentFee * 100, 2)}%`;
+    return Util.toPercent(this.percentFee);
   }
 
   get cryptoInputBlockchain(): Blockchain {

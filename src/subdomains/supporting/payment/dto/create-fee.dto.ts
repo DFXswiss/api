@@ -14,9 +14,9 @@ import {
 } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
-import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { FeeType } from '../entities/fee.entity';
+import { CryptoPaymentMethod, FiatPaymentMethod } from './payment-method.enum';
 
 export class CreateFeeDto {
   @IsNotEmpty()
@@ -36,42 +36,8 @@ export class CreateFeeDto {
   fixed: number;
 
   @IsOptional()
-  @IsBoolean()
-  createDiscountCode = false;
-
-  @IsOptional()
-  @IsEnum(AccountType)
-  accountType: AccountType;
-
-  @IsOptional()
-  @IsEnum(FeeDirectionType)
-  direction: FeeDirectionType;
-
-  @IsOptional()
-  @IsDate()
-  @Type(() => Date)
-  expiryDate: Date;
-
-  @IsOptional()
   @IsNumber()
-  minTxVolume: number; // EUR
-
-  @IsOptional()
-  @IsNumber()
-  maxTxVolume: number; // EUR
-
-  @ValidateIf((dto: CreateFeeDto) => dto.type === FeeType.BASE)
-  @IsNotEmpty()
-  @IsArray()
-  assetIds: number[];
-
-  @IsOptional()
-  @IsNumber()
-  maxUsages: number;
-
-  @IsOptional()
-  @IsNumber()
-  maxTxUsages: number;
+  blockchainFactor: number;
 
   @IsOptional()
   @IsBoolean()
@@ -81,9 +47,67 @@ export class CreateFeeDto {
   @IsBoolean()
   payoutRefBonus: boolean;
 
+  // Filter columns
+  @IsOptional()
+  @IsBoolean()
+  createDiscountCode = false;
+
+  @IsOptional()
+  @IsEnum(AccountType)
+  accountType: AccountType;
+
+  @IsOptional()
+  @IsArray()
+  paymentMethodsInArray: (FiatPaymentMethod | CryptoPaymentMethod)[];
+
+  @IsOptional()
+  @IsArray()
+  paymentMethodsOutArray: (FiatPaymentMethod | CryptoPaymentMethod)[];
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  expiryDate: Date;
+
+  @ValidateIf((dto: CreateFeeDto) => dto.type === FeeType.BASE)
+  @IsNotEmpty()
+  @IsArray()
+  assetIds: number[];
+
+  @ValidateIf((dto: CreateFeeDto) => dto.type === FeeType.BASE)
+  @IsNotEmpty()
+  @IsArray()
+  fiatIds: number[];
+
   @IsOptional()
   @IsObject()
   @ValidateNested()
   @Type(() => EntityDto)
   wallet: Wallet;
+
+  // Volume columns
+  @IsOptional()
+  @IsNumber()
+  minTxVolume: number; // EUR
+
+  @IsOptional()
+  @IsNumber()
+  maxAnnualUserTxVolume: number; // EUR
+
+  @IsOptional()
+  @IsNumber()
+  maxTxVolume: number; // EUR
+
+  // Acceptance columns
+  @IsOptional()
+  @IsNumber()
+  maxUsages: number;
+
+  @IsOptional()
+  @IsNumber()
+  maxTxUsages: number;
+
+  @IsOptional()
+  @IsNumber()
+  maxUserTxUsages: number;
 }

@@ -381,7 +381,7 @@ export class KycService {
 
       case KycStepName.IDENT:
         kycStep.transactionId = IdentService.transactionId(user, kycStep);
-        kycStep.sessionId = await this.identService.initiateIdent(kycStep);
+        kycStep.sessionId = await this.identService.initiateIdent(user, kycStep);
         break;
     }
 

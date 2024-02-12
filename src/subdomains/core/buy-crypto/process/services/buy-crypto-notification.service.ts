@@ -90,7 +90,7 @@ export class BuyCryptoNotificationService {
                   [`${MailTranslationKey.PAYMENT}.output_blockchain`]: tx.cryptoInput
                     ? `${tx.outputAsset.blockchain}`
                     : null,
-                  [`${MailTranslationKey.PAYMENT}.dfx_fee`]: `${Util.round(tx.percentFee * 100, 2)}%` + minFee,
+                  [`${MailTranslationKey.PAYMENT}.dfx_fee`]: Util.toPercent(tx.percentFee) + minFee,
                   [`${MailTranslationKey.PAYMENT}.wallet_address`]: Util.blankStart(tx.target.address),
                 },
                 suffix: [{ key: MailKey.SPACE, params: { value: '4' } }, { key: MailKey.DFX_TEAM_CLOSING }],
@@ -159,7 +159,7 @@ export class BuyCryptoNotificationService {
                   [`${MailTranslationKey.PAYMENT}.output_blockchain`]: tx.cryptoInput
                     ? `${tx.outputAsset.blockchain}`
                     : null,
-                  [`${MailTranslationKey.PAYMENT}.dfx_fee`]: `${Util.round(tx.percentFee * 100, 2)}%` + minFee,
+                  [`${MailTranslationKey.PAYMENT}.dfx_fee`]: Util.toPercent(tx.percentFee) + minFee,
                   [`${MailTranslationKey.PAYMENT}.exchange_rate`]: `${tx.exchangeRateString}`,
                   [`${MailTranslationKey.PAYMENT}.wallet_address`]: Util.blankStart(tx.target.address),
                   [`${MailTranslationKey.PAYMENT}.transaction_id`]: tx.isLightningOutput

@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { IbanDetailsDto, IbanService } from 'src/integration/bank/services/iban.service';
 import { CountryService } from 'src/shared/models/country/country.service';
@@ -50,28 +50,11 @@ export class BankAccountService {
   }
 
   async createBankAccount(userId: number, dto: CreateBankAccountDto): Promise<BankAccount> {
-    const { id: userDataId, kycType: kycType } = await this.userDataService.getUserDataByUser(userId);
-
-    const existing = await this.bankAccountRepo.findOne({
-      where: { iban: dto.iban, userData: { id: userDataId } },
-      relations: ['userData'],
-    });
-    if (existing) {
-      if (existing.active) throw new ConflictException('BankAccount already exists');
-
-      if (!existing.active) {
-        // reactivate deleted bank account
-        existing.active = true;
-        await this.bankAccountRepo.save(existing);
-      }
-
-      return existing;
-    }
+    const { id: userDataId, kycType } = await this.userDataService.getUserDataByUser(userId);
 
     const bankAccount = await this.getOrCreateBankAccountInternal(dto.iban, userDataId, kycType);
 
-    const update = await this.updateEntity(dto, bankAccount);
-    return this.bankAccountRepo.save(update);
+    return this.updateEntity(dto, bankAccount);
   }
 
   async updateBankAccount(id: number, userId: number, dto: UpdateBankAccountDto): Promise<BankAccount> {
@@ -83,8 +66,7 @@ export class BankAccountService {
     });
     if (!bankAccount) throw new NotFoundException('BankAccount not found');
 
-    const update = await this.updateEntity(dto, bankAccount);
-    return this.bankAccountRepo.save(update);
+    return this.updateEntity(dto, bankAccount);
   }
 
   // --- INTERNAL METHODS --- //
@@ -118,7 +100,7 @@ export class BankAccountService {
       if (!bankAccount.preferredCurrency) throw new BadRequestException('Currency not found');
     }
 
-    return bankAccount;
+    return this.bankAccountRepo.save(bankAccount);
   }
 
   async getOrCreateBankAccountInternal(iban: string, userDataId: number, kycType: KycType): Promise<BankAccount> {

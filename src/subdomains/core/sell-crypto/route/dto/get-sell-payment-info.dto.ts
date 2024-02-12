@@ -43,4 +43,9 @@ export class GetSellPaymentInfoDto {
   //@Validate(XOR, ['amount'])
   @IsNumber()
   targetAmount: number;
+
+  @ApiPropertyOptional({ description: 'Custom transaction id' })
+  @IsOptional()
+  @IsString()
+  externalTransactionId?: string;
 }

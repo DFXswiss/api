@@ -9,7 +9,7 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
-import { FeeDirectionType, User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/min-amount.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
@@ -31,6 +31,7 @@ export enum TransactionError {
   AMOUNT_TOO_LOW = 'AmountTooLow',
   AMOUNT_TOO_HIGH = 'AmountTooHigh',
   BANK_TRANSACTION_MISSING = 'BankTransactionMissing',
+  KYC_REQUIRED = 'KycRequired',
 }
 
 @Injectable()
@@ -128,18 +129,26 @@ export class TransactionHelper implements OnModuleInit {
     inputAmount: number,
     from: Asset | Fiat,
     to: Asset | Fiat,
+    paymentMethodIn: PaymentMethod,
+    paymentMethodOut: PaymentMethod,
     referencePrice: Price,
     user: User,
-    paymentMethod: PaymentMethod,
   ): Promise<TxFeeDetails> {
     // get fee
-    const { direction, feeAsset } = this.getTxInfo(from, to);
-
-    const fee = await this.getTxFee(user, direction, feeAsset, inputAmount, from, paymentMethod);
-
-    // get specs
     const specs = this.getSpecs(from, to);
-    const txSpecSource = await this.convertToSource(from, { ...specs, fixedFee: fee.fixed });
+    const fee = await this.getTxFee(
+      user,
+      paymentMethodIn,
+      paymentMethodOut,
+      from,
+      to,
+      inputAmount,
+      from,
+      specs.minFee,
+      [],
+    );
+
+    const txSpecSource = await this.convertToSource(from, { ...specs, fixedFee: fee.fixed, minFee: fee.blockchain });
 
     const percentFeeAmount = inputAmount * fee.rate;
     const feeAmount = Math.max(percentFeeAmount + txSpecSource.fixedFee, txSpecSource.minFee);
@@ -160,26 +169,29 @@ export class TransactionHelper implements OnModuleInit {
     targetAmount: number | undefined,
     from: Asset | Fiat,
     to: Asset | Fiat,
-    paymentMethod: PaymentMethod,
+    paymentMethodIn: PaymentMethod,
+    paymentMethodOut: PaymentMethod,
     user?: User,
+    discountCodes: string[] = [],
   ): Promise<TransactionDetails> {
     // get fee
-    const { direction, feeAsset } = this.getTxInfo(from, to);
-
+    const specs = this.getSpecs(from, to);
     const fee = await this.getTxFee(
       user,
-      direction,
-      feeAsset,
+      paymentMethodIn,
+      paymentMethodOut,
+      from,
+      to,
       targetAmount ? targetAmount : sourceAmount,
       targetAmount ? to : from,
-      paymentMethod,
+      specs.minFee,
+      discountCodes,
     );
 
-    // get specs
-    const specs = this.getSpecs(from, to);
     const extendedSpecs = {
       ...specs,
-      maxVolume: user?.userData?.availableTradingLimit ?? Config.defaultDailyTradingLimit,
+      minFee: fee.blockchain,
+      maxVolume: user?.userData.availableTradingLimit ?? Config.defaultDailyTradingLimit,
       fixedFee: fee.fixed,
     };
 
@@ -209,6 +221,8 @@ export class TransactionHelper implements OnModuleInit {
         ? TransactionError.AMOUNT_TOO_LOW
         : txAmount > txSpecSource.maxVolume
         ? TransactionError.AMOUNT_TOO_HIGH
+        : paymentMethodIn === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed
+        ? TransactionError.KYC_REQUIRED
         : undefined;
 
     return {
@@ -226,21 +240,31 @@ export class TransactionHelper implements OnModuleInit {
 
   private async getTxFee(
     user: User | undefined,
-    direction: FeeDirectionType,
-    asset: Asset,
+    paymentMethodIn: PaymentMethod,
+    paymentMethodOut: PaymentMethod,
+    from: Asset | Fiat,
+    to: Asset | Fiat,
     txVolume: number,
     txAsset: Asset | Fiat,
-    paymentMethod: PaymentMethod,
+    minFeeEur: number,
+    discountCodes: string[],
   ): Promise<FeeDto> {
     const price = await this.priceProviderService.getPrice(txAsset, this.eur);
 
     const txVolumeInEur = price.convert(txVolume);
 
-    return paymentMethod === FiatPaymentMethod.CARD
-      ? { fees: [], rate: Config.buy.fee.card, fixed: 0, payoutRefBonus: true }
-      : user
-      ? this.feeService.getUserFee({ user, direction, asset, txVolume: txVolumeInEur })
-      : this.feeService.getDefaultFee({ direction, asset, txVolume: txVolumeInEur });
+    const feeRequest = {
+      user,
+      paymentMethodIn,
+      paymentMethodOut,
+      from,
+      to,
+      txVolume: txVolumeInEur,
+      blockchainFee: minFeeEur,
+      discountCodes,
+    };
+
+    return user ? this.feeService.getUserFee(feeRequest) : this.feeService.getDefaultFee(feeRequest);
   }
 
   private async getTargetEstimation(
@@ -343,11 +367,5 @@ export class TransactionHelper implements OnModuleInit {
 
   private roundMaxAmount(amount: number, isFiat: boolean): number {
     return isFiat ? Util.round(amount, -1) : Util.roundByPrecision(amount, 3);
-  }
-
-  private getTxInfo(from: Asset | Fiat, to: Asset | Fiat): { direction: FeeDirectionType; feeAsset: Asset } {
-    if (from instanceof Fiat && to instanceof Asset) return { direction: FeeDirectionType.BUY, feeAsset: to };
-    if (from instanceof Asset && to instanceof Fiat) return { direction: FeeDirectionType.SELL, feeAsset: from };
-    return { direction: FeeDirectionType.CONVERT, feeAsset: to instanceof Asset ? to : undefined };
   }
 }

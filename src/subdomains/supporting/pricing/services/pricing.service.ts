@@ -157,7 +157,7 @@ export class PricingService {
             providers: [this.binanceService],
           },
           reference: {
-            providers: [this.kucoinService, this.krakenService, this.bitstampService, this.bitpandaService],
+            providers: [this.krakenService, this.bitstampService, this.bitpandaService],
           },
         }),
       ]),
