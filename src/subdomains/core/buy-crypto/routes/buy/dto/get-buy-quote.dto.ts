@@ -44,7 +44,7 @@ export class GetBuyQuoteDto {
   @IsNumber()
   targetAmount: number;
 
-  @ApiPropertyOptional({ description: 'Payment method' })
+  @ApiPropertyOptional({ description: 'Payment method', enum: FiatPaymentMethod })
   @IsNotEmpty()
   @IsEnum(FiatPaymentMethod)
   paymentMethod: FiatPaymentMethod = FiatPaymentMethod.BANK;
