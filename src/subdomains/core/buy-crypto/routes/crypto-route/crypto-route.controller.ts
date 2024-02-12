@@ -16,7 +16,9 @@ import { HistoryDtoDeprecated } from 'src/subdomains/core/history/dto/history.dt
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { CryptoRoute } from './crypto-route.entity';
 import { CryptoRouteService } from './crypto-route.service';
 import { CreateCryptoRouteDto } from './dto/create-crypto-route.dto';
@@ -37,6 +39,7 @@ export class CryptoRouteController {
     private readonly paymentInfoService: PaymentInfoService,
     private readonly transactionHelper: TransactionHelper,
     private readonly cryptoService: CryptoService,
+    private readonly transactionRequestService: TransactionRequestService,
   ) {}
 
   @Get()
@@ -210,7 +213,7 @@ export class CryptoRouteController {
       user,
     );
 
-    return {
+    const cryptoDto = {
       routeId: cryptoRoute.id,
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       depositAddress: cryptoRoute.deposit.address,
@@ -237,5 +240,9 @@ export class CryptoRouteController {
       isValid,
       error,
     };
+
+    await this.transactionRequestService.createTransactionRequest(cryptoDto, TransactionRequestType.Sell);
+
+    return cryptoDto;
   }
 }

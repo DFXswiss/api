@@ -15,7 +15,9 @@ import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { BuyCryptoService } from '../../process/services/buy-crypto.service';
 import { Buy } from './buy.entity';
 import { BuyService } from './buy.service';
@@ -39,6 +41,7 @@ export class BuyController {
     private readonly bankService: BankService,
     private readonly transactionHelper: TransactionHelper,
     private readonly checkoutService: CheckoutService,
+    private readonly transactionRequestService: TransactionRequestService,
   ) {}
 
   @Get()
@@ -113,13 +116,14 @@ export class BuyController {
     @Body() dto: GetBuyPaymentInfoDto,
   ): Promise<BuyPaymentInfoDto> {
     dto = await this.paymentInfoService.buyCheck(dto, jwt);
+
     return Util.retry(
       () => this.buyService.createBuy(jwt.id, jwt.address, dto, true),
       2,
       0,
       undefined,
       (e) => e.message?.includes('duplicate key'),
-    ).then((buy) => this.toPaymentInfoDto(jwt.id, buy, dto));
+    ).then((buy) => this.toPaymentInfoDto(jwt.id, buy, dto).then());
   }
 
   @Put(':id')
@@ -201,7 +205,7 @@ export class BuyController {
     );
     const bankInfo = await this.getBankInfo(buy, { ...dto, amount });
 
-    return {
+    const buyDto = {
       routeId: buy.id,
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposit: { amount: minVolume, asset: dto.currency.name }, // TODO: remove
@@ -236,6 +240,10 @@ export class BuyController {
             )
           : undefined,
     };
+
+    await this.transactionRequestService.createTransactionRequest(buyDto, TransactionRequestType.Buy);
+
+    return buyDto;
   }
 
   // --- HELPER-METHODS --- //
