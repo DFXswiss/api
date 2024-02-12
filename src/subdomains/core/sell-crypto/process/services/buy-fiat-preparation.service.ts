@@ -3,7 +3,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
@@ -58,21 +58,20 @@ export class BuyFiatPreparationService {
           entity.inputAmount,
           entity.cryptoInput.asset,
           entity.sell.fiat,
+          CryptoPaymentMethod.CRYPTO,
+          FiatPaymentMethod.BANK,
           inputReferencePrice,
           entity.sell.user,
-          CryptoPaymentMethod.CRYPTO,
         );
 
         const referenceEurPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatEur);
         const referenceChfPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatChf);
 
-        for (const feeId of fee.fees) {
-          await this.feeService.increaseTxUsages(feeId, entity.sell.user.userData);
-        }
+        const amountInEur = referenceEurPrice.convert(entity.inputReferenceAmount, 2);
 
         await this.buyFiatRepo.update(
           ...entity.setFeeAndFiatReference(
-            referenceEurPrice.convert(entity.inputReferenceAmount, 2),
+            amountInEur,
             referenceChfPrice.convert(entity.inputReferenceAmount, 2),
             fee.fees,
             fee.rate,
@@ -84,6 +83,10 @@ export class BuyFiatPreparationService {
             referenceChfPrice.convert(fee.total, 2),
           ),
         );
+
+        for (const feeId of fee.fees) {
+          await this.feeService.increaseTxUsages(amountInEur, feeId, entity.sell.user.userData);
+        }
 
         await this.buyFiatService.updateSellVolume([entity.sell?.id]);
         await this.buyFiatService.updateRefVolume([entity.usedRef]);

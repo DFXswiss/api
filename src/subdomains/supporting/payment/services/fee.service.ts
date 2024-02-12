@@ -1,18 +1,21 @@
 import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { FeeDirectionType, User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { In, IsNull } from 'typeorm';
 import { CreateFeeDto } from '../dto/create-fee.dto';
 import { FeeDto } from '../dto/fee.dto';
+import { PaymentMethod } from '../dto/payment-method.enum';
 import { Fee, FeeType } from '../entities/fee.entity';
 import { FeeRepository } from '../repositories/fee.repository';
 
@@ -32,10 +35,13 @@ export interface OptionalFeeRequest extends FeeRequestBase {
 }
 
 export interface FeeRequestBase {
-  direction: FeeDirectionType;
-  asset: Asset;
+  paymentMethodIn: PaymentMethod;
+  paymentMethodOut: PaymentMethod;
+  from: Asset | Fiat | undefined;
+  to: Asset | Fiat;
   txVolume?: number;
   blockchainFee: number;
+  discountCodes: string[];
 }
 
 @Injectable()
@@ -45,6 +51,7 @@ export class FeeService {
   constructor(
     private readonly feeRepo: FeeRepository,
     private readonly assetService: AssetService,
+    private readonly fiatService: FiatService,
     private readonly userDataService: UserDataService,
     private readonly settingService: SettingService,
     private readonly walletService: WalletService,
@@ -54,7 +61,8 @@ export class FeeService {
     // check if exists
     const existing = await this.feeRepo.findOneBy({
       label: dto.label,
-      direction: dto.direction,
+      paymentMethodsIn: dto.paymentMethodsInArray?.join(';'),
+      paymentMethodsOut: dto.paymentMethodsOutArray?.join(';'),
     });
     if (existing) throw new BadRequestException('Fee already created');
     if (dto.type === FeeType.BASE && dto.createDiscountCode)
@@ -67,6 +75,9 @@ export class FeeService {
     // create the entity
     const fee = this.feeRepo.create(dto);
 
+    if (dto.paymentMethodsInArray) fee.paymentMethodsIn = dto.paymentMethodsInArray.join(';');
+    if (dto.paymentMethodsOutArray) fee.paymentMethodsOut = dto.paymentMethodsOutArray.join(';');
+
     if (dto.assetIds) {
       const assets = [];
 
@@ -76,6 +87,17 @@ export class FeeService {
         assets.push(asset.id);
       }
       fee.assets = assets.join(';');
+    }
+
+    if (dto.fiatIds) {
+      const fiats = [];
+
+      for (const fiatId of dto.fiatIds) {
+        const fiat = await this.fiatService.getFiat(fiatId);
+        if (!fiat) throw new NotFoundException(`Fiat with id ${fiatId} not found`);
+        fiats.push(fiat.id);
+      }
+      fee.fiats = fiats.join(';');
     }
 
     if (dto.wallet) fee.wallet = await this.walletService.getByIdOrName(dto.wallet.id);
@@ -124,9 +146,10 @@ export class FeeService {
     await this.userDataService.addFee(userData, fee.id);
   }
 
-  async increaseTxUsages(fee: Fee, userData: UserData): Promise<void> {
+  async increaseTxUsages(txVolume: number, fee: Fee, userData: UserData): Promise<void> {
     await this.feeRepo.update(...fee.increaseTxUsage());
     if (fee.maxUserTxUsages) await this.feeRepo.update(...fee.increaseUserTxUsage(userData.id));
+    if (fee.maxAnnualUserTxVolume) await this.feeRepo.update(...fee.increaseAnnualUserTxVolume(userData.id, txVolume));
   }
 
   async getFeeByDiscountCode(discountCode: string): Promise<Fee> {
@@ -224,6 +247,7 @@ export class FeeService {
       { type: FeeType.DISCOUNT, discountCode: IsNull() },
       { type: FeeType.ADDITION, discountCode: IsNull() },
       { id: In(discountFeeIds) },
+      { discountCode: In(request.discountCodes) },
     ]);
 
     // remove ExpiredFee

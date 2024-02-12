@@ -33,6 +33,7 @@ import { CryptoService } from './shared/services/crypto.service';
     PolygonModule,
     LightningModule,
     MoneroModule,
+    FrankencoinModule,
     EvmRegistryService,
     CryptoService,
   ],

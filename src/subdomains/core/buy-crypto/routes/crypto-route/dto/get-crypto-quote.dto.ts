@@ -1,6 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsNotEmpty, IsNotEmptyObject, IsNumber, Validate, ValidateIf, ValidateNested } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsNotEmptyObject,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Validate,
+  ValidateIf,
+  ValidateNested,
+} from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { XOR } from 'src/shared/validators/xor.validator';
@@ -31,4 +40,9 @@ export class GetCryptoQuoteDto {
   @Validate(XOR, ['amount'])
   @IsNumber()
   targetAmount: number;
+
+  @ApiPropertyOptional({ description: 'Discount code' })
+  @IsOptional()
+  @IsString()
+  discountCode: string;
 }

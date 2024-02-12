@@ -1,5 +1,6 @@
 export enum FiatPaymentMethod {
   BANK = 'Bank',
+  INSTANT = 'Instant',
   CARD = 'Card',
 }
 
