@@ -368,10 +368,4 @@ export class TransactionHelper implements OnModuleInit {
   private roundMaxAmount(amount: number, isFiat: boolean): number {
     return isFiat ? Util.round(amount, -1) : Util.roundByPrecision(amount, 3);
   }
-
-  private getFeeAsset(from: Asset | Fiat, to: Asset | Fiat): Asset {
-    if (from instanceof Fiat && to instanceof Asset) return to;
-    if (from instanceof Asset && to instanceof Fiat) return from;
-    return to instanceof Asset ? to : undefined;
-  }
 }

@@ -94,7 +94,7 @@ export class FeeService {
 
       for (const fiatId of dto.fiatIds) {
         const fiat = await this.fiatService.getFiat(fiatId);
-        if (!fiat) throw new NotFoundException(`Fiat with id ${fiat} not found`);
+        if (!fiat) throw new NotFoundException(`Fiat with id ${fiatId} not found`);
         fiats.push(fiat.id);
       }
       fee.fiats = fiats.join(';');

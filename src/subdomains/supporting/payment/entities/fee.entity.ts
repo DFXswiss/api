@@ -155,12 +155,8 @@ export class Fee extends IEntity {
         (this.wallet && this.wallet.id !== request.wallet?.id) ||
         (this.paymentMethodsIn && !this.paymentMethodsIn.includes(request.paymentMethodIn)) ||
         (this.paymentMethodsOut && !this.paymentMethodsOut.includes(request.paymentMethodOut)) ||
-        (this.assetList?.length &&
-          ((request.from && this.isAsset(request.from) && !this.assetList.includes(request.from.id)) ||
-            (this.isAsset(request.to) && !this.assetList.includes(request.to.id)))) ||
-        (this.fiatList?.length &&
-          ((request.from && !this.isAsset(request.from) && !this.fiatList.includes(request.from.id)) ||
-            (!this.isAsset(request.to) && !this.fiatList.includes(request.to.id)))) ||
+        (request.from && !this.verifyCurrency(request.from)) ||
+        !this.verifyCurrency(request.to) ||
         (this.maxTxVolume && this.maxTxVolume < request.txVolume) ||
         (this.minTxVolume && this.minTxVolume > request.txVolume) ||
         (this.maxAnnualUserTxVolume && this.maxAnnualUserTxVolume < annualUserTxVolume)
@@ -203,6 +199,12 @@ export class Fee extends IEntity {
 
   private isAsset(asset: Asset | Fiat): boolean {
     return asset instanceof Asset;
+  }
+
+  private verifyCurrency(currency: Asset | Fiat): boolean {
+    const list = this.isAsset(currency) ? this.assetList : this.fiatList;
+
+    return !list?.length || list.includes(currency.id);
   }
 
   private getUserTxUsages(): Record<number, number> {
