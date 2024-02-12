@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
@@ -23,7 +24,6 @@ import { AmlReason } from '../enums/aml-reason.enum';
 import { CheckStatus } from '../enums/check-status.enum';
 import { BuyCryptoBatch } from './buy-crypto-batch.entity';
 import { BuyCryptoFee } from './buy-crypto-fees.entity';
-import { ConflictException } from '@nestjs/common';
 
 export enum BuyCryptoStatus {
   CREATED = 'Created',

@@ -16,6 +16,7 @@ import { CoinGeckoService } from './integration/coin-gecko.service';
 import { CurrencyService } from './integration/currency.service';
 import { FixerService } from './integration/fixer.service';
 import { PricingDexService } from './integration/pricing-dex.service';
+import { PricingFrankencoinService } from './integration/pricing-frankencoin.service';
 
 @Injectable()
 export class PricingService {
@@ -32,6 +33,7 @@ export class PricingService {
     readonly dexService: PricingDexService,
     readonly fixerService: FixerService,
     readonly currencyService: CurrencyService,
+    readonly frankencoinService: PricingFrankencoinService,
   ) {
     this.providerMap = {
       [PriceSource.KRAKEN]: krakenService,
@@ -40,6 +42,7 @@ export class PricingService {
       [PriceSource.DEX]: dexService,
       [PriceSource.FIXER]: fixerService,
       [PriceSource.CURRENCY]: currencyService,
+      [PriceSource.FRANKENCOIN]: frankencoinService,
     };
   }
 

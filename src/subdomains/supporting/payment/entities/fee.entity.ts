@@ -1,9 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
-import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
-import { Column, Entity, Index, ManyToOne } from 'typeorm';
+import { Column, Entity, ManyToOne } from 'typeorm';
 import { FeeRequest } from '../services/fee.service';
 
 export enum FeeType {
@@ -14,7 +13,6 @@ export enum FeeType {
 }
 
 @Entity()
-@Index((fee: Fee) => [fee.label, fee.direction], { unique: true })
 export class Fee extends IEntity {
   @Column({ length: 256 })
   label: string;
@@ -44,11 +42,22 @@ export class Fee extends IEntity {
   @Column({ length: 256, nullable: true })
   accountType: AccountType;
 
-  @Column({ length: 256, nullable: true })
-  direction: FeeDirectionType;
+  @Column({ length: 'MAX', nullable: true })
+  paymentMethodsIn: string; // semicolon separated payment-methods
+
+  @Column({ length: 'MAX', nullable: true })
+  paymentMethodsOut: string; // semicolon separated payment-methods
 
   @Column({ type: 'datetime2', nullable: true })
   expiryDate: Date;
+
+  @Column({ length: 'MAX', nullable: true })
+  assets: string; // semicolon separated id's
+
+  @ManyToOne(() => Wallet, { nullable: true, eager: true })
+  wallet: Wallet;
+
+  // Volume columns
 
   @Column({ type: 'float', nullable: true })
   minTxVolume: number; // EUR
@@ -56,11 +65,11 @@ export class Fee extends IEntity {
   @Column({ type: 'float', nullable: true })
   maxTxVolume: number; // EUR
 
-  @Column({ length: 'MAX', nullable: true })
-  assets: string; // semicolon separated id's
+  @Column({ type: 'float', nullable: true })
+  maxAnnualUserTxVolume: number; // EUR
 
-  @ManyToOne(() => Wallet, { nullable: true, eager: true })
-  wallet: Wallet;
+  @Column({ length: 'MAX', nullable: true })
+  annualUserTxVolumes: string; // semicolon separated user volumes
 
   // Acceptance columns
 
@@ -83,28 +92,6 @@ export class Fee extends IEntity {
   userTxUsages: string;
 
   //*** FACTORY METHODS ***//
-
-  private getUserTxUsages(): Record<number, number> {
-    return (
-      this.userTxUsages
-        ?.split(';')
-        .map((u) => u.split(':'))
-        .reduce((prev, [id, usages]) => {
-          prev[+id] = +usages;
-          return prev;
-        }, {}) ?? {}
-    );
-  }
-
-  private setUserTxUsages(usages: Record<number, number>): void {
-    this.userTxUsages = Object.entries(usages)
-      .map(([userDataId, usages]) => `${userDataId}:${usages}`)
-      .join(';');
-  }
-
-  private getUserTxUsage(userDataId: number): number {
-    return this.getUserTxUsages()[userDataId] ?? 0;
-  }
 
   increaseUsage(accountType: AccountType, wallet?: Wallet): UpdateResult<Fee> {
     this.verifyForUser(accountType, wallet);
@@ -141,17 +128,32 @@ export class Fee extends IEntity {
     return [this.id, { userTxUsages: this.userTxUsages }];
   }
 
+  increaseAnnualUserTxVolume(userDataId: number, txVolume: number): UpdateResult<Fee> {
+    if (this.isExpired(userDataId) || !this.active)
+      throw new BadRequestException('Fee is expired - increaseUserTxUsage forbidden');
+
+    const annualUserTxVolumes = this.getAnnualUserTxVolumes();
+    annualUserTxVolumes[userDataId] = (annualUserTxVolumes[userDataId] ?? 0) + txVolume;
+    this.setAnnualUserTxVolumes(annualUserTxVolumes);
+
+    return [this.id, { annualUserTxVolumes: this.annualUserTxVolumes }];
+  }
+
   verifyForTx(request: FeeRequest): boolean {
+    const annualUserTxVolume = this.getAnnualUserTxVolume(request.userDataId) + (request.txVolume ?? 0);
+
     return (
       this?.active &&
       !(
         this.isExpired(request.userDataId) ||
         (this.accountType && this.accountType !== request.accountType) ||
         (this.wallet && this.wallet.id !== request.wallet?.id) ||
-        (this.direction && this.direction !== request.direction) ||
+        (this.paymentMethodsIn && !this.paymentMethodsIn.includes(request.paymentMethodIn)) ||
+        (this.paymentMethodsOut && !this.paymentMethodsOut.includes(request.paymentMethodOut)) ||
         (this.assetList?.length && !this.assetList.includes(request.asset?.id)) ||
         (this.maxTxVolume && this.maxTxVolume < request.txVolume) ||
-        (this.minTxVolume && this.minTxVolume > request.txVolume)
+        (this.minTxVolume && this.minTxVolume > request.txVolume) ||
+        (this.maxAnnualUserTxVolume && this.maxAnnualUserTxVolume < annualUserTxVolume)
       )
     );
   }
@@ -177,7 +179,51 @@ export class Fee extends IEntity {
       throw new BadRequestException('Max usages for discount code taken');
   }
 
+  //*** GETTER METHODS ***//
+
   get assetList(): number[] {
     return this.assets?.split(';')?.map(Number);
+  }
+
+  //*** HELPER METHODS ***//
+
+  private getUserTxUsages(): Record<number, number> {
+    return this.parseStringListToRecord(this.userTxUsages);
+  }
+
+  private setUserTxUsages(usages: Record<number, number>): void {
+    this.userTxUsages = Object.entries(usages)
+      .map(([userDataId, usages]) => `${userDataId}:${usages}`)
+      .join(';');
+  }
+
+  private getUserTxUsage(userDataId: number): number {
+    return this.getUserTxUsages()[userDataId] ?? 0;
+  }
+
+  private getAnnualUserTxVolumes(): Record<number, number> {
+    return this.parseStringListToRecord(this.annualUserTxVolumes);
+  }
+
+  private setAnnualUserTxVolumes(volumes: Record<number, number>): void {
+    this.annualUserTxVolumes = Object.entries(volumes)
+      .map(([userDataId, volume]) => `${userDataId}:${volume}`)
+      .join(';');
+  }
+
+  private getAnnualUserTxVolume(userDataId: number): number {
+    return this.getAnnualUserTxVolumes()[userDataId] ?? 0;
+  }
+
+  private parseStringListToRecord(list: string): Record<number, number> {
+    return (
+      list
+        ?.split(';')
+        .map((u) => u.split(':'))
+        .reduce((prev, [key, value]) => {
+          prev[+key] = +value;
+          return prev;
+        }, {}) ?? {}
+    );
   }
 }

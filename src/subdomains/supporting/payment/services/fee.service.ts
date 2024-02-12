@@ -7,12 +7,13 @@ import { Util } from 'src/shared/utils/util';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { FeeDirectionType, User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { In, IsNull } from 'typeorm';
 import { CreateFeeDto } from '../dto/create-fee.dto';
 import { FeeDto } from '../dto/fee.dto';
+import { PaymentMethod } from '../dto/payment-method.enum';
 import { Fee, FeeType } from '../entities/fee.entity';
 import { FeeRepository } from '../repositories/fee.repository';
 
@@ -32,7 +33,8 @@ export interface OptionalFeeRequest extends FeeRequestBase {
 }
 
 export interface FeeRequestBase {
-  direction: FeeDirectionType;
+  paymentMethodIn: PaymentMethod;
+  paymentMethodOut: PaymentMethod;
   asset: Asset;
   txVolume?: number;
   blockchainFee: number;
@@ -55,7 +57,8 @@ export class FeeService {
     // check if exists
     const existing = await this.feeRepo.findOneBy({
       label: dto.label,
-      direction: dto.direction,
+      paymentMethodsIn: dto.paymentMethodsInArray?.join(';'),
+      paymentMethodsOut: dto.paymentMethodsOutArray?.join(';'),
     });
     if (existing) throw new BadRequestException('Fee already created');
     if (dto.type === FeeType.BASE && dto.createDiscountCode)
@@ -67,6 +70,9 @@ export class FeeService {
 
     // create the entity
     const fee = this.feeRepo.create(dto);
+
+    if (dto.paymentMethodsInArray) fee.paymentMethodsIn = dto.paymentMethodsInArray.join(';');
+    if (dto.paymentMethodsOutArray) fee.paymentMethodsOut = dto.paymentMethodsOutArray.join(';');
 
     if (dto.assetIds) {
       const assets = [];
@@ -125,9 +131,10 @@ export class FeeService {
     await this.userDataService.addFee(userData, fee.id);
   }
 
-  async increaseTxUsages(fee: Fee, userData: UserData): Promise<void> {
+  async increaseTxUsages(txVolume: number, fee: Fee, userData: UserData): Promise<void> {
     await this.feeRepo.update(...fee.increaseTxUsage());
     if (fee.maxUserTxUsages) await this.feeRepo.update(...fee.increaseUserTxUsage(userData.id));
+    if (fee.maxAnnualUserTxVolume) await this.feeRepo.update(...fee.increaseAnnualUserTxVolume(userData.id, txVolume));
   }
 
   async getFeeByDiscountCode(discountCode: string): Promise<Fee> {

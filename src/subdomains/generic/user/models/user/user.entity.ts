@@ -16,12 +16,6 @@ export enum UserStatus {
   BLOCKED = 'Blocked',
 }
 
-export enum FeeDirectionType {
-  BUY = 'Buy',
-  SELL = 'Sell',
-  CONVERT = 'Convert',
-}
-
 @Entity()
 export class User extends IEntity {
   @Column({ length: 256, unique: true })

@@ -12,6 +12,7 @@ export enum PriceSource {
   DEX = 'DEX',
   FIXER = 'Fixer',
   CURRENCY = 'Currency',
+  FRANKENCOIN = 'Frankencoin',
 }
 
 export interface Rule {

@@ -13,6 +13,7 @@ import { CoinGeckoService } from './services/integration/coin-gecko.service';
 import { CurrencyService } from './services/integration/currency.service';
 import { FixerService } from './services/integration/fixer.service';
 import { PricingDexService } from './services/integration/pricing-dex.service';
+import { PricingFrankencoinService } from './services/integration/pricing-frankencoin.service';
 import { PricingService } from './services/pricing.service';
 
 @Module({
@@ -33,6 +34,7 @@ import { PricingService } from './services/pricing.service';
     CurrencyService,
     PricingService,
     PricingDexService,
+    PricingFrankencoinService,
   ],
   exports: [PricingService],
 })
