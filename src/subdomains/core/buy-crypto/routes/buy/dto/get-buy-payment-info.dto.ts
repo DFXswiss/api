@@ -56,4 +56,9 @@ export class GetBuyPaymentInfoDto {
   @IsNotEmpty()
   @IsEnum(FiatPaymentMethod)
   paymentMethod: FiatPaymentMethod = FiatPaymentMethod.BANK;
+
+  @ApiPropertyOptional({ description: 'Custom transaction id' })
+  @IsOptional()
+  @IsString()
+  externalTransactionId?: string;
 }
