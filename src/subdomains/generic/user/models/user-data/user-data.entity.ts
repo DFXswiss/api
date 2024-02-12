@@ -360,6 +360,12 @@ export class UserData extends IEntity {
     return `${Config.frontend.services}/kyc?code=${this.kycHash}`;
   }
 
+  get dilisenseUrl(): string | undefined {
+    return this.verifiedName
+      ? `https://dilisense.com/en/search/${this.verifiedName?.split(' ')?.join('%20')}`
+      : undefined;
+  }
+
   get isDfxUser(): boolean {
     return this.kycType === KycType.DFX;
   }

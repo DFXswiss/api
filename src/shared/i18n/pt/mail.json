@@ -70,13 +70,14 @@
                 "annual_limit": "You exceeded your annual limit",
                 "olky_no_kyc": "You have to complete KYC for DFX in order to use Olkypay Bank",
                 "min_deposit_not_reached": "The minimum deposit limit was not reached",
-                "name_check_without_kyc": "Your transaction was cancelled due to missing KYC",
+                "name_check_without_kyc": "Your transaction was cancelled due to missing KYC<br>Due to name matches, it is not possible to process the transaction without KYC. See here for more details:<br>[url:{urlText}]",
                 "annual_limit_without_kyc": "You exceeded the annual limit without KYC",
                 "asset_currently_not_available": "The asset is currently not available for trading with DFX",
                 "staking_discontinued": "Staking deposits are no longer possible",
                 "bank_not_allowed": "The sender bank you used is not allowed. Please use a different bank for your deposit.",
                 "country_not_allowed": "Unfortunately, your deposit cannot be processed <br>because the money comes from a country that we cannot support. More information:<br><a style='color:white' href='https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html'>https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html</a>"
-            }
+            },
+            "kyc_start": "You can start the KYC process here:<br>[url:{urlText}]"
         },
         "pending": {
             "daily_limit": {

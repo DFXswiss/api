@@ -13,7 +13,7 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { In, IsNull, Not } from 'typeorm';
 import { BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
 import { BuyCryptoAmlReasonPendingStates, BuyCryptoStatus } from '../entities/buy-crypto.entity';
-import { AmlReason } from '../enums/aml-reason.enum';
+import { AmlReason, KycAmlReasons } from '../enums/aml-reason.enum';
 import { CheckStatus } from '../enums/check-status.enum';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 
@@ -246,7 +246,7 @@ export class BuyCryptoNotificationService {
 
     for (const entity of entities) {
       try {
-        if (entity.user.userData.mail) {
+        if (entity.user.userData.mail && entity.user.userData.verifiedName) {
           await this.notificationService.sendMail({
             type: MailType.USER,
             input: {
@@ -281,7 +281,20 @@ export class BuyCryptoNotificationService {
                 entity.amlReason !== AmlReason.NA
                   ? {
                       key: `${MailTranslationKey.RETURN}.introduction`,
-                      params: { reason: MailFactory.parseMailKey(MailTranslationKey.RETURN_REASON, entity.amlReason) },
+                      params: {
+                        reason: MailFactory.parseMailKey(MailTranslationKey.RETURN_REASON, entity.amlReason),
+                        url: entity.user.userData.dilisenseUrl,
+                        urlText: entity.user.userData.dilisenseUrl,
+                      },
+                    }
+                  : null,
+                KycAmlReasons.includes(entity.amlReason)
+                  ? {
+                      key: `${MailTranslationKey.RETURN}.kyc_start`,
+                      params: {
+                        url: entity.user.userData.kycUrl,
+                        urlText: entity.user.userData.kycUrl,
+                      },
                     }
                   : null,
                 { key: MailKey.SPACE, params: { value: '2' } },
