@@ -16,14 +16,6 @@ export enum AssetCategory {
   CRYPTO = 'Crypto',
 }
 
-export enum FeeTier {
-  TIER0 = 'Tier0',
-  TIER1 = 'Tier1',
-  TIER2 = 'Tier2',
-  TIER3 = 'Tier3',
-  TIER4 = 'Tier4',
-}
-
 @Entity()
 @Index((asset: Asset) => [asset.dexName, asset.type, asset.blockchain], { unique: true })
 export class Asset extends IEntity {
@@ -62,9 +54,6 @@ export class Asset extends IEntity {
 
   @Column({ length: 256, default: Blockchain.DEFICHAIN })
   blockchain: Blockchain;
-
-  @Column({ length: 256, nullable: false, default: FeeTier.TIER2 })
-  feeTier: FeeTier;
 
   @Column({ default: false })
   comingSoon: boolean;
