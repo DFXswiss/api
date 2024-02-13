@@ -64,6 +64,9 @@ export class PricingService {
         `No valid price found for ${this.getItemString(from)} -> ${this.getItemString(to)}`,
       );
 
+    price.source = from.name;
+    price.target = to.name;
+
     return price;
   }
 
@@ -105,10 +108,13 @@ export class PricingService {
   private async updatePriceFor(rule: PriceRule, from?: Asset | Fiat, to?: Asset | Fiat): Promise<PriceRule> {
     try {
       const price = await this.getRulePrice(rule.rule);
-      from && (price.source = from.name);
-      to && (price.target = to.name);
+      const source = from?.name ?? price.source;
+      const target = to?.name ?? price.target;
 
-      if ((await this.isPriceValid(price, rule.check1)) && (await this.isPriceValid(price, rule.check2))) {
+      if (
+        (await this.isPriceValid(source, target, price.price, rule.check1)) &&
+        (await this.isPriceValid(source, target, price.price, rule.check2))
+      ) {
         rule.currentPrice = price.price;
         rule.priceTimestamp = new Date();
         return await this.priceRuleRepo.save(rule);
@@ -120,16 +126,16 @@ export class PricingService {
     return rule;
   }
 
-  private async isPriceValid(price: Price, rule?: Rule): Promise<boolean> {
+  private async isPriceValid(from: string, to: string, price: number, rule?: Rule): Promise<boolean> {
     if (!rule) return true;
 
     const rulePrice = await this.getRulePrice(rule);
-    const difference = Math.abs(rulePrice.price - price.price) / price.price;
+    const difference = Math.abs(rulePrice.price - price) / price;
 
     if (difference > rule.limit) {
-      const message = `${price.source} to ${price.target} has ${Util.toPercent(
-        difference,
-      )} price mismatch (limit is ${Util.toPercent(rule.limit)})`;
+      const message = `${from} to ${to} has ${Util.toPercent(difference)} price mismatch on ${
+        rule.source
+      } (limit is ${Util.toPercent(rule.limit)})`;
 
       this.logger.warn(message);
       await this.notificationService.sendMail({
