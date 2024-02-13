@@ -6,7 +6,7 @@
         "thanks": "Herzlichen Dank für dein entgegengebrachtes Vertrauen",
         "happy_trading": "Viel Erfolg beim Traden",
         "welcome": "Hi {name},",
-        "personal_questions": "Bei Fragen zögere bitte nicht, mich anzusprechen.",
+        "team_questions": "Bei Fragen zögere bitte nicht, uns anzusprechen.",
         "personal_closing": "Freundliche Grüsse,<br>{closingName}",
         "button": "oder<br>[url:Klick hier]"
     },

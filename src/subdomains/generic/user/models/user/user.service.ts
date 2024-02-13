@@ -13,6 +13,7 @@ import { CryptoService } from 'src/integration/blockchain/shared/services/crypto
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
@@ -300,7 +301,7 @@ export class UserService {
     userId: number,
     paymentMethodIn: PaymentMethod,
     paymentMethodOut: PaymentMethod,
-    asset: Asset,
+    to: Asset | Fiat,
     minFee: number,
     txVolume?: number,
   ): Promise<FeeDto> {
@@ -311,7 +312,8 @@ export class UserService {
       user,
       paymentMethodIn,
       paymentMethodOut,
-      asset,
+      from: undefined,
+      to,
       blockchainFee: minFee,
       txVolume,
       discountCodes: [],

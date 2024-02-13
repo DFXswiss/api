@@ -74,6 +74,11 @@ export class CreateFeeDto {
   @IsArray()
   assetIds: number[];
 
+  @ValidateIf((dto: CreateFeeDto) => dto.type === FeeType.BASE)
+  @IsNotEmpty()
+  @IsArray()
+  fiatIds: number[];
+
   @IsOptional()
   @IsObject()
   @ValidateNested()
