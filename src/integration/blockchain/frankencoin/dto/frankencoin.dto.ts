@@ -57,6 +57,12 @@ export interface FrankencoinTradeGraphDto {
   time: string;
 }
 
+export interface FrankencoinLogDto {
+  swap: FrankencoinSwapDto;
+  positions: FrankencoinPositionDto[];
+  poolShares: FrankencoinPoolSharesDto[];
+}
+
 export interface FrankencoinSwapDto {
   xchfSwapLimit: number;
   zchfSwapLimit: number;

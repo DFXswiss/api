@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
 import { BigNumberish, ethers } from 'ethers';
 import { Config, GetConfig } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -11,6 +11,7 @@ import { LogService } from 'src/subdomains/supporting/log/log.service';
 import {
   FrankencoinChallengeGraphDto,
   FrankencoinDelegationGraphDto,
+  FrankencoinLogDto,
   FrankencoinMinterGraphDto,
   FrankencoinPoolSharesDto,
   FrankencoinPositionDto,
@@ -33,50 +34,22 @@ export class FrankencoinService {
     this.client = new FrankencoinClient(zchfGatewayUrl, zchfApiKey);
   }
 
-  @Cron(CronExpression.EVERY_5_MINUTES)
+  @Cron('0 */15 * * * *') // every 15 minutes
   @Lock()
   async processLogInfo() {
     if (DisabledProcess(Process.FRANKENCOIN_LOG_INFO)) return;
 
-    await this.swapLog();
-    await this.positionsLog();
-    await this.fpssLog();
-  }
-
-  private async swapLog() {
-    const swap = await this.getSwap();
-
-    const log: CreateLogDto = {
-      system: FrankencoinService.LOG_SYSTEM,
-      subsystem: 'FrankencoinSwapSmartContract',
-      severity: LogSeverity.INFO,
-      message: JSON.stringify(swap),
+    const logMessage: FrankencoinLogDto = {
+      swap: await this.getSwap(),
+      positions: await this.getPositions(),
+      poolShares: await this.getFPSs(),
     };
-
-    await this.logService.create(log);
-  }
-
-  private async positionsLog() {
-    const positions = await this.getPositions();
 
     const log: CreateLogDto = {
       system: FrankencoinService.LOG_SYSTEM,
       subsystem: 'FrankencoinSmartContract',
       severity: LogSeverity.INFO,
-      message: JSON.stringify(positions),
-    };
-
-    await this.logService.create(log);
-  }
-
-  private async fpssLog() {
-    const fpss = await this.getFPSs();
-
-    const log: CreateLogDto = {
-      system: FrankencoinService.LOG_SYSTEM,
-      subsystem: 'FrankencoinPoolSharesSmartContract',
-      severity: LogSeverity.INFO,
-      message: JSON.stringify(fpss),
+      message: JSON.stringify(logMessage),
     };
 
     await this.logService.create(log);
