@@ -41,11 +41,6 @@
                 "title": "Dépôt effectué",
                 "salutation": "Votre dépôt a été effectué avec succès"
             },
-            "waitingForLowerFee": {
-                "title": "Dépôt arrivé - frais de blockchain trop élevés",
-                "salutation": "Les frais liés à la blockchain sont trop élevés",
-                "message": "Votre dépôt est arrivé à DFX. Les frais de la blockchain sont actuellement trop élevés pour vous envoyer vos actifs. Vos actifs seront envoyés dès que les frais de la blockchain auront baissé. C'est généralement le cas dans les 24 heures."
-            },
             "input_amount": "Déposé",
             "output_amount": "Paiement crypto",
             "payment_link": "Vous trouverez ici l'ID de transaction associée à votre versement: [url:Link]"
