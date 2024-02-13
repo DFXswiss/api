@@ -48,7 +48,7 @@ export class TransactionRequestService {
         transactionRequest.sourceId = sellDto.asset.id;
         transactionRequest.targetId = sellDto.currency.id;
         break;
-      case TransactionRequestType.Crypto:
+      case TransactionRequestType.Convert:
         const cryptoDto = dto as CryptoPaymentInfoDto;
         transactionRequest.sourceId = cryptoDto.sourceAsset.id;
         transactionRequest.targetId = cryptoDto.targetAsset.id;

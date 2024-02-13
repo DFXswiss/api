@@ -5,7 +5,7 @@ import { TransactionError } from '../services/transaction-helper';
 export enum TransactionRequestType {
   Buy = 'Buy',
   Sell = 'Sell',
-  Crypto = 'Crypto',
+  Convert = 'Convert',
 }
 
 @Entity()
@@ -28,10 +28,10 @@ export class TransactionRequest extends IEntity {
   @Column({ type: 'float', nullable: false })
   amount: number;
 
-  @Column({ nullable: true })
+  @Column({ type: 'integer', nullable: false })
   sourceId: number;
 
-  @Column({ nullable: true })
+  @Column({ type: 'integer', nullable: false })
   targetId: number;
 
   @Column({ type: 'float', nullable: false })

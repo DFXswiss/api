@@ -196,7 +196,7 @@ export class SellController {
       user,
     );
 
-    const sellDto = {
+    const sellDto: SellPaymentInfoDto = {
       routeId: sell.id,
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       depositAddress: sell.deposit.address,

@@ -213,7 +213,7 @@ export class CryptoRouteController {
       user,
     );
 
-    const cryptoDto = {
+    const cryptoDto: CryptoPaymentInfoDto = {
       routeId: cryptoRoute.id,
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       depositAddress: cryptoRoute.deposit.address,
@@ -241,7 +241,7 @@ export class CryptoRouteController {
       error,
     };
 
-    await this.transactionRequestService.createTransactionRequest(cryptoDto, TransactionRequestType.Sell);
+    await this.transactionRequestService.createTransactionRequest(cryptoDto, TransactionRequestType.Convert);
 
     return cryptoDto;
   }

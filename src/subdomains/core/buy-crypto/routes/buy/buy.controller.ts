@@ -123,7 +123,7 @@ export class BuyController {
       0,
       undefined,
       (e) => e.message?.includes('duplicate key'),
-    ).then((buy) => this.toPaymentInfoDto(jwt.id, buy, dto).then());
+    ).then((buy) => this.toPaymentInfoDto(jwt.id, buy, dto));
   }
 
   @Put(':id')
@@ -205,7 +205,7 @@ export class BuyController {
     );
     const bankInfo = await this.getBankInfo(buy, { ...dto, amount });
 
-    const buyDto = {
+    const buyDto: BuyPaymentInfoDto = {
       routeId: buy.id,
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposit: { amount: minVolume, asset: dto.currency.name }, // TODO: remove
