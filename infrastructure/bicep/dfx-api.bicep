@@ -103,6 +103,8 @@ param zchfGatewayUrl string
 param zchfGraphUrl string
 param zchfContractAddress string
 param zchfEquityContractAddress string
+param zchfStablecoinBridgeContractAddress string
+param zchfXchfContractAddress string
 
 param buyCryptoFeeLimit string
 
@@ -748,6 +750,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'ZCHF_EQUITY_CONTRACT_ADDRESS'
           value: zchfEquityContractAddress
+        }
+        {
+          name: 'ZCHF_STABLECOIN_BRIDGE_CONTRACT_ADDRESS'
+          value: zchfStablecoinBridgeContractAddress
+        }
+        {
+          name: 'ZCHF_XCHF_CONTRACT_ADDRESS'
+          value: zchfXchfContractAddress
         }
         {
           name: 'BUY_CRYPTO_FEE_LIMIT'

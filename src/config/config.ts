@@ -321,6 +321,8 @@ export class Configuration {
       contractAddress: {
         zchf: process.env.ZCHF_CONTRACT_ADDRESS,
         equity: process.env.ZCHF_EQUITY_CONTRACT_ADDRESS,
+        stablecoinBridge: process.env.ZCHF_STABLECOIN_BRIDGE_CONTRACT_ADDRESS,
+        xchf: process.env.ZCHF_XCHF_CONTRACT_ADDRESS,
       },
     },
   };

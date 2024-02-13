@@ -14,6 +14,7 @@ import {
   FrankencoinMinterGraphDto,
   FrankencoinPoolSharesDto,
   FrankencoinPositionDto,
+  FrankencoinSwapDto,
   FrankencoinTradeGraphDto,
 } from './dto/frankencoin.dto';
 import { FrankencoinClient } from './frankencoin-client';
@@ -37,8 +38,22 @@ export class FrankencoinService {
   async processLogInfo() {
     if (DisabledProcess(Process.FRANKENCOIN_LOG_INFO)) return;
 
+    await this.swapLog();
     await this.positionsLog();
     await this.fpssLog();
+  }
+
+  private async swapLog() {
+    const swap = await this.getSwap();
+
+    const log: CreateLogDto = {
+      system: FrankencoinService.LOG_SYSTEM,
+      subsystem: 'FrankencoinSwapSmartContract',
+      severity: LogSeverity.INFO,
+      message: JSON.stringify(swap),
+    };
+
+    await this.logService.create(log);
   }
 
   private async positionsLog() {
@@ -67,6 +82,23 @@ export class FrankencoinService {
     await this.logService.create(log);
   }
 
+  async getSwap(): Promise<FrankencoinSwapDto> {
+    const xchfContract = this.client.getErc20Contract(Config.blockchain.frankencoin.contractAddress.xchf);
+    const stablecoinBridgeContract = this.client.getStablecoinBridgeContract(
+      Config.blockchain.frankencoin.contractAddress.stablecoinBridge,
+    );
+
+    const stablecoinBridgeBalance = await xchfContract.balanceOf(
+      Config.blockchain.frankencoin.contractAddress.stablecoinBridge,
+    );
+    const stablecoinBridgeLimit = await stablecoinBridgeContract.limit();
+
+    return {
+      xchfSwapLimit: this.fromWeiAmount(stablecoinBridgeLimit) - this.fromWeiAmount(stablecoinBridgeBalance),
+      zchfSwapLimit: this.fromWeiAmount(stablecoinBridgeBalance),
+    };
+  }
+
   async getPositions(): Promise<FrankencoinPositionDto[]> {
     const positionsResult: FrankencoinPositionDto[] = [];
 
@@ -74,7 +106,7 @@ export class FrankencoinService {
 
     for (const position of positions) {
       try {
-        const collateralContract = this.client.getCollateralContract(position.collateral);
+        const collateralContract = this.client.getErc20Contract(position.collateral);
 
         const symbol = await collateralContract.symbol();
         const decimals = await collateralContract.decimals();
