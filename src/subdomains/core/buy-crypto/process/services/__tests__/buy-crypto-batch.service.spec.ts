@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { mock } from 'jest-mock-extended';
 import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { createCustomBuy } from 'src/subdomains/core/buy-crypto/routes/buy/__mocks__/buy.entity.mock';
 import { LiquidityManagementService } from 'src/subdomains/core/liquidity-management/services/liquidity-management.service';
@@ -28,6 +29,7 @@ describe('BuyCryptoBatchService', () => {
   let pricingService: PricingService;
   let buyCryptoPricingService: BuyCryptoPricingService;
   let assetService: AssetService;
+  let fiatService: FiatService;
   let dexService: DexService;
   let payoutService: PayoutService;
   let buyCryptoNotificationService: BuyCryptoNotificationService;
@@ -200,6 +202,7 @@ describe('BuyCryptoBatchService', () => {
     pricingService = mock<PricingService>();
     buyCryptoPricingService = mock<BuyCryptoPricingService>();
     assetService = mock<AssetService>();
+    fiatService = mock<FiatService>();
     dexService = mock<DexService>();
     payoutService = mock<PayoutService>();
     buyCryptoNotificationService = mock<BuyCryptoNotificationService>();
@@ -213,6 +216,7 @@ describe('BuyCryptoBatchService', () => {
         { provide: PricingService, useValue: pricingService },
         { provide: BuyCryptoPricingService, useValue: buyCryptoPricingService },
         { provide: AssetService, useValue: assetService },
+        { provide: FiatService, useValue: fiatService },
         { provide: DexService, useValue: dexService },
         { provide: PayoutService, useValue: payoutService },
         { provide: BuyCryptoNotificationService, useValue: buyCryptoNotificationService },
@@ -236,12 +240,12 @@ describe('BuyCryptoBatchService', () => {
       .mockImplementationOnce(async () => {
         const price = new Price();
         (price.price = 10), (price.source = 'EUR'), (price.target = 'BTC');
-        return { price, path: [] };
+        return price;
       })
       .mockImplementationOnce(async () => {
         const price = new Price();
         (price.price = 10), (price.source = 'EUR'), (price.target = 'USDT');
-        return { price, path: [] };
+        return price;
       });
 
     jest.spyOn(buyCryptoPricingService, 'getFeeAmountInRefAsset').mockImplementation(async () => 0.001);

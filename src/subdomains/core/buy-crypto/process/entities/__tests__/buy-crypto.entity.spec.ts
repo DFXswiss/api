@@ -344,7 +344,7 @@ describe('BuyCrypto', () => {
       const entity = createDefaultBuyCrypto();
       const wrongPrice = createPrice('CHF', 'BTC');
 
-      const testCall = () => entity.calculateOutputReferenceAmount([wrongPrice]);
+      const testCall = () => entity.calculateOutputReferenceAmount(wrongPrice);
 
       expect(testCall).toThrow();
       expect(testCall).toThrowError('Cannot calculate outputReferenceAmount, EUR/BTC price is missing');
@@ -354,7 +354,7 @@ describe('BuyCrypto', () => {
       const entity = createDefaultBuyCrypto();
       const wrongPrice = createPrice('EUR', 'ETH');
 
-      const testCall = () => entity.calculateOutputReferenceAmount([wrongPrice]);
+      const testCall = () => entity.calculateOutputReferenceAmount(wrongPrice);
 
       expect(testCall).toThrow();
       expect(testCall).toThrowError('Cannot calculate outputReferenceAmount, EUR/BTC price is missing');
@@ -364,7 +364,7 @@ describe('BuyCrypto', () => {
       const entity = createDefaultBuyCrypto();
       const wrongPrice = createPrice('EUR', 'BTC', 0);
 
-      const testCall = () => entity.calculateOutputReferenceAmount([wrongPrice]);
+      const testCall = () => entity.calculateOutputReferenceAmount(wrongPrice);
 
       expect(testCall).toThrow();
       expect(testCall).toThrowError('Cannot calculate target amount, price value is 0');
@@ -376,7 +376,7 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputReferenceAmount).toBeUndefined();
 
-      entity.calculateOutputReferenceAmount([price]);
+      entity.calculateOutputReferenceAmount(price);
 
       expect(entity.outputReferenceAmount).toBe(5);
     });
@@ -390,7 +390,7 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputReferenceAmount).toBeUndefined();
 
-      entity.calculateOutputReferenceAmount([]);
+      entity.calculateOutputReferenceAmount(undefined);
 
       expect(entity.outputReferenceAmount).toBe(10);
     });
@@ -401,7 +401,7 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputReferenceAmount).toBeUndefined();
 
-      entity.calculateOutputReferenceAmount([price]);
+      entity.calculateOutputReferenceAmount(price);
 
       expect(entity.outputReferenceAmount).toBe(0.33333333);
     });
@@ -410,7 +410,7 @@ describe('BuyCrypto', () => {
       const entity = createCustomBuyCrypto({ inputReferenceAmountMinusFee: 10 });
       const price = createPrice('EUR', 'BTC', 2);
 
-      const updatedEntity = entity.calculateOutputReferenceAmount([price]);
+      const updatedEntity = entity.calculateOutputReferenceAmount(price);
 
       expect(updatedEntity).toBeInstanceOf(BuyCrypto);
     });

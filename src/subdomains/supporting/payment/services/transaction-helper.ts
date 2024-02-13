@@ -208,18 +208,17 @@ export class TransactionHelper implements OnModuleInit {
       from,
       to,
     );
-    const txAmount = await this.getVolumeLast24h(target.sourceAmount, from, user);
-    const chfPrice = await this.pricingService.getPrice(from, this.chf, false).then((p) => p.invert());
+    const txAmountChf = await this.getVolumeLast24hChf(target.sourceAmount, from, user);
 
     const error =
       to instanceof Fiat &&
       user &&
       !user.userData.hasBankTxVerification &&
-      chfPrice.convert(txAmount) > Config.defaultDailyTradingLimit
+      txAmountChf > Config.defaultDailyTradingLimit
         ? TransactionError.BANK_TRANSACTION_MISSING
         : target.sourceAmount < txSpecSource.minVolume
         ? TransactionError.AMOUNT_TOO_LOW
-        : txAmount > txSpecSource.maxVolume
+        : txAmountChf > extendedSpecs.maxVolume
         ? TransactionError.AMOUNT_TOO_HIGH
         : paymentMethodIn === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed
         ? TransactionError.KYC_REQUIRED
@@ -249,7 +248,7 @@ export class TransactionHelper implements OnModuleInit {
     minFeeEur: number,
     discountCodes: string[],
   ): Promise<FeeDto> {
-    const price = await this.pricingService.getPrice(txAsset, this.eur, false);
+    const price = await this.pricingService.getPrice(txAsset, this.eur, true);
 
     const txVolumeInEur = price.convert(txVolume);
 
@@ -297,7 +296,7 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   // --- HELPER METHODS --- //
-  private async getVolumeLast24h(inputAmount: number, from: Asset | Fiat, user?: User): Promise<number> {
+  private async getVolumeLast24hChf(inputAmount: number, from: Asset | Fiat, user?: User): Promise<number> {
     if (!user) return inputAmount;
 
     const buyCryptos = await this.buyCryptoService
@@ -308,10 +307,10 @@ export class TransactionHelper implements OnModuleInit {
       .getUserTransactions(user.id, Util.daysBefore(1))
       .then((buyFiats) => buyFiats.filter((b) => b.amlCheck !== CheckStatus.FAIL));
 
-    const price = await this.pricingService.getPrice(from, this.eur, false).then((p) => p.invert());
-    const txEurAmount = Util.sumObjValue(buyCryptos, 'amountInEur') + Util.sumObjValue(buyFiats, 'amountInEur');
+    const price = await this.pricingService.getPrice(from, this.chf, false);
+    const volume24hChf = Util.sumObjValue(buyCryptos, 'amountInChf') + Util.sumObjValue(buyFiats, 'amountInChf');
 
-    return inputAmount + price.convert(txEurAmount);
+    return price.convert(inputAmount) + volume24hChf;
   }
 
   private getProps(param: Asset | Fiat): { system: string; asset: string } {

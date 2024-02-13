@@ -16,7 +16,7 @@ export class BuyCryptoPricingService {
   //*** HELPER METHODS ***//
 
   private async convertToTargetAsset(sourceAsset: Asset, sourceAmount: number, targetAsset: Asset): Promise<number> {
-    const price = await this.pricingService.getPrice(sourceAsset, targetAsset, false);
+    const price = await this.pricingService.getPrice(sourceAsset, targetAsset, true);
 
     return price.convert(sourceAmount, 8);
   }

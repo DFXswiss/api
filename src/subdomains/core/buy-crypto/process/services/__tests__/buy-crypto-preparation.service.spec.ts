@@ -7,7 +7,7 @@ import { TestUtil } from 'src/shared/utils/test.util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
-import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../../entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
 import { BuyCryptoPreparationService } from '../buy-crypto-preparation.service';
@@ -21,7 +21,7 @@ describe('BuyCryptoPreparationService', () => {
 
   let buyCryptoRepo: BuyCryptoRepository;
   let transactionHelper: TransactionHelper;
-  let priceProviderService: PriceProviderService;
+  let pricingService: PricingService;
   let assetService: AssetService;
   let fiatService: FiatService;
   let bankDataService: BankDataService;
@@ -68,7 +68,7 @@ describe('BuyCryptoPreparationService', () => {
   async function setupMocks() {
     buyCryptoRepo = mock<BuyCryptoRepository>();
     transactionHelper = mock<TransactionHelper>();
-    priceProviderService = mock<PriceProviderService>();
+    pricingService = mock<PricingService>();
     fiatService = mock<FiatService>();
     assetService = mock<AssetService>();
     bankDataService = mock<BankDataService>();
@@ -81,7 +81,7 @@ describe('BuyCryptoPreparationService', () => {
         BuyCryptoPreparationService,
         { provide: BuyCryptoRepository, useValue: buyCryptoRepo },
         { provide: TransactionHelper, useValue: transactionHelper },
-        { provide: PriceProviderService, useValue: priceProviderService },
+        { provide: PricingService, useValue: pricingService },
         { provide: FiatService, useValue: fiatService },
         { provide: AssetService, useValue: assetService },
         { provide: BankDataService, useValue: bankDataService },
