@@ -6,7 +6,7 @@
         "thanks": "Grazie mille per la tua fiducia",
         "happy_trading": "Buon trading",
         "welcome": "Ciao {name},",
-        "personal_questions": "Please do not hesitate to contact me if you have any questions.",
+        "team_questions": "If you have any questions, please do not hesitate to contact us.",
         "personal_closing": "Kind regards,<br>{closingName}",
         "button": "o<br>[url:Clicca qui]"
     },
@@ -40,11 +40,6 @@
             "confirmed": {
                 "title": "Deposito effetuato",
                 "salutation": "Il tuo deposito e' stato processato con successo"
-            },
-            "waitingForLowerFee": {
-                "title": "Deposito arrivato - commissioni blockchain troppo alte",
-                "salutation": "Tariffe blockchain troppo alte",
-                "message": "Il vostro deposito è arrivato a DFX. Le commissioni della blockchain sono attualmente troppo alte per potervi inviare i vostri beni. I vostri beni saranno inviati non appena le commissioni della blockchain saranno nuovamente inferiori. Di solito ciò avviene entro 24 ore."
             },
             "input_amount": "Depositato",
             "output_amount": "Pagamento Crypto",

@@ -19,6 +19,12 @@ export class Fiat extends IEntity {
   @Column({ default: false })
   cardSellable: boolean;
 
+  @Column({ default: false })
+  instantBuyable: boolean;
+
+  @Column({ default: false })
+  instantSellable: boolean;
+
   @ManyToOne(() => PriceRule)
   priceRule: PriceRule;
 }

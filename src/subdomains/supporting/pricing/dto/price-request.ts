@@ -1,16 +1,28 @@
 import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
-import { PriceSource } from '../domain/entities/price-rule.entity';
+
+export enum CurrencyType {
+  ASSET = 'Asset',
+  FIAT = 'Fiat',
+}
 
 export class PriceRequest {
   @IsNotEmpty()
-  @IsEnum(PriceSource)
-  source: PriceSource;
+  @IsEnum(CurrencyType)
+  fromType: CurrencyType;
 
   @IsNotEmpty()
   @IsString()
-  from: string;
+  fromId: string;
+
+  @IsNotEmpty()
+  @IsEnum(CurrencyType)
+  toType: CurrencyType;
 
   @IsNotEmpty()
   @IsString()
-  to: string;
+  toId: string;
+
+  @IsNotEmpty()
+  @IsString()
+  allowExpired: string;
 }
