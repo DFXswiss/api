@@ -1,4 +1,4 @@
-import { IsBoolean, IsEnum, IsInt, IsNotEmpty } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
 
 export enum CurrencyType {
   ASSET = 'Asset',
@@ -11,18 +11,18 @@ export class PriceRequest {
   fromType: CurrencyType;
 
   @IsNotEmpty()
-  @IsInt()
-  fromId: number;
+  @IsString()
+  fromId: string;
 
   @IsNotEmpty()
   @IsEnum(CurrencyType)
   toType: CurrencyType;
 
   @IsNotEmpty()
-  @IsInt()
-  toId: number;
+  @IsString()
+  toId: string;
 
   @IsNotEmpty()
-  @IsBoolean()
-  allowExpired: boolean;
+  @IsString()
+  allowExpired: string;
 }

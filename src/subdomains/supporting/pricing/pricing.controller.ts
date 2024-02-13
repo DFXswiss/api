@@ -26,11 +26,11 @@ export class PricingController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getPrice(@Query() dto: PriceRequest): Promise<Price> {
-    const from = await this.getCurrency(dto.fromType, dto.fromId);
-    const to = await this.getCurrency(dto.toType, dto.toId);
+    const from = await this.getCurrency(dto.fromType, +dto.fromId);
+    const to = await this.getCurrency(dto.toType, +dto.toId);
     if (!from || !to) throw new NotFoundException('Currency not found');
 
-    return this.pricingServiceNew.getPrice(from, to, dto.allowExpired);
+    return this.pricingServiceNew.getPrice(from, to, dto.allowExpired === 'true');
   }
 
   @Get()
