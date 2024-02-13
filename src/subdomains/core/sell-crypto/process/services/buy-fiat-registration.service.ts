@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
+import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionHelper, ValidationError } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -19,6 +21,7 @@ export class BuyFiatRegistrationService {
     private readonly sellRepository: SellRepository,
     private readonly payInService: PayInService,
     private readonly transactionHelper: TransactionHelper,
+    private readonly bankDataService: BankDataService,
   ) {}
 
   async registerSellPayIn(): Promise<void> {
@@ -43,7 +46,7 @@ export class BuyFiatRegistrationService {
   private async filterSellPayIns(allPayIns: CryptoInput[]): Promise<[CryptoInput, Sell][]> {
     const routes = await this.sellRepository.find({
       where: { deposit: Not(IsNull()) },
-      relations: ['deposit', 'user', 'user.userData'],
+      relations: ['deposit', 'user', 'user.userData', 'user.userData.bankDatas'],
     });
 
     return this.pairRoutesWithPayIns(routes, allPayIns);
@@ -90,6 +93,13 @@ export class BuyFiatRegistrationService {
             );
             continue;
           }
+
+          const bankData = await this.bankDataService.getBankDataWithIban(sellRoute.iban, sellRoute.user.userData.id);
+          if (!bankData)
+            await this.bankDataService.createBankData(sellRoute.user.userData, {
+              iban: sellRoute.iban,
+              type: BankDataType.BANK_OUT,
+            });
 
           await this.buyFiatRepo.save(buyFiat);
         }
