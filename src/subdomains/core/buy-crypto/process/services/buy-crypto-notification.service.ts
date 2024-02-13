@@ -246,7 +246,10 @@ export class BuyCryptoNotificationService {
 
     for (const entity of entities) {
       try {
-        if (entity.user.userData.mail && entity.user.userData.verifiedName) {
+        if (
+          entity.user.userData.mail &&
+          (entity.user.userData.verifiedName || entity.amlReason !== AmlReason.NAME_CHECK_WITHOUT_KYC)
+        ) {
           await this.notificationService.sendMail({
             type: MailType.USER,
             input: {

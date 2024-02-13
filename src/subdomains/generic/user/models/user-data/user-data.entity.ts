@@ -361,9 +361,7 @@ export class UserData extends IEntity {
   }
 
   get dilisenseUrl(): string | undefined {
-    return this.verifiedName
-      ? `https://dilisense.com/en/search/${this.verifiedName?.split(' ')?.join('%20')}`
-      : undefined;
+    return this.verifiedName ? `https://dilisense.com/en/search/${encodeURIComponent(this.verifiedName)}` : undefined;
   }
 
   get isDfxUser(): boolean {

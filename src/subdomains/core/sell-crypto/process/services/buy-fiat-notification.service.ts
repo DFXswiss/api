@@ -201,7 +201,10 @@ export class BuyFiatNotificationService {
 
     for (const entity of entities) {
       try {
-        if (entity.sell.user.userData.mail && entity.sell.user.userData.verifiedName) {
+        if (
+          entity.sell.user.userData.mail &&
+          (entity.sell.user.userData.verifiedName || entity.amlReason !== AmlReason.NAME_CHECK_WITHOUT_KYC)
+        ) {
           await this.notificationService.sendMail({
             type: MailType.USER,
             input: {
