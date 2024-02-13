@@ -4,6 +4,7 @@ import { KrakenService } from 'src/integration/exchange/services/kraken.service'
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from '../../notification/enums';
 import { NotificationService } from '../../notification/services/notification.service';
@@ -22,6 +23,7 @@ export class PricingServiceNew {
   private readonly logger = new DfxLogger(PricingServiceNew);
 
   private readonly providerMap: { [s in PriceSource]: PricingProvider };
+  private readonly priceCache = new AsyncCache<Price>(10);
 
   constructor(
     private readonly priceRuleRepo: PriceRuleRepository,
@@ -95,8 +97,10 @@ export class PricingServiceNew {
     return query.innerJoinAndSelect('rule.reference', 'reference').where('item.id = :id', { id: item.id }).getOne();
   }
 
-  private async updatePriceFor(rule: PriceRule): Promise<PriceRule> {
+  private async updatePriceFor(rule: PriceRule, from?: Asset | Fiat, to?: Asset | Fiat): Promise<PriceRule> {
     const price = await this.getRulePrice(rule.rule);
+    from && (price.source = from.name);
+    to && (price.target = to.name);
 
     if ((await this.isPriceValid(price, rule.check1)) && (await this.isPriceValid(price, rule.check2))) {
       rule.currentPrice = price.price;
@@ -147,6 +151,8 @@ export class PricingServiceNew {
   }
 
   private async getRulePrice(rule: Rule): Promise<Price> {
-    return this.getPriceFrom(rule.source, rule.asset, rule.reference);
+    return this.priceCache.get(`${rule.source}:${rule.asset}/${rule.reference}`, () =>
+      this.getPriceFrom(rule.source, rule.asset, rule.reference),
+    );
   }
 }
