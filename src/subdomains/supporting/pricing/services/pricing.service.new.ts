@@ -81,7 +81,7 @@ export class PricingServiceNew {
     const referencePrice = await this.getPriceFor(rule.reference, allowExpired);
 
     if (!rule.isPriceValid) {
-      const updateTask = this.updatePriceFor(rule);
+      const updateTask = this.updatePriceFor(rule, item, rule.reference);
       if (!allowExpired) {
         rule = await updateTask;
       }
