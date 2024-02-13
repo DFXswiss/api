@@ -46,7 +46,7 @@ export class BuyFiatRegistrationService {
   private async filterSellPayIns(allPayIns: CryptoInput[]): Promise<[CryptoInput, Sell][]> {
     const routes = await this.sellRepository.find({
       where: { deposit: Not(IsNull()) },
-      relations: ['deposit', 'user', 'user.userData'],
+      relations: ['deposit', 'user', 'user.userData', 'user.userData.bankDatas'],
     });
 
     return this.pairRoutesWithPayIns(routes, allPayIns);

@@ -26,7 +26,10 @@ export class KycAdminService {
   }
 
   async updateKycStep(stepId: number, dto: UpdateKycStepDto): Promise<void> {
-    const kycStep = await this.kycStepRepo.findOne({ where: { id: stepId }, relations: { userData: true } });
+    const kycStep = await this.kycStepRepo.findOne({
+      where: { id: stepId },
+      relations: { userData: { bankDatas: true } },
+    });
     if (!kycStep) throw new NotFoundException('KYC step not found');
 
     kycStep.update(dto.status, dto.result);
