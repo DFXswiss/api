@@ -6,7 +6,7 @@
         "thanks": "Merci beaucoup pour votre confiance",
         "happy_trading": "Bon trading",
         "welcome": "Bonjour {name},",
-        "personal_questions": "Please do not hesitate to contact me if you have any questions.",
+        "team_questions": "If you have any questions, please do not hesitate to contact us.",
         "personal_closing": "Kind regards,<br>{closingName}",
         "button": "ou<br>[url:Cliquez ici]"
     },
@@ -40,11 +40,6 @@
             "confirmed": {
                 "title": "Dépôt effectué",
                 "salutation": "Votre dépôt a été effectué avec succès"
-            },
-            "waitingForLowerFee": {
-                "title": "Dépôt arrivé - frais de blockchain trop élevés",
-                "salutation": "Les frais liés à la blockchain sont trop élevés",
-                "message": "Votre dépôt est arrivé à DFX. Les frais de la blockchain sont actuellement trop élevés pour vous envoyer vos actifs. Vos actifs seront envoyés dès que les frais de la blockchain auront baissé. C'est généralement le cas dans les 24 heures."
             },
             "input_amount": "Déposé",
             "output_amount": "Paiement crypto",

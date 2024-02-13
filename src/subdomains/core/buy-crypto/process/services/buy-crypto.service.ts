@@ -14,6 +14,8 @@ import { CryptoRouteService } from 'src/subdomains/core/buy-crypto/routes/crypto
 import { HistoryDtoDeprecated, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
+import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
+import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
@@ -44,6 +46,7 @@ export class BuyCryptoService {
     private readonly userService: UserService,
     private readonly assetService: AssetService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
+    private readonly bankDataService: BankDataService,
   ) {}
 
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<BuyCrypto> {
@@ -53,7 +56,18 @@ export class BuyCryptoService {
     entity = this.buyCryptoRepo.create({ bankTx });
 
     // buy
-    if (buyId) entity.buy = await this.getBuy(buyId);
+    entity.buy = await this.getBuy(buyId);
+
+    const senderAccount = bankTx.senderAccount;
+    if (senderAccount) {
+      const bankData = await this.bankDataService.getBankDataWithIban(senderAccount, entity.buy.user.userData.id);
+
+      if (!bankData)
+        await this.bankDataService.createBankData(entity.buy.user.userData, {
+          iban: senderAccount,
+          type: BankDataType.BANK_IN,
+        });
+    }
 
     return this.buyCryptoRepo.save(entity);
   }
@@ -297,7 +311,10 @@ export class BuyCryptoService {
 
   private async getBuy(buyId: number): Promise<Buy> {
     // buy
-    const buy = await this.buyRepo.findOne({ where: { id: buyId }, relations: ['user', 'user.wallet'] });
+    const buy = await this.buyRepo.findOne({
+      where: { id: buyId },
+      relations: { user: { wallet: true, userData: { bankDatas: true } } },
+    });
     if (!buy) throw new BadRequestException('Buy route not found');
 
     return buy;

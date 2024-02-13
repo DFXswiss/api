@@ -11,7 +11,7 @@ export enum BankDataType {
 
 @Entity()
 export class BankData extends IEntity {
-  @Column({ length: 256 })
+  @Column({ length: 256, nullable: true })
   name: string;
 
   @Column({ nullable: true })

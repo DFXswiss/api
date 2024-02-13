@@ -6,9 +6,7 @@ import { Exchange } from 'ccxt';
 import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
-import { FeeTier } from 'src/shared/models/asset/asset.entity';
 import { Process } from 'src/shared/services/process.service';
-import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
 
 export enum Environment {
@@ -321,6 +319,8 @@ export class Configuration {
       contractAddress: {
         zchf: process.env.ZCHF_CONTRACT_ADDRESS,
         equity: process.env.ZCHF_EQUITY_CONTRACT_ADDRESS,
+        stablecoinBridge: process.env.ZCHF_STABLECOIN_BRIDGE_CONTRACT_ADDRESS,
+        xchf: process.env.ZCHF_XCHF_CONTRACT_ADDRESS,
       },
     },
   };
@@ -342,52 +342,8 @@ export class Configuration {
 
   buy = {
     fee: {
-      organization: {
-        [FeeTier.TIER0]: 0,
-        [FeeTier.TIER1]: 0.0149,
-        [FeeTier.TIER2]: 0.0199,
-        [FeeTier.TIER3]: 0.0275,
-        [FeeTier.TIER4]: 0.0349,
-      },
-      private: {
-        [FeeTier.TIER0]: 0,
-        [FeeTier.TIER1]: 0.0099,
-        [FeeTier.TIER2]: 0.0149,
-        [FeeTier.TIER3]: 0.0225,
-        [FeeTier.TIER4]: 0.0299,
-      },
-      card: 0.0599,
       limit: +(process.env.BUY_CRYPTO_FEE_LIMIT ?? 0.001),
-
-      get: (tier: FeeTier, accountType: AccountType) =>
-        accountType === AccountType.PERSONAL ? this.buy.fee.private[tier] : this.buy.fee.organization[tier],
     },
-  };
-
-  sell = {
-    fee: {
-      organization: {
-        [FeeTier.TIER0]: 0,
-        [FeeTier.TIER1]: 0.0199,
-        [FeeTier.TIER2]: 0.0249,
-        [FeeTier.TIER3]: 0.0325,
-        [FeeTier.TIER4]: 0.0399,
-      },
-      private: {
-        [FeeTier.TIER0]: 0,
-        [FeeTier.TIER1]: 0.0149,
-        [FeeTier.TIER2]: 0.0199,
-        [FeeTier.TIER3]: 0.0275,
-        [FeeTier.TIER4]: 0.0349,
-      },
-
-      get: (tier: FeeTier, accountType: AccountType) =>
-        accountType === AccountType.PERSONAL ? this.sell.fee.private[tier] : this.sell.fee.organization[tier],
-    },
-  };
-
-  crypto = {
-    fee: 0.0099,
   };
 
   exchange: ExchangeConfig = {
