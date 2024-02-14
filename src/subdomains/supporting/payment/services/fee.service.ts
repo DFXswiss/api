@@ -161,13 +161,33 @@ export class FeeService {
   async getUserFee(request: UserFeeRequest): Promise<FeeDto> {
     const userFees = await this.getValidFees(request);
 
-    return this.calculateFee(userFees, request.blockchainFee, request.user.userData?.id);
+    try {
+      return this.calculateFee(userFees, request.blockchainFee, request.user.userData?.id);
+    } catch (e) {
+      this.logger.error(
+        `Fee exception, from: ${request.from.name}, to: ${request.to.name}, 
+        paymentMethodIn: ${request.paymentMethodIn}, paymentMethodOut: ${request.paymentMethodOut}, 
+        volume: ${request.txVolume}, userDataId: ${
+          request.user.userData.id
+        }, discountCodes: ${request.discountCodes.join(';')}`,
+      );
+      throw e;
+    }
   }
 
   async getDefaultFee(request: FeeRequestBase, accountType = AccountType.PERSONAL): Promise<FeeDto> {
     const defaultFees = await this.getValidFees({ ...request, accountType });
 
-    return this.calculateFee(defaultFees, request.blockchainFee);
+    try {
+      return this.calculateFee(defaultFees, request.blockchainFee);
+    } catch (e) {
+      this.logger.error(
+        `Fee exception, from: ${request.from.name}, to: ${request.to.name}, 
+        paymentMethodIn: ${request.paymentMethodIn}, paymentMethodOut: ${request.paymentMethodOut}, 
+        volume: ${request.txVolume}, discountCodes: ${request.discountCodes.join(';')}`,
+      );
+      throw e;
+    }
   }
 
   // --- HELPER METHODS --- //
