@@ -164,13 +164,7 @@ export class FeeService {
     try {
       return this.calculateFee(userFees, request.blockchainFee, request.user.userData?.id);
     } catch (e) {
-      this.logger.error(
-        `Fee exception, from: ${request.from.name}, to: ${request.to.name}, 
-        paymentMethodIn: ${request.paymentMethodIn}, paymentMethodOut: ${request.paymentMethodOut}, 
-        volume: ${request.txVolume}, userDataId: ${
-          request.user.userData.id
-        }, discountCodes: ${request.discountCodes.join(';')}`,
-      );
+      this.logger.error(`Fee exception, request: ${JSON.stringify(request)}`);
       throw e;
     }
   }
@@ -181,11 +175,7 @@ export class FeeService {
     try {
       return this.calculateFee(defaultFees, request.blockchainFee);
     } catch (e) {
-      this.logger.error(
-        `Fee exception, from: ${request.from.name}, to: ${request.to.name}, 
-        paymentMethodIn: ${request.paymentMethodIn}, paymentMethodOut: ${request.paymentMethodOut}, 
-        volume: ${request.txVolume}, discountCodes: ${request.discountCodes.join(';')}`,
-      );
+      this.logger.error(`Fee exception, request: ${JSON.stringify(request)}`);
       throw e;
     }
   }
