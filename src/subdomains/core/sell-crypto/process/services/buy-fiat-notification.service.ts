@@ -5,7 +5,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { AmlReason } from 'src/subdomains/core/buy-crypto/process/enums/aml-reason.enum';
+import { AmlReason, KycAmlReasons } from 'src/subdomains/core/buy-crypto/process/enums/aml-reason.enum';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import {
   MailFactory,
@@ -201,7 +201,10 @@ export class BuyFiatNotificationService {
 
     for (const entity of entities) {
       try {
-        if (entity.sell.user.userData.mail) {
+        if (
+          entity.sell.user.userData.mail &&
+          (entity.sell.user.userData.verifiedName || entity.amlReason !== AmlReason.NAME_CHECK_WITHOUT_KYC)
+        ) {
           await this.notificationService.sendMail({
             type: MailType.USER,
             input: {
@@ -226,7 +229,20 @@ export class BuyFiatNotificationService {
                 entity.amlReason !== AmlReason.NA
                   ? {
                       key: `${MailTranslationKey.RETURN}.introduction`,
-                      params: { reason: MailFactory.parseMailKey(MailTranslationKey.RETURN_REASON, entity.amlReason) },
+                      params: {
+                        reason: MailFactory.parseMailKey(MailTranslationKey.RETURN_REASON, entity.amlReason),
+                        url: entity.sell.user.userData.dilisenseUrl,
+                        urlText: entity.sell.user.userData.dilisenseUrl,
+                      },
+                    }
+                  : null,
+                KycAmlReasons.includes(entity.amlReason)
+                  ? {
+                      key: `${MailTranslationKey.RETURN}.kyc_start`,
+                      params: {
+                        url: entity.sell.user.userData.kycUrl,
+                        urlText: entity.sell.user.userData.kycUrl,
+                      },
                     }
                   : null,
                 { key: MailKey.SPACE, params: { value: '2' } },

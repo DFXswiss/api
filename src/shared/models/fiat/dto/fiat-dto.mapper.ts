@@ -10,6 +10,8 @@ export class FiatDtoMapper {
       sellable: fiat.sellable,
       cardBuyable: fiat.cardBuyable,
       cardSellable: fiat.cardSellable,
+      instantBuyable: fiat.instantBuyable,
+      instantSellable: fiat.instantSellable,
     };
 
     return Object.assign(new FiatDto(), dto);

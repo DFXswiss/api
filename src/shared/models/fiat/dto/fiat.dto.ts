@@ -18,4 +18,10 @@ export class FiatDto {
 
   @ApiProperty()
   cardSellable: boolean;
+
+  @ApiProperty()
+  instantBuyable: boolean;
+
+  @ApiProperty()
+  instantSellable: boolean;
 }

@@ -14,7 +14,6 @@ export class AssetDtoMapper {
       type: asset.type,
       category: asset.category,
       dexName: asset.dexName,
-      feeTier: asset.feeTier,
       comingSoon: asset.comingSoon,
       buyable: asset.buyable,
       sellable: asset.sellable,

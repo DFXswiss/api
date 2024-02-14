@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { AssetCategory, AssetType, FeeTier } from '../asset.entity';
+import { AssetCategory, AssetType } from '../asset.entity';
 
 export class AssetDto {
   @ApiProperty()
@@ -29,9 +29,6 @@ export class AssetDto {
 
   @ApiProperty()
   dexName: string;
-
-  @ApiProperty({ enum: FeeTier })
-  feeTier: FeeTier;
 
   @ApiProperty()
   comingSoon: boolean;

@@ -75,7 +75,7 @@ export class BuyCryptoPreparationService {
         const inputAssetEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatEur, false);
         const inputAssetChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
 
-        const bankData = await this.bankDataService.getActiveBankDataWithIban(entity.bankTx.iban);
+        const bankData = await this.bankDataService.getBankDataWithIban(entity.bankTx.iban, undefined, true);
 
         const dateFrom = Util.daysBefore(30);
 

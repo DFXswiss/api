@@ -14,3 +14,10 @@ export enum AmlReason {
   BANK_NOT_ALLOWED = 'BankNotAllowed',
   COUNTRY_NOT_ALLOWED = 'CountryNotAllowed',
 }
+
+export const KycAmlReasons = [
+  AmlReason.DAILY_LIMIT,
+  AmlReason.OLKY_NO_KYC,
+  AmlReason.NAME_CHECK_WITHOUT_KYC,
+  AmlReason.ANNUAL_LIMIT_WITHOUT_KYC,
+];

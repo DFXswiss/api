@@ -84,9 +84,11 @@ export class PricingService {
   // --- PRIVATE METHODS --- //
   private async getPriceFor(item: Asset | Fiat, allowExpired: boolean): Promise<Price> {
     let rule = await this.getRuleFor(item);
-    if (!rule) return Price.create(item.name, item.name, 1);
+    if (!rule) throw new Error(`No price rule found for ${this.getItemString(item)}`);
 
-    const referencePrice = await this.getPriceFor(rule.reference, allowExpired);
+    const referencePrice = rule.reference
+      ? await this.getPriceFor(rule.reference, allowExpired)
+      : Price.create('DFX-USD', 'DFX-USD', 1);
 
     if (!rule.isPriceValid) {
       const updateTask = this.updatePriceFor(rule, item, rule.reference);
@@ -102,7 +104,7 @@ export class PricingService {
     const query = this.priceRuleRepo.createQueryBuilder('rule');
     this.isFiat(item) ? query.innerJoin('rule.fiats', 'item') : query.innerJoin('rule.assets', 'item');
 
-    return query.innerJoinAndSelect('rule.reference', 'reference').where('item.id = :id', { id: item.id }).getOne();
+    return query.leftJoinAndSelect('rule.reference', 'reference').where('item.id = :id', { id: item.id }).getOne();
   }
 
   private async updatePriceFor(rule: PriceRule, from?: Asset | Fiat, to?: Asset | Fiat): Promise<PriceRule> {
