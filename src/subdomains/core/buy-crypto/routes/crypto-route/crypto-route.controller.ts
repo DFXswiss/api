@@ -201,6 +201,7 @@ export class CryptoRouteController {
       sourceAmount: amount,
       isValid,
       error,
+      exactPrice,
     } = await this.transactionHelper.getTxDetails(
       dto.amount,
       dto.targetAmount,
@@ -224,6 +225,7 @@ export class CryptoRouteController {
       minFeeTarget,
       exchangeRate,
       rate,
+      exactPrice,
       estimatedAmount,
       amount,
       targetAsset: AssetDtoMapper.entityToDto(dto.targetAsset),

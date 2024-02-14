@@ -37,6 +37,7 @@ function createBuyPaymentInfoDto(
     targetAmount: targetAmount,
     currency: currency,
     paymentMethod: FiatPaymentMethod.BANK,
+    exactPrice: false,
   };
 }
 
@@ -123,6 +124,7 @@ describe('BuyController', () => {
       maxVolume: 90000,
       maxVolumeTarget: 0,
       error: undefined,
+      exactPrice: false,
     });
 
     const dto = createBuyPaymentInfoDto();

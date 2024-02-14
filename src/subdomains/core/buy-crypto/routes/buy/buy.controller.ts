@@ -192,6 +192,7 @@ export class BuyController {
       sourceAmount: amount,
       isValid,
       error,
+      exactPrice,
     } = await this.transactionHelper.getTxDetails(
       dto.amount,
       dto.targetAmount,
@@ -214,6 +215,7 @@ export class BuyController {
       minFeeTarget,
       exchangeRate,
       rate,
+      exactPrice,
       estimatedAmount,
       amount,
       asset: AssetDtoMapper.entityToDto(dto.asset),

@@ -184,6 +184,7 @@ export class SellController {
       sourceAmount: amount,
       isValid,
       error,
+      exactPrice,
     } = await this.transactionHelper.getTxDetails(
       dto.amount,
       dto.targetAmount,
@@ -207,6 +208,7 @@ export class SellController {
       minFeeTarget,
       exchangeRate,
       rate,
+      exactPrice,
       estimatedAmount,
       amount,
       currency: FiatDtoMapper.entityToDto(dto.currency),

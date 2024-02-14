@@ -50,6 +50,9 @@ export class CryptoPaymentInfoDto {
   @ApiProperty({ description: 'Final rate (incl. fees) in source/target' })
   rate: number;
 
+  @ApiProperty({ description: 'Exact or approximate price' })
+  exactPrice: boolean;
+
   @ApiProperty({ description: 'Estimated amount in target asset' })
   estimatedAmount: number;
 

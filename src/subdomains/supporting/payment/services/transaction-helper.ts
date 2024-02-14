@@ -299,6 +299,7 @@ export class TransactionHelper implements OnModuleInit {
       feeAmount: this.round(feeAmount, from instanceof Fiat),
       estimatedAmount: this.round(targetAmount, to instanceof Fiat),
       sourceAmount: this.round(sourceAmount, from instanceof Fiat),
+      exactPrice: price.isValid,
     };
   }
 
