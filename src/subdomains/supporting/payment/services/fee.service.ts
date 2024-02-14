@@ -217,7 +217,7 @@ export class FeeService {
 
     if (!baseFee) throw new InternalServerErrorException('Base fee is missing');
     if (baseFee.rate + combinedExtraFeeRate < 0) {
-      this.logger.warn(`UserDiscount higher userBaseFee! UserDataId: ${userDataId}`);
+      this.logger.warn(`Discount is higher than base fee for user data ${userDataId}`);
       return {
         fees: [baseFee],
         rate: baseFee.rate,
