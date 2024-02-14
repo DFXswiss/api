@@ -92,6 +92,7 @@ export class BuyController {
       asset,
       paymentMethod,
       CryptoPaymentMethod.CRYPTO,
+      true,
       undefined,
       discountCode ? [discountCode] : [],
     );
@@ -198,6 +199,7 @@ export class BuyController {
       dto.asset,
       dto.paymentMethod,
       CryptoPaymentMethod.CRYPTO,
+      !dto.exactPrice,
       user,
     );
     const bankInfo = await this.getBankInfo(buy, { ...dto, amount });

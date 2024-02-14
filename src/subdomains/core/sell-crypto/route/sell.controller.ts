@@ -91,6 +91,7 @@ export class SellController {
       currency,
       CryptoPaymentMethod.CRYPTO,
       FiatPaymentMethod.BANK,
+      true,
       undefined,
       discountCode ? [discountCode] : [],
     );
@@ -190,6 +191,7 @@ export class SellController {
       dto.currency,
       CryptoPaymentMethod.CRYPTO,
       FiatPaymentMethod.BANK,
+      !dto.exactPrice,
       user,
     );
 

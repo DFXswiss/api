@@ -93,6 +93,7 @@ export class CryptoRouteController {
       targetAsset,
       CryptoPaymentMethod.CRYPTO,
       CryptoPaymentMethod.CRYPTO,
+      true,
       undefined,
       discountCode ? [discountCode] : [],
     );
@@ -207,6 +208,7 @@ export class CryptoRouteController {
       dto.targetAsset,
       CryptoPaymentMethod.CRYPTO,
       CryptoPaymentMethod.CRYPTO,
+      !dto.exactPrice,
       user,
     );
 
