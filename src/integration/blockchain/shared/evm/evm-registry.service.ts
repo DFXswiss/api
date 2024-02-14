@@ -47,6 +47,8 @@ export class EvmRegistryService {
         return this.arbitrumService.getDefaultClient();
       case Blockchain.OPTIMISM:
         return this.optimismService.getDefaultClient();
+      case Blockchain.POLYGON:
+        return this.polygonService.getDefaultClient();
 
       default:
         throw new Error(`No l2 evm client found for blockchain ${blockchain}`);

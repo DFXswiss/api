@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
 import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
@@ -40,7 +41,8 @@ export class KycAdminService {
       kycStep.userData.status !== UserDataStatus.MERGED &&
       kycStep.userData.kycLevel >= KycLevel.LEVEL_30 &&
       kycStep.userData.kycType === KycType.DFX &&
-      !kycStep.userData.lastNameCheckDate
+      !kycStep.userData.lastNameCheckDate &&
+      !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)
     )
       await this.bankDataService.createBankData(kycStep.userData, {
         iban: `Ident${kycStep.identDocumentId}`,

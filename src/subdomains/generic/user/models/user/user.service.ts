@@ -27,7 +27,7 @@ import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
-import { KycState, KycStatus, KycType, UserDataStatus } from '../user-data/user-data.entity';
+import { KycLevel, KycState, KycStatus, KycType, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { Wallet } from '../wallet/wallet.entity';
 import { WalletService } from '../wallet/wallet.service';
@@ -36,6 +36,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UserNameDto } from './dto/user-name.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
 import { User, UserStatus } from './user.entity';
@@ -166,6 +167,13 @@ export class UserService {
     user.userData = update;
 
     return { user: await this.toDto(user, true), isKnownUser };
+  }
+
+  async updateUserName(id: number, dto: UserNameDto): Promise<void> {
+    const user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
+    if (user.userData.kycLevel >= KycLevel.LEVEL_20) throw new BadRequestException('KYC already started');
+
+    await this.userDataService.updateUserName(user.userData, dto);
   }
 
   async updateUserData(id: number, dto: KycInputDataDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {

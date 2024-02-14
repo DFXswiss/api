@@ -92,7 +92,7 @@ export class PricingService {
 
     if (!rule.isPriceValid) {
       const updateTask = this.updatePriceFor(rule, item, rule.reference);
-      if (!allowExpired || rule.isPriceObsolete) {
+      if (!allowExpired || rule.currentPrice == null || rule.isPriceObsolete) {
         rule = await updateTask;
       }
     }

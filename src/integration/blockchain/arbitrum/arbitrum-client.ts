@@ -95,14 +95,6 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     const contract = this.getERC20ContractForDexL1(l1Token.chainId);
     const decimals = await contract.decimals();
 
-    const approveTx = await erc20Bridge.approveToken({
-      amount: this.toWeiAmount(amount, decimals),
-      l1Signer: this.#l1Wallet,
-      erc20L1Address: l1Token.chainId,
-    });
-
-    await approveTx.wait();
-
     const withdrawTx = await erc20Bridge.withdraw({
       amount: this.toWeiAmount(amount, decimals),
       destinationAddress: this.#l1Wallet.address,
