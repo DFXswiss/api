@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -94,12 +95,14 @@ export class BuyFiatRegistrationService {
             continue;
           }
 
-          const bankData = await this.bankDataService.getBankDataWithIban(sellRoute.iban, sellRoute.user.userData.id);
-          if (!bankData)
-            await this.bankDataService.createBankData(sellRoute.user.userData, {
-              iban: sellRoute.iban,
-              type: BankDataType.BANK_OUT,
-            });
+          if (!DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
+            const bankData = await this.bankDataService.getBankDataWithIban(sellRoute.iban, sellRoute.user.userData.id);
+            if (!bankData)
+              await this.bankDataService.createBankData(sellRoute.user.userData, {
+                iban: sellRoute.iban,
+                type: BankDataType.BANK_OUT,
+              });
+          }
 
           await this.buyFiatRepo.save(buyFiat);
         }
