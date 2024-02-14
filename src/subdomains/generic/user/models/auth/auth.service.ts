@@ -95,7 +95,8 @@ export class AuthService {
     if (isCompany) return this.companySignIn(dto, ip);
 
     const user = await this.userRepo.getByAddress(dto.address, true);
-    if (!user || user.status == UserStatus.BLOCKED) throw new NotFoundException('User not found');
+    if (!user) throw new NotFoundException('User not found');
+    if (user.status === UserStatus.BLOCKED) throw new ConflictException('User is blocked');
 
     if (user.wallet.masterKey !== dto.signature) {
       if (!(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature))) {

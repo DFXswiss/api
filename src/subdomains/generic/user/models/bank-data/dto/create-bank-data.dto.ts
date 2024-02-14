@@ -6,18 +6,18 @@ import { BankDataType } from '../bank-data.entity';
 export class CreateBankDataDto {
   @IsNotEmpty()
   @IsString()
-  name: string;
-
-  @IsNotEmpty()
-  @IsString()
   @Transform(Util.trim)
   iban: string;
 
   @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
   @IsBoolean()
-  active: boolean;
+  active?: boolean;
 
   @IsOptional()
   @IsEnum(BankDataType)
-  type: BankDataType;
+  type?: BankDataType;
 }

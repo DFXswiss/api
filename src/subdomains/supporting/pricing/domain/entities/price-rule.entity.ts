@@ -30,8 +30,8 @@ export class PriceRule extends IEntity {
   @OneToMany(() => Fiat, (f) => f.priceRule)
   fiats: Fiat[];
 
-  @ManyToOne(() => Asset, { eager: true, nullable: false })
-  reference: Asset;
+  @ManyToOne(() => Asset, { eager: true, nullable: true })
+  reference?: Asset;
 
   @Column()
   priceSource: PriceSource;

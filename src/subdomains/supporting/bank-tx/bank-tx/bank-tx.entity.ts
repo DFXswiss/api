@@ -30,6 +30,8 @@ export enum BankTxIndicator {
   DEBIT = 'DBIT',
 }
 
+const externalManagedIban = ['CH3704835284238523000', 'BE48967056780227'];
+
 @Entity()
 export class BankTx extends IEntity {
   @Column({ length: 256, unique: true })
@@ -189,6 +191,23 @@ export class BankTx extends IEntity {
 
   @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.bankTx, { nullable: true })
   buyFiat?: BuyFiat;
+
+  //*** GETTER METHODS ***//
+
+  get completeName(): string {
+    return `${this.name} ${this.ultimateName}`;
+  }
+
+  get senderAccount(): string | undefined {
+    if (externalManagedIban.includes(this.iban)) return `${this.iban};${this.completeName.split(' ').join('')}`;
+    if (!this.iban) {
+      if (this.name.startsWith('/C/')) return this.name.split('/C/')[1];
+      if (this.name === 'Schaltereinzahlung') return this.name;
+    }
+    if (!isNaN(+this.iban)) return `NOIBAN${this.iban}`;
+    if (this.iban) return this.iban;
+    return undefined;
+  }
 }
 
 export const BankTxCompletedTypes = [BankTxType.BUY_CRYPTO, BankTxType.BANK_TX_REPEAT, BankTxType.BANK_TX_RETURN];

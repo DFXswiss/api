@@ -27,6 +27,7 @@ import { FindOptionsRelations, In, IsNull, Not } from 'typeorm';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
+import { UserNameDto } from '../user/dto/user-name.dto';
 import { UserRepository } from '../user/user.repository';
 import { AccountType } from './account-type.enum';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
@@ -222,6 +223,10 @@ export class UserDataService {
 
   async updateTotpSecret(user: UserData, secret: string): Promise<void> {
     await this.userDataRepo.update(user.id, { totpSecret: secret });
+  }
+
+  async updateUserName(user: UserData, dto: UserNameDto) {
+    await this.userDataRepo.update(user.id, { firstname: dto.firstName, surname: dto.lastName });
   }
 
   async updateUserSettings(

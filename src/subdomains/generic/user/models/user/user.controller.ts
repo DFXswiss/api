@@ -24,6 +24,7 @@ import { LinkedUserInDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UserNameDto } from './dto/user-name.dto';
 import { UserDetailDto, UserDto } from './dto/user.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
 import { User } from './user.entity';
@@ -97,6 +98,15 @@ export class UserController {
     @RealIP() ip: string,
   ): Promise<AuthResponseDto> {
     return this.authService.changeUser(jwt.id, changeUser, ip);
+  }
+
+  // TODO: temporary CC solution
+  @Put('name')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiExcludeEndpoint()
+  async updateUserName(@GetJwt() jwt: JwtPayload, @Body() data: UserNameDto): Promise<void> {
+    await this.userService.updateUserName(jwt.id, data);
   }
 
   @Post('data')
