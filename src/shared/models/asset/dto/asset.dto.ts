@@ -2,6 +2,15 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetCategory, AssetType } from '../asset.entity';
 
+// TODO: remove
+export enum FeeTier {
+  TIER0 = 'Tier0',
+  TIER1 = 'Tier1',
+  TIER2 = 'Tier2',
+  TIER3 = 'Tier3',
+  TIER4 = 'Tier4',
+}
+
 export class AssetDto {
   @ApiProperty()
   id: number;
@@ -29,6 +38,9 @@ export class AssetDto {
 
   @ApiProperty()
   dexName: string;
+
+  @ApiProperty({ enum: FeeTier, deprecated: true })
+  feeTier: FeeTier;
 
   @ApiProperty()
   comingSoon: boolean;
