@@ -15,4 +15,16 @@ export class BuyQuoteDto {
 
   @ApiProperty({ description: 'Final rate (incl. fees) in source/target' })
   rate: number;
+
+  @ApiProperty({ description: 'Minimum volume in source currency' })
+  minVolume: number;
+
+  @ApiProperty({ description: 'Maximum volume in source currency' })
+  maxVolume: number;
+
+  @ApiProperty({ description: 'Minimum volume in target asset' })
+  minVolumeTarget: number;
+
+  @ApiProperty({ description: 'Maximum volume in target asset' })
+  maxVolumeTarget: number;
 }

@@ -191,7 +191,10 @@ export class TransactionHelper implements OnModuleInit {
     const extendedSpecs = {
       ...specs,
       minFee: fee.blockchain,
-      maxVolume: user?.userData.availableTradingLimit ?? Config.defaultDailyTradingLimit,
+      maxVolume:
+        user?.userData.availableTradingLimit ?? [paymentMethodIn, paymentMethodOut].includes(FiatPaymentMethod.CARD)
+          ? Config.defaultCardTradingLimit
+          : Config.defaultTradingLimit,
       fixedFee: fee.fixed,
     };
 

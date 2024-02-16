@@ -12,4 +12,16 @@ export class CryptoQuoteDto {
 
   @ApiProperty({ description: 'Estimated amount in target asset' })
   estimatedAmount: number;
+
+  @ApiProperty({ description: 'Minimum volume in source asset' })
+  minVolume: number;
+
+  @ApiProperty({ description: 'Maximum volume in source asset' })
+  maxVolume: number;
+
+  @ApiProperty({ description: 'Minimum volume in target asset' })
+  minVolumeTarget: number;
+
+  @ApiProperty({ description: 'Maximum volume in target asset' })
+  maxVolumeTarget: number;
 }
