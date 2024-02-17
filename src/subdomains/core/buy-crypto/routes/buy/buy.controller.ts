@@ -89,6 +89,8 @@ export class BuyController {
       minVolumeTarget,
       maxVolume,
       maxVolumeTarget,
+      isValid,
+      error,
     } = await this.transactionHelper.getTxDetails(
       sourceAmount,
       targetAmount,
@@ -110,6 +112,8 @@ export class BuyController {
       maxVolume,
       minVolumeTarget,
       maxVolumeTarget,
+      isValid,
+      error,
     };
   }
 

@@ -1,4 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { TransactionError } from 'src/subdomains/supporting/payment/services/transaction-helper';
 
 export class SellQuoteDto {
   @ApiProperty({ description: 'Fee amount in source asset' })
@@ -27,4 +28,10 @@ export class SellQuoteDto {
 
   @ApiProperty({ description: 'Maximum volume in target currency' })
   maxVolumeTarget: number;
+
+  @ApiProperty()
+  isValid: boolean;
+
+  @ApiPropertyOptional({ enum: TransactionError, description: 'Error message in case isValid is false' })
+  error?: TransactionError;
 }
