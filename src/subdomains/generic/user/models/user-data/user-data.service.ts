@@ -171,7 +171,7 @@ export class UserDataService {
       const userWithSameFileId = await this.userDataRepo.findOneBy({ id: Not(userDataId), kycFileId: dto.kycFileId });
       if (userWithSameFileId) throw new ConflictException('A user with this KYC file ID already exists');
 
-      await this.userDataRepo.save({ ...userData, ...{ kycFileId: dto.kycFileId } });
+      await this.userDataRepo.save(Object.assign(userData, { kycFileId: dto.kycFileId }));
     }
 
     await this.loadDtoRelations(userData, dto);
@@ -190,7 +190,7 @@ export class UserDataService {
     if (userData.identificationType) dto.identificationType = userData.identificationType;
     if (userData.verifiedName && dto.verifiedName !== null) dto.verifiedName = userData.verifiedName;
 
-    userData = await this.userDataRepo.save({ ...userData, ...dto });
+    userData = await this.userDataRepo.save(Object.assign(userData, dto));
 
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
