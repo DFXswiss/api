@@ -88,7 +88,7 @@ export class UserService {
   }
 
   async getUserDto(userId: number, detailed = false): Promise<UserDetailDto> {
-    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: { userData: true, wallet: true } });
     if (!user) throw new NotFoundException('User not found');
 
     return this.toDto(user, detailed);
@@ -158,7 +158,7 @@ export class UserService {
   }
 
   async updateUser(id: number, dto: UpdateUserDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
-    let user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
+    let user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users', 'wallet'] });
     if (!user) throw new NotFoundException('User not found');
 
     // update
@@ -177,7 +177,7 @@ export class UserService {
   }
 
   async updateUserData(id: number, dto: KycInputDataDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
-    const user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
+    const user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users', 'wallet'] });
     if (user.userData.kycStatus !== KycStatus.NA) throw new BadRequestException('KYC already started');
 
     user.userData = await this.userDataService.updateKycData(user.userData, KycDataMapper.toUserData(dto));
@@ -465,6 +465,7 @@ export class UserService {
   private async toDto(user: User, detailed: boolean): Promise<UserDetailDto> {
     return {
       accountType: user.userData?.accountType,
+      wallet: user.wallet.name,
       address: user.address,
       status: user.status,
       mail: user.userData?.mail,
