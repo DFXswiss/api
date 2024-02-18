@@ -25,7 +25,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
-import { KycLevel, KycState, KycStatus, KycType, UserDataStatus } from '../user-data/user-data.entity';
+import { KycLevel, KycState, KycType, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { Wallet } from '../wallet/wallet.entity';
 import { WalletService } from '../wallet/wallet.service';
@@ -116,7 +116,7 @@ export class UserService {
       .where('user.refCredit - user.paidRefCredit > 0')
       .andWhere('user.status != :userStatus', { userStatus: UserStatus.BLOCKED })
       .andWhere('userData.status != :userDataStatus', { userDataStatus: UserDataStatus.BLOCKED })
-      .andWhere('userData.kycStatus != :kycStatus', { kycStatus: KycStatus.REJECTED })
+      .andWhere('userData.kycLevel != :kycLevel', { kycLevel: KycLevel.REJECTED })
       .getMany();
   }
 

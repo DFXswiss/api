@@ -112,10 +112,10 @@ export class KycService {
 
   // --- KYC PROCESS --- //
   async requestKyc(code: string, userId?: number): Promise<KycInfo> {
-    return this.getKycStatus(code, userId);
+    return this.getKycInfo(code, userId);
   }
 
-  async getKycStatus(code: string, userId?: number): Promise<KycInfo> {
+  async getKycInfo(code: string, userId?: number): Promise<KycInfo> {
     const userData = await this.getUser(code, userId);
 
     return this.createKycInfoBasedOn(userData);
