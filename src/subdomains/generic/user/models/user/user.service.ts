@@ -13,6 +13,7 @@ import { CryptoService } from 'src/integration/blockchain/shared/services/crypto
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
@@ -23,6 +24,7 @@ import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.d
 import { KycDataMapper } from 'src/subdomains/generic/kyc/dto/mapper/kyc-data.mapper';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
+import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
 import { KycLevel, KycState, KycType, UserDataStatus } from '../user-data/user-data.entity';
@@ -34,9 +36,10 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UserNameDto } from './dto/user-name.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
-import { FeeDirectionType, User, UserStatus } from './user.entity';
+import { User, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
 
 @Injectable()
@@ -85,7 +88,7 @@ export class UserService {
   }
 
   async getUserDto(userId: number, detailed = false): Promise<UserDetailDto> {
-    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: { userData: true, wallet: true } });
     if (!user) throw new NotFoundException('User not found');
 
     return this.toDto(user, detailed);
@@ -155,7 +158,7 @@ export class UserService {
   }
 
   async updateUser(id: number, dto: UpdateUserDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
-    let user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
+    let user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users', 'wallet'] });
     if (!user) throw new NotFoundException('User not found');
 
     // update
@@ -166,8 +169,15 @@ export class UserService {
     return { user: await this.toDto(user, true), isKnownUser };
   }
 
-  async updateUserData(id: number, dto: KycInputDataDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
+  async updateUserName(id: number, dto: UserNameDto): Promise<void> {
     const user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
+    if (user.userData.kycLevel >= KycLevel.LEVEL_20) throw new BadRequestException('KYC already started');
+
+    await this.userDataService.updateUserName(user.userData, dto);
+  }
+
+  async updateUserData(id: number, dto: KycInputDataDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
+    const user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users', 'wallet'] });
     if (user.userData.kycLevel !== KycLevel.LEVEL_0) throw new BadRequestException('KYC already started');
 
     user.userData = await this.userDataService.updateKycData(user.userData, KycDataMapper.toUserData(dto));
@@ -297,15 +307,25 @@ export class UserService {
   // --- FEES --- //
   async getUserFee(
     userId: number,
-    direction: FeeDirectionType,
-    asset: Asset,
+    paymentMethodIn: PaymentMethod,
+    paymentMethodOut: PaymentMethod,
+    to: Asset | Fiat,
     minFee: number,
     txVolume?: number,
   ): Promise<FeeDto> {
     const user = await this.getUser(userId, { userData: true });
     if (!user) throw new NotFoundException('User not found');
 
-    return this.feeService.getUserFee({ user, direction, asset, blockchainFee: minFee, txVolume, discountCodes: [] });
+    return this.feeService.getUserFee({
+      user,
+      paymentMethodIn,
+      paymentMethodOut,
+      from: undefined,
+      to,
+      blockchainFee: minFee,
+      txVolume,
+      discountCodes: [],
+    });
   }
 
   // --- REF --- //
@@ -445,6 +465,7 @@ export class UserService {
   private async toDto(user: User, detailed: boolean): Promise<UserDetailDto> {
     return {
       accountType: user.userData?.accountType,
+      wallet: user.wallet.name,
       address: user.address,
       status: user.status,
       mail: user.userData?.mail,

@@ -28,6 +28,9 @@ export class UserDto {
   accountType: AccountType;
 
   @ApiProperty()
+  wallet: string;
+
+  @ApiProperty()
   address: string;
 
   @ApiProperty({ enum: UserStatus })

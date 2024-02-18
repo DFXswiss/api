@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
 import { BigNumberish, ethers } from 'ethers';
 import { Config, GetConfig } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -11,9 +11,11 @@ import { LogService } from 'src/subdomains/supporting/log/log.service';
 import {
   FrankencoinChallengeGraphDto,
   FrankencoinDelegationGraphDto,
+  FrankencoinLogDto,
   FrankencoinMinterGraphDto,
   FrankencoinPoolSharesDto,
   FrankencoinPositionDto,
+  FrankencoinSwapDto,
   FrankencoinTradeGraphDto,
 } from './dto/frankencoin.dto';
 import { FrankencoinClient } from './frankencoin-client';
@@ -32,39 +34,42 @@ export class FrankencoinService {
     this.client = new FrankencoinClient(zchfGatewayUrl, zchfApiKey);
   }
 
-  @Cron(CronExpression.EVERY_5_MINUTES)
+  @Cron('0 */15 * * * *') // every 15 minutes
   @Lock()
   async processLogInfo() {
     if (DisabledProcess(Process.FRANKENCOIN_LOG_INFO)) return;
 
-    await this.positionsLog();
-    await this.fpssLog();
-  }
-
-  private async positionsLog() {
-    const positions = await this.getPositions();
+    const logMessage: FrankencoinLogDto = {
+      swap: await this.getSwap(),
+      positions: await this.getPositions(),
+      poolShares: await this.getFPSs(),
+    };
 
     const log: CreateLogDto = {
       system: FrankencoinService.LOG_SYSTEM,
       subsystem: 'FrankencoinSmartContract',
       severity: LogSeverity.INFO,
-      message: JSON.stringify(positions),
+      message: JSON.stringify(logMessage),
     };
 
     await this.logService.create(log);
   }
 
-  private async fpssLog() {
-    const fpss = await this.getFPSs();
+  async getSwap(): Promise<FrankencoinSwapDto> {
+    const xchfContract = this.client.getErc20Contract(Config.blockchain.frankencoin.contractAddress.xchf);
+    const stablecoinBridgeContract = this.client.getStablecoinBridgeContract(
+      Config.blockchain.frankencoin.contractAddress.stablecoinBridge,
+    );
 
-    const log: CreateLogDto = {
-      system: FrankencoinService.LOG_SYSTEM,
-      subsystem: 'FrankencoinPoolSharesSmartContract',
-      severity: LogSeverity.INFO,
-      message: JSON.stringify(fpss),
+    const stablecoinBridgeBalance = await xchfContract.balanceOf(
+      Config.blockchain.frankencoin.contractAddress.stablecoinBridge,
+    );
+    const stablecoinBridgeLimit = await stablecoinBridgeContract.limit();
+
+    return {
+      xchfSwapLimit: this.fromWeiAmount(stablecoinBridgeLimit) - this.fromWeiAmount(stablecoinBridgeBalance),
+      zchfSwapLimit: this.fromWeiAmount(stablecoinBridgeBalance),
     };
-
-    await this.logService.create(log);
   }
 
   async getPositions(): Promise<FrankencoinPositionDto[]> {
@@ -74,7 +79,7 @@ export class FrankencoinService {
 
     for (const position of positions) {
       try {
-        const collateralContract = this.client.getCollateralContract(position.collateral);
+        const collateralContract = this.client.getErc20Contract(position.collateral);
 
         const symbol = await collateralContract.symbol();
         const decimals = await collateralContract.decimals();
@@ -157,6 +162,13 @@ export class FrankencoinService {
     }
 
     return fpssResult;
+  }
+
+  async getFPSPrice(): Promise<number> {
+    const equityContract = this.client.getEquityContract(Config.blockchain.frankencoin.contractAddress.equity);
+    const price = await equityContract.price();
+
+    return this.fromWeiAmount(price);
   }
 
   async getMinters(): Promise<FrankencoinMinterGraphDto[]> {

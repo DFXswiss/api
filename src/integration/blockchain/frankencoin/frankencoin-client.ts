@@ -4,6 +4,7 @@ import { Config } from 'src/config/config';
 import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
 import FRANKENCOIN_EQUITY_ABI from '../shared/evm/abi/frankencoin-equity.abi.json';
 import FRANKENCOIN_POSITION_ABI from '../shared/evm/abi/frankencoin-position.abi.json';
+import FRANKENCOIN_STABLECOIN_BRIDGE_ABI from '../shared/evm/abi/frankencoin-stablecoin-bridge.abi.json';
 import FRANKENCOIN_ABI from '../shared/evm/abi/frankencoin.abi.json';
 import {
   FrankencoinChallengeGraphDto,
@@ -144,6 +145,10 @@ export class FrankencoinClient {
     );
   }
 
+  getErc20Contract(collateralAddress: string): Contract {
+    return new Contract(collateralAddress, ERC20_ABI, this.provider);
+  }
+
   getFrankencoinContract(contractAddress: string): Contract {
     return new Contract(contractAddress, FRANKENCOIN_ABI, this.provider);
   }
@@ -152,11 +157,11 @@ export class FrankencoinClient {
     return new Contract(positionAddress, FRANKENCOIN_POSITION_ABI, this.provider);
   }
 
-  getCollateralContract(collateralAddress: string): Contract {
-    return new Contract(collateralAddress, ERC20_ABI, this.provider);
-  }
-
   getEquityContract(collateralAddress: string): Contract {
     return new Contract(collateralAddress, FRANKENCOIN_EQUITY_ABI, this.provider);
+  }
+
+  getStablecoinBridgeContract(collateralAddress: string): Contract {
+    return new Contract(collateralAddress, FRANKENCOIN_STABLECOIN_BRIDGE_ABI, this.provider);
   }
 }

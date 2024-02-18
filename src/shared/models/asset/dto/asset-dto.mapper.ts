@@ -1,6 +1,6 @@
 import { assetExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { Asset } from '../asset.entity';
-import { AssetDto } from './asset.dto';
+import { AssetDto, FeeTier } from './asset.dto';
 
 export class AssetDtoMapper {
   static entityToDto(asset: Asset): AssetDto {
@@ -14,7 +14,7 @@ export class AssetDtoMapper {
       type: asset.type,
       category: asset.category,
       dexName: asset.dexName,
-      feeTier: asset.feeTier,
+      feeTier: asset.name === 'BTC' ? FeeTier.TIER1 : FeeTier.TIER2,
       comingSoon: asset.comingSoon,
       buyable: asset.buyable,
       sellable: asset.sellable,

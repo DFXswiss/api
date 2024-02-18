@@ -5,6 +5,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
@@ -65,15 +66,16 @@ export class BuyCryptoPreparationService {
           entity.inputAmount,
           inputCurrency,
           entity.target.asset,
+          entity.paymentMethodIn,
+          CryptoPaymentMethod.CRYPTO,
           inputReferencePrice,
           entity.user,
-          entity.paymentMethod,
         );
 
         const inputAssetEurPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatEur);
         const inputAssetChfPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatChf);
 
-        const bankData = await this.bankDataService.getActiveBankDataWithIban(entity.bankTx.iban);
+        const bankData = await this.bankDataService.getBankDataWithIban(entity.bankTx.iban, undefined, true);
 
         const dateFrom = Util.daysBefore(30);
 
@@ -146,21 +148,20 @@ export class BuyCryptoPreparationService {
           entity.inputAmount,
           inputCurrency,
           entity.target.asset,
+          entity.paymentMethodIn,
+          CryptoPaymentMethod.CRYPTO,
           inputReferencePrice,
           entity.user,
-          entity.paymentMethod,
         );
 
         const referenceEurPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatEur);
         const referenceChfPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatChf);
 
-        for (const feeId of fee.fees) {
-          await this.feeService.increaseTxUsages(feeId, entity.user.userData);
-        }
+        const amountInEur = referenceEurPrice.convert(entity.inputReferenceAmount, 2);
 
         await this.buyCryptoRepo.update(
           ...entity.setFeeAndFiatReference(
-            referenceEurPrice.convert(entity.inputReferenceAmount, 2),
+            amountInEur,
             referenceChfPrice.convert(entity.inputReferenceAmount, 2),
             fee.fees,
             fee.rate,
@@ -172,6 +173,10 @@ export class BuyCryptoPreparationService {
             referenceChfPrice.convert(fee.total, 2),
           ),
         );
+
+        for (const feeId of fee.fees) {
+          await this.feeService.increaseTxUsages(amountInEur, feeId, entity.user.userData);
+        }
 
         await this.buyCryptoService.updateBuyVolume([entity.buy?.id]);
         await this.buyCryptoService.updateCryptoRouteVolume([entity.cryptoRoute?.id]);

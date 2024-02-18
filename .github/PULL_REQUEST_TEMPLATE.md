@@ -6,11 +6,10 @@
   - No database related infos (sqldb-xxx)
   - Impact on GS (new/removed columns)
 - [ ] Check for linter errors (in PR)
-- [ ] Test basic user operations
+- [ ] Test basic user operations (on [DFX services](https://dev.services.dfx.swiss))
   - Login/logout
-  - Registration
-  - Update user data
-  - Create/delete payment routes
+  - Buy/sell payment request
+  - KYC page
 
 #### Post-Release
 

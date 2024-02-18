@@ -23,6 +23,8 @@ export class PaymentInfoService {
       if (!dto.currency) throw new NotFoundException('Currency not found');
       if ('paymentMethod' in dto && dto.paymentMethod === FiatPaymentMethod.CARD) {
         if (!dto.currency.cardSellable) throw new BadRequestException('Currency not sellable');
+      } else if ('paymentMethod' in dto && dto.paymentMethod === FiatPaymentMethod.INSTANT) {
+        if (!dto.currency.instantSellable) throw new BadRequestException('Currency not sellable');
       } else {
         if (!dto.currency.sellable) throw new BadRequestException('Currency not sellable');
       }

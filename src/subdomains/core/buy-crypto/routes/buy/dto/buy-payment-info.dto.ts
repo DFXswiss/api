@@ -86,6 +86,7 @@ export class BuyPaymentInfoDto extends BankInfoDto {
   paymentRequest?: string;
 
   paymentLink?: string;
+  nameRequired?: boolean;
 
   @ApiProperty()
   isValid: boolean;

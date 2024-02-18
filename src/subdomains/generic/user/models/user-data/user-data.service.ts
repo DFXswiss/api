@@ -27,6 +27,7 @@ import { FindOptionsRelations, In, IsNull, Not } from 'typeorm';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
+import { UserNameDto } from '../user/dto/user-name.dto';
 import { UserRepository } from '../user/user.repository';
 import { AccountType } from './account-type.enum';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
@@ -137,7 +138,7 @@ export class UserDataService {
   }
 
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
-    const userData = await this.userDataRepo.findOne({
+    let userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
       relations: ['users', 'users.wallet'],
     });
@@ -170,13 +171,12 @@ export class UserDataService {
       const userWithSameFileId = await this.userDataRepo.findOneBy({ id: Not(userDataId), kycFileId: dto.kycFileId });
       if (userWithSameFileId) throw new ConflictException('A user with this KYC file ID already exists');
 
-      await this.userDataRepo.save({ ...userData, ...{ kycFileId: dto.kycFileId } });
+      await this.userDataRepo.save(Object.assign(userData, { kycFileId: dto.kycFileId }));
     }
 
     await this.loadDtoRelations(userData, dto);
 
-    if (dto.kycLevel && dto.kycLevel !== userData.kycLevel)
-      await this.kycNotificationService.kycChanged(userData, dto.kycLevel);
+    const kycChanged = dto.kycLevel && dto.kycLevel !== userData.kycLevel;
 
     if (dto.bankTransactionVerification === CheckStatus.PASS) {
       // cancel a pending video ident, if ident is completed
@@ -190,7 +190,11 @@ export class UserDataService {
     if (userData.identificationType) dto.identificationType = userData.identificationType;
     if (userData.verifiedName && dto.verifiedName !== null) dto.verifiedName = userData.verifiedName;
 
-    return this.userDataRepo.save({ ...userData, ...dto });
+    userData = await this.userDataRepo.save(Object.assign(userData, dto));
+
+    if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
+
+    return userData;
   }
 
   async updateKycData(user: UserData, data: KycUserDataDto): Promise<UserData> {
@@ -219,6 +223,10 @@ export class UserDataService {
 
   async updateTotpSecret(user: UserData, secret: string): Promise<void> {
     await this.userDataRepo.update(user.id, { totpSecret: secret });
+  }
+
+  async updateUserName(user: UserData, dto: UserNameDto) {
+    await this.userDataRepo.update(user.id, { firstname: dto.firstName, surname: dto.lastName });
   }
 
   async updateUserSettings(

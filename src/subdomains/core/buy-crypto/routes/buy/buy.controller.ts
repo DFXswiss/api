@@ -12,10 +12,10 @@ import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
-import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
-import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { BuyCryptoService } from '../../process/services/buy-crypto.service';
 import { Buy } from './buy.entity';
@@ -85,12 +85,19 @@ export class BuyController {
       feeAmount,
       estimatedAmount,
       sourceAmount: amount,
+      minVolume,
+      minVolumeTarget,
+      maxVolume,
+      maxVolumeTarget,
+      isValid,
+      error,
     } = await this.transactionHelper.getTxDetails(
       sourceAmount,
       targetAmount,
       currency,
       asset,
       paymentMethod,
+      CryptoPaymentMethod.CRYPTO,
       undefined,
       discountCode ? [discountCode] : [],
     );
@@ -101,6 +108,12 @@ export class BuyController {
       exchangeRate,
       estimatedAmount,
       amount,
+      minVolume,
+      maxVolume,
+      minVolumeTarget,
+      maxVolumeTarget,
+      isValid,
+      error,
     };
   }
 
@@ -151,7 +164,13 @@ export class BuyController {
       buy.asset.dexName,
     );
 
-    const fee = await this.userService.getUserFee(userId, FeeDirectionType.BUY, buy.asset, minFee.amount);
+    const fee = await this.userService.getUserFee(
+      userId,
+      FiatPaymentMethod.BANK,
+      CryptoPaymentMethod.CRYPTO,
+      buy.asset,
+      minFee.amount,
+    );
 
     return {
       id: buy.id,
@@ -190,6 +209,7 @@ export class BuyController {
       dto.currency,
       dto.asset,
       dto.paymentMethod,
+      CryptoPaymentMethod.CRYPTO,
       user,
     );
     const bankInfo = await this.getBankInfo(buy, { ...dto, amount });
@@ -228,6 +248,10 @@ export class BuyController {
               user.userData.language,
             )
           : undefined,
+      // TODO: temporary CC solution
+      nameRequired:
+        dto.paymentMethod === FiatPaymentMethod.CARD &&
+        !(user.status === UserStatus.ACTIVE || (Boolean(user.userData.firstname) && Boolean(user.userData.surname))),
     };
   }
 

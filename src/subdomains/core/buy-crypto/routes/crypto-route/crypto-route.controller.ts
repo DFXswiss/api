@@ -13,7 +13,6 @@ import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { HistoryDtoDeprecated } from 'src/subdomains/core/history/dto/history.dto';
-import { FeeDirectionType } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -87,11 +86,18 @@ export class CryptoRouteController {
       feeAmount,
       estimatedAmount,
       sourceAmount: amount,
+      minVolume,
+      minVolumeTarget,
+      maxVolume,
+      maxVolumeTarget,
+      isValid,
+      error,
     } = await this.transactionHelper.getTxDetails(
       sourceAmount,
       targetAmount,
       sourceAsset,
       targetAsset,
+      CryptoPaymentMethod.CRYPTO,
       CryptoPaymentMethod.CRYPTO,
       undefined,
       discountCode ? [discountCode] : [],
@@ -102,6 +108,12 @@ export class CryptoRouteController {
       exchangeRate,
       estimatedAmount,
       amount,
+      minVolume,
+      minVolumeTarget,
+      maxVolume,
+      maxVolumeTarget,
+      isValid,
+      error,
     };
   }
 
@@ -157,7 +169,13 @@ export class CryptoRouteController {
       crypto.asset.dexName,
     );
 
-    const fee = await this.userService.getUserFee(userId, FeeDirectionType.CONVERT, crypto.asset, minFee.amount);
+    const fee = await this.userService.getUserFee(
+      userId,
+      CryptoPaymentMethod.CRYPTO,
+      CryptoPaymentMethod.CRYPTO,
+      crypto.asset,
+      minFee.amount,
+    );
 
     return {
       id: crypto.id,
@@ -199,6 +217,7 @@ export class CryptoRouteController {
       dto.targetAmount,
       dto.sourceAsset,
       dto.targetAsset,
+      CryptoPaymentMethod.CRYPTO,
       CryptoPaymentMethod.CRYPTO,
       user,
     );

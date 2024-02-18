@@ -203,6 +203,7 @@ export class MailFactory {
         ];
 
       default:
+        if (element.params) Util.removeNullFields(element.params);
         const translatedParams = this.translateParams(element.params, lang);
         const text = this.translate(element.key, lang, translatedParams);
         const specialTag = this.parseSpecialTag(text);

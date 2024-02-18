@@ -596,7 +596,7 @@ export class BuyCrypto extends IEntity {
     return this.buy ? this.buy.user : this.cryptoRoute.user;
   }
 
-  get paymentMethod(): PaymentMethod {
+  get paymentMethodIn(): PaymentMethod {
     return this.checkoutTx ? FiatPaymentMethod.CARD : this.bankTx ? FiatPaymentMethod.BANK : CryptoPaymentMethod.CRYPTO;
   }
 

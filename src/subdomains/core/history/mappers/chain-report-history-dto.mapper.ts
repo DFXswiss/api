@@ -145,7 +145,7 @@ export class ChainReportHistoryDtoMapper {
           feeAmount: buyFiat.totalFeeAmount
             ? (buyFiat.totalFeeAmount / buyFiat.inputReferenceAmount) * buyFiat.inputAmount
             : null,
-          feeAsset: buyFiat.totalFeeAmount ? buyFiat.inputAsset : null,
+          feeAsset: buyFiat.totalFeeAmount ? this.getAssetSymbol(buyFiat.inputAsset) : null,
           txid: buyFiat.cryptoInput.inTxId,
           description: 'DFX Sale',
         },
@@ -155,7 +155,7 @@ export class ChainReportHistoryDtoMapper {
           inputAmount: null,
           inputAsset: null,
           outputAmount: buyFiat.outputAmount,
-          outputAsset: buyFiat.outputAsset,
+          outputAsset: this.getAssetSymbol(buyFiat.outputAsset),
           feeAmount: null,
           feeAsset: null,
           txid: buyFiat.fiatOutput.remittanceInfo,
@@ -295,7 +295,7 @@ export class ChainReportHistoryDtoMapper {
           timestamp: stakingRefReward.outputDate,
           transactionType: ChainReportTransactionType.REFERRAL_REWARD,
           inputAmount: stakingRefReward.outputAmount,
-          inputAsset: stakingRefReward.outputAsset,
+          inputAsset: this.getAssetSymbol(stakingRefReward.outputAsset),
           outputAmount: null,
           outputAsset: null,
           feeAmount: null,

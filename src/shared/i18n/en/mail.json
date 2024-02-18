@@ -6,7 +6,7 @@
         "thanks": "Thank you very much for your trust",
         "happy_trading": "Happy Trading",
         "welcome": "Hi {name},",
-        "personal_questions": "Please do not hesitate to contact me if you have any questions.",
+        "team_questions": "If you have any questions, please do not hesitate to contact us.",
         "personal_closing": "Kind regards,<br>{closingName}",
         "button": "or<br>[url:Click here]"
     },
@@ -41,11 +41,6 @@
                 "title": "Deposit processed",
                 "salutation": "Your deposit has been successfully processed"
             },
-            "waitingForLowerFee": {
-                "title": "Deposit arrived - blockchain fees too high",
-                "salutation": "Blockchain fees too high",
-                "message": "Your deposit has arrived at DFX. The blockchain fees are currently too high to send your assets to you. Your assets will be sent as soon as the blockchain fees are lower again. This is usually the case within 24 hours."
-            },
             "input_amount": "Deposited",
             "output_amount": "Crypto payment",
             "payment_link": "Here you can find the transaction ID with your payout: [url:Link]"
@@ -70,13 +65,14 @@
                 "annual_limit": "You exceeded your annual limit",
                 "olky_no_kyc": "You have to complete KYC for DFX in order to use Olkypay Bank",
                 "min_deposit_not_reached": "The minimum deposit limit was not reached",
-                "name_check_without_kyc": "Your transaction was cancelled due to missing KYC",
+                "name_check_without_kyc": "Your transaction was cancelled due to missing KYC<br>Due to name matches, it is not possible to process the transaction without KYC. See here for more details:<br>[url:{urlText}]",
                 "annual_limit_without_kyc": "You exceeded the annual limit without KYC",
                 "asset_currently_not_available": "The asset is currently not available for trading with DFX",
                 "staking_discontinued": "Staking deposits are no longer possible",
                 "bank_not_allowed": "The sender bank you used is not allowed. Please use a different bank for your deposit.",
                 "country_not_allowed": "Unfortunately, your deposit cannot be processed <br>because the money comes from a country that we cannot support. More information:<br><a style='color:white' href='https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html'>https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html</a>"
-            }
+            },
+            "kyc_start": "You can start the KYC process here:<br>[url:{urlText}]"
         },
         "pending": {
             "daily_limit": {

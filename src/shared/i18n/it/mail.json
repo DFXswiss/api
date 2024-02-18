@@ -6,7 +6,7 @@
         "thanks": "Grazie mille per la tua fiducia",
         "happy_trading": "Buon trading",
         "welcome": "Ciao {name},",
-        "personal_questions": "Please do not hesitate to contact me if you have any questions.",
+        "team_questions": "If you have any questions, please do not hesitate to contact us.",
         "personal_closing": "Kind regards,<br>{closingName}",
         "button": "o<br>[url:Clicca qui]"
     },
@@ -41,11 +41,6 @@
                 "title": "Deposito effetuato",
                 "salutation": "Il tuo deposito e' stato processato con successo"
             },
-            "waitingForLowerFee": {
-                "title": "Deposito arrivato - commissioni blockchain troppo alte",
-                "salutation": "Tariffe blockchain troppo alte",
-                "message": "Il vostro deposito è arrivato a DFX. Le commissioni della blockchain sono attualmente troppo alte per potervi inviare i vostri beni. I vostri beni saranno inviati non appena le commissioni della blockchain saranno nuovamente inferiori. Di solito ciò avviene entro 24 ore."
-            },
             "input_amount": "Depositato",
             "output_amount": "Pagamento Crypto",
             "payment_link": "Qui puoi trovare l'ID della transazione con il tuo pagamento: [url:Link]"
@@ -70,13 +65,14 @@
                 "annual_limit": "Hai superato il tuo limite annuale",
                 "olky_no_kyc": "Devi completare la KYC per DFX per poter utilizzare Olkypay Bank",
                 "min_deposit_not_reached": "Il limite di deposito minimo non è stato raggiunto",
-                "name_check_without_kyc": "La tua transazione è stata annullata a causa della KYC mancante",
+                "name_check_without_kyc": "La transazione è stata annullata a causa della mancanza del KYC<br>A causa della corrispondenza dei nomi, non è possibile elaborare la transazione senza KYC. Vedere qui per maggiori dettagli:<br>[url:{urlText}]",
                 "annual_limit_without_kyc": "Hai superato il limite annuale senza KYC",
                 "asset_currently_not_available": "L'asset non è al momento disponibile per lo scambio su DFX",
                 "staking_discontinued": "Non è possibile effettuare nuovi depositi di staking",
                 "bank_not_allowed": "La banca mittente utilizzata non è consentita. Si prega di utilizzare un'altra banca per il deposito.",
                 "country_not_allowed": "Purtroppo il vostro deposito non può essere elaborato <br>perché il denaro proviene da un paese che non possiamo supportare. Ulteriori informazioni:<br><a style='color:white' href='https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html'>https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html</a>"
-            }
+            },
+            "kyc_start": "Potete iniziare il processo KYC qui:<br>[url:{urlText}]"
         },
         "pending": {
             "daily_limit": {
