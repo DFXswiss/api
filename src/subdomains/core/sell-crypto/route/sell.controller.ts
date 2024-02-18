@@ -84,6 +84,12 @@ export class SellController {
       feeAmount,
       estimatedAmount,
       sourceAmount: amount,
+      minVolume,
+      minVolumeTarget,
+      maxVolume,
+      maxVolumeTarget,
+      isValid,
+      error,
     } = await this.transactionHelper.getTxDetails(
       sourceAmount,
       targetAmount,
@@ -101,6 +107,12 @@ export class SellController {
       exchangeRate,
       estimatedAmount,
       amount,
+      minVolume,
+      minVolumeTarget,
+      maxVolume,
+      maxVolumeTarget,
+      isValid,
+      error,
     };
   }
 

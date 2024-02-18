@@ -27,6 +27,9 @@ export class PaymentWebhookData extends TransactionDto {
 
   @ApiPropertyOptional()
   targetAccount: string;
+
+  @ApiPropertyOptional()
+  externalTransactionId?: string;
 }
 
 export class PaymentWebhookDto extends WebhookDto<PaymentWebhookData> {
@@ -35,7 +38,4 @@ export class PaymentWebhookDto extends WebhookDto<PaymentWebhookData> {
 
   @ApiProperty({ type: PaymentWebhookData })
   data: PaymentWebhookData;
-
-  @ApiPropertyOptional()
-  externalTransactionId?: string;
 }

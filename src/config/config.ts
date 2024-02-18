@@ -41,6 +41,8 @@ export class Configuration {
   defaultVolumeDecimal = 2;
   defaultPercentageDecimal = 2;
   defaultDailyTradingLimit = 1000; // CHF
+  defaultTradingLimit = 1000000000; // CHF
+  defaultCardTradingLimit = 4000; // CHF
   apiKeyVersionCT = '0'; // single digit hex number
   azureIpSubstring = '169.254';
   amlCheckMonthlyTradingLimit = 50000; // EUR

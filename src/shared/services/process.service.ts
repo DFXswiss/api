@@ -35,6 +35,7 @@ export enum Process {
   TFA_CACHE = '2faCache',
   FRANKENCOIN_LOG_INFO = 'FrankencoinLogInfo',
   WEBHOOK = 'Webhook',
+  AUTO_CREATE_BANK_DATA = 'AutoCreateBankData',
 }
 
 type ProcessMap = { [p in Process]?: boolean };

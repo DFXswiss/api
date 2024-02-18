@@ -161,13 +161,23 @@ export class FeeService {
   async getUserFee(request: UserFeeRequest): Promise<FeeDto> {
     const userFees = await this.getValidFees(request);
 
-    return this.calculateFee(userFees, request.blockchainFee, request.user.userData?.id);
+    try {
+      return this.calculateFee(userFees, request.blockchainFee, request.user.userData?.id);
+    } catch (e) {
+      this.logger.error(`Fee exception, request: ${JSON.stringify(request)}`);
+      throw e;
+    }
   }
 
   async getDefaultFee(request: FeeRequestBase, accountType = AccountType.PERSONAL): Promise<FeeDto> {
     const defaultFees = await this.getValidFees({ ...request, accountType });
 
-    return this.calculateFee(defaultFees, request.blockchainFee);
+    try {
+      return this.calculateFee(defaultFees, request.blockchainFee);
+    } catch (e) {
+      this.logger.error(`Fee exception, request: ${JSON.stringify(request)}`);
+      throw e;
+    }
   }
 
   // --- HELPER METHODS --- //
@@ -207,7 +217,7 @@ export class FeeService {
 
     if (!baseFee) throw new InternalServerErrorException('Base fee is missing');
     if (baseFee.rate + combinedExtraFeeRate < 0) {
-      this.logger.warn(`UserDiscount higher userBaseFee! UserDataId: ${userDataId}`);
+      this.logger.warn(`Discount is higher than base fee for user data ${userDataId}`);
       return {
         fees: [baseFee],
         rate: baseFee.rate,

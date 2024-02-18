@@ -86,6 +86,12 @@ export class CryptoRouteController {
       feeAmount,
       estimatedAmount,
       sourceAmount: amount,
+      minVolume,
+      minVolumeTarget,
+      maxVolume,
+      maxVolumeTarget,
+      isValid,
+      error,
     } = await this.transactionHelper.getTxDetails(
       sourceAmount,
       targetAmount,
@@ -102,6 +108,12 @@ export class CryptoRouteController {
       exchangeRate,
       estimatedAmount,
       amount,
+      minVolume,
+      minVolumeTarget,
+      maxVolume,
+      maxVolumeTarget,
+      isValid,
+      error,
     };
   }
 

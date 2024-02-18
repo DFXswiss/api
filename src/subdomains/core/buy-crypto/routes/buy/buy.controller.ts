@@ -12,6 +12,7 @@ import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -84,6 +85,12 @@ export class BuyController {
       feeAmount,
       estimatedAmount,
       sourceAmount: amount,
+      minVolume,
+      minVolumeTarget,
+      maxVolume,
+      maxVolumeTarget,
+      isValid,
+      error,
     } = await this.transactionHelper.getTxDetails(
       sourceAmount,
       targetAmount,
@@ -101,6 +108,12 @@ export class BuyController {
       exchangeRate,
       estimatedAmount,
       amount,
+      minVolume,
+      maxVolume,
+      minVolumeTarget,
+      maxVolumeTarget,
+      isValid,
+      error,
     };
   }
 
@@ -235,6 +248,10 @@ export class BuyController {
               user.userData.language,
             )
           : undefined,
+      // TODO: temporary CC solution
+      nameRequired:
+        dto.paymentMethod === FiatPaymentMethod.CARD &&
+        !(user.status === UserStatus.ACTIVE || (Boolean(user.userData.firstname) && Boolean(user.userData.surname))),
     };
   }
 
