@@ -1,6 +1,7 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { generateSecret, verifyToken } from 'node-2fa';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
@@ -25,6 +26,8 @@ enum TfaComment {
 
 @Injectable()
 export class TfaService {
+  private readonly logger = new DfxLogger(TfaService);
+
   private secretCache: Map<number, SecretCacheEntry> = new Map();
 
   constructor(private readonly tfaRepo: TfaLogRepository, private readonly userDataService: UserDataService) {}
@@ -34,10 +37,10 @@ export class TfaService {
   processCleanupSecretCache() {
     if (DisabledProcess(Process.TFA_CACHE)) return;
 
-    const before5MinTime = Util.minutesBefore(5).getTime();
+    const before3HoursTime = Util.hoursBefore(3).getTime();
 
     const keysToBeDeleted = Array.from(this.secretCache.entries())
-      .filter(([_, v]) => v.creationTime < before5MinTime)
+      .filter(([_, v]) => v.creationTime < before3HoursTime)
       .map(([k, _]) => k);
 
     keysToBeDeleted.forEach((k) => this.secretCache.delete(k));
@@ -95,7 +98,10 @@ export class TfaService {
   // --- HELPER METHODS --- //
   private verifyOrThrow(secret: string, token: string): void {
     const result = verifyToken(secret, token);
-    if (!result || result.delta !== 0) throw new ForbiddenException('Invalid or expired 2FA token');
+    if (!result || ![0, -1].includes(result.delta)) {
+      this.logger.verbose(`2FA verify failed, ${!result ? 'token mismatch' : 'delta is ' + result.delta}`);
+      throw new ForbiddenException('Invalid or expired 2FA token');
+    }
   }
 
   private async createTfaLog(userData: UserData, ipAddress: string, comment: TfaComment) {
