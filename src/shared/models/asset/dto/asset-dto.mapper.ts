@@ -1,9 +1,12 @@
+import { Config } from 'src/config/config';
 import { assetExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { Util } from 'src/shared/utils/util';
+import { TxSpec } from 'src/subdomains/supporting/payment/dto/tx-spec.dto';
 import { Asset } from '../asset.entity';
-import { AssetDto, FeeTier } from './asset.dto';
+import { AssetDetailDto, AssetDto, FeeTier } from './asset.dto';
 
 export class AssetDtoMapper {
-  static entityToDto(asset: Asset): AssetDto {
+  static toDto(asset: Asset): AssetDto {
     const dto: AssetDto = {
       id: asset.id,
       name: asset.name,
@@ -24,10 +27,12 @@ export class AssetDtoMapper {
 
     return Object.assign(new AssetDto(), dto);
   }
+  static toDetailDto(asset: Asset, spec: TxSpec): AssetDetailDto {
+    const price = asset.approxPriceUsd ?? 1;
 
-  static entitiesToDto(assets: Asset[]): AssetDto[] {
-    return assets
-      .filter((asset) => asset.buyable || asset.sellable || asset.comingSoon)
-      .map(AssetDtoMapper.entityToDto);
+    return Object.assign(this.toDto(asset), {
+      minVolume: Util.roundByPrecision(spec.minVolume / price, 5),
+      maxVolume: Util.roundByPrecision(Config.defaultTradingLimit / price, 5),
+    });
   }
 }

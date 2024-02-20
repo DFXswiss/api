@@ -25,3 +25,11 @@ export class FiatDto {
   @ApiProperty()
   instantSellable: boolean;
 }
+
+export class FiatDetailDto extends FiatDto {
+  @ApiProperty({ description: 'Minimum transaction volume (in fiat)' })
+  minVolume: number;
+
+  @ApiProperty({ description: 'Maximum transaction volume (in fiat)' })
+  maxVolume: number;
+}

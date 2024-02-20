@@ -1,8 +1,10 @@
+import { Config } from 'src/config/config';
+import { TxSpec } from 'src/subdomains/supporting/payment/dto/tx-spec.dto';
 import { Fiat } from '../fiat.entity';
-import { FiatDto } from './fiat.dto';
+import { FiatDetailDto, FiatDto } from './fiat.dto';
 
 export class FiatDtoMapper {
-  static entityToDto(fiat: Fiat): FiatDto {
+  static toDto(fiat: Fiat): FiatDto {
     const dto: FiatDto = {
       id: fiat.id,
       name: fiat.name,
@@ -17,7 +19,10 @@ export class FiatDtoMapper {
     return Object.assign(new FiatDto(), dto);
   }
 
-  static entitiesToDto(fiatList: Fiat[]): FiatDto[] {
-    return fiatList.map(FiatDtoMapper.entityToDto);
+  static toDetailDto(fiat: Fiat, spec: TxSpec): FiatDetailDto {
+    return Object.assign(this.toDto(fiat), {
+      minVolume: spec.minVolume,
+      maxVolume: Config.defaultTradingLimit,
+    });
   }
 }
