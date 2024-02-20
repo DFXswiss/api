@@ -58,10 +58,15 @@ export class AssetDto {
   sortOrder: number;
 }
 
-export class AssetDetailDto extends AssetDto {
+export class AssetLimitsDto {
   @ApiProperty({ description: 'Minimum transaction volume (in asset)' })
   minVolume: number;
 
   @ApiProperty({ description: 'Maximum transaction volume (in asset)' })
   maxVolume: number;
+}
+
+export class AssetDetailDto extends AssetDto {
+  @ApiProperty()
+  limits: AssetLimitsDto;
 }

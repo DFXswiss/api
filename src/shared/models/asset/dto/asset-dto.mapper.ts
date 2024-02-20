@@ -31,8 +31,10 @@ export class AssetDtoMapper {
     const price = asset.approxPriceUsd ?? 1;
 
     return Object.assign(this.toDto(asset), {
-      minVolume: Util.roundByPrecision(spec.minVolume / price, 5),
-      maxVolume: Util.roundByPrecision(Config.defaultTradingLimit / price, 5),
+      limits: {
+        minVolume: Util.roundByPrecision(spec.minVolume / price, 5),
+        maxVolume: Util.roundByPrecision(Config.defaultTradingLimit / price, 5),
+      },
     });
   }
 }

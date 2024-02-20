@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 
 export class FiatDto {
   @ApiProperty()
@@ -26,10 +27,26 @@ export class FiatDto {
   instantSellable: boolean;
 }
 
-export class FiatDetailDto extends FiatDto {
+export class VolumeLimitDto {
   @ApiProperty({ description: 'Minimum transaction volume (in fiat)' })
   minVolume: number;
 
   @ApiProperty({ description: 'Maximum transaction volume (in fiat)' })
   maxVolume: number;
+}
+
+export class FiatLimitsDto {
+  @ApiProperty()
+  [FiatPaymentMethod.BANK]: VolumeLimitDto;
+
+  @ApiProperty()
+  [FiatPaymentMethod.INSTANT]: VolumeLimitDto;
+
+  @ApiProperty()
+  [FiatPaymentMethod.CARD]: VolumeLimitDto;
+}
+
+export class FiatDetailDto extends FiatDto {
+  @ApiProperty()
+  limits: FiatLimitsDto;
 }
