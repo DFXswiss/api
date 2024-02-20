@@ -377,9 +377,7 @@ export abstract class EvmClient {
     const blockchainNonce = await this.provider.getTransactionCount(address);
     const cachedNonce = this.nonce.get(address) ?? 0;
 
-    const currentNonce = blockchainNonce > cachedNonce ? blockchainNonce : cachedNonce;
-
-    return currentNonce;
+    return Math.max(blockchainNonce, cachedNonce);
   }
 
   private async getHistory<T>(
