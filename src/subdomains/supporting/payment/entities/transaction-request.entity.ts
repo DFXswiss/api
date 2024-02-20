@@ -11,37 +11,37 @@ export enum TransactionRequestType {
 
 @Entity()
 export class TransactionRequest extends IEntity {
-  @Column({ nullable: false })
+  @Column()
   type: TransactionRequestType;
 
-  @Column({ type: 'integer', nullable: false })
+  @Column({ type: 'integer' })
   routeId: number;
 
-  @Column({ type: 'integer', nullable: false })
+  @Column({ type: 'integer' })
   sourceId: number;
 
-  @Column({ type: 'integer', nullable: false })
+  @Column({ type: 'integer' })
   targetId: number;
 
-  @Column({ type: 'float', nullable: false })
+  @Column({ type: 'float' })
   amount: number;
 
-  @Column({ type: 'float', nullable: false })
+  @Column({ type: 'float' })
   estimatedAmount: number;
 
-  @Column({ nullable: false })
+  @Column()
   sourcePaymentMethod: PaymentMethod;
 
-  @Column({ nullable: false })
+  @Column()
   targetPaymentMethod: PaymentMethod;
 
   @Column({ nullable: true })
   externalTransactionId?: string;
 
-  @Column({ type: 'float', nullable: false })
+  @Column({ type: 'float' })
   exchangeRate: number;
 
-  @Column({ type: 'float', nullable: false })
+  @Column({ type: 'float' })
   rate: number;
 
   @Column({ nullable: true })
@@ -50,15 +50,15 @@ export class TransactionRequest extends IEntity {
   @Column({ nullable: true })
   paymentLink: string;
 
-  @Column({ nullable: false })
+  @Column()
   isValid: boolean;
 
   @Column({ nullable: true })
   error: TransactionError;
 
-  @Column({ type: 'float', nullable: false })
+  @Column({ type: 'float' })
   fee: number;
 
-  @Column({ type: 'float', nullable: false })
+  @Column({ type: 'float' })
   minFee: number;
 }
