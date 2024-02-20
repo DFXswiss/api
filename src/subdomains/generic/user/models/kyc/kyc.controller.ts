@@ -40,7 +40,7 @@ export class KycController {
   @ApiOkResponse({ type: KycInfo })
   @ApiOperation({ deprecated: true })
   async getKycProgress(@GetJwt() jwt: JwtPayload): Promise<KycInfo> {
-    return this.kycService.getKycStatus('', jwt.id);
+    return this.kycService.getKycInfo('', jwt.id);
   }
 
   @Post()
@@ -97,7 +97,7 @@ export class KycController {
   @ApiOkResponse({ type: KycInfo })
   @ApiOperation({ deprecated: true })
   async getKycProgressByCode(@Param('code') code: string): Promise<KycInfo> {
-    return this.kycService.getKycStatus(code);
+    return this.kycService.getKycInfo(code);
   }
 
   @Post(':code')
