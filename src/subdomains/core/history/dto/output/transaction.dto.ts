@@ -62,10 +62,10 @@ export class TransactionDto {
   @ApiPropertyOptional({ enum: PaymentMethodSwagger })
   outputPaymentMethod?: PaymentMethod;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Fee amount in input asset' })
   feeAmount?: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ deprecated: true })
   feeAsset?: string;
 
   @ApiPropertyOptional()

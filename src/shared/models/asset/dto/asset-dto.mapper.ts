@@ -27,8 +27,9 @@ export class AssetDtoMapper {
 
     return Object.assign(new AssetDto(), dto);
   }
+
   static toDetailDto(asset: Asset, spec: TxSpec): AssetDetailDto {
-    const price = asset.approxPriceUsd ?? 1;
+    const price = asset.approxPriceChf ?? 1;
 
     return Object.assign(this.toDto(asset), {
       limits: {

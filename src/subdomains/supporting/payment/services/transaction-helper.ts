@@ -82,7 +82,7 @@ export class TransactionHelper implements OnModuleInit {
   async getOutSpecs(to: Asset | Fiat): Promise<TxSpec> {
     const spec = this.specRepo.getSpecFor(this.transactionSpecifications, to, TransactionDirection.OUT);
 
-    return this.convertToSource(to, spec);
+    return this.convertToTarget(to, spec);
   }
 
   getSpecs(from: Asset | Fiat, to: Asset | Fiat): TxSpec {
