@@ -219,7 +219,7 @@ export class SellController {
       error,
     };
 
-    await this.transactionRequestService.createTransactionRequest(TransactionRequestType.Sell, dto, sellDto);
+    void this.transactionRequestService.createTransactionRequest(TransactionRequestType.Sell, dto, sellDto);
 
     return sellDto;
   }
