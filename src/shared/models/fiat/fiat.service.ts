@@ -20,4 +20,8 @@ export class FiatService {
   async getFiatByName(name: string): Promise<Fiat> {
     return this.cache.get(name, () => this.fiatRepo.findOneBy({ name }));
   }
+
+  async updatePrice(fiatId: number, chfPrice: number) {
+    await this.fiatRepo.update(fiatId, { approxPriceChf: chfPrice });
+  }
 }

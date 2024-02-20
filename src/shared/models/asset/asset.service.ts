@@ -65,7 +65,7 @@ export class AssetService {
       .then((r) => r.map((a) => a.blockchain));
   }
 
-  async updatePrice(assetId: number, usdPrice: number, chfPrice) {
+  async updatePrice(assetId: number, usdPrice: number, chfPrice: number) {
     await this.assetRepo.update(assetId, { approxPriceUsd: usdPrice, approxPriceChf: chfPrice });
   }
 

@@ -11,6 +11,7 @@ import { PricingController } from './pricing.controller';
 import { AssetPricingMetadataRepository } from './repositories/asset-pricing-metadata.repository';
 import { PriceRuleRepository } from './repositories/price-rule.repository';
 import { AssetPricesService } from './services/asset-prices.service';
+import { FiatPricesService } from './services/fiat-prices.service';
 import { CoinGeckoService } from './services/integration/coin-gecko.service';
 import { CoinGeckoNewService } from './services/integration/coin-gecko.service.new';
 import { CurrencyService } from './services/integration/currency.service';
@@ -38,6 +39,7 @@ import { PricingServiceNew } from './services/pricing.service.new';
     AssetPricingMetadataRepository,
     PriceRuleRepository,
     AssetPricesService,
+    FiatPricesService,
     CoinGeckoService,
     CoinGeckoNewService,
     FixerService,

@@ -21,7 +21,7 @@ export class AssetPricesService {
   // --- JOBS --- //
   @Cron(CronExpression.EVERY_HOUR)
   @Lock(3600)
-  async updateUsdValues() {
+  async updatePrices() {
     if (DisabledProcess(Process.PRICING)) return;
 
     const usd = await this.fiatService.getFiatByName('USD');
