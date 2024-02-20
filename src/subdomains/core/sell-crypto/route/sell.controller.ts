@@ -88,6 +88,8 @@ export class SellController {
       minVolumeTarget,
       maxVolume,
       maxVolumeTarget,
+      isValid,
+      error,
     } = await this.transactionHelper.getTxDetails(
       sourceAmount,
       targetAmount,
@@ -109,6 +111,8 @@ export class SellController {
       minVolumeTarget,
       maxVolume,
       maxVolumeTarget,
+      isValid,
+      error,
     };
   }
 
@@ -164,8 +168,8 @@ export class SellController {
       active: sell.active,
       volume: sell.volume,
       annualVolume: sell.annualVolume,
-      fiat: FiatDtoMapper.entityToDto(sell.fiat),
-      currency: FiatDtoMapper.entityToDto(sell.fiat),
+      fiat: FiatDtoMapper.toDto(sell.fiat),
+      currency: FiatDtoMapper.toDto(sell.fiat),
       deposit: DepositDtoMapper.entityToDto(sell.deposit),
       fee: undefined,
       blockchain: sell.deposit.blockchain,
@@ -215,8 +219,8 @@ export class SellController {
       rate,
       estimatedAmount,
       amount,
-      currency: FiatDtoMapper.entityToDto(dto.currency),
-      asset: AssetDtoMapper.entityToDto(dto.asset),
+      currency: FiatDtoMapper.toDto(dto.currency),
+      asset: AssetDtoMapper.toDto(dto.asset),
       maxVolume,
       maxVolumeTarget,
       paymentRequest: await this.cryptoService.getPaymentRequest(isValid, dto.asset, sell.deposit.address, amount),

@@ -1,22 +1,42 @@
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { BuyCrypto, BuyCryptoStatus } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
 import { RefReward, RewardStatus } from '../../referral/reward/ref-reward.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { TransactionDto, TransactionState, TransactionType } from '../dto/output/transaction.dto';
 
+export class BuyCryptoExtended extends BuyCrypto {
+  inputAssetEntity: Asset | Fiat;
+}
+
+export class BuyFiatExtended extends BuyFiat {
+  inputAssetEntity: Asset | Fiat;
+  outputAssetEntity: Asset | Fiat;
+}
+
+export class RefRewardExtended extends RefReward {
+  outputAssetEntity: Asset | Fiat;
+}
+
 export class TransactionDtoMapper {
-  static mapBuyCryptoTransaction(buyCrypto: BuyCrypto): TransactionDto {
+  static mapBuyCryptoTransaction(buyCrypto: BuyCryptoExtended): TransactionDto {
     const dto: TransactionDto = {
       type: buyCrypto.isCryptoCryptoTransaction ? TransactionType.CONVERT : TransactionType.BUY,
       state: getTransactionState(buyCrypto),
       inputAmount: buyCrypto.inputAmount,
       inputAsset: buyCrypto.inputAsset,
+      inputAssetId: buyCrypto.inputAssetEntity.id,
       inputBlockchain: buyCrypto.cryptoInput?.asset.blockchain,
+      inputPaymentMethod: buyCrypto.paymentMethodIn,
       ...(buyCrypto.outputAmount ? buyCrypto.exchangeRate : null),
       outputAmount: buyCrypto.outputAmount,
       outputAsset: buyCrypto.outputAsset?.name,
+      outputAssetId: buyCrypto.outputAsset?.id,
       outputBlockchain: buyCrypto.target.asset.blockchain,
+      outputPaymentMethod: CryptoPaymentMethod.CRYPTO,
       feeAmount: buyCrypto.totalFeeAmount
         ? (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount
         : null,
@@ -33,21 +53,25 @@ export class TransactionDtoMapper {
     return Object.assign(new TransactionDto(), dto);
   }
 
-  static mapBuyCryptoTransactions(buyCryptos: BuyCrypto[]): TransactionDto[] {
+  static mapBuyCryptoTransactions(buyCryptos: BuyCryptoExtended[]): TransactionDto[] {
     return buyCryptos.map(TransactionDtoMapper.mapBuyCryptoTransaction);
   }
 
-  static mapBuyFiatTransaction(buyFiat: BuyFiat): TransactionDto {
+  static mapBuyFiatTransaction(buyFiat: BuyFiatExtended): TransactionDto {
     const dto: TransactionDto = {
       type: TransactionType.SELL,
       state: getTransactionState(buyFiat),
       inputAmount: buyFiat.inputAmount,
       inputAsset: buyFiat.inputAsset,
+      inputAssetId: buyFiat.inputAssetEntity.id,
       inputBlockchain: buyFiat.cryptoInput?.asset.blockchain,
+      inputPaymentMethod: CryptoPaymentMethod.CRYPTO,
       ...(buyFiat.outputAmount ? buyFiat.exchangeRate : null),
       outputAmount: buyFiat.outputAmount,
       outputAsset: buyFiat.outputAsset,
+      outputAssetId: buyFiat.outputAssetEntity.id,
       outputBlockchain: null,
+      outputPaymentMethod: FiatPaymentMethod.BANK,
       feeAmount: buyFiat.totalFeeAmount
         ? (buyFiat.totalFeeAmount / buyFiat.inputReferenceAmount) * buyFiat.inputAmount
         : null,
@@ -64,22 +88,26 @@ export class TransactionDtoMapper {
     return Object.assign(new TransactionDto(), dto);
   }
 
-  static mapBuyFiatTransactions(buyFiats: BuyFiat[]): TransactionDto[] {
+  static mapBuyFiatTransactions(buyFiats: BuyFiatExtended[]): TransactionDto[] {
     return buyFiats.map(TransactionDtoMapper.mapBuyFiatTransaction);
   }
 
-  static mapReferralReward(refReward: RefReward): TransactionDto {
+  static mapReferralReward(refReward: RefRewardExtended): TransactionDto {
     const dto: TransactionDto = {
       type: TransactionType.REFERRAL,
       state: getTransactionState(refReward),
       inputAmount: null,
       inputAsset: null,
+      inputAssetId: null,
       inputBlockchain: null,
+      inputPaymentMethod: null,
       exchangeRate: null,
       rate: null,
       outputAmount: refReward.outputAmount,
       outputAsset: refReward.outputAsset,
+      outputAssetId: refReward.outputAssetEntity.id,
       outputBlockchain: refReward.targetBlockchain,
+      outputPaymentMethod: CryptoPaymentMethod.CRYPTO,
       feeAmount: null,
       feeAsset: null,
       inputTxId: null,
@@ -92,7 +120,7 @@ export class TransactionDtoMapper {
     return Object.assign(new TransactionDto(), dto);
   }
 
-  static mapReferralRewards(refRewards: RefReward[]): TransactionDto[] {
+  static mapReferralRewards(refRewards: RefRewardExtended[]): TransactionDto[] {
     return refRewards.map(TransactionDtoMapper.mapReferralReward);
   }
 }

@@ -64,6 +64,9 @@ export class Asset extends IEntity {
   @Column({ type: 'float', nullable: true })
   approxPriceUsd: number;
 
+  @Column({ type: 'float', nullable: true })
+  approxPriceChf: number;
+
   @OneToOne(() => LiquidityManagementRule, (lmr) => lmr.targetAsset)
   liquidityManagementRule: LiquidityManagementRule;
 

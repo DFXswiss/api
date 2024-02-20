@@ -1,6 +1,8 @@
-import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
-import { TransactionDtoMapper } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
-import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
+import {
+  BuyCryptoExtended,
+  BuyFiatExtended,
+  TransactionDtoMapper,
+} from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
 import { KycCompleted, KycStatus, KycType, UserData } from '../../../models/user-data/user-data.entity';
 import { KycWebhookData, KycWebhookStatus } from '../dto/kyc-webhook.dto';
 import { PaymentWebhookData } from '../dto/payment-webhook.dto';
@@ -23,7 +25,7 @@ export class WebhookDataMapper {
     };
   }
 
-  static mapCryptoFiatData(payment: BuyFiat): PaymentWebhookData {
+  static mapCryptoFiatData(payment: BuyFiatExtended): PaymentWebhookData {
     return {
       ...TransactionDtoMapper.mapBuyFiatTransaction(payment),
       dfxReference: payment.id,
@@ -32,7 +34,7 @@ export class WebhookDataMapper {
     };
   }
 
-  static mapFiatFiatData(payment: BuyFiat): PaymentWebhookData {
+  static mapFiatFiatData(payment: BuyFiatExtended): PaymentWebhookData {
     return {
       ...TransactionDtoMapper.mapBuyFiatTransaction(payment),
       dfxReference: payment.id,
@@ -41,7 +43,7 @@ export class WebhookDataMapper {
     };
   }
 
-  static mapCryptoCryptoData(payment: BuyCrypto): PaymentWebhookData {
+  static mapCryptoCryptoData(payment: BuyCryptoExtended): PaymentWebhookData {
     return {
       ...TransactionDtoMapper.mapBuyCryptoTransaction(payment),
       dfxReference: payment.id,
@@ -50,7 +52,7 @@ export class WebhookDataMapper {
     };
   }
 
-  static mapFiatCryptoData(payment: BuyCrypto): PaymentWebhookData {
+  static mapFiatCryptoData(payment: BuyCryptoExtended): PaymentWebhookData {
     return {
       ...TransactionDtoMapper.mapBuyCryptoTransaction(payment),
       dfxReference: payment.id,

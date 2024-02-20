@@ -90,6 +90,8 @@ export class CryptoRouteController {
       minVolumeTarget,
       maxVolume,
       maxVolumeTarget,
+      isValid,
+      error,
     } = await this.transactionHelper.getTxDetails(
       sourceAmount,
       targetAmount,
@@ -110,6 +112,8 @@ export class CryptoRouteController {
       minVolumeTarget,
       maxVolume,
       maxVolumeTarget,
+      isValid,
+      error,
     };
   }
 
@@ -179,7 +183,7 @@ export class CryptoRouteController {
       annualVolume: crypto.annualVolume,
       active: crypto.active,
       deposit: DepositDtoMapper.entityToDto(crypto.deposit),
-      asset: AssetDtoMapper.entityToDto(crypto.asset),
+      asset: AssetDtoMapper.toDto(crypto.asset),
       blockchain: crypto.deposit.blockchain,
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposits: [minDeposit],
@@ -232,8 +236,8 @@ export class CryptoRouteController {
       rate,
       estimatedAmount,
       amount,
-      targetAsset: AssetDtoMapper.entityToDto(dto.targetAsset),
-      sourceAsset: AssetDtoMapper.entityToDto(dto.sourceAsset),
+      targetAsset: AssetDtoMapper.toDto(dto.targetAsset),
+      sourceAsset: AssetDtoMapper.toDto(dto.sourceAsset),
       maxVolume,
       maxVolumeTarget,
       paymentRequest: await this.cryptoService.getPaymentRequest(

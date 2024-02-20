@@ -89,6 +89,8 @@ export class BuyController {
       minVolumeTarget,
       maxVolume,
       maxVolumeTarget,
+      isValid,
+      error,
     } = await this.transactionHelper.getTxDetails(
       sourceAmount,
       targetAmount,
@@ -110,6 +112,8 @@ export class BuyController {
       maxVolume,
       minVolumeTarget,
       maxVolumeTarget,
+      isValid,
+      error,
     };
   }
 
@@ -175,7 +179,7 @@ export class BuyController {
       volume: buy.volume,
       annualVolume: buy.annualVolume,
       bankUsage: buy.bankUsage,
-      asset: AssetDtoMapper.entityToDto(buy.asset),
+      asset: AssetDtoMapper.toDto(buy.asset),
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposits: [minDeposit],
       minFee: { amount: fee.blockchain, asset: 'EUR' },
@@ -222,8 +226,8 @@ export class BuyController {
       rate,
       estimatedAmount,
       amount,
-      asset: AssetDtoMapper.entityToDto(dto.asset),
-      currency: FiatDtoMapper.entityToDto(dto.currency),
+      asset: AssetDtoMapper.toDto(dto.asset),
+      currency: FiatDtoMapper.toDto(dto.currency),
       maxVolume,
       maxVolumeTarget,
       isValid,

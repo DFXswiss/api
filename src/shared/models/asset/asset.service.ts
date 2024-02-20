@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetRepository } from 'src/shared/models/asset/asset.repository';
+import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { In } from 'typeorm';
 import { Asset, AssetType } from './asset.entity';
@@ -20,6 +21,8 @@ const MainLayerBlockchain: { [name in string]: Blockchain } = {
 
 @Injectable()
 export class AssetService {
+  private readonly cache = new AsyncCache<Asset>(60);
+
   constructor(private assetRepo: AssetRepository) {}
 
   async getAllAsset(blockchains: Blockchain[]): Promise<Asset[]> {
@@ -27,15 +30,15 @@ export class AssetService {
   }
 
   async getAssetById(id: number): Promise<Asset> {
-    return this.assetRepo.findOneBy({ id });
+    return this.cache.get(`${id}`, () => this.assetRepo.findOneBy({ id }));
   }
 
   async getAssetByChainId(blockchain: Blockchain, chainId: string): Promise<Asset> {
-    return this.assetRepo.findOneBy({ blockchain, chainId });
+    return this.cache.get(`${blockchain}-${chainId}`, () => this.assetRepo.findOneBy({ blockchain, chainId }));
   }
 
   async getAssetByUniqueName(uniqueName: string): Promise<Asset> {
-    return this.assetRepo.findOneBy({ uniqueName });
+    return this.cache.get(uniqueName, () => this.assetRepo.findOneBy({ uniqueName }));
   }
 
   async getAssetByQuery(query: AssetQuery): Promise<Asset> {
@@ -62,8 +65,8 @@ export class AssetService {
       .then((r) => r.map((a) => a.blockchain));
   }
 
-  async updatePrice(assetId: number, usdPrice: number) {
-    await this.assetRepo.update(assetId, { approxPriceUsd: usdPrice });
+  async updatePrice(assetId: number, usdPrice: number, chfPrice) {
+    await this.assetRepo.update(assetId, { approxPriceUsd: usdPrice, approxPriceChf: chfPrice });
   }
 
   async getAssetsUsedOn(exchange: string): Promise<string[]> {
