@@ -18,10 +18,9 @@ import {
   BlankType,
   KycLevel,
   KycState,
-  KycStatus,
   UserData,
 } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { KycWebhookStatus } from '../../services/webhook/dto/kyc-webhook.dto';
+import { getKycWebhookStatus } from '../../services/webhook/mapper/webhook-data.mapper';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { UserDataService } from '../user-data/user-data.service';
 import { User } from '../user/user.entity';
@@ -125,7 +124,7 @@ export class KycService {
 
   private createKycInfoBasedOn(userData: UserData): KycInfo {
     return {
-      kycStatus: KycStatus.NA,
+      kycStatus: userData.kycStatus,
       kycState: KycState.NA,
       kycHash: userData.kycHash,
       kycDataComplete: userData.isDataComplete,
@@ -204,7 +203,7 @@ export class KycService {
   private toKycDataDto(user: User): KycDataDto {
     return {
       id: user.address,
-      kycStatus: KycWebhookStatus.NA,
+      kycStatus: getKycWebhookStatus(user.userData.kycStatus, user.userData.kycType),
       kycHash: user.userData.kycHash,
     };
   }
