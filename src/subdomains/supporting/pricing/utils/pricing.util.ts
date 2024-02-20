@@ -34,6 +34,7 @@ export class PricingUtil {
       this.isFiat(asset) ||
       this.isBTC(asset) ||
       this.isAltCoin(asset) ||
+      this.isXmr(asset) ||
       this.isSpecialCoin(asset) ||
       this.isUsdStableCoin(asset) ||
       this.isChfStableCoin(asset) ||
