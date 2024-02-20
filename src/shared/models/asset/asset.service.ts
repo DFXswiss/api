@@ -138,6 +138,22 @@ export class AssetService {
     });
   }
 
+  async getPolygonCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      dexName: 'MATIC',
+      blockchain: Blockchain.POLYGON,
+      type: AssetType.COIN,
+    });
+  }
+
+  async getBaseCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      dexName: 'ETH',
+      blockchain: Blockchain.BASE,
+      type: AssetType.COIN,
+    });
+  }
+
   async getBtcCoin(): Promise<Asset> {
     return this.getAssetByQuery({
       dexName: 'BTC',
@@ -158,14 +174,6 @@ export class AssetService {
     return this.getAssetByQuery({
       dexName: 'XMR',
       blockchain: Blockchain.MONERO,
-      type: AssetType.COIN,
-    });
-  }
-
-  async getPolygonCoin(): Promise<Asset> {
-    return this.getAssetByQuery({
-      dexName: 'MATIC',
-      blockchain: Blockchain.POLYGON,
       type: AssetType.COIN,
     });
   }

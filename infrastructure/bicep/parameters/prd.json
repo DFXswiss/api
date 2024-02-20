@@ -146,6 +146,18 @@
     "polygonChainId": {
       "value": "137"
     },
+    "baseWalletAddress": {
+      "value": "xxx"
+    },
+    "baseWalletPrivateKey": {
+      "value": "xxx"
+    },
+    "baseGatewayUrl": {
+      "value": "https://base-mainnet.g.alchemy.com/v2"
+    },
+    "baseChainId": {
+      "value": "8453"
+    },
     "bscWalletAddress": {
       "value": "xxx"
     },

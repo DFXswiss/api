@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ArbitrumService } from '../../arbitrum/arbitrum.service';
+import { BaseService } from '../../base/base.service';
 import { BscService } from '../../bsc/bsc.service';
 import { EthereumService } from '../../ethereum/ethereum.service';
 import { OptimismService } from '../../optimism/optimism.service';
@@ -17,6 +18,7 @@ export class EvmRegistryService {
     private readonly arbitrumService: ArbitrumService,
     private readonly optimismService: OptimismService,
     private readonly polygonService: PolygonService,
+    private readonly baseService: BaseService,
   ) {}
 
   getClient(blockchain: Blockchain): EvmClient {
@@ -35,6 +37,8 @@ export class EvmRegistryService {
         return this.optimismService;
       case Blockchain.POLYGON:
         return this.polygonService;
+      case Blockchain.BASE:
+        return this.baseService;
 
       default:
         throw new Error(`No evm service found for blockchain ${blockchain}`);
@@ -49,6 +53,8 @@ export class EvmRegistryService {
         return this.optimismService.getDefaultClient();
       case Blockchain.POLYGON:
         return this.polygonService.getDefaultClient();
+      case Blockchain.BASE:
+        return this.baseService.getDefaultClient();
 
       default:
         throw new Error(`No l2 evm client found for blockchain ${blockchain}`);

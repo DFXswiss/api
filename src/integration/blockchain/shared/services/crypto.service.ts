@@ -53,6 +53,7 @@ export class CryptoService {
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
       case Blockchain.POLYGON:
+      case Blockchain.BASE:
       case Blockchain.BINANCE_SMART_CHAIN:
         const evmService = this.evmRegistryService.getService(asset.blockchain);
         return evmService.getPaymentRequest(address, asset, amount);
