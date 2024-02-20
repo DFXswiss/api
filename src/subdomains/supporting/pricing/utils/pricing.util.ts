@@ -1,4 +1,4 @@
-import { AltCoin, Bitcoin, ChfStableCoin, Fiat, SpecialCoin, UsdStableCoin } from '../domain/enums';
+import { AltCoin, Bitcoin, ChfStableCoin, Fiat, SpecialCoin, UsdStableCoin, Xmr } from '../domain/enums';
 
 export class PricingUtil {
   static isFiat(asset: string): boolean {
@@ -11,6 +11,10 @@ export class PricingUtil {
 
   static isAltCoin(asset: string): boolean {
     return Object.values(AltCoin).includes(asset as unknown as AltCoin);
+  }
+
+  static isXmr(asset: string): boolean {
+    return Object.values(Xmr).includes(asset as unknown as Xmr);
   }
 
   static isSpecialCoin(asset: string): boolean {
