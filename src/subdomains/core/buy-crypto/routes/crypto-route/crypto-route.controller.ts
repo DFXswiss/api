@@ -241,7 +241,7 @@ export class CryptoRouteController {
       error,
     };
 
-    await this.transactionRequestService.createTransactionRequest(cryptoDto, TransactionRequestType.Convert);
+    await this.transactionRequestService.createTransactionRequest(TransactionRequestType.Convert, dto, cryptoDto);
 
     return cryptoDto;
   }

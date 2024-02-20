@@ -241,7 +241,7 @@ export class BuyController {
           : undefined,
     };
 
-    await this.transactionRequestService.createTransactionRequest(buyDto, TransactionRequestType.Buy);
+    await this.transactionRequestService.createTransactionRequest(TransactionRequestType.Buy, dto, buyDto);
 
     return buyDto;
   }
