@@ -27,4 +27,7 @@ export class Fiat extends IEntity {
 
   @ManyToOne(() => PriceRule)
   priceRule: PriceRule;
+
+  @Column({ type: 'float', nullable: true })
+  approxPriceChf: number;
 }
