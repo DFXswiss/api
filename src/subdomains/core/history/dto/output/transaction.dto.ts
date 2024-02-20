@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { PaymentMethod, PaymentMethodSwagger } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 
 export enum TransactionType {
   BUY = 'Buy',
@@ -31,8 +32,14 @@ export class TransactionDto {
   @ApiPropertyOptional()
   inputAsset?: string;
 
+  @ApiPropertyOptional({ description: 'Asset ID, if input payment method is Crypto, fiat ID otherwise' })
+  inputAssetId?: number;
+
   @ApiPropertyOptional({ enum: Blockchain })
   inputBlockchain?: Blockchain;
+
+  @ApiPropertyOptional({ enum: PaymentMethodSwagger })
+  inputPaymentMethod?: PaymentMethod;
 
   @ApiPropertyOptional({ description: 'Exchange rate in input/output' })
   exchangeRate?: number;
@@ -46,8 +53,14 @@ export class TransactionDto {
   @ApiPropertyOptional()
   outputAsset?: string;
 
+  @ApiPropertyOptional({ description: 'Asset ID, if output payment method is Crypto, Fiat ID otherwise' })
+  outputAssetId?: number;
+
   @ApiPropertyOptional({ enum: Blockchain })
   outputBlockchain?: Blockchain;
+
+  @ApiPropertyOptional({ enum: PaymentMethodSwagger })
+  outputPaymentMethod?: PaymentMethod;
 
   @ApiPropertyOptional()
   feeAmount?: number;

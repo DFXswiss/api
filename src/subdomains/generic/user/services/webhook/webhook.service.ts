@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
-import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
-import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
+import { BuyCryptoExtended, BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { UserData } from '../../models/user-data/user-data.entity';
@@ -31,19 +30,19 @@ export class WebhookService {
     await this.triggerUserDataWebhook(userData, WebhookDataMapper.mapKycData(userData), WebhookType.KYC_FAILED, reason);
   }
 
-  async fiatCryptoUpdate(user: User, payment: BuyCrypto): Promise<void> {
+  async fiatCryptoUpdate(user: User, payment: BuyCryptoExtended): Promise<void> {
     await this.triggerUserWebhook(user, WebhookDataMapper.mapFiatCryptoData(payment), WebhookType.PAYMENT);
   }
 
-  async cryptoCryptoUpdate(user: User, payment: BuyCrypto): Promise<void> {
+  async cryptoCryptoUpdate(user: User, payment: BuyCryptoExtended): Promise<void> {
     await this.triggerUserWebhook(user, WebhookDataMapper.mapCryptoCryptoData(payment), WebhookType.PAYMENT);
   }
 
-  async cryptoFiatUpdate(user: User, payment: BuyFiat): Promise<void> {
+  async cryptoFiatUpdate(user: User, payment: BuyFiatExtended): Promise<void> {
     await this.triggerUserWebhook(user, WebhookDataMapper.mapCryptoFiatData(payment), WebhookType.PAYMENT);
   }
 
-  async fiatFiatUpdate(user: User, payment: BuyFiat): Promise<void> {
+  async fiatFiatUpdate(user: User, payment: BuyFiatExtended): Promise<void> {
     await this.triggerUserWebhook(user, WebhookDataMapper.mapFiatFiatData(payment), WebhookType.PAYMENT);
   }
 
