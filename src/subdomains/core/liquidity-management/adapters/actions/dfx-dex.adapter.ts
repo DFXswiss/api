@@ -6,12 +6,7 @@ import { LiquidityManagementOrder } from '../../entities/liquidity-management-or
 import { LiquidityManagementSystem } from '../../enums';
 import { OrderFailedException } from '../../exceptions/order-failed.exception';
 import { Command, CorrelationId } from '../../interfaces';
-import { LiquidityManagementAdapter } from './base/liquidity-management.adapter';
-
-export interface DfxDexWithdrawParams {
-  destinationAddress: string;
-  destinationSystem: LiquidityManagementSystem;
-}
+import { LiquidityActionAdapter } from './base/liquidity-action.adapter';
 
 /**
  * @note
@@ -24,10 +19,10 @@ export enum DfxDexAdapterCommands {
 }
 
 @Injectable()
-export class DfxDexAdapter extends LiquidityManagementAdapter {
+export class DfxDexAdapter extends LiquidityActionAdapter {
   protected commands = new Map<string, Command>();
 
-  constructor(private readonly dexService: DexService, private readonly registryService: ExchangeRegistryService) {
+  constructor(private readonly dexService: DexService, private readonly exchangeRegistry: ExchangeRegistryService) {
     super(LiquidityManagementSystem.DFX_DEX);
 
     this.commands.set(DfxDexAdapterCommands.PURCHASE, this.purchase.bind(this));
@@ -155,7 +150,7 @@ export class DfxDexAdapter extends LiquidityManagementAdapter {
   private async checkWithdrawCompletion(order: LiquidityManagementOrder): Promise<boolean> {
     const { system } = this.parseWithdrawParams(order.action.paramMap);
 
-    const exchange = this.registryService.getExchange(system.toLowerCase());
+    const exchange = this.exchangeRegistry.get(system);
 
     const deposits = await exchange.getDeposits(order.pipeline.rule.targetAsset.dexName, order.created);
     const deposit = deposits.find((d) => d.amount === order.amount && d.timestamp > order.created.getTime());
@@ -191,7 +186,7 @@ export class DfxDexAdapter extends LiquidityManagementAdapter {
       address &&
       system &&
       Object.values(LiquidityManagementSystem).includes(system) &&
-      this.registryService.getExchange(system.toLowerCase())
+      this.exchangeRegistry.get(system)
     );
   }
 }

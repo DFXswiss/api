@@ -1,5 +1,6 @@
 import { Injectable, NotImplementedException, OnModuleInit } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { isFiat } from 'src/shared/models/active';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -33,12 +34,12 @@ export class PriceProviderService implements OnModuleInit {
   }
 
   async getPrice(from: Asset | Fiat, to: Asset | Fiat): Promise<Price> {
-    if (this.isFiat(from)) {
-      if (this.isFiat(to)) return this.fiatFiat(from, to);
+    if (isFiat(from)) {
+      if (isFiat(to)) return this.fiatFiat(from, to);
 
       return this.isCustom(to) ? this.fiatCustom(from, to) : this.fiatCrypto(from, to);
     } else {
-      return this.isFiat(to) ? this.cryptoFiat(from, to) : this.cryptoCrypto(from, to);
+      return isFiat(to) ? this.cryptoFiat(from, to) : this.cryptoCrypto(from, to);
     }
   }
 
@@ -100,10 +101,6 @@ export class PriceProviderService implements OnModuleInit {
   }
 
   // --- HELPER METHODS --- //
-  private isFiat(item: Asset | Fiat): item is Fiat {
-    return item instanceof Fiat;
-  }
-
   private isCustom(item: Asset): boolean {
     return item.type === AssetType.CUSTOM;
   }

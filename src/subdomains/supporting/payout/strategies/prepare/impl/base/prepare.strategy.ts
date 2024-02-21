@@ -12,11 +12,11 @@ export abstract class PrepareStrategy implements OnModuleInit, OnModuleDestroy {
   private readonly registry: PrepareStrategyRegistry;
 
   onModuleInit() {
-    this.registry.addStrategy(this.blockchain, this);
+    this.registry.add(this.blockchain, this);
   }
 
   onModuleDestroy() {
-    this.registry.removeStrategy(this.blockchain);
+    this.registry.remove(this.blockchain);
   }
 
   async feeAsset(): Promise<Asset> {

@@ -1,31 +1,31 @@
 import {
   Body,
   Controller,
-  UseGuards,
-  Post,
   Get,
-  Query,
-  Param,
   NotFoundException,
+  Param,
+  Post,
+  Query,
   ServiceUnavailableException,
+  UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { Balances, ExchangeError, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { TradeOrder } from '../dto/trade-order.dto';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
+import { Util } from 'src/shared/utils/util';
 import { Price } from '../../../subdomains/supporting/pricing/domain/entities/price';
+import { TradeOrder } from '../dto/trade-order.dto';
+import { PartialTradeResponse, TradeResponse } from '../dto/trade-response.dto';
 import { TradeResult, TradeStatus } from '../dto/trade-result.dto';
 import { WithdrawalOrder } from '../dto/withdrawal-order.dto';
-import { Util } from 'src/shared/utils/util';
+import { TradeChangedException } from '../exceptions/trade-changed.exception';
 import { ExchangeRegistryService } from '../services/exchange-registry.service';
 import { ExchangeService, OrderSide } from '../services/exchange.service';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import { TradeChangedException } from '../exceptions/trade-changed.exception';
-import { PartialTradeResponse, TradeResponse } from '../dto/trade-response.dto';
-import { Lock } from 'src/shared/utils/lock';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @ApiTags('exchange')
 @Controller('exchange')
@@ -34,7 +34,7 @@ export class ExchangeController {
 
   private trades: { [key: number]: TradeResult } = {};
 
-  constructor(private readonly registryService: ExchangeRegistryService) {}
+  constructor(private readonly exchangeRegistry: ExchangeRegistryService) {}
 
   @Get(':exchange/balances')
   @ApiBearerAuth()
@@ -119,8 +119,8 @@ export class ExchangeController {
     const token = withdrawalDto.token.toUpperCase();
     const amount = withdrawalDto.amount ? withdrawalDto.amount : await this.call(exchange, (e) => e.getBalance(token));
 
-    return this.registryService
-      .getExchange(exchange)
+    return this.exchangeRegistry
+      .get(exchange)
       .withdrawFunds(token, amount, withdrawalDto.address, withdrawalDto.key, withdrawalDto.network);
   }
 
@@ -140,7 +140,7 @@ export class ExchangeController {
   }
 
   private async call<T>(exchange: string, call: (e: ExchangeService) => Promise<T>): Promise<T> {
-    const exchangeService = this.registryService.getExchange(exchange);
+    const exchangeService = this.exchangeRegistry.get(exchange);
     return call(exchangeService).catch((e: ExchangeError) => {
       throw new ServiceUnavailableException(e.message);
     });
@@ -156,7 +156,7 @@ export class ExchangeController {
 
       const currentOrder = orders[orders.length - 1];
       try {
-        const isComplete = await this.registryService.getExchange(exchange).checkTrade(currentOrder, from, to);
+        const isComplete = await this.exchangeRegistry.get(exchange).checkTrade(currentOrder, from, to);
         if (isComplete) {
           trade.status = TradeStatus.CLOSED;
           trade.trade = await this.getTradeResponse(exchange, from, to, orders);
@@ -183,7 +183,7 @@ export class ExchangeController {
     orders: string[],
   ): Promise<TradeResponse | undefined> {
     try {
-      const recentTrades = await this.registryService.getExchange(exchange).getTrades(from, to);
+      const recentTrades = await this.exchangeRegistry.get(exchange).getTrades(from, to);
       const trades = recentTrades.filter((t) => orders.includes(t.order));
 
       if (trades.length === 0) return undefined;

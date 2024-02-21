@@ -1,10 +1,11 @@
 export enum LiquidityManagementContext {
   DEFICHAIN = 'DeFiChain',
   ETHEREUM = 'Ethereum',
-  BSC = 'Bsc',
+  BINANCE_SMART_CHAIN = 'BinanceSmartChain',
   BITCOIN = 'Bitcoin',
   ARBITRUM = 'Arbitrum',
   OPTIMISM = 'Optimism',
+  BINANCE = 'Binance',
   BANK = 'Bank',
 }
 
