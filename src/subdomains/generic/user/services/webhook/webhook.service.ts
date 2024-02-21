@@ -1,6 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
-import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
+import { BuyCryptoExtended, BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
 import { IsNull } from 'typeorm';
 import { UserData } from '../../models/user-data/user-data.entity';
 import { User } from '../../models/user/user.entity';
@@ -35,7 +34,7 @@ export class WebhookService {
     }
   }
 
-  async fiatCryptoUpdate(user: User, payment: BuyCrypto): Promise<void> {
+  async fiatCryptoUpdate(user: User, payment: BuyCryptoExtended): Promise<void> {
     await this.create({
       user,
       data: JSON.stringify(WebhookDataMapper.mapFiatCryptoData(payment)),
@@ -43,7 +42,7 @@ export class WebhookService {
     });
   }
 
-  async cryptoCryptoUpdate(user: User, payment: BuyCrypto): Promise<void> {
+  async cryptoCryptoUpdate(user: User, payment: BuyCryptoExtended): Promise<void> {
     await this.create({
       user,
       data: JSON.stringify(WebhookDataMapper.mapCryptoCryptoData(payment)),
@@ -51,7 +50,7 @@ export class WebhookService {
     });
   }
 
-  async cryptoFiatUpdate(user: User, payment: BuyFiat): Promise<void> {
+  async cryptoFiatUpdate(user: User, payment: BuyFiatExtended): Promise<void> {
     await this.create({
       user,
       data: JSON.stringify(WebhookDataMapper.mapCryptoFiatData(payment)),
@@ -59,7 +58,7 @@ export class WebhookService {
     });
   }
 
-  async fiatFiatUpdate(user: User, payment: BuyFiat): Promise<void> {
+  async fiatFiatUpdate(user: User, payment: BuyFiatExtended): Promise<void> {
     await this.create({
       user,
       data: JSON.stringify(WebhookDataMapper.mapFiatFiatData(payment)),

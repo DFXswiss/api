@@ -7,6 +7,7 @@ import { TestUtil } from 'src/shared/utils/test.util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { CryptoRouteController } from '../crypto-route.controller';
 import { CryptoRouteService } from '../crypto-route.service';
 
@@ -19,6 +20,7 @@ describe('CryptoRouteController', () => {
   let paymentInfoService: PaymentInfoService;
   let transactionHelper: TransactionHelper;
   let cryptoService: CryptoService;
+  let transactionRequestService: TransactionRequestService;
 
   beforeEach(async () => {
     cryptoRouteService = createMock<CryptoRouteService>();
@@ -27,6 +29,7 @@ describe('CryptoRouteController', () => {
     paymentInfoService = createMock<PaymentInfoService>();
     transactionHelper = createMock<TransactionHelper>();
     cryptoService = createMock<CryptoService>();
+    transactionRequestService = createMock<TransactionRequestService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -38,6 +41,7 @@ describe('CryptoRouteController', () => {
         { provide: PaymentInfoService, useValue: paymentInfoService },
         { provide: TransactionHelper, useValue: transactionHelper },
         { provide: CryptoService, useValue: cryptoService },
+        { provide: TransactionRequestService, useValue: transactionRequestService },
         TestUtil.provideConfig(),
       ],
     }).compile();

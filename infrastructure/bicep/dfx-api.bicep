@@ -78,6 +78,12 @@ param polygonWalletPrivateKey string
 param polygonGatewayUrl string
 param polygonChainId string
 
+param baseWalletAddress string
+@secure()
+param baseWalletPrivateKey string
+param baseGatewayUrl string
+param baseChainId string
+
 param bscWalletAddress string
 @secure()
 param bscWalletPrivateKey string
@@ -662,6 +668,22 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'POLYGON_CHAIN_ID'
           value: polygonChainId
+        }
+        {
+          name: 'BASE_WALLET_ADDRESS'
+          value: baseWalletAddress
+        }
+        {
+          name: 'BASE_WALLET_PRIVATE_KEY'
+          value: baseWalletPrivateKey
+        }
+        {
+          name: 'BASE_GATEWAY_URL'
+          value: baseGatewayUrl
+        }
+        {
+          name: 'BASE_CHAIN_ID'
+          value: baseChainId
         }
         {
           name: 'BSC_WALLET_ADDRESS'

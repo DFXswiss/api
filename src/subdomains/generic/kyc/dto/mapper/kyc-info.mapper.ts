@@ -10,20 +10,20 @@ import {
   getKycTypeIndex,
   requiredKycSteps,
 } from '../../enums/kyc.enum';
-import { KycSessionDto, KycStatusDto } from '../output/kyc-info.dto';
+import { KycLevelDto, KycSessionDto } from '../output/kyc-info.dto';
 import { KycStepMapper } from './kyc-step.mapper';
 
 export class KycInfoMapper {
-  static toDto(userData: UserData, withSession: false, currentStep?: KycStep): KycStatusDto;
+  static toDto(userData: UserData, withSession: false, currentStep?: KycStep): KycLevelDto;
   static toDto(userData: UserData, withSession: true, currentStep?: KycStep): KycSessionDto;
 
-  static toDto(userData: UserData, withSession: boolean, currentStep?: KycStep): KycStatusDto | KycSessionDto {
+  static toDto(userData: UserData, withSession: boolean, currentStep?: KycStep): KycLevelDto | KycSessionDto {
     const kycSteps = KycInfoMapper.getUiSteps(userData);
     currentStep ??=
       kycSteps.find((s) => s.status === KycStepStatus.IN_PROGRESS) ??
       kycSteps.find((s) => s.status === KycStepStatus.FAILED);
 
-    const dto: KycStatusDto | KycSessionDto = {
+    const dto: KycLevelDto | KycSessionDto = {
       kycLevel: userData.kycLevel,
       tradingLimit: userData.tradingLimit,
       twoFactorEnabled: userData.totpSecret != null,

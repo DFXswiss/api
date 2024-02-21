@@ -9,3 +9,5 @@ export enum CryptoPaymentMethod {
 }
 
 export type PaymentMethod = FiatPaymentMethod | CryptoPaymentMethod;
+
+export const PaymentMethodSwagger = [...Object.values(FiatPaymentMethod), ...Object.values(CryptoPaymentMethod)];

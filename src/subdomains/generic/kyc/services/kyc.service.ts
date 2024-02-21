@@ -18,7 +18,7 @@ import { KycContentType, KycFileType } from '../dto/kyc-file.dto';
 import { KycDataMapper } from '../dto/mapper/kyc-data.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
-import { KycSessionDto, KycStatusDto } from '../dto/output/kyc-info.dto';
+import { KycLevelDto, KycSessionDto } from '../dto/output/kyc-info.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { KycStep } from '../entities/kyc-step.entity';
 import { KycLogType, KycStepName, KycStepStatus, KycStepType, requiredKycSteps } from '../enums/kyc.enum';
@@ -71,7 +71,7 @@ export class KycService {
     }
   }
 
-  async getInfo(kycHash: string): Promise<KycStatusDto> {
+  async getInfo(kycHash: string): Promise<KycLevelDto> {
     const user = await this.getUser(kycHash);
 
     return KycInfoMapper.toDto(user, false);

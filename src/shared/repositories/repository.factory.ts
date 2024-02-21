@@ -7,6 +7,7 @@ import { DepositRepository } from 'src/subdomains/supporting/address-pool/deposi
 import { DepositRouteRepository } from 'src/subdomains/supporting/address-pool/route/deposit-route.repository';
 import { BankTxRepository } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.repository';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
+import { TransactionSpecificationRepository } from 'src/subdomains/supporting/payment/repositories/transaction-specification.repository';
 import { EntityManager } from 'typeorm';
 
 @Injectable()
@@ -19,6 +20,7 @@ export class RepositoryFactory {
   public readonly buyCrypto: BuyCryptoRepository;
   public readonly deposit: DepositRepository;
   public readonly depositRoute: DepositRouteRepository;
+  public readonly transactionSpecification: TransactionSpecificationRepository;
 
   constructor(manager: EntityManager) {
     this.user = new UserRepository(manager);
@@ -29,5 +31,6 @@ export class RepositoryFactory {
     this.buyCrypto = new BuyCryptoRepository(manager);
     this.deposit = new DepositRepository(manager);
     this.depositRoute = new DepositRouteRepository(manager);
+    this.transactionSpecification = new TransactionSpecificationRepository(manager);
   }
 }

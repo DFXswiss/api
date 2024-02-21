@@ -1,6 +1,8 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/utils/util';
+import { BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
@@ -31,6 +33,7 @@ export class BuyFiatService {
     private readonly bankTxService: BankTxService,
     private readonly fiatOutputService: FiatOutputService,
     private readonly webhookService: WebhookService,
+    private readonly fiatService: FiatService,
   ) {}
 
   async update(id: number, dto: UpdateBuyFiatDto): Promise<BuyFiat> {
@@ -115,8 +118,17 @@ export class BuyFiatService {
   }
 
   async triggerWebhook(buyFiat: BuyFiat): Promise<void> {
+    const extended = await this.extendBuyFiat(buyFiat);
+
     // TODO add fiatFiatUpdate here
-    buyFiat.sell ? await this.webhookService.cryptoFiatUpdate(buyFiat.sell.user, buyFiat) : undefined;
+    buyFiat.sell ? await this.webhookService.cryptoFiatUpdate(buyFiat.sell.user, extended) : undefined;
+  }
+
+  async extendBuyFiat(buyFiat: BuyFiat): Promise<BuyFiatExtended> {
+    const inputAssetEntity = buyFiat.cryptoInput.asset;
+    const outputAssetEntity = await this.fiatService.getFiatByName(buyFiat.outputAsset);
+
+    return Object.assign(buyFiat, { inputAssetEntity, outputAssetEntity });
   }
 
   async resetAmlCheck(id: number): Promise<void> {

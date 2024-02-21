@@ -7,23 +7,33 @@ import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module'
 import { SharedModule } from '../../../shared/shared.module';
 import { FeeController } from './controllers/fee.controller';
 import { Fee } from './entities/fee.entity';
+import { TransactionRequest } from './entities/transaction-request.entity';
 import { TransactionSpecification } from './entities/transaction-specification.entity';
 import { FeeRepository } from './repositories/fee.repository';
+import { TransactionRequestRepository } from './repositories/transaction-request.repository';
 import { TransactionSpecificationRepository } from './repositories/transaction-specification.repository';
 import { FeeService } from './services/fee.service';
 import { TransactionHelper } from './services/transaction-helper';
+import { TransactionRequestService } from './services/transaction-request.service';
 
 @Module({
   imports: [
     PricingModule,
     SharedModule,
-    TypeOrmModule.forFeature([TransactionSpecification, Fee]),
+    TypeOrmModule.forFeature([TransactionSpecification, Fee, TransactionRequest]),
     forwardRef(() => UserModule),
     forwardRef(() => SellCryptoModule),
     forwardRef(() => BuyCryptoModule),
   ],
   controllers: [FeeController],
-  providers: [TransactionHelper, TransactionSpecificationRepository, FeeService, FeeRepository],
-  exports: [TransactionHelper, FeeService],
+  providers: [
+    TransactionHelper,
+    TransactionSpecificationRepository,
+    FeeService,
+    FeeRepository,
+    TransactionRequestRepository,
+    TransactionRequestService,
+  ],
+  exports: [TransactionHelper, FeeService, TransactionRequestService],
 })
 export class PaymentModule {}

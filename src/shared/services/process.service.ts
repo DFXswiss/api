@@ -36,6 +36,7 @@ export enum Process {
   FRANKENCOIN_LOG_INFO = 'FrankencoinLogInfo',
   WEBHOOK = 'Webhook',
   AUTO_CREATE_BANK_DATA = 'AutoCreateBankData',
+  TX_SPEEDUP = 'TxSpeedup',
 }
 
 type ProcessMap = { [p in Process]?: boolean };
