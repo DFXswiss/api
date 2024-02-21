@@ -25,8 +25,10 @@ export class BaseCoinStrategy extends EvmStrategy {
     return AssetType.COIN;
   }
 
-  protected dispatchPayout(order: PayoutOrder): Promise<string> {
-    return this.baseService.sendNativeCoin(order.destinationAddress, order.amount);
+  protected async dispatchPayout(order: PayoutOrder): Promise<string> {
+    const nonce = await this.getOrderNonce(order);
+
+    return this.baseService.sendNativeCoin(order.destinationAddress, order.amount, nonce);
   }
 
   protected getCurrentGasForTransaction(): Promise<number> {
