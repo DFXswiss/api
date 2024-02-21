@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { BigNumberish, ethers } from 'ethers';
 import { Config, GetConfig } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -34,7 +34,7 @@ export class FrankencoinService {
     this.client = new FrankencoinClient(zchfGatewayUrl, zchfApiKey);
   }
 
-  @Cron('0 */15 * * * *') // every 15 minutes
+  @Cron(CronExpression.EVERY_MINUTE)
   @Lock()
   async processLogInfo() {
     if (DisabledProcess(Process.FRANKENCOIN_LOG_INFO)) return;
