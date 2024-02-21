@@ -4,6 +4,7 @@ import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entit
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInArbitrumService } from '../../../services/payin-arbitrum.service';
+import { PayInBaseService } from '../../../services/payin-base.service';
 import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
 import { PayInBscService } from '../../../services/payin-bsc.service';
 import { PayInDeFiChainService } from '../../../services/payin-defichain.service';
@@ -13,6 +14,8 @@ import { PayInOptimismService } from '../../../services/payin-optimism.service';
 import { PayInPolygonService } from '../../../services/payin-polygon.service';
 import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy } from '../impl/arbitrum-token.strategy';
+import { BaseCoinStrategy } from '../impl/base-coin.strategy';
+import { BaseTokenStrategy } from '../impl/base-token.strategy';
 import { SendStrategyRegistry } from '../impl/base/send.strategy-registry';
 import { BitcoinStrategy } from '../impl/bitcoin.strategy';
 import { BscCoinStrategy } from '../impl/bsc-coin.strategy';
@@ -44,6 +47,8 @@ describe('SendStrategyRegistry', () => {
   let optimismToken: OptimismTokenStrategy;
   let polygonCoin: PolygonCoinStrategy;
   let polygonToken: PolygonTokenStrategy;
+  let baseCoin: BaseCoinStrategy;
+  let baseToken: BaseTokenStrategy;
 
   let registry: SendStrategyRegistryWrapper;
 
@@ -72,6 +77,9 @@ describe('SendStrategyRegistry', () => {
     polygonCoin = new PolygonCoinStrategy(mock<PayInPolygonService>(), mock<PayInRepository>());
     polygonToken = new PolygonTokenStrategy(mock<PayInPolygonService>(), mock<PayInRepository>());
 
+    baseCoin = new BaseCoinStrategy(mock<PayInBaseService>(), mock<PayInRepository>());
+    baseToken = new BaseTokenStrategy(mock<PayInBaseService>(), mock<PayInRepository>());
+
     registry = new SendStrategyRegistryWrapper(
       bitcoin,
       lightning,
@@ -88,6 +96,8 @@ describe('SendStrategyRegistry', () => {
       optimismToken,
       polygonCoin,
       polygonToken,
+      baseCoin,
+      baseToken,
     );
   });
 
@@ -213,6 +223,22 @@ describe('SendStrategyRegistry', () => {
         expect(strategy).toBeInstanceOf(PolygonTokenStrategy);
       });
 
+      it('gets BASE_COIN strategy', () => {
+        const strategy = registry.getSendStrategy(
+          createCustomAsset({ blockchain: Blockchain.BASE, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(BaseCoinStrategy);
+      });
+
+      it('gets BASE_TOKEN strategy', () => {
+        const strategy = registry.getSendStrategy(
+          createCustomAsset({ blockchain: Blockchain.BASE, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(BaseTokenStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const testCall = () =>
           registry.getSendStrategy(
@@ -243,6 +269,8 @@ class SendStrategyRegistryWrapper extends SendStrategyRegistry {
     optimismToken: OptimismTokenStrategy,
     polygonCoin: PolygonCoinStrategy,
     polygonToken: PolygonTokenStrategy,
+    baseCoin: BaseCoinStrategy,
+    baseToken: BaseTokenStrategy,
   ) {
     super();
 
@@ -252,6 +280,7 @@ class SendStrategyRegistryWrapper extends SendStrategyRegistry {
 
     this.addStrategy({ blockchain: Blockchain.DEFICHAIN, assetType: AssetType.COIN }, deFiChainCoin);
     this.addStrategy({ blockchain: Blockchain.DEFICHAIN, assetType: AssetType.TOKEN }, deFiChainToken);
+
     this.addStrategy({ blockchain: Blockchain.ETHEREUM, assetType: AssetType.COIN }, ethereumCoin);
     this.addStrategy({ blockchain: Blockchain.ETHEREUM, assetType: AssetType.TOKEN }, ethereumToken);
     this.addStrategy({ blockchain: Blockchain.BINANCE_SMART_CHAIN, assetType: AssetType.COIN }, bscCoin);
@@ -262,5 +291,7 @@ class SendStrategyRegistryWrapper extends SendStrategyRegistry {
     this.addStrategy({ blockchain: Blockchain.OPTIMISM, assetType: AssetType.TOKEN }, optimismToken);
     this.addStrategy({ blockchain: Blockchain.POLYGON, assetType: AssetType.COIN }, polygonCoin);
     this.addStrategy({ blockchain: Blockchain.POLYGON, assetType: AssetType.TOKEN }, polygonToken);
+    this.addStrategy({ blockchain: Blockchain.BASE, assetType: AssetType.COIN }, baseCoin);
+    this.addStrategy({ blockchain: Blockchain.BASE, assetType: AssetType.TOKEN }, baseToken);
   }
 }

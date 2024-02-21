@@ -6,13 +6,16 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInArbitrumService } from '../../../services/payin-arbitrum.service';
+import { PayInBaseService } from '../../../services/payin-base.service';
 import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
 import { PayInBscService } from '../../../services/payin-bsc.service';
 import { PayInDeFiChainService } from '../../../services/payin-defichain.service';
 import { PayInEthereumService } from '../../../services/payin-ethereum.service';
 import { PayInMoneroService } from '../../../services/payin-monero.service';
 import { PayInOptimismService } from '../../../services/payin-optimism.service';
+import { PayInPolygonService } from '../../../services/payin-polygon.service';
 import { ArbitrumStrategy } from '../impl/arbitrum.strategy';
+import { BaseStrategy } from '../impl/base.strategy';
 import { RegisterStrategyRegistry } from '../impl/base/register.strategy-registry';
 import { BitcoinStrategy } from '../impl/bitcoin.strategy';
 import { BscStrategy } from '../impl/bsc.strategy';
@@ -21,6 +24,7 @@ import { EthereumStrategy } from '../impl/ethereum.strategy';
 import { LightningStrategy } from '../impl/lightning.strategy';
 import { MoneroStrategy } from '../impl/monero.strategy';
 import { OptimismStrategy } from '../impl/optimism.strategy';
+import { PolygonStrategy } from '../impl/polygon.strategy';
 
 describe('RegisterStrategyRegistry', () => {
   let bitcoinStrategy: BitcoinStrategy;
@@ -31,6 +35,8 @@ describe('RegisterStrategyRegistry', () => {
   let bscStrategy: BscStrategy;
   let arbitrumStrategy: ArbitrumStrategy;
   let optimismStrategy: OptimismStrategy;
+  let polygonStrategy: PolygonStrategy;
+  let baseStrategy: BaseStrategy;
 
   let registry: RegisterStrategyRegistryWrapper;
 
@@ -75,6 +81,20 @@ describe('RegisterStrategyRegistry', () => {
       mock<RepositoryFactory>(),
     );
 
+    polygonStrategy = new PolygonStrategy(
+      mock<PayInPolygonService>(),
+      mock<PayInRepository>(),
+      mock<AssetService>(),
+      mock<RepositoryFactory>(),
+    );
+
+    baseStrategy = new BaseStrategy(
+      mock<PayInBaseService>(),
+      mock<PayInRepository>(),
+      mock<AssetService>(),
+      mock<RepositoryFactory>(),
+    );
+
     registry = new RegisterStrategyRegistryWrapper(
       bitcoinStrategy,
       lightningStrategy,
@@ -84,6 +104,8 @@ describe('RegisterStrategyRegistry', () => {
       bscStrategy,
       arbitrumStrategy,
       optimismStrategy,
+      polygonStrategy,
+      baseStrategy,
     );
   });
 
@@ -139,6 +161,18 @@ describe('RegisterStrategyRegistry', () => {
         expect(strategy).toBeInstanceOf(OptimismStrategy);
       });
 
+      it('gets POLYGON strategy for POLYGON', () => {
+        const strategy = registry.getRegisterStrategy(createCustomAsset({ blockchain: Blockchain.POLYGON }));
+
+        expect(strategy).toBeInstanceOf(PolygonStrategy);
+      });
+
+      it('gets BASE strategy for BASE', () => {
+        const strategy = registry.getRegisterStrategy(createCustomAsset({ blockchain: Blockchain.BASE }));
+
+        expect(strategy).toBeInstanceOf(BaseStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const testCall = () =>
           registry.getRegisterStrategy(createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }));
@@ -160,6 +194,8 @@ class RegisterStrategyRegistryWrapper extends RegisterStrategyRegistry {
     bscStrategy: BscStrategy,
     arbitrumStrategy: ArbitrumStrategy,
     optimismStrategy: OptimismStrategy,
+    polygonStrategy: PolygonStrategy,
+    baseStrategy: BaseStrategy,
   ) {
     super();
 
@@ -171,5 +207,7 @@ class RegisterStrategyRegistryWrapper extends RegisterStrategyRegistry {
     this.addStrategy(Blockchain.BINANCE_SMART_CHAIN, bscStrategy);
     this.addStrategy(Blockchain.ARBITRUM, arbitrumStrategy);
     this.addStrategy(Blockchain.OPTIMISM, optimismStrategy);
+    this.addStrategy(Blockchain.POLYGON, polygonStrategy);
+    this.addStrategy(Blockchain.BASE, baseStrategy);
   }
 }
