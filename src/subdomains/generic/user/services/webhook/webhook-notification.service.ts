@@ -7,7 +7,6 @@ import { Lock } from 'src/shared/utils/lock';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { IsNull } from 'typeorm';
-import { UserData } from '../../models/user-data/user-data.entity';
 import { User } from '../../models/user/user.entity';
 import { KycWebhookData } from './dto/kyc-webhook.dto';
 import { PaymentWebhookData } from './dto/payment-webhook.dto';
@@ -34,17 +33,14 @@ export class WebhookNotificationService {
   async sendOpenWebhooks(): Promise<void> {
     const entities = await this.webhookRepo.find({
       where: { sentDate: IsNull() },
-      relations: { user: { wallet: true }, userData: { users: { wallet: true, userData: true } } },
+      relations: { user: { wallet: true } },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'webhooks`);
 
     for (const entity of entities) {
       try {
-        entity.user
-          ? await this.triggerUserWebhook(entity.user, JSON.parse(entity.data), entity.type, entity.reason)
-          : await this.triggerUserDataWebhook(entity.userData, JSON.parse(entity.data), entity.type, entity.reason);
-
+        await this.triggerUserWebhook(entity.user, JSON.parse(entity.data), entity.type, entity.reason);
         await this.webhookRepo.update(...entity.confirmSentDate());
       } catch (e) {
         this.logger.error(`Failed to send webhook ${entity.id}:`, e);
@@ -53,17 +49,6 @@ export class WebhookNotificationService {
   }
 
   // --- HELPER METHODS --- //
-
-  private async triggerUserDataWebhook<T extends PaymentWebhookData | KycWebhookData>(
-    userData: UserData,
-    data: T,
-    type: WebhookType,
-    reason?: string,
-  ): Promise<void> {
-    for (const user of userData.users) {
-      await this.triggerUserWebhook(user, data, type, reason);
-    }
-  }
 
   private async triggerUserWebhook<T extends PaymentWebhookData | KycWebhookData>(
     user: User,

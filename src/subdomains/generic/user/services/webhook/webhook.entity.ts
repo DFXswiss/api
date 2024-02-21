@@ -1,5 +1,4 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
-import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Column, Entity, ManyToOne } from 'typeorm';
 import { User } from '../../models/user/user.entity';
 import { WebhookType } from './dto/webhook.dto';
@@ -19,11 +18,8 @@ export class Webhook extends IEntity {
   sentDate: Date;
 
   // References
-  @ManyToOne(() => UserData, { nullable: true })
+  @ManyToOne(() => User, { nullable: false })
   user: User;
-
-  @ManyToOne(() => UserData, { nullable: true })
-  userData: UserData;
 
   confirmSentDate(): UpdateResult<Webhook> {
     const update: Partial<Webhook> = {

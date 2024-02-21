@@ -69,7 +69,10 @@ export class LimitRequestService {
   }
 
   async updateLimitRequest(id: number, dto: UpdateLimitRequestDto): Promise<LimitRequest> {
-    const entity = await this.limitRequestRepo.findOne({ where: { id }, relations: ['userData'] });
+    const entity = await this.limitRequestRepo.findOne({
+      where: { id },
+      relations: { userData: { users: { wallet: true } } },
+    });
     if (!entity) throw new NotFoundException('LimitRequest not found');
 
     const update = this.limitRequestRepo.create(dto);

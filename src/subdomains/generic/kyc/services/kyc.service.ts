@@ -402,14 +402,17 @@ export class KycService {
   }
 
   private async getUser(kycHash: string): Promise<UserData> {
-    return this.userDataService.getByKycHashOrThrow(kycHash, { users: true });
+    return this.userDataService.getByKycHashOrThrow(kycHash, { users: { wallet: true } });
   }
 
   private async getUserByTransactionOrThrow(
     transactionId: string,
     data: any,
   ): Promise<{ user: UserData; stepId: number }> {
-    const kycStep = await this.kycStepRepo.findOne({ where: { transactionId }, relations: { userData: true } });
+    const kycStep = await this.kycStepRepo.findOne({
+      where: { transactionId },
+      relations: { userData: { users: { wallet: true } } },
+    });
 
     if (!kycStep) {
       this.logger.error(`Received unmatched ident call: ${JSON.stringify(data)}`);

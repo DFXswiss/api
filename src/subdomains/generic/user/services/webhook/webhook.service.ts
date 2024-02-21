@@ -15,20 +15,24 @@ export class WebhookService {
   constructor(private readonly webhookRepo: WebhookRepository) {}
 
   async kycChanged(userData: UserData): Promise<void> {
-    await this.create({
-      userData,
-      data: JSON.stringify(WebhookDataMapper.mapKycData(userData)),
-      type: WebhookType.KYC_CHANGED,
-    });
+    for (const user of userData.users) {
+      await this.create({
+        data: JSON.stringify(WebhookDataMapper.mapKycData(userData)),
+        type: WebhookType.KYC_CHANGED,
+        user,
+      });
+    }
   }
 
   async kycFailed(userData: UserData, reason: string): Promise<void> {
-    await this.create({
-      userData,
-      data: JSON.stringify(WebhookDataMapper.mapKycData(userData)),
-      reason,
-      type: WebhookType.KYC_FAILED,
-    });
+    for (const user of userData.users) {
+      await this.create({
+        data: JSON.stringify(WebhookDataMapper.mapKycData(userData)),
+        reason,
+        type: WebhookType.KYC_FAILED,
+        user,
+      });
+    }
   }
 
   async fiatCryptoUpdate(user: User, payment: BuyCrypto): Promise<void> {
@@ -72,12 +76,11 @@ export class WebhookService {
         type: dto.type,
         reason: dto.reason,
         user: { id: dto.user.id },
-        userData: { id: dto.userData.id },
         sentDate: IsNull(),
       },
-      relations: { user: true, userData: true },
+      relations: { user: true },
     });
-    if (!existing) throw new BadRequestException('Webhook already created');
+    if (existing) throw new BadRequestException('Webhook already created');
 
     const entity = this.webhookRepo.create(dto);
 
