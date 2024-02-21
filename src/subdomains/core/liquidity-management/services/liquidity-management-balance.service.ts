@@ -46,7 +46,7 @@ export class LiquidityManagementBalanceService {
 
   async getNumberOfPendingOrders(rule: LiquidityManagementRule): Promise<number> {
     const integration = this.balanceIntegrationFactory.getIntegration(rule);
-    return integration.getNumberOfPendingOrders(rule.target);
+    return integration.getNumberOfPendingOrders(rule.target, rule.context);
   }
 
   //*** HELPER METHODS ***//

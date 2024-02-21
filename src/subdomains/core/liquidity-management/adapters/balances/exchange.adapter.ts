@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ExchangeRegistryService } from 'src/integration/exchange/services/exchange-registry.service';
-import { isAsset } from 'src/shared/models/active';
+import { Active, isAsset } from 'src/shared/models/active';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { In } from 'typeorm';
@@ -31,13 +31,20 @@ export class ExchangeAdapter implements LiquidityBalanceIntegration {
     return balances.reduce((prev, curr) => prev.concat(curr), []);
   }
 
+  async getNumberOfPendingOrders(_: Active, context: LiquidityManagementContext): Promise<number> {
+    const system = Object.values(LiquidityManagementSystem).find((s) => s.toString() === context.toString());
+    return system
+      ? this.orderRepo.countBy({
+          action: { system },
+          status: In([LiquidityManagementOrderStatus.CREATED, LiquidityManagementOrderStatus.IN_PROGRESS]),
+        })
+      : 0;
+  }
+
   // --- HELPER METHODS --- //
 
   async getForExchange(exchange: string, assets: LiquidityManagementAsset[]): Promise<LiquidityBalance[]> {
     try {
-      const hasSafeBalances = await this.hasSafeBalances(exchange);
-      if (!hasSafeBalances) return [];
-
       const exchangeService = this.exchangeRegistry.get(exchange);
       const balances = await exchangeService.getBalances().then((b) => b.total);
 
@@ -50,16 +57,5 @@ export class ExchangeAdapter implements LiquidityBalanceIntegration {
     } catch (e) {
       this.logger.error(`Failed to update liquidity management balance for ${exchange}:`, e);
     }
-  }
-
-  private async hasSafeBalances(exchange: string): Promise<boolean> {
-    return this.orderRepo
-      .exist({
-        where: {
-          action: { system: exchange as LiquidityManagementSystem },
-          status: In([LiquidityManagementOrderStatus.CREATED, LiquidityManagementOrderStatus.IN_PROGRESS]),
-        },
-      })
-      .then((r) => !r);
   }
 }

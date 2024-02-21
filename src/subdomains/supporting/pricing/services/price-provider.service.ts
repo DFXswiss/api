@@ -34,8 +34,8 @@ export class PriceProviderService implements OnModuleInit {
   }
 
   async getPrice(from: Asset | Fiat, to: Asset | Fiat): Promise<Price> {
-    if (this.isFiat(from)) {
-      if (this.isFiat(to)) return this.fiatFiat(from, to);
+    if (isFiat(from)) {
+      if (isFiat(to)) return this.fiatFiat(from, to);
 
       return this.isCustom(to) ? this.fiatCustom(from, to) : this.fiatCrypto(from, to);
     } else {
@@ -101,10 +101,6 @@ export class PriceProviderService implements OnModuleInit {
   }
 
   // --- HELPER METHODS --- //
-  private isFiat(item: Asset | Fiat): item is Fiat {
-    return item instanceof Fiat;
-  }
-
   private isCustom(item: Asset): boolean {
     return item.type === AssetType.CUSTOM;
   }
