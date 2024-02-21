@@ -21,13 +21,7 @@ export class PaymentInfoService {
     if ('currency' in dto) {
       dto.currency = await this.fiatService.getFiat(dto.currency.id);
       if (!dto.currency) throw new NotFoundException('Currency not found');
-      if ('paymentMethod' in dto && dto.paymentMethod === FiatPaymentMethod.CARD) {
-        if (!dto.currency.cardSellable) throw new BadRequestException('Currency not sellable');
-      } else if ('paymentMethod' in dto && dto.paymentMethod === FiatPaymentMethod.INSTANT) {
-        if (!dto.currency.instantSellable) throw new BadRequestException('Currency not sellable');
-      } else {
-        if (!dto.currency.sellable) throw new BadRequestException('Currency not sellable');
-      }
+      if (!dto.currency.sellable) throw new BadRequestException('Currency not sellable');
     }
 
     dto.asset = await this.assetService.getAssetById(dto.asset.id);
@@ -35,6 +29,14 @@ export class PaymentInfoService {
     if (!dto.asset.buyable) throw new BadRequestException('Asset not buyable');
     if (jwt && !jwt.blockchains.includes(dto.asset.blockchain))
       throw new BadRequestException('Asset blockchain mismatch');
+
+    if ('paymentMethod' in dto && dto.paymentMethod === FiatPaymentMethod.CARD) {
+      if (!dto.currency.cardSellable) throw new BadRequestException('Currency not sellable per Card');
+      if (!dto.asset.cardSellable) throw new BadRequestException('Asset not buyable per Card');
+    } else if ('paymentMethod' in dto && dto.paymentMethod === FiatPaymentMethod.INSTANT) {
+      if (!dto.currency.instantSellable) throw new BadRequestException('Currency not sellable per Instant');
+      if (!dto.asset.instantSellable) throw new BadRequestException('Asset not buyable per Instant');
+    }
 
     return dto;
   }
