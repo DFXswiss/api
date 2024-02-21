@@ -9,7 +9,6 @@ import { PayInArbitrumService } from '../../../services/payin-arbitrum.service';
 import { PayInBaseService } from '../../../services/payin-base.service';
 import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
 import { PayInBscService } from '../../../services/payin-bsc.service';
-import { PayInDeFiChainService } from '../../../services/payin-defichain.service';
 import { PayInEthereumService } from '../../../services/payin-ethereum.service';
 import { PayInMoneroService } from '../../../services/payin-monero.service';
 import { PayInOptimismService } from '../../../services/payin-optimism.service';
@@ -19,7 +18,6 @@ import { BaseStrategy } from '../impl/base.strategy';
 import { RegisterStrategyRegistry } from '../impl/base/register.strategy-registry';
 import { BitcoinStrategy } from '../impl/bitcoin.strategy';
 import { BscStrategy } from '../impl/bsc.strategy';
-import { DeFiChainStrategy } from '../impl/defichain.strategy';
 import { EthereumStrategy } from '../impl/ethereum.strategy';
 import { LightningStrategy } from '../impl/lightning.strategy';
 import { MoneroStrategy } from '../impl/monero.strategy';
@@ -30,7 +28,6 @@ describe('RegisterStrategyRegistry', () => {
   let bitcoinStrategy: BitcoinStrategy;
   let lightningStrategy: LightningStrategy;
   let moneroStrategy: MoneroStrategy;
-  let defichainStrategy: DeFiChainStrategy;
   let ethereumStrategy: EthereumStrategy;
   let bscStrategy: BscStrategy;
   let arbitrumStrategy: ArbitrumStrategy;
@@ -46,12 +43,6 @@ describe('RegisterStrategyRegistry', () => {
     lightningStrategy = new LightningStrategy(mock<LightningService>(), mock<AssetService>(), mock<PayInRepository>());
 
     moneroStrategy = new MoneroStrategy(mock<AssetService>(), mock<PayInMoneroService>(), mock<PayInRepository>());
-
-    defichainStrategy = new DeFiChainStrategy(
-      mock<AssetService>(),
-      mock<PayInDeFiChainService>(),
-      mock<PayInRepository>(),
-    );
 
     ethereumStrategy = new EthereumStrategy(
       mock<PayInEthereumService>(),
@@ -99,7 +90,6 @@ describe('RegisterStrategyRegistry', () => {
       bitcoinStrategy,
       lightningStrategy,
       moneroStrategy,
-      defichainStrategy,
       ethereumStrategy,
       bscStrategy,
       arbitrumStrategy,
@@ -143,12 +133,6 @@ describe('RegisterStrategyRegistry', () => {
         expect(strategy).toBeInstanceOf(BscStrategy);
       });
 
-      it('gets DEFICHAIN strategy for DEFICHAIN', () => {
-        const strategy = registry.getRegisterStrategy(createCustomAsset({ blockchain: Blockchain.DEFICHAIN }));
-
-        expect(strategy).toBeInstanceOf(DeFiChainStrategy);
-      });
-
       it('gets ARBITRUM strategy for ARBITRUM', () => {
         const strategy = registry.getRegisterStrategy(createCustomAsset({ blockchain: Blockchain.ARBITRUM }));
 
@@ -189,7 +173,6 @@ class RegisterStrategyRegistryWrapper extends RegisterStrategyRegistry {
     bitcoinStrategy: BitcoinStrategy,
     lightningStrategy: LightningStrategy,
     moneroStrategy: MoneroStrategy,
-    defichainStrategy: DeFiChainStrategy,
     ethereumStrategy: EthereumStrategy,
     bscStrategy: BscStrategy,
     arbitrumStrategy: ArbitrumStrategy,
@@ -202,7 +185,6 @@ class RegisterStrategyRegistryWrapper extends RegisterStrategyRegistry {
     this.addStrategy(Blockchain.BITCOIN, bitcoinStrategy);
     this.addStrategy(Blockchain.LIGHTNING, lightningStrategy);
     this.addStrategy(Blockchain.MONERO, moneroStrategy);
-    this.addStrategy(Blockchain.DEFICHAIN, defichainStrategy);
     this.addStrategy(Blockchain.ETHEREUM, ethereumStrategy);
     this.addStrategy(Blockchain.BINANCE_SMART_CHAIN, bscStrategy);
     this.addStrategy(Blockchain.ARBITRUM, arbitrumStrategy);

@@ -32,7 +32,7 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
         await this.doPayoutForContext(context, group);
       }
     } catch (e) {
-      this.logger.error('Error while executing DeFiChain payout orders:', e);
+      this.logger.error('Error while executing Bitcoin payout orders:', e);
     }
   }
 
@@ -46,7 +46,7 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
         await this.checkPayoutCompletionDataForContext(context, group);
       }
     } catch (e) {
-      this.logger.error('Error while checking payout completion of DeFiChain payout orders:', e);
+      this.logger.error('Error while checking payout completion of Bitcoin payout orders:', e);
     }
   }
 

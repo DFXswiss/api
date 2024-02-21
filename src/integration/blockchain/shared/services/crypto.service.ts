@@ -71,7 +71,7 @@ export class CryptoService {
     if (this.isMoneroAddress(address)) return [Blockchain.MONERO];
     if (this.isLiquidAddress(address)) return [Blockchain.LIQUID];
     if (CryptoService.isCardanoAddress(address)) return [Blockchain.CARDANO];
-    return [Blockchain.DEFICHAIN];
+    return [Blockchain.BITCOIN];
   }
 
   public getDefaultBlockchainBasedOn(address: string): Blockchain {

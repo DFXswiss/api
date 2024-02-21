@@ -5,8 +5,6 @@ import { UserAgent } from 'express-useragent';
 import { RealIP } from 'nestjs-real-ip';
 import { Config } from './config/config';
 import { AdDto, AdSettings, AdvertisementDto } from './shared/dto/advertisement.dto';
-import { AnnouncementDto } from './shared/dto/announcement.dto';
-import { FlagDto } from './shared/dto/flag.dto';
 import { SettingService } from './shared/models/setting/setting.service';
 import { HttpService } from './shared/services/http.service';
 import { Util } from './shared/utils/util';
@@ -25,7 +23,6 @@ enum Manufacturer {
 
 @Controller('')
 export class AppController {
-  private readonly lightWalletUrl = 'https://wallet.defichain.com/api/v0';
   private readonly homepageUrl = 'https://dfx.swiss';
   private readonly appleStoreUrl = 'https://apps.apple.com/app';
   private readonly googleStoreUrl = 'https://play.app.goo.gl/?link=https://play.google.com/store/apps/details';
@@ -51,23 +48,6 @@ export class AppController {
   @Version(VERSION_NEUTRAL)
   async home(): Promise<any> {
     // nothing to do (redirect to Swagger UI)
-  }
-
-  @Get('app/announcements')
-  @ApiExcludeEndpoint()
-  async getAnnouncements(): Promise<AnnouncementDto[]> {
-    return Promise.all([
-      this.settingService.getObj<AnnouncementDto[]>('announcements', []),
-      this.getLightWalletAnnouncements(),
-    ]).then((r) => r.reduce((prev, curr) => prev.concat(curr), []));
-  }
-
-  @Get('app/settings/flags')
-  @ApiExcludeEndpoint()
-  async getFlags(): Promise<FlagDto[]> {
-    return Promise.all([this.settingService.getObj<FlagDto[]>('flags', []), this.getLightWalletFlags()]).then((r) =>
-      r.reduce((prev, curr) => prev.concat(curr), []),
-    );
   }
 
   @Get('app/advertisements')
@@ -136,23 +116,6 @@ export class AppController {
   }
 
   // --- HELPER METHODS --- //
-  private async getLightWalletAnnouncements(): Promise<AnnouncementDto[]> {
-    const allowedAnnouncements = await this.settingService.getObj<string[]>('allowedAnnouncements', []);
-    return this.http
-      .get<AnnouncementDto[]>(`${this.lightWalletUrl}/announcements`, { tryCount: 3 })
-      .then((r) => r.filter((a) => allowedAnnouncements.includes(a.id)))
-      .catch(() => []);
-  }
-
-  private async getLightWalletFlags(): Promise<FlagDto[]> {
-    const ignoredFlags = (await this.settingService.getObj<string[]>('ignoredFlags', [])).map((f) => f.split(':'));
-    return this.http
-      .get<FlagDto[]>(`${this.lightWalletUrl}/settings/flags`, { tryCount: 3 })
-      .then((r) =>
-        r.filter((f) => ignoredFlags.find((i) => i.length === 2 && i[0] === f.id && i[1] === f.stage) == null),
-      )
-      .catch(() => []);
-  }
 
   private getSpecialAd(id: string, settings: AdSettings): { id: string; url: string } {
     const isSpecialAd =

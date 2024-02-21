@@ -6,7 +6,6 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { HttpError } from 'src/shared/services/http.service';
 import { CommandDto } from './dto/command.dto';
-import { NodeMode } from './node-client';
 import { NodeService, NodeType } from './node.service';
 
 @Controller('node')
@@ -50,13 +49,9 @@ export class NodeController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async rpcForMode(
-    @Param('node') node: NodeType,
-    @Param('mode') mode: NodeMode,
-    @Body() command: string,
-  ): Promise<any> {
+  async rpcForMode(@Param('node') node: NodeType, @Body() command: string): Promise<any> {
     return this.nodeService
-      .getNodeFromPool(node, mode)
+      .getNodeFromPool(node)
       .sendRpcCommand(command)
       .catch((error: HttpError) => error.response?.data);
   }
@@ -65,12 +60,8 @@ export class NodeController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async cmdForMode(
-    @Param('node') node: NodeType,
-    @Param('mode') mode: NodeMode,
-    @Body() dto: CommandDto,
-  ): Promise<any> {
-    const client = this.nodeService.getNodeFromPool(node, mode);
+  async cmdForMode(@Param('node') node: NodeType, @Body() dto: CommandDto): Promise<any> {
+    const client = this.nodeService.getNodeFromPool(node);
 
     try {
       return await client.sendCliCommand(dto.command, dto.noAutoUnlock);
@@ -83,11 +74,7 @@ export class NodeController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async waitForTxForMode(
-    @Param('node') node: NodeType,
-    @Param('mode') mode: NodeMode,
-    @Param('txId') txId: string,
-  ): Promise<InWalletTransaction> {
-    return this.nodeService.getNodeFromPool(node, mode).waitForTx(txId);
+  async waitForTxForMode(@Param('node') node: NodeType, @Param('txId') txId: string): Promise<InWalletTransaction> {
+    return this.nodeService.getNodeFromPool(node).waitForTx(txId);
   }
 }

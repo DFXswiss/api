@@ -17,7 +17,6 @@ import { PricingUtil } from '../utils/pricing.util';
 import { CurrencyService } from './integration/currency.service';
 import { FixerService } from './integration/fixer.service';
 import { PricingCoinGeckoService } from './integration/pricing-coin-gecko.service';
-import { PricingDeFiChainService } from './integration/pricing-defichain.service';
 
 export enum PricingPathAlias {
   MATCHING_ASSETS = 'MatchingAssets',
@@ -57,7 +56,6 @@ export class PricingService {
     private readonly kucoinService: KucoinService,
     private readonly currencyService: CurrencyService,
     private readonly fixerService: FixerService,
-    private readonly defichainService: PricingDeFiChainService,
     private readonly coinGeckoService: PricingCoinGeckoService,
   ) {
     this.configurePaths();
@@ -337,29 +335,6 @@ export class PricingService {
             providers: [this.fixerService, this.currencyService],
           },
           factor: 1 / 0.995,
-        }),
-      ]),
-    );
-
-    this.addPath(
-      new PricePath(PricingPathAlias.FIAT_TO_DFI, [
-        new PriceStep({
-          to: 'BTC',
-          primary: {
-            providers: [this.krakenService],
-          },
-          reference: {
-            providers: [this.binanceService, this.bitstampService],
-          },
-        }),
-        new PriceStep({
-          from: 'BTC',
-          primary: {
-            providers: [this.defichainService],
-          },
-          reference: {
-            providers: [],
-          },
         }),
       ]),
     );

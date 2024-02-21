@@ -11,9 +11,6 @@
     "network": {
       "value": "mainnet"
     },
-    "oceanUrls": {
-      "value": "https://ocean.mydefichain.com,https://ocean.defichain.com"
-    },
     "apiSkuName": {
       "value": "P2v2"
     },
@@ -306,12 +303,6 @@
       "value": "xxx"
     },
     "coinGeckoApiKey": {
-      "value": "xxx"
-    },
-    "myDeFiChainUser": {
-      "value": "xxx"
-    },
-    "myDeFiChainPassword": {
       "value": "xxx"
     },
     "paymentUrl": {

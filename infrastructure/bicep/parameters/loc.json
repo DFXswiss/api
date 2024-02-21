@@ -11,9 +11,6 @@
     "network": {
       "value": "testnet"
     },
-    "oceanUrls": {
-      "value": "https://testnet-ocean.mydefichain.com:8443,https://ocean.defichain.com"
-    },
     "apiSkuName": {
       "value": ""
     },
@@ -306,12 +303,6 @@
       "value": "xxx"
     },
     "coinGeckoApiKey": {
-      "value": "xxx"
-    },
-    "myDeFiChainUser": {
-      "value": "xxx"
-    },
-    "myDeFiChainPassword": {
       "value": "xxx"
     },
     "paymentUrl": {

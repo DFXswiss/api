@@ -31,7 +31,6 @@ export class DepositService {
     lightningService: LightningService,
   ) {
     this.lightningClient = lightningService.getDefaultClient();
-    nodeService.getConnectedNode(NodeType.INPUT).subscribe((c) => (this.inpClient = c));
     nodeService.getConnectedNode(NodeType.BTC_INPUT).subscribe((c) => (this.btcInpClient = c));
   }
 
@@ -64,7 +63,7 @@ export class DepositService {
   }
 
   async createDeposits({ blockchain, count }: CreateDepositDto): Promise<void> {
-    if ([Blockchain.DEFICHAIN, Blockchain.BITCOIN].includes(blockchain)) {
+    if ([Blockchain.BITCOIN].includes(blockchain)) {
       return this.createJellyfishDeposits(blockchain, count);
     } else if (this.cryptoService.EthereumBasedChains.includes(blockchain)) {
       return this.createEvmDeposits(blockchain, count);
@@ -76,9 +75,9 @@ export class DepositService {
   }
 
   private async createJellyfishDeposits(blockchain: Blockchain, count: number) {
-    const client = blockchain === Blockchain.DEFICHAIN ? this.inpClient : this.btcInpClient;
+    const client = this.btcInpClient;
     const label = Util.isoDate(new Date());
-    const type = blockchain === Blockchain.DEFICHAIN ? AddressType.BECH32 : AddressType.P2SH_SEGWIT;
+    const type = AddressType.P2SH_SEGWIT;
 
     for (let i = 0; i < count; i++) {
       const address = await client.createAddress(label, type);
