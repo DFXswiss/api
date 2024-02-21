@@ -47,7 +47,7 @@ export class KycStepSessionDto extends KycStepBase {
 }
 
 // status
-export class KycStatusDto {
+export class KycLevelDto {
   @ApiProperty({ enum: KycLevel })
   kycLevel: KycLevel;
 
@@ -64,7 +64,7 @@ export class KycStatusDto {
   kycSteps: KycStepDto[];
 }
 
-export class KycSessionDto extends KycStatusDto {
+export class KycSessionDto extends KycLevelDto {
   @ApiPropertyOptional({ type: KycStepSessionDto })
   currentStep?: KycStepSessionDto;
 }

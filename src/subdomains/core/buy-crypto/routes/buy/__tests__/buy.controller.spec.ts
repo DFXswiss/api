@@ -19,6 +19,7 @@ import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { BuyCryptoService } from '../../../process/services/buy-crypto.service';
 import { createDefaultBuy } from '../__mocks__/buy.entity.mock';
 import { BuyController } from '../buy.controller';
@@ -63,6 +64,7 @@ describe('BuyController', () => {
   let paymentInfoService: PaymentInfoService;
   let transactionHelper: TransactionHelper;
   let checkoutService: CheckoutService;
+  let transactionRequestService: TransactionRequestService;
 
   beforeEach(async () => {
     buyService = createMock<BuyService>();
@@ -74,6 +76,7 @@ describe('BuyController', () => {
     paymentInfoService = createMock<PaymentInfoService>();
     transactionHelper = createMock<TransactionHelper>();
     checkoutService = createMock<CheckoutService>();
+    transactionRequestService = createMock<TransactionRequestService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -88,6 +91,7 @@ describe('BuyController', () => {
         { provide: PaymentInfoService, useValue: paymentInfoService },
         { provide: TransactionHelper, useValue: transactionHelper },
         { provide: CheckoutService, useValue: checkoutService },
+        { provide: TransactionRequestService, useValue: transactionRequestService },
 
         TestUtil.provideConfig(),
       ],

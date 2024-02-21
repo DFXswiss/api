@@ -1,11 +1,11 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { createMock } from '@golevelup/ts-jest';
+import { Test, TestingModule } from '@nestjs/testing';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { BuyRepository } from '../buy.repository';
 import { BuyService } from '../buy.service';
-import { TestSharedModule } from 'src/shared/utils/test.shared.module';
-import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 
 describe('BuyService', () => {
   let service: BuyService;

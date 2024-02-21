@@ -306,6 +306,15 @@ export class Util {
     return filteredList;
   }
 
+  public static async asyncMap<T, U>(list: T[], map: (i: T) => Promise<U>): Promise<U[]> {
+    const mappedList: U[] = [];
+    for (const item of list) {
+      const mappedItem = await map(item);
+      mappedList.push(mappedItem);
+    }
+    return mappedList;
+  }
+
   static async timeout<T>(promise: Promise<T>, timeout: number): Promise<T> {
     const timeoutPromise = new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout));
 

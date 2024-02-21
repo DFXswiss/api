@@ -14,7 +14,7 @@ import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
-import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInEntry } from '../../../../interfaces';
 import { PayInRepository } from '../../../../repositories/payin.repository';
@@ -55,7 +55,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
   }
 
   doAmlCheck(_: CryptoInput, route: Staking | Sell | CryptoRoute): CheckStatus {
-    return route.user.userData.kycStatus === KycStatus.REJECTED ? CheckStatus.FAIL : CheckStatus.PASS;
+    return route.user.userData.kycLevel === KycLevel.REJECTED ? CheckStatus.FAIL : CheckStatus.PASS;
   }
 
   async addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void> {

@@ -97,9 +97,10 @@ export interface ExchangeSync {
   exchange: string;
   tradeTokens?: string[];
   tokens?: string[];
+  tokenReplacements: [string, string][];
 }
 
 export const ExchangeSyncs: ExchangeSync[] = [
-  { exchange: 'Kraken', tokens: ['EUR', 'CHF', 'USD', 'BTC', 'USDT', 'USDC', 'ETH', 'DAI'] },
-  { exchange: 'Binance', tradeTokens: ['BTC', 'USDT'] },
+  { exchange: 'Kraken', tokens: ['EUR', 'CHF', 'USD', 'BTC', 'USDT', 'USDC', 'ETH', 'DAI'], tokenReplacements: [] },
+  { exchange: 'Binance', tradeTokens: ['BTC', 'USDT'], tokenReplacements: [['BTCB', 'BTC']] },
 ];

@@ -5,7 +5,7 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
-import { KycStatus, UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycLevel, UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
@@ -222,6 +222,7 @@ export class BuyCrypto extends IEntity {
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
       case Blockchain.POLYGON:
+      case Blockchain.BASE:
       case Blockchain.BINANCE_SMART_CHAIN:
       case Blockchain.MONERO:
         this.setOutputReferenceAsset(this.outputAsset);
@@ -489,7 +490,7 @@ export class BuyCrypto extends IEntity {
       this.bankTx.txAmount >= minVolume &&
       this.user.userData.annualBuyVolume + amountInChf < this.user.userData.depositLimit &&
       bankDataUserDataId === this.user.userData.id &&
-      this.user.userData.kycStatus === KycStatus.COMPLETED &&
+      this.user.userData.kycLevel >= KycLevel.LEVEL_50 &&
       this.user.status === UserStatus.ACTIVE &&
       this.user.userData.status === UserDataStatus.ACTIVE &&
       // this.user.userData.riskState === RiskState.C && // TODO

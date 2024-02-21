@@ -11,6 +11,7 @@ import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Between, In, IsNull, Not } from 'typeorm';
+import { RefRewardExtended } from '../../history/mappers/transaction-dto.mapper';
 import { TransactionDetailsDto } from '../../statistic/dto/statistic.dto';
 import { RefRewardDexService } from './ref-reward-dex.service';
 import { RefRewardNotificationService } from './ref-reward-notification.service';
@@ -129,6 +130,12 @@ export class RefRewardService {
       relations: ['user'],
       order: { id: 'DESC' },
     });
+  }
+
+  async extendReward(reward: RefReward): Promise<RefRewardExtended> {
+    const outputAssetEntity = await this.assetService.getNativeAsset(reward.targetBlockchain);
+
+    return Object.assign(reward, { outputAssetEntity });
   }
 
   // --- HELPER METHODS --- //

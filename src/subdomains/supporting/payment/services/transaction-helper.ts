@@ -41,7 +41,7 @@ export class TransactionHelper implements OnModuleInit {
   private transactionSpecifications: TransactionSpecification[];
 
   constructor(
-    private readonly transactionSpecificationRepo: TransactionSpecificationRepository,
+    private readonly specRepo: TransactionSpecificationRepository,
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
     private readonly feeService: FeeService,
@@ -58,7 +58,7 @@ export class TransactionHelper implements OnModuleInit {
   @Cron(CronExpression.EVERY_HOUR)
   @Lock()
   async updateCache() {
-    this.transactionSpecifications = await this.transactionSpecificationRepo.find();
+    this.transactionSpecifications = await this.specRepo.find();
   }
 
   // --- SPECIFICATIONS --- //
@@ -74,15 +74,20 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   async getInSpecs(from: Asset | Fiat, allowExpiredPrice: boolean): Promise<TxSpec> {
-    const { system, asset } = this.getProps(from);
-    const spec = this.getSpec(system, asset, TransactionDirection.IN);
+    const spec = this.specRepo.getSpecFor(this.transactionSpecifications, from, TransactionDirection.IN);
 
     return this.convertToSource(from, spec, allowExpiredPrice);
   }
 
+  async getOutSpecs(to: Asset | Fiat, allowExpiredPrice: boolean): Promise<TxSpec> {
+    const spec = this.specRepo.getSpecFor(this.transactionSpecifications, to, TransactionDirection.OUT);
+
+    return this.convertToTarget(to, spec, allowExpiredPrice);
+  }
+
   getSpecs(from: Asset | Fiat, to: Asset | Fiat): TxSpec {
-    const { system: fromSystem, asset: fromAsset } = this.getProps(from);
-    const { system: toSystem, asset: toAsset } = this.getProps(to);
+    const { system: fromSystem, asset: fromAsset } = this.specRepo.getProps(from);
+    const { system: toSystem, asset: toAsset } = this.specRepo.getProps(to);
 
     const { minFee, minDeposit } = this.getDefaultSpecs(fromSystem, fromAsset, toSystem, toAsset);
 
@@ -95,33 +100,18 @@ export class TransactionHelper implements OnModuleInit {
     toSystem: string,
     toAsset: string,
   ): { minFee: MinAmount; minDeposit: MinAmount } {
-    const inSpec = this.getSpec(fromSystem, fromAsset, TransactionDirection.IN);
-    const outSpec = this.getSpec(toSystem, toAsset, TransactionDirection.OUT);
+    const inSpec = this.specRepo.getSpec(
+      this.transactionSpecifications,
+      fromSystem,
+      fromAsset,
+      TransactionDirection.IN,
+    );
+    const outSpec = this.specRepo.getSpec(this.transactionSpecifications, toSystem, toAsset, TransactionDirection.OUT);
 
     return {
       minFee: { amount: outSpec.minFee + inSpec.minFee, asset: 'EUR' },
       minDeposit: { amount: Math.max(outSpec.minVolume, inSpec.minVolume), asset: 'EUR' },
     };
-  }
-
-  private getSpec(system: string, asset: string, direction: TransactionDirection): TransactionSpecification {
-    return (
-      this.findSpec(system, asset, direction) ??
-      this.findSpec(system, undefined, direction) ??
-      this.findSpec(system, asset, undefined) ??
-      this.findSpec(system, undefined, undefined) ??
-      TransactionSpecification.default()
-    );
-  }
-
-  private findSpec(
-    system: string,
-    asset: string | undefined,
-    direction: TransactionDirection | undefined,
-  ): TransactionSpecification | undefined {
-    return this.transactionSpecifications.find(
-      (t) => t.system == system && t.asset == asset && t.direction == direction,
-    );
   }
 
   // --- TARGET ESTIMATION --- //
@@ -196,7 +186,9 @@ export class TransactionHelper implements OnModuleInit {
     const extendedSpecs = {
       ...specs,
       minFee: fee.blockchain,
-      maxVolume: user?.userData.availableTradingLimit ?? Config.defaultDailyTradingLimit,
+      maxVolume: [paymentMethodIn, paymentMethodOut].includes(FiatPaymentMethod.CARD)
+        ? Math.min(user?.userData.availableTradingLimit ?? Infinity, Config.defaultCardTradingLimit)
+        : user?.userData.availableTradingLimit ?? Config.defaultTradingLimit,
       fixedFee: fee.fixed,
     };
 
@@ -324,12 +316,6 @@ export class TransactionHelper implements OnModuleInit {
     const volume24hChf = Util.sumObjValue(buyCryptos, 'amountInChf') + Util.sumObjValue(buyFiats, 'amountInChf');
 
     return price.convert(inputAmount) + volume24hChf;
-  }
-
-  private getProps(param: Asset | Fiat): { system: string; asset: string } {
-    return param instanceof Fiat
-      ? { system: 'Fiat', asset: param.name }
-      : { system: param.blockchain, asset: param.dexName };
   }
 
   private async convertToSource(
