@@ -35,7 +35,7 @@ import { KycFinancialInData } from '../dto/input/kyc-financial-in.dto';
 import { LimitRequestDto } from '../dto/input/limit-request.dto';
 import { Verify2faDto } from '../dto/input/verify-2fa.dto';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
-import { KycSessionDto, KycStatusDto } from '../dto/output/kyc-info.dto';
+import { KycLevelDto, KycSessionDto } from '../dto/output/kyc-info.dto';
 import { MergedDto } from '../dto/output/kyc-merged.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { Setup2faDto } from '../dto/output/setup-2fa.dto';
@@ -62,9 +62,9 @@ export class KycController {
   ) {}
 
   @Get()
-  @ApiOkResponse({ type: KycStatusDto })
+  @ApiOkResponse({ type: KycLevelDto })
   @ApiUnauthorizedResponse(MergedResponse)
-  async getKycStatus(@Headers(CodeHeaderName) code: string): Promise<KycStatusDto> {
+  async getKycLevel(@Headers(CodeHeaderName) code: string): Promise<KycLevelDto> {
     return this.kycService.getInfo(code);
   }
 

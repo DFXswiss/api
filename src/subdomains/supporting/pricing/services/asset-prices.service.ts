@@ -21,10 +21,12 @@ export class AssetPricesService {
   // --- JOBS --- //
   @Cron(CronExpression.EVERY_HOUR)
   @Lock(3600)
-  async updateUsdValues() {
+  async updatePrices() {
     if (DisabledProcess(Process.PRICING)) return;
 
     const usd = await this.fiatService.getFiatByName('USD');
+    const chf = await this.fiatService.getFiatByName('CHF');
+
     const assets = await this.assetService.getAllAsset([]);
 
     const assetsToUpdate = assets.filter((a) => a.type !== AssetType.CUSTOM);
@@ -32,7 +34,9 @@ export class AssetPricesService {
     for (const asset of assetsToUpdate) {
       try {
         const usdPrice = await this.priceProvider.getPrice(asset, usd);
-        await this.assetService.updatePrice(asset.id, usdPrice.convert(1));
+        const chfPrice = await this.priceProvider.getPrice(asset, chf);
+
+        await this.assetService.updatePrice(asset.id, usdPrice.convert(1), chfPrice.convert(1));
       } catch (e) {
         this.logger.error(`Failed to update price of asset ${asset.uniqueName}:`, e);
       }

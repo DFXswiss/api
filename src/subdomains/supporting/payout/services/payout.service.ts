@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -67,6 +67,15 @@ export class PayoutService {
     const totalFeeAmount = Util.round(prepareFee.amount + payoutFee.amount, 16);
 
     return { asset: payoutFee.asset, amount: totalFeeAmount };
+  }
+
+  async speedupTransaction(id: number): Promise<void> {
+    const order = await this.payoutOrderRepo.findOneBy({ id });
+    if (!order) throw new NotFoundException('Payout order not found');
+
+    const strategy = this.payoutStrategyRegistry.getPayoutStrategy(order.asset);
+
+    await strategy.doPayout([order]);
   }
 
   //*** JOBS ***//

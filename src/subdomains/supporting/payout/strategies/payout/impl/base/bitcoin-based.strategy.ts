@@ -1,4 +1,5 @@
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -119,6 +120,9 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
 
   protected async send(context: PayoutOrderContext, orders: PayoutOrder[], outputAssetName: string): Promise<void> {
     let payoutTxId: string;
+
+    if (orders.some((o) => o.payoutTxId) && !DisabledProcess(Process.TX_SPEEDUP))
+      throw new Error(`Transaction speedup is not implemented for ${this.blockchain}`);
 
     try {
       const payout = this.aggregatePayout(orders);

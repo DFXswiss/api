@@ -25,8 +25,10 @@ export class ArbitrumTokenStrategy extends EvmStrategy {
     return AssetType.TOKEN;
   }
 
-  protected dispatchPayout(order: PayoutOrder): Promise<string> {
-    return this.arbitrumService.sendToken(order.destinationAddress, order.asset, order.amount);
+  protected async dispatchPayout(order: PayoutOrder): Promise<string> {
+    const nonce = await this.getOrderNonce(order);
+
+    return this.arbitrumService.sendToken(order.destinationAddress, order.asset, order.amount, nonce);
   }
 
   protected getCurrentGasForTransaction(token: Asset): Promise<number> {

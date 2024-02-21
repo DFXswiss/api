@@ -78,6 +78,6 @@ import { CryptoRouteService } from './routes/crypto-route/crypto-route.service';
     BuyCryptoPreparationService,
     BuyCryptoJobService,
   ],
-  exports: [BuyController, CryptoRouteController, BuyCryptoService, BuyService],
+  exports: [BuyController, CryptoRouteController, BuyCryptoService, BuyService, BuyCryptoWebhookService],
 })
 export class BuyCryptoModule {}

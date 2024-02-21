@@ -3,6 +3,7 @@ import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { Readable } from 'stream';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
+import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-crypto-webhook.service';
 import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
 import { RefReward } from '../../referral/reward/ref-reward.entity';
 import { RefRewardService } from '../../referral/reward/ref-reward.service';
@@ -37,6 +38,7 @@ export class HistoryService {
   constructor(
     private readonly userService: UserService,
     private readonly buyCryptoService: BuyCryptoService,
+    private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly buyFiatService: BuyFiatService,
     private readonly stakingService: StakingService,
     private readonly refRewardService: RefRewardService,
@@ -73,11 +75,11 @@ export class HistoryService {
       query.staking && (await this.stakingService.getUserStakingRefRewards([user.id], query.from, query.to));
 
     const txArray: HistoryDto<T>[] = [
-      ...this.getBuyCryptoTransactions(buyCryptos, exportFormat),
-      ...this.getBuyFiatTransactions(buyFiats, exportFormat),
+      ...(await this.getBuyCryptoTransactions(buyCryptos, exportFormat)),
+      ...(await this.getBuyFiatTransactions(buyFiats, exportFormat)),
       ...this.getStakingInvests(stakingInvests?.deposits, stakingInvests?.withdrawals, exportFormat),
       ...this.getStakingRewards(stakingRewards, refStakingReward, exportFormat),
-      ...this.getRefRewards(refRewards, exportFormat),
+      ...(await this.getRefRewards(refRewards, exportFormat)),
     ].reduce((prev, curr) => prev.concat(curr), []);
 
     return query.format === ExportFormat.CSV ? this.getHistoryCsv(txArray, exportFormat) : txArray;
@@ -107,7 +109,7 @@ export class HistoryService {
     return [headers].concat(values).join('\n');
   }
 
-  private getBuyCryptoTransactions<T>(buyCryptos: BuyCrypto[] = [], exportFormat: T): HistoryDto<T>[] {
+  private async getBuyCryptoTransactions<T>(buyCryptos: BuyCrypto[] = [], exportFormat: T): Promise<HistoryDto<T>[]> {
     switch (exportFormat) {
       case ExportType.COIN_TRACKING:
         return Util.sort(
@@ -130,11 +132,12 @@ export class HistoryService {
         ) as HistoryDto<T>[];
 
       case ExportType.COMPACT:
-        return Util.sort(TransactionDtoMapper.mapBuyCryptoTransactions(buyCryptos), 'date', 'DESC') as HistoryDto<T>[];
+        const extended = await Util.asyncMap(buyCryptos, (b) => this.buyCryptoWebhookService.extendBuyCrypto(b));
+        return Util.sort(TransactionDtoMapper.mapBuyCryptoTransactions(extended), 'date', 'DESC') as HistoryDto<T>[];
     }
   }
 
-  private getBuyFiatTransactions<T>(buyFiats: BuyFiat[] = [], exportFormat: T): HistoryDto<T>[] {
+  private async getBuyFiatTransactions<T>(buyFiats: BuyFiat[] = [], exportFormat: T): Promise<HistoryDto<T>[]> {
     switch (exportFormat) {
       case ExportType.COIN_TRACKING:
         return Util.sort(
@@ -151,7 +154,8 @@ export class HistoryService {
         ) as HistoryDto<T>[];
 
       case ExportType.COMPACT:
-        return Util.sort(TransactionDtoMapper.mapBuyFiatTransactions(buyFiats), 'date', 'DESC') as HistoryDto<T>[];
+        const extended = await Util.asyncMap(buyFiats, (b) => this.buyFiatService.extendBuyFiat(b));
+        return Util.sort(TransactionDtoMapper.mapBuyFiatTransactions(extended), 'date', 'DESC') as HistoryDto<T>[];
     }
   }
 
@@ -217,7 +221,7 @@ export class HistoryService {
     }
   }
 
-  private getRefRewards<T>(refRewards: RefReward[] = [], exportFormat: T): HistoryDto<T>[] {
+  private async getRefRewards<T>(refRewards: RefReward[] = [], exportFormat: T): Promise<HistoryDto<T>[]> {
     switch (exportFormat) {
       case ExportType.COIN_TRACKING:
         return Util.sort(
@@ -234,7 +238,8 @@ export class HistoryService {
         ) as HistoryDto<T>[];
 
       case ExportType.COMPACT:
-        return Util.sort(TransactionDtoMapper.mapReferralRewards(refRewards), 'date', 'DESC') as HistoryDto<T>[];
+        const extended = await Util.asyncMap(refRewards, (r) => this.refRewardService.extendReward(r));
+        return Util.sort(TransactionDtoMapper.mapReferralRewards(extended), 'date', 'DESC') as HistoryDto<T>[];
     }
   }
 

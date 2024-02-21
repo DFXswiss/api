@@ -26,6 +26,9 @@ export enum PricingPathAlias {
   FIAT_TO_ALT_COIN = 'FiatToAltCoin',
   ALT_COIN_TO_ALT_COIN = 'AltCoinToAltCoin',
   BTC_TO_ALT_COIN = 'BTCToAltCoin',
+  XMR_TO_BTC = 'XMRToBTC',
+  FIAT_TO_XMR = 'FiatToXMR',
+  BTC_TO_XMR = 'BTCToXMR',
   FIAT_TO_SPECIAL_COIN = 'FiatToSpecialCoin',
   BTC_TO_USD_STABLE_COIN = 'BTCToUSDStableCoin',
   BTC_TO_CHF_STABLE_COIN = 'BTCToCHFStableCoin',
@@ -200,6 +203,57 @@ export class PricingService {
     );
 
     this.addPath(
+      new PricePath(PricingPathAlias.XMR_TO_BTC, [
+        new PriceStep({
+          primary: {
+            fallback: 'BTC',
+            providers: [this.krakenService],
+          },
+          reference: {
+            fallback: 'BTC',
+            providers: [this.binanceService, this.kucoinService, this.bitstampService, this.bitpandaService],
+          },
+        }),
+      ]),
+    );
+
+    this.addPath(
+      new PricePath(PricingPathAlias.FIAT_TO_XMR, [
+        new PriceStep({
+          to: 'USDT',
+          primary: {
+            providers: [this.krakenService],
+          },
+          reference: {
+            providers: [this.binanceService, this.bitstampService],
+          },
+        }),
+        new PriceStep({
+          from: 'USDT',
+          primary: {
+            providers: [this.krakenService],
+          },
+          reference: {
+            providers: [this.binanceService, this.bitstampService, this.bitpandaService],
+          },
+        }),
+      ]),
+    );
+
+    this.addPath(
+      new PricePath(PricingPathAlias.BTC_TO_XMR, [
+        new PriceStep({
+          primary: {
+            providers: [this.krakenService],
+          },
+          reference: {
+            providers: [this.binanceService, this.kucoinService, this.bitstampService, this.bitpandaService],
+          },
+        }),
+      ]),
+    );
+
+    this.addPath(
       new PricePath(PricingPathAlias.BTC_TO_USD_STABLE_COIN, [
         new PriceStep({
           primary: {
@@ -350,6 +404,12 @@ export class PricingService {
     if (PricingUtil.isBTC(from) && PricingUtil.isAltCoin(to)) return PricingPathAlias.BTC_TO_ALT_COIN;
 
     if (PricingUtil.isBTC(from) && PricingUtil.isBTC(to)) return PricingPathAlias.BTC_TO_ALT_COIN;
+
+    if (PricingUtil.isXmr(from) && PricingUtil.isBTC(to)) return PricingPathAlias.XMR_TO_BTC;
+
+    if (PricingUtil.isFiat(from) && PricingUtil.isXmr(to)) return PricingPathAlias.FIAT_TO_XMR;
+
+    if (PricingUtil.isBTC(from) && PricingUtil.isXmr(to)) return PricingPathAlias.BTC_TO_XMR;
 
     if (PricingUtil.isFiat(from) && PricingUtil.isSpecialCoin(to)) return PricingPathAlias.FIAT_TO_SPECIAL_COIN;
 
