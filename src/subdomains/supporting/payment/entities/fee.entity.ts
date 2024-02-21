@@ -26,7 +26,7 @@ export class Fee extends IEntity {
   rate: number;
 
   @Column({ type: 'float', default: 0 })
-  fixed: number; // EUR
+  fixed: number; // CHF
 
   @Column({ type: 'float', default: 1 })
   blockchainFactor: number;
@@ -65,13 +65,13 @@ export class Fee extends IEntity {
   // Volume columns
 
   @Column({ type: 'float', nullable: true })
-  minTxVolume: number; // EUR
+  minTxVolume: number; // CHF
 
   @Column({ type: 'float', nullable: true })
-  maxTxVolume: number; // EUR
+  maxTxVolume: number; // CHF
 
   @Column({ type: 'float', nullable: true })
-  maxAnnualUserTxVolume: number; // EUR
+  maxAnnualUserTxVolume: number; // CHF
 
   @Column({ length: 'MAX', nullable: true })
   annualUserTxVolumes: string; // semicolon separated user volumes

@@ -150,11 +150,12 @@ export class CryptoRouteController {
   }
 
   private async toDto(userId: number, crypto: CryptoRoute): Promise<CryptoRouteDto> {
-    const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
+    const { minFee, minDeposit } = await this.transactionHelper.getDefaultSpecs(
       crypto.deposit.blockchain,
       undefined,
       crypto.asset.blockchain,
       crypto.asset.dexName,
+      'EUR',
     );
 
     const fee = await this.userService.getUserFee(

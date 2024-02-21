@@ -38,6 +38,7 @@ export enum TransactionError {
 export class TransactionHelper implements OnModuleInit {
   private eur: Fiat;
   private chf: Fiat;
+  private usd: Fiat;
   private transactionSpecifications: TransactionSpecification[];
 
   constructor(
@@ -52,6 +53,7 @@ export class TransactionHelper implements OnModuleInit {
   onModuleInit() {
     void this.fiatService.getFiatByName('EUR').then((f) => (this.eur = f));
     void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
+    void this.fiatService.getFiatByName('USD').then((f) => (this.usd = f));
     void this.updateCache();
   }
 
@@ -80,27 +82,40 @@ export class TransactionHelper implements OnModuleInit {
     return this.convertToSource(from, spec);
   }
 
-  getSpecs(from: Asset | Fiat, to: Asset | Fiat): TxSpec {
+  async getSpecs(from: Asset | Fiat, to: Asset | Fiat): Promise<TxSpec> {
     const { system: fromSystem, asset: fromAsset } = this.getProps(from);
     const { system: toSystem, asset: toAsset } = this.getProps(to);
 
-    const { minFee, minDeposit } = this.getDefaultSpecs(fromSystem, fromAsset, toSystem, toAsset);
+    const { minFee, minDeposit } = await this.getDefaultSpecs(
+      fromSystem,
+      fromAsset,
+      toSystem,
+      toAsset,
+      from instanceof Fiat ? from.name : to.name,
+    );
 
     return { minFee: minFee.amount, minVolume: minDeposit.amount };
   }
 
-  getDefaultSpecs(
+  async getDefaultSpecs(
     fromSystem: string,
     fromAsset: string,
     toSystem: string,
     toAsset: string,
-  ): { minFee: MinAmount; minDeposit: MinAmount } {
+    targetPriceCurrency: string,
+  ): Promise<{ minFee: MinAmount; minDeposit: MinAmount }> {
     const inSpec = this.getSpec(fromSystem, fromAsset, TransactionDirection.IN);
     const outSpec = this.getSpec(toSystem, toAsset, TransactionDirection.OUT);
 
+    const targetFiat = targetPriceCurrency === 'USD' ? this.usd : targetPriceCurrency === 'EUR' ? this.eur : this.chf;
+    const price = await this.priceProviderService.getPrice(this.chf, targetFiat);
+
     return {
-      minFee: { amount: outSpec.minFee + inSpec.minFee, asset: 'EUR' },
-      minDeposit: { amount: Math.max(outSpec.minVolume, inSpec.minVolume), asset: 'EUR' },
+      minFee: { amount: price.convert(outSpec.minFee + inSpec.minFee, 0), asset: targetPriceCurrency },
+      minDeposit: {
+        amount: price.convert(Math.max(outSpec.minVolume, inSpec.minVolume), 0),
+        asset: targetPriceCurrency,
+      },
     };
   }
 
@@ -135,7 +150,7 @@ export class TransactionHelper implements OnModuleInit {
     user: User,
   ): Promise<TxFeeDetails> {
     // get fee
-    const specs = this.getSpecs(from, to);
+    const specs = await this.getSpecs(from, to);
     const fee = await this.getTxFee(
       user,
       paymentMethodIn,
@@ -175,7 +190,7 @@ export class TransactionHelper implements OnModuleInit {
     discountCodes: string[] = [],
   ): Promise<TransactionDetails> {
     // get fee
-    const specs = this.getSpecs(from, to);
+    const specs = await this.getSpecs(from, to);
     const fee = await this.getTxFee(
       user,
       paymentMethodIn,
@@ -246,12 +261,12 @@ export class TransactionHelper implements OnModuleInit {
     to: Asset | Fiat,
     txVolume: number,
     txAsset: Asset | Fiat,
-    minFeeEur: number,
+    minFeeChf: number,
     discountCodes: string[],
   ): Promise<FeeDto> {
-    const price = await this.priceProviderService.getPrice(txAsset, this.eur);
+    const price = await this.priceProviderService.getPrice(txAsset, this.chf);
 
-    const txVolumeInEur = price.convert(txVolume);
+    const txVolumeInChf = price.convert(txVolume);
 
     const feeRequest = {
       user,
@@ -259,8 +274,8 @@ export class TransactionHelper implements OnModuleInit {
       paymentMethodOut,
       from,
       to,
-      txVolume: txVolumeInEur,
-      blockchainFee: minFeeEur,
+      txVolume: txVolumeInChf,
+      blockchainFee: minFeeChf,
       discountCodes,
     };
 
