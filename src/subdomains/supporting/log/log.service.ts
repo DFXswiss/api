@@ -15,7 +15,7 @@ export class LogService {
     return this.logRepo.save(newEntity);
   }
 
-  private async maxEntity({ system, subsystem, severity }: CreateLogDto): Promise<Log> {
+  private async maxEntity({ system, subsystem, severity }: CreateLogDto): Promise<Log | undefined> {
     const { maxId } = await this.logRepo
       .createQueryBuilder()
       .select('max(id) as maxId')
