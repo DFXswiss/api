@@ -161,12 +161,11 @@ export class BuyController {
   }
 
   private async toDto(userId: number, buy: Buy): Promise<BuyDto> {
-    const { minFee, minDeposit } = await this.transactionHelper.getDefaultSpecs(
+    const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
       'Fiat',
       undefined,
       buy.asset.blockchain,
       buy.asset.dexName,
-      'EUR',
     );
 
     const fee = await this.userService.getUserFee(

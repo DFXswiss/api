@@ -36,9 +36,7 @@ export enum TransactionError {
 
 @Injectable()
 export class TransactionHelper implements OnModuleInit {
-  private eur: Fiat;
   private chf: Fiat;
-  private usd: Fiat;
   private transactionSpecifications: TransactionSpecification[];
 
   constructor(
@@ -51,9 +49,7 @@ export class TransactionHelper implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    void this.fiatService.getFiatByName('EUR').then((f) => (this.eur = f));
     void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
-    void this.fiatService.getFiatByName('USD').then((f) => (this.usd = f));
     void this.updateCache();
   }
 
@@ -87,28 +83,21 @@ export class TransactionHelper implements OnModuleInit {
     return this.convertToTarget(to, spec);
   }
 
-  async getSpecs(from: Asset | Fiat, to: Asset | Fiat): Promise<TxSpec> {
+  getSpecs(from: Asset | Fiat, to: Asset | Fiat): TxSpec {
     const { system: fromSystem, asset: fromAsset } = this.specRepo.getProps(from);
     const { system: toSystem, asset: toAsset } = this.specRepo.getProps(to);
 
-    const { minFee, minDeposit } = await this.getDefaultSpecs(
-      fromSystem,
-      fromAsset,
-      toSystem,
-      toAsset,
-      from instanceof Fiat ? from.name : to.name,
-    );
+    const { minFee, minDeposit } = this.getDefaultSpecs(fromSystem, fromAsset, toSystem, toAsset);
 
     return { minFee: minFee.amount, minVolume: minDeposit.amount };
   }
 
-  async getDefaultSpecs(
+  getDefaultSpecs(
     fromSystem: string,
     fromAsset: string,
     toSystem: string,
     toAsset: string,
-    targetPriceCurrency: string,
-  ): Promise<{ minFee: MinAmount; minDeposit: MinAmount }> {
+  ): { minFee: MinAmount; minDeposit: MinAmount } {
     const inSpec = this.specRepo.getSpec(
       this.transactionSpecifications,
       fromSystem,
@@ -117,14 +106,11 @@ export class TransactionHelper implements OnModuleInit {
     );
     const outSpec = this.specRepo.getSpec(this.transactionSpecifications, toSystem, toAsset, TransactionDirection.OUT);
 
-    const targetFiat = targetPriceCurrency === 'USD' ? this.usd : targetPriceCurrency === 'EUR' ? this.eur : this.chf;
-    const price = await this.priceProviderService.getPrice(this.chf, targetFiat);
-
     return {
-      minFee: { amount: price.convert(outSpec.minFee + inSpec.minFee, 0), asset: targetPriceCurrency },
+      minFee: { amount: outSpec.minFee + inSpec.minFee, asset: 'CHF' },
       minDeposit: {
-        amount: price.convert(Math.max(outSpec.minVolume, inSpec.minVolume), 0),
-        asset: targetPriceCurrency,
+        amount: Math.max(outSpec.minVolume, inSpec.minVolume),
+        asset: 'CHF',
       },
     };
   }
@@ -315,17 +301,17 @@ export class TransactionHelper implements OnModuleInit {
       .getUserTransactions(user.id, Util.daysBefore(1))
       .then((buyFiats) => buyFiats.filter((b) => b.amlCheck !== CheckStatus.FAIL));
 
-    const price = await this.priceProviderService.getPrice(from, this.eur).then((p) => p.invert());
-    const txEurAmount = Util.sumObjValue(buyCryptos, 'amountInEur') + Util.sumObjValue(buyFiats, 'amountInEur');
+    const price = await this.priceProviderService.getPrice(from, this.chf).then((p) => p.invert());
+    const txChfAmount = Util.sumObjValue(buyCryptos, 'amountInChf') + Util.sumObjValue(buyFiats, 'amountInChf');
 
-    return inputAmount + price.convert(txEurAmount);
+    return inputAmount + price.convert(txChfAmount);
   }
 
   private async convertToSource(
     from: Asset | Fiat,
     { minFee, minVolume, maxVolume, fixedFee }: TxSpecExtended,
   ): Promise<TxSpecExtended> {
-    const price = await this.priceProviderService.getPrice(from, this.eur).then((p) => p.invert());
+    const price = await this.priceProviderService.getPrice(from, this.chf).then((p) => p.invert());
 
     const maxVolumePrice =
       maxVolume && (await this.priceProviderService.getPrice(from, this.chf).then((p) => p.invert()));
@@ -344,7 +330,7 @@ export class TransactionHelper implements OnModuleInit {
     to: Asset | Fiat,
     { minFee, minVolume, maxVolume, fixedFee }: TxSpecExtended,
   ): Promise<TxSpecExtended> {
-    const price = await this.priceProviderService.getPrice(this.eur, to);
+    const price = await this.priceProviderService.getPrice(this.chf, to);
     const maxVolumePrice = maxVolume && (await this.priceProviderService.getPrice(this.chf, to));
 
     const maxVolumeTarget = maxVolume && (to.name === 'CHF' ? maxVolume : maxVolumePrice.convert(maxVolume * 0.99)); // -1% for the conversion
