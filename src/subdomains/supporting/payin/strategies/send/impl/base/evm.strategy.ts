@@ -1,10 +1,10 @@
 import { Config } from 'src/config/config';
-import { FeeLimitExceededException } from 'src/shared/payment/exceptions/fee-limit-exceeded.exception';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { CryptoInput, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { PayInEvmService } from 'src/subdomains/supporting/payin/services/base/payin-evm.service';
+import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
 import { SendGroup, SendGroupKey, SendStrategy, SendType } from './send.strategy';
 
 export abstract class EvmStrategy extends SendStrategy {
@@ -138,11 +138,11 @@ export abstract class EvmStrategy extends SendStrategy {
   }
 
   protected getTotalGroupAmount(payInGroup: SendGroup): number {
-    return Util.sumObj<CryptoInput>(payInGroup.payIns, 'amount');
+    return Util.sumObjValue<CryptoInput>(payInGroup.payIns, 'amount');
   }
 
   protected getTotalSendFee(payInGroup: SendGroup): number {
-    return Util.sumObj<CryptoInput>(payInGroup.payIns, 'forwardFeeAmount');
+    return Util.sumObjValue<CryptoInput>(payInGroup.payIns, 'forwardFeeAmount');
   }
 
   protected topUpCoin(payInGroup: SendGroup, amount: number): Promise<string> {

@@ -2,11 +2,11 @@ import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/bloc
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { Config } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { BtcClient } from './btc-client';
 import { DeFiClient } from './defi-client';
 import { NodeClient, NodeMode } from './node-client';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 export enum NodeType {
   INPUT = 'inp',
@@ -86,6 +86,10 @@ export class NodeService {
     } else {
       throw new Error(`Tried to swap to node ${type} to ${mode}, but NodeClient is not available in the pool`);
     }
+  }
+
+  getBtcPaymentRequest(address: string, amount: number, label = 'DFX Off-Ramp'): string {
+    return `bitcoin:${address}?amount=${amount}&label=${label}`;
   }
 
   // --- INIT METHODS --- //

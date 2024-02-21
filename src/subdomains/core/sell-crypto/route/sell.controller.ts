@@ -2,20 +2,23 @@ import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/comm
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { LightningService } from 'src/integration/lightning/services/lightning.service';
+import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { IpGuard } from 'src/shared/auth/ip.guard';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
-import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
-import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
-import { BuyFiatService } from '../process/buy-fiat.service';
+import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
+import { BuyFiatService } from '../process/services/buy-fiat.service';
 import { CreateSellDto } from './dto/create-sell.dto';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { GetSellQuoteDto } from './dto/get-sell-quote.dto';
@@ -36,7 +39,8 @@ export class SellController {
     private readonly buyFiatService: BuyFiatService,
     private readonly paymentInfoService: PaymentInfoService,
     private readonly transactionHelper: TransactionHelper,
-    private readonly lightningService: LightningService,
+    private readonly cryptoService: CryptoService,
+    private readonly transactionRequestService: TransactionRequestService,
   ) {}
 
   @Get()
@@ -69,36 +73,68 @@ export class SellController {
   @Put('/quote')
   @ApiOkResponse({ type: SellQuoteDto })
   async getSellQuote(@Body() dto: GetSellQuoteDto): Promise<SellQuoteDto> {
-    const { amount, asset, currency } = await this.paymentInfoService.sellCheck(dto);
-
-    const fee = Config.sell.fee.get(asset.feeTier, AccountType.PERSONAL);
-
-    const { exchangeRate, feeAmount, estimatedAmount } = await this.transactionHelper.getTxDetails(
-      amount,
-      fee,
+    const {
+      amount: sourceAmount,
       asset,
       currency,
+      targetAmount,
+      discountCode,
+    } = await this.paymentInfoService.sellCheck(dto);
+
+    const {
+      rate,
+      exchangeRate,
+      feeAmount,
+      estimatedAmount,
+      sourceAmount: amount,
+      minVolume,
+      minVolumeTarget,
+      maxVolume,
+      maxVolumeTarget,
+      isValid,
+      error,
+    } = await this.transactionHelper.getTxDetails(
+      sourceAmount,
+      targetAmount,
+      asset,
+      currency,
+      CryptoPaymentMethod.CRYPTO,
+      FiatPaymentMethod.BANK,
+      undefined,
+      discountCode ? [discountCode] : [],
     );
 
     return {
       feeAmount,
+      rate,
       exchangeRate,
       estimatedAmount,
+      amount,
+      minVolume,
+      minVolumeTarget,
+      maxVolume,
+      maxVolumeTarget,
+      isValid,
+      error,
     };
   }
 
   @Put('/paymentInfos')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
   @ApiOkResponse({ type: SellPaymentInfoDto })
   async createSellWithPaymentInfo(
     @GetJwt() jwt: JwtPayload,
     @Body() dto: GetSellPaymentInfoDto,
   ): Promise<SellPaymentInfoDto> {
     dto = await this.paymentInfoService.sellCheck(dto, jwt);
-    return this.sellService
-      .createSell(jwt.id, { ...dto, blockchain: dto.asset.blockchain }, true)
-      .then((sell) => this.toPaymentInfoDto(jwt.id, sell, dto));
+    return Util.retry(
+      () => this.sellService.createSell(jwt.id, { ...dto, blockchain: dto.asset.blockchain }, true),
+      2,
+      0,
+      undefined,
+      (e) => e.message?.includes('duplicate key'),
+    ).then((sell) => this.toPaymentInfoDto(jwt.id, sell, dto));
   }
 
   @Put(':id')
@@ -135,8 +171,8 @@ export class SellController {
       active: sell.active,
       volume: sell.volume,
       annualVolume: sell.annualVolume,
-      fiat: FiatDtoMapper.entityToDto(sell.fiat),
-      currency: FiatDtoMapper.entityToDto(sell.fiat),
+      fiat: FiatDtoMapper.toDto(sell.fiat),
+      currency: FiatDtoMapper.toDto(sell.fiat),
       deposit: DepositDtoMapper.entityToDto(sell.deposit),
       fee: undefined,
       blockchain: sell.deposit.blockchain,
@@ -146,18 +182,35 @@ export class SellController {
   }
 
   private async toPaymentInfoDto(userId: number, sell: Sell, dto: GetSellPaymentInfoDto): Promise<SellPaymentInfoDto> {
-    const fee = await this.userService.getUserSellFee(userId, dto.asset);
+    const user = await this.userService.getUser(userId, { userData: true, wallet: true });
+
     const {
       minVolume,
       minFee,
       minVolumeTarget,
       minFeeTarget,
-      estimatedAmount: estimatedAmount,
-    } = await this.transactionHelper.getTxDetails(dto.amount, fee, dto.asset, dto.currency);
+      maxVolume,
+      maxVolumeTarget,
+      fee,
+      exchangeRate,
+      rate,
+      estimatedAmount,
+      sourceAmount: amount,
+      isValid,
+      error,
+    } = await this.transactionHelper.getTxDetails(
+      dto.amount,
+      dto.targetAmount,
+      dto.asset,
+      dto.currency,
+      CryptoPaymentMethod.CRYPTO,
+      FiatPaymentMethod.BANK,
+      user,
+    );
 
-    return {
+    const sellDto: SellPaymentInfoDto = {
       routeId: sell.id,
-      fee: Util.round(fee * 100, Config.defaultPercentageDecimal),
+      fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       depositAddress: sell.deposit.address,
       blockchain: sell.deposit.blockchain,
       minDeposit: { amount: minVolume, asset: dto.asset.dexName },
@@ -165,11 +218,21 @@ export class SellController {
       minFee,
       minVolumeTarget,
       minFeeTarget,
+      exchangeRate,
+      rate,
       estimatedAmount,
-      paymentRequest:
-        dto.asset.blockchain === Blockchain.LIGHTNING
-          ? await this.lightningService.getInvoiceByLnurlp(sell.deposit.address, dto.amount)
-          : undefined,
+      amount,
+      currency: FiatDtoMapper.toDto(dto.currency),
+      asset: AssetDtoMapper.toDto(dto.asset),
+      maxVolume,
+      maxVolumeTarget,
+      paymentRequest: await this.cryptoService.getPaymentRequest(isValid, dto.asset, sell.deposit.address, amount),
+      isValid,
+      error,
     };
+
+    void this.transactionRequestService.createTransactionRequest(TransactionRequestType.Sell, dto, sellDto);
+
+    return sellDto;
   }
 }

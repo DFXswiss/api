@@ -1,7 +1,7 @@
 import { IEntity } from 'src/shared/models/entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { Entity, Column, OneToMany, Index } from 'typeorm';
-import { KycType } from '../user-data/user-data.entity';
+import { Column, Entity, Index, OneToMany } from 'typeorm';
+import { KycStatus, KycType } from '../user-data/user-data.entity';
 
 @Entity()
 export class Wallet extends IEntity {
@@ -11,6 +11,9 @@ export class Wallet extends IEntity {
 
   @Column({ length: 256, nullable: true })
   name: string;
+
+  @Column({ length: 256, nullable: true })
+  masterKey: string;
 
   @Column({ default: false })
   isKycClient: boolean;
@@ -23,4 +26,10 @@ export class Wallet extends IEntity {
 
   @OneToMany(() => User, (user) => user.wallet)
   users: User[];
+
+  @Column({ length: 256, nullable: true })
+  identMethod?: KycStatus;
+
+  @Column({ length: 256, nullable: true })
+  apiKey: string;
 }

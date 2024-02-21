@@ -13,4 +13,8 @@ export class BankAdapter implements LiquidityBalanceIntegration {
 
     throw new Error(`Method not implemented.`);
   }
+
+  getNumberOfPendingOrders(_fiat: Fiat): Promise<number> {
+    throw new Error(`Method not implemented.`);
+  }
 }

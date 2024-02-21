@@ -15,7 +15,7 @@ enum AdapterType {
 }
 @Injectable()
 export class LiquidityBalanceIntegrationFactory {
-  protected readonly adapters = new Map<AdapterType, LiquidityBalanceIntegration>();
+  private readonly adapters = new Map<AdapterType, LiquidityBalanceIntegration>();
 
   constructor(
     readonly blockchainAdapter: BlockchainAdapter,

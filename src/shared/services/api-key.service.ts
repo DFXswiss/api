@@ -61,7 +61,7 @@ export class ApiKeyService {
     const filter = parseInt(filterCode, 16);
     return Object.entries(this.filterCodes)
       .filter(([_, value]) => filter & Math.pow(2, value))
-      .reduce((prev, [key, _]) => Object.assign(prev, { [key]: 'true' }), new HistoryFilter());
+      .reduce((prev, [key, _]) => Object.assign(prev, { [key]: true }), new HistoryFilter());
   }
 
   private filterToCode(filter: HistoryFilter): string {

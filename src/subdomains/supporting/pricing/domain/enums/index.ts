@@ -19,6 +19,7 @@ export enum UsdStableCoin {
 
 export enum ChfStableCoin {
   XCHF = 'XCHF',
+  ZCHF = 'ZCHF',
 }
 
 export enum Bitcoin {
@@ -27,8 +28,9 @@ export enum Bitcoin {
   WBTC = 'WBTC',
 }
 
-export enum Altcoin {
+export enum AltCoin {
   ETH = 'ETH',
+  WETH = 'WETH',
   BNB = 'BNB',
   MATIC = 'MATIC',
   DAI = 'DAI',
@@ -54,4 +56,13 @@ export enum Altcoin {
   GMX = 'GMX',
   INCH = '1INCH',
   SUSHI = 'SUSHI',
+}
+
+export enum Xmr {
+  XMR = 'XMR',
+}
+
+export enum SpecialCoin {
+  FOX = 'FOX',
+  BGB = 'BGB',
 }

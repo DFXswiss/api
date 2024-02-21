@@ -2,18 +2,34 @@ import { Injectable } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
+import { AmlReason } from 'src/subdomains/core/buy-crypto/process/enums/aml-reason.enum';
 import { Mail, MailParams } from '../entities/mail/base/mail';
 import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
-import { KycSupportMail, KycSupportMailInput } from '../entities/mail/kyc-support-mail';
-import { PersonalMail, PersonalMailInput } from '../entities/mail/personal-mail';
-import { UserMail, UserMailInput, UserMailNew, UserMailSuffix, UserMailTable } from '../entities/mail/user-mail';
+import { InternalMail, MailRequestInternalInput } from '../entities/mail/internal-mail';
+import { MailRequestPersonalInput, PersonalMail } from '../entities/mail/personal-mail';
+import { MailRequestUserInput, UserMail, UserMailTable } from '../entities/mail/user-mail';
 import { MailType } from '../enums';
-import { MailRequest, MailRequestGenericInput, MailRequestInput, MailRequestNew, TranslationItem } from '../interfaces';
+import { MailAffix, MailRequest, MailRequestGenericInput, TranslationItem, TranslationParams } from '../interfaces';
 
 export enum MailTranslationKey {
-  GENERAL = 'translation.general',
-  PAYMENT = 'translation.payment',
-  BUY_FIAT = 'translation.payment.buy_fiat',
+  GENERAL = 'mail.general',
+  PAYMENT = 'mail.payment',
+  BUY_FIAT = 'mail.payment.buy_fiat',
+  BUY_CRYPTO = 'mail.payment.buy_crypto',
+  PENDING = 'mail.payment.pending',
+  RETURN = 'mail.payment.return',
+  RETURN_REASON = 'mail.payment.return.reasons',
+  CRYPTO_RETURN = 'mail.payment.return.crypto',
+  FIAT_RETURN = 'mail.payment.return.fiat',
+  REFERRAL = 'mail.referral',
+  KYC = 'mail.kyc',
+  KYC_SUCCESS = 'mail.kyc.success',
+  KYC_FAILED = 'mail.kyc.failed',
+  KYC_REMINDER = 'mail.kyc.reminder',
+  LOGIN = 'mail.login',
+  ACCOUNT_MERGE = 'mail.account_merge',
+  LIMIT_REQUEST = 'mail.limit_request',
+  BLACK_SQUAD = 'mail.black_squad',
 }
 
 export enum MailKey {
@@ -21,25 +37,32 @@ export enum MailKey {
   DFX_TEAM_CLOSING = 'dfxTeamClosing',
 }
 
-const MailDefaultStyle = 'Open Sans,Helvetica,Arial,sans-serif';
-const MailDefaultEmptyLine = { text: '', style: `${MailDefaultStyle};padding:1px` };
+interface SpecialTag {
+  text: string;
+  textSuffix: string;
+  tag: string;
+  value: string;
+}
+
+const UserMailDefaultStyle = 'Open Sans,Helvetica,Arial,sans-serif';
+const DefaultEmptyLine = { text: '', style: `${UserMailDefaultStyle};padding:1px` };
 
 @Injectable()
 export class MailFactory {
   constructor(private readonly i18n: I18nService) {}
 
-  async createMail(request: MailRequest): Promise<Mail> {
+  createMail(request: MailRequest): Mail {
     switch (request.type) {
+      case MailType.INTERNAL: {
+        return this.createInternalMail(request);
+      }
+
       case MailType.GENERIC: {
         return this.createGenericMail(request);
       }
 
       case MailType.ERROR_MONITORING: {
         return this.createErrorMonitoringMail(request);
-      }
-
-      case MailType.KYC_SUPPORT: {
-        return this.createKycSupportMail(request);
       }
 
       case MailType.USER: {
@@ -50,22 +73,6 @@ export class MailFactory {
         return this.createPersonalMail(request);
       }
 
-      case MailType.INTERNAL: {
-        return this.createInternalMail(request);
-      }
-
-      default: {
-        throw new Error(`Unsupported mail type: ${request.type}`);
-      }
-    }
-  }
-
-  async createMailNew(request: MailRequestNew): Promise<Mail> {
-    switch (request.type) {
-      case MailType.USER: {
-        return this.createUserMailNew(request);
-      }
-
       default: {
         throw new Error(`Unsupported mail type: ${request.type}`);
       }
@@ -74,7 +81,22 @@ export class MailFactory {
 
   //*** HELPER METHODS ***//
 
-  private createGenericMail(request: MailRequest): ErrorMonitoringMail {
+  private createInternalMail(request: MailRequest): InternalMail {
+    const input = request.input as MailRequestInternalInput;
+    const { title, salutation, prefix } = request.input as MailRequestInternalInput;
+    const { metadata, options } = request;
+
+    return new InternalMail({
+      ...{ date: new Date().getFullYear(), ...input },
+      subject: title,
+      salutation: salutation?.key,
+      prefix: prefix && this.getMailAffix(prefix),
+      metadata,
+      options,
+    });
+  }
+
+  private createGenericMail(request: MailRequest): Mail {
     const input = request.input as MailRequestGenericInput;
     const { metadata, options } = request;
 
@@ -96,21 +118,6 @@ export class MailFactory {
     return new Mail(mailParams);
   }
 
-  private createInternalMail(request: MailRequest): ErrorMonitoringMail {
-    const input = request.input as MailRequestGenericInput;
-    const { metadata, options } = request;
-
-    const mailParams: MailParams = {
-      ...input,
-      template: 'support',
-      templateParams: { date: new Date().getFullYear(), ...input },
-      metadata,
-      options,
-    };
-
-    return new Mail(mailParams);
-  }
-
   private createErrorMonitoringMail(request: MailRequest): ErrorMonitoringMail {
     const { subject, errors } = request.input as ErrorMonitoringMailInput;
     const { metadata, options } = request;
@@ -118,75 +125,37 @@ export class MailFactory {
     return new ErrorMonitoringMail({ subject, errors, metadata, options });
   }
 
-  private createKycSupportMail(request: MailRequest): KycSupportMail {
-    const { userData } = request.input as KycSupportMailInput;
+  private createUserMail(request: MailRequest): UserMail {
     const { metadata, options } = request;
+    const { userData, title, salutation, prefix, suffix, table } = request.input as MailRequestUserInput;
 
-    return new KycSupportMail({
-      userDataId: userData.id,
-      kycStatus: userData.kycStatus,
-      kycCustomerId: userData.kycCustomerId,
-      metadata,
-      options,
-    });
-  }
-
-  private async createUserMail(request: MailRequest): Promise<UserMail> {
-    const { userData, translationKey, translationParams } = request.input as UserMailInput;
-    const { metadata, options } = request;
-
-    const { subject, salutation, body } = await this.t(
-      translationKey,
-      userData.language?.symbol.toLowerCase(),
-      translationParams,
-    );
+    const lang = userData.language.symbol.toLowerCase();
 
     return new UserMail({
       to: userData.mail,
-      subject,
-      salutation,
-      body,
+      subject: this.translate(title, lang),
+      salutation: salutation && this.translate(salutation.key, lang, salutation.params),
+      prefix: prefix && this.getMailAffix(prefix, lang),
+      table: table && this.getTable(table, lang),
+      suffix: suffix && this.getMailAffix(suffix, lang),
       metadata,
       options,
     });
   }
 
-  private async createUserMailNew(request: MailRequestNew): Promise<UserMailNew> {
-    const { metadata, options } = request;
-    const { userData, title, prefix, suffix, table } = request.input as MailRequestInput;
-
-    const lang = userData.language?.symbol.toLowerCase();
-
-    return new UserMailNew({
-      to: userData.mail,
-      subject: this.tNew(title, lang),
-      salutation: this.tNew(prefix.key, lang, prefix.params),
-      table: this.getTable(table, lang),
-      suffix: this.getSuffix(suffix, lang),
-      metadata,
-      options,
-    });
-  }
-
-  private async createPersonalMail(request: MailRequest): Promise<PersonalMail> {
-    const { userData, translationKey, translationParams, banner, displayName, from } =
-      request.input as PersonalMailInput;
+  private createPersonalMail(request: MailRequest): PersonalMail {
+    const { userData, title, prefix, banner, from, displayName } = request.input as MailRequestPersonalInput;
     const { metadata, options } = request;
 
-    const { subject, salutation, body } = await this.t(
-      translationKey,
-      userData.language?.symbol.toLowerCase(),
-      translationParams,
-    );
+    const lang = userData.language.symbol.toLowerCase();
 
     return new PersonalMail({
       to: userData.mail,
-      subject,
-      salutation,
-      body,
+      subject: this.translate(title, lang),
+      prefix: prefix && this.getMailAffix(prefix, lang),
       banner,
-      displayName,
       from,
+      displayName,
       metadata,
       options,
     });
@@ -194,19 +163,7 @@ export class MailFactory {
 
   //*** TRANSLATION METHODS ***//
 
-  private async t(
-    key: string,
-    lang: string,
-    args?: any,
-  ): Promise<{ salutation: string; body: string; subject: string }> {
-    const salutation = this.i18n.translate(`${key}.salutation`, { lang, args });
-    const body = this.i18n.translate(`${key}.body`, { lang, args });
-    const subject = this.i18n.translate(`${key}.title`, { lang, args });
-
-    return { salutation, body, subject };
-  }
-
-  private tNew(key: string, lang: string, args?: any): string {
+  private translate(key: string, lang: string, args?: any): string {
     return this.i18n.translate(key, { lang, args });
   }
 
@@ -215,38 +172,40 @@ export class MailFactory {
   private getTable(table: Record<string, string>, lang: string): UserMailTable[] {
     Util.removeNullFields(table);
     return Object.entries(table).map(([key, value]) => ({
-      text: this.tNew(key, lang),
+      text: this.translate(key, lang),
       value: value,
     }));
   }
 
-  private getSuffix(suffix: TranslationItem[], lang: string): UserMailSuffix[] {
-    Util.removeNullFields(suffix);
-    return suffix.map((element) => this.mapSuffix(element, lang).flat()).flat();
+  private getMailAffix(affix: TranslationItem[], lang = 'en'): MailAffix[] {
+    Util.removeNullFields(affix);
+    return affix.map((element) => this.mapMailAffix(element, lang).flat()).flat();
   }
 
-  private mapSuffix(element: TranslationItem, lang: string): UserMailSuffix[] {
+  private mapMailAffix(element: TranslationItem, lang: string): MailAffix[] {
     switch (element.key) {
       case MailKey.SPACE:
-        return [MailDefaultEmptyLine];
+        return [DefaultEmptyLine];
 
       case MailKey.DFX_TEAM_CLOSING:
         return [
-          MailDefaultEmptyLine,
-          MailDefaultEmptyLine,
+          DefaultEmptyLine,
+          DefaultEmptyLine,
           {
-            text: this.tNew(`${MailTranslationKey.GENERAL}.dfx_team_closing`, lang),
-            style: MailDefaultStyle,
+            text: this.translate(`${MailTranslationKey.GENERAL}.dfx_team_closing`, lang),
+            style: UserMailDefaultStyle,
           },
-          MailDefaultEmptyLine,
-          MailDefaultEmptyLine,
-          MailDefaultEmptyLine,
-          MailDefaultEmptyLine,
-          { text: this.tNew(`${MailTranslationKey.GENERAL}.dfx_closing_message`, lang), style: 'Zapfino' },
+          DefaultEmptyLine,
+          DefaultEmptyLine,
+          DefaultEmptyLine,
+          DefaultEmptyLine,
+          { text: this.translate(`${MailTranslationKey.GENERAL}.dfx_closing_message`, lang), style: 'Zapfino' },
         ];
 
       default:
-        const text = this.tNew(element.key, lang);
+        if (element.params) Util.removeNullFields(element.params);
+        const translatedParams = this.translateParams(element.params, lang);
+        const text = this.translate(element.key, lang, translatedParams);
         const specialTag = this.parseSpecialTag(text);
 
         return [
@@ -256,17 +215,37 @@ export class MailFactory {
                 ? {
                     link: element.params.url,
                     text: specialTag.value,
+                    textSuffix: specialTag.textSuffix,
                   }
                 : undefined,
-            style: element.params?.style ?? MailDefaultStyle,
+            mail:
+              specialTag?.tag === 'mail' ? { address: specialTag.value, textSuffix: specialTag.textSuffix } : undefined,
+            style: element.params?.style ?? UserMailDefaultStyle,
             text: specialTag?.text ?? text,
           },
         ];
     }
   }
 
-  private parseSpecialTag(text: string): { text: string; tag: string; value: string } | undefined {
-    const match = /^(.*)\[(\w*):(\w*)\]$/.exec(text);
-    return match ? { text: match[1], tag: match[2], value: match[3] } : undefined;
+  private parseSpecialTag(text: string): SpecialTag | undefined {
+    const match = /^(.*)\[(\w+):([^\]]+)\](.*)$/.exec(text);
+    return match ? { text: match[1], textSuffix: match[4], tag: match[2], value: match[3] } : undefined;
+  }
+
+  private translateParams(params: TranslationParams, lang: string): TranslationParams {
+    return params
+      ? Object.entries(params)
+          .map(([key, value]) => [key, this.translate(value, lang)])
+          .reduce((prev, [key, value]) => {
+            prev[key] = value;
+            return prev;
+          }, {})
+      : {};
+  }
+
+  //*** STATIC HELPER METHODS ***//
+
+  static parseMailKey(mailKey: MailTranslationKey, amlReason: AmlReason): string {
+    return `${mailKey}.${amlReason.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase()}`;
   }
 }

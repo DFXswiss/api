@@ -6,34 +6,32 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { Between, In, IsNull, Not } from 'typeorm';
+import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
-import { Lock } from 'src/shared/utils/lock';
-import { BuyCrypto } from '../entities/buy-crypto.entity';
-import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
-import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import { BuyCryptoBatchService } from './buy-crypto-batch.service';
-import { BuyCryptoOutService } from './buy-crypto-out.service';
-import { BuyCryptoDexService } from './buy-crypto-dex.service';
-import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
-import { AmlCheck } from '../enums/aml-check.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { CryptoRouteService } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.service';
-import { HistoryDto, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
-import { BuyHistoryDto } from '../../routes/buy/dto/buy-history.dto';
-import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
-import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
-import { BuyCryptoRegistrationService } from './buy-crypto-registration.service';
+import { HistoryDtoDeprecated, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
+import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
+import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
+import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
+import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
+import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
+import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
+import { Between, In, IsNull, Not } from 'typeorm';
 import { Buy } from '../../routes/buy/buy.entity';
 import { BuyRepository } from '../../routes/buy/buy.repository';
 import { BuyService } from '../../routes/buy/buy.service';
-import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
-import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
-import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
-import { Config, Process } from 'src/config/config';
-import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { BuyHistoryDto } from '../../routes/buy/dto/buy-history.dto';
+import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
+import { BuyCrypto, BuyCryptoEditableAmlCheck } from '../entities/buy-crypto.entity';
+import { AmlReason } from '../enums/aml-reason.enum';
+import { CheckStatus } from '../enums/check-status.enum';
+import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
+import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 
 @Injectable()
 export class BuyCryptoService {
@@ -46,24 +44,40 @@ export class BuyCryptoService {
     private readonly bankTxService: BankTxService,
     private readonly buyService: BuyService,
     private readonly cryptoRouteService: CryptoRouteService,
-    private readonly buyCryptoBatchService: BuyCryptoBatchService,
-    private readonly buyCryptoOutService: BuyCryptoOutService,
-    private readonly buyCryptoDexService: BuyCryptoDexService,
-    private readonly buyCryptoRegistrationService: BuyCryptoRegistrationService,
-    private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly userService: UserService,
-    private readonly webhookService: WebhookService,
+    private readonly assetService: AssetService,
+    private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
+    private readonly bankDataService: BankDataService,
   ) {}
 
-  async createFromFiat(bankTxId: number, buyId: number): Promise<BuyCrypto> {
-    let entity = await this.buyCryptoRepo.findOneBy({ bankTx: { id: bankTxId } });
+  async createFromBankTx(bankTx: BankTx, buyId: number): Promise<BuyCrypto> {
+    let entity = await this.buyCryptoRepo.findOneBy({ bankTx: { id: bankTx.id } });
     if (entity) throw new ConflictException('There is already a buy-crypto for the specified bank TX');
 
-    entity = this.buyCryptoRepo.create();
+    entity = this.buyCryptoRepo.create({ bankTx });
 
-    // bank tx
-    entity.bankTx = await this.bankTxService.getBankTxRepo().findOneBy({ id: bankTxId });
-    if (!entity.bankTx) throw new BadRequestException('Bank TX not found');
+    // buy
+    entity.buy = await this.getBuy(buyId);
+
+    const senderAccount = bankTx.senderAccount;
+    if (senderAccount && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
+      const bankData = await this.bankDataService.getBankDataWithIban(senderAccount, entity.buy.user.userData.id);
+
+      if (!bankData)
+        await this.bankDataService.createBankData(entity.buy.user.userData, {
+          iban: senderAccount,
+          type: BankDataType.BANK_IN,
+        });
+    }
+
+    return this.buyCryptoRepo.save(entity);
+  }
+
+  async createFromCheckoutTx(checkoutTx: CheckoutTx, buyId: number): Promise<BuyCrypto> {
+    let entity = await this.buyCryptoRepo.findOneBy({ checkoutTx: { id: checkoutTx.id } });
+    if (entity) throw new ConflictException('There is already a buy-crypto for the specified checkout TX');
+
+    entity = this.buyCryptoRepo.create({ checkoutTx });
 
     // buy
     if (buyId) entity.buy = await this.getBuy(buyId);
@@ -82,6 +96,7 @@ export class BuyCryptoService {
         'cryptoRoute',
         'cryptoRoute.user',
         'cryptoRoute.user.wallet',
+        'cryptoInput',
         'bankTx',
       ],
     });
@@ -113,16 +128,29 @@ export class BuyCryptoService {
       if (entity.bankTx) await this.bankTxService.getBankTxRepo().setNewUpdateTime(entity.bankTx.id);
     }
 
+    if (dto.outputAssetId) {
+      update.outputAsset = await this.assetService.getAssetById(dto.outputAssetId);
+      if (!update.outputAsset) throw new BadRequestException('Asset not found');
+    }
+
+    if (dto.outputReferenceAssetId) {
+      update.outputReferenceAsset = await this.assetService.getAssetById(dto.outputReferenceAssetId);
+      if (!update.outputReferenceAsset) throw new BadRequestException('Asset not found');
+    }
+
     Util.removeNullFields(entity);
     const fee = entity.fee;
     if (dto.allowedTotalFeePercent && entity.fee) fee.allowedTotalFeePercent = dto.allowedTotalFeePercent;
 
-    const forceUpdate = {
-      ...(entity.amlCheck === AmlCheck.PENDING && update.amlCheck && update.amlCheck !== AmlCheck.PENDING
-        ? { amlCheck: update.amlCheck, mailSendDate: null }
+    update.amlReason = update.amlCheck === CheckStatus.PASS ? AmlReason.NA : update.amlReason;
+
+    const forceUpdate: Partial<BuyCrypto> = {
+      ...(BuyCryptoEditableAmlCheck.includes(entity.amlCheck) && update?.amlCheck !== entity.amlCheck
+        ? { amlCheck: update.amlCheck, mailSendDate: null, amlReason: update.amlReason }
         : undefined),
       isComplete: dto.isComplete,
     };
+
     entity = await this.buyCryptoRepo.save(
       Object.assign(new BuyCrypto(), {
         ...update,
@@ -133,20 +161,23 @@ export class BuyCryptoService {
     );
 
     // activate user
-    if (entity.amlCheck === AmlCheck.PASS && entity.buy?.user) {
+    if (entity.amlCheck === CheckStatus.PASS && entity.buy?.user) {
       await this.userService.activateUser(entity.buy.user);
     }
 
     // payment webhook
-    if (dto.inputAmount && dto.inputAsset) {
-      entity.buy
-        ? await this.webhookService.fiatCryptoUpdate(entity.user, entity, PaymentWebhookState.CREATED)
-        : await this.webhookService.cryptoCryptoUpdate(entity.user, entity, PaymentWebhookState.CREATED);
-    }
+    if (
+      (dto.inputAmount && dto.inputAsset) ||
+      dto.isComplete ||
+      (dto.amlCheck && dto.amlCheck !== CheckStatus.PASS) ||
+      dto.outputReferenceAssetId ||
+      dto.chargebackDate
+    )
+      await this.buyCryptoWebhookService.triggerWebhook(entity);
 
-    await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
-    await this.updateCryptoRouteVolume([cryptoRouteIdBefore, entity.cryptoRoute?.id]);
-    await this.updateRefVolume([usedRefBefore, entity.usedRef]);
+    if (dto.amountInChf) await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
+    if (dto.amountInChf) await this.updateCryptoRouteVolume([cryptoRouteIdBefore, entity.cryptoRoute?.id]);
+    if (dto.usedRef || dto.amountInEur) await this.updateRefVolume([usedRefBefore, entity.usedRef]);
 
     return entity;
   }
@@ -162,43 +193,54 @@ export class BuyCryptoService {
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('cryptoRouteUser.userData', 'cryptoRouteUserData')
       .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
+      .leftJoinAndSelect('userData.country', 'country')
+      .leftJoinAndSelect('userData.nationality', 'nationality')
+      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+      .leftJoinAndSelect('userData.language', 'language')
       .leftJoinAndSelect('users.wallet', 'wallet')
       .leftJoinAndSelect('cryptoRouteUserData.users', 'cryptoRouteUsers')
       .leftJoinAndSelect('cryptoRouteUsers.wallet', 'cryptoRouteWallet')
-      .where(`buyCrypto.${key} = :param`, { param: value })
+      .where(`${key.includes('.') ? key : `buyCrypto.${key}`} = :param`, { param: value })
       .getOne();
   }
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(1800)
-  async checkCryptoPayIn() {
-    if (Config.processDisabled(Process.BUY_CRYPTO)) return;
-    await this.buyCryptoRegistrationService.registerCryptoPayIn();
+  async updateVolumes(start = 1, end = 100000): Promise<void> {
+    const buyCryptos = await this.buyCryptoRepo.find({
+      where: { id: Between(start, end) },
+      relations: { buy: true, cryptoRoute: true },
+    });
+
+    const buyIds = buyCryptos.filter((b) => b.buy).map((b) => b.buy.id);
+    const cryptoRouteIds = buyCryptos.filter((b) => b.cryptoRoute).map((b) => b.cryptoRoute.id);
+
+    await this.updateBuyVolume([...new Set(buyIds)]);
+    await this.updateCryptoRouteVolume([...new Set(cryptoRouteIds)]);
   }
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(7200)
-  async process() {
-    if (Config.processDisabled(Process.BUY_CRYPTO)) return;
-    await this.buyCryptoBatchService.prepareTransactions();
-    await this.buyCryptoBatchService.batchAndOptimizeTransactions();
-    await this.buyCryptoDexService.secureLiquidity();
-    await this.buyCryptoOutService.payoutTransactions();
-    await this.buyCryptoNotificationService.sendNotificationMails();
-  }
-
-  async updateVolumes(): Promise<void> {
-    const buyIds = await this.buyRepo.find().then((l) => l.map((b) => b.id));
-    await this.updateBuyVolume(buyIds);
-  }
-
-  async updateRefVolumes(): Promise<void> {
+  async updateRefVolumes(start = 1, end = 100000): Promise<void> {
     const refs = await this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
       .select('usedRef')
       .groupBy('usedRef')
-      .getRawMany<{ usedRef: string }>();
-    await this.updateRefVolume(refs.map((r) => r.usedRef));
+      .where('buyCrypto.id BETWEEN :start AND :end', { start, end })
+      .getRawMany<{ usedRef: string }>()
+      .then((refs) => refs.map((r) => r.usedRef));
+
+    await this.updateRefVolume([...new Set(refs)]);
+  }
+
+  async resetAmlCheck(id: number): Promise<void> {
+    const entity = await this.buyCryptoRepo.findOneBy({ id });
+    if (!entity) throw new NotFoundException('BuyCrypto not found');
+    if (entity.isComplete || entity.batch)
+      throw new BadRequestException('BuyCrypto is already complete or payout initiated');
+    if (!entity.amlCheck) throw new BadRequestException('BuyCrypto amlcheck is not set');
+
+    const fee = entity.fee;
+
+    await this.buyCryptoRepo.update(...entity.resetAmlCheck());
+    if (fee) await this.buyCryptoRepo.deleteFee(fee);
   }
 
   async getUserTransactions(
@@ -237,7 +279,7 @@ export class BuyCryptoService {
       .then((buyCryptos) => buyCryptos.map(this.toHistoryDto));
   }
 
-  async getCryptoHistory(userId: number, routeId?: number): Promise<HistoryDto[]> {
+  async getCryptoHistory(userId: number, routeId?: number): Promise<HistoryDtoDeprecated[]> {
     const where = { user: { id: userId }, id: routeId };
     Util.removeNullFields(where);
     return this.buyCryptoRepo
@@ -250,7 +292,7 @@ export class BuyCryptoService {
 
   // --- HELPER METHODS --- //
 
-  private toHistoryDto(buyCrypto: BuyCrypto): HistoryDto {
+  private toHistoryDto(buyCrypto: BuyCrypto): HistoryDtoDeprecated {
     return {
       inputAmount: buyCrypto.inputAmount,
       inputAsset: buyCrypto.inputAsset,
@@ -270,7 +312,10 @@ export class BuyCryptoService {
 
   private async getBuy(buyId: number): Promise<Buy> {
     // buy
-    const buy = await this.buyRepo.findOne({ where: { id: buyId }, relations: ['user', 'user.wallet'] });
+    const buy = await this.buyRepo.findOne({
+      where: { id: buyId },
+      relations: { user: { wallet: true, userData: { bankDatas: true } } },
+    });
     if (!buy) throw new BadRequestException('Buy route not found');
 
     return buy;
@@ -286,24 +331,24 @@ export class BuyCryptoService {
     return cryptoRoute;
   }
 
-  private async updateBuyVolume(buyIds: number[]): Promise<void> {
+  async updateBuyVolume(buyIds: number[]): Promise<void> {
     buyIds = buyIds.filter((u, j) => buyIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 
     for (const id of buyIds) {
       const { volume } = await this.buyCryptoRepo
         .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInEur)', 'volume')
+        .select('SUM(amountInChf)', 'volume')
         .where('buyId = :id', { id: id })
-        .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
+        .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
         .getRawOne<{ volume: number }>();
 
       const newYear = new Date(new Date().getFullYear(), 0, 1);
       const { annualVolume } = await this.buyCryptoRepo
         .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInEur)', 'annualVolume')
+        .select('SUM(amountInChf)', 'annualVolume')
         .leftJoin('buyCrypto.bankTx', 'bankTx')
         .where('buyCrypto.buyId = :id', { id: id })
-        .andWhere('buyCrypto.amlCheck = :check', { check: AmlCheck.PASS })
+        .andWhere('buyCrypto.amlCheck = :check', { check: CheckStatus.PASS })
         .andWhere('bankTx.bookingDate >= :year', { year: newYear })
         .getRawOne<{ annualVolume: number }>();
 
@@ -311,24 +356,24 @@ export class BuyCryptoService {
     }
   }
 
-  private async updateCryptoRouteVolume(cryptoRouteIds: number[]): Promise<void> {
+  async updateCryptoRouteVolume(cryptoRouteIds: number[]): Promise<void> {
     cryptoRouteIds = cryptoRouteIds.filter((u, j) => cryptoRouteIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 
     for (const id of cryptoRouteIds) {
       const { volume } = await this.buyCryptoRepo
         .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInEur)', 'volume')
+        .select('SUM(amountInChf)', 'volume')
         .where('cryptoRouteId = :id', { id: id })
-        .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
+        .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
         .getRawOne<{ volume: number }>();
 
       const newYear = new Date(new Date().getFullYear(), 0, 1);
       const { annualVolume } = await this.buyCryptoRepo
         .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInEur)', 'annualVolume')
+        .select('SUM(amountInChf)', 'annualVolume')
         .leftJoin('buyCrypto.cryptoInput', 'cryptoInput')
         .where('buyCrypto.cryptoRouteId = :id', { id: id })
-        .andWhere('buyCrypto.amlCheck = :check', { check: AmlCheck.PASS })
+        .andWhere('buyCrypto.amlCheck = :check', { check: CheckStatus.PASS })
         .andWhere('cryptoInput.created >= :year', { year: newYear })
         .getRawOne<{ annualVolume: number }>();
 
@@ -336,7 +381,7 @@ export class BuyCryptoService {
     }
   }
 
-  private async updateRefVolume(refs: string[]): Promise<void> {
+  async updateRefVolume(refs: string[]): Promise<void> {
     refs = refs.filter((u, j) => refs.indexOf(u) === j).filter((i) => i); // distinct, not null
 
     for (const ref of refs) {
@@ -353,7 +398,7 @@ export class BuyCryptoService {
       .select('SUM(amountInEur * refFactor)', 'volume')
       .addSelect('SUM(amountInEur * refFactor * refProvision * 0.01)', 'credit')
       .where('usedRef = :ref', { ref })
-      .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
+      .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
       .getRawOne<{ volume: number; credit: number }>();
 
     return { volume: volume ?? 0, credit: credit ?? 0 };
@@ -369,10 +414,18 @@ export class BuyCryptoService {
     });
   }
 
-  async getAllUserTransactions(userIds: number[]): Promise<BuyCrypto[]> {
+  async getAllUserTransactions(
+    userIds: number[],
+    dateFrom: Date = new Date(0),
+    dateTo: Date = new Date(),
+  ): Promise<BuyCrypto[]> {
     return this.buyCryptoRepo.find({
-      where: [{ buy: { user: { id: In(userIds) } } }, { cryptoRoute: { user: { id: In(userIds) } } }],
-      relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
+      where: [
+        { buy: { user: { id: In(userIds) } }, bankTx: { created: Between(dateFrom, dateTo) } },
+        { buy: { user: { id: In(userIds) } }, checkoutTx: { created: Between(dateFrom, dateTo) } },
+        { cryptoRoute: { user: { id: In(userIds) } }, cryptoInput: { created: Between(dateFrom, dateTo) } },
+      ],
+      relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'checkoutTx', 'cryptoRoute', 'cryptoRoute.user'],
       order: { id: 'DESC' },
     });
   }
@@ -381,7 +434,7 @@ export class BuyCryptoService {
 
   async getTransactions(dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<TransactionDetailsDto[]> {
     const buyCryptos = await this.buyCryptoRepo.find({
-      where: { buy: { id: Not(IsNull()) }, outputDate: Between(dateFrom, dateTo), amlCheck: AmlCheck.PASS },
+      where: { buy: { id: Not(IsNull()) }, outputDate: Between(dateFrom, dateTo), amlCheck: CheckStatus.PASS },
       relations: ['buy', 'buy.asset'],
       loadEagerRelations: false,
     });

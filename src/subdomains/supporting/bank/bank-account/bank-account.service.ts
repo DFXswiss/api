@@ -1,10 +1,10 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
 import { IbanDetailsDto, IbanService } from 'src/integration/bank/services/iban.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { IEntity } from 'src/shared/models/entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { KycType, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -39,34 +39,22 @@ export class BankAccountService {
       .select('bankAccount')
       .leftJoinAndSelect('bankAccount.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
+      .leftJoinAndSelect('userData.country', 'country')
+      .leftJoinAndSelect('userData.nationality', 'nationality')
+      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+      .leftJoinAndSelect('userData.language', 'language')
       .leftJoinAndSelect('users.wallet', 'wallet')
-      .where(`bankAccount.${key} = :param`, { param: value })
+      .where(`${key.includes('.') ? key : `bankAccount.${key}`} = :param`, { param: value })
       .getOne();
   }
 
   async createBankAccount(userId: number, dto: CreateBankAccountDto): Promise<BankAccount> {
-    const { id: userDataId, kycType: kycType } = await this.userDataService.getUserDataByUser(userId);
-
-    const existing = await this.bankAccountRepo.findOne({
-      where: { iban: dto.iban, userData: { id: userDataId } },
-      relations: ['userData'],
-    });
-    if (existing) {
-      if (existing.active) throw new ConflictException('BankAccount already exists');
-
-      if (!existing.active) {
-        // reactivate deleted bank account
-        existing.active = true;
-        await this.bankAccountRepo.save(existing);
-      }
-
-      return existing;
-    }
+    const { id: userDataId, kycType } = await this.userDataService.getUserDataByUser(userId);
 
     const bankAccount = await this.getOrCreateBankAccountInternal(dto.iban, userDataId, kycType);
 
-    const update = await this.updateEntity(dto, bankAccount);
-    return this.bankAccountRepo.save(update);
+    return this.updateEntity(dto, bankAccount);
   }
 
   async updateBankAccount(id: number, userId: number, dto: UpdateBankAccountDto): Promise<BankAccount> {
@@ -78,8 +66,7 @@ export class BankAccountService {
     });
     if (!bankAccount) throw new NotFoundException('BankAccount not found');
 
-    const update = await this.updateEntity(dto, bankAccount);
-    return this.bankAccountRepo.save(update);
+    return this.updateEntity(dto, bankAccount);
   }
 
   // --- INTERNAL METHODS --- //
@@ -87,7 +74,7 @@ export class BankAccountService {
   @Cron(CronExpression.EVERY_WEEK)
   @Lock(3600)
   async checkFailedBankAccounts(): Promise<void> {
-    if (Config.processDisabled(Process.BANK_ACCOUNT)) return;
+    if (DisabledProcess(Process.BANK_ACCOUNT)) return;
 
     const failedBankAccounts = await this.bankAccountRepo.findBy({ returnCode: 256 });
     for (const bankAccount of failedBankAccounts) {
@@ -113,7 +100,7 @@ export class BankAccountService {
       if (!bankAccount.preferredCurrency) throw new BadRequestException('Currency not found');
     }
 
-    return bankAccount;
+    return this.bankAccountRepo.save(bankAccount);
   }
 
   async getOrCreateBankAccountInternal(iban: string, userDataId: number, kycType: KycType): Promise<BankAccount> {

@@ -1,22 +1,23 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsNotEmpty, IsString } from 'class-validator';
+import { IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { Util } from 'src/shared/utils/util';
+import { BankDataType } from '../bank-data.entity';
 
 export class CreateBankDataDto {
-  @ApiPropertyOptional()
-  @IsNotEmpty()
-  @IsString()
-  name: string;
-
-  @ApiPropertyOptional()
   @IsNotEmpty()
   @IsString()
   @Transform(Util.trim)
   iban: string;
 
-  @ApiPropertyOptional()
-  @IsNotEmpty()
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
   @IsBoolean()
-  active: boolean;
+  active?: boolean;
+
+  @IsOptional()
+  @IsEnum(BankDataType)
+  type?: BankDataType;
 }

@@ -1,17 +1,16 @@
 import { Injectable } from '@nestjs/common';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
+import { BuyCryptoExtended, BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
-import { WalletService } from '../../models/wallet/wallet.service';
-import { UserRepository } from '../../models/user/user.repository';
-import { KycCompleted, KycStatus, KycType, UserData } from '../../models/user-data/user-data.entity';
-import { KycWebhookData, KycWebhookStatus } from './dto/kyc-webhook.dto';
-import { PaymentWebhookState, PaymentWebhookData, PaymentWebhookType } from './dto/payment-webhook.dto';
-import { WebhookType, WebhookDto } from './dto/webhook.dto';
+import { UserData } from '../../models/user-data/user-data.entity';
 import { User } from '../../models/user/user.entity';
-import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { UserRepository } from '../../models/user/user.repository';
+import { KycWebhookData } from './dto/kyc-webhook.dto';
+import { PaymentWebhookData } from './dto/payment-webhook.dto';
+import { WebhookDto, WebhookType } from './dto/webhook.dto';
+import { WebhookDataMapper } from './mapper/webhook-data.mapper';
 
 @Injectable()
 export class WebhookService {
@@ -19,33 +18,32 @@ export class WebhookService {
 
   constructor(
     private readonly http: HttpService,
-    private readonly walletService: WalletService,
     private readonly userRepo: UserRepository,
     private readonly notificationService: NotificationService,
   ) {}
 
   async kycChanged(userData: UserData): Promise<void> {
-    await this.triggerUserDataWebhook(userData, this.getKycWebhookData(userData), WebhookType.KYC_CHANGED);
+    await this.triggerUserDataWebhook(userData, WebhookDataMapper.mapKycData(userData), WebhookType.KYC_CHANGED);
   }
 
   async kycFailed(userData: UserData, reason: string): Promise<void> {
-    await this.triggerUserDataWebhook(userData, this.getKycWebhookData(userData), WebhookType.KYC_FAILED, reason);
+    await this.triggerUserDataWebhook(userData, WebhookDataMapper.mapKycData(userData), WebhookType.KYC_FAILED, reason);
   }
 
-  async fiatCryptoUpdate(user: User, payment: BuyCrypto, state: PaymentWebhookState): Promise<void> {
-    await this.triggerUserWebhook(user, this.getFiatCryptoData(payment, state), WebhookType.PAYMENT);
+  async fiatCryptoUpdate(user: User, payment: BuyCryptoExtended): Promise<void> {
+    await this.triggerUserWebhook(user, WebhookDataMapper.mapFiatCryptoData(payment), WebhookType.PAYMENT);
   }
 
-  async cryptoCryptoUpdate(user: User, payment: BuyCrypto, state: PaymentWebhookState): Promise<void> {
-    await this.triggerUserWebhook(user, this.getCryptoCryptoData(payment, state), WebhookType.PAYMENT);
+  async cryptoCryptoUpdate(user: User, payment: BuyCryptoExtended): Promise<void> {
+    await this.triggerUserWebhook(user, WebhookDataMapper.mapCryptoCryptoData(payment), WebhookType.PAYMENT);
   }
 
-  async cryptoFiatUpdate(user: User, payment: BuyFiat, state: PaymentWebhookState): Promise<void> {
-    await this.triggerUserWebhook(user, this.getCryptoFiatData(payment, state), WebhookType.PAYMENT);
+  async cryptoFiatUpdate(user: User, payment: BuyFiatExtended): Promise<void> {
+    await this.triggerUserWebhook(user, WebhookDataMapper.mapCryptoFiatData(payment), WebhookType.PAYMENT);
   }
 
-  async fiatFiatUpdate(user: User, payment: BuyFiat, state: PaymentWebhookState): Promise<void> {
-    await this.triggerUserWebhook(user, this.getFiatFiatData(payment, state), WebhookType.PAYMENT);
+  async fiatFiatUpdate(user: User, payment: BuyFiatExtended): Promise<void> {
+    await this.triggerUserWebhook(user, WebhookDataMapper.mapFiatFiatData(payment), WebhookType.PAYMENT);
   }
 
   // --- HELPER METHODS --- //
@@ -73,10 +71,8 @@ export class WebhookService {
     reason?: string,
   ): Promise<void> {
     try {
-      if (!user.wallet.isKycClient || !user.wallet.apiUrl) return;
-
-      const apiKey = this.walletService.getApiKeyInternal(user.wallet.name);
-      if (!apiKey) throw new Error(`ApiKey for wallet ${user.wallet.name} not available`);
+      if (!user.wallet.apiUrl) return;
+      if (!user.wallet.apiKey) throw new Error(`ApiKey for wallet ${user.wallet.name} not available`);
 
       const webhookDto: WebhookDto<T> = {
         id: user.address,
@@ -86,7 +82,7 @@ export class WebhookService {
       };
 
       await this.http.post(user.wallet.apiUrl, webhookDto, {
-        headers: { 'x-api-key': apiKey },
+        headers: { 'x-api-key': user.wallet.apiKey },
         retryDelay: 5000,
         tryCount: 3,
       });
@@ -102,85 +98,6 @@ export class WebhookService {
           errors: [errMessage, error],
         },
       });
-    }
-  }
-
-  private getKycWebhookData(userData: UserData): KycWebhookData {
-    return {
-      mail: userData.mail,
-      firstName: userData.firstname,
-      lastName: userData.surname,
-      street: userData.street,
-      houseNumber: userData.houseNumber,
-      city: userData.location,
-      zip: userData.zip,
-      phone: userData.phone,
-      kycStatus: this.getKycWebhookStatus(userData.kycStatus, userData.kycType),
-      kycHash: userData.kycHash,
-      tradingLimit: userData.tradingLimit,
-    };
-  }
-
-  private getCryptoFiatData(payment: BuyFiat, state: PaymentWebhookState): PaymentWebhookData {
-    return {
-      type: PaymentWebhookType.FIAT_CRYPTO,
-      dfxReference: payment.id,
-      state: state,
-      inputAmount: payment.inputAmount,
-      inputAsset: payment.inputAsset,
-      outputAmount: payment.outputAmount,
-      outputAsset: payment.outputAsset,
-      paymentReference: payment.sell.deposit.address,
-    };
-  }
-
-  private getFiatFiatData(payment: BuyFiat, state: PaymentWebhookState): PaymentWebhookData {
-    return {
-      type: PaymentWebhookType.FIAT_FIAT,
-      dfxReference: payment.id,
-      state: state,
-      inputAmount: payment.inputAmount,
-      inputAsset: payment.inputAsset,
-      outputAmount: payment.outputAmount,
-      outputAsset: payment.outputAsset,
-      //TODO add PaymentReference for FiatFiat
-      paymentReference: null,
-    };
-  }
-
-  private getCryptoCryptoData(payment: BuyCrypto, state: PaymentWebhookState): PaymentWebhookData {
-    return {
-      type: PaymentWebhookType.CRYPTO_CRYPTO,
-      dfxReference: payment.id,
-      state: state,
-      inputAmount: payment.inputAmount,
-      inputAsset: payment.inputAsset,
-      outputAmount: payment.outputAmount,
-      outputAsset: payment.outputAsset?.name,
-      paymentReference: payment.cryptoRoute?.deposit.address,
-    };
-  }
-
-  private getFiatCryptoData(payment: BuyCrypto, state: PaymentWebhookState): PaymentWebhookData {
-    return {
-      type: PaymentWebhookType.FIAT_CRYPTO,
-      dfxReference: payment.id,
-      state: state,
-      inputAmount: payment.inputAmount,
-      inputAsset: payment.inputAsset,
-      outputAmount: payment.outputAmount,
-      outputAsset: payment.outputAsset?.name,
-      paymentReference: payment.buy.bankUsage,
-    };
-  }
-
-  public getKycWebhookStatus(kycStatus: KycStatus, kycType: KycType): KycWebhookStatus {
-    if (KycCompleted(kycStatus)) {
-      return kycType === KycType.LOCK ? KycWebhookStatus.LIGHT : KycWebhookStatus.FULL;
-    } else if (kycStatus === KycStatus.REJECTED) {
-      return KycWebhookStatus.REJECTED;
-    } else {
-      return KycWebhookStatus.NA;
     }
   }
 }

@@ -1,7 +1,7 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsDate, IsString, IsNumber, IsEnum, IsBoolean } from 'class-validator';
-import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
+import { IsBoolean, IsDate, IsEnum, IsInt, IsNumber, IsOptional, IsString } from 'class-validator';
 import { AmlReason } from 'src/subdomains/core/buy-crypto/process/enums/aml-reason.enum';
+import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 
 export class UpdateBuyFiatDto {
   @IsOptional()
@@ -56,8 +56,8 @@ export class UpdateBuyFiatDto {
   amountInEur: number;
 
   @IsOptional()
-  @IsEnum(AmlCheck)
-  amlCheck: AmlCheck;
+  @IsEnum(CheckStatus)
+  amlCheck: CheckStatus;
 
   @IsOptional()
   @IsEnum(AmlReason)
@@ -175,4 +175,8 @@ export class UpdateBuyFiatDto {
   @IsOptional()
   @IsNumber()
   refFactor: number;
+
+  @IsOptional()
+  @IsBoolean()
+  highRisk: boolean;
 }

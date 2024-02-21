@@ -3,14 +3,14 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { NodeMode } from 'src/integration/blockchain/ain/node/node-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { AzureService } from 'src/integration/infrastructure/azure-service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
+import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { Lock } from 'src/shared/utils/lock';
-import { Config, Process } from 'src/config/config';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 interface NodePoolState {
   type: NodeType;
@@ -52,7 +52,7 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(360)
   async fetch(): Promise<NodesState> {
-    if (Config.processDisabled(Process.MONITORING)) return;
+    if (DisabledProcess(Process.MONITORING)) return;
     const previousState = this.data;
 
     let state = await this.getState(previousState);

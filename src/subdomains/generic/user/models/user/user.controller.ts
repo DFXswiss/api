@@ -1,28 +1,49 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards, Res, HttpStatus } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpStatus, Param, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiCreatedResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
-import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
-import { RoleGuard } from 'src/shared/auth/role.guard';
-import { UpdateUserDto } from './dto/update-user.dto';
-import { UserService } from './user.service';
-import { UserRole } from 'src/shared/auth/user-role.enum';
-import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
-import { User } from './user.entity';
-import { UserDetailDto, UserDto } from './dto/user.dto';
-import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
-import { ApiKeyDto } from './dto/api-key.dto';
-import { RefInfoQuery } from './dto/ref-info-query.dto';
-import { VolumeQuery } from './dto/volume-query.dto';
-import { LinkedUserInDto } from './dto/linked-user.dto';
-import { AuthService } from '../auth/auth.service';
-import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
+import {
+  ApiAcceptedResponse,
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiExcludeEndpoint,
+  ApiOkResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Response } from 'express';
+import { RealIP } from 'nestjs-real-ip';
+import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserRole } from 'src/shared/auth/user-role.enum';
+import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
+import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
+import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
+import { AuthService } from '../auth/auth.service';
 import { AuthResponseDto } from '../auth/dto/auth-response.dto';
+import { ApiKeyDto } from './dto/api-key.dto';
+import { LinkedUserInDto } from './dto/linked-user.dto';
+import { RefInfoQuery } from './dto/ref-info-query.dto';
+import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { UserNameDto } from './dto/user-name.dto';
+import { UserDetailDto, UserDto } from './dto/user.dto';
+import { VolumeQuery } from './dto/volume-query.dto';
+import { User } from './user.entity';
+import { UserService } from './user.service';
+
+const AccountExistsResponse = {
+  type: UserDetailDto,
+  description:
+    'There is already a verified account with the same mail address, a mail confirmation request has been sent',
+};
 
 @ApiTags('User')
 @Controller('user')
 export class UserController {
-  constructor(private readonly userService: UserService, private readonly authService: AuthService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly authService: AuthService,
+    private readonly feeService: FeeService,
+  ) {}
 
   // --- USER --- //
   @Get()
@@ -45,6 +66,7 @@ export class UserController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: UserDetailDto })
+  @ApiAcceptedResponse(AccountExistsResponse)
   async updateUser(
     @GetJwt() jwt: JwtPayload,
     @Body() newUser: UpdateUserDto,
@@ -56,12 +78,67 @@ export class UserController {
     return user;
   }
 
+  @Put('discountCodes')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse()
+  async addDiscountCode(@GetJwt() jwt: JwtPayload, @Query('code') code: string): Promise<void> {
+    const user = await this.userService.getUser(jwt.id, { userData: true, wallet: true });
+
+    return this.feeService.addDiscountCodeUser(user, code);
+  }
+
   @Post('change')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: AuthResponseDto })
-  async changeUser(@GetJwt() jwt: JwtPayload, @Body() changeUser: LinkedUserInDto): Promise<AuthResponseDto> {
-    return this.authService.changeUser(jwt.id, changeUser);
+  async changeUser(
+    @GetJwt() jwt: JwtPayload,
+    @Body() changeUser: LinkedUserInDto,
+    @RealIP() ip: string,
+  ): Promise<AuthResponseDto> {
+    return this.authService.changeUser(jwt.id, changeUser, ip);
+  }
+
+  // TODO: temporary CC solution
+  @Put('name')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiExcludeEndpoint()
+  async updateUserName(@GetJwt() jwt: JwtPayload, @Body() data: UserNameDto): Promise<void> {
+    await this.userService.updateUserName(jwt.id, data);
+  }
+
+  @Post('data')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiCreatedResponse({ type: UserDetailDto })
+  @ApiAcceptedResponse(AccountExistsResponse)
+  async updateKycData(
+    @GetJwt() jwt: JwtPayload,
+    @Body() data: KycInputDataDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<UserDetailDto> {
+    const { user, isKnownUser } = await this.userService.updateUserData(jwt.id, data);
+    if (isKnownUser) res.status(HttpStatus.ACCEPTED);
+
+    return user;
+  }
+
+  @Delete()
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse()
+  async deleteUser(@GetJwt() jwt: JwtPayload): Promise<void> {
+    return this.userService.blockUser(jwt.id);
+  }
+
+  @Delete('account')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse()
+  async deleteUserAccount(@GetJwt() jwt: JwtPayload): Promise<void> {
+    return this.userService.blockUser(jwt.id, true);
   }
 
   // --- API KEYS --- //

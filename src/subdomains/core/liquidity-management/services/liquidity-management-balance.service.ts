@@ -44,6 +44,11 @@ export class LiquidityManagementBalanceService {
     return this.balanceRepo.find();
   }
 
+  async getNumberOfPendingOrders(rule: LiquidityManagementRule): Promise<number> {
+    const integration = this.balanceIntegrationFactory.getIntegration(rule);
+    return integration.getNumberOfPendingOrders(rule.target);
+  }
+
   //*** HELPER METHODS ***//
 
   private async saveBalanceResults(balances: LiquidityBalance[]): Promise<void> {

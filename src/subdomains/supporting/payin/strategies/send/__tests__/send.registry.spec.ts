@@ -8,7 +8,9 @@ import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
 import { PayInBscService } from '../../../services/payin-bsc.service';
 import { PayInDeFiChainService } from '../../../services/payin-defichain.service';
 import { PayInEthereumService } from '../../../services/payin-ethereum.service';
+import { PayInMoneroService } from '../../../services/payin-monero.service';
 import { PayInOptimismService } from '../../../services/payin-optimism.service';
+import { PayInPolygonService } from '../../../services/payin-polygon.service';
 import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy } from '../impl/arbitrum-token.strategy';
 import { SendStrategyRegistry } from '../impl/base/send.strategy-registry';
@@ -20,12 +22,16 @@ import { DeFiChainTokenStrategy } from '../impl/defichain-token.strategy';
 import { EthereumCoinStrategy } from '../impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy } from '../impl/ethereum-token.strategy';
 import { LightningStrategy } from '../impl/lightning.strategy';
+import { MoneroStrategy } from '../impl/monero.strategy';
 import { OptimismCoinStrategy } from '../impl/optimism-coin.strategy';
 import { OptimismTokenStrategy } from '../impl/optimism-token.strategy';
+import { PolygonCoinStrategy } from '../impl/polygon-coin.strategy';
+import { PolygonTokenStrategy } from '../impl/polygon-token.strategy';
 
 describe('SendStrategyRegistry', () => {
   let bitcoin: BitcoinStrategy;
   let lightning: LightningStrategy;
+  let monero: MoneroStrategy;
   let deFiChainCoin: DeFiChainCoinStrategy;
   let deFiChainToken: DeFiChainTokenStrategy;
   let ethereumCoin: EthereumCoinStrategy;
@@ -36,6 +42,8 @@ describe('SendStrategyRegistry', () => {
   let arbitrumToken: ArbitrumTokenStrategy;
   let optimismCoin: OptimismCoinStrategy;
   let optimismToken: OptimismTokenStrategy;
+  let polygonCoin: PolygonCoinStrategy;
+  let polygonToken: PolygonTokenStrategy;
 
   let registry: SendStrategyRegistryWrapper;
 
@@ -43,6 +51,8 @@ describe('SendStrategyRegistry', () => {
     bitcoin = new BitcoinStrategy(mock<PayInBitcoinService>(), mock<PayInRepository>());
 
     lightning = new LightningStrategy(mock<PayInRepository>());
+
+    monero = new MoneroStrategy(mock<PayInMoneroService>(), mock<PayInRepository>());
 
     deFiChainCoin = new DeFiChainCoinStrategy(mock<PayInDeFiChainService>(), mock<PayInRepository>());
     deFiChainToken = new DeFiChainTokenStrategy(mock<PayInDeFiChainService>(), mock<PayInRepository>());
@@ -59,9 +69,13 @@ describe('SendStrategyRegistry', () => {
     optimismCoin = new OptimismCoinStrategy(mock<PayInOptimismService>(), mock<PayInRepository>());
     optimismToken = new OptimismTokenStrategy(mock<PayInOptimismService>(), mock<PayInRepository>());
 
+    polygonCoin = new PolygonCoinStrategy(mock<PayInPolygonService>(), mock<PayInRepository>());
+    polygonToken = new PolygonTokenStrategy(mock<PayInPolygonService>(), mock<PayInRepository>());
+
     registry = new SendStrategyRegistryWrapper(
       bitcoin,
       lightning,
+      monero,
       deFiChainCoin,
       deFiChainToken,
       ethereumCoin,
@@ -72,6 +86,8 @@ describe('SendStrategyRegistry', () => {
       arbitrumToken,
       optimismCoin,
       optimismToken,
+      polygonCoin,
+      polygonToken,
     );
   });
 
@@ -91,6 +107,14 @@ describe('SendStrategyRegistry', () => {
         );
 
         expect(strategy).toBeInstanceOf(LightningStrategy);
+      });
+
+      it('gets MONERO strategy', () => {
+        const strategy = registry.getSendStrategy(
+          createCustomAsset({ blockchain: Blockchain.MONERO, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(MoneroStrategy);
       });
 
       it('gets DEFICHAIN_COIN strategy', () => {
@@ -173,6 +197,22 @@ describe('SendStrategyRegistry', () => {
         expect(strategy).toBeInstanceOf(OptimismTokenStrategy);
       });
 
+      it('gets POLYGON_COIN strategy', () => {
+        const strategy = registry.getSendStrategy(
+          createCustomAsset({ blockchain: Blockchain.POLYGON, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(PolygonCoinStrategy);
+      });
+
+      it('gets POLYGON_TOKEN strategy', () => {
+        const strategy = registry.getSendStrategy(
+          createCustomAsset({ blockchain: Blockchain.POLYGON, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(PolygonTokenStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const testCall = () =>
           registry.getSendStrategy(
@@ -190,6 +230,7 @@ class SendStrategyRegistryWrapper extends SendStrategyRegistry {
   constructor(
     bitcoin: BitcoinStrategy,
     lightning: LightningStrategy,
+    monero: MoneroStrategy,
     deFiChainCoin: DeFiChainCoinStrategy,
     deFiChainToken: DeFiChainTokenStrategy,
     ethereumCoin: EthereumCoinStrategy,
@@ -200,11 +241,14 @@ class SendStrategyRegistryWrapper extends SendStrategyRegistry {
     arbitrumToken: ArbitrumTokenStrategy,
     optimismCoin: OptimismCoinStrategy,
     optimismToken: OptimismTokenStrategy,
+    polygonCoin: PolygonCoinStrategy,
+    polygonToken: PolygonTokenStrategy,
   ) {
     super();
 
     this.add({ blockchain: Blockchain.BITCOIN }, bitcoin);
     this.add({ blockchain: Blockchain.LIGHTNING }, lightning);
+    this.add({ blockchain: Blockchain.MONERO }, monero);
 
     this.add({ blockchain: Blockchain.DEFICHAIN, assetType: AssetType.COIN }, deFiChainCoin);
     this.add({ blockchain: Blockchain.DEFICHAIN, assetType: AssetType.TOKEN }, deFiChainToken);
@@ -216,5 +260,7 @@ class SendStrategyRegistryWrapper extends SendStrategyRegistry {
     this.add({ blockchain: Blockchain.ARBITRUM, assetType: AssetType.TOKEN }, arbitrumToken);
     this.add({ blockchain: Blockchain.OPTIMISM, assetType: AssetType.COIN }, optimismCoin);
     this.add({ blockchain: Blockchain.OPTIMISM, assetType: AssetType.TOKEN }, optimismToken);
+    this.add({ blockchain: Blockchain.POLYGON, assetType: AssetType.COIN }, polygonCoin);
+    this.add({ blockchain: Blockchain.POLYGON, assetType: AssetType.TOKEN }, polygonToken);
   }
 }

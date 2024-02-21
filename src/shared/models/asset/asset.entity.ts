@@ -1,5 +1,7 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Column, Entity, Index } from 'typeorm';
+import { LiquidityManagementRule } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-rule.entity';
+import { PriceRule } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
+import { Column, Entity, Index, ManyToOne, OneToOne } from 'typeorm';
 import { IEntity } from '../entity';
 
 export enum AssetType {
@@ -12,14 +14,6 @@ export enum AssetCategory {
   POOL_PAIR = 'PoolPair',
   STOCK = 'Stock',
   CRYPTO = 'Crypto',
-}
-
-export enum FeeTier {
-  TIER0 = 'Tier0',
-  TIER1 = 'Tier1',
-  TIER2 = 'Tier2',
-  TIER3 = 'Tier3',
-  TIER4 = 'Tier4',
 }
 
 @Entity()
@@ -61,9 +55,6 @@ export class Asset extends IEntity {
   @Column({ length: 256, default: Blockchain.DEFICHAIN })
   blockchain: Blockchain;
 
-  @Column({ length: 256, nullable: false, default: FeeTier.TIER2 })
-  feeTier: FeeTier;
-
   @Column({ default: false })
   comingSoon: boolean;
 
@@ -72,4 +63,13 @@ export class Asset extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   approxPriceUsd: number;
+
+  @Column({ type: 'float', nullable: true })
+  approxPriceChf: number;
+
+  @OneToOne(() => LiquidityManagementRule, (lmr) => lmr.targetAsset)
+  liquidityManagementRule: LiquidityManagementRule;
+
+  @ManyToOne(() => PriceRule)
+  priceRule: PriceRule;
 }

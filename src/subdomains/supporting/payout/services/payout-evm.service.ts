@@ -9,12 +9,12 @@ export abstract class PayoutEvmService {
     this.client = service.getDefaultClient();
   }
 
-  async sendNativeCoin(address: string, amount: number): Promise<string> {
-    return this.client.sendNativeCoinFromDex(address, amount);
+  async sendNativeCoin(address: string, amount: number, nonce?: number): Promise<string> {
+    return this.client.sendNativeCoinFromDex(address, amount, undefined, nonce);
   }
 
-  async sendToken(address: string, tokenName: Asset, amount: number): Promise<string> {
-    return this.client.sendTokenFromDex(address, tokenName, amount);
+  async sendToken(address: string, tokenName: Asset, amount: number, nonce?: number): Promise<string> {
+    return this.client.sendTokenFromDex(address, tokenName, amount, undefined, nonce);
   }
 
   async getPayoutCompletionData(txHash: string): Promise<[boolean, number]> {
@@ -30,5 +30,9 @@ export abstract class PayoutEvmService {
 
   async getCurrentGasForTokenTransaction(token: Asset): Promise<number> {
     return this.client.getCurrentGasCostForTokenTransaction(token);
+  }
+
+  async getTxNonce(txHash: string): Promise<number> {
+    return this.client.getTxNonce(txHash);
   }
 }

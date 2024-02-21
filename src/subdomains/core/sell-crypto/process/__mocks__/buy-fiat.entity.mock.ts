@@ -1,6 +1,6 @@
-import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
+import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { createDefaultSell } from 'src/subdomains/core/sell-crypto/route/__mocks__/sell.entity.mock';
-import { createDefaultBankTx } from 'src/subdomains/supporting/bank/bank-tx/__mocks__/bank-tx.entity.mock';
+import { createDefaultBankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
 import { createDefaultCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 import { BuyFiat } from '../buy-fiat.entity';
 
@@ -18,7 +18,7 @@ const defaultBuyFiat: Partial<BuyFiat> = {
   inputReferenceAsset: 'BTC',
   amountInChf: 0.97,
   amountInEur: 1,
-  amlCheck: AmlCheck.PASS,
+  amlCheck: CheckStatus.PASS,
   amlReason: null,
   percentFee: 0.01,
   percentFeeAmount: 1,

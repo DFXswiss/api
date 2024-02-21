@@ -4,6 +4,8 @@ import { ApiBearerAuth, ApiExcludeController, ApiExcludeEndpoint, ApiTags } from
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CakeFlowDto, CakeSettings } from './dto/cake-flow.dto';
+import { CustomSignUpFeesDto } from './dto/custom-sign-up-fees.dto';
+import { UpdateProcessDto } from './dto/update-process.dto';
 import { Setting } from './setting.entity';
 import { SettingService } from './setting.service';
 
@@ -33,6 +35,22 @@ export class SettingController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async updateCakeFlowSetting(@Body() dto: CakeFlowDto): Promise<void> {
     return this.settingService.setCakeFlow(dto);
+  }
+
+  @Put('customSignUpFees')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async updateCustomSignUpFees(@Body() dto: CustomSignUpFeesDto): Promise<void> {
+    return this.settingService.updateCustomSignUpFees(dto);
+  }
+
+  @Put('disabledProcesses')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async updateProcess(@Body() dto: UpdateProcessDto): Promise<void> {
+    return this.settingService.updateProcess(dto);
   }
 
   @Put(':key')

@@ -1,7 +1,7 @@
-import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
-import { HistoryDto, PaymentStatus } from 'src/subdomains/core/history/dto/history.dto';
+import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
+import { HistoryDtoDeprecated, PaymentStatus } from 'src/subdomains/core/history/dto/history.dto';
 
-const defaultHistory: HistoryDto = {
+const defaultHistory: HistoryDtoDeprecated = {
   inputAmount: 0.0006,
   inputAsset: 'BTC',
   outputAmount: 0.0005,
@@ -10,14 +10,14 @@ const defaultHistory: HistoryDto = {
   isComplete: false,
   txId: 'TX_INPUT_ID_01',
   txUrl: 'https://defiscan.live/transactions/TX_ID_01',
-  amlCheck: AmlCheck.PASS,
+  amlCheck: CheckStatus.PASS,
   status: PaymentStatus.PENDING,
 };
 
-export function createDefaultHistory(): HistoryDto {
+export function createDefaultHistory(): HistoryDtoDeprecated {
   return defaultHistory;
 }
 
-export function createCustomHistory(customValues: Partial<HistoryDto>): HistoryDto {
+export function createCustomHistory(customValues: Partial<HistoryDtoDeprecated>): HistoryDtoDeprecated {
   return { ...defaultHistory, ...customValues };
 }

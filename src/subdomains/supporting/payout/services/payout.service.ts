@@ -1,14 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
-import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { IsNull, Not } from 'typeorm';
+import { MailRequest } from '../../notification/interfaces';
 import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../entities/payout-order.entity';
 import { PayoutOrderFactory } from '../factories/payout-order.factory';
 import { FeeResult, PayoutRequest } from '../interfaces';
@@ -69,11 +69,20 @@ export class PayoutService {
     return { asset: payoutFee.asset, amount: totalFeeAmount };
   }
 
+  async speedupTransaction(id: number): Promise<void> {
+    const order = await this.payoutOrderRepo.findOneBy({ id });
+    if (!order) throw new NotFoundException('Payout order not found');
+
+    const strategy = this.payoutStrategyRegistry.getPayoutStrategy(order.asset);
+
+    await strategy.doPayout([order]);
+  }
+
   //*** JOBS ***//
   @Cron(CronExpression.EVERY_30_SECONDS)
   @Lock(1800)
   async processOrders(): Promise<void> {
-    if (Config.processDisabled(Process.PAY_OUT)) return;
+    if (DisabledProcess(Process.PAY_OUT)) return;
     await this.checkExistingOrders();
     await this.prepareNewOrders();
     await this.payoutOrders();

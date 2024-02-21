@@ -2,17 +2,23 @@ import { BadRequestException, Body, Controller, Get, Param, Post, Put, UseGuards
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
+import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { IpGuard } from 'src/shared/auth/ip.guard';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
-import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
+import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
-import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { BuyCryptoService } from '../../process/services/buy-crypto.service';
 import { Buy } from './buy.entity';
 import { BuyService } from './buy.service';
@@ -35,6 +41,8 @@ export class BuyController {
     private readonly paymentInfoService: PaymentInfoService,
     private readonly bankService: BankService,
     private readonly transactionHelper: TransactionHelper,
+    private readonly checkoutService: CheckoutService,
+    private readonly transactionRequestService: TransactionRequestService,
   ) {}
 
   @Get()
@@ -65,36 +73,70 @@ export class BuyController {
   @Put('/quote')
   @ApiOkResponse({ type: BuyQuoteDto })
   async getBuyQuote(@Body() dto: GetBuyQuoteDto): Promise<BuyQuoteDto> {
-    const { amount, currency, asset } = await this.paymentInfoService.buyCheck(dto);
-
-    const fee = Config.buy.fee.get(asset.feeTier, AccountType.PERSONAL);
-
-    const { exchangeRate, feeAmount, estimatedAmount } = await this.transactionHelper.getTxDetails(
-      amount,
-      fee,
+    const {
+      amount: sourceAmount,
       currency,
       asset,
+      targetAmount,
+      paymentMethod,
+      discountCode,
+    } = await this.paymentInfoService.buyCheck(dto);
+
+    const {
+      rate,
+      exchangeRate,
+      feeAmount,
+      estimatedAmount,
+      sourceAmount: amount,
+      minVolume,
+      minVolumeTarget,
+      maxVolume,
+      maxVolumeTarget,
+      isValid,
+      error,
+    } = await this.transactionHelper.getTxDetails(
+      sourceAmount,
+      targetAmount,
+      currency,
+      asset,
+      paymentMethod,
+      CryptoPaymentMethod.CRYPTO,
+      undefined,
+      discountCode ? [discountCode] : [],
     );
 
     return {
       feeAmount,
+      rate,
       exchangeRate,
       estimatedAmount,
+      amount,
+      minVolume,
+      maxVolume,
+      minVolumeTarget,
+      maxVolumeTarget,
+      isValid,
+      error,
     };
   }
 
   @Put('/paymentInfos')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
   @ApiOkResponse({ type: BuyPaymentInfoDto })
   async createBuyWithPaymentInfo(
     @GetJwt() jwt: JwtPayload,
     @Body() dto: GetBuyPaymentInfoDto,
   ): Promise<BuyPaymentInfoDto> {
     dto = await this.paymentInfoService.buyCheck(dto, jwt);
-    return this.buyService
-      .createBuy(jwt.id, jwt.address, dto, true)
-      .then((buy) => this.toPaymentInfoDto(jwt.id, buy, dto));
+
+    return Util.retry(
+      () => this.buyService.createBuy(jwt.id, jwt.address, dto, true),
+      2,
+      0,
+      undefined,
+      (e) => e.message?.includes('duplicate key'),
+    ).then((buy) => this.toPaymentInfoDto(jwt.id, buy, dto));
   }
 
   @Put(':id')
@@ -119,12 +161,19 @@ export class BuyController {
   }
 
   private async toDto(userId: number, buy: Buy): Promise<BuyDto> {
-    const fee = await this.userService.getUserBuyFee(userId, buy.asset);
     const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
       'Fiat',
       undefined,
       buy.asset.blockchain,
       buy.asset.dexName,
+    );
+
+    const fee = await this.userService.getUserFee(
+      userId,
+      FiatPaymentMethod.BANK,
+      CryptoPaymentMethod.CRYPTO,
+      buy.asset,
+      minFee.amount,
     );
 
     return {
@@ -134,38 +183,84 @@ export class BuyController {
       volume: buy.volume,
       annualVolume: buy.annualVolume,
       bankUsage: buy.bankUsage,
-      asset: AssetDtoMapper.entityToDto(buy.asset),
-      fee: Util.round(fee * 100, Config.defaultPercentageDecimal),
+      asset: AssetDtoMapper.toDto(buy.asset),
+      fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposits: [minDeposit],
-      minFee,
+      minFee: { amount: fee.blockchain, asset: 'EUR' },
     };
   }
 
   private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
-    const bankInfo = await this.getBankInfo(buy, dto);
-    const fee = await this.userService.getUserBuyFee(userId, buy.asset);
+    const user = await this.userService.getUser(userId, { userData: true, wallet: true });
 
     const {
       minVolume,
       minFee,
       minVolumeTarget,
       minFeeTarget,
-      estimatedAmount: estimatedAmount,
-    } = await this.transactionHelper.getTxDetails(dto.amount, fee, dto.currency, dto.asset);
+      maxVolume,
+      maxVolumeTarget,
+      fee,
+      exchangeRate,
+      rate,
+      estimatedAmount,
+      sourceAmount: amount,
+      isValid,
+      error,
+    } = await this.transactionHelper.getTxDetails(
+      dto.amount,
+      dto.targetAmount,
+      dto.currency,
+      dto.asset,
+      dto.paymentMethod,
+      CryptoPaymentMethod.CRYPTO,
+      user,
+    );
+    const bankInfo = await this.getBankInfo(buy, { ...dto, amount });
 
-    return {
+    const buyDto: BuyPaymentInfoDto = {
       routeId: buy.id,
-      ...bankInfo,
-      sepaInstant: bankInfo.sepaInstant && buy.bankAccount?.sctInst,
-      remittanceInfo: buy.bankUsage,
-      fee: Util.round(fee * 100, Config.defaultPercentageDecimal),
+      fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposit: { amount: minVolume, asset: dto.currency.name }, // TODO: remove
       minVolume,
       minFee,
       minVolumeTarget,
       minFeeTarget,
+      exchangeRate,
+      rate,
       estimatedAmount,
+      amount,
+      asset: AssetDtoMapper.toDto(dto.asset),
+      currency: FiatDtoMapper.toDto(dto.currency),
+      maxVolume,
+      maxVolumeTarget,
+      isValid,
+      error,
+      // bank info
+      ...bankInfo,
+      sepaInstant: bankInfo.sepaInstant && buy.bankAccount?.sctInst,
+      remittanceInfo: buy.bankUsage,
+      paymentRequest: isValid ? this.generateGiroCode(buy, bankInfo, dto) : undefined,
+      // card info
+      paymentLink:
+        isValid && dto.paymentMethod === FiatPaymentMethod.CARD
+          ? await this.checkoutService.createPaymentLink(
+              buy.bankUsage,
+              amount,
+              dto.currency,
+              dto.asset,
+              user.userData.language,
+            )
+          : undefined,
+      // TODO: temporary CC solution
+      nameRequired:
+        dto.paymentMethod === FiatPaymentMethod.CARD &&
+        !(user.status === UserStatus.ACTIVE || (Boolean(user.userData.firstname) && Boolean(user.userData.surname))),
     };
+
+    void this.transactionRequestService.createTransactionRequest(TransactionRequestType.Buy, dto, buyDto);
+
+    return buyDto;
   }
 
   // --- HELPER-METHODS --- //
@@ -174,11 +269,27 @@ export class BuyController {
       amount: dto.amount,
       currency: dto.currency.name,
       bankAccount: buy.bankAccount,
-      kycStatus: buy.user.userData.kycStatus,
+      paymentMethod: dto.paymentMethod,
     });
 
     if (!bank) throw new BadRequestException('No Bank for the given amount/currency');
 
     return { ...Config.bank.dfxBankInfo, iban: bank.iban, bic: bank.bic, sepaInstant: bank.sctInst };
+  }
+
+  private generateGiroCode(buy: Buy, bankInfo: BankInfoDto, dto: GetBuyPaymentInfoDto): string {
+    return `
+${Config.giroCode.service}
+${Config.giroCode.version}
+${Config.giroCode.encoding}
+${Config.giroCode.transfer}
+${bankInfo.bic}
+${bankInfo.name}, ${bankInfo.street} ${bankInfo.number}, ${bankInfo.zip} ${bankInfo.city}, ${bankInfo.country}
+${bankInfo.iban}
+${dto.currency.name}${dto.amount}
+${Config.giroCode.char}
+${Config.giroCode.ref}
+${buy.bankUsage}
+`.trim();
   }
 }

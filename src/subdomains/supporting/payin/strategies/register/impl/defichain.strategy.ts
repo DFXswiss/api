@@ -1,18 +1,19 @@
 import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
+import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
-import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { PayInEntry } from '../../../interfaces';
 import { PayInRepository } from '../../../repositories/payin.repository';
@@ -37,8 +38,8 @@ export class DeFiChainStrategy extends RegisterStrategy {
 
   //*** PUBLIC API ***//
 
-  doAmlCheck(_: CryptoInput, route: Staking | Sell | CryptoRoute): AmlCheck {
-    return route.user.userData.kycStatus === KycStatus.REJECTED ? AmlCheck.FAIL : AmlCheck.PASS;
+  doAmlCheck(_: CryptoInput, route: Staking | Sell | CryptoRoute): CheckStatus {
+    return route.user.userData.kycLevel === KycLevel.REJECTED ? CheckStatus.FAIL : CheckStatus.PASS;
   }
 
   /**
@@ -60,8 +61,8 @@ export class DeFiChainStrategy extends RegisterStrategy {
 
     for (const entry of entries) {
       try {
-        const btcAmount = await this.getReferenceAmount(entry.asset, entry.amount, btc);
-        const usdtAmount = await this.getReferenceAmount(entry.asset, entry.amount, usdt);
+        const btcAmount = await this.getReferenceAmount(entry.asset, btc, entry);
+        const usdtAmount = await this.getReferenceAmount(entry.asset, usdt, entry);
 
         await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
       } catch (e) {
@@ -76,7 +77,7 @@ export class DeFiChainStrategy extends RegisterStrategy {
   @Cron(CronExpression.EVERY_30_SECONDS)
   @Lock(7200)
   async checkPayInEntries(): Promise<void> {
-    if (Config.processDisabled(Process.PAY_IN)) return;
+    if (DisabledProcess(Process.PAY_IN)) return;
 
     await this.processNewPayInEntries();
   }
@@ -84,7 +85,7 @@ export class DeFiChainStrategy extends RegisterStrategy {
   @Cron(CronExpression.EVERY_5_MINUTES)
   @Lock(7200)
   async splitPools(): Promise<void> {
-    if (Config.processDisabled(Process.PAY_IN)) return;
+    if (DisabledProcess(Process.PAY_IN)) return;
 
     await this.deFiChainService.splitPools();
   }
@@ -92,7 +93,7 @@ export class DeFiChainStrategy extends RegisterStrategy {
   @Cron(CronExpression.EVERY_HOUR)
   @Lock(7200)
   async retrieveSmallDfiTokens(): Promise<void> {
-    if (Config.processDisabled(Process.PAY_IN)) return;
+    if (DisabledProcess(Process.PAY_IN)) return;
 
     await this.deFiChainService.retrieveSmallDfiTokens();
   }
@@ -100,7 +101,7 @@ export class DeFiChainStrategy extends RegisterStrategy {
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
   @Lock(7200)
   async retrieveFeeUtxos(): Promise<void> {
-    if (Config.processDisabled(Process.PAY_IN)) return;
+    if (DisabledProcess(Process.PAY_IN)) return;
 
     await this.deFiChainService.retrieveFeeUtxos();
   }

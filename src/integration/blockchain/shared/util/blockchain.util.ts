@@ -14,17 +14,24 @@ export function assetExplorerUrl(asset: Asset): string | undefined {
   return assetPath ? `${BlockchainExplorerUrls[asset.blockchain]}/${assetPath}` : undefined;
 }
 
+export function isBtcChain(blockchain: Blockchain): boolean {
+  return [Blockchain.BITCOIN, Blockchain.LIGHTNING, Blockchain.MONERO].includes(blockchain);
+}
+
 // --- HELPERS --- //
 
 const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.DEFICHAIN]: 'https://defiscan.live',
-  [Blockchain.BITCOIN]: 'https://blockstream.info',
+  [Blockchain.BITCOIN]: 'https://explorer.lightning.space',
   [Blockchain.LIGHTNING]: undefined,
+  [Blockchain.MONERO]: 'https://xmrscan.org',
   [Blockchain.ETHEREUM]: 'https://etherscan.io',
   [Blockchain.BINANCE_SMART_CHAIN]: 'https://bscscan.com',
   [Blockchain.OPTIMISM]: 'https://optimistic.etherscan.io',
   [Blockchain.ARBITRUM]: 'https://arbiscan.io',
   [Blockchain.POLYGON]: 'https://polygonscan.com',
+  [Blockchain.BASE]: 'https://basescan.org',
+  [Blockchain.LIQUID]: 'https://blockstream.info/liquid',
   [Blockchain.CARDANO]: 'https://cardanoscan.io',
 };
 
@@ -32,11 +39,14 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.DEFICHAIN]: 'transactions',
   [Blockchain.BITCOIN]: 'tx',
   [Blockchain.LIGHTNING]: undefined,
+  [Blockchain.MONERO]: 'tx',
   [Blockchain.ETHEREUM]: 'tx',
   [Blockchain.BINANCE_SMART_CHAIN]: 'tx',
   [Blockchain.OPTIMISM]: 'tx',
   [Blockchain.ARBITRUM]: 'tx',
   [Blockchain.POLYGON]: 'tx',
+  [Blockchain.BASE]: 'tx',
+  [Blockchain.LIQUID]: 'tx',
   [Blockchain.CARDANO]: 'transaction',
 };
 
@@ -47,6 +57,7 @@ function assetPaths(asset: Asset): string | undefined {
 
     case Blockchain.BITCOIN:
     case Blockchain.LIGHTNING:
+    case Blockchain.MONERO:
       return undefined;
 
     case Blockchain.ETHEREUM:
@@ -54,6 +65,7 @@ function assetPaths(asset: Asset): string | undefined {
     case Blockchain.OPTIMISM:
     case Blockchain.ARBITRUM:
     case Blockchain.POLYGON:
+    case Blockchain.BASE:
       return asset.chainId ? `address/${asset.chainId}` : undefined;
 
     case Blockchain.CARDANO:

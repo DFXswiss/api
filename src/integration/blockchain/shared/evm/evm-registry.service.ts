@@ -3,8 +3,10 @@ import { ArbitrumService } from '../../arbitrum/arbitrum.service';
 import { BscService } from '../../bsc/bsc.service';
 import { EthereumService } from '../../ethereum/ethereum.service';
 import { OptimismService } from '../../optimism/optimism.service';
+import { PolygonService } from '../../polygon/polygon.service';
 import { Blockchain } from '../enums/blockchain.enum';
 import { EvmClient } from './evm-client';
+import { EvmService } from './evm.service';
 import { L2BridgeEvmClient } from './interfaces';
 
 @Injectable()
@@ -14,21 +16,28 @@ export class EvmRegistryService {
     private readonly bscService: BscService,
     private readonly arbitrumService: ArbitrumService,
     private readonly optimismService: OptimismService,
+    private readonly polygonService: PolygonService,
   ) {}
 
   getClient(blockchain: Blockchain): EvmClient {
+    return this.getService(blockchain).getDefaultClient();
+  }
+
+  getService(blockchain: Blockchain): EvmService {
     switch (blockchain) {
       case Blockchain.ETHEREUM:
-        return this.ethereumService.getDefaultClient();
+        return this.ethereumService;
       case Blockchain.BINANCE_SMART_CHAIN:
-        return this.bscService.getDefaultClient();
+        return this.bscService;
       case Blockchain.ARBITRUM:
-        return this.arbitrumService.getDefaultClient();
+        return this.arbitrumService;
       case Blockchain.OPTIMISM:
-        return this.optimismService.getDefaultClient();
+        return this.optimismService;
+      case Blockchain.POLYGON:
+        return this.polygonService;
 
       default:
-        throw new Error(`No evm client found for blockchain ${blockchain}`);
+        throw new Error(`No evm service found for blockchain ${blockchain}`);
     }
   }
 
@@ -38,6 +47,8 @@ export class EvmRegistryService {
         return this.arbitrumService.getDefaultClient();
       case Blockchain.OPTIMISM:
         return this.optimismService.getDefaultClient();
+      case Blockchain.POLYGON:
+        return this.polygonService.getDefaultClient();
 
       default:
         throw new Error(`No l2 evm client found for blockchain ${blockchain}`);

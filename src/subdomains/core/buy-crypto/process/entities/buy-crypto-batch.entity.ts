@@ -1,12 +1,12 @@
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
+import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { MissingBuyCryptoLiquidityException } from '../exceptions/abort-batch-creation.exception';
 import { BuyCrypto } from './buy-crypto.entity';
-import { FeeLimitExceededException } from 'src/shared/payment/exceptions/fee-limit-exceeded.exception';
 
 export enum BuyCryptoBatchStatus {
   CREATED = 'Created',
@@ -87,8 +87,7 @@ export class BuyCryptoBatch extends IEntity {
   }
 
   optimizeByPayoutFeeEstimation(): BuyCrypto[] {
-    const reBatchTransactions = [];
-    const filteredOutTransactions = [];
+    const filteredOutTransactions: BuyCrypto[] = [];
 
     for (const tx of this.transactions) {
       if (tx.fee.estimatePayoutFeePercent > tx.fee.allowedTotalFeePercent) {
@@ -97,12 +96,18 @@ export class BuyCryptoBatch extends IEntity {
         continue;
       }
 
-      reBatchTransactions.push(tx);
+      tx.resetSentMail();
     }
 
-    this.overwriteTransactions(reBatchTransactions);
+    this.removeInvalidTransactions(filteredOutTransactions);
 
     return filteredOutTransactions;
+  }
+
+  removeInvalidTransactions(invalidTransactions: BuyCrypto[]) {
+    const validTransactions = this.transactions.filter((t) => !invalidTransactions.map((i) => i.id).includes(t.id));
+
+    this.overwriteTransactions(validTransactions);
   }
 
   checkByPurchaseFeeEstimation(estimatePurchaseFeeAmount: number): this {
@@ -155,7 +160,7 @@ export class BuyCryptoBatch extends IEntity {
   }
 
   get smallestTransactionReferenceAmount(): number {
-    return Util.minObj<BuyCrypto>(this.transactions, 'outputReferenceAmount');
+    return Util.minObjValue<BuyCrypto>(this.transactions, 'outputReferenceAmount');
   }
 
   //*** HELPER METHODS ***//
@@ -257,6 +262,6 @@ export class BuyCryptoBatch extends IEntity {
   }
 
   private sortTransactionsAsc(): BuyCrypto[] {
-    return this.transactions.sort((a, b) => a.outputReferenceAmount - b.outputReferenceAmount);
+    return Util.sort(this.transactions, 'outputReferenceAmount');
   }
 }

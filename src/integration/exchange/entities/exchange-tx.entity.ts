@@ -93,5 +93,14 @@ export class ExchangeTx extends IEntity {
   side?: string;
 }
 
-export const ExchangeSyncs = ['Kraken'];
-export const ExchangeTokens = ['BTC', 'EUR', 'CHF', 'USDT', 'USDC', 'LTC', 'ETH', 'USD'];
+export interface ExchangeSync {
+  exchange: string;
+  tradeTokens?: string[];
+  tokens?: string[];
+  tokenReplacements: [string, string][];
+}
+
+export const ExchangeSyncs: ExchangeSync[] = [
+  { exchange: 'Kraken', tokens: ['EUR', 'CHF', 'USD', 'BTC', 'USDT', 'USDC', 'ETH', 'DAI'], tokenReplacements: [] },
+  { exchange: 'Binance', tradeTokens: ['BTC', 'USDT'], tokenReplacements: [['BTCB', 'BTC']] },
+];

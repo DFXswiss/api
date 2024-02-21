@@ -3,7 +3,29 @@ import { IsInt, IsNotEmpty, IsOptional, IsString, Matches, ValidateIf } from 'cl
 import { GetConfig } from 'src/config/config';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 
-export class CreateUserDto {
+export class OptionalSignUpDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Matches(GetConfig().formats.ref)
+  usedRef?: string;
+
+  @IsOptional()
+  @IsInt()
+  walletId?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  wallet?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  discountCode?: string;
+}
+
+export class CreateUserDto extends OptionalSignUpDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
@@ -22,15 +44,4 @@ export class CreateUserDto {
   @Matches(GetConfig().formats.key)
   @ValidateIf((dto: CreateUserDto) => CryptoService.isCardanoAddress(dto.address))
   key?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  @Matches(GetConfig().formats.ref)
-  usedRef: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsInt()
-  walletId: number;
 }

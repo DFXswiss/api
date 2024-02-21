@@ -48,7 +48,7 @@ export class LightningHelper {
     const [id, domain] = address.split('@');
 
     const url = `https://${domain}/.well-known/lnurlp/${id}`;
-    return LightningHelper.encodeLnurlp(url);
+    return LightningHelper.encodeLnurl(url);
   }
 
   static getAddressType(address: string): LightningAddressType {
@@ -61,23 +61,35 @@ export class LightningHelper {
     throw new Error(`Cannot detect Lightning Address Type of address ${address}`);
   }
 
-  // --- LNURLP --- //
+  // --- LNURLp --- //
   static createEncodedLnurlp(id: string): string {
     // create an encoded LNURLp with the HTTPS address of DFX API and the LNbits ID
-    const url = `${Config.url}/lnurlp/${id}`;
-    return this.encodeLnurlp(url);
-  }
-
-  static encodeLnurlp(str: string): string {
-    return lnurlEncode(str).toUpperCase();
-  }
-
-  static decodeLnurlp(lnurlp: string): string {
-    return lnurlDecode(lnurlp);
+    const url = `${Config.url()}/lnurlp/${id}`;
+    return this.encodeLnurl(url);
   }
 
   static createLnurlpCallbackUrl(id: string): string {
-    return `${Config.url}/lnurlp/cb/${id}`;
+    return `${Config.url()}/lnurlp/cb/${id}`;
+  }
+
+  // --- LNURLw --- //
+  static createEncodedLnurlw(id: string): string {
+    // create an encoded LNURLw with the HTTPS address of DFX API and the LNbits ID
+    const url = `${Config.url()}/lnurlw/${id}`;
+    return this.encodeLnurl(url);
+  }
+
+  static createLnurlwCallbackUrl(id: string): string {
+    return `${Config.url()}/lnurlw/cb/${id}`;
+  }
+
+  // --- LNURL --- //
+  static encodeLnurl(str: string): string {
+    return lnurlEncode(str).toUpperCase();
+  }
+
+  static decodeLnurl(lnurl: string): string {
+    return lnurlDecode(lnurl);
   }
 
   // --- SIGNATURE VERIFICATION --- //

@@ -1,24 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { GetConfig } from 'src/config/config';
-import { EthereumClient } from './ethereum-client';
-import { EvmService } from '../shared/evm/evm.service';
+import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
 import { HttpService } from 'src/shared/services/http.service';
+import { EvmService } from '../shared/evm/evm.service';
+import { EthereumClient } from './ethereum-client';
 
 @Injectable()
 export class EthereumService extends EvmService {
-  constructor(http: HttpService) {
-    const { ethScanApiUrl, ethScanApiKey, ethGatewayUrl, ethApiKey, ethWalletPrivateKey, ethChainId } =
-      GetConfig().blockchain.ethereum;
+  constructor(http: HttpService, alchemyService: AlchemyService) {
+    const { ethGatewayUrl, ethApiKey, ethWalletPrivateKey, ethChainId } = GetConfig().blockchain.ethereum;
 
-    super(
+    super(EthereumClient, {
       http,
-      ethScanApiUrl,
-      ethScanApiKey,
-      ethGatewayUrl,
-      ethApiKey,
-      ethWalletPrivateKey,
-      ethChainId,
-      EthereumClient,
-    );
+      alchemyService,
+      gatewayUrl: ethGatewayUrl,
+      apiKey: ethApiKey,
+      walletPrivateKey: ethWalletPrivateKey,
+      chainId: ethChainId,
+    });
   }
 }

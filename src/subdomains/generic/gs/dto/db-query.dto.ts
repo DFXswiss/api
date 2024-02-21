@@ -21,10 +21,14 @@ export class DbQueryBaseDto {
 
   @IsNotEmpty()
   @IsString()
+  sortColumn = 'id';
+
+  @IsNotEmpty()
+  @IsString()
   sorting: 'ASC' | 'DESC' = 'ASC';
 
   @IsOptional()
-  select?: string[];
+  select?: string[]; // user file structure: documents-$prefix.{userData}.$suffix
 }
 
 export class DbQueryDto extends DbQueryBaseDto {
@@ -33,4 +37,9 @@ export class DbQueryDto extends DbQueryBaseDto {
 
   @IsNotEmpty()
   where?: [string, { [key: string]: string }][] = [];
+}
+
+export class DbReturnData {
+  keys: string[];
+  values: any;
 }

@@ -2,7 +2,7 @@ import { Inject, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
+import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
@@ -13,12 +13,18 @@ import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-inp
 import { PayInFactory } from 'src/subdomains/supporting/payin/factories/payin.factory';
 import { PayInEntry } from 'src/subdomains/supporting/payin/interfaces';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
+import { PriceRequestContext } from 'src/subdomains/supporting/pricing/domain/enums';
+import { PriceRequest } from 'src/subdomains/supporting/pricing/domain/interfaces';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { v4 as uuid } from 'uuid';
 import { RegisterStrategyRegistry } from './register.strategy-registry';
 
 export interface PayInInputLog {
   newRecords: { address: string; txId: string }[];
 }
+
+const SkipTestSwapAssets = ['ZCHF'];
+
 export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy {
   protected abstract readonly logger: DfxLogger;
 
@@ -30,6 +36,9 @@ export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy 
 
   @Inject()
   private readonly registry: RegisterStrategyRegistry;
+
+  @Inject()
+  private readonly pricingService: PricingService;
 
   constructor(protected readonly payInRepository: PayInRepository) {}
 
@@ -43,9 +52,8 @@ export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy 
 
   abstract get blockchain(): Blockchain;
 
-  abstract checkPayInEntries(): Promise<void>;
   abstract addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void>;
-  abstract doAmlCheck(payIn: CryptoInput, route: Staking | Sell | CryptoRoute): Promise<AmlCheck> | AmlCheck;
+  abstract doAmlCheck(payIn: CryptoInput, route: Staking | Sell | CryptoRoute): Promise<CheckStatus> | CheckStatus;
 
   protected async createPayInsAndSave(transactions: PayInEntry[], log: PayInInputLog): Promise<void> {
     const payIns = transactions.map((t) => this.payInFactory.createFromEntry(t));
@@ -69,8 +77,19 @@ export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy 
     }
   }
 
-  protected async getReferenceAmount(fromAsset: Asset, fromAmount: number, toAsset: Asset): Promise<number> {
-    const request = this.createLiquidityRequest(fromAsset, fromAmount, toAsset);
+  protected async getReferenceAmount(
+    fromAsset: Asset,
+    toAsset: Asset,
+    entry: CryptoInput | PayInEntry,
+  ): Promise<number> {
+    if (SkipTestSwapAssets.includes(fromAsset.dexName))
+      return this.pricingService
+        .getPrice(
+          this.createPriceRequest(entry, toAsset.dexName === 'WBTC' ? 'BTC' : toAsset.dexName, fromAsset.dexName),
+        )
+        .then((p) => p.price.invert().convert(entry.amount));
+
+    const request = this.createLiquidityRequest(fromAsset, entry.amount, toAsset);
     const liquidity = await this.dexService.checkLiquidity(request);
 
     return liquidity.target.amount;
@@ -112,6 +131,15 @@ export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy 
       referenceAsset,
       referenceAmount,
       targetAsset,
+    };
+  }
+
+  private createPriceRequest(entry: CryptoInput | PayInEntry, from: string, to: string): PriceRequest {
+    return {
+      context: PriceRequestContext.PAY_IN,
+      correlationId: `PayIn ${'txId' in entry ? entry.txId : entry.inTxId}`,
+      from,
+      to,
     };
   }
 }

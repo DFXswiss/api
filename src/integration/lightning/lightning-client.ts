@@ -21,6 +21,7 @@ import {
   LnurlpLinkRemoveDto,
   LnurlpLinkUpdateDto,
 } from './dto/lnurlp.dto';
+import { LnurlWithdrawRequestDto, LnurlwInvoiceDto, LnurlwLinkDto, LnurlwLinkRemoveDto } from './dto/lnurlw.dto';
 import { PaymentDto } from './dto/payment.dto';
 import { LightningHelper } from './lightning-helper';
 
@@ -61,9 +62,7 @@ export class LightningClient {
   async getBalance(): Promise<number> {
     const channels = await this.getChannels();
 
-    const balances = channels
-      .filter((c) => c.active)
-      .map((c) => +c.local_balance - +c.commit_fee - +c.local_chan_reserve_sat);
+    const balances = channels.map((c) => +c.local_balance);
 
     return LightningHelper.satToBtc(Util.sum(balances));
   }
@@ -177,7 +176,18 @@ export class LightningClient {
     }));
   }
 
-  // --- PAYMENT LINKS --- //
+  // --- LNURLp REWRITE --- //
+  async getLnurlpPaymentRequest(linkId: string): Promise<LnurlPayRequestDto> {
+    const lnBitsUrl = `${Config.blockchain.lightning.lnbits.lnurlpUrl}/${linkId}`;
+    return this.http.get(lnBitsUrl, this.httpLnBitsConfig());
+  }
+
+  async getLnurlpInvoice(linkId: string, params: any): Promise<LnurlpInvoiceDto> {
+    const lnBitsCallbackUrl = `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/lnurl/cb/${linkId}`;
+    return this.http.get<LnurlpInvoiceDto>(lnBitsCallbackUrl, this.httpLnBitsConfig(params));
+  }
+
+  // --- LNURLp LINKS --- //
   async getLnurlpLinks(): Promise<LnurlpLinkDto[]> {
     return this.http.get<LnurlpLinkDto[]>(
       `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/links?all_wallets=false`,
@@ -192,18 +202,6 @@ export class LightningClient {
     );
   }
 
-  // --- LNURLP REWRITE --- //
-  async getLnurlpPaymentRequest(linkId: string): Promise<LnurlPayRequestDto> {
-    const lnBitsUrl = `${Config.blockchain.lightning.lnbits.lnurlpUrl}/${linkId}`;
-    return this.http.get(lnBitsUrl, this.httpLnBitsConfig());
-  }
-
-  async getLnurlpInvoice(linkId: string, params: any): Promise<LnurlpInvoiceDto> {
-    const lnBitsCallbackUrl = `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/lnurl/cb/${linkId}`;
-    return this.http.get<LnurlpInvoiceDto>(lnBitsCallbackUrl, this.httpLnBitsConfig(params));
-  }
-
-  // --- LNURLP LINKS --- //
   async addLnurlpLink(description: string): Promise<LnurlpLinkDto> {
     if (!description) throw new Error('Description is undefined');
 
@@ -239,6 +237,66 @@ export class LightningClient {
   private async doRemoveLnurlpLink(linkId: string): Promise<LnurlpLinkRemoveDto> {
     return this.http.delete<LnurlpLinkRemoveDto>(
       `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/links/${linkId}`,
+      this.httpLnBitsConfig(),
+    );
+  }
+
+  // --- LNURLw REWRITE --- //
+  async getLnurlwWithdrawRequest(linkId: string): Promise<LnurlWithdrawRequestDto> {
+    const { unique_hash } = await this.getLnurlwLink(linkId);
+
+    const lnBitsUrl = `${Config.blockchain.lightning.lnbits.lnurlwApiUrl}/lnurl/${unique_hash}`;
+    return this.http.get(lnBitsUrl, this.httpLnBitsConfig());
+  }
+
+  async sendLnurlwInvoice(linkId: string, params: any): Promise<LnurlwInvoiceDto> {
+    const { unique_hash } = await this.getLnurlwLink(linkId);
+
+    const lnBitsCallbackUrl = `${Config.blockchain.lightning.lnbits.lnurlwApiUrl}/lnurl/cb/${unique_hash}`;
+    return this.http.get<LnurlwInvoiceDto>(lnBitsCallbackUrl, this.httpLnBitsConfig(params));
+  }
+
+  // --- LNURLw LINKS --- //
+  async getLnurlwLinks(): Promise<LnurlwLinkDto[]> {
+    return this.http.get<LnurlwLinkDto[]>(
+      `${Config.blockchain.lightning.lnbits.lnurlwApiUrl}/links?all_wallets=false`,
+      this.httpLnBitsConfig(),
+    );
+  }
+
+  async getLnurlwLink(linkId: string): Promise<LnurlwLinkDto> {
+    return this.http.get<LnurlwLinkDto>(
+      `${Config.blockchain.lightning.lnbits.lnurlwApiUrl}/links/${linkId}`,
+      this.httpLnBitsConfig(),
+    );
+  }
+
+  async addLnurlwLink(description: string, amount: number): Promise<LnurlwLinkDto> {
+    if (!description) throw new Error('Description is undefined');
+
+    const newLnurlwLinkDto: LnurlwLinkDto = {
+      title: description,
+      min_withdrawable: amount,
+      max_withdrawable: amount,
+      uses: 1,
+      wait_time: 1,
+      is_unique: false,
+    };
+
+    return this.http.post<LnurlwLinkDto>(
+      `${Config.blockchain.lightning.lnbits.lnurlwApiUrl}/links`,
+      newLnurlwLinkDto,
+      this.httpLnBitsConfig(),
+    );
+  }
+
+  async removeLnurlwLink(linkId: string): Promise<boolean> {
+    return this.doRemoveLnurlwLink(linkId).then((r) => r.success);
+  }
+
+  private async doRemoveLnurlwLink(linkId: string): Promise<LnurlwLinkRemoveDto> {
+    return this.http.delete<LnurlwLinkRemoveDto>(
+      `${Config.blockchain.lightning.lnbits.lnurlwApiUrl}/links/${linkId}`,
       this.httpLnBitsConfig(),
     );
   }

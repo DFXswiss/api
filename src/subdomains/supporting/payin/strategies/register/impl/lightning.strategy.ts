@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LnurlpPaymentData } from 'src/integration/lightning/data/lnurlp-payment.data';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
@@ -8,12 +7,13 @@ import { LightningService } from 'src/integration/lightning/services/lightning.s
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
+import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
-import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { PayInEntry } from '../../../interfaces';
 import { PayInRepository } from '../../../repositories/payin.repository';
@@ -49,8 +49,8 @@ export class LightningStrategy extends RegisterStrategy {
     }
   }
 
-  doAmlCheck(_: CryptoInput, route: Staking | Sell | CryptoRoute): AmlCheck | Promise<AmlCheck> {
-    return route.user.userData.kycStatus === KycStatus.REJECTED ? AmlCheck.FAIL : AmlCheck.PASS;
+  doAmlCheck(_: CryptoInput, route: Staking | Sell | CryptoRoute): CheckStatus | Promise<CheckStatus> {
+    return route.user.userData.kycLevel === KycLevel.REJECTED ? CheckStatus.FAIL : CheckStatus.PASS;
   }
 
   //*** JOBS ***//
@@ -58,7 +58,7 @@ export class LightningStrategy extends RegisterStrategy {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(7200)
   async checkPayInEntries(): Promise<void> {
-    if (Config.processDisabled(Process.PAY_IN)) return;
+    if (DisabledProcess(Process.PAY_IN)) return;
 
     await this.processNewPayInEntries();
   }

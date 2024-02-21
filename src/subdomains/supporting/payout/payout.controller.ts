@@ -1,11 +1,11 @@
-import { Controller, UseGuards, Body, Post, Get, Query } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { PayoutService } from './services/payout.service';
-import { PayoutRequest } from './interfaces';
 import { PayoutOrderContext } from './entities/payout-order.entity';
+import { PayoutRequest } from './interfaces';
+import { PayoutService } from './services/payout.service';
 
 @ApiTags('payout')
 @Controller('payout')
@@ -33,5 +33,13 @@ export class PayoutController {
     if (process.env.ENVIRONMENT === 'test') {
       return this.payoutService.checkOrderCompletion(context, correlationId);
     }
+  }
+
+  @Post('speedup')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async speedupTransaction(@Query('id') id: string): Promise<void> {
+    return this.payoutService.speedupTransaction(+id);
   }
 }

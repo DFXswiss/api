@@ -1,15 +1,20 @@
 import { Injectable } from '@nestjs/common';
-import { I18nService } from 'nestjs-i18n';
-import { Config, Process } from 'src/config/config';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
+import {
+  MailFactory,
+  MailKey,
+  MailTranslationKey,
+} from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, IsNull, Not } from 'typeorm';
 import { BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
 import { BuyCryptoAmlReasonPendingStates } from '../entities/buy-crypto.entity';
-import { AmlCheck } from '../enums/aml-check.enum';
+import { AmlReason, KycAmlReasons } from '../enums/aml-reason.enum';
+import { CheckStatus } from '../enums/check-status.enum';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 
 @Injectable()
@@ -19,12 +24,11 @@ export class BuyCryptoNotificationService {
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly notificationService: NotificationService,
-    private readonly i18nService: I18nService,
   ) {}
 
   async sendNotificationMails(): Promise<void> {
     try {
-      if (Config.processDisabled(Process.BUY_CRYPTO_MAIL)) return;
+      if (DisabledProcess(Process.BUY_CRYPTO_MAIL)) return;
       await this.buyCryptoConfirmed();
       await this.paybackToAddressInitiated();
       await this.pendingBuyCrypto();
@@ -39,7 +43,7 @@ export class BuyCryptoNotificationService {
         where: {
           mailSendDate: IsNull(),
           txId: Not(IsNull()),
-          amlCheck: AmlCheck.PASS,
+          amlCheck: CheckStatus.PASS,
         },
         relations: [
           'bankTx',
@@ -63,34 +67,47 @@ export class BuyCryptoNotificationService {
 
       for (const tx of txOutput) {
         try {
-          const minFee = tx.minFeeAmountFiat
-            ? ` (min. ${tx.minFeeAmountFiat} ${tx.cryptoInput ? 'EUR' : tx.inputReferenceAsset})`
-            : '';
-          tx.user.userData.mail &&
-            (await this.notificationService.sendMail({
+          if (tx.user.userData.mail) {
+            const minFee = tx.minFeeAmountFiat
+              ? ` (min. ${tx.minFeeAmountFiat} ${tx.cryptoInput ? 'EUR' : tx.inputReferenceAsset})`
+              : '';
+
+            await this.notificationService.sendMail({
               type: MailType.USER,
               input: {
                 userData: tx.user.userData,
-                translationKey: tx.translationKey,
-                translationParams: {
-                  buyInputAmount: tx.inputAmount,
-                  buyInputAsset: tx.inputAsset,
-                  inputBlockchain: tx.cryptoInput ? tx.cryptoInput.asset.blockchain : null,
-                  buyOutputAmount: tx.outputAmount,
-                  buyOutputAsset: tx.outputAsset.name,
-                  blockchain: tx.outputAsset.blockchain,
-                  buyFeePercentage: Util.round(tx.percentFee * 100, 2),
-                  exchangeRate: Util.round(
-                    (tx.inputAmount / tx.inputReferenceAmount) * (tx.inputReferenceAmountMinusFee / tx.outputAmount),
-                    2,
-                  ),
-                  buyWalletAddress: Util.blankStart(tx.target.address),
-                  buyTxId: tx.txId,
-                  buyTransactionLink: tx.transactionId,
-                  fee: `${Util.round(tx.percentFee * 100, 2)}%` + minFee,
+                title: `${MailTranslationKey.BUY_CRYPTO}.confirmed.title`,
+                salutation: { key: `${MailTranslationKey.BUY_CRYPTO}.confirmed.salutation` },
+                table: {
+                  [`${MailTranslationKey.BUY_CRYPTO}.input_amount`]: `${tx.inputAmount} ${tx.inputAsset}`,
+                  [`${MailTranslationKey.PAYMENT}.input_blockchain`]: tx.cryptoInput
+                    ? `${tx.cryptoInput.asset.blockchain}`
+                    : null,
+                  [`${MailTranslationKey.BUY_CRYPTO}.output_amount`]: `${tx.outputAmount} ${tx.outputAsset.name}`,
+                  [`${MailTranslationKey.PAYMENT}.blockchain`]: tx.cryptoInput ? null : `${tx.outputAsset.blockchain}`,
+                  [`${MailTranslationKey.PAYMENT}.output_blockchain`]: tx.cryptoInput
+                    ? `${tx.outputAsset.blockchain}`
+                    : null,
+                  [`${MailTranslationKey.PAYMENT}.dfx_fee`]: Util.toPercent(tx.percentFee) + minFee,
+                  [`${MailTranslationKey.PAYMENT}.exchange_rate`]: `${tx.exchangeRateString}`,
+                  [`${MailTranslationKey.PAYMENT}.wallet_address`]: Util.blankStart(tx.target.address),
+                  [`${MailTranslationKey.PAYMENT}.transaction_id`]: tx.isLightningOutput
+                    ? Util.blankStart(tx.txId)
+                    : null,
                 },
+                suffix: [
+                  tx.isLightningOutput
+                    ? null
+                    : {
+                        key: `${MailTranslationKey.BUY_CRYPTO}.payment_link`,
+                        params: { url: txExplorerUrl(tx.target.asset.blockchain, tx.txId) },
+                      },
+                  { key: MailKey.SPACE, params: { value: '4' } },
+                  { key: MailKey.DFX_TEAM_CLOSING },
+                ],
               },
-            }));
+            });
+          }
 
           await this.buyCryptoRepo.update(...tx.confirmSentMail());
         } catch (e) {
@@ -140,7 +157,7 @@ export class BuyCryptoNotificationService {
         outputAmount: IsNull(),
         chargebackDate: Not(IsNull()),
         amlReason: Not(IsNull()),
-        amlCheck: AmlCheck.FAIL,
+        amlCheck: CheckStatus.FAIL,
       },
       relations: [
         'buy',
@@ -150,6 +167,7 @@ export class BuyCryptoNotificationService {
         'cryptoRoute',
         'cryptoRoute.user',
         'cryptoRoute.user.userData',
+        'bankTx',
       ],
     });
 
@@ -157,24 +175,66 @@ export class BuyCryptoNotificationService {
 
     for (const entity of entities) {
       try {
-        if (entity.user.userData.mail) {
+        if (
+          entity.user.userData.mail &&
+          (entity.user.userData.verifiedName || entity.amlReason !== AmlReason.NAME_CHECK_WITHOUT_KYC)
+        ) {
           await this.notificationService.sendMail({
             type: MailType.USER,
             input: {
               userData: entity.user.userData,
-              translationKey: entity.translationKey,
-              translationParams: {
-                inputAmount: entity.inputAmount,
-                inputAsset: entity.inputAsset,
-                returnTransactionLink: entity.cryptoInput
-                  ? txExplorerUrl(entity.cryptoInput.asset.blockchain, entity.chargebackCryptoTxId)
-                  : entity.chargebackRemittanceInfo?.split(' Zahlung')[0],
-                returnReason: this.i18nService.translate(`mail.amlReasonMailText.${entity.amlReason}`, {
-                  lang: entity.user.userData.language?.symbol.toLowerCase(),
-                }),
-                userAddressTrimmed: entity.target.trimmedReturnAddress,
-                blockchain: entity.cryptoInput?.asset.blockchain,
+              title: `${entity.translationReturnMailKey}.title`,
+              salutation: { key: `${entity.translationReturnMailKey}.salutation` },
+              table: {
+                [`${MailTranslationKey.PAYMENT}.reimbursed`]: `${entity.inputAmount} ${entity.inputAsset}`,
+                [`${MailTranslationKey.PAYMENT}.bank_account`]: entity.isBankInput
+                  ? Util.blankStart(entity.bankTx.iban)
+                  : null,
+                [`${MailTranslationKey.PAYMENT}.remittance_info`]: !entity.isCryptoCryptoTransaction
+                  ? entity.chargebackRemittanceInfo?.split(' Zahlung')[0]
+                  : null,
+                [`${MailTranslationKey.PAYMENT}.blockchain`]: entity.isCryptoCryptoTransaction
+                  ? entity.cryptoInput.asset.blockchain
+                  : null,
+                [`${MailTranslationKey.PAYMENT}.wallet_address`]: entity.isCryptoCryptoTransaction
+                  ? Util.blankStart(entity.cryptoRoute.user.address)
+                  : null,
+                [`${MailTranslationKey.PAYMENT}.transaction_id`]: entity.isLightningInput
+                  ? Util.blankStart(entity.chargebackCryptoTxId)
+                  : null,
               },
+              suffix: [
+                !entity.isLightningInput && entity.isCryptoCryptoTransaction
+                  ? {
+                      key: `${entity.translationReturnMailKey}.payment_link`,
+                      params: { url: txExplorerUrl(entity.cryptoInput.asset.blockchain, entity.chargebackCryptoTxId) },
+                    }
+                  : null,
+                entity.amlReason !== AmlReason.NA
+                  ? {
+                      key: `${MailTranslationKey.RETURN}.introduction`,
+                      params: {
+                        reason: MailFactory.parseMailKey(MailTranslationKey.RETURN_REASON, entity.amlReason),
+                        url: entity.user.userData.dilisenseUrl,
+                        urlText: entity.user.userData.dilisenseUrl,
+                      },
+                    }
+                  : null,
+                KycAmlReasons.includes(entity.amlReason)
+                  ? {
+                      key: `${MailTranslationKey.RETURN}.kyc_start`,
+                      params: {
+                        url: entity.user.userData.kycUrl,
+                        urlText: entity.user.userData.kycUrl,
+                      },
+                    }
+                  : null,
+                { key: MailKey.SPACE, params: { value: '2' } },
+                { key: `${MailTranslationKey.GENERAL}.support` },
+                { key: MailKey.SPACE, params: { value: '4' } },
+                { key: `${MailTranslationKey.GENERAL}.thanks` },
+                { key: MailKey.DFX_TEAM_CLOSING },
+              ],
             },
           });
         }
@@ -194,7 +254,7 @@ export class BuyCryptoNotificationService {
         chargebackDate: IsNull(),
         chargebackBankTx: IsNull(),
         amlReason: In(BuyCryptoAmlReasonPendingStates),
-        amlCheck: AmlCheck.PENDING,
+        amlCheck: CheckStatus.PENDING,
       },
       relations: [
         'buy',
@@ -216,10 +276,41 @@ export class BuyCryptoNotificationService {
             type: MailType.USER,
             input: {
               userData: entity.user.userData,
-              translationKey: entity.translationKey,
-              translationParams: {
-                hashLink: `${Config.payment.url}/kyc?code=${entity.user.userData.kycHash}`,
+              title: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.title`,
+              salutation: {
+                key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.salutation`,
               },
+              suffix: [
+                { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line1` },
+                {
+                  key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line2`,
+                  params: {
+                    url: entity.user.userData.kycUrl,
+                    urlText: entity.user.userData.kycUrl,
+                  },
+                },
+                {
+                  key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line3`,
+                  params: {
+                    url: entity.user.userData.kycUrl,
+                    urlText: entity.user.userData.kycUrl,
+                  },
+                },
+                {
+                  key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line4`,
+                  params: {
+                    url: entity.user.userData.kycUrl,
+                    urlText: entity.user.userData.kycUrl,
+                  },
+                },
+                { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line5` },
+                { key: MailKey.SPACE, params: { value: '1' } },
+                { key: `${MailTranslationKey.GENERAL}.support` },
+                { key: MailKey.SPACE, params: { value: '2' } },
+                { key: `${MailTranslationKey.GENERAL}.thanks` },
+                { key: MailKey.SPACE, params: { value: '4' } },
+                { key: MailKey.DFX_TEAM_CLOSING },
+              ],
             },
           });
         }

@@ -8,6 +8,7 @@ import { GetCryptoQuoteDto } from 'src/subdomains/core/buy-crypto/routes/crypto-
 import { CreateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/create-sell.dto';
 import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-payment-info.dto';
 import { GetSellQuoteDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-quote.dto';
+import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { JwtPayload } from '../auth/jwt-payload.interface';
 import { AssetService } from '../models/asset/asset.service';
 import { FiatService } from '../models/fiat/fiat.service';
@@ -20,7 +21,13 @@ export class PaymentInfoService {
     if ('currency' in dto) {
       dto.currency = await this.fiatService.getFiat(dto.currency.id);
       if (!dto.currency) throw new NotFoundException('Currency not found');
-      if (!dto.currency.sellable) throw new BadRequestException('Currency not sellable');
+      if ('paymentMethod' in dto && dto.paymentMethod === FiatPaymentMethod.CARD) {
+        if (!dto.currency.cardSellable) throw new BadRequestException('Currency not sellable');
+      } else if ('paymentMethod' in dto && dto.paymentMethod === FiatPaymentMethod.INSTANT) {
+        if (!dto.currency.instantSellable) throw new BadRequestException('Currency not sellable');
+      } else {
+        if (!dto.currency.sellable) throw new BadRequestException('Currency not sellable');
+      }
     }
 
     dto.asset = await this.assetService.getAssetById(dto.asset.id);
@@ -44,6 +51,11 @@ export class PaymentInfoService {
         throw new BadRequestException('Asset blockchain mismatch');
     }
 
+    if ('iban' in dto && dto.currency?.name === 'CHF' && !dto.iban.startsWith('CH') && !dto.iban.startsWith('LI'))
+      throw new BadRequestException(
+        'CHF transactions are only permitted to Liechtenstein or Switzerland. Use EUR for other countries.',
+      );
+
     if ('blockchain' in dto) {
       if (jwt && !jwt.blockchains.includes(dto.blockchain)) throw new BadRequestException('Asset blockchain mismatch');
     }
@@ -65,10 +77,10 @@ export class PaymentInfoService {
       if (!dto.sourceAsset.sellable) throw new BadRequestException('Source asset not sellable');
     }
 
-    dto.asset = await this.assetService.getAssetById(dto.asset.id);
-    if (!dto.asset) throw new NotFoundException('Asset not found');
-    if (!dto.asset.buyable) throw new BadRequestException('Asset not buyable');
-    if (jwt && !jwt.blockchains.includes(dto.asset.blockchain))
+    dto.targetAsset = await this.assetService.getAssetById(dto.targetAsset.id);
+    if (!dto.targetAsset) throw new NotFoundException('Asset not found');
+    if (!dto.targetAsset.buyable) throw new BadRequestException('Asset not buyable');
+    if (jwt && !jwt.blockchains.includes(dto.targetAsset.blockchain))
       throw new BadRequestException('Asset blockchain mismatch');
 
     return dto;

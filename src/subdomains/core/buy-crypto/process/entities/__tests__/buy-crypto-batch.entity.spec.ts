@@ -1,19 +1,21 @@
-import { createCustomBuy } from 'src/subdomains/core/buy-crypto/routes/buy/__mocks__/buy.entity.mock';
+import { Test } from '@nestjs/testing';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
+import { TestUtil } from 'src/shared/utils/test.util';
 import { Util } from 'src/shared/utils/util';
+import { createCustomBuy } from 'src/subdomains/core/buy-crypto/routes/buy/__mocks__/buy.entity.mock';
 import { createCustomUser } from 'src/subdomains/generic/user/models/user/__mocks__/user.entity.mock';
 import { MissingBuyCryptoLiquidityException } from '../../exceptions/abort-batch-creation.exception';
-import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../buy-crypto-batch.entity';
 import { createCustomBuyCryptoBatch, createDefaultBuyCryptoBatch } from '../__mocks__/buy-crypto-batch.entity.mock';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-crypto.entity.mock';
-
-jest.mock('src/config/config', () => ({
-  Config: {
-    buy: { fee: { limit: 0.001 } },
-  },
-}));
+import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../buy-crypto-batch.entity';
 
 describe('BuyCryptoBatch', () => {
+  beforeEach(async () => {
+    await Test.createTestingModule({
+      providers: [TestUtil.provideConfig()],
+    }).compile();
+  });
+
   describe('#addTransaction(...)', () => {
     it('sets transactions to empty array in case it is undefined', () => {
       const entity = createCustomBuyCryptoBatch({ transactions: undefined });
@@ -196,9 +198,16 @@ describe('BuyCryptoBatch', () => {
 
       expect(batch.transactions.length).toBe(3);
 
-      batch.optimizeByPayoutFeeEstimation();
+      const filteredOutTransactions = batch.optimizeByPayoutFeeEstimation();
 
       expect(batch.transactions.length).toBe(2);
+      expect(batch.transactions[0].outputReferenceAmount).toBe(100);
+      expect(batch.transactions[1].outputReferenceAmount).toBe(10);
+
+      expect(filteredOutTransactions.length).toBe(1);
+      expect(filteredOutTransactions[0].outputReferenceAmount).toBe(1);
+
+      expect(batch.outputReferenceAmount).toBe(110);
     });
   });
 
@@ -385,9 +394,9 @@ function createDiverseBuyCryptoBatch(): BuyCryptoBatch {
     created: undefined,
     outputReferenceAmount: 111,
     transactions: [
-      createCustomBuyCrypto({ outputReferenceAmount: 100 }),
-      createCustomBuyCrypto({ outputReferenceAmount: 10 }),
-      createCustomBuyCrypto({ outputReferenceAmount: 1 }),
+      createCustomBuyCrypto({ id: 1, outputReferenceAmount: 100 }),
+      createCustomBuyCrypto({ id: 2, outputReferenceAmount: 10 }),
+      createCustomBuyCrypto({ id: 3, outputReferenceAmount: 1 }),
     ],
   });
 }

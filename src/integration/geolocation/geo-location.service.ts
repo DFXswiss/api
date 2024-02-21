@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import GeoIp from 'fast-geoip';
+import GeoIp from 'geoip-lite2';
 
 @Injectable()
 export class GeoLocationService {
   async getCountry(ip: string): Promise<string> {
-    const geoLocation = await GeoIp.lookup(ip);
+    const geoLocation = GeoIp.lookup(ip);
     return geoLocation?.country;
   }
 }

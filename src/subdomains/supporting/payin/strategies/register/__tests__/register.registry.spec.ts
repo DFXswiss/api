@@ -1,6 +1,5 @@
 import { mock } from 'jest-mock-extended';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { ChainalysisService } from 'src/integration/chainalysis/services/chainalysis.service';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -11,6 +10,7 @@ import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
 import { PayInBscService } from '../../../services/payin-bsc.service';
 import { PayInDeFiChainService } from '../../../services/payin-defichain.service';
 import { PayInEthereumService } from '../../../services/payin-ethereum.service';
+import { PayInMoneroService } from '../../../services/payin-monero.service';
 import { PayInOptimismService } from '../../../services/payin-optimism.service';
 import { ArbitrumStrategy } from '../impl/arbitrum.strategy';
 import { RegisterStrategyRegistry } from '../impl/base/register.strategy-registry';
@@ -19,11 +19,13 @@ import { BscStrategy } from '../impl/bsc.strategy';
 import { DeFiChainStrategy } from '../impl/defichain.strategy';
 import { EthereumStrategy } from '../impl/ethereum.strategy';
 import { LightningStrategy } from '../impl/lightning.strategy';
+import { MoneroStrategy } from '../impl/monero.strategy';
 import { OptimismStrategy } from '../impl/optimism.strategy';
 
 describe('RegisterStrategyRegistry', () => {
   let bitcoinStrategy: BitcoinStrategy;
   let lightningStrategy: LightningStrategy;
+  let moneroStrategy: MoneroStrategy;
   let defichainStrategy: DeFiChainStrategy;
   let ethereumStrategy: EthereumStrategy;
   let bscStrategy: BscStrategy;
@@ -33,14 +35,11 @@ describe('RegisterStrategyRegistry', () => {
   let registry: RegisterStrategyRegistryWrapper;
 
   beforeEach(() => {
-    bitcoinStrategy = new BitcoinStrategy(
-      mock<AssetService>(),
-      mock<PayInBitcoinService>(),
-      mock<ChainalysisService>(),
-      mock<PayInRepository>(),
-    );
+    bitcoinStrategy = new BitcoinStrategy(mock<AssetService>(), mock<PayInBitcoinService>(), mock<PayInRepository>());
 
     lightningStrategy = new LightningStrategy(mock<LightningService>(), mock<AssetService>(), mock<PayInRepository>());
+
+    moneroStrategy = new MoneroStrategy(mock<AssetService>(), mock<PayInMoneroService>(), mock<PayInRepository>());
 
     defichainStrategy = new DeFiChainStrategy(
       mock<AssetService>(),
@@ -79,6 +78,7 @@ describe('RegisterStrategyRegistry', () => {
     registry = new RegisterStrategyRegistryWrapper(
       bitcoinStrategy,
       lightningStrategy,
+      moneroStrategy,
       defichainStrategy,
       ethereumStrategy,
       bscStrategy,
@@ -99,6 +99,12 @@ describe('RegisterStrategyRegistry', () => {
         const strategy = registry.getRegisterStrategy(createCustomAsset({ blockchain: Blockchain.LIGHTNING }));
 
         expect(strategy).toBeInstanceOf(LightningStrategy);
+      });
+
+      it('gets MONERO strategy for MONERO', () => {
+        const strategy = registry.getRegisterStrategy(createCustomAsset({ blockchain: Blockchain.MONERO }));
+
+        expect(strategy).toBeInstanceOf(MoneroStrategy);
       });
 
       it('gets ETHEREUM strategy for ETHERUM', () => {
@@ -148,6 +154,7 @@ class RegisterStrategyRegistryWrapper extends RegisterStrategyRegistry {
   constructor(
     bitcoinStrategy: BitcoinStrategy,
     lightningStrategy: LightningStrategy,
+    moneroStrategy: MoneroStrategy,
     defichainStrategy: DeFiChainStrategy,
     ethereumStrategy: EthereumStrategy,
     bscStrategy: BscStrategy,
@@ -158,6 +165,7 @@ class RegisterStrategyRegistryWrapper extends RegisterStrategyRegistry {
 
     this.add(Blockchain.BITCOIN, bitcoinStrategy);
     this.add(Blockchain.LIGHTNING, lightningStrategy);
+    this.add(Blockchain.MONERO, moneroStrategy);
     this.add(Blockchain.DEFICHAIN, defichainStrategy);
     this.add(Blockchain.ETHEREUM, ethereumStrategy);
     this.add(Blockchain.BINANCE_SMART_CHAIN, bscStrategy);

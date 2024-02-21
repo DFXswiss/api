@@ -1,13 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { Config, Process } from 'src/config/config';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { IsNull, Not } from 'typeorm';
-import { RefRewardRepository } from './ref-reward.repository';
-import { RewardStatus } from './ref-reward.entity';
-import { Util } from 'src/shared/utils/util';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
+import { Util } from 'src/shared/utils/util';
+import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { IsNull, Not } from 'typeorm';
+import { RewardStatus } from './ref-reward.entity';
+import { RefRewardRepository } from './ref-reward.repository';
 
 @Injectable()
 export class RefRewardNotificationService {
@@ -19,7 +20,7 @@ export class RefRewardNotificationService {
   ) {}
 
   async sendNotificationMails(): Promise<void> {
-    if (Config.processDisabled(Process.REF_REWARD_MAIL)) return;
+    if (DisabledProcess(Process.REF_REWARD_MAIL)) return;
 
     await this.refRewardPayouts();
   }
@@ -48,13 +49,27 @@ export class RefRewardNotificationService {
             type: MailType.USER,
             input: {
               userData: entity.user.userData,
-              translationKey: 'mail.referral',
-              translationParams: {
-                outputAmount: entity.outputAmount,
-                outputAsset: entity.outputAsset,
-                userAddressTrimmed: Util.blankStart(entity.targetAddress),
-                transactionLink: txExplorerUrl(entity.targetBlockchain, entity.txId),
+              title: `${MailTranslationKey.REFERRAL}.title`,
+              salutation: { key: `${MailTranslationKey.REFERRAL}.salutation` },
+              table: {
+                [`${MailTranslationKey.REFERRAL}.output_amount`]: `${entity.outputAmount} ${entity.outputAsset}`,
+                [`${MailTranslationKey.PAYMENT}.blockchain`]: entity.targetBlockchain,
+                [`${MailTranslationKey.PAYMENT}.wallet_address`]: Util.blankStart(entity.targetAddress),
+                [`${MailTranslationKey.PAYMENT}.transaction_id`]: entity.isLightningTransaction
+                  ? Util.blankStart(entity.txId)
+                  : null,
               },
+              suffix: [
+                entity.isLightningTransaction
+                  ? null
+                  : {
+                      key: `${MailTranslationKey.REFERRAL}.payment_link`,
+                      params: { url: txExplorerUrl(entity.targetBlockchain, entity.txId) },
+                    },
+                { key: MailKey.SPACE, params: { value: '4' } },
+                { key: `${MailTranslationKey.REFERRAL}.dfx_ambassador` },
+                { key: MailKey.DFX_TEAM_CLOSING },
+              ],
             },
           });
         } else {

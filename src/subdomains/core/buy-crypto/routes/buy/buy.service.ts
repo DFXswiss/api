@@ -93,7 +93,7 @@ export class BuyService {
 
     // create the entity
     const buy = this.buyRepo.create(dto);
-    buy.user = await this.userService.getUser(userId, true);
+    buy.user = await this.userService.getUser(userId, { userData: true });
     if (dto.iban) buy.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);
 
     // create hash
@@ -105,11 +105,11 @@ export class BuyService {
   }
 
   async getUserBuys(userId: number): Promise<Buy[]> {
-    return this.buyRepo.findBy({ user: { id: userId } });
+    return this.buyRepo.findBy({ user: { id: userId }, asset: { buyable: true } });
   }
 
   async getByBankUsage(bankUsage: string): Promise<Buy> {
-    return this.buyRepo.findOneBy({ bankUsage });
+    return this.buyRepo.findOne({ where: { bankUsage }, relations: ['user', 'user.userData'] });
   }
 
   async getBuyByKey(key: string, value: any): Promise<Buy> {
@@ -119,8 +119,13 @@ export class BuyService {
       .leftJoinAndSelect('buy.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
+      .leftJoinAndSelect('userData.country', 'country')
+      .leftJoinAndSelect('userData.nationality', 'nationality')
+      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+      .leftJoinAndSelect('userData.language', 'language')
       .leftJoinAndSelect('users.wallet', 'wallet')
-      .where(`buy.${key} = :param`, { param: value })
+      .where(`${key.includes('.') ? key : `buy.${key}`} = :param`, { param: value })
       .getOne();
   }
 

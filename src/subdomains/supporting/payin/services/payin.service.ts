@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Process } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
+import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
@@ -50,7 +50,7 @@ export class PayInService {
     payInId: number,
     purpose: PayInPurpose,
     route: Staking | Sell | CryptoRoute,
-  ): Promise<AmlCheck> {
+  ): Promise<CheckStatus> {
     const payIn = await this.payInRepository.findOneBy({ id: payInId });
 
     const amlCheck = await this.doAmlCheck(payIn, route);
@@ -63,13 +63,11 @@ export class PayInService {
   }
 
   async returnPayIn(
-    payInId: number,
+    payIn: CryptoInput,
     purpose: PayInPurpose,
     returnAddress: BlockchainAddress,
     route: Staking | Sell | CryptoRoute,
   ): Promise<void> {
-    const payIn = await this.payInRepository.findOneBy({ id: payInId });
-
     const amlCheck = await this.doAmlCheck(payIn, route);
 
     payIn.triggerReturn(purpose, returnAddress, route, amlCheck);
@@ -98,7 +96,7 @@ export class PayInService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(7200)
   async forwardPayInEntries(): Promise<void> {
-    if (Config.processDisabled(Process.PAY_IN)) return;
+    if (DisabledProcess(Process.PAY_IN)) return;
 
     await this.forwardPayIns();
   }
@@ -106,7 +104,7 @@ export class PayInService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(7200)
   async returnPayInEntries(): Promise<void> {
-    if (Config.processDisabled(Process.PAY_IN)) return;
+    if (DisabledProcess(Process.PAY_IN)) return;
 
     await this.returnPayIns();
   }
@@ -114,7 +112,7 @@ export class PayInService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(7200)
   async retryGettingReferencePrices(): Promise<void> {
-    if (Config.processDisabled(Process.PAY_IN)) return;
+    if (DisabledProcess(Process.PAY_IN)) return;
 
     await this.retryPayIns();
   }
@@ -122,14 +120,14 @@ export class PayInService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(7200)
   async checkInputConfirmations(): Promise<void> {
-    if (Config.processDisabled(Process.PAY_IN)) return;
+    if (DisabledProcess(Process.PAY_IN)) return;
 
     await this.checkConfirmations();
   }
 
   //*** HELPER METHODS ***//
 
-  async doAmlCheck(payIn: CryptoInput, route: Staking | Sell | CryptoRoute): Promise<AmlCheck> {
+  async doAmlCheck(payIn: CryptoInput, route: Staking | Sell | CryptoRoute): Promise<CheckStatus> {
     try {
       const strategy = this.registerStrategyRegistry.getRegisterStrategy(payIn.asset);
       return await strategy.doAmlCheck(payIn, route);
@@ -144,7 +142,7 @@ export class PayInService {
         status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.PREPARING, PayInStatus.PREPARED]),
         sendType: PayInSendType.FORWARD,
         outTxId: IsNull(),
-        amlCheck: AmlCheck.PASS,
+        amlCheck: CheckStatus.PASS,
         asset: Not(IsNull()),
       },
       relations: ['route', 'asset'],
@@ -170,7 +168,7 @@ export class PayInService {
         status: In([PayInStatus.TO_RETURN, PayInStatus.PREPARING, PayInStatus.PREPARED]),
         sendType: PayInSendType.RETURN,
         returnTxId: IsNull(),
-        amlCheck: AmlCheck.PASS,
+        amlCheck: CheckStatus.PASS,
         asset: Not(IsNull()),
       },
       relations: ['route', 'asset'],

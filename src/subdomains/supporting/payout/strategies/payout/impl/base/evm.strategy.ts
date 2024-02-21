@@ -1,5 +1,6 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutOrder } from '../../../../entities/payout-order.entity';
@@ -60,5 +61,11 @@ export abstract class EvmStrategy extends PayoutStrategy {
 
   protected async getPayoutCompletionData(payoutTxId: string): Promise<[boolean, number]> {
     return this.payoutEvmService.getPayoutCompletionData(payoutTxId);
+  }
+
+  protected async getOrderNonce(order: PayoutOrder): Promise<number | undefined> {
+    if (order.payoutTxId && !DisabledProcess(Process.TX_SPEEDUP)) {
+      return this.payoutEvmService.getTxNonce(order.payoutTxId);
+    }
   }
 }

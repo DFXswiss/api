@@ -1,14 +1,14 @@
+import { UserRole } from 'src/shared/auth/user-role.enum';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
+import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
+import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
+import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
+import { StakingRefReward } from 'src/subdomains/core/staking/entities/staking-ref-reward.entity';
+import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
-import { Entity, Column, OneToMany, ManyToOne, Index } from 'typeorm';
-import { UserRole } from 'src/shared/auth/user-role.enum';
-import { IEntity } from 'src/shared/models/entity';
-import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
-import { StakingRefReward } from 'src/subdomains/core/staking/entities/staking-ref-reward.entity';
-import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
-import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
-import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
+import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 
 export enum UserStatus {
   NA = 'NA',
@@ -21,7 +21,7 @@ export class User extends IEntity {
   @Column({ length: 256, unique: true })
   address: string;
 
-  @Column({ length: 700 })
+  @Column({ length: 700, nullable: true })
   signature: string;
 
   @ManyToOne(() => Wallet)
@@ -42,18 +42,6 @@ export class User extends IEntity {
   @Column({ length: 256, nullable: true })
   ipCountry: string;
 
-  @Column({ length: 'MAX', nullable: true })
-  cfpVotes: string;
-
-  @Column({ type: 'float', nullable: true })
-  buyFee: number;
-
-  @Column({ type: 'float', nullable: true })
-  sellFee: number;
-
-  @Column({ type: 'float', nullable: true })
-  cryptoFee: number;
-
   @Column({ length: 256, nullable: true })
   origin: string;
 
@@ -65,22 +53,25 @@ export class User extends IEntity {
   apiFilterCT: string;
 
   @Column({ type: 'float', default: 0 })
-  annualBuyVolume: number;
+  annualBuyVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
-  buyVolume: number;
+  buyVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
-  annualSellVolume: number;
+  annualSellVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
-  sellVolume: number;
+  sellVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
-  annualCryptoVolume: number;
+  annualCryptoVolume: number; // CHF
 
   @Column({ type: 'float', default: 0 })
-  cryptoVolume: number;
+  cryptoVolume: number; // CHF
+
+  @Column({ nullable: true })
+  approved: boolean;
 
   @OneToMany(() => Buy, (buy) => buy.user)
   buys: Buy[];
@@ -106,13 +97,13 @@ export class User extends IEntity {
   refFeePercent: number;
 
   @Column({ type: 'float', default: 0 })
-  refVolume: number;
+  refVolume: number; // EUR
 
   @Column({ type: 'float', default: 0 })
-  refCredit: number;
+  refCredit: number; // EUR
 
   @Column({ type: 'float', nullable: false, default: 0 })
-  paidRefCredit: number;
+  paidRefCredit: number; // EUR
 
   @OneToMany(() => RefReward, (reward) => reward.user)
   refRewards: RefReward[];
@@ -122,4 +113,27 @@ export class User extends IEntity {
 
   @Column({ length: 'MAX', nullable: true })
   comment: string;
+
+  //*** FACTORY METHODS ***//
+  blockUser(reason: string): UpdateResult<User> {
+    const update: Partial<User> = {
+      status: UserStatus.BLOCKED,
+      comment: `${reason} (${new Date().toISOString()}); ${this.comment ?? ''}`,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  activateUser(ref: string): UpdateResult<User> {
+    const update: Partial<User> = {
+      status: UserStatus.ACTIVE,
+      ref,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
 }

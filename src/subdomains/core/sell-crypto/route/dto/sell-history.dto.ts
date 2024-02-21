@@ -1,3 +1,3 @@
-import { HistoryDto } from '../../../history/dto/history.dto';
+import { HistoryDtoDeprecated } from '../../../history/dto/history.dto';
 
-export class SellHistoryDto extends HistoryDto {}
+export class SellHistoryDto extends HistoryDtoDeprecated {}

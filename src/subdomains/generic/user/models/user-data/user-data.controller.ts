@@ -1,14 +1,17 @@
-import { Body, Controller, Get, Param, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
+import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
-import { KycService } from '../kyc/kyc.service';
-import { UpdateKycStatusDto } from './dto/update-kyc-status.dto';
+import { UploadFileDto } from 'src/subdomains/generic/user/models/user-data/dto/upload-file.dto';
+import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
+import { CreateUserDataDto } from './dto/create-user-data.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
-import { UserData } from './user-data.entity';
+import { UserData, UserDataStatus } from './user-data.entity';
 import { UserDataRepository } from './user-data.repository';
 import { UserDataService } from './user-data.service';
 
@@ -19,7 +22,9 @@ export class UserDataController {
     private readonly userDataService: UserDataService,
     private readonly bankDataService: BankDataService,
     private readonly userDataRepo: UserDataRepository,
-    private readonly kycService: KycService,
+    private readonly feeService: FeeService,
+    private readonly storageService: DocumentStorageService,
+    private readonly kycAdminService: KycAdminService,
   ) {}
 
   @Get()
@@ -28,14 +33,6 @@ export class UserDataController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getAllUserData(): Promise<UserData[]> {
     return this.userDataRepo.find();
-  }
-
-  @Get('kycFileId')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getAllUserDataWithEmptyFileId(): Promise<number[]> {
-    return this.userDataService.getAllUserDataWithEmptyFileId();
   }
 
   @Put(':id')
@@ -78,39 +75,56 @@ export class UserDataController {
     return this.userDataService.updateVolumes(+id);
   }
 
+  @Post()
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async createEmptyUserData(@Body() dto: CreateUserDataDto): Promise<UserData> {
+    return this.userDataService.createUserData({ ...dto, status: UserDataStatus.KYC_ONLY });
+  }
+
+  // --- DISCOUNT CODES --- //
+
+  @Put(':id/fee')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async addFee(@Param('id') id: string, @Query('fee') feeId: string): Promise<void> {
+    const userData = await this.userDataService.getUserData(+id);
+    return this.feeService.addFeeInternal(userData, +feeId);
+  }
+
+  @Delete(':id/fee')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async removeFee(@Param('id') id: string, @Query('fee') feeId: string): Promise<void> {
+    const userData = await this.userDataService.getUserData(+id);
+    return this.userDataService.removeFee(userData, +feeId);
+  }
+
   // --- IDENT --- //
-  @Put(':id/kyc')
+
+  @Post(':id/kycFile')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async requestKyc(@Param('id') id: string): Promise<string> {
-    const userData = await this.userDataRepo.findOne({ where: { id: +id }, relations: ['users'] });
+  async uploadKycFile(@Param('id') id: string, @Body() dto: UploadFileDto): Promise<string> {
+    const url = await this.storageService.uploadFile(
+      +id,
+      dto.documentType,
+      dto.originalName,
+      Buffer.from(dto.data, 'base64'),
+      dto.contentType,
+      {
+        document: dto.documentType.toString(),
+        creationTime: new Date().toISOString(),
+        fileName: dto.originalName,
+      },
+    );
 
-    await this.kycService.requestKyc(userData.kycHash);
-    return userData.kycHash;
-  }
+    if (dto.kycLogId != null) await this.kycAdminService.updateLogPdfUrl(dto.kycLogId, url);
 
-  @Get(':id/nameCheck')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getNameCheck(@Param('id') id: string): Promise<string> {
-    return this.kycService.doNameCheck(+id);
-  }
-
-  @Put(':id/resync')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async resyncKycData(@Param('id') id: string): Promise<void> {
-    return this.kycService.resyncKycData(+id);
-  }
-
-  @Put(':id/kycStatus')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateKycStatus(@Param('id') id: string, @Body() dto: UpdateKycStatusDto): Promise<void> {
-    return this.kycService.updateKycStatus(+id, dto);
+    return url;
   }
 }

@@ -60,6 +60,12 @@ export abstract class DexEvmService {
     return [allCoinTransactions, allTokenTransactions];
   }
 
+  async getTargetAmount(sourceAsset: Asset, sourceAmount: number, targetAsset: Asset): Promise<number> {
+    if (sourceAsset.dexName === targetAsset.dexName) return sourceAmount;
+
+    return this.#client.testSwap(sourceAsset, sourceAmount, targetAsset);
+  }
+
   fromWeiAmount(amountWeiLike: string, decimals?: number): number {
     return this.#client.fromWeiAmount(amountWeiLike, decimals);
   }
@@ -74,12 +80,6 @@ export abstract class DexEvmService {
 
   //*** HELPER METHODS ***//
 
-  private async getTargetAmount(sourceAsset: Asset, sourceAmount: number, targetAsset: Asset): Promise<number> {
-    if (sourceAsset.dexName === targetAsset.dexName) return sourceAmount;
-
-    return this.#client.testSwap(sourceAsset, sourceAmount, targetAsset);
-  }
-
   private async getTokenAvailableAmount(asset: Asset): Promise<number> {
     const pendingAmount = await this.getPendingAmount(asset.dexName);
     const availableAmount = await this.#client.getTokenBalance(asset);
@@ -93,6 +93,6 @@ export abstract class DexEvmService {
       (o) => o.targetAsset.dexName === assetName && o.targetAsset.blockchain === this.blockchain,
     );
 
-    return Util.sumObj<LiquidityOrder>(pendingOrders, 'estimatedTargetAmount');
+    return Util.sumObjValue<LiquidityOrder>(pendingOrders, 'estimatedTargetAmount');
   }
 }

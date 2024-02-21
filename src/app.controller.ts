@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, Redirect, Req, Res } from '@nestjs/common';
+import { Controller, Get, Param, Query, Redirect, Req, Res, VERSION_NEUTRAL, Version } from '@nestjs/common';
 import { ApiExcludeEndpoint } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { UserAgent } from 'express-useragent';
@@ -32,8 +32,8 @@ export class AppController {
 
   private readonly appUrls = {
     [App.BTC]: {
-      [Manufacturer.APPLE]: `${this.appleStoreUrl}/id6443845399`,
-      [Manufacturer.GOOGLE]: `${this.googleStoreUrl}?id=com.defichain.app.dfx.bitcoin`,
+      [Manufacturer.APPLE]: `${this.appleStoreUrl}/id6466037617`,
+      [Manufacturer.GOOGLE]: `${this.googleStoreUrl}?id=swiss.dfx.bitcoin`,
     },
     [App.EXCHANGE]: 'https://exchange.dfx.swiss',
     [App.LIGHTNING]: 'https://lightning.dfx.swiss',
@@ -48,6 +48,7 @@ export class AppController {
   @Get()
   @Redirect('swagger')
   @ApiExcludeEndpoint()
+  @Version(VERSION_NEUTRAL)
   async home(): Promise<any> {
     // nothing to do (redirect to Swagger UI)
   }

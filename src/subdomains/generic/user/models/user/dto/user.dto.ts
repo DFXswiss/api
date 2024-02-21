@@ -1,9 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
+import { HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { AccountType } from '../../user-data/account-type.enum';
-import { KycState, KycStatus, LimitPeriod } from '../../user-data/user-data.entity';
+import { KycLevel, KycState, KycStatus, LimitPeriod } from '../../user-data/user-data.entity';
 import { UserStatus } from '../user.entity';
 import { LinkedUserOutDto } from './linked-user.dto';
 
@@ -28,6 +28,9 @@ export class UserDto {
   accountType: AccountType;
 
   @ApiProperty()
+  wallet: string;
+
+  @ApiProperty()
   address: string;
 
   @ApiProperty({ enum: UserStatus })
@@ -45,11 +48,14 @@ export class UserDto {
   @ApiProperty({ type: Language })
   language: Language;
 
-  @ApiProperty({ enum: KycStatus })
+  @ApiProperty({ enum: KycStatus, deprecated: true })
   kycStatus: KycStatus;
 
-  @ApiProperty({ enum: KycState })
+  @ApiProperty({ enum: KycState, deprecated: true })
   kycState: KycState;
+
+  @ApiProperty({ enum: KycLevel })
+  kycLevel: KycLevel;
 
   @ApiProperty()
   kycHash: string;
@@ -57,7 +63,7 @@ export class UserDto {
   @ApiProperty({ type: TradingLimit })
   tradingLimit: TradingLimit;
 
-  @ApiProperty()
+  @ApiProperty({ deprecated: true })
   kycDataComplete: boolean;
 
   @ApiProperty()
@@ -76,7 +82,7 @@ export class UserDetailDto extends UserDto implements UserDetails {
   @ApiPropertyOptional()
   refFeePercent?: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Referral volume in EUR' })
   refVolume?: number;
 
   @ApiPropertyOptional()
@@ -91,13 +97,13 @@ export class UserDetailDto extends UserDto implements UserDetails {
   @ApiPropertyOptional()
   refCountActive?: number;
 
-  @ApiProperty({ type: VolumeInformation })
+  @ApiProperty({ type: VolumeInformation, description: 'Buy volume in CHF' })
   buyVolume: VolumeInformation;
 
-  @ApiProperty({ type: VolumeInformation })
+  @ApiProperty({ type: VolumeInformation, description: 'Sell volume in CHF' })
   sellVolume: VolumeInformation;
 
-  @ApiProperty({ type: VolumeInformation })
+  @ApiProperty({ type: VolumeInformation, description: 'Crypto volume in CHF' })
   cryptoVolume: VolumeInformation;
 
   @ApiProperty()

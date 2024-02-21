@@ -1,29 +1,23 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { CryptoRouteRepository } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.repository';
+import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { CryptoRouteService } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.service';
 import { createCustomHistory } from 'src/subdomains/core/history/dto/__mocks__/history.dto.mock';
-import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
-import { SettingService } from 'src/shared/models/setting/setting.service';
-import { TestSharedModule } from 'src/shared/utils/test.shared.module';
-import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
+import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
+import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
-import { BankTxRepository } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.repository';
-import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
-import { createCustomBuyHistory } from '../../../routes/buy/dto/__mocks__/buy-history.dto.mock';
-import { BuyCrypto } from '../../entities/buy-crypto.entity';
-import { createCustomBuyCrypto } from '../../entities/__mocks__/buy-crypto.entity.mock';
-import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
-import { BuyCryptoBatchService } from '../buy-crypto-batch.service';
-import { BuyCryptoDexService } from '../buy-crypto-dex.service';
-import { BuyCryptoNotificationService } from '../buy-crypto-notification.service';
-import { BuyCryptoOutService } from '../buy-crypto-out.service';
-import { BuyCryptoRegistrationService } from '../buy-crypto-registration.service';
-import { BuyCryptoService } from '../buy-crypto.service';
+import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
+import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 import { BuyRepository } from '../../../routes/buy/buy.repository';
 import { BuyService } from '../../../routes/buy/buy.service';
-import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
+import { createCustomBuyHistory } from '../../../routes/buy/dto/__mocks__/buy-history.dto.mock';
+import { createCustomBuyCrypto } from '../../entities/__mocks__/buy-crypto.entity.mock';
+import { BuyCrypto } from '../../entities/buy-crypto.entity';
+import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
+import { BuyCryptoWebhookService } from '../buy-crypto-webhook.service';
+import { BuyCryptoService } from '../buy-crypto.service';
 
 enum MockBuyData {
   DEFAULT,
@@ -38,60 +32,42 @@ describe('BuyCryptoService', () => {
   let service: BuyCryptoService;
 
   let buyCryptoRepo: BuyCryptoRepository;
-  let bankTxRepo: BankTxRepository;
   let bankTxService: BankTxService;
-  let cryptoRouteRepo: CryptoRouteRepository;
   let buyRepo: BuyRepository;
-  let settingService: SettingService;
   let buyService: BuyService;
   let cryptoRouteService: CryptoRouteService;
-  let buyCryptoBatchService: BuyCryptoBatchService;
-  let buyCryptoOutService: BuyCryptoOutService;
-  let buyCryptoDexService: BuyCryptoDexService;
-  let buyCryptoRegistrationService: BuyCryptoRegistrationService;
-  let buyCryptoNotificationService: BuyCryptoNotificationService;
   let userService: UserService;
   let buyFiatService: BuyFiatService;
-  let webhookService: WebhookService;
+  let buyCryptoWebhookService: BuyCryptoWebhookService;
+  let assetService: AssetService;
+  let bankDataService: BankDataService;
 
   beforeEach(async () => {
     buyCryptoRepo = createMock<BuyCryptoRepository>();
-    bankTxRepo = createMock<BankTxRepository>();
     bankTxService = createMock<BankTxService>();
-    cryptoRouteRepo = createMock<CryptoRouteRepository>();
     buyRepo = createMock<BuyRepository>();
-    settingService = createMock<SettingService>();
     buyService = createMock<BuyService>();
     cryptoRouteService = createMock<CryptoRouteService>();
-    buyCryptoBatchService = createMock<BuyCryptoBatchService>();
-    buyCryptoOutService = createMock<BuyCryptoOutService>();
-    buyCryptoDexService = createMock<BuyCryptoDexService>();
-    buyCryptoNotificationService = createMock<BuyCryptoNotificationService>();
-    buyCryptoRegistrationService = createMock<BuyCryptoRegistrationService>();
     userService = createMock<UserService>();
     buyFiatService = createMock<BuyFiatService>();
-    webhookService = createMock<WebhookService>();
+    buyCryptoWebhookService = createMock<BuyCryptoWebhookService>();
+    assetService = createMock<AssetService>();
+    bankDataService = createMock<BankDataService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
       providers: [
         BuyCryptoService,
         { provide: BuyCryptoRepository, useValue: buyCryptoRepo },
-        { provide: BankTxRepository, useValue: bankTxRepo },
         { provide: BankTxService, useValue: bankTxService },
-        { provide: CryptoRouteRepository, useValue: cryptoRouteRepo },
         { provide: BuyRepository, useValue: buyRepo },
-        { provide: SettingService, useValue: settingService },
         { provide: BuyService, useValue: buyService },
         { provide: CryptoRouteService, useValue: cryptoRouteService },
-        { provide: BuyCryptoBatchService, useValue: buyCryptoBatchService },
-        { provide: BuyCryptoOutService, useValue: buyCryptoOutService },
-        { provide: BuyCryptoDexService, useValue: buyCryptoDexService },
-        { provide: BuyCryptoNotificationService, useValue: buyCryptoNotificationService },
-        { provide: BuyCryptoRegistrationService, useValue: buyCryptoRegistrationService },
         { provide: UserService, useValue: userService },
         { provide: BuyFiatService, useValue: buyFiatService },
-        { provide: WebhookService, useValue: webhookService },
+        { provide: BuyCryptoWebhookService, useValue: buyCryptoWebhookService },
+        { provide: AssetService, useValue: assetService },
+        { provide: BankDataService, useValue: bankDataService },
       ],
     }).compile();
 

@@ -1,6 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BuyCryptoStatus } from '../../buy-crypto/process/entities/buy-crypto.entity';
-import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
+import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
+import { ExportType } from '../services/history.service';
+import { ChainReportCsvHistoryDto } from './output/chain-report-history.dto';
+import { CoinTrackingCsvHistoryDto } from './output/coin-tracking-history.dto';
+import { TransactionDto } from './output/transaction.dto';
 
 export enum HistoryTransactionType {
   BUY = 'Buy',
@@ -14,7 +18,13 @@ export enum PaymentStatus {
   COMPLETE = 'Complete',
 }
 
-export class HistoryDto {
+export type HistoryDto<T> = T extends ExportType.COMPACT
+  ? TransactionDto
+  : T extends ExportType.COIN_TRACKING
+  ? CoinTrackingCsvHistoryDto
+  : ChainReportCsvHistoryDto;
+
+export class HistoryDtoDeprecated {
   @ApiProperty()
   inputAmount: number;
 
@@ -37,7 +47,7 @@ export class HistoryDto {
   date: Date;
 
   @ApiProperty()
-  amlCheck: AmlCheck;
+  amlCheck: CheckStatus;
 
   @ApiProperty({ deprecated: true })
   isComplete: boolean;
@@ -62,7 +72,7 @@ export const PaymentStatusMapper: {
   [BuyCryptoStatus.WAITING_FOR_LOWER_FEE]: PaymentStatus.FEE_TOO_HIGH,
 };
 
-export class TypedHistoryDto extends HistoryDto {
+export class TypedHistoryDto extends HistoryDtoDeprecated {
   @ApiProperty({ enum: HistoryTransactionType })
   type: HistoryTransactionType;
 }

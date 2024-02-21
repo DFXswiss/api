@@ -1,30 +1,23 @@
 import { Injectable } from '@nestjs/common';
 import { GetConfig } from 'src/config/config';
-import { ArbitrumClient } from './arbitrum-client';
-import { EvmService } from '../shared/evm/evm.service';
+import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
 import { HttpService } from 'src/shared/services/http.service';
+import { EvmService } from '../shared/evm/evm.service';
+import { ArbitrumClient } from './arbitrum-client';
 
 @Injectable()
 export class ArbitrumService extends EvmService {
-  constructor(http: HttpService) {
-    const {
-      arbitrumScanApiUrl,
-      arbitrumScanApiKey,
-      arbitrumGatewayUrl,
-      arbitrumApiKey,
-      arbitrumWalletPrivateKey,
-      arbitrumChainId,
-    } = GetConfig().blockchain.arbitrum;
+  constructor(http: HttpService, alchemyService: AlchemyService) {
+    const { arbitrumGatewayUrl, arbitrumApiKey, arbitrumWalletPrivateKey, arbitrumChainId } =
+      GetConfig().blockchain.arbitrum;
 
-    super(
+    super(ArbitrumClient, {
       http,
-      arbitrumScanApiUrl,
-      arbitrumScanApiKey,
-      arbitrumGatewayUrl,
-      arbitrumApiKey,
-      arbitrumWalletPrivateKey,
-      arbitrumChainId,
-      ArbitrumClient,
-    );
+      alchemyService,
+      gatewayUrl: arbitrumGatewayUrl,
+      apiKey: arbitrumApiKey,
+      walletPrivateKey: arbitrumWalletPrivateKey,
+      chainId: arbitrumChainId,
+    });
   }
 }

@@ -3,9 +3,9 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { TransactionHelper } from 'src/shared/payment/services/transaction-helper';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CryptoInput, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';

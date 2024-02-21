@@ -1,40 +1,39 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { createMock } from '@golevelup/ts-jest';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { CountryService } from 'src/shared/models/country/country.service';
+import { Test, TestingModule } from '@nestjs/testing';
 import { createCustomCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
-import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { BankSelectorInput, BankService } from '../bank.service';
+import { CountryService } from 'src/shared/models/country/country.service';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { TestSharedModule } from 'src/shared/utils/test.shared.module';
+import { TestUtil } from 'src/shared/utils/test.util';
+import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
-import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
 import { createDefaultBankAccount } from 'src/subdomains/supporting/bank/bank-account/__mocks__/bank-account.entity.mock';
-import { BankRepository } from '../bank.repository';
+import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
+import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
+import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import {
   createDefaultBanks,
   createDefaultDisabledBanks,
   frickCHF,
-  frickEUR,
   frickUSD,
   maerkiCHF,
   maerkiEUR,
   olkyEUR,
 } from '../__mocks__/bank.entity.mock';
-import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
-import { TestSharedModule } from 'src/shared/utils/test.shared.module';
-import { TestUtil } from 'src/shared/utils/test.util';
+import { BankRepository } from '../bank.repository';
+import { BankSelectorInput, BankService } from '../bank.service';
 
 function createBankSelectorInput(
   currency = 'EUR',
   amount = 1,
   bankAccount: BankAccount = createDefaultBankAccount(),
-  kycStatus: KycStatus = KycStatus.COMPLETED,
+  paymentMethod: FiatPaymentMethod = FiatPaymentMethod.BANK,
 ): BankSelectorInput {
   return {
-    bankAccount: bankAccount,
-    amount: amount,
-    currency: currency,
-    kycStatus: kycStatus,
+    bankAccount,
+    amount,
+    currency,
+    paymentMethod,
   };
 }
 
@@ -100,9 +99,11 @@ describe('BankService', () => {
     });
   });
 
-  it('should return Olkypay if currency = EUR & sctInst & KYC completed', async () => {
+  it('should return Olkypay if currency = EUR & sctInst & Method instant', async () => {
     defaultSetup();
-    await expect(service.getBank(createBankSelectorInput('EUR'))).resolves.toMatchObject({
+    await expect(
+      service.getBank(createBankSelectorInput('EUR', undefined, undefined, FiatPaymentMethod.INSTANT)),
+    ).resolves.toMatchObject({
       iban: olkyEUR.iban,
       bic: olkyEUR.bic,
     });
@@ -116,17 +117,19 @@ describe('BankService', () => {
     });
   });
 
-  it('should return BF as default', async () => {
+  it('should return MB as default', async () => {
     defaultSetup(false);
     await expect(service.getBank(createBankSelectorInput('GBP'))).resolves.toMatchObject({
-      iban: frickEUR.iban,
-      bic: frickEUR.bic,
+      iban: maerkiEUR.iban,
+      bic: maerkiEUR.bic,
     });
   });
 
-  it('should return maerki if currency = EUR & sctInst & KYC completed & olky disabled', async () => {
+  it('should return maerki if currency = EUR & sctInst & Method instant & olky disabled', async () => {
     defaultSetup(true, true);
-    await expect(service.getBank(createBankSelectorInput('EUR'))).resolves.toMatchObject({
+    await expect(
+      service.getBank(createBankSelectorInput('EUR', undefined, undefined, FiatPaymentMethod.INSTANT)),
+    ).resolves.toMatchObject({
       iban: maerkiEUR.iban,
       bic: maerkiEUR.bic,
     });

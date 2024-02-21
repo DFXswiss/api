@@ -3,7 +3,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
-import { Column, Entity, Index, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, ManyToOne as OneToOne } from 'typeorm';
 import { LiquidityManagementContext, LiquidityManagementRuleStatus, LiquidityOptimizationType } from '../enums';
 import { LiquidityState } from '../interfaces';
 import { LiquidityManagementRuleInitSpecification } from '../specifications/liquidity-management-rule-init.specification';
@@ -19,7 +19,8 @@ export class LiquidityManagementRule extends IEntity {
   @Column({ length: 256, nullable: true })
   status: LiquidityManagementRuleStatus;
 
-  @ManyToOne(() => Asset, { eager: true, nullable: true })
+  @OneToOne(() => Asset, { eager: true, nullable: true })
+  @JoinColumn()
   targetAsset: Asset;
 
   @ManyToOne(() => Fiat, { eager: true, nullable: true })

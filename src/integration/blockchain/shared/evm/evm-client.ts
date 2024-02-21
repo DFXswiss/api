@@ -1,35 +1,58 @@
 import { ChainId, CurrencyAmount, Percent, Token, TradeType } from '@uniswap/sdk-core';
 import { AlphaRouter, SwapType } from '@uniswap/smart-order-router';
+import { AssetTransfersCategory } from 'alchemy-sdk';
 import BigNumber from 'bignumber.js';
 import { BigNumberish, Contract, BigNumber as EthersNumber, ethers } from 'ethers';
+import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import ERC20_ABI from './abi/erc20.abi.json';
 import { WalletAccount } from './domain/wallet-account';
-import { ScanApiResponse } from './dto/scan-api-response.dto';
+import { EvmTokenBalance } from './dto/evm-token-balance.dto';
 import { EvmUtil } from './evm.util';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
 
+export interface EvmClientParams {
+  http: HttpService;
+  alchemyService?: AlchemyService;
+  gatewayUrl: string;
+  apiKey: string;
+  walletPrivateKey: string;
+  chainId: ChainId;
+  scanApiUrl?: string;
+  scanApiKey?: string;
+}
+
+interface AssetTransfersParams {
+  fromAddress?: string;
+  toAddress?: string;
+  fromBlock: number;
+  categories: AssetTransfersCategory[];
+}
+
 export abstract class EvmClient {
+  protected http: HttpService;
+  private alchemyService: AlchemyService;
+  private chainId: ChainId;
+
   protected provider: ethers.providers.JsonRpcProvider;
   protected randomReceiverAddress = '0x4975f78e8903548bD33aF404B596690D47588Ff5';
   protected wallet: ethers.Wallet;
-  protected nonce = new Map<string, number>();
-  protected tokens = new AsyncCache<Token>();
+  private nonce = new Map<string, number>();
+  private tokens = new AsyncCache<Token>();
   private router: AlphaRouter;
 
-  constructor(
-    protected http: HttpService,
-    protected scanApiUrl: string,
-    protected scanApiKey: string,
-    protected chainId: ChainId,
-    gatewayUrl: string,
-    privateKey: string,
-  ) {
-    this.provider = new ethers.providers.JsonRpcProvider(gatewayUrl);
-    this.wallet = new ethers.Wallet(privateKey, this.provider);
+  constructor(params: EvmClientParams) {
+    this.http = params.http;
+    this.alchemyService = params.alchemyService;
+    this.chainId = params.chainId;
+
+    const url = `${params.gatewayUrl}/${params.apiKey ?? ''}`;
+    this.provider = new ethers.providers.JsonRpcProvider(url);
+
+    this.wallet = new ethers.Wallet(params.walletPrivateKey, this.provider);
 
     this.router = new AlphaRouter({
       chainId: this.chainId,
@@ -40,33 +63,42 @@ export abstract class EvmClient {
   // --- PUBLIC API - GETTERS --- //
 
   async getNativeCoinTransactions(walletAddress: string, fromBlock: number): Promise<EvmCoinHistoryEntry[]> {
-    return this.getHistory(walletAddress, fromBlock, 'txlist');
+    const categories = this.alchemyService.getNativeCoinCategories(this.chainId);
+
+    return this.getHistory(walletAddress, fromBlock, categories);
   }
 
   async getERC20Transactions(walletAddress: string, fromBlock: number): Promise<EvmTokenHistoryEntry[]> {
-    return this.getHistory(walletAddress, fromBlock, 'tokentx');
+    const categories = this.alchemyService.getERC20Categories(this.chainId);
+
+    return this.getHistory(walletAddress, fromBlock, categories);
   }
 
   async getNativeCoinBalance(): Promise<number> {
-    return this.getNativeCoinBalanceOfAddress(this.dfxAddress);
-  }
-
-  async getTokenBalance(token: Asset): Promise<number> {
-    return this.getTokenBalanceOfAddress(this.dfxAddress, token);
-  }
-
-  async getNativeCoinBalanceOfAddress(address: string): Promise<number> {
-    const balance = await this.provider.getBalance(address);
+    const balance = await this.alchemyService.getNativeCoinBalance(this.chainId, this.dfxAddress);
 
     return this.fromWeiAmount(balance);
   }
 
-  async getTokenBalanceOfAddress(address: string, asset: Asset): Promise<number> {
-    const contract = this.getERC20ContractForDex(asset.chainId);
-    const balance = await contract.balanceOf(address);
-    const token = await this.getToken(contract);
+  async getTokenBalance(asset: Asset): Promise<number> {
+    const evmTokenBalances = await this.getTokenBalances([asset]);
 
-    return this.fromWeiAmount(balance, token.decimals);
+    return evmTokenBalances[0]?.balance ?? 0;
+  }
+
+  async getTokenBalances(assets: Asset[]): Promise<EvmTokenBalance[]> {
+    const evmTokenBalances: EvmTokenBalance[] = [];
+
+    const tokenBalances = await this.alchemyService.getTokenBalances(this.chainId, this.dfxAddress, assets);
+
+    for (const tokenBalance of tokenBalances) {
+      const token = await this.getTokenByAddress(tokenBalance.contractAddress);
+      const balance = this.fromWeiAmount(tokenBalance.tokenBalance ?? 0, token.decimals);
+
+      evmTokenBalances.push({ contractAddress: tokenBalance.contractAddress, balance: balance });
+    }
+
+    return evmTokenBalances;
   }
 
   async getRecommendedGasPrice(): Promise<EthersNumber> {
@@ -134,8 +166,8 @@ export abstract class EvmClient {
     return this.sendNativeCoin(wallet, toAddress, amount, feeLimit);
   }
 
-  async sendNativeCoinFromDex(toAddress: string, amount: number, feeLimit?: number): Promise<string> {
-    return this.sendNativeCoin(this.wallet, toAddress, amount, feeLimit);
+  async sendNativeCoinFromDex(toAddress: string, amount: number, feeLimit?: number, nonce?: number): Promise<string> {
+    return this.sendNativeCoin(this.wallet, toAddress, amount, feeLimit, nonce);
   }
 
   async sendTokenFromAccount(
@@ -152,10 +184,16 @@ export abstract class EvmClient {
     return this.sendToken(contract, wallet.address, toAddress, amount, feeLimit);
   }
 
-  async sendTokenFromDex(toAddress: string, token: Asset, amount: number, feeLimit?: number): Promise<string> {
+  async sendTokenFromDex(
+    toAddress: string,
+    token: Asset,
+    amount: number,
+    feeLimit?: number,
+    nonce?: number,
+  ): Promise<string> {
     const contract = this.getERC20ContractForDex(token.chainId);
 
-    return this.sendToken(contract, this.dfxAddress, toAddress, amount, feeLimit);
+    return this.sendToken(contract, this.dfxAddress, toAddress, amount, feeLimit, nonce);
   }
 
   // --- PUBLIC API - UTILITY --- //
@@ -172,6 +210,10 @@ export abstract class EvmClient {
 
   async getTxReceipt(txHash: string): Promise<ethers.providers.TransactionReceipt> {
     return this.provider.getTransactionReceipt(txHash);
+  }
+
+  async getTxNonce(txHash: string): Promise<number> {
+    return this.provider.getTransaction(txHash).then((r) => r?.nonce);
   }
 
   async getTxActualFee(txHash: string): Promise<number> {
@@ -217,9 +259,8 @@ export abstract class EvmClient {
   // --- PUBLIC HELPER METHODS --- //
 
   fromWeiAmount(amountWeiLike: BigNumberish, decimals?: number): number {
-    const amount = decimals
-      ? ethers.utils.formatUnits(amountWeiLike, decimals)
-      : ethers.utils.formatEther(amountWeiLike);
+    const amount =
+      decimals != null ? ethers.utils.formatUnits(amountWeiLike, decimals) : ethers.utils.formatEther(amountWeiLike);
 
     return parseFloat(amount);
   }
@@ -273,12 +314,13 @@ export abstract class EvmClient {
     toAddress: string,
     amount: number,
     feeLimit?: number,
+    nonce?: number,
   ): Promise<string> {
     const fromAddress = wallet.address;
 
     const gasLimit = await this.getCurrentGasForCoinTransaction(fromAddress, amount);
     const gasPrice = await this.getGasPrice(+gasLimit, feeLimit);
-    const nonce = await this.getNonce(fromAddress);
+    nonce ??= (await this.getNonce(fromAddress)) + 1;
 
     const tx = await wallet.sendTransaction({
       from: fromAddress,
@@ -289,7 +331,7 @@ export abstract class EvmClient {
       gasLimit,
     });
 
-    this.nonce.set(fromAddress, nonce + 1);
+    this.nonce.set(fromAddress, nonce);
 
     return tx.hash;
   }
@@ -308,17 +350,18 @@ export abstract class EvmClient {
     toAddress: string,
     amount: number,
     feeLimit?: number,
+    nonce?: number,
   ): Promise<string> {
     const gasLimit = +(await this.getTokenGasLimitForContact(contract));
     const gasPrice = await this.getGasPrice(gasLimit, feeLimit);
-    const nonce = await this.getNonce(fromAddress);
+    nonce ??= (await this.getNonce(fromAddress)) + 1;
 
     const token = await this.getToken(contract);
     const targetAmount = this.toWeiAmount(amount, token.decimals);
 
     const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit, nonce });
 
-    this.nonce.set(fromAddress, nonce + 1);
+    this.nonce.set(fromAddress, nonce);
 
     return tx.hash;
   }
@@ -334,25 +377,40 @@ export abstract class EvmClient {
     const blockchainNonce = await this.provider.getTransactionCount(address);
     const cachedNonce = this.nonce.get(address) ?? 0;
 
-    const currentNonce = blockchainNonce > cachedNonce ? blockchainNonce : cachedNonce;
-
-    return currentNonce;
+    return Math.max(blockchainNonce, cachedNonce);
   }
 
-  private async getHistory<T>(walletAddress: string, fromBlock: number, type: string): Promise<T[]> {
-    const params = {
-      module: 'account',
-      address: walletAddress,
-      startblock: fromBlock,
-      apikey: this.scanApiKey,
-      sort: 'asc',
-      action: type,
+  private async getHistory<T>(
+    walletAddress: string,
+    fromBlock: number,
+    categories: AssetTransfersCategory[],
+  ): Promise<T[]> {
+    const params: AssetTransfersParams = {
+      fromAddress: walletAddress,
+      toAddress: undefined,
+      fromBlock: fromBlock,
+      categories: categories,
     };
 
-    const { result, message } = await this.http.get<ScanApiResponse<T[]>>(this.scanApiUrl, { params });
+    const assetTransferResult = await this.alchemyService.getAssetTransfers(this.chainId, params);
 
-    if (!Array.isArray(result)) throw new Error(`Failed to get ${type} transactions: ${result ?? message}`);
+    params.fromAddress = undefined;
+    params.toAddress = walletAddress;
 
-    return result;
+    assetTransferResult.push(...(await this.alchemyService.getAssetTransfers(this.chainId, params)));
+
+    assetTransferResult.sort((atr1, atr2) => Number(atr1.blockNum) - Number(atr2.blockNum));
+
+    return <T[]>assetTransferResult.map((atr) => ({
+      blockNumber: Number(atr.blockNum).toString(),
+      timeStamp: Number(new Date(atr.metadata.blockTimestamp).getTime() / 1000).toString(),
+      hash: atr.hash,
+      from: atr.from,
+      to: atr.to,
+      value: Number(atr.rawContract.value).toString(),
+      contractAddress: atr.rawContract.address ?? '',
+      tokenName: atr.asset,
+      tokenDecimal: Number(atr.rawContract.decimal).toString(),
+    }));
   }
 }

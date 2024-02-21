@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEnum, IsNotEmpty, IsNotEmptyObject, ValidateNested } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNotEmptyObject, IsOptional, ValidateIf, ValidateNested } from 'class-validator';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -11,9 +11,16 @@ export class CreateCryptoRouteDto {
   @IsEnum(Blockchain)
   blockchain: Blockchain;
 
-  @ApiProperty({ type: EntityDto })
-  @IsNotEmptyObject()
+  @ApiProperty({ type: EntityDto, deprecated: true, description: 'Use the targetAsset property' })
+  @IsOptional()
   @ValidateNested()
   @Type(() => EntityDto)
   asset: Asset;
+
+  @ApiProperty({ type: EntityDto })
+  @IsNotEmptyObject()
+  @ValidateIf((dto: CreateCryptoRouteDto) => Boolean(dto.targetAsset || !dto.asset))
+  @ValidateNested()
+  @Type(() => EntityDto)
+  targetAsset: Asset;
 }

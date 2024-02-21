@@ -1,12 +1,12 @@
 import { cloneDeep } from 'lodash';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { Price } from '../domain/entities/price';
-import { PriceMismatchException } from '../domain/exceptions/price-mismatch.exception';
 import { Fiat } from '../domain/enums';
+import { PriceMismatchException } from '../domain/exceptions/price-mismatch.exception';
 import { PriceStepResult, PricingProvider, PricingProviderName } from '../domain/interfaces';
 import { PriceStepInitSpecification } from '../domain/specifications/price-step-init.specification';
 import { PricingUtil } from './pricing.util';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Util } from 'src/shared/utils/util';
 
 export interface PriceStepOptions {
   from?: string | 'input';
@@ -127,15 +127,15 @@ export class PriceStep {
 
   private defineMatchThreshold(fromCurrency: string, toCurrency: string): number {
     if (
-      PricingUtil.isUsdStablecoin(fromCurrency) ||
-      PricingUtil.isUsdStablecoin(toCurrency) ||
+      PricingUtil.isUsdStableCoin(fromCurrency) ||
+      PricingUtil.isUsdStableCoin(toCurrency) ||
       fromCurrency === Fiat.USD ||
       toCurrency === Fiat.USD
     ) {
       return 0.005;
     }
 
-    return 0.02;
+    return 0.04;
   }
 
   private async getPrice(

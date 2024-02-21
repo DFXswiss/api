@@ -1,17 +1,19 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { getClientIp } from '@supercharge/request-ip';
-import { IpLogService } from '../models/ip-log/ip-log.service';
+import { DfxLogger } from '../services/dfx-logger';
 
 @Injectable()
 export class IpGuard implements CanActivate {
-  constructor(private ipLogService: IpLogService) {}
+  private readonly logger = new DfxLogger(IpGuard);
+
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest();
     const ip = getClientIp(req);
 
-    const ipLog = await this.ipLogService.create(ip, req.url, req.body.address);
-    if (!ipLog.result) throw new ForbiddenException('The country of IP address is not allowed');
+    // TODO: switch back
+    if (ip !== req.user?.ip) this.logger.verbose(`IP mismatch for user ${req.user?.id}`);
+    // if (ip !== req.user?.ip) throw new UnauthorizedException('IP is not matching token IP');
 
-    return ipLog.result;
+    return true;
   }
 }

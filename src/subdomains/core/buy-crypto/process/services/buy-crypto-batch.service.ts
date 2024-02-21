@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { FeeLimitExceededException } from 'src/shared/payment/exceptions/fee-limit-exceeded.exception';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityManagementRuleStatus } from 'src/subdomains/core/liquidity-management/enums';
@@ -9,6 +8,7 @@ import { LiquidityManagementService } from 'src/subdomains/core/liquidity-manage
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { CheckLiquidityRequest, CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
+import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
@@ -18,7 +18,6 @@ import { PriceRequest, PriceResult } from 'src/subdomains/supporting/pricing/dom
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { In, IsNull, Not } from 'typeorm';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
-import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
 import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { MissingBuyCryptoLiquidityException } from '../exceptions/abort-batch-creation.exception';
 import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repository';
@@ -41,46 +40,6 @@ export class BuyCryptoBatchService {
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly liquidityService: LiquidityManagementService,
   ) {}
-
-  async prepareTransactions(): Promise<void> {
-    try {
-      const txInput = await this.buyCryptoRepo.find({
-        where: {
-          inputReferenceAmountMinusFee: Not(IsNull()),
-          outputReferenceAsset: IsNull(),
-          outputAsset: IsNull(),
-          batch: IsNull(),
-        },
-        relations: [
-          'bankTx',
-          'buy',
-          'buy.user',
-          'buy.asset',
-          'batch',
-          'cryptoRoute',
-          'cryptoRoute.user',
-          'cryptoRoute.asset',
-        ],
-      });
-
-      if (txInput.length === 0) return;
-
-      this.logger.verbose(
-        `Buy-crypto transaction input. Processing ${txInput.length} transaction(s). Transaction ID(s): ${txInput.map(
-          (t) => t.id,
-        )}`,
-      );
-
-      const txWithAssets = await this.defineAssetPair(txInput);
-      const txWithFeeConstraints = this.setFeeConstraints(txWithAssets);
-
-      for (const tx of txWithFeeConstraints) {
-        await this.buyCryptoRepo.save(tx);
-      }
-    } catch (e) {
-      this.logger.error('Error during buy-crypto preparation:', e);
-    }
-  }
 
   async batchAndOptimizeTransactions(): Promise<void> {
     try {
@@ -131,45 +90,6 @@ export class BuyCryptoBatchService {
     } catch (e) {
       this.logger.error('Error during buy-crypto batching:', e);
     }
-  }
-
-  private async defineAssetPair(transactions: BuyCrypto[]): Promise<BuyCrypto[]> {
-    for (const tx of transactions) {
-      try {
-        const outputReferenceAssetToFetch = tx.defineAssetExchangePair();
-
-        if (outputReferenceAssetToFetch) {
-          const { outputReferenceAssetName, type } = outputReferenceAssetToFetch;
-
-          const outputReferenceAsset = await this.assetService.getAssetByQuery({
-            dexName: outputReferenceAssetName,
-            blockchain: tx.outputAsset.blockchain,
-            type,
-          });
-
-          if (!outputReferenceAsset) {
-            throw new Error(
-              `Asset with name ${outputReferenceAssetName}, type: ${type}, blockchain: ${tx.outputAsset.blockchain} not found by asset service.`,
-            );
-          }
-
-          tx.setOutputReferenceAsset(outputReferenceAsset);
-        }
-      } catch (e) {
-        this.logger.error('Error while defining buy-crypto asset pair:', e);
-      }
-    }
-
-    return transactions.filter((tx) => tx.outputReferenceAsset && tx.outputAsset);
-  }
-
-  private setFeeConstraints(transactions: BuyCrypto[]): BuyCrypto[] {
-    for (const tx of transactions) {
-      const fee = BuyCryptoFee.create(tx);
-      tx.setFeeConstraints(fee);
-    }
-
-    return transactions;
   }
 
   private async getReferencePrices(txWithAssets: BuyCrypto[]): Promise<Price[]> {
@@ -293,6 +213,9 @@ export class BuyCryptoBatchService {
         const inputBatchLength = batch.transactions.length;
 
         await this.optimizeByPayoutFee(batch);
+
+        if (batch.transactions.length === 0) continue;
+
         const purchaseFee = await this.optimizeByLiquidity(batch);
         await this.optimizeByPurchaseFee(batch, purchaseFee);
 
@@ -306,7 +229,7 @@ export class BuyCryptoBatchService {
 
         optimizedBatches.push(batch);
       } catch (e) {
-        this.logger.warn(`Error in optimizing new batch for ${batch.outputAsset.uniqueName}:`, e);
+        this.logger.error(`Error in optimizing new batch for ${batch.outputAsset.uniqueName}:`, e);
       }
     }
 
@@ -315,21 +238,28 @@ export class BuyCryptoBatchService {
 
   // --- PAYOUT FEE OPTIMIZING --- //
   private async optimizeByPayoutFee(batch: BuyCryptoBatch) {
+    const invalidTransactions: BuyCrypto[] = [];
+
     // add fee estimation
     for (const tx of batch.transactions) {
-      const payoutFee = await this.getPayoutFee(tx);
-      await this.buyCryptoRepo.updateFee(...tx.fee.addPayoutFeeEstimation(payoutFee, tx));
+      try {
+        const payoutFee = await this.getPayoutFee(tx);
+        await this.buyCryptoRepo.updateFee(...tx.fee.addPayoutFeeEstimation(payoutFee, tx));
+      } catch (e) {
+        this.logger.error(`Error when optimizing by payout fee, buy_crypto id ${tx.id} is removed from batch:`, e);
+        invalidTransactions.push(tx);
+      }
+    }
+
+    // reset invalid transactions
+    if (invalidTransactions.length) {
+      batch.removeInvalidTransactions(invalidTransactions);
+      await this.resetTransactionButKeepState(invalidTransactions);
     }
 
     // optimize
     const filteredOutTransactions = batch.optimizeByPayoutFeeEstimation();
     await this.setWaitingForLowerFeeStatus(filteredOutTransactions);
-
-    if (batch.transactions.length === 0) {
-      throw new FeeLimitExceededException(
-        `Cannot re-batch transactions by payout fee, no transaction exceeds the fee limit. Out asset: ${batch.outputAsset.uniqueName}`,
-      );
-    }
   }
 
   private async getPayoutFee(tx: BuyCrypto): Promise<number> {
@@ -485,6 +415,12 @@ export class BuyCryptoBatchService {
   private async setMissingLiquidityStatus(transactions: BuyCrypto[]): Promise<void> {
     for (const tx of transactions) {
       await this.buyCryptoRepo.update(...tx.setMissingLiquidityStatus());
+    }
+  }
+
+  private async resetTransactionButKeepState(transactions: BuyCrypto[]): Promise<void> {
+    for (const tx of transactions) {
+      await this.buyCryptoRepo.update(...tx.resetTransactionButKeepState());
     }
   }
 

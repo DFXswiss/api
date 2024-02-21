@@ -1,16 +1,17 @@
 import { mock } from 'jest-mock-extended';
+import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { Price } from '../domain/entities/price';
 import { createCustomPrice } from '../../../../integration/exchange/dto/__mocks__/price.dto.mock';
 import { BinanceService } from '../../../../integration/exchange/services/binance.service';
 import { BitpandaService } from '../../../../integration/exchange/services/bitpanda.service';
 import { BitstampService } from '../../../../integration/exchange/services/bitstamp.service';
+import { KrakenService } from '../../../../integration/exchange/services/kraken.service';
+import { Price } from '../domain/entities/price';
+import { PriceRequestContext } from '../domain/enums';
 import { CurrencyService } from '../services/integration/currency.service';
 import { FixerService } from '../services/integration/fixer.service';
-import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
-import { KrakenService } from '../../../../integration/exchange/services/kraken.service';
+import { PricingCoinGeckoService } from '../services/integration/pricing-coin-gecko.service';
 import { PricingDeFiChainService } from '../services/integration/pricing-defichain.service';
-import { PriceRequestContext } from '../domain/enums';
 import { PricingService } from '../services/pricing.service';
 
 describe('Pricing Module Integration Tests', () => {
@@ -23,6 +24,7 @@ describe('Pricing Module Integration Tests', () => {
   let currencyService: CurrencyService;
   let fixerService: FixerService;
   let deFiChainService: PricingDeFiChainService;
+  let coinGeckoService: PricingCoinGeckoService;
 
   let krakenServiceGetPriceSpy: jest.SpyInstance;
   let binanceServiceGetPriceSpy: jest.SpyInstance;
@@ -32,6 +34,7 @@ describe('Pricing Module Integration Tests', () => {
   let currencyServiceGetPriceSpy: jest.SpyInstance;
   let fixerServiceGetPriceSpy: jest.SpyInstance;
   let deFiChainServiceGetPriceSpy: jest.SpyInstance;
+  let coinGeckoServiceGetPriceSpy: jest.SpyInstance;
 
   let service: PricingService;
 
@@ -45,6 +48,7 @@ describe('Pricing Module Integration Tests', () => {
     currencyService = mock<CurrencyService>({ name: 'CurrencyService' });
     fixerService = mock<FixerService>({ name: 'FixerService' });
     deFiChainService = mock<PricingDeFiChainService>({ name: 'PricingDeFiChainService' });
+    coinGeckoService = mock<PricingCoinGeckoService>({ name: 'PricingCoinGeckoService' });
 
     service = new PricingService(
       notificationService,
@@ -56,6 +60,7 @@ describe('Pricing Module Integration Tests', () => {
       currencyService,
       fixerService,
       deFiChainService,
+      coinGeckoService,
     );
 
     krakenServiceGetPriceSpy = jest.spyOn(krakenService, 'getPrice');
@@ -66,6 +71,7 @@ describe('Pricing Module Integration Tests', () => {
     currencyServiceGetPriceSpy = jest.spyOn(currencyService, 'getPrice');
     fixerServiceGetPriceSpy = jest.spyOn(fixerService, 'getPrice');
     deFiChainServiceGetPriceSpy = jest.spyOn(deFiChainService, 'getPrice');
+    coinGeckoServiceGetPriceSpy = jest.spyOn(coinGeckoService, 'getPrice');
   });
 
   afterEach(() => {
@@ -77,6 +83,7 @@ describe('Pricing Module Integration Tests', () => {
     currencyServiceGetPriceSpy.mockClear();
     fixerServiceGetPriceSpy.mockClear();
     deFiChainServiceGetPriceSpy.mockClear();
+    coinGeckoServiceGetPriceSpy.mockClear();
   });
 
   it('calculates price path for MATCHING_ASSETS', async () => {
@@ -198,7 +205,7 @@ describe('Pricing Module Integration Tests', () => {
 
     expect(result.path[0].price).toBeInstanceOf(Price);
     expect(result.path[0].price.source).toBe('GBP');
-    expect(result.path[0].price.target).toBe('BTC');
+    expect(result.path[0].price.target).toBe('USDT');
     expect(result.path[0].price.price).toBe(0.000058);
 
     expect(result.path[0].timestamp).toBeInstanceOf(Date);
@@ -206,7 +213,7 @@ describe('Pricing Module Integration Tests', () => {
     expect(result.path[1].provider).toBe('Binance');
 
     expect(result.path[1].price).toBeInstanceOf(Price);
-    expect(result.path[1].price.source).toBe('BTC');
+    expect(result.path[1].price.source).toBe('USDT');
     expect(result.path[1].price.target).toBe('BNB');
     expect(result.path[1].price.price).toBe(71.3);
 
@@ -247,7 +254,7 @@ describe('Pricing Module Integration Tests', () => {
 
     expect(result.path[0].price).toBeInstanceOf(Price);
     expect(result.path[0].price.source).toBe('ETH');
-    expect(result.path[0].price.target).toBe('BTC');
+    expect(result.path[0].price.target).toBe('USDT');
     expect(result.path[0].price.price).toBe(0.081);
 
     expect(result.path[0].timestamp).toBeInstanceOf(Date);
@@ -255,7 +262,7 @@ describe('Pricing Module Integration Tests', () => {
     expect(result.path[1].provider).toBe('Binance');
 
     expect(result.path[1].price).toBeInstanceOf(Price);
-    expect(result.path[1].price.source).toBe('BTC');
+    expect(result.path[1].price.source).toBe('USDT');
     expect(result.path[1].price.target).toBe('BNB');
     expect(result.path[1].price.price).toBe(71.3);
 

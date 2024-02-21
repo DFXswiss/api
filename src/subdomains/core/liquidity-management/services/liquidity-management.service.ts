@@ -1,18 +1,19 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
+import { Util } from 'src/shared/utils/util';
+import { In } from 'typeorm';
 import { LiquidityBalance } from '../entities/liquidity-balance.entity';
+import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
 import { LiquidityManagementRule } from '../entities/liquidity-management-rule.entity';
 import { LiquidityManagementPipelineStatus, LiquidityManagementRuleStatus } from '../enums';
 import { LiquidityState, PipelineId } from '../interfaces';
+import { LiquidityManagementPipelineRepository } from '../repositories/liquidity-management-pipeline.repository';
 import { LiquidityManagementRuleRepository } from '../repositories/liquidity-management-rule.repository';
 import { LiquidityManagementBalanceService } from './liquidity-management-balance.service';
-import { LiquidityManagementPipelineRepository } from '../repositories/liquidity-management-pipeline.repository';
-import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
-import { In } from 'typeorm';
-import { Util } from 'src/shared/utils/util';
-import { Config, Process } from 'src/config/config';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Injectable()
 export class LiquidityManagementService {
@@ -31,9 +32,9 @@ export class LiquidityManagementService {
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(1800)
   async verifyRules() {
-    if (Config.processDisabled(Process.LIQUIDITY_MANAGEMENT)) return;
+    if (DisabledProcess(Process.LIQUIDITY_MANAGEMENT)) return;
 
-    const rules = await this.ruleRepo.findBy({ status: LiquidityManagementRuleStatus.ACTIVE });
+    const rules = await this.ruleRepo.find();
     const balances = await this.balanceService.refreshBalances(rules);
 
     for (const rule of rules) {
@@ -83,6 +84,17 @@ export class LiquidityManagementService {
 
   private async verifyRule(rule: LiquidityManagementRule, balances: LiquidityBalance[]): Promise<void> {
     try {
+      if (rule.status !== LiquidityManagementRuleStatus.ACTIVE) {
+        this.logger.info(`Could not verify rule ${rule.id}: status is ${rule.status}`);
+        return;
+      }
+
+      const numberOfPendingOrders = await this.balanceService.getNumberOfPendingOrders(rule);
+      if (numberOfPendingOrders > 0) {
+        this.logger.info(`Could not verify rule ${rule.id}: pending orders found`);
+        return;
+      }
+
       const balance = this.balanceService.findRelevantBalance(rule, balances);
       if (!balance) {
         this.logger.info(`Could not verify rule ${rule.id}: balance not found`);
@@ -94,8 +106,11 @@ export class LiquidityManagementService {
       if (result.deficit || result.redundancy) {
         if (!this.ruleActivations.has(rule.id)) this.ruleActivations.set(rule.id, new Date());
 
-        // execute rule 30 minutes after activation
-        if (this.ruleActivations.get(rule.id) < Util.minutesBefore(30)) {
+        // execute rule 30 seconds/minutes after activation
+        const requiredActivationTime =
+          rule.targetAsset?.blockchain === Blockchain.DEFICHAIN ? Util.secondsBefore(30) : Util.minutesBefore(30);
+
+        if (this.ruleActivations.get(rule.id) < requiredActivationTime) {
           this.ruleActivations.delete(rule.id);
 
           await this.executeRule(rule, result);

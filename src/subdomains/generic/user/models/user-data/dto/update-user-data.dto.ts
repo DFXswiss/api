@@ -5,6 +5,7 @@ import {
   IsEmail,
   IsEnum,
   IsInt,
+  IsNumber,
   IsObject,
   IsOptional,
   IsString,
@@ -12,136 +13,216 @@ import {
 } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Country } from 'src/shared/models/country/country.entity';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { Language } from 'src/shared/models/language/language.entity';
 import { Util } from 'src/shared/utils/util';
+import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { AccountType } from '../account-type.enum';
 import { IsDfxPhone } from '../is-dfx-phone.validator';
-import { KycIdentificationType, KycState, KycStatus, UserDataStatus } from '../user-data.entity';
+import { KycIdentificationType, KycLevel, KycStatus, UserData, UserDataStatus } from '../user-data.entity';
 
 export class UpdateUserDataDto {
   @IsOptional()
   @IsEnum(AccountType)
-  accountType: AccountType;
+  accountType?: AccountType;
 
   @IsOptional()
   @IsEmail()
-  mail: string;
+  mail?: string;
 
   @IsOptional()
   @IsString()
   @IsDfxPhone()
   @Transform(Util.trim)
-  phone: string;
+  phone?: string;
 
   @IsOptional()
   @IsString()
-  firstname: string;
+  firstname?: string;
 
   @IsOptional()
   @IsString()
-  surname: string;
+  surname?: string;
 
   @IsOptional()
   @IsString()
-  street: string;
+  street?: string;
 
   @IsOptional()
   @IsString()
-  houseNumber: string;
+  houseNumber?: string;
 
   @IsOptional()
   @IsString()
-  location: string;
+  location?: string;
 
   @IsOptional()
   @IsString()
-  zip: string;
+  zip?: string;
 
   @IsOptional()
   @IsInt()
-  countryId: number;
+  countryId?: number;
 
   @IsOptional()
   @IsDate()
   @Type(() => Date)
-  birthday: Date;
+  birthday?: Date;
 
   @IsOptional()
   @IsObject()
   @ValidateNested()
   @Type(() => EntityDto)
-  nationality: Country;
+  language?: Language;
+
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  currency?: Fiat;
+
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  nationality?: Country;
 
   @IsOptional()
   @IsString()
-  organizationName: string;
+  organizationName?: string;
 
   @IsOptional()
   @IsString()
-  organizationStreet: string;
+  organizationStreet?: string;
 
   @IsOptional()
   @IsString()
-  organizationHouseNumber: string;
+  organizationHouseNumber?: string;
 
   @IsOptional()
   @IsString()
-  organizationLocation: string;
+  organizationLocation?: string;
 
   @IsOptional()
   @IsString()
-  organizationZip: string;
+  organizationZip?: string;
 
   @IsOptional()
   @IsInt()
-  organizationCountryId: number;
+  organizationCountryId?: number;
 
   @IsOptional()
   @IsInt()
-  depositLimit: number;
+  depositLimit?: number;
 
   @IsOptional()
   @IsInt()
-  kycFileId: number;
+  kycFileId?: number;
 
   @IsOptional()
   @IsEnum(KycStatus)
-  kycStatus: KycStatus;
-
-  @IsOptional()
-  @IsEnum(KycState)
-  kycState: KycState;
-
-  @IsOptional()
-  @IsBoolean()
-  highRisk: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  complexOrgStructure: boolean;
+  kycStatus?: KycStatus;
 
   @IsOptional()
   @IsInt()
-  mainBankDataId: number;
+  kycLevel?: KycLevel;
+
+  @IsOptional()
+  @IsBoolean()
+  highRisk?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  complexOrgStructure?: boolean;
 
   @IsOptional()
   @IsDate()
   @Type(() => Date)
-  letterSentDate: Date;
+  letterSentDate?: Date;
 
   @IsOptional()
   @IsDate()
   @Type(() => Date)
-  amlListAddedDate: Date;
+  amlListAddedDate?: Date;
 
   @IsOptional()
   @IsEnum(KycIdentificationType)
-  identificationType: KycIdentificationType;
+  identificationType?: KycIdentificationType;
 
   @IsOptional()
   @IsString()
-  internalAmlNote: string;
+  internalAmlNote?: string;
 
   @IsOptional()
   @IsEnum(UserDataStatus)
-  status: UserDataStatus;
+  status?: UserDataStatus;
+
+  @IsOptional()
+  @IsBoolean()
+  pep?: boolean;
+
+  @IsOptional()
+  @IsEnum(CheckStatus)
+  bankTransactionVerification?: CheckStatus;
+
+  @IsOptional()
+  @IsString()
+  amlAccountType?: string;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  lastNameCheckDate?: Date;
+
+  @IsOptional()
+  @IsString()
+  relatedUsers?: string;
+
+  @IsOptional()
+  @IsString()
+  identDocumentId?: string;
+
+  @IsOptional()
+  @IsString()
+  identDocumentType?: string;
+
+  @IsOptional()
+  @IsString()
+  verifiedName?: string;
+
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  verifiedCountry?: Country;
+
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  accountOpener?: UserData;
+
+  @IsOptional()
+  @IsString()
+  accountOpenerAuthorization?: string;
+
+  @IsOptional()
+  @IsString()
+  allBeneficialOwnersDomicile?: string;
+
+  @IsOptional()
+  @IsString()
+  allBeneficialOwnersName?: string;
+
+  @IsOptional()
+  @IsNumber()
+  totalVolumeChfAuditPeriod?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  olkypayAllowed?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  cryptoCryptoAllowed?: boolean;
 }

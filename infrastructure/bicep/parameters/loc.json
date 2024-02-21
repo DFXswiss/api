@@ -14,6 +14,12 @@
     "oceanUrls": {
       "value": "https://testnet-ocean.mydefichain.com:8443,https://ocean.defichain.com"
     },
+    "apiSkuName": {
+      "value": ""
+    },
+    "apiSkuTier": {
+      "value": ""
+    },
     "dbAllowAllIps": {
       "value": true
     },
@@ -33,6 +39,24 @@
       "value": "xxx"
     },
     "mailPass": {
+      "value": "xxx"
+    },
+    "kycGatewayHost": {
+      "value": "https://gateway.online-ident.ch"
+    },
+    "kycCustomerAuto": {
+      "value": "xxx"
+    },
+    "kycApiKeyAuto": {
+      "value": "xxx"
+    },
+    "kycCustomerVideo": {
+      "value": "xxx"
+    },
+    "kycApiKeyVideo": {
+      "value": "xxx"
+    },
+    "kycTransactionPrefix": {
       "value": "xxx"
     },
     "kycMandator": {
@@ -68,6 +92,9 @@
     "utxoSpenderAddress": {
       "value": "xxx"
     },
+    "btcOutWalletAddress": {
+      "value": "xxx"
+    },
     "evmDepositSeed": {
       "value": "xxx"
     },
@@ -78,19 +105,10 @@
       "value": "xxx"
     },
     "ethGatewayUrl": {
-      "value": "https://goerli.infura.io/v3"
-    },
-    "ethApiKey": {
-      "value": "xxx"
+      "value": "https://eth-goerli.g.alchemy.com/v2"
     },
     "ethChainId": {
       "value": "5"
-    },
-    "ethScanApiUrl": {
-      "value": "https://api-goerli.etherscan.io/api"
-    },
-    "ethScanApiKey": {
-      "value": "xxx"
     },
     "optimismWalletAddress": {
       "value": "xxx"
@@ -99,19 +117,10 @@
       "value": "xxx"
     },
     "optimismGatewayUrl": {
-      "value": "https://goerli.optimism.io"
-    },
-    "optimismApiKey": {
-      "value": "xxx"
+      "value": "https://opt-goerli.g.alchemy.com/v2"
     },
     "optimismChainId": {
       "value": "420"
-    },
-    "optimismScanApiUrl": {
-      "value": "https://api-goerli-optimistic.etherscan.io/api"
-    },
-    "optimismScanApiKey": {
-      "value": "xxx"
     },
     "arbitrumWalletAddress": {
       "value": "xxx"
@@ -120,19 +129,22 @@
       "value": "xxx"
     },
     "arbitrumGatewayUrl": {
-      "value": "https://goerli-rollup.arbitrum.io/rpc"
-    },
-    "arbitrumApiKey": {
-      "value": "xxx"
+      "value": "https://arb-goerli.g.alchemy.com/v2"
     },
     "arbitrumChainId": {
       "value": "421613"
     },
-    "arbitrumScanApiUrl": {
-      "value": "https://api-goerli.arbiscan.io/api"
-    },
-    "arbitrumScanApiKey": {
+    "polygonWalletAddress": {
       "value": "xxx"
+    },
+    "polygonWalletPrivateKey": {
+      "value": "xxx"
+    },
+    "polygonGatewayUrl": {
+      "value": "https://polygon-mumbai.g.alchemy.com/v2"
+    },
+    "polygonChainId": {
+      "value": "80001"
     },
     "bscWalletAddress": {
       "value": "xxx"
@@ -164,8 +176,29 @@
     "lightningLndAdminMacaroon": {
       "value": "xxx"
     },
-    "btcOutWalletAddress": {
+    "moneroWalletAddress": {
       "value": "xxx"
+    },
+    "moneroRpcCertificate": {
+      "value": "xxx"
+    },
+    "zchfGatewayUrl": {
+      "value": "https://eth-mainnet.g.alchemy.com/v2"
+    },
+    "zchfGraphUrl": {
+      "value": "https://api.thegraph.com/subgraphs/name/frankencoin-zchf/frankencoin-subgraph"
+    },
+    "zchfContractAddress": {
+      "value": "0xB58E61C3098d85632Df34EecfB899A1Ed80921cB"
+    },
+    "zchfEquityContractAddress": {
+      "value": "0x1bA26788dfDe592fec8bcB0Eaff472a42BE341B2"
+    },
+    "zchfStablecoinBridgeContractAddress": {
+      "value": "0x7bbe8F18040aF0032f4C2435E7a76db6F1E346DF"
+    },
+    "zchfXchfContractAddress": {
+      "value": "0xb4272071ecadd69d933adcd19ca99fe80664fc08"
     },
     "buyCryptoFeeLimit": {
       "value": "0.001"
@@ -204,6 +237,9 @@
       "value": "xxx"
     },
     "binanceWithdrawKeys": {
+      "value": "xxx"
+    },
+    "binanceBtcDepositAddress": {
       "value": "xxx"
     },
     "olkyClient": {
@@ -257,9 +293,6 @@
     "btcVmPassword": {
       "value": "xxx"
     },
-    "chainalysisApiKey": {
-      "value": "xxx"
-    },
     "coinGeckoApiKey": {
       "value": "xxx"
     },
@@ -272,8 +305,8 @@
     "paymentUrl": {
       "value": "http://localhost:19006"
     },
-    "lockApiKey": {
-      "value": "xxx"
+    "servicesUrl": {
+      "value": "http://localhost:3001"
     },
     "limitRequestSupportBanner": {
       "value": "xxx"
@@ -296,13 +329,13 @@
     "azureClientSecret": {
       "value": "xxx"
     },
+    "azureStorageConnectionString": {
+      "value": "xxx"
+    },
     "albyClientId": {
       "value": "xxx"
     },
     "albyClientSecret": {
-      "value": "xxx"
-    },
-    "taliumApiKey": {
       "value": "xxx"
     },
     "knownIps": {
@@ -312,6 +345,27 @@
       "value": "false"
     },
     "bsLink": {
+      "value": "xxx"
+    },
+    "iknaKey": {
+      "value": "xxx"
+    },
+    "ckoPublicKey": {
+      "value": "xxx"
+    },
+    "ckoSecretKey": {
+      "value": "xxx"
+    },
+    "delisenseJsonPath": {
+      "value": "/home/Data/Dilisense/consolidated.json"
+    },
+    "delisenseKey": {
+      "value": "xxx"
+    },
+    "alchemyApiKey": {
+      "value": "xxx"
+    },
+    "alchemyAuthToken": {
       "value": "xxx"
     }
   }

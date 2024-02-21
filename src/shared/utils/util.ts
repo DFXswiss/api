@@ -21,6 +21,10 @@ export class Util {
     return new BigNumber(Math.round(amount / value)).multipliedBy(value).toNumber();
   }
 
+  static toPercent(num: number): string {
+    return `${this.round(num * 100, 2)}%`;
+  }
+
   static roundByPrecision(amount: number, precision: number): number {
     return new BigNumber(amount).precision(precision).toNumber();
   }
@@ -29,12 +33,24 @@ export class Util {
     return list.reduce((prev, curr) => prev + curr, 0);
   }
 
-  static sumObj<T>(list: T[], key: KeyType<T, number>): number {
+  static sumObjValue<T>(list: T[], key: KeyType<T, number>): number {
     return this.sum(list.map((i) => i[key] as unknown as number));
   }
 
-  static minObj<T>(list: T[], key: KeyType<T, number>): number {
+  static minObjValue<T>(list: T[], key: KeyType<T, number>): number {
     return Math.min(...list.map((i) => i[key] as unknown as number));
+  }
+
+  static minObj<T>(list: T[], key: KeyType<T, number>): T {
+    return list.reduce((i, j) => (i && j[key] >= i[key] ? i : j), undefined);
+  }
+
+  static maxObj<T>(list: T[], key: KeyType<T, number>): T {
+    return list.reduce((i, j) => (i && j[key] <= i[key] ? i : j), undefined);
+  }
+
+  static sort<T>(list: T[], key: KeyType<T, number> | KeyType<T, Date>, sorting: 'ASC' | 'DESC' = 'ASC'): T[] {
+    return list.sort((a, b) => (sorting === 'ASC' ? Number(a[key]) - Number(b[key]) : Number(b[key]) - Number(a[key])));
   }
 
   static avg(list: number[]): number {
@@ -74,7 +90,7 @@ export class Util {
   }
 
   static fixRoundingMismatch<T>(list: T[], key: KeyType<T, number>, targetAmount: number, precision = 8): T[] {
-    const listTotal = Util.round(Util.sumObj<T>(list, key), precision);
+    const listTotal = Util.round(Util.sumObjValue<T>(list, key), precision);
     const mismatch = Util.round(targetAmount - listTotal, precision);
     const maxMismatchThreshold = 10 ** -precision * list.length;
 
@@ -139,7 +155,7 @@ export class Util {
     return date;
   }
 
-  static hourBefore(hours: number, from?: Date): Date {
+  static hoursBefore(hours: number, from?: Date): Date {
     return this.hoursAfter(-hours, from);
   }
 
@@ -155,6 +171,10 @@ export class Util {
 
   static isoDate(date: Date): string {
     return date.toISOString().split('T')[0];
+  }
+
+  static isoDateTime(date: Date): string {
+    return date.toISOString().split('.')[0].split(':').join('-').split('T').join('_');
   }
 
   // --- ENCRYPTION --- //
@@ -186,6 +206,16 @@ export class Util {
 
   static stringToUint8(value: string, encoding: BufferEncoding): Uint8Array {
     return Uint8Array.from(Buffer.from(value, encoding));
+  }
+
+  // --- COMPARE --- //
+
+  static equalsIgnoreCase(left: string, right: string): boolean {
+    return left?.toLowerCase() === right?.toLowerCase();
+  }
+
+  static includesIgnoreCase(left: string[], right: string): boolean | undefined {
+    return left?.map((s) => s?.toLowerCase()).includes(right?.toLowerCase());
   }
 
   // --- MISC --- //
@@ -272,6 +302,15 @@ export class Util {
     return filteredList;
   }
 
+  public static async asyncMap<T, U>(list: T[], map: (i: T) => Promise<U>): Promise<U[]> {
+    const mappedList: U[] = [];
+    for (const item of list) {
+      const mappedItem = await map(item);
+      mappedList.push(mappedItem);
+    }
+    return mappedList;
+  }
+
   static async timeout<T>(promise: Promise<T>, timeout: number): Promise<T> {
     const timeoutPromise = new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout));
 
@@ -302,11 +341,18 @@ export class Util {
     return sign.sign(key, 'base64');
   }
 
-  static async retry<T>(action: () => Promise<T>, tryCount = 3, delay = 0): Promise<T> {
+  static async retry<T>(
+    action: () => Promise<T>,
+    tryCount = 3,
+    delay = 0,
+    onError?: () => Promise<unknown>,
+    retryIf?: (e: Error) => boolean,
+  ): Promise<T> {
     try {
       return await action();
     } catch (e) {
-      if (tryCount > 1) {
+      if (tryCount > 1 && (!retryIf || retryIf(e))) {
+        await onError?.();
         await this.delay(delay);
         return this.retry(action, tryCount - 1, delay);
       }
@@ -330,5 +376,9 @@ export class Util {
 
   static trim({ value }: TransformFnParams): string | undefined {
     return value?.split(' ').join('');
+  }
+
+  static mapBooleanQuery({ value }: TransformFnParams): boolean | undefined {
+    return Boolean(value || value === '');
   }
 }

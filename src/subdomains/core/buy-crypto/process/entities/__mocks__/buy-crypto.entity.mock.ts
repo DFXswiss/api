@@ -1,6 +1,6 @@
-import { createDefaultBuy } from 'src/subdomains/core/buy-crypto/routes/buy/__mocks__/buy.entity.mock';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
-import { AmlCheck } from '../../enums/aml-check.enum';
+import { createDefaultBuy } from 'src/subdomains/core/buy-crypto/routes/buy/__mocks__/buy.entity.mock';
+import { CheckStatus } from '../../enums/check-status.enum';
 import { BuyCrypto, BuyCryptoStatus } from '../buy-crypto.entity';
 import { createCustomBuyCryptoBatch } from './buy-crypto-batch.entity.mock';
 import { createDefaultBuyCryptoFee } from './buy-crypto-fee.entity.mock';
@@ -11,6 +11,7 @@ export function createDefaultBuyCrypto(): BuyCrypto {
 
 export function createCustomBuyCrypto(customValues: Partial<BuyCrypto>): BuyCrypto {
   const {
+    id,
     buy,
     batch,
     inputAmount,
@@ -44,6 +45,7 @@ export function createCustomBuyCrypto(customValues: Partial<BuyCrypto>): BuyCryp
   const keys = Object.keys(customValues);
   const entity = new BuyCrypto();
 
+  entity.id = keys.includes('id') ? id : undefined;
   entity.buy = keys.includes('buy') ? buy : createDefaultBuy();
   entity.batch = keys.includes('batch') ? batch : createCustomBuyCryptoBatch({ transactions: [entity] });
   entity.inputAmount = keys.includes('inputAmount') ? inputAmount : 100;
@@ -52,7 +54,7 @@ export function createCustomBuyCrypto(customValues: Partial<BuyCrypto>): BuyCryp
   entity.inputReferenceAsset = keys.includes('inputReferenceAsset') ? inputReferenceAsset : 'EUR';
   entity.amountInChf = keys.includes('amountInChf') ? amountInChf : 120;
   entity.amountInEur = keys.includes('amountInEur') ? amountInEur : 100;
-  entity.amlCheck = keys.includes('amlCheck') ? amlCheck : AmlCheck.PASS;
+  entity.amlCheck = keys.includes('amlCheck') ? amlCheck : CheckStatus.PASS;
   entity.percentFee = keys.includes('percentFee') ? percentFee : 0.01;
   entity.percentFeeAmount = keys.includes('percentFeeAmount') ? percentFeeAmount : 1;
   entity.absoluteFeeAmount = keys.includes('absoluteFeeAmount') ? absoluteFeeAmount : null;
