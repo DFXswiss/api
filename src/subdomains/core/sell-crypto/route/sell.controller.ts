@@ -15,7 +15,9 @@ import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { BuyFiatService } from '../process/services/buy-fiat.service';
 import { CreateSellDto } from './dto/create-sell.dto';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
@@ -38,6 +40,7 @@ export class SellController {
     private readonly paymentInfoService: PaymentInfoService,
     private readonly transactionHelper: TransactionHelper,
     private readonly cryptoService: CryptoService,
+    private readonly transactionRequestService: TransactionRequestService,
   ) {}
 
   @Get()
@@ -205,7 +208,7 @@ export class SellController {
       user,
     );
 
-    return {
+    const sellDto: SellPaymentInfoDto = {
       routeId: sell.id,
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       depositAddress: sell.deposit.address,
@@ -227,5 +230,9 @@ export class SellController {
       isValid,
       error,
     };
+
+    void this.transactionRequestService.createTransactionRequest(TransactionRequestType.Sell, dto, sellDto);
+
+    return sellDto;
   }
 }
