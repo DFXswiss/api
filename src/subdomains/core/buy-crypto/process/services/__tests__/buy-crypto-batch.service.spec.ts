@@ -12,7 +12,9 @@ import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { createCustomBuyCryptoBatch } from '../../entities/__mocks__/buy-crypto-batch.entity.mock';
+import { createCustomBuyCryptoFee } from '../../entities/__mocks__/buy-crypto-fee.entity.mock';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../../entities/__mocks__/buy-crypto.entity.mock';
+import { BuyCryptoBatch } from '../../entities/buy-crypto-batch.entity';
 import { BuyCryptoBatchRepository } from '../../repositories/buy-crypto-batch.repository';
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
 import { BuyCryptoBatchService } from '../buy-crypto-batch.service';
@@ -106,16 +108,19 @@ describe('BuyCryptoBatchService', () => {
           buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'dGOOGL' }) }),
           outputAsset: createCustomAsset({ dexName: 'dGOOGL' }),
           outputReferenceAsset: createCustomAsset({ dexName: 'BTC' }),
+          fee: createCustomBuyCryptoFee({ allowedTotalFeePercent: 0.5 }),
         }),
         createCustomBuyCrypto({
           buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'dTSLA' }) }),
           outputAsset: createCustomAsset({ dexName: 'dTSLA' }),
           outputReferenceAsset: createCustomAsset({ dexName: 'BTC' }),
+          fee: createCustomBuyCryptoFee({ allowedTotalFeePercent: 0.5 }),
         }),
         createCustomBuyCrypto({
           buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'USDT' }) }),
           outputAsset: createCustomAsset({ dexName: 'USDT' }),
           outputReferenceAsset: createCustomAsset({ dexName: 'USDT' }),
+          fee: createCustomBuyCryptoFee({ allowedTotalFeePercent: 0.5 }),
         }),
       ];
 
@@ -156,16 +161,19 @@ describe('BuyCryptoBatchService', () => {
           buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'dTSLA' }) }),
           outputAsset: createCustomAsset({ dexName: 'dTSLA' }),
           outputReferenceAsset: createCustomAsset({ dexName: 'BTC' }),
+          fee: createCustomBuyCryptoFee({ allowedTotalFeePercent: 0.5 }),
         }),
         createCustomBuyCrypto({
           buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'dTSLA' }) }),
           outputAsset: createCustomAsset({ dexName: 'dTSLA' }),
           outputReferenceAsset: createCustomAsset({ dexName: 'BTC' }),
+          fee: createCustomBuyCryptoFee({ allowedTotalFeePercent: 0.5 }),
         }),
         createCustomBuyCrypto({
           buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'USDT' }) }),
           outputAsset: createCustomAsset({ dexName: 'USDT' }),
           outputReferenceAsset: createCustomAsset({ dexName: 'BTC' }),
+          fee: createCustomBuyCryptoFee({ allowedTotalFeePercent: 0.5 }),
         }),
       ];
 
@@ -234,6 +242,8 @@ describe('BuyCryptoBatchService', () => {
     jest.spyOn(buyCryptoBatchRepo, 'findOneBy').mockImplementation(async () => null);
 
     jest.spyOn(buyCryptoBatchRepo, 'create').mockImplementation(() => createCustomBuyCryptoBatch({ id: undefined }));
+
+    jest.spyOn(buyCryptoBatchRepo, 'save').mockImplementation(async (e) => e as BuyCryptoBatch);
 
     exchangeUtilityServiceGetMatchingPrice = jest
       .spyOn(pricingService, 'getPrice')
