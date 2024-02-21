@@ -7,6 +7,10 @@ export class CountryDtoMapper {
       id: country.id,
       symbol: country.symbol,
       name: country.name,
+      locationAllowed: country.ipEnable,
+      kycAllowed: country.dfxEnable,
+      bankAllowed: country.dfxEnable,
+      cardAllowed: country.fatfEnable,
     };
 
     return Object.assign(new CountryDto(), dto);

@@ -1,5 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -37,6 +38,7 @@ describe('BuyFiatService', () => {
   let buyCryptoService: BuyCryptoService;
   let buyFiatRegistrationService: BuyFiatRegistrationService;
   let webhookService: WebhookService;
+  let fiatService: FiatService;
   let buyFiatPreparationService: BuyFiatPreparationService;
 
   beforeEach(async () => {
@@ -49,6 +51,7 @@ describe('BuyFiatService', () => {
     buyCryptoService = createMock<BuyCryptoService>();
     buyFiatRegistrationService = createMock<BuyFiatRegistrationService>();
     webhookService = createMock<WebhookService>();
+    fiatService = createMock<FiatService>();
     buyFiatPreparationService = createMock<BuyFiatPreparationService>();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -64,6 +67,7 @@ describe('BuyFiatService', () => {
         { provide: BuyCryptoService, useValue: buyCryptoService },
         { provide: BuyFiatRegistrationService, useValue: buyFiatRegistrationService },
         { provide: WebhookService, useValue: webhookService },
+        { provide: FiatService, useValue: fiatService },
         { provide: BuyFiatPreparationService, useValue: buyFiatPreparationService },
       ],
     }).compile();

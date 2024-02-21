@@ -12,10 +12,13 @@ import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { BuyCryptoService } from '../../process/services/buy-crypto.service';
 import { Buy } from './buy.entity';
 import { BuyService } from './buy.service';
@@ -39,6 +42,7 @@ export class BuyController {
     private readonly bankService: BankService,
     private readonly transactionHelper: TransactionHelper,
     private readonly checkoutService: CheckoutService,
+    private readonly transactionRequestService: TransactionRequestService,
   ) {}
 
   @Get()
@@ -84,6 +88,12 @@ export class BuyController {
       feeAmount,
       estimatedAmount,
       sourceAmount: amount,
+      minVolume,
+      minVolumeTarget,
+      maxVolume,
+      maxVolumeTarget,
+      isValid,
+      error,
     } = await this.transactionHelper.getTxDetails(
       sourceAmount,
       targetAmount,
@@ -101,6 +111,12 @@ export class BuyController {
       exchangeRate,
       estimatedAmount,
       amount,
+      minVolume,
+      maxVolume,
+      minVolumeTarget,
+      maxVolumeTarget,
+      isValid,
+      error,
     };
   }
 
@@ -113,6 +129,7 @@ export class BuyController {
     @Body() dto: GetBuyPaymentInfoDto,
   ): Promise<BuyPaymentInfoDto> {
     dto = await this.paymentInfoService.buyCheck(dto, jwt);
+
     return Util.retry(
       () => this.buyService.createBuy(jwt.id, jwt.address, dto, true),
       2,
@@ -167,7 +184,7 @@ export class BuyController {
       volume: buy.volume,
       annualVolume: buy.annualVolume,
       bankUsage: buy.bankUsage,
-      asset: AssetDtoMapper.entityToDto(buy.asset),
+      asset: AssetDtoMapper.toDto(buy.asset),
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposits: [minDeposit],
       minFee: { amount: fee.blockchain, asset: 'EUR' },
@@ -202,7 +219,7 @@ export class BuyController {
     );
     const bankInfo = await this.getBankInfo(buy, { ...dto, amount });
 
-    return {
+    const buyDto: BuyPaymentInfoDto = {
       routeId: buy.id,
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposit: { amount: minVolume, asset: dto.currency.name }, // TODO: remove
@@ -214,8 +231,8 @@ export class BuyController {
       rate,
       estimatedAmount,
       amount,
-      asset: AssetDtoMapper.entityToDto(dto.asset),
-      currency: FiatDtoMapper.entityToDto(dto.currency),
+      asset: AssetDtoMapper.toDto(dto.asset),
+      currency: FiatDtoMapper.toDto(dto.currency),
       maxVolume,
       maxVolumeTarget,
       isValid,
@@ -236,7 +253,15 @@ export class BuyController {
               user.userData.language,
             )
           : undefined,
+      // TODO: temporary CC solution
+      nameRequired:
+        dto.paymentMethod === FiatPaymentMethod.CARD &&
+        !(user.status === UserStatus.ACTIVE || (Boolean(user.userData.firstname) && Boolean(user.userData.surname))),
     };
+
+    void this.transactionRequestService.createTransactionRequest(TransactionRequestType.Buy, dto, buyDto);
+
+    return buyDto;
   }
 
   // --- HELPER-METHODS --- //

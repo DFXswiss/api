@@ -13,6 +13,7 @@ import { CryptoInput } from './entities/crypto-input.entity';
 import { PayInFactory } from './factories/payin.factory';
 import { PayInRepository } from './repositories/payin.repository';
 import { PayInArbitrumService } from './services/payin-arbitrum.service';
+import { PayInBaseService } from './services/payin-base.service';
 import { PayInBitcoinService } from './services/payin-bitcoin.service';
 import { PayInBscService } from './services/payin-bsc.service';
 import { PayInDeFiChainService } from './services/payin-defichain.service';
@@ -23,6 +24,7 @@ import { PayInOptimismService } from './services/payin-optimism.service';
 import { PayInPolygonService } from './services/payin-polygon.service';
 import { PayInService } from './services/payin.service';
 import { ArbitrumStrategy as ArbitrumStrategyR } from './strategies/register/impl/arbitrum.strategy';
+import { BaseStrategy as BaseStrategyR } from './strategies/register/impl/base.strategy';
 import { RegisterStrategyRegistry } from './strategies/register/impl/base/register.strategy-registry';
 import { BitcoinStrategy as BitcoinStrategyR } from './strategies/register/impl/bitcoin.strategy';
 import { BscStrategy as BscStrategyR } from './strategies/register/impl/bsc.strategy';
@@ -34,6 +36,8 @@ import { OptimismStrategy as OptimismStrategyR } from './strategies/register/imp
 import { PolygonStrategy as PolygonStrategyR } from './strategies/register/impl/polygon.strategy';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyS } from './strategies/send/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategyS } from './strategies/send/impl/arbitrum-token.strategy';
+import { BaseCoinStrategy as BaseCoinStrategyS } from './strategies/send/impl/base-coin.strategy';
+import { BaseTokenStrategy as BaseTokenStrategyS } from './strategies/send/impl/base-token.strategy';
 import { SendStrategyRegistry } from './strategies/send/impl/base/send.strategy-registry';
 import { BitcoinStrategy as BitcoinStrategyS } from './strategies/send/impl/bitcoin.strategy';
 import { BscCoinStrategy as BscCoinStrategyS } from './strategies/send/impl/bsc-coin.strategy';
@@ -67,41 +71,45 @@ import { PolygonTokenStrategy as PolygonTokenStrategyS } from './strategies/send
     PayInRepository,
     PayInService,
     PayInFactory,
-    PayInArbitrumService,
-    PayInBscService,
-    PayInEthereumService,
-    PayInOptimismService,
-    PayInPolygonService,
+    PayInNotificationService,
     PayInBitcoinService,
     PayInMoneroService,
     PayInDeFiChainService,
+    PayInEthereumService,
+    PayInBscService,
+    PayInArbitrumService,
+    PayInOptimismService,
+    PayInPolygonService,
+    PayInBaseService,
     RegisterStrategyRegistry,
     SendStrategyRegistry,
-    ArbitrumStrategyR,
     BitcoinStrategyR,
-    LightningStrategyR,
-    MoneroStrategyR,
-    BscStrategyR,
-    DeFiChainStrategyR,
-    EthereumStrategyR,
-    OptimismStrategyR,
-    PolygonStrategyR,
-    ArbitrumCoinStrategyS,
-    ArbitrumTokenStrategyS,
     BitcoinStrategyS,
+    LightningStrategyR,
     LightningStrategyS,
+    MoneroStrategyR,
     MoneroStrategyS,
-    BscCoinStrategyS,
-    BscTokenStrategyS,
+    DeFiChainStrategyR,
     DeFiChainCoinStrategyS,
     DeFiChainTokenStrategyS,
+    EthereumStrategyR,
     EthereumCoinStrategyS,
     EthereumTokenStrategyS,
+    BscStrategyR,
+    BscCoinStrategyS,
+    BscTokenStrategyS,
+    ArbitrumStrategyR,
+    ArbitrumCoinStrategyS,
+    ArbitrumTokenStrategyS,
+    OptimismStrategyR,
     OptimismCoinStrategyS,
     OptimismTokenStrategyS,
+    PolygonStrategyR,
     PolygonCoinStrategyS,
     PolygonTokenStrategyS,
-    PayInNotificationService,
+    BaseStrategyR,
+    BaseCoinStrategyS,
+    BaseTokenStrategyS,
   ],
   exports: [PayInService],
 })

@@ -9,6 +9,7 @@ import { PayoutOrderFactory } from './factories/payout-order.factory';
 import { PayoutController } from './payout.controller';
 import { PayoutOrderRepository } from './repositories/payout-order.repository';
 import { PayoutArbitrumService } from './services/payout-arbitrum.service';
+import { PayoutBaseService } from './services/payout-base.service';
 import { PayoutBitcoinService } from './services/payout-bitcoin.service';
 import { PayoutBscService } from './services/payout-bsc.service';
 import { PayoutDeFiChainService } from './services/payout-defichain.service';
@@ -21,6 +22,8 @@ import { PayoutPolygonService } from './services/payout-polygon.service';
 import { PayoutService } from './services/payout.service';
 import { ArbitrumCoinStrategy as ArbitrumCoinStrategyPO } from './strategies/payout/impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy as ArbitrumTokenStrategyPO } from './strategies/payout/impl/arbitrum-token.strategy';
+import { BaseCoinStrategy as BaseCoinStrategyPO } from './strategies/payout/impl/base-coin.strategy';
+import { BaseTokenStrategy as BaseTokenStrategyPO } from './strategies/payout/impl/base-token.strategy';
 import { PayoutStrategyRegistry } from './strategies/payout/impl/base/payout.strategy-registry';
 import { BitcoinStrategy as BitcoinStrategyPO } from './strategies/payout/impl/bitcoin.strategy';
 import { BscCoinStrategy as BscCoinStrategyPO } from './strategies/payout/impl/bsc-coin.strategy';
@@ -36,6 +39,7 @@ import { OptimismTokenStrategy as OptimismTokenStrategyPO } from './strategies/p
 import { PolygonCoinStrategy as PolygonCoinStrategyPO } from './strategies/payout/impl/polygon-coin.strategy';
 import { PolygonTokenStrategy as PolygonTokenStrategyPO } from './strategies/payout/impl/polygon-token.strategy';
 import { ArbitrumStrategy as ArbitrumStrategyPR } from './strategies/prepare/impl/arbitrum.strategy';
+import { BaseStrategy as BaseStrategyPR } from './strategies/prepare/impl/base.strategy';
 import { PrepareStrategyRegistry } from './strategies/prepare/impl/base/prepare.strategy-registry';
 import { BitcoinStrategy as BitcoinStrategyPR } from './strategies/prepare/impl/bitcoin.strategy';
 import { BscStrategy as BscStrategyPR } from './strategies/prepare/impl/bsc.strategy';
@@ -60,35 +64,39 @@ import { PolygonStrategy as PolygonStrategyPR } from './strategies/prepare/impl/
     PayoutArbitrumService,
     PayoutOptimismService,
     PayoutPolygonService,
+    PayoutBaseService,
     PayoutDeFiChainService,
     PayoutEthereumService,
     PayoutBscService,
     PayoutStrategyRegistry,
     PrepareStrategyRegistry,
+    BitcoinStrategyPR,
     BitcoinStrategyPO,
+    LightningStrategyPR,
     LightningStrategyPO,
+    MoneroStrategyPR,
     MoneroStrategyPO,
-    ArbitrumCoinStrategyPO,
-    ArbitrumTokenStrategyPO,
-    BscCoinStrategyPO,
-    BscTokenStrategyPO,
+    DeFiChainStrategyPR,
     DeFiChainDfiStrategyPO,
     DeFiChainTokenStrategyPO,
+    EthereumStrategyPR,
     EthereumCoinStrategyPO,
     EthereumTokenStrategyPO,
+    BscStrategyPR,
+    BscCoinStrategyPO,
+    BscTokenStrategyPO,
+    ArbitrumStrategyPR,
+    ArbitrumCoinStrategyPO,
+    ArbitrumTokenStrategyPO,
+    OptimismStrategyPR,
     OptimismCoinStrategyPO,
     OptimismTokenStrategyPO,
+    PolygonStrategyPR,
     PolygonCoinStrategyPO,
     PolygonTokenStrategyPO,
-    BitcoinStrategyPR,
-    LightningStrategyPR,
-    MoneroStrategyPR,
-    BscStrategyPR,
-    DeFiChainStrategyPR,
-    EthereumStrategyPR,
-    ArbitrumStrategyPR,
-    OptimismStrategyPR,
-    PolygonStrategyPR,
+    BaseStrategyPR,
+    BaseCoinStrategyPO,
+    BaseTokenStrategyPO,
   ],
   exports: [PayoutService],
 })

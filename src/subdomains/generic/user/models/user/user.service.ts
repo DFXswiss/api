@@ -27,7 +27,7 @@ import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
-import { KycState, KycStatus, KycType, UserDataStatus } from '../user-data/user-data.entity';
+import { KycLevel, KycState, KycType, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { Wallet } from '../wallet/wallet.entity';
 import { WalletService } from '../wallet/wallet.service';
@@ -36,6 +36,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UserNameDto } from './dto/user-name.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
 import { User, UserStatus } from './user.entity';
@@ -87,7 +88,7 @@ export class UserService {
   }
 
   async getUserDto(userId: number, detailed = false): Promise<UserDetailDto> {
-    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: { userData: true, wallet: true } });
     if (!user) throw new NotFoundException('User not found');
 
     return this.toDto(user, detailed);
@@ -118,7 +119,7 @@ export class UserService {
       .where('user.refCredit - user.paidRefCredit > 0')
       .andWhere('user.status != :userStatus', { userStatus: UserStatus.BLOCKED })
       .andWhere('userData.status != :userDataStatus', { userDataStatus: UserDataStatus.BLOCKED })
-      .andWhere('userData.kycStatus != :kycStatus', { kycStatus: KycStatus.REJECTED })
+      .andWhere('userData.kycLevel != :kycLevel', { kycLevel: KycLevel.REJECTED })
       .getMany();
   }
 
@@ -157,7 +158,7 @@ export class UserService {
   }
 
   async updateUser(id: number, dto: UpdateUserDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
-    let user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
+    let user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users', 'wallet'] });
     if (!user) throw new NotFoundException('User not found');
 
     // update
@@ -168,9 +169,16 @@ export class UserService {
     return { user: await this.toDto(user, true), isKnownUser };
   }
 
-  async updateUserData(id: number, dto: KycInputDataDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
+  async updateUserName(id: number, dto: UserNameDto): Promise<void> {
     const user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
-    if (user.userData.kycStatus !== KycStatus.NA) throw new BadRequestException('KYC already started');
+    if (user.userData.kycLevel >= KycLevel.LEVEL_20) throw new BadRequestException('KYC already started');
+
+    await this.userDataService.updateUserName(user.userData, dto);
+  }
+
+  async updateUserData(id: number, dto: KycInputDataDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
+    const user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users', 'wallet'] });
+    if (user.userData.kycLevel !== KycLevel.LEVEL_0) throw new BadRequestException('KYC already started');
 
     user.userData = await this.userDataService.updateKycData(user.userData, KycDataMapper.toUserData(dto));
 
@@ -457,6 +465,7 @@ export class UserService {
   private async toDto(user: User, detailed: boolean): Promise<UserDetailDto> {
     return {
       accountType: user.userData?.accountType,
+      wallet: user.wallet.name,
       address: user.address,
       status: user.status,
       mail: user.userData?.mail,

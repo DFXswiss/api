@@ -6,6 +6,7 @@ import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entit
 import { AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DexArbitrumService } from '../../../services/dex-arbitrum.service';
+import { DexBaseService } from '../../../services/dex-base.service';
 import { DexBitcoinService } from '../../../services/dex-bitcoin.service';
 import { DexBscService } from '../../../services/dex-bsc.service';
 import { DexDeFiChainService } from '../../../services/dex-defichain.service';
@@ -13,9 +14,12 @@ import { DexEthereumService } from '../../../services/dex-ethereum.service';
 import { DexLightningService } from '../../../services/dex-lightning.service';
 import { DexMoneroService } from '../../../services/dex-monero.service';
 import { DexOptimismService } from '../../../services/dex-optimism.service';
+import { DexPolygonService } from '../../../services/dex-polygon.service';
 import { PurchaseLiquidityStrategyRegistry } from '../../purchase-liquidity/impl/base/purchase-liquidity.strategy-registry';
 import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy } from '../impl/arbitrum-token.strategy';
+import { BaseCoinStrategy } from '../impl/base-coin.strategy';
+import { BaseTokenStrategy } from '../impl/base-token.strategy';
 import { CheckLiquidityStrategyRegistry } from '../impl/base/check-liquidity.strategy-registry';
 import { BitcoinStrategy } from '../impl/bitcoin.strategy';
 import { BscCoinStrategy } from '../impl/bsc-coin.strategy';
@@ -49,6 +53,8 @@ describe('CheckLiquidityStrategies', () => {
   let optimismToken: OptimismTokenStrategy;
   let polygonCoin: PolygonCoinStrategy;
   let polygonToken: PolygonTokenStrategy;
+  let baseCoin: BaseCoinStrategy;
+  let baseToken: BaseTokenStrategy;
 
   let register: CheckLiquidityStrategyRegistryWrapper;
 
@@ -73,8 +79,10 @@ describe('CheckLiquidityStrategies', () => {
     monero = new MoneroStrategy(mock<AssetService>(), mock<DexMoneroService>());
     optimismCoin = new OptimismCoinStrategy(mock<AssetService>(), mock<DexOptimismService>());
     optimismToken = new OptimismTokenStrategy(mock<AssetService>(), mock<DexOptimismService>());
-    polygonCoin = new PolygonCoinStrategy(mock<AssetService>(), mock<DexOptimismService>());
-    polygonToken = new PolygonTokenStrategy(mock<AssetService>(), mock<DexOptimismService>());
+    polygonCoin = new PolygonCoinStrategy(mock<AssetService>(), mock<DexPolygonService>());
+    polygonToken = new PolygonTokenStrategy(mock<AssetService>(), mock<DexPolygonService>());
+    baseCoin = new BaseCoinStrategy(mock<AssetService>(), mock<DexBaseService>());
+    baseToken = new BaseTokenStrategy(mock<AssetService>(), mock<DexBaseService>());
 
     register = new CheckLiquidityStrategyRegistryWrapper(
       arbitrumCoin,
@@ -92,6 +100,8 @@ describe('CheckLiquidityStrategies', () => {
       optimismToken,
       polygonCoin,
       polygonToken,
+      baseCoin,
+      baseToken,
     );
   });
 
@@ -217,6 +227,22 @@ describe('CheckLiquidityStrategies', () => {
         expect(strategy).toBeInstanceOf(PolygonTokenStrategy);
       });
 
+      it('gets BASE_COIN strategy', () => {
+        const strategy = register.getCheckLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.BASE, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(BaseCoinStrategy);
+      });
+
+      it('gets BASE_TOKEN strategy', () => {
+        const strategy = register.getCheckLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.BASE, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(BaseTokenStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const testCall = () =>
           register.getCheckLiquidityStrategy(createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }));
@@ -245,6 +271,8 @@ class CheckLiquidityStrategyRegistryWrapper extends CheckLiquidityStrategyRegist
     optimismToken: OptimismTokenStrategy,
     polygonCoin: PolygonCoinStrategy,
     polygonToken: PolygonTokenStrategy,
+    baseCoin: BaseCoinStrategy,
+    baseToken: BaseTokenStrategy,
   ) {
     super();
 
@@ -264,5 +292,7 @@ class CheckLiquidityStrategyRegistryWrapper extends CheckLiquidityStrategyRegist
     this.addStrategy({ blockchain: Blockchain.OPTIMISM, assetType: AssetType.TOKEN }, optimismToken);
     this.addStrategy({ blockchain: Blockchain.POLYGON, assetType: AssetType.COIN }, polygonCoin);
     this.addStrategy({ blockchain: Blockchain.POLYGON, assetType: AssetType.TOKEN }, polygonToken);
+    this.addStrategy({ blockchain: Blockchain.BASE, assetType: AssetType.COIN }, baseCoin);
+    this.addStrategy({ blockchain: Blockchain.BASE, assetType: AssetType.TOKEN }, baseToken);
   }
 }

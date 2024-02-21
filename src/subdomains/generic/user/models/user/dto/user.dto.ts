@@ -28,6 +28,9 @@ export class UserDto {
   accountType: AccountType;
 
   @ApiProperty()
+  wallet: string;
+
+  @ApiProperty()
   address: string;
 
   @ApiProperty({ enum: UserStatus })
@@ -45,7 +48,7 @@ export class UserDto {
   @ApiProperty({ type: Language })
   language: Language;
 
-  @ApiProperty({ enum: KycStatus })
+  @ApiProperty({ enum: KycStatus, deprecated: true })
   kycStatus: KycStatus;
 
   @ApiProperty({ enum: KycState, deprecated: true })

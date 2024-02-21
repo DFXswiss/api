@@ -34,6 +34,8 @@ export enum Process {
   LNURL_AUTH_CACHE = 'LnurlAuthCache',
   TFA_CACHE = '2faCache',
   FRANKENCOIN_LOG_INFO = 'FrankencoinLogInfo',
+  AUTO_CREATE_BANK_DATA = 'AutoCreateBankData',
+  TX_SPEEDUP = 'TxSpeedup',
 }
 
 type ProcessMap = { [p in Process]?: boolean };
