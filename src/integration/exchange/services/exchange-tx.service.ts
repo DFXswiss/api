@@ -54,6 +54,12 @@ export class ExchangeTxService {
 
       const tokens = sync.tokens ?? (await this.assetService.getAssetsUsedOn(sync.exchange));
 
+      // replace invalid tokens
+      for (const [index, token] of tokens.entries()) {
+        const replacement = sync.tokenReplacements.find(([from, _]) => token === from);
+        if (replacement) tokens[index] = replacement[1];
+      }
+
       const transactions: ExchangeTxDto[] = [];
 
       for (const token of tokens) {

@@ -32,7 +32,7 @@ export class TransactionDto {
   @ApiPropertyOptional()
   inputAsset?: string;
 
-  @ApiPropertyOptional({ description: 'Asset ID, if input payment method is Crypto, fiat ID otherwise' })
+  @ApiPropertyOptional({ description: 'Fiat ID for buy transactions, asset ID otherwise' })
   inputAssetId?: number;
 
   @ApiPropertyOptional({ enum: Blockchain })
@@ -53,7 +53,7 @@ export class TransactionDto {
   @ApiPropertyOptional()
   outputAsset?: string;
 
-  @ApiPropertyOptional({ description: 'Asset ID, if output payment method is Crypto, Fiat ID otherwise' })
+  @ApiPropertyOptional({ description: 'Fiat ID for sell transactions, asset ID otherwise' })
   outputAssetId?: number;
 
   @ApiPropertyOptional({ enum: Blockchain })
