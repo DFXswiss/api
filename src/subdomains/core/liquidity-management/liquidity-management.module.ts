@@ -7,6 +7,7 @@ import { SharedModule } from 'src/shared/shared.module';
 import { DexModule } from 'src/subdomains/supporting/dex/dex.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { ArbitrumL2BridgeAdapter } from './adapters/actions/arbitrum-l2-bridge.adapter';
+import { BaseL2BridgeAdapter } from './adapters/actions/base-l2-bridge.adapter';
 import { BinanceAdapter } from './adapters/actions/binance.adapter';
 import { DfxDexAdapter } from './adapters/actions/dfx-dex.adapter';
 import { KrakenAdapter } from './adapters/actions/kraken.adapter';
@@ -77,6 +78,7 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     ArbitrumL2BridgeAdapter,
     OptimismL2BridgeAdapter,
     PolygonL2BridgeAdapter,
+    BaseL2BridgeAdapter,
     BinanceAdapter,
     KrakenAdapter,
   ],

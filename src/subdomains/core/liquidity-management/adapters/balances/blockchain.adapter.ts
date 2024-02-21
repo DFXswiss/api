@@ -109,6 +109,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
         case Blockchain.OPTIMISM:
         case Blockchain.ARBITRUM:
         case Blockchain.POLYGON:
+        case Blockchain.BASE:
           await this.getForEvm(assets);
           break;
 

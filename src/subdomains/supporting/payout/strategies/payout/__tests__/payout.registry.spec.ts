@@ -7,6 +7,7 @@ import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutArbitrumService } from '../../../services/payout-arbitrum.service';
+import { PayoutBaseService } from '../../../services/payout-base.service';
 import { PayoutBitcoinService } from '../../../services/payout-bitcoin.service';
 import { PayoutBscService } from '../../../services/payout-bsc.service';
 import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
@@ -16,6 +17,8 @@ import { PayoutOptimismService } from '../../../services/payout-optimism.service
 import { PayoutPolygonService } from '../../../services/payout-polygon.service';
 import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy } from '../impl/arbitrum-token.strategy';
+import { BaseCoinStrategy } from '../impl/base-coin.strategy';
+import { BaseTokenStrategy } from '../impl/base-token.strategy';
 import { PayoutStrategyRegistry } from '../impl/base/payout.strategy-registry';
 import { BitcoinStrategy } from '../impl/bitcoin.strategy';
 import { BscCoinStrategy } from '../impl/bsc-coin.strategy';
@@ -45,6 +48,8 @@ describe('PayoutStrategyRegistry', () => {
   let optimismToken: OptimismTokenStrategy;
   let polygonCoin: PolygonCoinStrategy;
   let polygonToken: PolygonTokenStrategy;
+  let baseCoin: BaseCoinStrategy;
+  let baseToken: BaseTokenStrategy;
 
   let registry: PayoutStrategyRegistryWrapper;
 
@@ -116,6 +121,8 @@ describe('PayoutStrategyRegistry', () => {
       mock<AssetService>(),
       mock<PayoutOrderRepository>(),
     );
+    baseCoin = new BaseCoinStrategy(mock<PayoutBaseService>(), mock<AssetService>(), mock<PayoutOrderRepository>());
+    baseToken = new BaseTokenStrategy(mock<PayoutBaseService>(), mock<AssetService>(), mock<PayoutOrderRepository>());
 
     registry = new PayoutStrategyRegistryWrapper(
       arbitrumCoin,
@@ -132,6 +139,8 @@ describe('PayoutStrategyRegistry', () => {
       optimismToken,
       polygonCoin,
       polygonToken,
+      baseCoin,
+      baseToken,
     );
   });
 
@@ -249,6 +258,22 @@ describe('PayoutStrategyRegistry', () => {
         expect(strategy).toBeInstanceOf(PolygonTokenStrategy);
       });
 
+      it('gets BASE_COIN strategy', () => {
+        const strategy = registry.getPayoutStrategy(
+          createCustomAsset({ blockchain: Blockchain.BASE, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(BaseCoinStrategy);
+      });
+
+      it('gets BASE_TOKEN strategy', () => {
+        const strategy = registry.getPayoutStrategy(
+          createCustomAsset({ blockchain: Blockchain.BASE, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(BaseTokenStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const testCall = () =>
           registry.getPayoutStrategy(
@@ -278,6 +303,8 @@ class PayoutStrategyRegistryWrapper extends PayoutStrategyRegistry {
     optimismToken: OptimismTokenStrategy,
     polygonCoin: PolygonCoinStrategy,
     polygonToken: PolygonTokenStrategy,
+    baseCoin: BaseCoinStrategy,
+    baseToken: BaseTokenStrategy,
   ) {
     super();
 
@@ -295,5 +322,7 @@ class PayoutStrategyRegistryWrapper extends PayoutStrategyRegistry {
     this.add({ blockchain: Blockchain.OPTIMISM, assetType: AssetType.TOKEN }, optimismToken);
     this.add({ blockchain: Blockchain.POLYGON, assetType: AssetType.COIN }, polygonCoin);
     this.add({ blockchain: Blockchain.POLYGON, assetType: AssetType.TOKEN }, polygonToken);
+    this.add({ blockchain: Blockchain.BASE, assetType: AssetType.COIN }, baseCoin);
+    this.add({ blockchain: Blockchain.BASE, assetType: AssetType.TOKEN }, baseToken);
   }
 }
