@@ -13,6 +13,7 @@ enum AdapterType {
   EXCHANGE = 'Exchange',
   BANK = 'Bank',
 }
+
 @Injectable()
 export class LiquidityBalanceIntegrationFactory {
   private readonly adapters = new Map<AdapterType, LiquidityBalanceIntegration>();
@@ -40,7 +41,8 @@ export class LiquidityBalanceIntegrationFactory {
 
   private getAdapterType(rule: LiquidityManagementRule): AdapterType {
     if (isAsset(rule.target)) {
-      return Object.keys(Blockchain).includes(rule.context as string) ? AdapterType.BLOCKCHAIN : AdapterType.EXCHANGE;
+      const blockchain = Object.values(Blockchain).find((b) => b.toString() === rule.context.toString());
+      return blockchain ? AdapterType.BLOCKCHAIN : AdapterType.EXCHANGE;
     }
 
     if (isFiat(rule.target)) {
