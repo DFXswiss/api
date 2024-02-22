@@ -2,9 +2,9 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { BuyCryptoExtended, BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
 import { IsNull } from 'typeorm';
 import { UserData } from '../../models/user-data/user-data.entity';
-import { UserDataService } from '../../models/user-data/user-data.service';
+import { UserDataRepository } from '../../models/user-data/user-data.repository';
 import { User } from '../../models/user/user.entity';
-import { UserService } from '../../models/user/user.service';
+import { UserRepository } from '../../models/user/user.repository';
 import { CreateWebhookInput } from './dto/create-webhook.dto';
 import { WebhookType } from './dto/webhook.dto';
 import { WebhookDataMapper } from './mapper/webhook-data.mapper';
@@ -15,12 +15,16 @@ import { WebhookRepository } from './webhook.repository';
 export class WebhookService {
   constructor(
     private readonly webhookRepo: WebhookRepository,
-    private readonly userService: UserService,
-    private readonly userDataService: UserDataService,
+    private readonly userService: UserRepository,
+    private readonly userDataService: UserDataRepository,
   ) {}
 
   async kycChanged(userData: UserData): Promise<void> {
-    if (!userData.users) userData = await this.userDataService.getUserData(userData.id, { users: { wallet: true } });
+    if (!userData.users)
+      userData = await this.userDataService.findOne({
+        where: { id: userData.id },
+        relations: { users: { wallet: true } },
+      });
     for (const user of userData.users) {
       await this.create({
         data: JSON.stringify(WebhookDataMapper.mapKycData(userData)),
@@ -31,7 +35,11 @@ export class WebhookService {
   }
 
   async kycFailed(userData: UserData, reason: string): Promise<void> {
-    if (!userData.users) userData = await this.userDataService.getUserData(userData.id, { users: { wallet: true } });
+    if (!userData.users)
+      userData = await this.userDataService.findOne({
+        where: { id: userData.id },
+        relations: { users: { wallet: true } },
+      });
     for (const user of userData.users) {
       await this.create({
         data: JSON.stringify(WebhookDataMapper.mapKycData(userData)),
@@ -77,7 +85,8 @@ export class WebhookService {
   // --- HELPER METHODS --- //
 
   private async create(dto: CreateWebhookInput): Promise<Webhook | undefined> {
-    if (!dto.user.wallet) dto.user = await this.userService.getUser(dto.user.id, { wallet: true });
+    if (!dto.user.wallet)
+      dto.user = await this.userService.findOne({ where: { id: dto.user.id }, relations: { wallet: true } });
     if (!dto.user.wallet.apiUrl) return;
 
     const existing = await this.webhookRepo.findOne({
