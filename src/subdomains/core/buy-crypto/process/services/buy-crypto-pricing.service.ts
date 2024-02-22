@@ -15,6 +15,7 @@ export class BuyCryptoPricingService {
 
   //*** HELPER METHODS ***//
 
+  // allows expired prices!
   private async convertToTargetAsset(sourceAsset: Asset, sourceAmount: number, targetAsset: Asset): Promise<number> {
     const price = await this.pricingService.getPrice(sourceAsset, targetAsset, true);
 

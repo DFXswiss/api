@@ -93,9 +93,9 @@ export class BuyCryptoBatchService {
   private async defineReferenceAmount(transactions: BuyCrypto[]): Promise<BuyCrypto[]> {
     for (const tx of transactions) {
       try {
-        const inputReferenceCurrency =
-          (await this.fiatService.getFiatByName(tx.inputReferenceAsset)) ??
-          (await this.assetService.getNativeMainLayerAsset(tx.inputReferenceAsset));
+        const inputReferenceCurrency = tx.isCryptoCryptoTransaction
+          ? await this.assetService.getNativeMainLayerAsset(tx.inputReferenceAsset)
+          : await this.fiatService.getFiatByName(tx.inputReferenceAsset);
 
         const price = await this.pricingService.getPrice(inputReferenceCurrency, tx.outputReferenceAsset, false);
 
