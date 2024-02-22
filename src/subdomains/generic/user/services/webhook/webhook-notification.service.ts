@@ -7,10 +7,10 @@ import { Lock } from 'src/shared/utils/lock';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { IsNull } from 'typeorm';
-import { User } from '../../models/user/user.entity';
 import { KycWebhookData } from './dto/kyc-webhook.dto';
 import { PaymentWebhookData } from './dto/payment-webhook.dto';
-import { WebhookDto, WebhookType } from './dto/webhook.dto';
+import { WebhookDto } from './dto/webhook.dto';
+import { Webhook } from './webhook.entity';
 import { WebhookRepository } from './webhook.repository';
 
 @Injectable()
@@ -40,7 +40,7 @@ export class WebhookNotificationService {
 
     for (const entity of entities) {
       try {
-        await this.triggerUserWebhook(entity.user, JSON.parse(entity.data), entity.type, entity.reason);
+        await this.triggerUserWebhook(entity);
         await this.webhookRepo.update(...entity.confirmSentDate());
       } catch (e) {
         this.logger.error(`Failed to send webhook ${entity.id}:`, e);
@@ -50,37 +50,32 @@ export class WebhookNotificationService {
 
   // --- HELPER METHODS --- //
 
-  private async triggerUserWebhook<T extends PaymentWebhookData | KycWebhookData>(
-    user: User,
-    data: T,
-    type: WebhookType,
-    reason?: string,
-  ): Promise<void> {
+  private async triggerUserWebhook<T extends PaymentWebhookData | KycWebhookData>(webhook: Webhook): Promise<void> {
     try {
-      if (!user.wallet.apiUrl) return;
-      if (!user.wallet.apiKey) throw new Error(`ApiKey for wallet ${user.wallet.name} not available`);
+      if (!webhook.user.wallet.apiUrl) return;
+      if (!webhook.user.wallet.apiKey) throw new Error(`ApiKey for wallet ${webhook.user.wallet.name} not available`);
 
       const webhookDto: WebhookDto<T> = {
-        id: user.address,
-        type: type,
-        data: data,
-        reason: reason,
+        id: webhook.user.address,
+        type: webhook.type,
+        data: JSON.parse(webhook.data),
+        reason: webhook.reason,
       };
 
-      await this.http.post(user.wallet.apiUrl, webhookDto, {
-        headers: { 'x-api-key': user.wallet.apiKey },
+      await this.http.post(webhook.user.wallet.apiUrl, webhookDto, {
+        headers: { 'x-api-key': webhook.user.wallet.apiKey },
         retryDelay: 5000,
         tryCount: 3,
       });
     } catch (error) {
-      const errMessage = `Exception during ${type} webhook for user ${user.id}:`;
+      const errMessage = `Exception during ${webhook.type} webhook for user ${webhook.user.id}:`;
 
       this.logger.error(errMessage, error);
 
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,
         input: {
-          subject: `${type} webhook failed`,
+          subject: `${webhook.type} webhook failed`,
           errors: [errMessage, error],
         },
       });

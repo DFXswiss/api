@@ -402,7 +402,7 @@ export class KycService {
   }
 
   private async getUser(kycHash: string): Promise<UserData> {
-    return this.userDataService.getByKycHashOrThrow(kycHash, { users: { wallet: true } });
+    return this.userDataService.getByKycHashOrThrow(kycHash, { users: true });
   }
 
   private async getUserByTransactionOrThrow(
@@ -411,7 +411,7 @@ export class KycService {
   ): Promise<{ user: UserData; stepId: number }> {
     const kycStep = await this.kycStepRepo.findOne({
       where: { transactionId },
-      relations: { userData: { users: { wallet: true } } },
+      relations: { userData: true },
     });
 
     if (!kycStep) {

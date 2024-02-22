@@ -55,7 +55,7 @@ export class KycAdminService {
   async triggerWebhook(dto: KycWebhookTriggerDto): Promise<void> {
     const kycStep = await this.kycStepRepo.findOne({
       where: [{ id: dto.kycStepId }, { userData: { id: dto.userDataId } }],
-      relations: { userData: { users: { wallet: true } } },
+      relations: { userData: true },
       order: { updated: 'DESC' },
     });
     if (!kycStep) throw new NotFoundException('No kycSteps found');
