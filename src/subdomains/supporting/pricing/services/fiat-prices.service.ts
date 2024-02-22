@@ -20,7 +20,7 @@ export class FiatPricesService {
 
     const chf = await this.fiatService.getFiatByName('CHF');
 
-    const fiats = await this.fiatService.getAllFiat();
+    const fiats = await this.fiatService.getActiveFiat();
 
     for (const fiat of fiats) {
       try {
