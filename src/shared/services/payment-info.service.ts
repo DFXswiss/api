@@ -21,21 +21,23 @@ export class PaymentInfoService {
     if ('currency' in dto) {
       dto.currency = await this.fiatService.getFiat(dto.currency.id);
       if (!dto.currency) throw new NotFoundException('Currency not found');
-      if (!dto.currency.sellable) throw new BadRequestException('Currency not sellable');
     }
 
     dto.asset = await this.assetService.getAssetById(dto.asset.id);
     if (!dto.asset) throw new NotFoundException('Asset not found');
-    if (!dto.asset.buyable) throw new BadRequestException('Asset not buyable');
     if (jwt && !jwt.blockchains.includes(dto.asset.blockchain))
       throw new BadRequestException('Asset blockchain mismatch');
 
     if ('paymentMethod' in dto && dto.paymentMethod === FiatPaymentMethod.CARD) {
-      if (!dto.currency.cardSellable) throw new BadRequestException('Currency not sellable per Card');
-      if (!dto.asset.cardSellable) throw new BadRequestException('Asset not buyable per Card');
+      if (!dto.currency.cardSellable) throw new BadRequestException('Currency not sellable via Card');
+      if (!dto.asset.cardBuyable) throw new BadRequestException('Asset not buyable via Card');
     } else if ('paymentMethod' in dto && dto.paymentMethod === FiatPaymentMethod.INSTANT) {
-      if (!dto.currency.instantSellable) throw new BadRequestException('Currency not sellable per Instant');
-      if (!dto.asset.instantSellable) throw new BadRequestException('Asset not buyable per Instant');
+      if (!dto.currency.instantSellable) throw new BadRequestException('Currency not sellable via Instant');
+      if (!dto.asset.instantBuyable) throw new BadRequestException('Asset not buyable via Instant');
+    } else if (('paymentMethod' in dto && dto.paymentMethod === FiatPaymentMethod.BANK) || !('paymentMethod' in dto)) {
+      if ('currency' in dto && !dto.currency.sellable) throw new BadRequestException('Currency not sellable via Bank');
+      if (!dto.asset.buyable)
+        throw new BadRequestException(`Asset not buyable ${'paymentMethod' in dto ? 'via Bank' : ''}`);
     }
 
     return dto;
