@@ -6,7 +6,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { PriceProviderService } from './price-provider.service';
+import { PricingService } from './pricing.service';
 
 @Injectable()
 export class AssetPricesService {
@@ -15,7 +15,7 @@ export class AssetPricesService {
   constructor(
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
-    private readonly priceProvider: PriceProviderService,
+    private readonly pricingService: PricingService,
   ) {}
 
   // --- JOBS --- //
@@ -33,8 +33,8 @@ export class AssetPricesService {
 
     for (const asset of assetsToUpdate) {
       try {
-        const usdPrice = await this.priceProvider.getPrice(asset, usd);
-        const chfPrice = await this.priceProvider.getPrice(asset, chf);
+        const usdPrice = await this.pricingService.getPrice(asset, usd, false);
+        const chfPrice = await this.pricingService.getPrice(asset, chf, false);
 
         await this.assetService.updatePrice(asset.id, usdPrice.convert(1), chfPrice.convert(1));
       } catch (e) {

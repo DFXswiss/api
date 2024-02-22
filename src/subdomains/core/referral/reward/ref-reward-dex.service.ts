@@ -1,16 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { RefRewardRepository } from './ref-reward.repository';
-import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
-import { RefReward, RewardStatus } from './ref-reward.entity';
-import { Util } from 'src/shared/utils/util';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { PurchaseLiquidityRequest, ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
-import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
-import { PriceRequestContext } from 'src/subdomains/supporting/pricing/domain/enums';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
+import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
+import { PurchaseLiquidityRequest, ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
+import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { RefReward, RewardStatus } from './ref-reward.entity';
+import { RefRewardRepository } from './ref-reward.repository';
 
 export interface RefLiquidityRequest {
   amount: number;
@@ -26,6 +26,7 @@ export class RefRewardDexService {
     private readonly refRewardRepo: RefRewardRepository,
     private readonly dexService: DexService,
     private readonly assetService: AssetService,
+    private readonly fiatService: FiatService,
     private readonly priceService: PricingService,
   ) {}
 
@@ -40,20 +41,17 @@ export class RefRewardDexService {
   }
 
   private async processRefRewards(groupedRewards: Map<Blockchain, RefReward[]>): Promise<void> {
+    const eur = await this.fiatService.getFiatByName('EUR');
+
     for (const blockchain of groupedRewards.keys()) {
       try {
         const asset = await this.assetService.getNativeAsset(blockchain);
 
-        // PayoutAsset Price
-        const assetPrice = await this.priceService.getPrice({
-          context: PriceRequestContext.REF_REWARD,
-          correlationId: `${blockchain}&${Util.isoDate(new Date())}`,
-          from: 'EUR',
-          to: asset.dexName,
-        });
+        // payout asset Price
+        const assetPrice = await this.priceService.getPrice(eur, asset, false);
 
         for (const reward of groupedRewards.get(blockchain)) {
-          const outputAmount = assetPrice.price.convert(reward.amountInEur, 8);
+          const outputAmount = assetPrice.convert(reward.amountInEur, 8);
 
           await this.checkLiquidity({
             amount: outputAmount,

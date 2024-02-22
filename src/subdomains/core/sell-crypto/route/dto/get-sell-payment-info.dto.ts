@@ -1,6 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsNotEmpty, IsNotEmptyObject, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
+import {
+  IsBoolean,
+  IsNotEmpty,
+  IsNotEmptyObject,
+  IsNumber,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -48,4 +56,10 @@ export class GetSellPaymentInfoDto {
   @IsOptional()
   @IsString()
   externalTransactionId?: string;
+
+  //eslint-disable-next-line @typescript-eslint/no-inferrable-types
+  @ApiPropertyOptional({ description: 'Require an exact price (may take longer)' })
+  @IsNotEmpty()
+  @IsBoolean()
+  exactPrice: boolean = false;
 }

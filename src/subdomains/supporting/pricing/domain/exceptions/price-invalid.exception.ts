@@ -1,4 +1,4 @@
-export class MetadataNotFoundException extends Error {
+export class PriceInvalidException extends Error {
   constructor(message: string) {
     super(message);
   }
