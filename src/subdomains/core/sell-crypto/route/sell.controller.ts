@@ -100,6 +100,7 @@ export class SellController {
       currency,
       CryptoPaymentMethod.CRYPTO,
       FiatPaymentMethod.BANK,
+      true,
       undefined,
       discountCode ? [discountCode] : [],
     );
@@ -198,6 +199,7 @@ export class SellController {
       sourceAmount: amount,
       isValid,
       error,
+      exactPrice,
     } = await this.transactionHelper.getTxDetails(
       dto.amount,
       dto.targetAmount,
@@ -205,6 +207,7 @@ export class SellController {
       dto.currency,
       CryptoPaymentMethod.CRYPTO,
       FiatPaymentMethod.BANK,
+      !dto.exactPrice,
       user,
     );
 
@@ -220,6 +223,7 @@ export class SellController {
       minFeeTarget,
       exchangeRate,
       rate,
+      exactPrice,
       estimatedAmount,
       amount,
       currency: FiatDtoMapper.toDto(dto.currency),

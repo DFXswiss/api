@@ -425,7 +425,16 @@ export class BuyCryptoService {
         { buy: { user: { id: In(userIds) } }, checkoutTx: { created: Between(dateFrom, dateTo) } },
         { cryptoRoute: { user: { id: In(userIds) } }, cryptoInput: { created: Between(dateFrom, dateTo) } },
       ],
-      relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'checkoutTx', 'cryptoRoute', 'cryptoRoute.user'],
+      relations: [
+        'bankTx',
+        'buy',
+        'buy.user',
+        'cryptoInput',
+        'checkoutTx',
+        'cryptoRoute',
+        'cryptoRoute.user',
+        'chargebackBankTx',
+      ],
       order: { id: 'DESC' },
     });
   }

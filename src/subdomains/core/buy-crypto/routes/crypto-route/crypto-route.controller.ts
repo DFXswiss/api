@@ -102,6 +102,7 @@ export class CryptoRouteController {
       targetAsset,
       CryptoPaymentMethod.CRYPTO,
       CryptoPaymentMethod.CRYPTO,
+      true,
       undefined,
       discountCode ? [discountCode] : [],
     );
@@ -215,6 +216,7 @@ export class CryptoRouteController {
       sourceAmount: amount,
       isValid,
       error,
+      exactPrice,
     } = await this.transactionHelper.getTxDetails(
       dto.amount,
       dto.targetAmount,
@@ -222,6 +224,7 @@ export class CryptoRouteController {
       dto.targetAsset,
       CryptoPaymentMethod.CRYPTO,
       CryptoPaymentMethod.CRYPTO,
+      !dto.exactPrice,
       user,
     );
 
@@ -237,6 +240,7 @@ export class CryptoRouteController {
       minFeeTarget,
       exchangeRate,
       rate,
+      exactPrice,
       estimatedAmount,
       amount,
       targetAsset: AssetDtoMapper.toDto(dto.targetAsset),

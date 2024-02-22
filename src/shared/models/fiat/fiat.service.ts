@@ -13,6 +13,17 @@ export class FiatService {
     return this.fiatRepo.find();
   }
 
+  async getActiveFiat(): Promise<Fiat[]> {
+    return this.fiatRepo.findBy([
+      { buyable: true },
+      { sellable: true },
+      { cardBuyable: true },
+      { cardSellable: true },
+      { instantBuyable: true },
+      { instantSellable: true },
+    ]);
+  }
+
   async getFiat(id: number): Promise<Fiat> {
     return this.cache.get(`${id}`, () => this.fiatRepo.findOneBy({ id }));
   }

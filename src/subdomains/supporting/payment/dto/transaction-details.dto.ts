@@ -7,6 +7,7 @@ export interface TargetEstimation {
   rate: number;
   feeAmount: number;
   estimatedAmount: number;
+  exactPrice: boolean;
 }
 
 export interface TransactionDetails extends TargetEstimation {

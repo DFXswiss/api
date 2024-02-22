@@ -7,8 +7,6 @@ import { PricingProvider } from '../../domain/interfaces';
 
 @Injectable()
 export class PricingDexService implements PricingProvider {
-  readonly name = 'CoinGecko';
-
   constructor(private dexService: DexService, private assetService: AssetService) {}
 
   async getPrice(from: string, to: string): Promise<Price> {

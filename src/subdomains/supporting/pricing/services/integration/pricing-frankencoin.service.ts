@@ -6,8 +6,6 @@ import { PricingProvider } from '../../domain/interfaces';
 
 @Injectable()
 export class PricingFrankencoinService implements PricingProvider {
-  readonly name = 'Frankencoin';
-
   private static readonly ZCHF = 'ZCHF';
   private static readonly FPS = 'FPS';
   private static readonly ALLOWED_ASSETS = [PricingFrankencoinService.ZCHF, PricingFrankencoinService.FPS];

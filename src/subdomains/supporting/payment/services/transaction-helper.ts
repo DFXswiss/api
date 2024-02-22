@@ -13,7 +13,7 @@ import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/min-amount.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
-import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
+import { PricingService } from '../../pricing/services/pricing.service';
 import { FeeDto } from '../dto/fee.dto';
 import { FiatPaymentMethod, PaymentMethod } from '../dto/payment-method.enum';
 import { TargetEstimation, TransactionDetails } from '../dto/transaction-details.dto';
@@ -42,7 +42,7 @@ export class TransactionHelper implements OnModuleInit {
 
   constructor(
     private readonly specRepo: TransactionSpecificationRepository,
-    private readonly priceProviderService: PriceProviderService,
+    private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
     private readonly feeService: FeeService,
     private readonly buyCryptoService: BuyCryptoService,
@@ -64,7 +64,7 @@ export class TransactionHelper implements OnModuleInit {
   // --- SPECIFICATIONS --- //
   async validateInput(from: Asset | Fiat, amount: number): Promise<true | ValidationError> {
     // check min. volume
-    const { minVolume } = await this.getInSpecs(from);
+    const { minVolume } = await this.getInSpecs(from, true);
     if (amount < minVolume * 0.5) return ValidationError.PAY_IN_TOO_SMALL;
 
     // check sellable
@@ -73,16 +73,16 @@ export class TransactionHelper implements OnModuleInit {
     return true;
   }
 
-  async getInSpecs(from: Asset | Fiat): Promise<TxSpec> {
+  async getInSpecs(from: Asset | Fiat, allowExpiredPrice: boolean): Promise<TxSpec> {
     const spec = this.specRepo.getSpecFor(this.transactionSpecifications, from, TransactionDirection.IN);
 
-    return this.convertToSource(from, spec);
+    return this.convertToSource(from, spec, allowExpiredPrice);
   }
 
-  async getOutSpecs(to: Asset | Fiat): Promise<TxSpec> {
+  async getOutSpecs(to: Asset | Fiat, allowExpiredPrice: boolean): Promise<TxSpec> {
     const spec = this.specRepo.getSpecFor(this.transactionSpecifications, to, TransactionDirection.OUT);
 
-    return this.convertToTarget(to, spec);
+    return this.convertToTarget(to, spec, allowExpiredPrice);
   }
 
   getSpecs(from: Asset | Fiat, to: Asset | Fiat): TxSpec {
@@ -138,7 +138,11 @@ export class TransactionHelper implements OnModuleInit {
       [],
     );
 
-    const txSpecSource = await this.convertToSource(from, { ...specs, fixedFee: fee.fixed, minFee: fee.blockchain });
+    const txSpecSource = await this.convertToSource(
+      from,
+      { ...specs, fixedFee: fee.fixed, minFee: fee.blockchain },
+      false,
+    );
 
     const percentFeeAmount = inputAmount * fee.rate;
     const feeAmount = Math.max(percentFeeAmount + txSpecSource.fixedFee, txSpecSource.minFee);
@@ -161,6 +165,7 @@ export class TransactionHelper implements OnModuleInit {
     to: Asset | Fiat,
     paymentMethodIn: PaymentMethod,
     paymentMethodOut: PaymentMethod,
+    allowExpiredPrice: boolean,
     user?: User,
     discountCodes: string[] = [],
   ): Promise<TransactionDetails> {
@@ -172,7 +177,7 @@ export class TransactionHelper implements OnModuleInit {
       paymentMethodOut,
       from,
       to,
-      targetAmount ? targetAmount : sourceAmount,
+      targetAmount ?? sourceAmount,
       targetAmount ? to : from,
       specs.minFee,
       discountCodes,
@@ -187,8 +192,8 @@ export class TransactionHelper implements OnModuleInit {
       fixedFee: fee.fixed,
     };
 
-    const txSpecSource = await this.convertToSource(from, extendedSpecs);
-    const txSpecTarget = await this.convertToTarget(to, extendedSpecs);
+    const txSpecSource = await this.convertToSource(from, extendedSpecs, allowExpiredPrice);
+    const txSpecTarget = await this.convertToTarget(to, extendedSpecs, allowExpiredPrice);
 
     // target estimation
     const target = await this.getTargetEstimation(
@@ -199,19 +204,19 @@ export class TransactionHelper implements OnModuleInit {
       txSpecSource.fixedFee,
       from,
       to,
+      allowExpiredPrice,
     );
-    const txAmount = await this.getVolumeLast24h(target.sourceAmount, from, user);
-    const chfPrice = await this.priceProviderService.getPrice(from, this.chf).then((p) => p.invert());
+    const txAmountChf = await this.getVolumeLast24hChf(target.sourceAmount, from, allowExpiredPrice, user);
 
     const error =
       to instanceof Fiat &&
       user &&
       !user.userData.hasBankTxVerification &&
-      chfPrice.convert(txAmount) > Config.defaultDailyTradingLimit
+      txAmountChf > Config.defaultDailyTradingLimit
         ? TransactionError.BANK_TRANSACTION_MISSING
         : target.sourceAmount < txSpecSource.minVolume
         ? TransactionError.AMOUNT_TOO_LOW
-        : txAmount > txSpecSource.maxVolume
+        : txAmountChf > extendedSpecs.maxVolume
         ? TransactionError.AMOUNT_TOO_HIGH
         : paymentMethodIn === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed
         ? TransactionError.KYC_REQUIRED
@@ -241,7 +246,7 @@ export class TransactionHelper implements OnModuleInit {
     minFeeEur: number,
     discountCodes: string[],
   ): Promise<FeeDto> {
-    const price = await this.priceProviderService.getPrice(txAsset, this.eur);
+    const price = await this.pricingService.getPrice(txAsset, this.eur, true);
 
     const txVolumeInEur = price.convert(txVolume);
 
@@ -267,8 +272,9 @@ export class TransactionHelper implements OnModuleInit {
     fixedFeeSource = 0,
     from: Asset | Fiat,
     to: Asset | Fiat,
+    allowExpiredPrice: boolean,
   ): Promise<TargetEstimation> {
-    const price = await this.priceProviderService.getPrice(from, to);
+    const price = await this.pricingService.getPrice(from, to, allowExpiredPrice);
 
     const percentFeeAmount =
       outputAmount != null
@@ -285,11 +291,17 @@ export class TransactionHelper implements OnModuleInit {
       feeAmount: this.round(feeAmount, from instanceof Fiat),
       estimatedAmount: this.round(targetAmount, to instanceof Fiat),
       sourceAmount: this.round(sourceAmount, from instanceof Fiat),
+      exactPrice: price.isValid,
     };
   }
 
   // --- HELPER METHODS --- //
-  private async getVolumeLast24h(inputAmount: number, from: Asset | Fiat, user?: User): Promise<number> {
+  private async getVolumeLast24hChf(
+    inputAmount: number,
+    from: Asset | Fiat,
+    allowExpiredPrice: boolean,
+    user?: User,
+  ): Promise<number> {
     if (!user) return inputAmount;
 
     const buyCryptos = await this.buyCryptoService
@@ -300,20 +312,21 @@ export class TransactionHelper implements OnModuleInit {
       .getUserTransactions(user.id, Util.daysBefore(1))
       .then((buyFiats) => buyFiats.filter((b) => b.amlCheck !== CheckStatus.FAIL));
 
-    const price = await this.priceProviderService.getPrice(from, this.eur).then((p) => p.invert());
-    const txEurAmount = Util.sumObjValue(buyCryptos, 'amountInEur') + Util.sumObjValue(buyFiats, 'amountInEur');
+    const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
+    const volume24hChf = Util.sumObjValue(buyCryptos, 'amountInChf') + Util.sumObjValue(buyFiats, 'amountInChf');
 
-    return inputAmount + price.convert(txEurAmount);
+    return price.convert(inputAmount) + volume24hChf;
   }
 
   private async convertToSource(
     from: Asset | Fiat,
     { minFee, minVolume, maxVolume, fixedFee }: TxSpecExtended,
+    allowExpiredPrice: boolean,
   ): Promise<TxSpecExtended> {
-    const price = await this.priceProviderService.getPrice(from, this.eur).then((p) => p.invert());
+    const price = await this.pricingService.getPrice(from, this.eur, allowExpiredPrice).then((p) => p.invert());
 
     const maxVolumePrice =
-      maxVolume && (await this.priceProviderService.getPrice(from, this.chf).then((p) => p.invert()));
+      maxVolume && (await this.pricingService.getPrice(from, this.chf, allowExpiredPrice).then((p) => p.invert()));
 
     const maxVolumeSource = maxVolume && (from.name === 'CHF' ? maxVolume : maxVolumePrice.convert(maxVolume * 0.99)); // -1% for the conversion
 
@@ -328,9 +341,10 @@ export class TransactionHelper implements OnModuleInit {
   private async convertToTarget(
     to: Asset | Fiat,
     { minFee, minVolume, maxVolume, fixedFee }: TxSpecExtended,
+    allowExpiredPrice: boolean,
   ): Promise<TxSpecExtended> {
-    const price = await this.priceProviderService.getPrice(this.eur, to);
-    const maxVolumePrice = maxVolume && (await this.priceProviderService.getPrice(this.chf, to));
+    const price = await this.pricingService.getPrice(this.eur, to, allowExpiredPrice);
+    const maxVolumePrice = maxVolume && (await this.pricingService.getPrice(this.chf, to, allowExpiredPrice));
 
     const maxVolumeTarget = maxVolume && (to.name === 'CHF' ? maxVolume : maxVolumePrice.convert(maxVolume * 0.99)); // -1% for the conversion
 

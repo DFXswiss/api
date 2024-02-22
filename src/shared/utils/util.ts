@@ -125,6 +125,10 @@ export class Util {
     return this.secondsDiff(from, to) / 60;
   }
 
+  static hoursDiff(from?: Date, to?: Date): number {
+    return this.secondsDiff(from, to) / 3600;
+  }
+
   static daysDiff(from?: Date, to?: Date): number {
     return this.secondsDiff(from, to) / (3600 * 24);
   }

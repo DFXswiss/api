@@ -15,6 +15,7 @@ import { OptimismL2BridgeAdapter } from './adapters/actions/optimism-l2-bridge.a
 import { PolygonL2BridgeAdapter } from './adapters/actions/polygon-l2-bridge.adapter';
 import { BankAdapter } from './adapters/balances/bank.adapter';
 import { BlockchainAdapter } from './adapters/balances/blockchain.adapter';
+import { ExchangeAdapter } from './adapters/balances/exchange.adapter';
 import { LiquidityBalanceController } from './controllers/balance.controller';
 import { LiquidityManagementOrderController } from './controllers/order.controller';
 import { LiquidityManagementPipelineController } from './controllers/pipeline.controller';
@@ -71,6 +72,7 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     LiquidityActionIntegrationFactory,
     LiquidityBalanceIntegrationFactory,
     BlockchainAdapter,
+    ExchangeAdapter,
     BankAdapter,
     DfxDexAdapter,
     ArbitrumL2BridgeAdapter,
