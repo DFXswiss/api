@@ -1,10 +1,11 @@
 export enum LiquidityManagementContext {
   DEFICHAIN = 'DeFiChain',
   ETHEREUM = 'Ethereum',
-  BSC = 'Bsc',
+  BINANCE_SMART_CHAIN = 'BinanceSmartChain',
   BITCOIN = 'Bitcoin',
   ARBITRUM = 'Arbitrum',
   OPTIMISM = 'Optimism',
+  BINANCE = 'Binance',
   BANK = 'Bank',
 }
 
@@ -16,6 +17,7 @@ export enum LiquidityManagementSystem {
   ARBITRUM_L2_BRIDGE = 'ArbitrumL2Bridge',
   OPTIMISM_L2_BRIDGE = 'OptimismL2Bridge',
   POLYGON_L2_BRIDGE = 'PolygonL2Bridge',
+  BASE_L2_BRIDGE = 'BaseL2Bridge',
 }
 
 export enum LiquidityManagementRuleStatus {

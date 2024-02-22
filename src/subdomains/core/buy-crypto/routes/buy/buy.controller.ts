@@ -16,7 +16,9 @@ import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity'
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { BuyCryptoService } from '../../process/services/buy-crypto.service';
 import { Buy } from './buy.entity';
 import { BuyService } from './buy.service';
@@ -40,6 +42,7 @@ export class BuyController {
     private readonly bankService: BankService,
     private readonly transactionHelper: TransactionHelper,
     private readonly checkoutService: CheckoutService,
+    private readonly transactionRequestService: TransactionRequestService,
   ) {}
 
   @Get()
@@ -98,6 +101,7 @@ export class BuyController {
       asset,
       paymentMethod,
       CryptoPaymentMethod.CRYPTO,
+      true,
       undefined,
       discountCode ? [discountCode] : [],
     );
@@ -126,6 +130,7 @@ export class BuyController {
     @Body() dto: GetBuyPaymentInfoDto,
   ): Promise<BuyPaymentInfoDto> {
     dto = await this.paymentInfoService.buyCheck(dto, jwt);
+
     return Util.retry(
       () => this.buyService.createBuy(jwt.id, jwt.address, dto, true),
       2,
@@ -203,6 +208,7 @@ export class BuyController {
       sourceAmount: amount,
       isValid,
       error,
+      exactPrice,
     } = await this.transactionHelper.getTxDetails(
       dto.amount,
       dto.targetAmount,
@@ -210,11 +216,12 @@ export class BuyController {
       dto.asset,
       dto.paymentMethod,
       CryptoPaymentMethod.CRYPTO,
+      !dto.exactPrice,
       user,
     );
     const bankInfo = await this.getBankInfo(buy, { ...dto, amount });
 
-    return {
+    const buyDto: BuyPaymentInfoDto = {
       routeId: buy.id,
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposit: { amount: minVolume, asset: dto.currency.name }, // TODO: remove
@@ -224,6 +231,7 @@ export class BuyController {
       minFeeTarget,
       exchangeRate,
       rate,
+      exactPrice,
       estimatedAmount,
       amount,
       asset: AssetDtoMapper.toDto(dto.asset),
@@ -253,6 +261,10 @@ export class BuyController {
         dto.paymentMethod === FiatPaymentMethod.CARD &&
         !(user.status === UserStatus.ACTIVE || (Boolean(user.userData.firstname) && Boolean(user.userData.surname))),
     };
+
+    void this.transactionRequestService.createTransactionRequest(TransactionRequestType.Buy, dto, buyDto);
+
+    return buyDto;
   }
 
   // --- HELPER-METHODS --- //

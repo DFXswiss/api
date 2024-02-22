@@ -1,7 +1,7 @@
 import { Util } from './util';
 
 export class AsyncCache<T> {
-  private readonly cache = new Map<string, { updated: Date; data: T }>();
+  private readonly cache = new Map<string, { updated: Date; data: T; update?: Promise<void> }>();
 
   constructor(private readonly itemValiditySeconds?: number) {}
 
@@ -15,8 +15,17 @@ export class AsyncCache<T> {
 
   private async update(id: string, update: () => Promise<T>, fallbackToCache: boolean) {
     try {
-      const data = await update();
-      this.cache.set(id, { updated: new Date(), data });
+      // wait for an existing update
+      const entry = this.cache.get(id);
+      if (entry?.update) return await entry.update;
+
+      const updateCall = update().then((data) => {
+        this.cache.set(id, { updated: new Date(), data, update: undefined });
+      });
+
+      this.cache.set(id, { ...entry, update: updateCall });
+
+      await updateCall;
     } catch (e) {
       if (!fallbackToCache || !this.cache.has(id)) throw e;
     }

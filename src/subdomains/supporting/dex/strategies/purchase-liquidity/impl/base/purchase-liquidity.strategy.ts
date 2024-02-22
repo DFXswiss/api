@@ -19,7 +19,7 @@ export abstract class PurchaseLiquidityStrategy implements OnModuleInit, OnModul
   constructor(protected readonly notificationService: NotificationService) {}
 
   onModuleInit() {
-    this.registry.addStrategy(
+    this.registry.add(
       {
         blockchain: this.blockchain,
         assetType: this.assetType,
@@ -31,7 +31,7 @@ export abstract class PurchaseLiquidityStrategy implements OnModuleInit, OnModul
   }
 
   onModuleDestroy() {
-    this.registry.removeStrategy({
+    this.registry.remove({
       blockchain: this.blockchain,
       assetType: this.assetType,
       assetCategory: this.assetCategory,

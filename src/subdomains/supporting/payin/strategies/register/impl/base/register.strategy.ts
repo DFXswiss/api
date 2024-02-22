@@ -13,8 +13,6 @@ import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-inp
 import { PayInFactory } from 'src/subdomains/supporting/payin/factories/payin.factory';
 import { PayInEntry } from 'src/subdomains/supporting/payin/interfaces';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
-import { PriceRequestContext } from 'src/subdomains/supporting/pricing/domain/enums';
-import { PriceRequest } from 'src/subdomains/supporting/pricing/domain/interfaces';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { v4 as uuid } from 'uuid';
 import { RegisterStrategyRegistry } from './register.strategy-registry';
@@ -43,11 +41,11 @@ export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy 
   constructor(protected readonly payInRepository: PayInRepository) {}
 
   onModuleInit() {
-    this.registry.addStrategy(this.blockchain, this);
+    this.registry.add(this.blockchain, this);
   }
 
   onModuleDestroy() {
-    this.registry.removeStrategy(this.blockchain);
+    this.registry.remove(this.blockchain);
   }
 
   abstract get blockchain(): Blockchain;
@@ -83,11 +81,7 @@ export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy 
     entry: CryptoInput | PayInEntry,
   ): Promise<number> {
     if (SkipTestSwapAssets.includes(fromAsset.dexName))
-      return this.pricingService
-        .getPrice(
-          this.createPriceRequest(entry, toAsset.dexName === 'WBTC' ? 'BTC' : toAsset.dexName, fromAsset.dexName),
-        )
-        .then((p) => p.price.invert().convert(entry.amount));
+      return this.pricingService.getPrice(fromAsset, toAsset, false).then((p) => p.convert(entry.amount));
 
     const request = this.createLiquidityRequest(fromAsset, entry.amount, toAsset);
     const liquidity = await this.dexService.checkLiquidity(request);
@@ -131,15 +125,6 @@ export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy 
       referenceAsset,
       referenceAmount,
       targetAsset,
-    };
-  }
-
-  private createPriceRequest(entry: CryptoInput | PayInEntry, from: string, to: string): PriceRequest {
-    return {
-      context: PriceRequestContext.PAY_IN,
-      correlationId: `PayIn ${'txId' in entry ? entry.txId : entry.inTxId}`,
-      from,
-      to,
     };
   }
 }

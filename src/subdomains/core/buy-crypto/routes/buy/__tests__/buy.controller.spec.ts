@@ -19,7 +19,7 @@ import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
-import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { BuyCryptoService } from '../../../process/services/buy-crypto.service';
 import { createDefaultBuy } from '../__mocks__/buy.entity.mock';
 import { BuyController } from '../buy.controller';
@@ -38,6 +38,7 @@ function createBuyPaymentInfoDto(
     targetAmount: targetAmount,
     currency: currency,
     paymentMethod: FiatPaymentMethod.BANK,
+    exactPrice: false,
   };
 }
 
@@ -62,8 +63,8 @@ describe('BuyController', () => {
   let bankService: BankService;
   let paymentInfoService: PaymentInfoService;
   let transactionHelper: TransactionHelper;
-  let priceProviderService: PriceProviderService;
   let checkoutService: CheckoutService;
+  let transactionRequestService: TransactionRequestService;
 
   beforeEach(async () => {
     buyService = createMock<BuyService>();
@@ -74,8 +75,8 @@ describe('BuyController', () => {
     bankService = createMock<BankService>();
     paymentInfoService = createMock<PaymentInfoService>();
     transactionHelper = createMock<TransactionHelper>();
-    priceProviderService = createMock<PriceProviderService>();
     checkoutService = createMock<CheckoutService>();
+    transactionRequestService = createMock<TransactionRequestService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -89,8 +90,8 @@ describe('BuyController', () => {
         { provide: BankService, useValue: bankService },
         { provide: PaymentInfoService, useValue: paymentInfoService },
         { provide: TransactionHelper, useValue: transactionHelper },
-        { provide: PriceProviderService, useValue: priceProviderService },
         { provide: CheckoutService, useValue: checkoutService },
+        { provide: TransactionRequestService, useValue: transactionRequestService },
 
         TestUtil.provideConfig(),
       ],
@@ -127,6 +128,7 @@ describe('BuyController', () => {
       maxVolume: 90000,
       maxVolumeTarget: 0,
       error: undefined,
+      exactPrice: false,
     });
 
     const dto = createBuyPaymentInfoDto();

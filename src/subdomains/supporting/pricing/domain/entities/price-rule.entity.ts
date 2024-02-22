@@ -87,8 +87,20 @@ export class PriceRule extends IEntity {
     );
   }
 
+  get isPriceObsolete(): boolean {
+    return Util.hoursDiff(this.priceTimestamp, new Date()) >= 24;
+  }
+
   get price(): Price {
-    return Price.create(this.priceAsset, this.priceReference, this.currentPrice, this.isPriceValid);
+    if (!this.currentPrice || !this.priceTimestamp) throw new Error(`No price available for rule ${this.id}`);
+
+    return Price.create(
+      this.priceAsset,
+      this.priceReference,
+      this.currentPrice,
+      this.isPriceValid,
+      this.priceTimestamp,
+    );
   }
 
   get rule(): Rule {

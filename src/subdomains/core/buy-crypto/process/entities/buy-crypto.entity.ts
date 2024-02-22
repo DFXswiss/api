@@ -28,7 +28,7 @@ import { BuyCryptoFee } from './buy-crypto-fees.entity';
 export enum BuyCryptoStatus {
   CREATED = 'Created',
   PREPARED = 'Prepared',
-  PRICE_MISMATCH = 'PriceMismatch',
+  PRICE_INVALID = 'PriceInvalid',
   MISSING_LIQUIDITY = 'MissingLiquidity',
   WAITING_FOR_LOWER_FEE = 'WaitingForLowerFee',
   BATCHED = 'Batched',
@@ -222,6 +222,7 @@ export class BuyCrypto extends IEntity {
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
       case Blockchain.POLYGON:
+      case Blockchain.BASE:
       case Blockchain.BINANCE_SMART_CHAIN:
       case Blockchain.MONERO:
         this.setOutputReferenceAsset(this.outputAsset);
@@ -248,23 +249,8 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
-  calculateOutputReferenceAmount(prices: Price[]): this {
-    if (this.inputReferenceAsset === this.outputReferenceAsset.dexName) {
-      this.outputReferenceAmount = Util.round(this.inputReferenceAmountMinusFee, 8);
-    } else {
-      const price = prices.find(
-        (p) => p.source === this.inputReferenceAsset && p.target === this.outputReferenceAsset.dexName,
-      );
-
-      if (!price) {
-        throw new Error(
-          `Cannot calculate outputReferenceAmount, ${this.inputReferenceAsset}/${this.outputReferenceAsset.dexName} price is missing`,
-        );
-      }
-
-      this.outputReferenceAmount = price.convert(this.inputReferenceAmountMinusFee, 8);
-    }
-
+  calculateOutputReferenceAmount(price: Price): this {
+    this.outputReferenceAmount = price.convert(this.inputReferenceAmountMinusFee, 8);
     return this;
   }
 
@@ -284,9 +270,9 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
-  setPriceMismatchStatus(): UpdateResult<BuyCrypto> {
+  setPriceInvalidStatus(): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
-      status: BuyCryptoStatus.PRICE_MISMATCH,
+      status: BuyCryptoStatus.PRICE_INVALID,
       ...this.resetTransaction(),
     };
 

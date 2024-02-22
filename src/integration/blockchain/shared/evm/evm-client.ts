@@ -166,8 +166,8 @@ export abstract class EvmClient {
     return this.sendNativeCoin(wallet, toAddress, amount, feeLimit);
   }
 
-  async sendNativeCoinFromDex(toAddress: string, amount: number, feeLimit?: number): Promise<string> {
-    return this.sendNativeCoin(this.wallet, toAddress, amount, feeLimit);
+  async sendNativeCoinFromDex(toAddress: string, amount: number, feeLimit?: number, nonce?: number): Promise<string> {
+    return this.sendNativeCoin(this.wallet, toAddress, amount, feeLimit, nonce);
   }
 
   async sendTokenFromAccount(
@@ -184,10 +184,16 @@ export abstract class EvmClient {
     return this.sendToken(contract, wallet.address, toAddress, amount, feeLimit);
   }
 
-  async sendTokenFromDex(toAddress: string, token: Asset, amount: number, feeLimit?: number): Promise<string> {
+  async sendTokenFromDex(
+    toAddress: string,
+    token: Asset,
+    amount: number,
+    feeLimit?: number,
+    nonce?: number,
+  ): Promise<string> {
     const contract = this.getERC20ContractForDex(token.chainId);
 
-    return this.sendToken(contract, this.dfxAddress, toAddress, amount, feeLimit);
+    return this.sendToken(contract, this.dfxAddress, toAddress, amount, feeLimit, nonce);
   }
 
   // --- PUBLIC API - UTILITY --- //
@@ -204,6 +210,10 @@ export abstract class EvmClient {
 
   async getTxReceipt(txHash: string): Promise<ethers.providers.TransactionReceipt> {
     return this.provider.getTransactionReceipt(txHash);
+  }
+
+  async getTxNonce(txHash: string): Promise<number> {
+    return this.provider.getTransaction(txHash).then((r) => r?.nonce);
   }
 
   async getTxActualFee(txHash: string): Promise<number> {
@@ -304,12 +314,13 @@ export abstract class EvmClient {
     toAddress: string,
     amount: number,
     feeLimit?: number,
+    nonce?: number,
   ): Promise<string> {
     const fromAddress = wallet.address;
 
     const gasLimit = await this.getCurrentGasForCoinTransaction(fromAddress, amount);
     const gasPrice = await this.getGasPrice(+gasLimit, feeLimit);
-    const nonce = await this.getNonce(fromAddress);
+    nonce ??= (await this.getNonce(fromAddress)) + 1;
 
     const tx = await wallet.sendTransaction({
       from: fromAddress,
@@ -320,7 +331,7 @@ export abstract class EvmClient {
       gasLimit,
     });
 
-    this.nonce.set(fromAddress, nonce + 1);
+    this.nonce.set(fromAddress, nonce);
 
     return tx.hash;
   }
@@ -339,17 +350,18 @@ export abstract class EvmClient {
     toAddress: string,
     amount: number,
     feeLimit?: number,
+    nonce?: number,
   ): Promise<string> {
     const gasLimit = +(await this.getTokenGasLimitForContact(contract));
     const gasPrice = await this.getGasPrice(gasLimit, feeLimit);
-    const nonce = await this.getNonce(fromAddress);
+    nonce ??= (await this.getNonce(fromAddress)) + 1;
 
     const token = await this.getToken(contract);
     const targetAmount = this.toWeiAmount(amount, token.decimals);
 
     const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit, nonce });
 
-    this.nonce.set(fromAddress, nonce + 1);
+    this.nonce.set(fromAddress, nonce);
 
     return tx.hash;
   }
@@ -365,9 +377,7 @@ export abstract class EvmClient {
     const blockchainNonce = await this.provider.getTransactionCount(address);
     const cachedNonce = this.nonce.get(address) ?? 0;
 
-    const currentNonce = blockchainNonce > cachedNonce ? blockchainNonce : cachedNonce;
-
-    return currentNonce;
+    return Math.max(blockchainNonce, cachedNonce);
   }
 
   private async getHistory<T>(

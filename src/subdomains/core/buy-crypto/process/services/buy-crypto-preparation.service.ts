@@ -9,7 +9,7 @@ import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payme
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
-import { PriceProviderService } from 'src/subdomains/supporting/pricing/services/price-provider.service';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Between, In, IsNull, Not } from 'typeorm';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
@@ -25,7 +25,7 @@ export class BuyCryptoPreparationService {
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly transactionHelper: TransactionHelper,
-    private readonly priceProviderService: PriceProviderService,
+    private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
     private readonly bankDataService: BankDataService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
@@ -72,8 +72,8 @@ export class BuyCryptoPreparationService {
           entity.user,
         );
 
-        const inputAssetEurPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatEur);
-        const inputAssetChfPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatChf);
+        const inputAssetEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatEur, false);
+        const inputAssetChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
 
         const bankData = await this.bankDataService.getBankDataWithIban(entity.bankTx.iban, undefined, true);
 
@@ -154,8 +154,8 @@ export class BuyCryptoPreparationService {
           entity.user,
         );
 
-        const referenceEurPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatEur);
-        const referenceChfPrice = await this.priceProviderService.getPrice(inputReferenceCurrency, fiatChf);
+        const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatEur, false);
+        const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
 
         const amountInEur = referenceEurPrice.convert(entity.inputReferenceAmount, 2);
 

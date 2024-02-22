@@ -7,6 +7,7 @@ import { SharedModule } from 'src/shared/shared.module';
 import { DexModule } from 'src/subdomains/supporting/dex/dex.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { ArbitrumL2BridgeAdapter } from './adapters/actions/arbitrum-l2-bridge.adapter';
+import { BaseL2BridgeAdapter } from './adapters/actions/base-l2-bridge.adapter';
 import { BinanceAdapter } from './adapters/actions/binance.adapter';
 import { DfxDexAdapter } from './adapters/actions/dfx-dex.adapter';
 import { KrakenAdapter } from './adapters/actions/kraken.adapter';
@@ -14,6 +15,7 @@ import { OptimismL2BridgeAdapter } from './adapters/actions/optimism-l2-bridge.a
 import { PolygonL2BridgeAdapter } from './adapters/actions/polygon-l2-bridge.adapter';
 import { BankAdapter } from './adapters/balances/bank.adapter';
 import { BlockchainAdapter } from './adapters/balances/blockchain.adapter';
+import { ExchangeAdapter } from './adapters/balances/exchange.adapter';
 import { LiquidityBalanceController } from './controllers/balance.controller';
 import { LiquidityManagementOrderController } from './controllers/order.controller';
 import { LiquidityManagementPipelineController } from './controllers/pipeline.controller';
@@ -70,11 +72,13 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     LiquidityActionIntegrationFactory,
     LiquidityBalanceIntegrationFactory,
     BlockchainAdapter,
+    ExchangeAdapter,
     BankAdapter,
     DfxDexAdapter,
     ArbitrumL2BridgeAdapter,
     OptimismL2BridgeAdapter,
     PolygonL2BridgeAdapter,
+    BaseL2BridgeAdapter,
     BinanceAdapter,
     KrakenAdapter,
   ],

@@ -29,6 +29,10 @@ export class AssetService {
     return blockchains.length > 0 ? this.assetRepo.findBy({ blockchain: In(blockchains) }) : this.assetRepo.find();
   }
 
+  async getActiveAsset(): Promise<Asset[]> {
+    return this.assetRepo.findBy([{ buyable: true }, { sellable: true }]);
+  }
+
   async getAssetById(id: number): Promise<Asset> {
     return this.cache.get(`${id}`, () => this.assetRepo.findOneBy({ id }));
   }
@@ -65,7 +69,7 @@ export class AssetService {
       .then((r) => r.map((a) => a.blockchain));
   }
 
-  async updatePrice(assetId: number, usdPrice: number, chfPrice) {
+  async updatePrice(assetId: number, usdPrice: number, chfPrice: number) {
     await this.assetRepo.update(assetId, { approxPriceUsd: usdPrice, approxPriceChf: chfPrice });
   }
 
@@ -141,6 +145,22 @@ export class AssetService {
     });
   }
 
+  async getPolygonCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      dexName: 'MATIC',
+      blockchain: Blockchain.POLYGON,
+      type: AssetType.COIN,
+    });
+  }
+
+  async getBaseCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      dexName: 'ETH',
+      blockchain: Blockchain.BASE,
+      type: AssetType.COIN,
+    });
+  }
+
   async getBtcCoin(): Promise<Asset> {
     return this.getAssetByQuery({
       dexName: 'BTC',
@@ -161,14 +181,6 @@ export class AssetService {
     return this.getAssetByQuery({
       dexName: 'XMR',
       blockchain: Blockchain.MONERO,
-      type: AssetType.COIN,
-    });
-  }
-
-  async getPolygonCoin(): Promise<Asset> {
-    return this.getAssetByQuery({
-      dexName: 'MATIC',
-      blockchain: Blockchain.POLYGON,
       type: AssetType.COIN,
     });
   }

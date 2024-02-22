@@ -281,6 +281,13 @@ export class Configuration {
       polygonApiKey: process.env.ALCHEMY_API_KEY,
       polygonChainId: +process.env.POLYGON_CHAIN_ID,
     },
+    base: {
+      baseWalletAddress: process.env.BASE_WALLET_ADDRESS,
+      baseWalletPrivateKey: process.env.BASE_WALLET_PRIVATE_KEY,
+      baseGatewayUrl: process.env.BASE_GATEWAY_URL,
+      baseApiKey: process.env.ALCHEMY_API_KEY,
+      baseChainId: +process.env.BASE_CHAIN_ID,
+    },
     bsc: {
       bscScanApiUrl: process.env.BSC_SCAN_API_URL,
       bscScanApiKey: process.env.BSC_SCAN_API_KEY,

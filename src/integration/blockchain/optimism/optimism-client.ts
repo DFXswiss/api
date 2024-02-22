@@ -54,7 +54,11 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
   }
 
   async approveToken(l1Token: Asset, l2Token: Asset): Promise<string> {
-    const allowanceResponse = await this.#crossChainMessenger.approveERC20(l1Token.chainId, l2Token.chainId, Infinity);
+    const allowanceResponse = await this.#crossChainMessenger.approveERC20(
+      l1Token.chainId,
+      l2Token.chainId,
+      ethers.constants.MaxUint256,
+    );
 
     return allowanceResponse.hash;
   }

@@ -21,7 +21,7 @@ export class LiquidityManagementBalanceService {
     const integrations = this.balanceIntegrationFactory.getIntegrations(rules);
 
     const balanceRequests = integrations.map(({ integration, rules }) =>
-      integration.getBalances(rules.map((r) => r.target)).catch((e) => {
+      integration.getBalances(rules.map((r) => Object.assign(r.target, { context: r.context }))).catch((e) => {
         this.logger.warn(`Error getting liquidity management balances for rules ${rules.map((r) => r.id)}:`, e);
         throw e;
       }),
@@ -46,7 +46,7 @@ export class LiquidityManagementBalanceService {
 
   async getNumberOfPendingOrders(rule: LiquidityManagementRule): Promise<number> {
     const integration = this.balanceIntegrationFactory.getIntegration(rule);
-    return integration.getNumberOfPendingOrders(rule.target);
+    return integration.getNumberOfPendingOrders(rule.target, rule.context);
   }
 
   //*** HELPER METHODS ***//

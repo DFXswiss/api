@@ -8,7 +8,7 @@ import { LiquidityManagementSystem } from '../../../enums';
 import { OrderFailedException } from '../../../exceptions/order-failed.exception';
 import { OrderNotProcessableException } from '../../../exceptions/order-not-processable.exception';
 import { Command, CorrelationId } from '../../../interfaces';
-import { LiquidityManagementAdapter } from './liquidity-management.adapter';
+import { LiquidityActionAdapter } from './liquidity-action.adapter';
 
 enum EvmL2BridgeAdapterCommands {
   /**
@@ -19,7 +19,7 @@ enum EvmL2BridgeAdapterCommands {
   WITHDRAW = 'withdraw',
 }
 
-export abstract class EvmL2BridgeAdapter extends LiquidityManagementAdapter {
+export abstract class EvmL2BridgeAdapter extends LiquidityActionAdapter {
   protected commands = new Map<string, Command>();
 
   constructor(

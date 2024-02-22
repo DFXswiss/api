@@ -10,13 +10,13 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Price } from './domain/entities/price';
 import { CurrencyType, PriceRequest } from './dto/price-request';
 import { PriceRequestRaw } from './dto/price-request-raw';
-import { PricingServiceNew } from './services/pricing.service.new';
+import { PricingService } from './services/pricing.service';
 
 @ApiTags('pricing')
 @Controller('pricing')
 export class PricingController {
   constructor(
-    private readonly pricingServiceNew: PricingServiceNew,
+    private readonly pricingService: PricingService,
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
   ) {}
@@ -30,7 +30,7 @@ export class PricingController {
     const to = await this.getCurrency(dto.toType, +dto.toId);
     if (!from || !to) throw new NotFoundException('Currency not found');
 
-    return this.pricingServiceNew.getPrice(from, to, dto.allowExpired === 'true');
+    return this.pricingService.getPrice(from, to, dto.allowExpired === 'true');
   }
 
   @Get()
@@ -38,7 +38,7 @@ export class PricingController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getRawPrice(@Query() dto: PriceRequestRaw): Promise<Price> {
-    return this.pricingServiceNew.getPriceFrom(dto.source, dto.from, dto.to);
+    return this.pricingService.getPriceFrom(dto.source, dto.from, dto.to);
   }
 
   @Put()
@@ -46,7 +46,7 @@ export class PricingController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async updatePrices(): Promise<void> {
-    return this.pricingServiceNew.updatePrices();
+    return this.pricingService.updatePrices();
   }
 
   private async getCurrency(type: CurrencyType, id: number): Promise<Asset | Fiat> {

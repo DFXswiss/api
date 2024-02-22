@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AinModule } from 'src/integration/blockchain/ain/ain.module';
 import { LightningModule } from '../lightning/lightning.module';
 import { ArbitrumModule } from './arbitrum/arbitrum.module';
+import { BaseModule } from './base/base.module';
 import { BscModule } from './bsc/bsc.module';
 import { EthereumModule } from './ethereum/ethereum.module';
 import { FrankencoinModule } from './frankencoin/frankencoin.module';
@@ -20,6 +21,7 @@ import { CryptoService } from './shared/services/crypto.service';
     OptimismModule,
     ArbitrumModule,
     PolygonModule,
+    BaseModule,
     LightningModule,
     MoneroModule,
     FrankencoinModule,
@@ -31,6 +33,7 @@ import { CryptoService } from './shared/services/crypto.service';
     OptimismModule,
     ArbitrumModule,
     PolygonModule,
+    BaseModule,
     LightningModule,
     MoneroModule,
     FrankencoinModule,
