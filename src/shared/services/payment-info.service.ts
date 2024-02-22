@@ -34,7 +34,7 @@ export class PaymentInfoService {
     } else if ('paymentMethod' in dto && dto.paymentMethod === FiatPaymentMethod.INSTANT) {
       if (!dto.currency.instantSellable) throw new BadRequestException('Currency not sellable via Instant');
       if (!dto.asset.instantBuyable) throw new BadRequestException('Asset not buyable via Instant');
-    } else if (('paymentMethod' in dto && dto.paymentMethod === FiatPaymentMethod.BANK) || !('paymentMethod' in dto)) {
+    } else {
       if ('currency' in dto && !dto.currency.sellable) throw new BadRequestException('Currency not sellable via Bank');
       if (!dto.asset.buyable)
         throw new BadRequestException(`Asset not buyable ${'paymentMethod' in dto ? 'via Bank' : ''}`);
