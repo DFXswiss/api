@@ -126,7 +126,7 @@ export class TransactionHelper implements OnModuleInit {
     user: User,
   ): Promise<TxFeeDetails> {
     // get fee
-    const specs = await this.getSpecs(from, to);
+    const specs = this.getSpecs(from, to);
     const fee = await this.getTxFee(
       user,
       paymentMethodIn,
@@ -166,7 +166,7 @@ export class TransactionHelper implements OnModuleInit {
     discountCodes: string[] = [],
   ): Promise<TransactionDetails> {
     // get fee
-    const specs = await this.getSpecs(from, to);
+    const specs = this.getSpecs(from, to);
     const fee = await this.getTxFee(
       user,
       paymentMethodIn,
@@ -313,10 +313,7 @@ export class TransactionHelper implements OnModuleInit {
   ): Promise<TxSpecExtended> {
     const price = await this.priceProviderService.getPrice(from, this.chf).then((p) => p.invert());
 
-    const maxVolumePrice =
-      maxVolume && (await this.priceProviderService.getPrice(from, this.chf).then((p) => p.invert()));
-
-    const maxVolumeSource = maxVolume && (from.name === 'CHF' ? maxVolume : maxVolumePrice.convert(maxVolume * 0.99)); // -1% for the conversion
+    const maxVolumeSource = maxVolume && (from.name === 'CHF' ? maxVolume : price.convert(maxVolume * 0.99)); // -1% for the conversion
 
     return {
       minFee: this.convert(minFee, price, from instanceof Fiat),
@@ -331,9 +328,8 @@ export class TransactionHelper implements OnModuleInit {
     { minFee, minVolume, maxVolume, fixedFee }: TxSpecExtended,
   ): Promise<TxSpecExtended> {
     const price = await this.priceProviderService.getPrice(this.chf, to);
-    const maxVolumePrice = maxVolume && (await this.priceProviderService.getPrice(this.chf, to));
 
-    const maxVolumeTarget = maxVolume && (to.name === 'CHF' ? maxVolume : maxVolumePrice.convert(maxVolume * 0.99)); // -1% for the conversion
+    const maxVolumeTarget = maxVolume && (to.name === 'CHF' ? maxVolume : price.convert(maxVolume * 0.99)); // -1% for the conversion
 
     return {
       minFee: this.convert(minFee, price, to instanceof Fiat),
