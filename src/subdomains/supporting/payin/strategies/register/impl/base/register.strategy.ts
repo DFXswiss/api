@@ -41,11 +41,11 @@ export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy 
   constructor(protected readonly payInRepository: PayInRepository) {}
 
   onModuleInit() {
-    this.registry.addStrategy(this.blockchain, this);
+    this.registry.add(this.blockchain, this);
   }
 
   onModuleDestroy() {
-    this.registry.removeStrategy(this.blockchain);
+    this.registry.remove(this.blockchain);
   }
 
   abstract get blockchain(): Blockchain;

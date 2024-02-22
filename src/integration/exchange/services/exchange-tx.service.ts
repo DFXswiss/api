@@ -50,7 +50,7 @@ export class ExchangeTxService {
 
   private async getTransactionsFor(sync: ExchangeSync, since: Date): Promise<ExchangeTxDto[]> {
     try {
-      const exchangeService = this.registryService.getExchange(sync.exchange);
+      const exchangeService = this.registryService.get(sync.exchange);
 
       const tokens = sync.tokens ?? (await this.assetService.getAssetsUsedOn(sync.exchange));
 

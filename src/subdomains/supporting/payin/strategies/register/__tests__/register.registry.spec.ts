@@ -199,15 +199,15 @@ class RegisterStrategyRegistryWrapper extends RegisterStrategyRegistry {
   ) {
     super();
 
-    this.addStrategy(Blockchain.BITCOIN, bitcoinStrategy);
-    this.addStrategy(Blockchain.LIGHTNING, lightningStrategy);
-    this.addStrategy(Blockchain.MONERO, moneroStrategy);
-    this.addStrategy(Blockchain.DEFICHAIN, defichainStrategy);
-    this.addStrategy(Blockchain.ETHEREUM, ethereumStrategy);
-    this.addStrategy(Blockchain.BINANCE_SMART_CHAIN, bscStrategy);
-    this.addStrategy(Blockchain.ARBITRUM, arbitrumStrategy);
-    this.addStrategy(Blockchain.OPTIMISM, optimismStrategy);
-    this.addStrategy(Blockchain.POLYGON, polygonStrategy);
-    this.addStrategy(Blockchain.BASE, baseStrategy);
+    this.add(Blockchain.BITCOIN, bitcoinStrategy);
+    this.add(Blockchain.LIGHTNING, lightningStrategy);
+    this.add(Blockchain.MONERO, moneroStrategy);
+    this.add(Blockchain.DEFICHAIN, defichainStrategy);
+    this.add(Blockchain.ETHEREUM, ethereumStrategy);
+    this.add(Blockchain.BINANCE_SMART_CHAIN, bscStrategy);
+    this.add(Blockchain.ARBITRUM, arbitrumStrategy);
+    this.add(Blockchain.OPTIMISM, optimismStrategy);
+    this.add(Blockchain.POLYGON, polygonStrategy);
+    this.add(Blockchain.BASE, baseStrategy);
   }
 }

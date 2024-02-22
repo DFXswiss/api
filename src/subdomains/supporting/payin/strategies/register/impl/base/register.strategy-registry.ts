@@ -7,7 +7,7 @@ import { RegisterStrategy } from './register.strategy';
 @Injectable()
 export class RegisterStrategyRegistry extends StrategyRegistry<Blockchain, RegisterStrategy> {
   getRegisterStrategy(asset: Asset): RegisterStrategy {
-    const strategy = super.getStrategy(asset.blockchain);
+    const strategy = super.get(asset.blockchain);
 
     if (!strategy) {
       throw new Error(`No RegisterStrategy found. Blockchain: ${asset.blockchain}`);
