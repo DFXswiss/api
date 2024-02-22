@@ -15,11 +15,10 @@ export class WebhookService {
   constructor(private readonly webhookRepo: WebhookRepository, private readonly userRepo: UserRepository) {}
 
   async kycChanged(userData: UserData): Promise<void> {
-    if (!userData.users)
-      userData.users = await this.userRepo.find({
-        where: { userData: { id: userData.id } },
-        relations: { wallet: true },
-      });
+    userData.users ??= await this.userRepo.find({
+      where: { userData: { id: userData.id } },
+      relations: { wallet: true },
+    });
     for (const user of userData.users) {
       await this.create({
         data: JSON.stringify(WebhookDataMapper.mapKycData(userData)),
@@ -30,11 +29,10 @@ export class WebhookService {
   }
 
   async kycFailed(userData: UserData, reason: string): Promise<void> {
-    if (!userData.users)
-      userData.users = await this.userRepo.find({
-        where: { userData: { id: userData.id } },
-        relations: { wallet: true },
-      });
+    userData.users ??= await this.userRepo.find({
+      where: { userData: { id: userData.id } },
+      relations: { wallet: true },
+    });
     for (const user of userData.users) {
       await this.create({
         data: JSON.stringify(WebhookDataMapper.mapKycData(userData)),

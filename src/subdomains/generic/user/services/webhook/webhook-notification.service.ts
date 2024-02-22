@@ -25,7 +25,7 @@ export class WebhookNotificationService {
 
   @Cron(CronExpression.EVERY_5_MINUTES)
   @Lock(1800)
-  async checkCryptoPayIn() {
+  async sendWebhooks() {
     if (DisabledProcess(Process.WEBHOOK)) return;
     await this.sendOpenWebhooks();
   }
@@ -52,8 +52,10 @@ export class WebhookNotificationService {
 
   private async triggerUserWebhook<T extends PaymentWebhookData | KycWebhookData>(webhook: Webhook): Promise<void> {
     try {
-      if (!webhook.user.wallet.apiUrl) return;
-      if (!webhook.user.wallet.apiKey) throw new Error(`ApiKey for wallet ${webhook.user.wallet.name} not available`);
+      if (!webhook.user.wallet.apiUrl)
+        throw new Error(`ApiUrl for wallet ${webhook.user.wallet.name} not available anymore in webhook ${webhook.id}`);
+      if (!webhook.user.wallet.apiKey)
+        throw new Error(`ApiKey for wallet ${webhook.user.wallet.name} not available in webhook ${webhook.id}`);
 
       const webhookDto: WebhookDto<T> = {
         id: webhook.user.address,
@@ -68,14 +70,14 @@ export class WebhookNotificationService {
         tryCount: 3,
       });
     } catch (error) {
-      const errMessage = `Exception during ${webhook.type} webhook for user ${webhook.user.id}:`;
+      const errMessage = `Exception during webhook ${webhook.id}:`;
 
       this.logger.error(errMessage, error);
 
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,
         input: {
-          subject: `${webhook.type} webhook failed`,
+          subject: `Webhook ${webhook.id} failed`,
           errors: [errMessage, error],
         },
       });
