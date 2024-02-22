@@ -92,12 +92,14 @@ export class PriceRule extends IEntity {
   }
 
   get price(): Price {
+    if (!this.currentPrice || !this.priceTimestamp) throw new Error(`No price available for rule ${this.id}`);
+
     return Price.create(
       this.priceAsset,
       this.priceReference,
       this.currentPrice,
       this.isPriceValid,
-      this.priceTimestamp ?? new Date(0),
+      this.priceTimestamp,
     );
   }
 

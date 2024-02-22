@@ -49,25 +49,26 @@ export class PricingService {
   }
 
   async getPrice(from: Asset | Fiat, to: Asset | Fiat, allowExpired: boolean): Promise<Price> {
-    if (this.areEqual(from, to)) return Price.create(from.name, to.name, 1);
+    try {
+      if (this.areEqual(from, to)) return Price.create(from.name, to.name, 1);
 
-    const fromPrice = await this.getPriceFor(from, allowExpired);
-    const toPrice = await this.getPriceFor(to, allowExpired);
+      const fromPrice = await this.getPriceFor(from, allowExpired);
+      const toPrice = await this.getPriceFor(to, allowExpired);
 
-    if (fromPrice.target !== toPrice.target)
-      throw new Error(`Price reference mismatch: ${this.getItemString(from)} -> ${this.getItemString(to)}`);
+      const price = Price.join(fromPrice, toPrice.invert());
 
-    const price = Price.join(fromPrice, toPrice.invert());
+      if (fromPrice.target !== toPrice.target) throw new Error('Price reference mismatch');
+      if (!price.isValid && !allowExpired) throw new Error('Price invalid');
 
-    if (!price.isValid && !allowExpired)
-      throw new PriceInvalidException(
-        `No valid price found for ${this.getItemString(from)} -> ${this.getItemString(to)}`,
-      );
+      price.source = from.name;
+      price.target = to.name;
 
-    price.source = from.name;
-    price.target = to.name;
+      return price;
+    } catch (e) {
+      this.logger.error(`Failed to get price for ${this.getItemString(from)} -> ${this.getItemString(to)}:`, e);
 
-    return price;
+      throw new PriceInvalidException(`No valid price found for ${from.name} -> ${to.name}`);
+    }
   }
 
   async updatePrices(): Promise<void> {
@@ -92,8 +93,11 @@ export class PricingService {
 
     if (!rule.isPriceValid) {
       const updateTask = this.updatePriceFor(rule, item, rule.reference);
+
       if (!allowExpired || rule.currentPrice == null || rule.isPriceObsolete) {
         rule = await updateTask;
+      } else {
+        updateTask.catch((e) => this.logger.error(`Failed to update price for rule ${rule.id}:`, e));
       }
     }
 
@@ -108,21 +112,17 @@ export class PricingService {
   }
 
   private async updatePriceFor(rule: PriceRule, from?: Asset | Fiat, to?: Asset | Fiat): Promise<PriceRule> {
-    try {
-      const price = await this.getRulePrice(rule.rule);
-      const source = from?.name ?? price.source;
-      const target = to?.name ?? price.target;
+    const price = await this.getRulePrice(rule.rule);
+    const source = from?.name ?? price.source;
+    const target = to?.name ?? price.target;
 
-      if (
-        (await this.isPriceValid(source, target, price.price, rule.check1)) &&
-        (await this.isPriceValid(source, target, price.price, rule.check2))
-      ) {
-        rule.currentPrice = price.price;
-        rule.priceTimestamp = new Date();
-        return await this.priceRuleRepo.save(rule);
-      }
-    } catch (e) {
-      this.logger.error(`Failed to update price for rule ${rule.id}:`, e);
+    if (
+      (await this.isPriceValid(source, target, price.price, rule.check1)) &&
+      (await this.isPriceValid(source, target, price.price, rule.check2))
+    ) {
+      rule.currentPrice = price.price;
+      rule.priceTimestamp = new Date();
+      return this.priceRuleRepo.save(rule);
     }
 
     return rule;
