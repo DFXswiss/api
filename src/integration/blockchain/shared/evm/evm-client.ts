@@ -320,18 +320,19 @@ export abstract class EvmClient {
 
     const gasLimit = await this.getCurrentGasForCoinTransaction(fromAddress, amount);
     const gasPrice = await this.getGasPrice(+gasLimit, feeLimit);
-    nonce ??= (await this.getNonce(fromAddress)) + 1;
+    const currentNonce = await this.getNonce(fromAddress);
+    const txNonce = nonce ?? currentNonce;
 
     const tx = await wallet.sendTransaction({
       from: fromAddress,
       to: toAddress,
       value: this.toWeiAmount(amount),
-      nonce,
+      nonce: txNonce,
       gasPrice,
       gasLimit,
     });
 
-    this.nonce.set(fromAddress, nonce);
+    if (txNonce >= currentNonce) this.nonce.set(fromAddress, txNonce + 1);
 
     return tx.hash;
   }

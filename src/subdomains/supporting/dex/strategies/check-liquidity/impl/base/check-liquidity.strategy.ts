@@ -11,14 +11,14 @@ export abstract class CheckLiquidityStrategy implements OnModuleInit, OnModuleDe
   private readonly registry: CheckLiquidityStrategyRegistry;
 
   onModuleInit() {
-    this.registry.addStrategy(
+    this.registry.add(
       { blockchain: this.blockchain, assetType: this.assetType, assetCategory: this.assetCategory },
       this,
     );
   }
 
   onModuleDestroy() {
-    this.registry.removeStrategy({
+    this.registry.remove({
       blockchain: this.blockchain,
       assetType: this.assetType,
       assetCategory: this.assetCategory,

@@ -9,7 +9,7 @@ export class SupplementaryStrategyRegistry extends StrategyRegistry<Blockchain, 
   }
 
   getSupplementaryStrategyByBlockchain(blockchain: Blockchain): SupplementaryStrategy {
-    const strategy = super.getStrategy(blockchain);
+    const strategy = super.get(blockchain);
 
     if (!strategy) {
       throw new Error(`No SupplementaryStrategy found. Blockchain: ${blockchain}`);

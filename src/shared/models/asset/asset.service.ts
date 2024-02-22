@@ -29,6 +29,10 @@ export class AssetService {
     return blockchains.length > 0 ? this.assetRepo.findBy({ blockchain: In(blockchains) }) : this.assetRepo.find();
   }
 
+  async getActiveAsset(): Promise<Asset[]> {
+    return this.assetRepo.findBy([{ buyable: true }, { sellable: true }]);
+  }
+
   async getAssetById(id: number): Promise<Asset> {
     return this.cache.get(`${id}`, () => this.assetRepo.findOneBy({ id }));
   }
