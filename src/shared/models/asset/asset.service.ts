@@ -30,7 +30,14 @@ export class AssetService {
   }
 
   async getActiveAsset(): Promise<Asset[]> {
-    return this.assetRepo.findBy([{ buyable: true }, { sellable: true }]);
+    return this.assetRepo.findBy([
+      { buyable: true },
+      { sellable: true },
+      { instantBuyable: true },
+      { instantSellable: true },
+      { cardBuyable: true },
+      { cardSellable: true },
+    ]);
   }
 
   async getAssetById(id: number): Promise<Asset> {
