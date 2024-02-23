@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Active, isFiat } from 'src/shared/models/active';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Lock } from 'src/shared/utils/lock';
@@ -62,7 +62,7 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   // --- SPECIFICATIONS --- //
-  async validateInput(from: Asset | Fiat, amount: number): Promise<true | ValidationError> {
+  async validateInput(from: Active, amount: number): Promise<true | ValidationError> {
     // check min. volume
     const { minVolume } = await this.getInSpecs(from, true);
     if (amount < minVolume * 0.5) return ValidationError.PAY_IN_TOO_SMALL;
@@ -73,19 +73,19 @@ export class TransactionHelper implements OnModuleInit {
     return true;
   }
 
-  async getInSpecs(from: Asset | Fiat, allowExpiredPrice: boolean): Promise<TxSpec> {
+  async getInSpecs(from: Active, allowExpiredPrice: boolean): Promise<TxSpec> {
     const spec = this.specRepo.getSpecFor(this.transactionSpecifications, from, TransactionDirection.IN);
 
     return this.convertToSource(from, spec, allowExpiredPrice);
   }
 
-  async getOutSpecs(to: Asset | Fiat, allowExpiredPrice: boolean): Promise<TxSpec> {
+  async getOutSpecs(to: Active, allowExpiredPrice: boolean): Promise<TxSpec> {
     const spec = this.specRepo.getSpecFor(this.transactionSpecifications, to, TransactionDirection.OUT);
 
     return this.convertToTarget(to, spec, allowExpiredPrice);
   }
 
-  getSpecs(from: Asset | Fiat, to: Asset | Fiat): TxSpec {
+  getSpecs(from: Active, to: Active): TxSpec {
     const { system: fromSystem, asset: fromAsset } = this.specRepo.getProps(from);
     const { system: toSystem, asset: toAsset } = this.specRepo.getProps(to);
 
@@ -117,8 +117,8 @@ export class TransactionHelper implements OnModuleInit {
   // --- TARGET ESTIMATION --- //
   async getTxFeeInfos(
     inputAmount: number,
-    from: Asset | Fiat,
-    to: Asset | Fiat,
+    from: Active,
+    to: Active,
     paymentMethodIn: PaymentMethod,
     paymentMethodOut: PaymentMethod,
     referencePrice: Price,
@@ -148,12 +148,12 @@ export class TransactionHelper implements OnModuleInit {
     const feeAmount = Math.max(percentFeeAmount + txSpecSource.fixedFee, txSpecSource.minFee);
 
     return {
-      minVolume: this.convert(txSpecSource.minVolume, referencePrice, from instanceof Fiat),
+      minVolume: this.convert(txSpecSource.minVolume, referencePrice, isFiat(from)),
       fee: {
         ...fee,
-        fixed: this.convert(fee.fixed, referencePrice, from instanceof Fiat),
-        min: this.convert(txSpecSource.minFee, referencePrice, from instanceof Fiat),
-        total: this.convert(feeAmount, referencePrice, from instanceof Fiat),
+        fixed: this.convert(fee.fixed, referencePrice, isFiat(from)),
+        min: this.convert(txSpecSource.minFee, referencePrice, isFiat(from)),
+        total: this.convert(feeAmount, referencePrice, isFiat(from)),
       },
     };
   }
@@ -161,8 +161,8 @@ export class TransactionHelper implements OnModuleInit {
   async getTxDetails(
     sourceAmount: number | undefined,
     targetAmount: number | undefined,
-    from: Asset | Fiat,
-    to: Asset | Fiat,
+    from: Active,
+    to: Active,
     paymentMethodIn: PaymentMethod,
     paymentMethodOut: PaymentMethod,
     allowExpiredPrice: boolean,
@@ -209,10 +209,7 @@ export class TransactionHelper implements OnModuleInit {
     const txAmountChf = await this.getVolumeLast24hChf(target.sourceAmount, from, allowExpiredPrice, user);
 
     const error =
-      to instanceof Fiat &&
-      user &&
-      !user.userData.hasBankTxVerification &&
-      txAmountChf > Config.defaultDailyTradingLimit
+      isFiat(to) && user && !user.userData.hasBankTxVerification && txAmountChf > Config.defaultDailyTradingLimit
         ? TransactionError.BANK_TRANSACTION_MISSING
         : target.sourceAmount < txSpecSource.minVolume
         ? TransactionError.AMOUNT_TOO_LOW
@@ -239,10 +236,10 @@ export class TransactionHelper implements OnModuleInit {
     user: User | undefined,
     paymentMethodIn: PaymentMethod,
     paymentMethodOut: PaymentMethod,
-    from: Asset | Fiat,
-    to: Asset | Fiat,
+    from: Active,
+    to: Active,
     txVolume: number,
-    txAsset: Asset | Fiat,
+    txAsset: Active,
     minFeeEur: number,
     discountCodes: string[],
   ): Promise<FeeDto> {
@@ -270,8 +267,8 @@ export class TransactionHelper implements OnModuleInit {
     feeRate: number,
     minFeeSource: number,
     fixedFeeSource = 0,
-    from: Asset | Fiat,
-    to: Asset | Fiat,
+    from: Active,
+    to: Active,
     allowExpiredPrice: boolean,
   ): Promise<TargetEstimation> {
     const price = await this.pricingService.getPrice(from, to, allowExpiredPrice);
@@ -286,11 +283,11 @@ export class TransactionHelper implements OnModuleInit {
     const sourceAmount = outputAmount != null ? price.invert().convert(outputAmount) + feeAmount : inputAmount;
 
     return {
-      exchangeRate: this.round(price.price, from instanceof Fiat),
-      rate: this.round(sourceAmount / targetAmount, from instanceof Fiat),
-      feeAmount: this.round(feeAmount, from instanceof Fiat),
-      estimatedAmount: this.round(targetAmount, to instanceof Fiat),
-      sourceAmount: this.round(sourceAmount, from instanceof Fiat),
+      exchangeRate: this.round(price.price, isFiat(from)),
+      rate: this.round(sourceAmount / targetAmount, isFiat(from)),
+      feeAmount: this.round(feeAmount, isFiat(from)),
+      estimatedAmount: this.round(targetAmount, isFiat(to)),
+      sourceAmount: this.round(sourceAmount, isFiat(from)),
       exactPrice: price.isValid,
     };
   }
@@ -298,7 +295,7 @@ export class TransactionHelper implements OnModuleInit {
   // --- HELPER METHODS --- //
   private async getVolumeLast24hChf(
     inputAmount: number,
-    from: Asset | Fiat,
+    from: Active,
     allowExpiredPrice: boolean,
     user?: User,
   ): Promise<number> {
@@ -319,7 +316,7 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   private async convertToSource(
-    from: Asset | Fiat,
+    from: Active,
     { minFee, minVolume, maxVolume, fixedFee }: TxSpecExtended,
     allowExpiredPrice: boolean,
   ): Promise<TxSpecExtended> {
@@ -331,15 +328,15 @@ export class TransactionHelper implements OnModuleInit {
     const maxVolumeSource = maxVolume && (from.name === 'CHF' ? maxVolume : maxVolumePrice.convert(maxVolume * 0.99)); // -1% for the conversion
 
     return {
-      minFee: this.convert(minFee, price, from instanceof Fiat),
-      minVolume: this.convert(minVolume, price, from instanceof Fiat),
-      maxVolume: maxVolumeSource && this.roundMaxAmount(maxVolumeSource, from instanceof Fiat),
-      fixedFee: fixedFee && this.convert(fixedFee, price, from instanceof Fiat),
+      minFee: this.convert(minFee, price, isFiat(from)),
+      minVolume: this.convert(minVolume, price, isFiat(from)),
+      maxVolume: maxVolumeSource && this.roundMaxAmount(maxVolumeSource, isFiat(from)),
+      fixedFee: fixedFee && this.convert(fixedFee, price, isFiat(from)),
     };
   }
 
   private async convertToTarget(
-    to: Asset | Fiat,
+    to: Active,
     { minFee, minVolume, maxVolume, fixedFee }: TxSpecExtended,
     allowExpiredPrice: boolean,
   ): Promise<TxSpecExtended> {
@@ -349,10 +346,10 @@ export class TransactionHelper implements OnModuleInit {
     const maxVolumeTarget = maxVolume && (to.name === 'CHF' ? maxVolume : maxVolumePrice.convert(maxVolume * 0.99)); // -1% for the conversion
 
     return {
-      minFee: this.convert(minFee, price, to instanceof Fiat),
-      minVolume: this.convert(minVolume, price, to instanceof Fiat),
-      maxVolume: maxVolumeTarget && this.roundMaxAmount(maxVolumeTarget, to instanceof Fiat),
-      fixedFee: fixedFee && this.convert(fixedFee, price, to instanceof Fiat),
+      minFee: this.convert(minFee, price, isFiat(to)),
+      minVolume: this.convert(minVolume, price, isFiat(to)),
+      maxVolume: maxVolumeTarget && this.roundMaxAmount(maxVolumeTarget, isFiat(to)),
+      fixedFee: fixedFee && this.convert(fixedFee, price, isFiat(to)),
     };
   }
 

@@ -3,9 +3,8 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Active } from 'src/shared/models/active';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Price } from './domain/entities/price';
 import { CurrencyType, PriceRequest } from './dto/price-request';
@@ -49,7 +48,7 @@ export class PricingController {
     return this.pricingService.updatePrices();
   }
 
-  private async getCurrency(type: CurrencyType, id: number): Promise<Asset | Fiat> {
+  private async getCurrency(type: CurrencyType, id: number): Promise<Active> {
     return type === CurrencyType.ASSET ? this.assetService.getAssetById(id) : this.fiatService.getFiat(id);
   }
 }
