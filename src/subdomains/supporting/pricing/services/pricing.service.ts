@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { BinanceService } from 'src/integration/exchange/services/binance.service';
 import { KrakenService } from 'src/integration/exchange/services/kraken.service';
-import { Asset } from 'src/shared/models/asset/asset.entity';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { Active, isFiat } from 'src/shared/models/active';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
@@ -48,7 +47,7 @@ export class PricingService {
     };
   }
 
-  async getPrice(from: Asset | Fiat, to: Asset | Fiat, allowExpired: boolean): Promise<Price> {
+  async getPrice(from: Active, to: Active, allowExpired: boolean): Promise<Price> {
     try {
       if (this.areEqual(from, to)) return Price.create(from.name, to.name, 1);
 
@@ -83,7 +82,7 @@ export class PricingService {
   }
 
   // --- PRIVATE METHODS --- //
-  private async getPriceFor(item: Asset | Fiat, allowExpired: boolean): Promise<Price> {
+  private async getPriceFor(item: Active, allowExpired: boolean): Promise<Price> {
     let rule = await this.getRuleFor(item);
     if (!rule) throw new Error(`No price rule found for ${this.getItemString(item)}`);
 
@@ -104,14 +103,14 @@ export class PricingService {
     return Price.join(rule.price, referencePrice);
   }
 
-  private async getRuleFor(item: Asset | Fiat): Promise<PriceRule | undefined> {
+  private async getRuleFor(item: Active): Promise<PriceRule | undefined> {
     const query = this.priceRuleRepo.createQueryBuilder('rule');
-    this.isFiat(item) ? query.innerJoin('rule.fiats', 'item') : query.innerJoin('rule.assets', 'item');
+    isFiat(item) ? query.innerJoin('rule.fiats', 'item') : query.innerJoin('rule.assets', 'item');
 
     return query.leftJoinAndSelect('rule.reference', 'reference').where('item.id = :id', { id: item.id }).getOne();
   }
 
-  private async updatePriceFor(rule: PriceRule, from?: Asset | Fiat, to?: Asset | Fiat): Promise<PriceRule> {
+  private async updatePriceFor(rule: PriceRule, from?: Active, to?: Active): Promise<PriceRule> {
     const price = await this.getRulePrice(rule.rule);
     const source = from?.name ?? price.source;
     const target = to?.name ?? price.target;
@@ -159,15 +158,11 @@ export class PricingService {
   }
 
   // --- HELPER METHODS --- //
-  private isFiat(item: Asset | Fiat): item is Fiat {
-    return item instanceof Fiat;
+  private getItemString(item: Active): string {
+    return `${isFiat(item) ? 'fiat' : 'asset'} ${item.id}`;
   }
 
-  private getItemString(item: Asset | Fiat): string {
-    return `${this.isFiat(item) ? 'fiat' : 'asset'} ${item.id}`;
-  }
-
-  private areEqual(a: Asset | Fiat, b: Asset | Fiat): boolean {
+  private areEqual(a: Active, b: Active): boolean {
     return a.constructor === b.constructor && a.id === b.id;
   }
 

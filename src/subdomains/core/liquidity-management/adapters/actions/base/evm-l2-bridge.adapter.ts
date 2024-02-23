@@ -1,7 +1,8 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { L2BridgeEvmClient } from 'src/integration/blockchain/shared/evm/interfaces';
-import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { isAsset } from 'src/shared/models/active';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityManagementOrder } from '../../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../../enums';
@@ -46,7 +47,7 @@ export abstract class EvmL2BridgeAdapter extends LiquidityActionAdapter {
       },
     } = order;
 
-    if (!(asset instanceof Asset)) {
+    if (!isAsset(asset)) {
       throw new Error('EvmBridgeAdapter.checkCompletion(...) supports only Asset instances as an input.');
     }
 

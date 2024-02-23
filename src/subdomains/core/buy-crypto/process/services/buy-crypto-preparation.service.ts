@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { isFiat } from 'src/shared/models/active';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -168,7 +168,7 @@ export class BuyCryptoPreparationService {
             fee.fixed,
             fee.payoutRefBonus,
             fee.min,
-            inputReferenceCurrency instanceof Fiat ? fee.min : referenceEurPrice.convert(fee.min, 2),
+            isFiat(inputReferenceCurrency) ? fee.min : referenceEurPrice.convert(fee.min, 2),
             fee.total,
             referenceChfPrice.convert(fee.total, 2),
           ),
