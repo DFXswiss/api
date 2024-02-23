@@ -45,7 +45,7 @@ jobs:
           npm run lint
 
       - name: Deploy to Azure App Service (DEV)
-        uses: azure/webapps-deploy@v3
+        uses: azure/webapps-deploy@v4
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           publish-profile: ${{ secrets.DEV_PUBLISH_PROFILE }}
