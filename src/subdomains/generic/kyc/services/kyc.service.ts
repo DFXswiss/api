@@ -409,7 +409,10 @@ export class KycService {
     transactionId: string,
     data: any,
   ): Promise<{ user: UserData; stepId: number }> {
-    const kycStep = await this.kycStepRepo.findOne({ where: { transactionId }, relations: { userData: true } });
+    const kycStep = await this.kycStepRepo.findOne({
+      where: { transactionId },
+      relations: { userData: true },
+    });
 
     if (!kycStep) {
       this.logger.error(`Received unmatched ident call: ${JSON.stringify(data)}`);
