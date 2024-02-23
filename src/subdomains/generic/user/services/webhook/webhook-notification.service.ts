@@ -32,7 +32,7 @@ export class WebhookNotificationService {
 
   async sendOpenWebhooks(): Promise<void> {
     const entities = await this.webhookRepo.find({
-      where: { sentDate: IsNull() },
+      where: { lastTryDate: IsNull() },
       relations: { user: { wallet: true } },
     });
 
@@ -40,8 +40,8 @@ export class WebhookNotificationService {
 
     for (const entity of entities) {
       try {
-        await this.triggerUserWebhook(entity);
-        await this.webhookRepo.update(...entity.confirmSentDate());
+        const result = await this.triggerUserWebhook(entity);
+        await this.webhookRepo.update(...entity.sentWebhook(result));
       } catch (e) {
         this.logger.error(`Failed to send webhook ${entity.id}:`, e);
       }
@@ -50,7 +50,7 @@ export class WebhookNotificationService {
 
   // --- HELPER METHODS --- //
 
-  private async triggerUserWebhook<T extends PaymentWebhookData | KycWebhookData>(webhook: Webhook): Promise<void> {
+  private async triggerUserWebhook<T extends PaymentWebhookData | KycWebhookData>(webhook: Webhook): Promise<boolean> {
     try {
       if (!webhook.user.wallet.apiUrl)
         throw new Error(`ApiUrl for wallet ${webhook.user.wallet.name} not available anymore in webhook ${webhook.id}`);
@@ -69,6 +69,8 @@ export class WebhookNotificationService {
         retryDelay: 5000,
         tryCount: 3,
       });
+
+      return true;
     } catch (error) {
       const errMessage = `Exception during webhook ${webhook.id}:`;
 
@@ -81,6 +83,8 @@ export class WebhookNotificationService {
           errors: [errMessage, error],
         },
       });
+
+      return false;
     }
   }
 }

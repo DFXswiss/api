@@ -88,7 +88,7 @@ export class WebhookService {
         type: dto.type,
         reason: dto.reason,
         user: { id: dto.user.id },
-        sentDate: IsNull(),
+        lastTryDate: IsNull(),
       },
       relations: { user: true },
     });

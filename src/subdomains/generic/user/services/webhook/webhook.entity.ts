@@ -15,15 +15,19 @@ export class Webhook extends IEntity {
   reason: string;
 
   @Column({ type: 'datetime2', nullable: true })
-  sentDate: Date;
+  lastTryDate: Date;
+
+  @Column({ default: false })
+  isComplete: boolean;
 
   // References
   @ManyToOne(() => User, { nullable: false })
   user: User;
 
-  confirmSentDate(): UpdateResult<Webhook> {
+  sentWebhook(result: boolean): UpdateResult<Webhook> {
     const update: Partial<Webhook> = {
-      sentDate: new Date(),
+      lastTryDate: new Date(),
+      isComplete: result,
     };
 
     Object.assign(this, update);
