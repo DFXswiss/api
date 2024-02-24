@@ -134,7 +134,8 @@ export class BuyFiatService {
   async resetAmlCheck(id: number): Promise<void> {
     const entity = await this.buyFiatRepo.findOne({ where: { id }, relations: { fiatOutput: true } });
     if (!entity) throw new NotFoundException('BuyFiat not found');
-    if (entity.isComplete || entity.fiatOutput.isComplete) throw new BadRequestException('BuyFiat is already complete');
+    if (entity.isComplete || entity.fiatOutput?.isComplete)
+      throw new BadRequestException('BuyFiat is already complete');
     if (!entity.amlCheck) throw new BadRequestException('BuyFiat amlcheck is not set');
 
     const fiatOutputId = entity.fiatOutput.id;
