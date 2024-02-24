@@ -116,12 +116,12 @@ export class TransactionHelper implements OnModuleInit {
 
   // --- TARGET ESTIMATION --- //
   async getTxFeeInfos(
-    inputAmount: number,
+    inputReferenceAmount: number,
     from: Asset | Fiat,
+    fromReference: Asset | Fiat,
     to: Asset | Fiat,
     paymentMethodIn: PaymentMethod,
     paymentMethodOut: PaymentMethod,
-    referencePrice: Price,
     user: User,
   ): Promise<TxFeeDetails> {
     // get fee
@@ -132,28 +132,28 @@ export class TransactionHelper implements OnModuleInit {
       paymentMethodOut,
       from,
       to,
-      inputAmount,
-      from,
+      inputReferenceAmount,
+      fromReference,
       specs.minFee,
       [],
     );
 
-    const txSpecSource = await this.convertToSource(
-      from,
+    const txSpecReferenceSource = await this.convertToSource(
+      fromReference,
       { ...specs, fixedFee: fee.fixed, minFee: fee.blockchain },
       false,
     );
 
-    const percentFeeAmount = inputAmount * fee.rate;
-    const feeAmount = Math.max(percentFeeAmount + txSpecSource.fixedFee, txSpecSource.minFee);
+    const percentFeeAmount = inputReferenceAmount * fee.rate;
+    const feeAmount = Math.max(percentFeeAmount + txSpecReferenceSource.fixedFee, txSpecReferenceSource.minFee);
 
     return {
-      minVolume: this.convert(txSpecSource.minVolume, referencePrice, from instanceof Fiat),
+      minVolume: this.round(txSpecReferenceSource.minVolume, from instanceof Fiat),
       fee: {
         ...fee,
-        fixed: this.convert(fee.fixed, referencePrice, from instanceof Fiat),
-        min: this.convert(txSpecSource.minFee, referencePrice, from instanceof Fiat),
-        total: this.convert(feeAmount, referencePrice, from instanceof Fiat),
+        fixed: this.round(txSpecReferenceSource.fixedFee, from instanceof Fiat),
+        min: this.round(txSpecReferenceSource.minFee, from instanceof Fiat),
+        total: this.round(feeAmount, from instanceof Fiat),
       },
     };
   }
