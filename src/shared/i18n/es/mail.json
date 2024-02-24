@@ -159,9 +159,16 @@
         "last_step": "Da el último paso y empieza a crear tu libertad financiera hoy"
     },
     "account_merge": {
-      "title": "Confirmar correo electrónico",
-      "salutation": "Confirme su correo electrónico",
-      "message": "Haga clic en el siguiente enlace para confirmar su correo electrónico:<br>[url:{urlText}]"
+        "request": {
+            "title": "Confirmar correo electrónico",
+            "salutation": "Confirme su correo electrónico",
+            "message": "Haga clic en el siguiente enlace para confirmar su correo electrónico:<br>[url:{urlText}]"
+        },
+        "success": {
+            "title": "Dirección añadida a la cuenta",
+            "salutation": "Su dirección ha sido añadida a su cuenta",
+            "message": "La dirección {userAddress} ha sido añadida a tu cuenta."
+        }
     },
     "limit_request": {
         "title": "Transaction volume approved",

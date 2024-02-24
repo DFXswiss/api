@@ -40,8 +40,8 @@ export class AccountMergeService {
       type: MailType.USER,
       input: {
         userData: request.slave,
-        title: `${MailTranslationKey.ACCOUNT_MERGE}.title`,
-        salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE}.salutation` },
+        title: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.title`,
+        salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.salutation` },
         prefix: [
           { key: MailKey.SPACE, params: { value: '3' } },
           {
@@ -50,7 +50,7 @@ export class AccountMergeService {
           },
           { key: MailKey.SPACE, params: { value: '2' } },
           {
-            key: `${MailTranslationKey.ACCOUNT_MERGE}.message`,
+            key: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.message`,
             params: { url, urlText: url },
           },
           { key: MailKey.SPACE, params: { value: '4' } },
