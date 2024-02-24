@@ -48,7 +48,6 @@ export class BuyFiatPreparationService {
           (await this.assetService.getNativeMainLayerAsset(entity.inputReferenceAsset));
 
         const { fee } = await this.transactionHelper.getTxFeeInfos(
-          entity.inputAmount,
           entity.inputReferenceAmount,
           entity.cryptoInput.asset,
           inputReferenceCurrency,

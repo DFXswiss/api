@@ -116,7 +116,6 @@ export class TransactionHelper implements OnModuleInit {
 
   // --- TARGET ESTIMATION --- //
   async getTxFeeInfos(
-    inputAmount: number,
     inputReferenceAmount: number,
     from: Active,
     fromReference: Active,
@@ -133,8 +132,8 @@ export class TransactionHelper implements OnModuleInit {
       paymentMethodOut,
       from,
       to,
-      inputAmount,
-      from,
+      inputReferenceAmount,
+      fromReference,
       specs.minFee,
       [],
     );
