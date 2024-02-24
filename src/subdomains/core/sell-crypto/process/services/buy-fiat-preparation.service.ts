@@ -6,7 +6,6 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
-import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../buy-crypto/process/enums/check-status.enum';
@@ -48,19 +47,14 @@ export class BuyFiatPreparationService {
           (await this.fiatService.getFiatByName(entity.inputReferenceAsset)) ??
           (await this.assetService.getNativeMainLayerAsset(entity.inputReferenceAsset));
 
-        const inputReferencePrice = Price.create(
-          entity.cryptoInput.asset.name,
-          inputReferenceCurrency.name,
-          entity.inputAmount / entity.inputReferenceAmount,
-        );
-
         const { fee } = await this.transactionHelper.getTxFeeInfos(
           entity.inputAmount,
+          entity.inputReferenceAmount,
           entity.cryptoInput.asset,
+          inputReferenceCurrency,
           entity.sell.fiat,
           CryptoPaymentMethod.CRYPTO,
           FiatPaymentMethod.BANK,
-          inputReferencePrice,
           entity.sell.user,
         );
 
