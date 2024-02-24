@@ -151,7 +151,7 @@ export class TransactionHelper implements OnModuleInit {
       minVolume: this.convert(txSpecSource.minVolume, referencePrice, isFiat(from)),
       fee: {
         ...fee,
-        fixed: this.convert(fee.fixed, referencePrice, isFiat(from)),
+        fixed: this.convert(txSpecSource.fixedFee, referencePrice, isFiat(from)),
         min: this.convert(txSpecSource.minFee, referencePrice, isFiat(from)),
         total: this.convert(feeAmount, referencePrice, isFiat(from)),
       },
