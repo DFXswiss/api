@@ -1,5 +1,5 @@
-import { Entity, Column, Index } from 'typeorm';
 import { IEntity } from 'src/shared/models/entity';
+import { Column, Entity, Index } from 'typeorm';
 
 export enum TransactionDirection {
   IN = 'In',
@@ -19,10 +19,10 @@ export class TransactionSpecification extends IEntity {
   direction?: TransactionDirection;
 
   @Column({ type: 'float' })
-  minVolume: number;
+  minVolume: number; // CHF
 
   @Column({ type: 'float' })
-  minFee: number;
+  minFee: number; // CHF
 
   static default(): TransactionSpecification {
     const spec = new TransactionSpecification();

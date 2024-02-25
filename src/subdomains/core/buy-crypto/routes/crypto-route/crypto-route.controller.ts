@@ -191,7 +191,7 @@ export class CryptoRouteController {
       blockchain: crypto.deposit.blockchain,
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposits: [minDeposit],
-      minFee: { amount: fee.blockchain, asset: 'EUR' },
+      minFee: { amount: fee.blockchain, asset: 'CHF' },
     };
   }
 

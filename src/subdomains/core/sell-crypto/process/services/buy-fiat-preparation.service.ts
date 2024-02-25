@@ -60,12 +60,12 @@ export class BuyFiatPreparationService {
         const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatEur, false);
         const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
 
-        const amountInEur = referenceEurPrice.convert(entity.inputReferenceAmount, 2);
+        const amountInChf = referenceChfPrice.convert(entity.inputReferenceAmount, 2);
 
         await this.buyFiatRepo.update(
           ...entity.setFeeAndFiatReference(
-            amountInEur,
-            referenceChfPrice.convert(entity.inputReferenceAmount, 2),
+            referenceEurPrice.convert(entity.inputReferenceAmount, 2),
+            amountInChf,
             fee.fees,
             fee.rate,
             fee.fixed,
@@ -78,7 +78,7 @@ export class BuyFiatPreparationService {
         );
 
         for (const feeId of fee.fees) {
-          await this.feeService.increaseTxUsages(amountInEur, feeId, entity.sell.user.userData);
+          await this.feeService.increaseTxUsages(amountInChf, feeId, entity.sell.user.userData);
         }
 
         await this.buyFiatService.updateSellVolume([entity.sell?.id]);
