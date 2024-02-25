@@ -1,7 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Active, isAsset } from 'src/shared/models/active';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { Column, Entity, ManyToOne } from 'typeorm';
@@ -196,13 +195,8 @@ export class Fee extends IEntity {
   }
 
   //*** HELPER METHODS ***//+
-
-  private isAsset(asset: Asset | Fiat): boolean {
-    return asset instanceof Asset;
-  }
-
-  private verifyCurrency(currency: Asset | Fiat): boolean {
-    const list = this.isAsset(currency) ? this.assetList : this.fiatList;
+  private verifyCurrency(currency: Active): boolean {
+    const list = isAsset(currency) ? this.assetList : this.fiatList;
 
     return !list?.length || list.includes(currency.id);
   }

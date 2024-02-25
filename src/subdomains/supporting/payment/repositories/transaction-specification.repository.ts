@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Asset } from 'src/shared/models/asset/asset.entity';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { Active, isAsset } from 'src/shared/models/active';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
 import { EntityManager } from 'typeorm';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
@@ -11,15 +10,13 @@ export class TransactionSpecificationRepository extends BaseRepository<Transacti
     super(TransactionSpecification, manager);
   }
 
-  getProps(param: Asset | Fiat): { system: string; asset: string } {
-    return param instanceof Fiat
-      ? { system: 'Fiat', asset: param.name }
-      : { system: param.blockchain, asset: param.dexName };
+  getProps(param: Active): { system: string; asset: string } {
+    return isAsset(param) ? { system: param.blockchain, asset: param.dexName } : { system: 'Fiat', asset: param.name };
   }
 
   getSpecFor(
     specs: TransactionSpecification[],
-    param: Asset | Fiat,
+    param: Active,
     direction: TransactionDirection,
   ): TransactionSpecification {
     const { system, asset } = this.getProps(param);

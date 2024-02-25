@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { isFiat } from 'src/shared/models/active';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -8,7 +8,6 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
-import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Between, In, IsNull, Not } from 'typeorm';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
@@ -56,19 +55,13 @@ export class BuyCryptoPreparationService {
         const inputReferenceCurrency = await this.fiatService.getFiatByName(entity.bankTx.txCurrency);
         const inputCurrency = await this.fiatService.getFiatByName(entity.inputAsset);
 
-        const inputReferencePrice = Price.create(
-          inputCurrency.name,
-          inputReferenceCurrency.name,
-          entity.inputAmount / entity.inputReferenceAmount,
-        );
-
         const { fee, minVolume } = await this.transactionHelper.getTxFeeInfos(
-          entity.inputAmount,
+          entity.inputReferenceAmount,
           inputCurrency,
+          inputReferenceCurrency,
           entity.target.asset,
           entity.paymentMethodIn,
           CryptoPaymentMethod.CRYPTO,
-          inputReferencePrice,
           entity.user,
         );
 
@@ -138,19 +131,13 @@ export class BuyCryptoPreparationService {
           (await this.assetService.getNativeMainLayerAsset(entity.inputReferenceAsset));
         const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
 
-        const inputReferencePrice = Price.create(
-          inputCurrency.name,
-          inputReferenceCurrency.name,
-          entity.inputAmount / entity.inputReferenceAmount,
-        );
-
         const { fee } = await this.transactionHelper.getTxFeeInfos(
-          entity.inputAmount,
+          entity.inputReferenceAmount,
           inputCurrency,
+          inputReferenceCurrency,
           entity.target.asset,
           entity.paymentMethodIn,
           CryptoPaymentMethod.CRYPTO,
-          inputReferencePrice,
           entity.user,
         );
 
@@ -168,7 +155,7 @@ export class BuyCryptoPreparationService {
             fee.fixed,
             fee.payoutRefBonus,
             fee.min,
-            inputReferenceCurrency instanceof Fiat ? fee.min : referenceEurPrice.convert(fee.min, 2),
+            isFiat(inputReferenceCurrency) ? fee.min : referenceEurPrice.convert(fee.min, 2),
             fee.total,
             referenceChfPrice.convert(fee.total, 2),
           ),
