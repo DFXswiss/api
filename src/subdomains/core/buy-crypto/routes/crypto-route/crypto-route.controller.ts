@@ -177,6 +177,7 @@ export class CryptoRouteController {
       userId,
       CryptoPaymentMethod.CRYPTO,
       CryptoPaymentMethod.CRYPTO,
+      undefined,
       crypto.asset,
       minFee.amount,
     );

@@ -173,6 +173,7 @@ export class BuyController {
       userId,
       FiatPaymentMethod.BANK,
       CryptoPaymentMethod.CRYPTO,
+      undefined,
       buy.asset,
       minFee.amount,
     );
