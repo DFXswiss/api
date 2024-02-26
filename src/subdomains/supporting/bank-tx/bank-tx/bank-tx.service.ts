@@ -1,6 +1,7 @@
 import { ConflictException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { RevolutService } from 'src/integration/bank/services/revolut.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -39,6 +40,7 @@ export class BankTxService {
     private readonly bankTxRepeatService: BankTxRepeatService,
     private readonly buyService: BuyService,
     private readonly bankService: BankService,
+    private readonly revolutService: RevolutService,
   ) {}
 
   // --- TRANSACTION HANDLING --- //
@@ -54,14 +56,22 @@ export class BankTxService {
 
     // Get settings
     const settingKeyOlky = 'lastBankOlkyDate';
+    const settingKeyRevolut = 'lastBankRevolutDate';
     const lastModificationTimeOlky = await this.settingService.get(settingKeyOlky, new Date(0).toISOString());
+    const lastModificationTimeRevolut = await this.settingService.get(settingKeyRevolut, new Date(0).toISOString());
+
     const newModificationTime = new Date().toISOString();
 
-    const bank = await this.bankService.getBankInternal(BankName.OLKY, 'EUR');
+    const olkyBank = await this.bankService.getBankInternal(BankName.OLKY, 'EUR');
+    const revolutBank = await this.bankService.getBankInternal(BankName.REVOLUT, 'EUR');
 
     // Get bank transactions
-    const olkyTransactions = await this.olkyService.getOlkyTransactions(lastModificationTimeOlky, bank.iban);
-    const allTransactions = olkyTransactions;
+    const olkyTransactions = await this.olkyService.getOlkyTransactions(lastModificationTimeOlky, olkyBank.iban);
+    const revolutTransactions = await this.revolutService.getRevolutTransactions(
+      lastModificationTimeRevolut,
+      revolutBank.iban,
+    );
+    const allTransactions = olkyTransactions.concat(revolutTransactions);
 
     for (const bankTx of allTransactions) {
       try {
@@ -72,6 +82,7 @@ export class BankTxService {
     }
 
     if (olkyTransactions.length > 0) await this.settingService.set(settingKeyOlky, newModificationTime);
+    if (revolutTransactions.length > 0) await this.settingService.set(settingKeyRevolut, newModificationTime);
   }
 
   async assignTransactions() {

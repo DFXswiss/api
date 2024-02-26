@@ -60,8 +60,8 @@
   "prettier.printWidth": 120,
   "editor.formatOnSave": true,
   "editor.codeActionsOnSave": {
-    "source.organizeImports": true,
-    "source.sortMembers": true
+    "source.organizeImports": "explicit",
+    "source.sortMembers": "explicit"
   },
   "files.exclude": {
     "node_modules": true

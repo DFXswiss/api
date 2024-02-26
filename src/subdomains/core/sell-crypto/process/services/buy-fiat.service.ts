@@ -138,10 +138,10 @@ export class BuyFiatService {
       throw new BadRequestException('BuyFiat is already complete');
     if (!entity.amlCheck) throw new BadRequestException('BuyFiat amlcheck is not set');
 
-    const fiatOutputId = entity.fiatOutput.id;
+    const fiatOutputId = entity.fiatOutput?.id;
 
     await this.buyFiatRepo.update(...entity.resetAmlCheck());
-    await this.fiatOutputService.delete(fiatOutputId);
+    if (fiatOutputId) await this.fiatOutputService.delete(fiatOutputId);
   }
 
   async updateVolumes(start = 1, end = 100000): Promise<void> {

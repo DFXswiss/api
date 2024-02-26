@@ -1,7 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Active, isAsset } from 'src/shared/models/active';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { Column, Entity, ManyToOne } from 'typeorm';
@@ -26,7 +25,7 @@ export class Fee extends IEntity {
   rate: number;
 
   @Column({ type: 'float', default: 0 })
-  fixed: number; // EUR
+  fixed: number; // CHF
 
   @Column({ type: 'float', default: 1 })
   blockchainFactor: number;
@@ -65,13 +64,13 @@ export class Fee extends IEntity {
   // Volume columns
 
   @Column({ type: 'float', nullable: true })
-  minTxVolume: number; // EUR
+  minTxVolume: number; // CHF
 
   @Column({ type: 'float', nullable: true })
-  maxTxVolume: number; // EUR
+  maxTxVolume: number; // CHF
 
   @Column({ type: 'float', nullable: true })
-  maxAnnualUserTxVolume: number; // EUR
+  maxAnnualUserTxVolume: number; // CHF
 
   @Column({ length: 'MAX', nullable: true })
   annualUserTxVolumes: string; // semicolon separated user volumes
@@ -196,13 +195,8 @@ export class Fee extends IEntity {
   }
 
   //*** HELPER METHODS ***//+
-
-  private isAsset(asset: Asset | Fiat): boolean {
-    return asset instanceof Asset;
-  }
-
-  private verifyCurrency(currency: Asset | Fiat): boolean {
-    const list = this.isAsset(currency) ? this.assetList : this.fiatList;
+  private verifyCurrency(currency: Active): boolean {
+    const list = isAsset(currency) ? this.assetList : this.fiatList;
 
     return !list?.length || list.includes(currency.id);
   }

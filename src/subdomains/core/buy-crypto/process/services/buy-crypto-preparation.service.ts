@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { isFiat } from 'src/shared/models/active';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -144,25 +144,25 @@ export class BuyCryptoPreparationService {
         const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatEur, false);
         const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
 
-        const amountInEur = referenceEurPrice.convert(entity.inputReferenceAmount, 2);
+        const amountInChf = referenceChfPrice.convert(entity.inputReferenceAmount, 2);
 
         await this.buyCryptoRepo.update(
           ...entity.setFeeAndFiatReference(
-            amountInEur,
-            referenceChfPrice.convert(entity.inputReferenceAmount, 2),
+            referenceEurPrice.convert(entity.inputReferenceAmount, 2),
+            amountInChf,
             fee.fees,
             fee.rate,
             fee.fixed,
             fee.payoutRefBonus,
             fee.min,
-            inputReferenceCurrency instanceof Fiat ? fee.min : referenceEurPrice.convert(fee.min, 2),
+            isFiat(inputReferenceCurrency) ? fee.min : referenceEurPrice.convert(fee.min, 2),
             fee.total,
             referenceChfPrice.convert(fee.total, 2),
           ),
         );
 
         for (const feeId of fee.fees) {
-          await this.feeService.increaseTxUsages(amountInEur, feeId, entity.user.userData);
+          await this.feeService.increaseTxUsages(amountInChf, feeId, entity.user.userData);
         }
 
         await this.buyCryptoService.updateBuyVolume([entity.buy?.id]);

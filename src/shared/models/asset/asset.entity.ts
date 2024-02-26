@@ -49,6 +49,18 @@ export class Asset extends IEntity {
   @Column({ default: true })
   sellable: boolean;
 
+  @Column({ default: true })
+  cardBuyable: boolean;
+
+  @Column({ default: true })
+  cardSellable: boolean;
+
+  @Column({ default: true })
+  instantBuyable: boolean;
+
+  @Column({ default: true })
+  instantSellable: boolean;
+
   @Column({ default: false })
   ikna: boolean;
 

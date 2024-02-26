@@ -10,7 +10,6 @@ import { SellRepository } from 'src/subdomains/core/sell-crypto/route/sell.repos
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { In, Not } from 'typeorm';
-import { User } from '../../../generic/user/models/user/user.entity';
 import { DepositService } from '../../../supporting/address-pool/deposit/deposit.service';
 import { BankAccountService } from '../../../supporting/bank/bank-account/bank-account.service';
 import { Sell } from './sell.entity';
@@ -28,7 +27,7 @@ export class SellService {
 
   // --- SELLS --- //
   async get(userId: number, id: number): Promise<Sell> {
-    return this.sellRepo.findOneBy({ id, user: { id: userId } });
+    return this.sellRepo.findOne({ where: { id, user: { id: userId } }, relations: { user: true } });
   }
 
   async getSellByKey(key: string, value: any): Promise<Sell> {
@@ -51,10 +50,13 @@ export class SellService {
 
   async getUserSells(userId: number): Promise<Sell[]> {
     const sellableBlockchains = await this.assetService.getSellableBlockchains();
-    return this.sellRepo.findBy({
-      user: { id: userId },
-      fiat: { buyable: true },
-      deposit: { blockchain: In(sellableBlockchains) },
+    return this.sellRepo.find({
+      where: {
+        user: { id: userId },
+        fiat: { buyable: true },
+        deposit: { blockchain: In(sellableBlockchains) },
+      },
+      relations: { user: true },
     });
   }
 
@@ -71,7 +73,7 @@ export class SellService {
         deposit: { blockchain: dto.blockchain },
         user: { id: userId },
       },
-      relations: ['deposit'],
+      relations: ['deposit', 'user'],
     });
 
     if (existing) {
@@ -88,7 +90,7 @@ export class SellService {
 
     // create the entity
     const sell = this.sellRepo.create(dto);
-    sell.user = { id: userId } as User;
+    sell.user = await this.userService.getUser(userId, { userData: true });
     sell.fiat = dto.currency;
     sell.deposit = await this.depositService.getNextDeposit(dto.blockchain);
     sell.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);
@@ -97,7 +99,10 @@ export class SellService {
   }
 
   async updateSell(userId: number, sellId: number, dto: UpdateSellDto): Promise<Sell> {
-    const sell = await this.sellRepo.findOneBy({ id: sellId, user: { id: userId } });
+    const sell = await this.sellRepo.findOne({
+      where: { id: sellId, user: { id: userId } },
+      relations: { user: true },
+    });
     if (!sell) throw new NotFoundException('Sell route not found');
 
     return this.sellRepo.save({ ...sell, ...dto });

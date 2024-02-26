@@ -9,6 +9,7 @@ import { EvmTokenBalance } from 'src/integration/blockchain/shared/evm/dto/evm-t
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
+import { isAsset } from 'src/shared/models/active';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -46,7 +47,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
   }
 
   async getBalances(assets: (Asset & { context: LiquidityManagementContext })[]): Promise<LiquidityBalance[]> {
-    if (!assets.every((a) => a instanceof Asset)) {
+    if (!assets.every(isAsset)) {
       throw new Error(`BlockchainAdapter supports only assets`);
     }
 
