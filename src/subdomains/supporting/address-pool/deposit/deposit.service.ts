@@ -64,7 +64,7 @@ export class DepositService {
 
   async createDeposits({ blockchain, count }: CreateDepositDto): Promise<void> {
     if ([Blockchain.BITCOIN].includes(blockchain)) {
-      return this.createJellyfishDeposits(blockchain, count);
+      return this.createBitcoinDeposits(blockchain, count);
     } else if (this.cryptoService.EthereumBasedChains.includes(blockchain)) {
       return this.createEvmDeposits(blockchain, count);
     } else if (blockchain === Blockchain.LIGHTNING) {
@@ -74,7 +74,7 @@ export class DepositService {
     throw new BadRequestException(`Deposit creation for ${blockchain} not possible.`);
   }
 
-  private async createJellyfishDeposits(blockchain: Blockchain, count: number) {
+  private async createBitcoinDeposits(blockchain: Blockchain, count: number) {
     const client = this.btcInpClient;
     const label = Util.isoDate(new Date());
     const type = AddressType.P2SH_SEGWIT;

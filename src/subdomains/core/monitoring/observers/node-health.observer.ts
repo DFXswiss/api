@@ -116,8 +116,6 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
     if (!node.restarted && node.downSince && Util.minutesDiff(node.downSince, new Date()) > 30) {
       node.restarted = true;
 
-      await this.azureService.restartWebApp(`node-${node.type}`);
-
       // send notification
       const message = `Restarting node ${node.type} (down since ${node.downSince})`;
       this.logger.error(message);

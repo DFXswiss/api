@@ -121,20 +121,6 @@ export class NodeService {
       .catch(() => this.handleNodeCheckError(type));
   }
 
-  private handleNodePairCheck(pairResult: NodeCheckResult, node: NodeType): NodeError[] {
-    const errors = pairResult.errors;
-    const info = pairResult.info;
-
-    if (info && Math.abs(info.headers) > 10) {
-      errors.push({
-        message: `${node} node not in sync (active headers: ${info.headers})`,
-        nodeType: node,
-      });
-    }
-
-    return errors;
-  }
-
   private handleNodeCheckSuccess(info: BlockchainInfo, type: NodeType): NodeCheckResult {
     const result = { errors: [], info };
 

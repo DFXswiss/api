@@ -5,6 +5,8 @@ import { UserAgent } from 'express-useragent';
 import { RealIP } from 'nestjs-real-ip';
 import { Config } from './config/config';
 import { AdDto, AdSettings, AdvertisementDto } from './shared/dto/advertisement.dto';
+import { AnnouncementDto } from './shared/dto/announcement.dto';
+import { FlagDto } from './shared/dto/flag.dto';
 import { SettingService } from './shared/models/setting/setting.service';
 import { HttpService } from './shared/services/http.service';
 import { Util } from './shared/utils/util';
@@ -48,6 +50,23 @@ export class AppController {
   @Version(VERSION_NEUTRAL)
   async home(): Promise<any> {
     // nothing to do (redirect to Swagger UI)
+  }
+
+  @Get('app/announcements')
+  @ApiExcludeEndpoint()
+  async getAnnouncements(): Promise<AnnouncementDto[]> {
+    return Promise.all([
+      this.settingService.getObj<AnnouncementDto[]>('announcements', []),
+      this.getLightWalletAnnouncements(),
+    ]).then((r) => r.reduce((prev, curr) => prev.concat(curr), []));
+  }
+
+  @Get('app/settings/flags')
+  @ApiExcludeEndpoint()
+  async getFlags(): Promise<FlagDto[]> {
+    return Promise.all([this.settingService.getObj<FlagDto[]>('flags', []), this.getLightWalletFlags()]).then((r) =>
+      r.reduce((prev, curr) => prev.concat(curr), []),
+    );
   }
 
   @Get('app/advertisements')
@@ -116,6 +135,13 @@ export class AppController {
   }
 
   // --- HELPER METHODS --- //
+  private async getLightWalletAnnouncements(): Promise<AnnouncementDto[]> {
+    return [];
+  }
+
+  private async getLightWalletFlags(): Promise<FlagDto[]> {
+    return [];
+  }
 
   private getSpecialAd(id: string, settings: AdSettings): { id: string; url: string } {
     const isSpecialAd =

@@ -7,7 +7,6 @@ import {
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Environment } from 'src/config/config';
-import { DfiTaxService } from 'src/integration/blockchain/ain/services/dfi-tax.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { Active } from 'src/shared/models/active';
@@ -49,7 +48,6 @@ export class UserService {
     private readonly userDataRepo: UserDataRepository,
     private readonly userDataService: UserDataService,
     private readonly walletService: WalletService,
-    private readonly dfiTaxService: DfiTaxService,
     private readonly apiKeyService: ApiKeyService,
     private readonly geoLocationService: GeoLocationService,
     private readonly countryService: CountryService,
