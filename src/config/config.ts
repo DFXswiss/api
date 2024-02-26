@@ -402,6 +402,10 @@ export class Configuration {
         privateKey: process.env.FRICK_PRIVATE_KEY?.split('<br>').join('\n'),
       },
     },
+    revolut: {
+      refreshToken: process.env.REVOLUT_REFRESH_TOKEN,
+      clientAssertion: process.env.REVOLUT_CLIENT_ASSERTION,
+    },
   };
 
   giroCode = {
