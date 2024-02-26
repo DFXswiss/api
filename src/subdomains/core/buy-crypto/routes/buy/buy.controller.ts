@@ -173,6 +173,7 @@ export class BuyController {
       userId,
       FiatPaymentMethod.BANK,
       CryptoPaymentMethod.CRYPTO,
+      undefined,
       buy.asset,
       minFee.amount,
     );
@@ -187,7 +188,7 @@ export class BuyController {
       asset: AssetDtoMapper.toDto(buy.asset),
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposits: [minDeposit],
-      minFee: { amount: fee.blockchain, asset: 'EUR' },
+      minFee: { amount: fee.blockchain, asset: 'CHF' },
     };
   }
 

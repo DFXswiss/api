@@ -36,7 +36,6 @@ export enum TransactionError {
 
 @Injectable()
 export class TransactionHelper implements OnModuleInit {
-  private eur: Fiat;
   private chf: Fiat;
   private transactionSpecifications: TransactionSpecification[];
 
@@ -50,7 +49,6 @@ export class TransactionHelper implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    void this.fiatService.getFiatByName('EUR').then((f) => (this.eur = f));
     void this.fiatService.getFiatByName('CHF').then((f) => (this.chf = f));
     void this.updateCache();
   }
@@ -109,8 +107,11 @@ export class TransactionHelper implements OnModuleInit {
     const outSpec = this.specRepo.getSpec(this.transactionSpecifications, toSystem, toAsset, TransactionDirection.OUT);
 
     return {
-      minFee: { amount: outSpec.minFee + inSpec.minFee, asset: 'EUR' },
-      minDeposit: { amount: Math.max(outSpec.minVolume, inSpec.minVolume), asset: 'EUR' },
+      minFee: { amount: outSpec.minFee + inSpec.minFee, asset: 'CHF' },
+      minDeposit: {
+        amount: Math.max(outSpec.minVolume, inSpec.minVolume),
+        asset: 'CHF',
+      },
     };
   }
 
@@ -240,12 +241,12 @@ export class TransactionHelper implements OnModuleInit {
     to: Active,
     txVolume: number,
     txAsset: Active,
-    minFeeEur: number,
+    minFeeChf: number,
     discountCodes: string[],
   ): Promise<FeeDto> {
-    const price = await this.pricingService.getPrice(txAsset, this.eur, true);
+    const price = await this.pricingService.getPrice(txAsset, this.chf, true);
 
-    const txVolumeInEur = price.convert(txVolume);
+    const txVolumeInChf = price.convert(txVolume);
 
     const feeRequest = {
       user,
@@ -253,8 +254,8 @@ export class TransactionHelper implements OnModuleInit {
       paymentMethodOut,
       from,
       to,
-      txVolume: txVolumeInEur,
-      blockchainFee: minFeeEur,
+      txVolume: txVolumeInChf,
+      blockchainFee: minFeeChf,
       discountCodes,
     };
 
@@ -320,12 +321,9 @@ export class TransactionHelper implements OnModuleInit {
     { minFee, minVolume, maxVolume, fixedFee }: TxSpecExtended,
     allowExpiredPrice: boolean,
   ): Promise<TxSpecExtended> {
-    const price = await this.pricingService.getPrice(from, this.eur, allowExpiredPrice).then((p) => p.invert());
+    const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice).then((p) => p.invert());
 
-    const maxVolumePrice =
-      maxVolume && (await this.pricingService.getPrice(from, this.chf, allowExpiredPrice).then((p) => p.invert()));
-
-    const maxVolumeSource = maxVolume && (from.name === 'CHF' ? maxVolume : maxVolumePrice.convert(maxVolume * 0.99)); // -1% for the conversion
+    const maxVolumeSource = maxVolume && (from.name === 'CHF' ? maxVolume : price.convert(maxVolume * 0.99)); // -1% for the conversion
 
     return {
       minFee: this.convert(minFee, price, isFiat(from)),
@@ -340,10 +338,9 @@ export class TransactionHelper implements OnModuleInit {
     { minFee, minVolume, maxVolume, fixedFee }: TxSpecExtended,
     allowExpiredPrice: boolean,
   ): Promise<TxSpecExtended> {
-    const price = await this.pricingService.getPrice(this.eur, to, allowExpiredPrice);
-    const maxVolumePrice = maxVolume && (await this.pricingService.getPrice(this.chf, to, allowExpiredPrice));
+    const price = await this.pricingService.getPrice(this.chf, to, allowExpiredPrice);
 
-    const maxVolumeTarget = maxVolume && (to.name === 'CHF' ? maxVolume : maxVolumePrice.convert(maxVolume * 0.99)); // -1% for the conversion
+    const maxVolumeTarget = maxVolume && (to.name === 'CHF' ? maxVolume : price.convert(maxVolume * 0.99)); // -1% for the conversion
 
     return {
       minFee: this.convert(minFee, price, isFiat(to)),

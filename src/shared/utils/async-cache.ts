@@ -6,6 +6,7 @@ export class AsyncCache<T> {
   constructor(private readonly itemValiditySeconds?: number) {}
 
   async get(id: string, update: () => Promise<T>, fallbackToCache = false): Promise<T> {
+    if (!id) throw new Error('Error in AsyncCache: id is null');
     if (!(this.cache.get(id)?.updated > this.expiration)) {
       await this.update(id, update, fallbackToCache);
     }
