@@ -24,7 +24,7 @@ export class PricingService {
 
   private readonly providerMap: { [s in PriceSource]: PricingProvider };
   private readonly priceCache = new AsyncCache<Price>(10);
-  private readonly updateCalls = new AsyncCache<Price>(1);
+  private readonly updateCalls = new AsyncCache<Price>(0);
 
   constructor(
     private readonly priceRuleRepo: PriceRuleRepository,
