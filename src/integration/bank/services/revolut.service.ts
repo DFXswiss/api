@@ -177,7 +177,7 @@ export class RevolutService {
   private parseTransaction(tx: Transaction, txLeg: TransactionLeg, accountIban: string): Partial<BankTx> {
     try {
       return {
-        accountServiceRef: tx.id,
+        accountServiceRef: txLeg.leg_id,
         bookingDate: tx.created_at,
         valueDate: tx.completed_at,
         txCount: 1,
