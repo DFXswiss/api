@@ -1,6 +1,5 @@
 import { ApiClient, BigNumber } from '@defichain/jellyfish-api-core';
 import { Block, BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
-import { MasternodeInfo, MasternodeResult } from '@defichain/jellyfish-api-core/dist/category/masternode';
 import { AddressType, InWalletTransaction, UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { JsonRpcClient } from '@defichain/jellyfish-api-jsonrpc';
 import { ServiceUnavailableException } from '@nestjs/common';
@@ -13,13 +12,7 @@ import { Util } from 'src/shared/utils/util';
 export enum NodeCommand {
   UNLOCK = 'walletpassphrase',
   SEND_UTXO = 'sendutxosfrom',
-  TEST_POOL_SWAP = 'testpoolswap',
   SEND = 'send',
-}
-
-export enum NodeMode {
-  ACTIVE = 'active',
-  PASSIVE = 'passive',
 }
 
 export class NodeClient {
@@ -29,12 +22,9 @@ export class NodeClient {
   private readonly client: ApiClient;
   private readonly queue: QueueHandler;
 
-  readonly #mode: NodeMode;
-
-  constructor(private readonly http: HttpService, private readonly url: string, mode: NodeMode) {
+  constructor(private readonly http: HttpService, private readonly url: string) {
     this.client = this.createJellyfishClient();
     this.queue = new QueueHandler(180000, 60000);
-    this.#mode = mode;
   }
 
   clearRequestQueue() {
@@ -42,9 +32,6 @@ export class NodeClient {
   }
 
   // common
-  async listMasternodes(): Promise<MasternodeResult<MasternodeInfo>> {
-    return this.callNode((c) => c.masternode.listMasternodes({ limit: 1000000 }));
-  }
 
   async getInfo(): Promise<BlockchainInfo> {
     return this.callNode((c) => c.blockchain.getBlockchainInfo());
@@ -53,7 +40,7 @@ export class NodeClient {
   async checkSync(): Promise<{ headers: number; blocks: number }> {
     const { blocks, headers } = await this.getInfo();
 
-    if (blocks < headers - 1) throw new Error(`Node ${this.mode} not in sync by ${headers - blocks} block(s)`);
+    if (blocks < headers - 1) throw new Error(`Node not in sync by ${headers - blocks} block(s)`);
 
     return { headers, blocks };
   }
@@ -168,9 +155,5 @@ export class NodeClient {
 
   protected roundAmount(amount: number): number {
     return Util.round(amount, 8);
-  }
-
-  get mode(): NodeMode {
-    return this.#mode;
   }
 }

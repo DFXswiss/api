@@ -7,7 +7,6 @@ import { PayInArbitrumService } from '../../../services/payin-arbitrum.service';
 import { PayInBaseService } from '../../../services/payin-base.service';
 import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
 import { PayInBscService } from '../../../services/payin-bsc.service';
-import { PayInDeFiChainService } from '../../../services/payin-defichain.service';
 import { PayInEthereumService } from '../../../services/payin-ethereum.service';
 import { PayInMoneroService } from '../../../services/payin-monero.service';
 import { PayInOptimismService } from '../../../services/payin-optimism.service';
@@ -20,8 +19,6 @@ import { SendStrategyRegistry } from '../impl/base/send.strategy-registry';
 import { BitcoinStrategy } from '../impl/bitcoin.strategy';
 import { BscCoinStrategy } from '../impl/bsc-coin.strategy';
 import { BscTokenStrategy } from '../impl/bsc-token.strategy';
-import { DeFiChainCoinStrategy } from '../impl/defichain-coin.strategy';
-import { DeFiChainTokenStrategy } from '../impl/defichain-token.strategy';
 import { EthereumCoinStrategy } from '../impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy } from '../impl/ethereum-token.strategy';
 import { LightningStrategy } from '../impl/lightning.strategy';
@@ -35,8 +32,6 @@ describe('SendStrategyRegistry', () => {
   let bitcoin: BitcoinStrategy;
   let lightning: LightningStrategy;
   let monero: MoneroStrategy;
-  let deFiChainCoin: DeFiChainCoinStrategy;
-  let deFiChainToken: DeFiChainTokenStrategy;
   let ethereumCoin: EthereumCoinStrategy;
   let ethereumToken: EthereumTokenStrategy;
   let bscCoin: BscCoinStrategy;
@@ -58,9 +53,6 @@ describe('SendStrategyRegistry', () => {
     lightning = new LightningStrategy(mock<PayInRepository>());
 
     monero = new MoneroStrategy(mock<PayInMoneroService>(), mock<PayInRepository>());
-
-    deFiChainCoin = new DeFiChainCoinStrategy(mock<PayInDeFiChainService>(), mock<PayInRepository>());
-    deFiChainToken = new DeFiChainTokenStrategy(mock<PayInDeFiChainService>(), mock<PayInRepository>());
 
     ethereumCoin = new EthereumCoinStrategy(mock<PayInEthereumService>(), mock<PayInRepository>());
     ethereumToken = new EthereumTokenStrategy(mock<PayInEthereumService>(), mock<PayInRepository>());
@@ -84,8 +76,6 @@ describe('SendStrategyRegistry', () => {
       bitcoin,
       lightning,
       monero,
-      deFiChainCoin,
-      deFiChainToken,
       ethereumCoin,
       ethereumToken,
       bscCoin,
@@ -125,22 +115,6 @@ describe('SendStrategyRegistry', () => {
         );
 
         expect(strategy).toBeInstanceOf(MoneroStrategy);
-      });
-
-      it('gets DEFICHAIN_COIN strategy', () => {
-        const strategy = registry.getSendStrategy(
-          createCustomAsset({ blockchain: Blockchain.DEFICHAIN, type: AssetType.COIN }),
-        );
-
-        expect(strategy).toBeInstanceOf(DeFiChainCoinStrategy);
-      });
-
-      it('gets DEFICHAIN_TOKEN strategy for DEFICHAIN', () => {
-        const strategy = registry.getSendStrategy(
-          createCustomAsset({ blockchain: Blockchain.DEFICHAIN, type: AssetType.TOKEN }),
-        );
-
-        expect(strategy).toBeInstanceOf(DeFiChainTokenStrategy);
       });
 
       it('gets ETHEREUM_COIN strategy', () => {
@@ -257,8 +231,6 @@ class SendStrategyRegistryWrapper extends SendStrategyRegistry {
     bitcoin: BitcoinStrategy,
     lightning: LightningStrategy,
     monero: MoneroStrategy,
-    deFiChainCoin: DeFiChainCoinStrategy,
-    deFiChainToken: DeFiChainTokenStrategy,
     ethereumCoin: EthereumCoinStrategy,
     ethereumToken: EthereumTokenStrategy,
     bscCoin: BscCoinStrategy,
@@ -277,9 +249,6 @@ class SendStrategyRegistryWrapper extends SendStrategyRegistry {
     this.add({ blockchain: Blockchain.BITCOIN }, bitcoin);
     this.add({ blockchain: Blockchain.LIGHTNING }, lightning);
     this.add({ blockchain: Blockchain.MONERO }, monero);
-
-    this.add({ blockchain: Blockchain.DEFICHAIN, assetType: AssetType.COIN }, deFiChainCoin);
-    this.add({ blockchain: Blockchain.DEFICHAIN, assetType: AssetType.TOKEN }, deFiChainToken);
 
     this.add({ blockchain: Blockchain.ETHEREUM, assetType: AssetType.COIN }, ethereumCoin);
     this.add({ blockchain: Blockchain.ETHEREUM, assetType: AssetType.TOKEN }, ethereumToken);

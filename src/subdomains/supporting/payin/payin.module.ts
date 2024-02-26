@@ -16,7 +16,6 @@ import { PayInArbitrumService } from './services/payin-arbitrum.service';
 import { PayInBaseService } from './services/payin-base.service';
 import { PayInBitcoinService } from './services/payin-bitcoin.service';
 import { PayInBscService } from './services/payin-bsc.service';
-import { PayInDeFiChainService } from './services/payin-defichain.service';
 import { PayInEthereumService } from './services/payin-ethereum.service';
 import { PayInMoneroService } from './services/payin-monero.service';
 import { PayInNotificationService } from './services/payin-notification.service';
@@ -28,7 +27,6 @@ import { BaseStrategy as BaseStrategyR } from './strategies/register/impl/base.s
 import { RegisterStrategyRegistry } from './strategies/register/impl/base/register.strategy-registry';
 import { BitcoinStrategy as BitcoinStrategyR } from './strategies/register/impl/bitcoin.strategy';
 import { BscStrategy as BscStrategyR } from './strategies/register/impl/bsc.strategy';
-import { DeFiChainStrategy as DeFiChainStrategyR } from './strategies/register/impl/defichain.strategy';
 import { EthereumStrategy as EthereumStrategyR } from './strategies/register/impl/ethereum.strategy';
 import { LightningStrategy as LightningStrategyR } from './strategies/register/impl/lightning.strategy';
 import { MoneroStrategy as MoneroStrategyR } from './strategies/register/impl/monero.strategy';
@@ -42,8 +40,6 @@ import { SendStrategyRegistry } from './strategies/send/impl/base/send.strategy-
 import { BitcoinStrategy as BitcoinStrategyS } from './strategies/send/impl/bitcoin.strategy';
 import { BscCoinStrategy as BscCoinStrategyS } from './strategies/send/impl/bsc-coin.strategy';
 import { BscTokenStrategy as BscTokenStrategyS } from './strategies/send/impl/bsc-token.strategy';
-import { DeFiChainCoinStrategy as DeFiChainCoinStrategyS } from './strategies/send/impl/defichain-coin.strategy';
-import { DeFiChainTokenStrategy as DeFiChainTokenStrategyS } from './strategies/send/impl/defichain-token.strategy';
 import { EthereumCoinStrategy as EthereumCoinStrategyS } from './strategies/send/impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy as EthereumTokenStrategyS } from './strategies/send/impl/ethereum-token.strategy';
 import { LightningStrategy as LightningStrategyS } from './strategies/send/impl/lightning.strategy';
@@ -74,7 +70,6 @@ import { PolygonTokenStrategy as PolygonTokenStrategyS } from './strategies/send
     PayInNotificationService,
     PayInBitcoinService,
     PayInMoneroService,
-    PayInDeFiChainService,
     PayInEthereumService,
     PayInBscService,
     PayInArbitrumService,
@@ -89,9 +84,6 @@ import { PolygonTokenStrategy as PolygonTokenStrategyS } from './strategies/send
     LightningStrategyS,
     MoneroStrategyR,
     MoneroStrategyS,
-    DeFiChainStrategyR,
-    DeFiChainCoinStrategyS,
-    DeFiChainTokenStrategyS,
     EthereumStrategyR,
     EthereumCoinStrategyS,
     EthereumTokenStrategyS,

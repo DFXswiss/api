@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
-import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
@@ -28,7 +27,6 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
   private readonly updateCalls = new Map<Blockchain, Promise<void>>();
   private readonly updateTimestamps = new Map<Blockchain, Date>();
 
-  private dexClient: DeFiClient;
   private btcClient: BtcClient;
   private lightningClient: LightningClient;
   private moneroClient: MoneroClient;
@@ -40,7 +38,6 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     lightningService: LightningService,
     moneroService: MoneroService,
   ) {
-    nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.dexClient = client));
     nodeService.getConnectedNode(NodeType.BTC_OUTPUT).subscribe((client) => (this.btcClient = client));
     this.lightningClient = lightningService.getDefaultClient();
     this.moneroClient = moneroService.getDefaultClient();
@@ -93,10 +90,6 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
 
     try {
       switch (blockchain) {
-        case Blockchain.DEFICHAIN:
-          await this.getForDeFiChain(assets);
-          break;
-
         case Blockchain.BITCOIN:
         case Blockchain.LIGHTNING:
           await this.getForBitcoin(assets);
@@ -131,27 +124,6 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
   }
 
   // --- BLOCKCHAIN INTEGRATIONS --- //
-  private async getForDeFiChain(assets: Asset[]): Promise<void> {
-    try {
-      // fetch amounts
-      const coinAmount = await this.dexClient.getBalance();
-      const tokenAmounts = await this.dexClient
-        .getToken()
-        .then((tokens) => tokens.map((t) => this.dexClient.parseAmount(t.amount)));
-
-      // update cache
-      for (const asset of assets) {
-        const balance =
-          asset.type === AssetType.COIN
-            ? +coinAmount
-            : tokenAmounts.find((t) => t.asset === asset.dexName)?.amount ?? 0;
-        this.balanceCache.set(asset.id, balance);
-      }
-    } catch (e) {
-      this.logger.error(`Failed to update liquidity management balance for ${Blockchain.DEFICHAIN}:`, e);
-      this.invalidateCacheFor(assets);
-    }
-  }
 
   private async getForBitcoin(assets: Asset[]): Promise<void> {
     for (const asset of assets) {

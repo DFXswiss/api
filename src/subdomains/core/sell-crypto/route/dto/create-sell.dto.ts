@@ -37,8 +37,8 @@ export class CreateSellDto {
   @Type(() => EntityDto)
   currency: Fiat;
 
-  @ApiProperty({ enum: Blockchain, default: Blockchain.DEFICHAIN })
+  @ApiProperty({ enum: Blockchain, default: Blockchain.BITCOIN })
   @IsNotEmpty()
   @IsEnum(Blockchain)
-  blockchain: Blockchain = Blockchain.DEFICHAIN;
+  blockchain: Blockchain = Blockchain.BITCOIN;
 }

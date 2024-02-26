@@ -11,7 +11,7 @@ import {
 import { PayoutOrder, PayoutOrderStatus } from '../../../entities/payout-order.entity';
 import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
-import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
+import { PayoutBitcoinBasedService } from '../../../services/base/payout-bitcoin-based.service';
 import { BitcoinBasedStrategy } from '../impl/base/bitcoin-based.strategy';
 
 describe('PayoutBitcoinBasedStrategy', () => {
@@ -19,7 +19,7 @@ describe('PayoutBitcoinBasedStrategy', () => {
 
   let notificationService: NotificationService;
   let payoutOrderRepo: PayoutOrderRepository;
-  let defichainService: PayoutDeFiChainService;
+  let bitcoinService: PayoutBitcoinBasedService;
 
   let repoSaveSpy: jest.SpyInstance;
   let sendErrorMailSpy: jest.SpyInstance;
@@ -27,12 +27,12 @@ describe('PayoutBitcoinBasedStrategy', () => {
   beforeEach(() => {
     notificationService = mock<NotificationService>();
     payoutOrderRepo = mock<PayoutOrderRepository>();
-    defichainService = mock<PayoutDeFiChainService>();
+    bitcoinService = mock<PayoutBitcoinBasedService>();
 
     repoSaveSpy = jest.spyOn(payoutOrderRepo, 'save');
     sendErrorMailSpy = jest.spyOn(notificationService, 'sendMail');
 
-    strategy = new PayoutBitcoinBasedStrategyWrapper(notificationService, payoutOrderRepo, defichainService);
+    strategy = new PayoutBitcoinBasedStrategyWrapper(notificationService, payoutOrderRepo, bitcoinService);
   });
 
   afterEach(() => {
@@ -247,13 +247,13 @@ class PayoutBitcoinBasedStrategyWrapper extends BitcoinBasedStrategy {
   constructor(
     notificationService: NotificationService,
     payoutOrderRepo: PayoutOrderRepository,
-    defichainService: PayoutDeFiChainService,
+    bitcoinService: PayoutBitcoinBasedService,
   ) {
-    super(notificationService, payoutOrderRepo, defichainService);
+    super(notificationService, payoutOrderRepo, bitcoinService);
   }
 
   get blockchain(): Blockchain {
-    return Blockchain.DEFICHAIN;
+    return Blockchain.BITCOIN;
   }
 
   get assetType(): AssetType {

@@ -3,19 +3,17 @@ import { BehaviorSubject } from 'rxjs';
 import { NodeService } from 'src/integration/blockchain/ain/node/node.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
-import { AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DexArbitrumService } from '../../../services/dex-arbitrum.service';
 import { DexBaseService } from '../../../services/dex-base.service';
 import { DexBitcoinService } from '../../../services/dex-bitcoin.service';
 import { DexBscService } from '../../../services/dex-bsc.service';
-import { DexDeFiChainService } from '../../../services/dex-defichain.service';
 import { DexEthereumService } from '../../../services/dex-ethereum.service';
 import { DexLightningService } from '../../../services/dex-lightning.service';
 import { DexMoneroService } from '../../../services/dex-monero.service';
 import { DexOptimismService } from '../../../services/dex-optimism.service';
 import { DexPolygonService } from '../../../services/dex-polygon.service';
-import { PurchaseLiquidityStrategyRegistry } from '../../purchase-liquidity/impl/base/purchase-liquidity.strategy-registry';
 import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy } from '../impl/arbitrum-token.strategy';
 import { BaseCoinStrategy } from '../impl/base-coin.strategy';
@@ -24,8 +22,6 @@ import { CheckLiquidityStrategyRegistry } from '../impl/base/check-liquidity.str
 import { BitcoinStrategy } from '../impl/bitcoin.strategy';
 import { BscCoinStrategy } from '../impl/bsc-coin.strategy';
 import { BscTokenStrategy } from '../impl/bsc-token.strategy';
-import { DeFiChainDefaultStrategy } from '../impl/defichain-default.strategy';
-import { DeFiChainPoolPairStrategy } from '../impl/defichain-poolpair.strategy';
 import { EthereumCoinStrategy } from '../impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy } from '../impl/ethereum-token.strategy';
 import { LightningStrategy } from '../impl/lightning.strategy';
@@ -43,8 +39,6 @@ describe('CheckLiquidityStrategies', () => {
   let bitcoin: BitcoinStrategy;
   let bscCoin: BscCoinStrategy;
   let bscToken: BscTokenStrategy;
-  let deFiChainPoolPair: DeFiChainPoolPairStrategy;
-  let deFiChainDefault: DeFiChainDefaultStrategy;
   let ethereumCoin: EthereumCoinStrategy;
   let ethereumToken: EthereumTokenStrategy;
   let lightning: LightningStrategy;
@@ -67,12 +61,6 @@ describe('CheckLiquidityStrategies', () => {
     bitcoin = new BitcoinStrategy(mock<AssetService>(), mock<DexBitcoinService>());
     bscCoin = new BscCoinStrategy(mock<AssetService>(), mock<DexBscService>());
     bscToken = new BscTokenStrategy(mock<AssetService>(), mock<DexBscService>());
-    deFiChainPoolPair = new DeFiChainPoolPairStrategy(mock<AssetService>(), mock<DexDeFiChainService>());
-    deFiChainDefault = new DeFiChainDefaultStrategy(
-      mock<AssetService>(),
-      mock<DexDeFiChainService>(),
-      mock<PurchaseLiquidityStrategyRegistry>(),
-    );
     ethereumCoin = new EthereumCoinStrategy(mock<AssetService>(), mock<DexEthereumService>());
     ethereumToken = new EthereumTokenStrategy(mock<AssetService>(), mock<DexEthereumService>());
     lightning = new LightningStrategy(mock<AssetService>(), mock<DexLightningService>());
@@ -90,8 +78,6 @@ describe('CheckLiquidityStrategies', () => {
       bitcoin,
       bscCoin,
       bscToken,
-      deFiChainDefault,
-      deFiChainPoolPair,
       ethereumCoin,
       ethereumToken,
       lightning,
@@ -143,28 +129,6 @@ describe('CheckLiquidityStrategies', () => {
         );
 
         expect(strategy).toBeInstanceOf(BscTokenStrategy);
-      });
-
-      it('gets DEFICHAIN_POOL_PAIR strategy for DEFICHAIN', () => {
-        const strategy = register.getCheckLiquidityStrategy(
-          createCustomAsset({ blockchain: Blockchain.DEFICHAIN, category: AssetCategory.POOL_PAIR }),
-        );
-
-        expect(strategy).toBeInstanceOf(DeFiChainPoolPairStrategy);
-      });
-
-      it('gets DEFICHAIN_DEFAULT strategy for DEFICHAIN', () => {
-        const strategyCrypto = register.getCheckLiquidityStrategy(
-          createCustomAsset({ blockchain: Blockchain.DEFICHAIN, category: AssetCategory.CRYPTO }),
-        );
-
-        expect(strategyCrypto).toBeInstanceOf(DeFiChainDefaultStrategy);
-
-        const strategyStock = register.getCheckLiquidityStrategy(
-          createCustomAsset({ blockchain: Blockchain.DEFICHAIN, category: AssetCategory.STOCK }),
-        );
-
-        expect(strategyStock).toBeInstanceOf(DeFiChainDefaultStrategy);
       });
 
       it('gets ETHEREUM_COIN strategy', () => {
@@ -261,8 +225,6 @@ class CheckLiquidityStrategyRegistryWrapper extends CheckLiquidityStrategyRegist
     bitcoin: BitcoinStrategy,
     bscCoin: BscCoinStrategy,
     bscToken: BscTokenStrategy,
-    deFiChainDefault: DeFiChainDefaultStrategy,
-    deFiChainPoolPair: DeFiChainPoolPairStrategy,
     ethereumCoin: EthereumCoinStrategy,
     ethereumToken: EthereumTokenStrategy,
     lightning: LightningStrategy,
@@ -281,9 +243,6 @@ class CheckLiquidityStrategyRegistryWrapper extends CheckLiquidityStrategyRegist
     this.add({ blockchain: Blockchain.BITCOIN }, bitcoin);
     this.add({ blockchain: Blockchain.BINANCE_SMART_CHAIN, assetType: AssetType.COIN }, bscCoin);
     this.add({ blockchain: Blockchain.BINANCE_SMART_CHAIN, assetType: AssetType.TOKEN }, bscToken);
-    this.add({ blockchain: Blockchain.DEFICHAIN, assetCategory: AssetCategory.CRYPTO }, deFiChainDefault);
-    this.add({ blockchain: Blockchain.DEFICHAIN, assetCategory: AssetCategory.STOCK }, deFiChainDefault);
-    this.add({ blockchain: Blockchain.DEFICHAIN, assetCategory: AssetCategory.POOL_PAIR }, deFiChainPoolPair);
     this.add({ blockchain: Blockchain.ETHEREUM, assetType: AssetType.COIN }, ethereumCoin);
     this.add({ blockchain: Blockchain.ETHEREUM, assetType: AssetType.TOKEN }, ethereumToken);
     this.add({ blockchain: Blockchain.LIGHTNING }, lightning);

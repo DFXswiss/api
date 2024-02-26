@@ -203,21 +203,6 @@ export class BuyCrypto extends IEntity {
     }
 
     switch (this.target.asset.blockchain) {
-      case Blockchain.DEFICHAIN:
-        if (
-          ['USDC', 'USDT'].includes(this.outputAsset.dexName) &&
-          ['EUR', 'CHF', 'USD', 'USDC', 'USDT'].includes(this.inputReferenceAsset)
-        ) {
-          this.setOutputReferenceAsset(this.outputAsset);
-
-          return null;
-        }
-
-        return {
-          outputReferenceAssetName: 'BTC',
-          type: AssetType.TOKEN,
-        };
-
       case Blockchain.ETHEREUM:
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:

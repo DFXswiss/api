@@ -25,7 +25,6 @@ enum Manufacturer {
 
 @Controller('')
 export class AppController {
-  private readonly lightWalletUrl = 'https://wallet.defichain.com/api/v0';
   private readonly homepageUrl = 'https://dfx.swiss';
   private readonly appleStoreUrl = 'https://apps.apple.com/app';
   private readonly googleStoreUrl = 'https://play.app.goo.gl/?link=https://play.google.com/store/apps/details';
@@ -137,21 +136,11 @@ export class AppController {
 
   // --- HELPER METHODS --- //
   private async getLightWalletAnnouncements(): Promise<AnnouncementDto[]> {
-    const allowedAnnouncements = await this.settingService.getObj<string[]>('allowedAnnouncements', []);
-    return this.http
-      .get<AnnouncementDto[]>(`${this.lightWalletUrl}/announcements`, { tryCount: 3 })
-      .then((r) => r.filter((a) => allowedAnnouncements.includes(a.id)))
-      .catch(() => []);
+    return [];
   }
 
   private async getLightWalletFlags(): Promise<FlagDto[]> {
-    const ignoredFlags = (await this.settingService.getObj<string[]>('ignoredFlags', [])).map((f) => f.split(':'));
-    return this.http
-      .get<FlagDto[]>(`${this.lightWalletUrl}/settings/flags`, { tryCount: 3 })
-      .then((r) =>
-        r.filter((f) => ignoredFlags.find((i) => i.length === 2 && i[0] === f.id && i[1] === f.stage) == null),
-      )
-      .catch(() => []);
+    return [];
   }
 
   private getSpecialAd(id: string, settings: AdSettings): { id: string; url: string } {

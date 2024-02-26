@@ -11,7 +11,6 @@ import { DexArbitrumService } from './services/dex-arbitrum.service';
 import { DexBaseService } from './services/dex-base.service';
 import { DexBitcoinService } from './services/dex-bitcoin.service';
 import { DexBscService } from './services/dex-bsc.service';
-import { DexDeFiChainService } from './services/dex-defichain.service';
 import { DexEthereumService } from './services/dex-ethereum.service';
 import { DexLightningService } from './services/dex-lightning.service';
 import { DexMoneroService } from './services/dex-monero.service';
@@ -26,8 +25,6 @@ import { CheckLiquidityStrategyRegistry } from './strategies/check-liquidity/imp
 import { BitcoinStrategy as BitcoinStrategyCL } from './strategies/check-liquidity/impl/bitcoin.strategy';
 import { BscCoinStrategy as BscCoinStrategyCL } from './strategies/check-liquidity/impl/bsc-coin.strategy';
 import { BscTokenStrategy as BscTokenStrategyCL } from './strategies/check-liquidity/impl/bsc-token.strategy';
-import { DeFiChainDefaultStrategy as DeFiChainDefaultStrategyCL } from './strategies/check-liquidity/impl/defichain-default.strategy';
-import { DeFiChainPoolPairStrategy as DeFiChainPoolPairStrategyCL } from './strategies/check-liquidity/impl/defichain-poolpair.strategy';
 import { EthereumCoinStrategy as EthereumCoinStrategyCL } from './strategies/check-liquidity/impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy as EthereumTokenStrategyCL } from './strategies/check-liquidity/impl/ethereum-token.strategy';
 import { LightningStrategy as LightningStrategyCL } from './strategies/check-liquidity/impl/lightning.strategy';
@@ -44,10 +41,6 @@ import { PurchaseLiquidityStrategyRegistry } from './strategies/purchase-liquidi
 import { BitcoinStrategy as BitcoinStrategyPL } from './strategies/purchase-liquidity/impl/bitcoin.strategy';
 import { BscCoinStrategy as BscCoinStrategyPL } from './strategies/purchase-liquidity/impl/bsc-coin.strategy';
 import { BscTokenStrategy as BscTokenStrategyPL } from './strategies/purchase-liquidity/impl/bsc-token.strategy';
-import { DeFiChainCryptoStrategy as DeFiChainCryptoStrategyPL } from './strategies/purchase-liquidity/impl/defichain-crypto.strategy';
-import { DeFiChainDfiStrategy as DeFiChainDfiStrategyPL } from './strategies/purchase-liquidity/impl/defichain-dfi.strategy';
-import { DeFiChainPoolPairStrategy as DeFiChainPoolPairStrategyPL } from './strategies/purchase-liquidity/impl/defichain-poolpair.strategy';
-import { DeFiChainStockStrategy as DeFiChainStockStrategyPL } from './strategies/purchase-liquidity/impl/defichain-stock.strategy';
 import { EthereumCoinStrategy as EthereumCoinStrategyPL } from './strategies/purchase-liquidity/impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy as EthereumTokenStrategyPL } from './strategies/purchase-liquidity/impl/ethereum-token.strategy';
 import { MoneroStrategy as MoneroStrategyPL } from './strategies/purchase-liquidity/impl/monero.strategy';
@@ -63,8 +56,6 @@ import { SellLiquidityStrategyRegistry } from './strategies/sell-liquidity/impl/
 import { BitcoinStrategy as BitcoinStrategySL } from './strategies/sell-liquidity/impl/bitcoin.strategy';
 import { BscCoinStrategy as BscCoinStrategySL } from './strategies/sell-liquidity/impl/bsc-coin.strategy';
 import { BscTokenStrategy as BscTokenStrategySL } from './strategies/sell-liquidity/impl/bsc-token.strategy';
-import { DeFiChainCoinStrategy as DeFiChainCoinStrategySL } from './strategies/sell-liquidity/impl/defichain-coin.strategy';
-import { DeFiChainTokenStrategy as DeFiChainTokenStrategySL } from './strategies/sell-liquidity/impl/defichain-token.strategy';
 import { EthereumCoinStrategy as EthereumCoinStrategySL } from './strategies/sell-liquidity/impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy as EthereumTokenStrategySL } from './strategies/sell-liquidity/impl/ethereum-token.strategy';
 import { MoneroStrategy as MoneroStrategySL } from './strategies/sell-liquidity/impl/monero.strategy';
@@ -77,7 +68,6 @@ import { BaseStrategy as BaseStrategyS } from './strategies/supplementary/impl/b
 import { SupplementaryStrategyRegistry } from './strategies/supplementary/impl/base/supplementary.strategy-registry';
 import { BitcoinStrategy as BitcoinStrategyS } from './strategies/supplementary/impl/bitcoin.strategy';
 import { BscStrategy as BscStrategyS } from './strategies/supplementary/impl/bsc.strategy';
-import { DeFiChainStrategy as DeFiChainStrategyS } from './strategies/supplementary/impl/defichain.strategy';
 import { EthereumStrategy as EthereumStrategyS } from './strategies/supplementary/impl/ethereum.strategy';
 import { MoneroStrategy as MoneroStrategyS } from './strategies/supplementary/impl/monero.strategy';
 import { OptimismStrategy as OptimismStrategyS } from './strategies/supplementary/impl/optimism.strategy';
@@ -90,7 +80,6 @@ import { PolygonStrategy as PolygonStrategyS } from './strategies/supplementary/
     LiquidityOrderRepository,
     DexService,
     LiquidityOrderFactory,
-    DexDeFiChainService,
     DexEthereumService,
     DexArbitrumService,
     DexOptimismService,
@@ -104,8 +93,6 @@ import { PolygonStrategy as PolygonStrategyS } from './strategies/supplementary/
     PurchaseLiquidityStrategyRegistry,
     SellLiquidityStrategyRegistry,
     SupplementaryStrategyRegistry,
-    DeFiChainDefaultStrategyCL,
-    DeFiChainPoolPairStrategyCL,
     ArbitrumCoinStrategyCL,
     ArbitrumTokenStrategyCL,
     EthereumCoinStrategyCL,
@@ -121,10 +108,6 @@ import { PolygonStrategy as PolygonStrategyS } from './strategies/supplementary/
     PolygonTokenStrategyCL,
     BaseCoinStrategyCL,
     BaseTokenStrategyCL,
-    DeFiChainDfiStrategyPL,
-    DeFiChainCryptoStrategyPL,
-    DeFiChainPoolPairStrategyPL,
-    DeFiChainStockStrategyPL,
     EthereumCoinStrategyPL,
     BscCoinStrategyPL,
     BitcoinStrategyPL,
@@ -145,8 +128,6 @@ import { PolygonStrategy as PolygonStrategyS } from './strategies/supplementary/
     ArbitrumTokenStrategySL,
     BscCoinStrategySL,
     BscTokenStrategySL,
-    DeFiChainCoinStrategySL,
-    DeFiChainTokenStrategySL,
     EthereumCoinStrategySL,
     EthereumTokenStrategySL,
     OptimismCoinStrategySL,
@@ -159,7 +140,6 @@ import { PolygonStrategy as PolygonStrategyS } from './strategies/supplementary/
     BitcoinStrategyS,
     MoneroStrategyS,
     BscStrategyS,
-    DeFiChainStrategyS,
     EthereumStrategyS,
     OptimismStrategyS,
     PolygonStrategyS,

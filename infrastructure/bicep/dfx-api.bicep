@@ -178,10 +178,6 @@ param btcVmPassword string
 @secure()
 param coinGeckoApiKey string
 
-param myDeFiChainUser string
-@secure()
-param myDeFiChainPassword string
-
 param paymentUrl string
 param servicesUrl string
 
@@ -909,14 +905,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'COIN_GECKO_API_KEY'
           value: coinGeckoApiKey
-        }
-        {
-          name: 'MYDEFICHAIN_USER'
-          value: myDeFiChainUser
-        }
-        {
-          name: 'MYDEFICHAIN_PASSWORD'
-          value: myDeFiChainPassword
         }
         {
           name: 'PAYMENT_URL'

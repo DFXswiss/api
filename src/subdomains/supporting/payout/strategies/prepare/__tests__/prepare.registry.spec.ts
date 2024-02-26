@@ -2,15 +2,12 @@ import { mock } from 'jest-mock-extended';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
-import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
 import { ArbitrumStrategy } from '../impl/arbitrum.strategy';
 import { BaseStrategy } from '../impl/base.strategy';
 import { PrepareStrategyRegistry } from '../impl/base/prepare.strategy-registry';
 import { BitcoinStrategy } from '../impl/bitcoin.strategy';
 import { BscStrategy } from '../impl/bsc.strategy';
-import { DeFiChainStrategy } from '../impl/defichain.strategy';
 import { EthereumStrategy } from '../impl/ethereum.strategy';
 import { LightningStrategy } from '../impl/lightning.strategy';
 import { MoneroStrategy } from '../impl/monero.strategy';
@@ -21,7 +18,6 @@ describe('PrepareStrategyRegistry', () => {
   let bitcoinStrategy: BitcoinStrategy;
   let lightningStrategy: LightningStrategy;
   let moneroStrategy: MoneroStrategy;
-  let defichainStrategy: DeFiChainStrategy;
   let ethereumStrategy: EthereumStrategy;
   let bscStrategy: BscStrategy;
   let arbitrumStrategy: ArbitrumStrategy;
@@ -35,12 +31,7 @@ describe('PrepareStrategyRegistry', () => {
     bitcoinStrategy = new BitcoinStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
     lightningStrategy = new LightningStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
     moneroStrategy = new MoneroStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
-    defichainStrategy = new DeFiChainStrategy(
-      mock<AssetService>(),
-      mock<DexService>(),
-      mock<PayoutDeFiChainService>(),
-      mock<PayoutOrderRepository>(),
-    );
+
     ethereumStrategy = new EthereumStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
     bscStrategy = new BscStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
     arbitrumStrategy = new ArbitrumStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
@@ -52,7 +43,6 @@ describe('PrepareStrategyRegistry', () => {
       bitcoinStrategy,
       lightningStrategy,
       moneroStrategy,
-      defichainStrategy,
       ethereumStrategy,
       bscStrategy,
       arbitrumStrategy,
@@ -92,12 +82,6 @@ describe('PrepareStrategyRegistry', () => {
         const strategy = registry.getPrepareStrategy(createCustomAsset({ blockchain: Blockchain.BINANCE_SMART_CHAIN }));
 
         expect(strategy).toBeInstanceOf(BscStrategy);
-      });
-
-      it('gets DEFICHAIN strategy for DEFICHAIN', () => {
-        const strategy = registry.getPrepareStrategy(createCustomAsset({ blockchain: Blockchain.DEFICHAIN }));
-
-        expect(strategy).toBeInstanceOf(DeFiChainStrategy);
       });
 
       it('gets ARBITRUM strategy for ARBITRUM', () => {
@@ -140,7 +124,6 @@ class PrepareStrategyRegistryWrapper extends PrepareStrategyRegistry {
     bitcoinStrategy: BitcoinStrategy,
     lightningStrategy: LightningStrategy,
     moneroStrategy: MoneroStrategy,
-    defichainStrategy: DeFiChainStrategy,
     ethereumStrategy: EthereumStrategy,
     bscStrategy: BscStrategy,
     arbitrumStrategy: ArbitrumStrategy,
@@ -153,7 +136,6 @@ class PrepareStrategyRegistryWrapper extends PrepareStrategyRegistry {
     this.add(Blockchain.BITCOIN, bitcoinStrategy);
     this.add(Blockchain.LIGHTNING, lightningStrategy);
     this.add(Blockchain.MONERO, moneroStrategy);
-    this.add(Blockchain.DEFICHAIN, defichainStrategy);
     this.add(Blockchain.ETHEREUM, ethereumStrategy);
     this.add(Blockchain.BINANCE_SMART_CHAIN, bscStrategy);
     this.add(Blockchain.ARBITRUM, arbitrumStrategy);

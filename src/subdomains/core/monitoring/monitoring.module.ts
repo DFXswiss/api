@@ -18,7 +18,6 @@ import { NodeBalanceObserver } from './observers/node-balance.observer';
 import { NodeHealthObserver } from './observers/node-health.observer';
 import { PaymentObserver } from './observers/payment.observer';
 import { UserObserver } from './observers/user.observer';
-import { WhaleHealthObserver } from './observers/whale-health.observer';
 import { SystemStateSnapshot } from './system-state-snapshot.entity';
 import { SystemStateSnapshotRepository } from './system-state-snapshot.repository';
 
@@ -45,7 +44,6 @@ import { SystemStateSnapshotRepository } from './system-state-snapshot.repositor
     BankingBotObserver,
     BankObserver,
     ExternalServicesObserver,
-    WhaleHealthObserver,
   ],
   controllers: [MonitoringController],
   exports: [MonitoringService],
