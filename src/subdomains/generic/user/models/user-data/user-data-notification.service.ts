@@ -29,12 +29,12 @@ export class UserDataNotificationService {
 
   async userDataAddedAddressInfo(master: UserData, slave: UserData): Promise<void> {
     try {
-      if (slave.mail) {
+      if (master.mail) {
         for (const user of slave.users) {
           await this.notificationService.sendMail({
             type: MailType.USER,
             input: {
-              userData: slave,
+              userData: master,
               title: `${MailTranslationKey.ACCOUNT_MERGE_ADDED_ADDRESS}.title`,
               salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_ADDED_ADDRESS}.salutation` },
               prefix: [
@@ -55,7 +55,7 @@ export class UserDataNotificationService {
           });
         }
       } else {
-        this.logger.warn(`Failed to send userData added address info mail ${slave.id}: user has no email`);
+        this.logger.warn(`Failed to send userData added address info mail ${master.id}: user has no email`);
       }
     } catch (e) {
       this.logger.error(
@@ -91,7 +91,7 @@ export class UserDataNotificationService {
           },
         });
       } else {
-        this.logger.warn(`Failed to send userData changed mail info ${slave.id}: user has no email`);
+        this.logger.warn(`Failed to send userData changed mail info ${master.id}: user has no email`);
       }
     } catch (e) {
       this.logger.error(`Failed to send userData changed mail info slave (${slave.id}) and master (${master.id}):`, e);
