@@ -1,10 +1,11 @@
-import { Entity, Column, Index } from 'typeorm';
+import { Column, Entity, Index } from 'typeorm';
 import { IEntity } from '../../../../shared/models/entity';
 
 export enum BankName {
   FRICK = 'Bank Frick',
   OLKY = 'Olkypay',
   MAERKI = 'Maerki Baumann',
+  REVOLUT = 'Revolut',
 }
 
 @Entity()
