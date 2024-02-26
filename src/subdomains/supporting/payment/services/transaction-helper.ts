@@ -210,12 +210,12 @@ export class TransactionHelper implements OnModuleInit {
     const txAmountChf = await this.getVolumeLast24hChf(target.sourceAmount, from, allowExpiredPrice, user);
 
     const error =
-      isFiat(to) && user && !user.userData.hasBankTxVerification && txAmountChf > Config.defaultDailyTradingLimit
-        ? TransactionError.BANK_TRANSACTION_MISSING
-        : target.sourceAmount < txSpecSource.minVolume
+      target.sourceAmount < txSpecSource.minVolume
         ? TransactionError.AMOUNT_TOO_LOW
         : txAmountChf > extendedSpecs.maxVolume
         ? TransactionError.AMOUNT_TOO_HIGH
+        : isFiat(to) && user && !user.userData.hasBankTxVerification && txAmountChf > Config.defaultDailyTradingLimit
+        ? TransactionError.BANK_TRANSACTION_MISSING
         : paymentMethodIn === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed
         ? TransactionError.KYC_REQUIRED
         : undefined;

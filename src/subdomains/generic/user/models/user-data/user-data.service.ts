@@ -32,6 +32,7 @@ import { UserRepository } from '../user/user.repository';
 import { AccountType } from './account-type.enum';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
+import { UserDataNotificationService } from './user-data-notification.service';
 import { KycLevel, KycStatus, UserData, UserDataStatus } from './user-data.entity';
 import { UserDataRepository } from './user-data.repository';
 
@@ -51,6 +52,7 @@ export class UserDataService {
     private readonly settingService: SettingService,
     private readonly kycNotificationService: KycNotificationService,
     private readonly kycAdminService: KycAdminService,
+    private readonly userDataNotificationService: UserDataNotificationService,
     @Inject(forwardRef(() => AccountMergeService)) private readonly mergeService: AccountMergeService,
   ) {}
 
@@ -501,6 +503,10 @@ export class UserDataService {
 
     await this.updateBankTxTime(slave.id);
 
+    // Notify user about changed mail
+    if (notifyUser && slave.mail && master.mail !== slave.mail)
+      await this.userDataNotificationService.userDataChangedMailInfo(master, slave);
+
     // reassign bank accounts, datas, users and userDataRelations
     master.bankAccounts = master.bankAccounts.concat(bankAccountsToReassign);
     master.bankDatas = master.bankDatas.concat(slave.bankDatas);
@@ -537,6 +543,9 @@ export class UserDataService {
     }
 
     await this.kycAdminService.createMergeLog(master, log);
+
+    // Notify user about added address
+    if (notifyUser) await this.userDataNotificationService.userDataAddedAddressInfo(master, slave);
   }
 
   private async updateBankTxTime(userDataId: number): Promise<void> {

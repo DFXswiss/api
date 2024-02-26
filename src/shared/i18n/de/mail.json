@@ -159,9 +159,21 @@
         "last_step": "Mache den letzten Schritt und beginne noch heute deine Reise zur finanziellen Freiheit"
     },
     "account_merge": {
-      "title": "E-Mail bestätigen",
-      "salutation": "Bestätige deine E-Mail",
-      "message": "Klicke den nachfolgenden Link, um deine E-Mail zu bestätigen:<br>[url:{urlText}]"
+        "request": {
+            "title": "E-Mail bestätigen",
+            "salutation": "Bestätige deine E-Mail",
+            "message": "Klicke den nachfolgenden Link, um deine E-Mail zu bestätigen:<br>[url:{urlText}]"
+        },
+        "added_address": {
+            "title": "Adresse zu Account hinzugefügt",
+            "salutation": "Deine Adresse wurden zu deinem Account hinzugefügt",
+            "message": "Die Adresse {userAddress} wurde deinem Account hinzugefügt."
+        },
+        "changed_mail": {
+            "title": "Account Email wurde geändert",
+            "salutation": "Deine Account Email wurde geändert",
+            "message": "Die Email {userMail} wird ab sofort für deinen Account verwendet."
+        }
     },
     "limit_request": {
         "title": "Transaktionsvolumen genehmigt",

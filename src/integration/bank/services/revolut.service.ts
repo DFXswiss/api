@@ -151,6 +151,8 @@ export class RevolutService {
         ...this.getNameAndAddress(txLeg),
         txInfo: tx.reference,
         txRaw: JSON.stringify(tx),
+        endToEndId: tx.type,
+        txId: tx.state,
         remittanceInfo: tx.reference,
         accountIban: accountIban,
         type: null,
