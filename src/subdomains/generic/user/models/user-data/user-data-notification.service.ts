@@ -4,9 +4,11 @@ import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
+import { Util } from 'src/shared/utils/util';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { UserData } from './user-data.entity';
 import { UserDataRepository } from './user-data.repository';
 
 @Injectable()
@@ -23,6 +25,77 @@ export class UserDataNotificationService {
   async sendNotificationMails(): Promise<void> {
     if (DisabledProcess(Process.BLACK_SQUAD_MAIL)) return;
     await this.blackSquadInvitation();
+  }
+
+  async userDataAddedAddressInfo(master: UserData, slave: UserData): Promise<void> {
+    try {
+      if (master.mail) {
+        for (const user of slave.users) {
+          await this.notificationService.sendMail({
+            type: MailType.USER,
+            input: {
+              userData: master,
+              title: `${MailTranslationKey.ACCOUNT_MERGE_ADDED_ADDRESS}.title`,
+              salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_ADDED_ADDRESS}.salutation` },
+              prefix: [
+                { key: MailKey.SPACE, params: { value: '3' } },
+                {
+                  key: `${MailTranslationKey.GENERAL}.welcome`,
+                  params: { name: master.organizationName ?? master.firstname },
+                },
+                { key: MailKey.SPACE, params: { value: '2' } },
+                {
+                  key: `${MailTranslationKey.ACCOUNT_MERGE_ADDED_ADDRESS}.message`,
+                  params: { userAddress: Util.blankStart(user.address) },
+                },
+                { key: MailKey.SPACE, params: { value: '4' } },
+              ],
+              suffix: [{ key: MailKey.SPACE, params: { value: '4' } }, { key: MailKey.DFX_TEAM_CLOSING }],
+            },
+          });
+        }
+      } else {
+        this.logger.warn(`Failed to send userData added address info mail ${master.id}: user has no email`);
+      }
+    } catch (e) {
+      this.logger.error(
+        `Failed to send userData added address info mail slave (${slave.id}) and master (${master.id}):`,
+        e,
+      );
+    }
+  }
+
+  async userDataChangedMailInfo(master: UserData, slave: UserData): Promise<void> {
+    try {
+      if (master.mail) {
+        await this.notificationService.sendMail({
+          type: MailType.USER,
+          input: {
+            userData: master,
+            title: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.title`,
+            salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.salutation` },
+            prefix: [
+              { key: MailKey.SPACE, params: { value: '3' } },
+              {
+                key: `${MailTranslationKey.GENERAL}.welcome`,
+                params: { name: master.organizationName ?? master.firstname },
+              },
+              { key: MailKey.SPACE, params: { value: '2' } },
+              {
+                key: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.message`,
+                params: { userMail: Util.blankMail(slave.mail) },
+              },
+              { key: MailKey.SPACE, params: { value: '4' } },
+            ],
+            suffix: [{ key: MailKey.SPACE, params: { value: '4' } }, { key: MailKey.DFX_TEAM_CLOSING }],
+          },
+        });
+      } else {
+        this.logger.warn(`Failed to send userData changed mail info ${master.id}: user has no email`);
+      }
+    } catch (e) {
+      this.logger.error(`Failed to send userData changed mail info slave (${slave.id}) and master (${master.id}):`, e);
+    }
   }
 
   private async blackSquadInvitation(): Promise<void> {
