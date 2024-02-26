@@ -450,7 +450,7 @@ export class UserDataService {
       .split(' ');
   }
 
-  async mergeUserData(masterId: number, slaveId: number): Promise<void> {
+  async mergeUserData(masterId: number, slaveId: number, notifyUser = false): Promise<void> {
     if (masterId === slaveId) throw new BadRequestException('Merging with oneself is not possible');
 
     const [master, slave] = await Promise.all([
