@@ -32,6 +32,7 @@ import { UserRepository } from '../user/user.repository';
 import { AccountType } from './account-type.enum';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
+import { UserDataNotificationService } from './user-data-notification.service';
 import { KycLevel, KycStatus, UserData, UserDataStatus } from './user-data.entity';
 import { UserDataRepository } from './user-data.repository';
 
@@ -51,6 +52,7 @@ export class UserDataService {
     private readonly settingService: SettingService,
     private readonly kycNotificationService: KycNotificationService,
     private readonly kycAdminService: KycAdminService,
+    private readonly userDataNotificationService: UserDataNotificationService,
     @Inject(forwardRef(() => AccountMergeService)) private readonly mergeService: AccountMergeService,
   ) {}
 
@@ -401,7 +403,7 @@ export class UserDataService {
     return false;
   }
 
-  async mergeUserData(masterId: number, slaveId: number): Promise<void> {
+  async mergeUserData(masterId: number, slaveId: number, notifyUser = false): Promise<void> {
     if (masterId === slaveId) throw new BadRequestException('Merging with oneself is not possible');
 
     const [master, slave] = await Promise.all([
@@ -453,6 +455,12 @@ export class UserDataService {
     this.logger.info(log);
 
     await this.updateBankTxTime(slave.id);
+
+    // Notify user via mail
+    if (notifyUser) {
+      await this.userDataNotificationService.userDataAddedAddressInfo(master, slave);
+      if (master.mail !== slave.mail) await this.userDataNotificationService.userDataChangedMailInfo(master, slave);
+    }
 
     // reassign bank accounts, datas, users and userDataRelations
     master.bankAccounts = master.bankAccounts.concat(bankAccountsToReassign);
