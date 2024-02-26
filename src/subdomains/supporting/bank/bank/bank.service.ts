@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
 import { CountryService } from '../../../../shared/models/country/country.service';
 import { FiatPaymentMethod } from '../../payment/dto/payment-method.enum';
@@ -10,6 +11,7 @@ export interface BankSelectorInput {
   currency: string;
   bankAccount?: BankAccount;
   paymentMethod: FiatPaymentMethod;
+  userData: UserData;
 }
 
 @Injectable()
@@ -25,7 +27,7 @@ export class BankService {
   }
 
   // --- BankSelector --- //
-  async getBank({ bankAccount, amount, currency, paymentMethod }: BankSelectorInput): Promise<Bank> {
+  async getBank({ bankAccount, amount, currency, paymentMethod, userData }: BankSelectorInput): Promise<Bank> {
     const frickAmountLimit = 9000;
     const fallBackCurrency = 'EUR';
 
@@ -39,8 +41,12 @@ export class BankService {
     let account: Bank;
 
     if (paymentMethod === FiatPaymentMethod.INSTANT) {
-      // instant => Olkypay / EUR
-      account = this.getMatchingBank(banks, BankName.OLKY, currency, fallBackCurrency);
+      if (userData.hasBankTxVerification) {
+        account = this.getMatchingBank(banks, BankName.REVOLUT, currency, fallBackCurrency);
+      } else {
+        // instant => Olkypay / EUR
+        account = this.getMatchingBank(banks, BankName.OLKY, currency, fallBackCurrency);
+      }
     }
     if (!account && (amount > frickAmountLimit || currency === 'USD')) {
       // amount > 9k => Frick || USD => Frick

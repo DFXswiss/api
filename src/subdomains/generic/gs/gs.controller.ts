@@ -22,7 +22,7 @@ export class GsController {
     try {
       return await this.gsService.getDbData(query);
     } catch (e) {
-      this.logger.verbose(`DB data call for ${query.table} failed:`, e);
+      this.logger.verbose(`DB data call for ${query.table} in ${query.identifier} failed:`, e);
       throw new BadRequestException(e.message);
     }
   }

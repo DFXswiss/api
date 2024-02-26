@@ -159,9 +159,21 @@
         "last_step": "Take the final step and start working on your financial freedom today"
     },
     "account_merge": {
-      "title": "Confirm e-mail",
-      "salutation": "Confirm your e-mail",
-      "message": "Click on the following link to confirm your e-mail:<br>[url:{urlText}]"
+        "request": {
+            "title": "Confirm e-mail",
+            "salutation": "Confirm your e-mail",
+            "message": "Click on the following link to confirm your e-mail:<br>[url:{urlText}]"
+        },
+        "added_address": {
+            "title": "Address added to account",
+            "salutation": "Your address has been added to your account",
+            "message": "The address {userAddress} has been added to your account."
+        },
+        "changed_mail": {
+            "title": "Account email has been changed",
+            "salutation": "Your account email has been changed",
+            "message": "The email {userMail} will be used for your account from now on."
+        }
     },
     "limit_request": {
         "title": "Transaction volume approved",

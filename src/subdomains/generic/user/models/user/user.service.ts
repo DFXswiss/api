@@ -302,9 +302,9 @@ export class UserService {
     userId: number,
     paymentMethodIn: PaymentMethod,
     paymentMethodOut: PaymentMethod,
+    from: Active | undefined,
     to: Active,
     minFee: number,
-    txVolume?: number,
   ): Promise<FeeDto> {
     const user = await this.getUser(userId, { userData: true });
     if (!user) throw new NotFoundException('User not found');
@@ -313,10 +313,10 @@ export class UserService {
       user,
       paymentMethodIn,
       paymentMethodOut,
-      from: undefined,
+      from,
       to,
       blockchainFee: minFee,
-      txVolume,
+      txVolume: undefined,
       discountCodes: [],
     });
   }

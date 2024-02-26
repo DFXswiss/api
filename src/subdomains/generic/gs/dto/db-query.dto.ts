@@ -29,6 +29,10 @@ export class DbQueryBaseDto {
 
   @IsOptional()
   select?: string[]; // user file structure: documents-$prefix.{userData}.$suffix
+
+  @IsOptional()
+  @IsString()
+  identifier: string;
 }
 
 export class DbQueryDto extends DbQueryBaseDto {

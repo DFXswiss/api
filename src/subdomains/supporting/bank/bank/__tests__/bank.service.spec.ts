@@ -6,6 +6,8 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
+import { createDefaultUserData } from 'src/subdomains/generic/user/models/user-data/__mocks__/user-data.entity.mock';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { createDefaultBankAccount } from 'src/subdomains/supporting/bank/bank-account/__mocks__/bank-account.entity.mock';
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
@@ -28,12 +30,14 @@ function createBankSelectorInput(
   amount = 1,
   bankAccount: BankAccount = createDefaultBankAccount(),
   paymentMethod: FiatPaymentMethod = FiatPaymentMethod.BANK,
+  userData: UserData = createDefaultUserData(),
 ): BankSelectorInput {
   return {
     bankAccount,
     amount,
     currency,
     paymentMethod,
+    userData,
   };
 }
 

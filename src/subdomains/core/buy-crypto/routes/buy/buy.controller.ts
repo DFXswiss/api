@@ -173,6 +173,7 @@ export class BuyController {
       userId,
       FiatPaymentMethod.BANK,
       CryptoPaymentMethod.CRYPTO,
+      undefined,
       buy.asset,
       minFee.amount,
     );
@@ -274,6 +275,7 @@ export class BuyController {
       currency: dto.currency.name,
       bankAccount: buy.bankAccount,
       paymentMethod: dto.paymentMethod,
+      userData: buy.user.userData,
     });
 
     if (!bank) throw new BadRequestException('No Bank for the given amount/currency');

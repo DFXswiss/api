@@ -145,6 +145,11 @@ param olkyUser string
 @secure()
 param olkyPassword string
 
+@secure()
+param revolutRefreshToken string
+@secure()
+param revolutClientAssertion string
+
 param frickUrl string
 @secure()
 param frickKey string
@@ -888,6 +893,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'FRICK_PRIVATE_KEY'
           value: frickPrivateKey
+        }
+        {
+          name: 'REVOLUT_REFRESH_TOKEN'
+          value: revolutRefreshToken
+        }
+        {
+          name: 'REVOLUT_CLIENT_ASSERTION'
+          value: revolutClientAssertion
         }
         {
           name: 'COIN_GECKO_API_KEY'

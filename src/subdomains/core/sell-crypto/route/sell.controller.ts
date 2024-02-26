@@ -8,6 +8,7 @@ import { IpGuard } from 'src/shared/auth/ip.guard';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
@@ -41,6 +42,7 @@ export class SellController {
     private readonly transactionHelper: TransactionHelper,
     private readonly cryptoService: CryptoService,
     private readonly transactionRequestService: TransactionRequestService,
+    private readonly assetService: AssetService,
   ) {}
 
   @Get()
@@ -166,6 +168,17 @@ export class SellController {
       'Fiat',
       sell.fiat.name,
     );
+
+    const defaultBlockchain = this.cryptoService.getDefaultBlockchainBasedOn(sell.user.address);
+    const fee = await this.userService.getUserFee(
+      sell.user.id,
+      CryptoPaymentMethod.CRYPTO,
+      FiatPaymentMethod.BANK,
+      await this.assetService.getNativeAsset(defaultBlockchain),
+      sell.fiat,
+      minFee.amount,
+    );
+
     return {
       id: sell.id,
       iban: sell.iban,
@@ -175,9 +188,9 @@ export class SellController {
       fiat: FiatDtoMapper.toDto(sell.fiat),
       currency: FiatDtoMapper.toDto(sell.fiat),
       deposit: DepositDtoMapper.entityToDto(sell.deposit),
-      fee: undefined,
+      fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       blockchain: sell.deposit.blockchain,
-      minFee,
+      minFee: { amount: fee.blockchain, asset: 'CHF' },
       minDeposits: [minDeposit],
     };
   }
