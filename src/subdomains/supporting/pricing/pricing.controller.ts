@@ -3,20 +3,19 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Active } from 'src/shared/models/active';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Price } from './domain/entities/price';
 import { CurrencyType, PriceRequest } from './dto/price-request';
 import { PriceRequestRaw } from './dto/price-request-raw';
-import { PricingServiceNew } from './services/pricing.service.new';
+import { PricingService } from './services/pricing.service';
 
 @ApiTags('pricing')
 @Controller('pricing')
 export class PricingController {
   constructor(
-    private readonly pricingServiceNew: PricingServiceNew,
+    private readonly pricingService: PricingService,
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
   ) {}
@@ -30,7 +29,7 @@ export class PricingController {
     const to = await this.getCurrency(dto.toType, +dto.toId);
     if (!from || !to) throw new NotFoundException('Currency not found');
 
-    return this.pricingServiceNew.getPrice(from, to, dto.allowExpired === 'true');
+    return this.pricingService.getPrice(from, to, dto.allowExpired === 'true');
   }
 
   @Get()
@@ -38,7 +37,7 @@ export class PricingController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getRawPrice(@Query() dto: PriceRequestRaw): Promise<Price> {
-    return this.pricingServiceNew.getPriceFrom(dto.source, dto.from, dto.to);
+    return this.pricingService.getPriceFrom(dto.source, dto.from, dto.to);
   }
 
   @Put()
@@ -46,10 +45,10 @@ export class PricingController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async updatePrices(): Promise<void> {
-    return this.pricingServiceNew.updatePrices();
+    return this.pricingService.updatePrices();
   }
 
-  private async getCurrency(type: CurrencyType, id: number): Promise<Asset | Fiat> {
+  private async getCurrency(type: CurrencyType, id: number): Promise<Active> {
     return type === CurrencyType.ASSET ? this.assetService.getAssetById(id) : this.fiatService.getFiat(id);
   }
 }

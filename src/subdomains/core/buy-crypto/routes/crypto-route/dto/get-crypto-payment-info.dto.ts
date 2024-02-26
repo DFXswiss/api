@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsNotEmpty,
   IsNotEmptyObject,
   IsNumber,
@@ -45,4 +46,10 @@ export class GetCryptoPaymentInfoDto {
   @IsOptional()
   @IsString()
   externalTransactionId?: string;
+
+  //eslint-disable-next-line @typescript-eslint/no-inferrable-types
+  @ApiPropertyOptional({ description: 'Require an exact price (may take longer)' })
+  @IsNotEmpty()
+  @IsBoolean()
+  exactPrice: boolean = false;
 }

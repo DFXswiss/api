@@ -1,6 +1,5 @@
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
-import { Asset } from 'src/shared/models/asset/asset.entity';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { Active } from 'src/shared/models/active';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { BuyCrypto, BuyCryptoStatus } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
@@ -9,16 +8,16 @@ import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { TransactionDto, TransactionState, TransactionType } from '../dto/output/transaction.dto';
 
 export class BuyCryptoExtended extends BuyCrypto {
-  inputAssetEntity: Asset | Fiat;
+  inputAssetEntity: Active;
 }
 
 export class BuyFiatExtended extends BuyFiat {
-  inputAssetEntity: Asset | Fiat;
-  outputAssetEntity: Asset | Fiat;
+  inputAssetEntity: Active;
+  outputAssetEntity: Active;
 }
 
 export class RefRewardExtended extends RefReward {
-  outputAssetEntity: Asset | Fiat;
+  outputAssetEntity: Active;
 }
 
 export class TransactionDtoMapper {

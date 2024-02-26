@@ -1,14 +1,15 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { L2BridgeEvmClient } from 'src/integration/blockchain/shared/evm/interfaces';
-import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { isAsset } from 'src/shared/models/active';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityManagementOrder } from '../../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../../enums';
 import { OrderFailedException } from '../../../exceptions/order-failed.exception';
 import { OrderNotProcessableException } from '../../../exceptions/order-not-processable.exception';
 import { Command, CorrelationId } from '../../../interfaces';
-import { LiquidityManagementAdapter } from './liquidity-management.adapter';
+import { LiquidityActionAdapter } from './liquidity-action.adapter';
 
 enum EvmL2BridgeAdapterCommands {
   /**
@@ -19,7 +20,7 @@ enum EvmL2BridgeAdapterCommands {
   WITHDRAW = 'withdraw',
 }
 
-export abstract class EvmL2BridgeAdapter extends LiquidityManagementAdapter {
+export abstract class EvmL2BridgeAdapter extends LiquidityActionAdapter {
   protected commands = new Map<string, Command>();
 
   constructor(
@@ -46,7 +47,7 @@ export abstract class EvmL2BridgeAdapter extends LiquidityManagementAdapter {
       },
     } = order;
 
-    if (!(asset instanceof Asset)) {
+    if (!isAsset(asset)) {
       throw new Error('EvmBridgeAdapter.checkCompletion(...) supports only Asset instances as an input.');
     }
 

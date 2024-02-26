@@ -246,6 +246,7 @@ class SendStrategyRegistryWrapper extends SendStrategyRegistry {
   ) {
     super();
 
+<<<<<<< HEAD
     this.addStrategy({ blockchain: Blockchain.BITCOIN }, bitcoin);
     this.addStrategy({ blockchain: Blockchain.LIGHTNING }, lightning);
     this.addStrategy({ blockchain: Blockchain.MONERO }, monero);
@@ -261,5 +262,26 @@ class SendStrategyRegistryWrapper extends SendStrategyRegistry {
     this.addStrategy({ blockchain: Blockchain.POLYGON, assetType: AssetType.TOKEN }, polygonToken);
     this.addStrategy({ blockchain: Blockchain.BASE, assetType: AssetType.COIN }, baseCoin);
     this.addStrategy({ blockchain: Blockchain.BASE, assetType: AssetType.TOKEN }, baseToken);
+=======
+    this.add({ blockchain: Blockchain.BITCOIN }, bitcoin);
+    this.add({ blockchain: Blockchain.LIGHTNING }, lightning);
+    this.add({ blockchain: Blockchain.MONERO }, monero);
+
+    this.add({ blockchain: Blockchain.DEFICHAIN, assetType: AssetType.COIN }, deFiChainCoin);
+    this.add({ blockchain: Blockchain.DEFICHAIN, assetType: AssetType.TOKEN }, deFiChainToken);
+
+    this.add({ blockchain: Blockchain.ETHEREUM, assetType: AssetType.COIN }, ethereumCoin);
+    this.add({ blockchain: Blockchain.ETHEREUM, assetType: AssetType.TOKEN }, ethereumToken);
+    this.add({ blockchain: Blockchain.BINANCE_SMART_CHAIN, assetType: AssetType.COIN }, bscCoin);
+    this.add({ blockchain: Blockchain.BINANCE_SMART_CHAIN, assetType: AssetType.TOKEN }, bscToken);
+    this.add({ blockchain: Blockchain.ARBITRUM, assetType: AssetType.COIN }, arbitrumCoin);
+    this.add({ blockchain: Blockchain.ARBITRUM, assetType: AssetType.TOKEN }, arbitrumToken);
+    this.add({ blockchain: Blockchain.OPTIMISM, assetType: AssetType.COIN }, optimismCoin);
+    this.add({ blockchain: Blockchain.OPTIMISM, assetType: AssetType.TOKEN }, optimismToken);
+    this.add({ blockchain: Blockchain.POLYGON, assetType: AssetType.COIN }, polygonCoin);
+    this.add({ blockchain: Blockchain.POLYGON, assetType: AssetType.TOKEN }, polygonToken);
+    this.add({ blockchain: Blockchain.BASE, assetType: AssetType.COIN }, baseCoin);
+    this.add({ blockchain: Blockchain.BASE, assetType: AssetType.TOKEN }, baseToken);
+>>>>>>> develop
   }
 }

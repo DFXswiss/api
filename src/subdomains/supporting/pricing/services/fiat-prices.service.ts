@@ -4,13 +4,13 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { PriceProviderService } from './price-provider.service';
+import { PricingService } from './pricing.service';
 
 @Injectable()
 export class FiatPricesService {
   private readonly logger = new DfxLogger(FiatPricesService);
 
-  constructor(private readonly fiatService: FiatService, private readonly priceProvider: PriceProviderService) {}
+  constructor(private readonly fiatService: FiatService, private readonly pricingService: PricingService) {}
 
   // --- JOBS --- //
   @Cron(CronExpression.EVERY_HOUR)
@@ -20,11 +20,11 @@ export class FiatPricesService {
 
     const chf = await this.fiatService.getFiatByName('CHF');
 
-    const fiats = await this.fiatService.getAllFiat();
+    const fiats = await this.fiatService.getActiveFiat();
 
     for (const fiat of fiats) {
       try {
-        const chfPrice = await this.priceProvider.getPrice(fiat, chf);
+        const chfPrice = await this.pricingService.getPrice(fiat, chf, false);
 
         await this.fiatService.updatePrice(fiat.id, chfPrice.convert(1));
       } catch (e) {

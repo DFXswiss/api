@@ -1,3 +1,4 @@
+import { Active } from 'src/shared/models/active';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -10,6 +11,7 @@ import { LiquidityBalance } from './liquidity-balance.entity';
 import { LiquidityManagementAction } from './liquidity-management-action.entity';
 
 @Entity()
+@Index((r: LiquidityManagementRule) => [r.context, r.targetAsset, r.targetFiat], { unique: true })
 export class LiquidityManagementRule extends IEntity {
   @Column({ length: 256, nullable: true })
   context: LiquidityManagementContext;
@@ -22,7 +24,6 @@ export class LiquidityManagementRule extends IEntity {
   targetAsset: Asset;
 
   @ManyToOne(() => Fiat, { eager: true, nullable: true })
-  @Index({ unique: true, where: 'targetFiatId IS NOT NULL' })
   targetFiat: Fiat;
 
   @Column({ type: 'float', nullable: true })
@@ -132,7 +133,7 @@ export class LiquidityManagementRule extends IEntity {
       : this.redundancyStartAction;
   }
 
-  get target(): Asset | Fiat {
+  get target(): Active {
     return this.targetAsset ?? this.targetFiat;
   }
 

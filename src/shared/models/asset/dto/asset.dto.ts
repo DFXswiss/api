@@ -51,6 +51,18 @@ export class AssetDto {
   @ApiProperty()
   sellable: boolean;
 
+  @ApiProperty()
+  cardBuyable: boolean;
+
+  @ApiProperty()
+  cardSellable: boolean;
+
+  @ApiProperty()
+  instantBuyable: boolean;
+
+  @ApiProperty()
+  instantSellable: boolean;
+
   @ApiProperty({ enum: Blockchain })
   blockchain: Blockchain;
 

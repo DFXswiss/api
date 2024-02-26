@@ -1,7 +1,6 @@
 import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Active } from 'src/shared/models/active';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -37,8 +36,8 @@ export interface OptionalFeeRequest extends FeeRequestBase {
 export interface FeeRequestBase {
   paymentMethodIn: PaymentMethod;
   paymentMethodOut: PaymentMethod;
-  from: Asset | Fiat | undefined;
-  to: Asset | Fiat;
+  from: Active | undefined;
+  to: Active;
   txVolume?: number;
   blockchainFee: number;
   discountCodes: string[];

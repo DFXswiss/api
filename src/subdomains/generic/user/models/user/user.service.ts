@@ -10,9 +10,8 @@ import { Config, Environment } from 'src/config/config';
 import { DfiTaxService } from 'src/integration/blockchain/ain/services/dfi-tax.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Active } from 'src/shared/models/active';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
@@ -305,7 +304,7 @@ export class UserService {
     userId: number,
     paymentMethodIn: PaymentMethod,
     paymentMethodOut: PaymentMethod,
-    to: Asset | Fiat,
+    to: Active,
     minFee: number,
     txVolume?: number,
   ): Promise<FeeDto> {

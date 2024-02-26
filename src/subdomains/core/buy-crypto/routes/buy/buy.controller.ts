@@ -101,6 +101,7 @@ export class BuyController {
       asset,
       paymentMethod,
       CryptoPaymentMethod.CRYPTO,
+      true,
       undefined,
       discountCode ? [discountCode] : [],
     );
@@ -186,7 +187,7 @@ export class BuyController {
       asset: AssetDtoMapper.toDto(buy.asset),
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposits: [minDeposit],
-      minFee: { amount: fee.blockchain, asset: 'EUR' },
+      minFee: { amount: fee.blockchain, asset: 'CHF' },
     };
   }
 
@@ -207,6 +208,7 @@ export class BuyController {
       sourceAmount: amount,
       isValid,
       error,
+      exactPrice,
     } = await this.transactionHelper.getTxDetails(
       dto.amount,
       dto.targetAmount,
@@ -214,6 +216,7 @@ export class BuyController {
       dto.asset,
       dto.paymentMethod,
       CryptoPaymentMethod.CRYPTO,
+      !dto.exactPrice,
       user,
     );
     const bankInfo = await this.getBankInfo(buy, { ...dto, amount });
@@ -228,6 +231,7 @@ export class BuyController {
       minFeeTarget,
       exchangeRate,
       rate,
+      exactPrice,
       estimatedAmount,
       amount,
       asset: AssetDtoMapper.toDto(dto.asset),

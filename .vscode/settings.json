@@ -15,6 +15,7 @@
     "dfip",
     "dilisense",
     "firstname",
+    "frankencoin",
     "frick",
     "golevelup",
     "iban",
@@ -51,7 +52,8 @@
     "utxo",
     "utxos",
     "verkauf",
-    "vout"
+    "vout",
+    "zchf"
   ],
   "prettier.printWidth": 120,
   "editor.formatOnSave": true,
