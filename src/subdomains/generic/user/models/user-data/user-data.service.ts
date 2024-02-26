@@ -400,20 +400,52 @@ export class UserDataService {
     return false;
   }
 
-  checkVerifiedName(firstName: string, secondName: string): boolean {
-    const split1 = firstName.replace('Dr ', '').toLowerCase().split(' ');
-    const split2 = secondName.replace('Dr ', '').toLowerCase().split(' ');
+  checkVerifiedName(input1: string, input2: string): boolean {
+    const array1 = this.getVerifiedNameArray(input1);
+    const array2 = this.getVerifiedNameArray(input2);
 
-    let check = false;
-    for (const element1 of split1) {
-      
-      for (const element2 of split2) {
+    if (Util.arraysHaveSameElements(array1, array2)) return true;
+    if (Util.arraysHaveSameElements(array1, array2, 'ö', 'oe')) return true;
+    if (Util.arraysHaveSameElements(array1, array2, 'ö', 'o')) return true;
+    if (Util.arraysHaveSameElements(array1, array2, 'ä', 'ae')) return true;
+    if (Util.arraysHaveSameElements(array1, array2, 'ä', 'a')) return true;
+    if (Util.arraysHaveSameElements(array1, array2, 'ü', 'ue')) return true;
+    if (Util.arraysHaveSameElements(array1, array2, 'ü', 'u')) return true;
 
-        
-      }
-      
-    }
     return false;
+  }
+
+  getVerifiedNameArray(name: string): string[] {
+    return name
+      .toLowerCase()
+      .replace(/[ìíîúûùáâåàéèêñç]/g, function (match) {
+        switch (match) {
+          case 'ì':
+          case 'í':
+          case 'î':
+            return 'i';
+          case 'ú':
+          case 'û':
+          case 'ù':
+            return 'u';
+          case 'á':
+          case 'â':
+          case 'å':
+          case 'à':
+            return 'a';
+          case 'é':
+          case 'è':
+          case 'ê':
+            return 'e';
+          case 'ñ':
+            return 'n';
+          case 'ç':
+            return 'c';
+          default:
+            return match;
+        }
+      })
+      .split(' ');
   }
 
   async mergeUserData(masterId: number, slaveId: number): Promise<void> {

@@ -89,6 +89,17 @@ export class Util {
     );
   }
 
+  static arraysHaveSameElements(arr1: string[], arr2: string[], replaceKey?: string, replaceString?: string) {
+    return replaceKey
+      ? arr1.every((element) => arr2.includes(element.split(replaceKey).join(replaceString))) ||
+          arr2.every((element) => arr1.includes(element)) ||
+          arr1.every((element) => arr2.includes(element)) ||
+          arr2.every((element) => arr1.includes(element.split(replaceKey).join(replaceString))) ||
+          arr1.every((element) => arr2.includes(element.split(replaceKey).join(replaceString))) ||
+          arr2.every((element) => arr1.includes(element.split(replaceKey).join(replaceString)))
+      : arr1.every((element) => arr2.includes(element)) || arr2.every((element) => arr1.includes(element));
+  }
+
   static fixRoundingMismatch<T>(list: T[], key: KeyType<T, number>, targetAmount: number, precision = 8): T[] {
     const listTotal = Util.round(Util.sumObjValue<T>(list, key), precision);
     const mismatch = Util.round(targetAmount - listTotal, precision);
