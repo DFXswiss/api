@@ -290,7 +290,6 @@ export class UserDataService {
 
   private async loadDtoRelations(userData: UserData, dto: UpdateUserDataDto | CreateUserDataDto): Promise<void> {
     if (dto.countryId) {
-      userData.country = await this.countryService.getCountry(dto.countryId);
       if (!userData.country) throw new BadRequestException('Country not found');
     }
 
@@ -389,7 +388,7 @@ export class UserDataService {
           u.kycLevel >= KycLevel.LEVEL_30 &&
           u.isDfxUser &&
           u.verifiedName &&
-          (!user.verifiedName || user.verifiedName === u.verifiedName),
+          (!user.verifiedName || this.checkVerifiedName(user.verifiedName, u.verifiedName)),
       );
       if (matchingUser) {
         // send a merge request
@@ -398,6 +397,22 @@ export class UserDataService {
       }
     }
 
+    return false;
+  }
+
+  checkVerifiedName(firstName: string, secondName: string): boolean {
+    const split1 = firstName.replace('Dr ', '').toLowerCase().split(' ');
+    const split2 = secondName.replace('Dr ', '').toLowerCase().split(' ');
+
+    let check = false;
+    for (const element1 of split1) {
+      
+      for (const element2 of split2) {
+
+        
+      }
+      
+    }
     return false;
   }
 
