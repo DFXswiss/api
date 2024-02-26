@@ -165,19 +165,12 @@ export class RevolutService {
 
   private async getTransactions(fromDate: Date, toDate: Date = new Date()): Promise<Transaction[]> {
     const url = `transactions?from=${Util.isoDate(fromDate)}&to=${Util.isoDate(toDate)}`;
-    return this.callApi<any[]>(url);
+    return this.callApi<Transaction[]>(url);
   }
 
   async getBalances(): Promise<Account[]> {
     const url = `accounts`;
-    const balance = await this.callApi<Account[]>(url);
-    return balance;
-  }
-
-  async getAccountBankDetails(accountId: string): Promise<any> {
-    const url = `accounts/${accountId}/bank-details`;
-    const bankDetails = await this.callApi<any>(url);
-    return bankDetails;
+    return this.callApi<Account[]>(url);
   }
 
   // --- PARSING --- //
@@ -252,7 +245,7 @@ export class RevolutService {
     });
 
     return this.http.request<TokenAuth>({
-      url: `${this.loginUrl}`,
+      url: this.loginUrl,
       method: 'POST',
       data: data,
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
