@@ -35,36 +35,6 @@ interface Account {
   updated_at: Date;
 }
 
-interface AccountBankDetails {
-  iban?: string;
-  bic?: string;
-  account_no?: string;
-  sort_code?: string;
-  routing_number?: string;
-  beneficiary: string;
-  beneficiary_address: BeneficiaryAddress;
-  bank_country?: string;
-  pooled?: boolean;
-  unique_reference: string;
-  schemes: BankDetailsScheme[];
-  estimated_time: EstimatedTime;
-}
-
-interface BeneficiaryAddress {
-  street_line1?: string;
-  street_line2?: string;
-  region?: string;
-  city?: string;
-  country: string;
-  postcode: string;
-}
-
-interface EstimatedTime {
-  unit: string;
-  min?: number;
-  max?: number;
-}
-
 interface TokenAuth {
   access_token: string;
   refresh_token: string;
@@ -96,20 +66,6 @@ interface TransactionCard {
   first_name?: string;
   last_name?: string;
   phone?: string;
-}
-
-enum BankDetailsScheme {
-  CHAPS = 'chaps',
-  BACS = 'bacs',
-  FASTER_PAYMENTS = 'faster_payments',
-  SEPA = 'sepa',
-  SWIFT = 'swift',
-  ACH = 'ach',
-  ELIXIR = 'elixir',
-  SORBNET = 'sorbnet',
-  NICS = 'nics',
-  RIX = 'rix',
-  SUM_CLEARING = 'sumclearing',
 }
 
 enum TransactionState {
@@ -200,7 +156,7 @@ export class RevolutService {
         type: null,
       };
     } catch (e) {
-      throw new Error(`Failed to parse transaction ${tx}: ${e.message}`);
+      throw new Error(`Failed to parse transaction ${stringify(tx)}: ${e.message}`);
     }
   }
 
