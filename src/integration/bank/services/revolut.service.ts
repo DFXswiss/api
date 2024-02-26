@@ -190,7 +190,7 @@ export class RevolutService {
         instructedCurrency: txLeg.currency,
         txCurrency: txLeg.currency,
         chargeCurrency: txLeg.currency,
-        creditDebitIndicator: txLeg.amount > 0 ? BankTxIndicator.DEBIT : BankTxIndicator.CREDIT,
+        creditDebitIndicator: txLeg.amount < 0 ? BankTxIndicator.DEBIT : BankTxIndicator.CREDIT,
         iban: null,
         ...this.getNameAndAddress(txLeg),
         txInfo: tx.reference,
