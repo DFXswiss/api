@@ -172,7 +172,7 @@
         "changed_mail": {
             "title": "L'adresse électronique du compte a été modifiée",
             "salutation": "L'adresse électronique de votre compte a été modifiée",
-            "message": "L'adresse électronique {userMail} sera désormais utilisée pour votre compte"
+            "message": "L'adresse électronique {userMail} sera désormais utilisée pour votre compte."
         }
     },
     "limit_request": {

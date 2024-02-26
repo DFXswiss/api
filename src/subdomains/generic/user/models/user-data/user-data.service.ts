@@ -456,11 +456,9 @@ export class UserDataService {
 
     await this.updateBankTxTime(slave.id);
 
-    // Notify user via mail
-    if (notifyUser) {
-      await this.userDataNotificationService.userDataAddedAddressInfo(master, slave);
-      if (master.mail !== slave.mail) await this.userDataNotificationService.userDataChangedMailInfo(master, slave);
-    }
+    // Notify user about changed mail
+    if (notifyUser && slave.mail && master.mail !== slave.mail)
+      await this.userDataNotificationService.userDataChangedMailInfo(master, slave);
 
     // reassign bank accounts, datas, users and userDataRelations
     master.bankAccounts = master.bankAccounts.concat(bankAccountsToReassign);
@@ -498,6 +496,9 @@ export class UserDataService {
     }
 
     await this.kycAdminService.createMergeLog(master, log);
+
+    // Notify user about added address
+    if (notifyUser) await this.userDataNotificationService.userDataAddedAddressInfo(master, slave);
   }
 
   private async updateBankTxTime(userDataId: number): Promise<void> {

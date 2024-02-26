@@ -380,7 +380,7 @@ export class Util {
 
   static blankMail(value: string, visibleLength = 4): string {
     const mailSplit = value.split('@');
-    return `${mailSplit[0].slice(0, visibleLength > value.length ? value.length : visibleLength)}***@${mailSplit[1]}`;
+    return `${mailSplit[0].slice(0, visibleLength)}***@${mailSplit[1]}`;
   }
 
   static trim({ value }: TransformFnParams): string | undefined {

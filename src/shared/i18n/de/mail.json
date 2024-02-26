@@ -172,7 +172,7 @@
         "changed_mail": {
             "title": "Account Email wurde geändert",
             "salutation": "Deine Account Email wurde geändert",
-            "message": "Die Email {userMail} wird ab sofort für deinen Account verwendet"
+            "message": "Die Email {userMail} wird ab sofort für deinen Account verwendet."
         }
     },
     "limit_request": {
