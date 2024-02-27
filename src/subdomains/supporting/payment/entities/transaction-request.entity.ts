@@ -62,7 +62,7 @@ export class TransactionRequest extends IEntity {
   @Column({ type: 'float' })
   minFee: number;
 
-  @Column()
+  @Column({ default: false })
   exactPrice: boolean;
 
   @Column({ default: false })
