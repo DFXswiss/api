@@ -391,7 +391,7 @@ export class UserDataService {
           u.kycLevel >= KycLevel.LEVEL_30 &&
           u.isDfxUser &&
           u.verifiedName &&
-          (!user.verifiedName || user.verifiedName === u.verifiedName),
+          (!user.verifiedName || Util.isSameName(user.verifiedName, u.verifiedName)),
       );
       if (matchingUser) {
         // send a merge request
@@ -434,6 +434,8 @@ export class UserDataService {
     if (slave.amlListAddedDate) throw new BadRequestException('Slave is on AML list');
     if ([master.status, slave.status].includes(UserDataStatus.MERGED))
       throw new BadRequestException('Master or slave is already merged');
+    if (slave.verifiedName && !Util.isSameName(master.verifiedName, slave.verifiedName))
+      throw new BadRequestException('Verified name mismatch');
 
     const bankAccountsToReassign = slave.bankAccounts.filter(
       (sba) => !master.bankAccounts.some((mba) => sba.iban === mba.iban),
