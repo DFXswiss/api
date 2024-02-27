@@ -69,6 +69,12 @@ export class PayoutService {
     return { asset: payoutFee.asset, amount: totalFeeAmount };
   }
 
+  async estimateBlockchainFee(feeAsset: Asset): Promise<FeeResult> {
+    const payoutStrategy = this.payoutStrategyRegistry.getPayoutStrategy(feeAsset);
+    const { asset, amount } = await payoutStrategy.estimateBlockchainFee(feeAsset);
+    return { asset, amount };
+  }
+
   async speedupTransaction(id: number): Promise<void> {
     const order = await this.payoutOrderRepo.findOneBy({ id });
     if (!order) throw new NotFoundException('Payout order not found');

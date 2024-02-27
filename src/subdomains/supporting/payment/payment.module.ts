@@ -5,10 +5,13 @@ import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.mo
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { SharedModule } from '../../../shared/shared.module';
+import { PayoutModule } from '../payout/payout.module';
 import { FeeController } from './controllers/fee.controller';
+import { BlockchainFee } from './entities/blockchain-fee';
 import { Fee } from './entities/fee.entity';
 import { TransactionRequest } from './entities/transaction-request.entity';
 import { TransactionSpecification } from './entities/transaction-specification.entity';
+import { BlockchainFeeRepository } from './repositories/blockchain-fee.repository';
 import { FeeRepository } from './repositories/fee.repository';
 import { TransactionRequestRepository } from './repositories/transaction-request.repository';
 import { TransactionSpecificationRepository } from './repositories/transaction-specification.repository';
@@ -20,7 +23,8 @@ import { TransactionRequestService } from './services/transaction-request.servic
   imports: [
     PricingModule,
     SharedModule,
-    TypeOrmModule.forFeature([TransactionSpecification, Fee, TransactionRequest]),
+    PayoutModule,
+    TypeOrmModule.forFeature([TransactionSpecification, Fee, TransactionRequest, BlockchainFee]),
     forwardRef(() => UserModule),
     forwardRef(() => SellCryptoModule),
     forwardRef(() => BuyCryptoModule),
@@ -32,6 +36,7 @@ import { TransactionRequestService } from './services/transaction-request.servic
     FeeService,
     FeeRepository,
     TransactionRequestRepository,
+    BlockchainFeeRepository,
     TransactionRequestService,
   ],
   exports: [TransactionHelper, FeeService, TransactionRequestService],

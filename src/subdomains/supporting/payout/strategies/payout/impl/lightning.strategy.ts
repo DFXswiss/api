@@ -29,6 +29,10 @@ export class LightningStrategy extends PayoutStrategy {
     return undefined;
   }
 
+  async estimateBlockchainFee(): Promise<FeeResult> {
+    return { asset: await this.getFeeAsset(), amount: 0 };
+  }
+
   async doPayout(orders: PayoutOrder[]): Promise<void> {
     if (await this.isHealthy()) {
       for (const order of orders) {
