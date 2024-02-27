@@ -194,8 +194,12 @@ export class PricingService {
   }
 
   private async getRulePrice(rule: Rule): Promise<Price> {
-    return this.priceCache.get(`${rule.source}:${rule.asset}/${rule.reference}`, () =>
-      this.getPriceFrom(rule.source, rule.asset, rule.reference),
-    );
+    return this.priceCache
+      .get(`${rule.source}:${rule.asset}/${rule.reference}`, () =>
+        this.getPriceFrom(rule.source, rule.asset, rule.reference),
+      )
+      .catch((e) => {
+        throw new Error(`Failed to get price ${rule.asset} -> ${rule.reference} on ${rule.source}: ${e.message}`);
+      });
   }
 }
