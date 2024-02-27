@@ -25,7 +25,10 @@ export class CoinGeckoService implements OnModuleInit, PricingProvider {
     const toCurrency = this.getCurrency(to);
 
     if (fromCurrency && toCurrency) {
-      const [priceFrom, priceTo] = await Promise.all([this.fetchPrice('tether', from), this.fetchPrice('tether', to)]);
+      const [priceFrom, priceTo] = await Promise.all([
+        this.fetchPrice('tether', fromCurrency),
+        this.fetchPrice('tether', toCurrency),
+      ]);
       return Price.join(priceFrom.invert(), priceTo);
     } else if (fromCurrency) {
       const price = await this.fetchPrice(to, fromCurrency);
