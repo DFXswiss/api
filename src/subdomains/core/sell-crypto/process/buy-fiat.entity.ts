@@ -1,6 +1,7 @@
 import { ConflictException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -51,10 +52,10 @@ export class BuyFiat extends IEntity {
   inputAsset: string;
 
   @Column({ type: 'float', nullable: true })
-  inputReferenceAmount: number;
+  inputReferenceAmount: number; // deprecated
 
   @Column({ length: 256, nullable: true })
-  inputReferenceAsset: string;
+  inputReferenceAsset: string; // deprecated
 
   @Column({ type: 'float', nullable: true })
   amountInChf: number;
@@ -90,22 +91,22 @@ export class BuyFiat extends IEntity {
   percentFee: number;
 
   @Column({ type: 'float', nullable: true })
-  percentFeeAmount: number; //inputReferenceAsset
+  percentFeeAmount: number; //inputAsset
 
   @Column({ type: 'float', nullable: true })
-  absoluteFeeAmount: number; //inputReferenceAsset
+  absoluteFeeAmount: number; //inputAsset
 
   @Column({ type: 'float', nullable: true })
   inputReferenceAmountMinusFee: number;
 
   @Column({ type: 'float', nullable: true })
-  minFeeAmount: number; //inputReferenceAsset
+  minFeeAmount: number; //inputAsset
 
   @Column({ type: 'float', nullable: true })
-  minFeeAmountFiat: number; //outputReferenceAsset
+  minFeeAmountFiat: number; //EUR
 
   @Column({ type: 'float', nullable: true })
-  totalFeeAmount: number; //inputReferenceAsset
+  totalFeeAmount: number; //inputAsset
 
   @Column({ type: 'float', nullable: true })
   totalFeeAmountChf: number;
@@ -127,11 +128,17 @@ export class BuyFiat extends IEntity {
   @Column({ length: 256, nullable: true })
   outputReferenceAsset: string;
 
+  @ManyToOne(() => Fiat, { eager: true, nullable: true })
+  outputReferenceAssetEntity: Fiat;
+
   @Column({ type: 'float', nullable: true })
   outputAmount: number;
 
   @Column({ length: 256, nullable: true })
   outputAsset: string;
+
+  @ManyToOne(() => Fiat, { eager: true, nullable: true })
+  outputAssetEntity: Fiat;
 
   // Transaction details
   @Column({ length: 256, nullable: true })
@@ -249,6 +256,17 @@ export class BuyFiat extends IEntity {
     };
 
     if (update.inputReferenceAmountMinusFee < 0) throw new ConflictException('InputReferenceAmountMinusFee smaller 0');
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  setOutput(outputAmount: number, outputAssetEntity: Fiat): UpdateResult<BuyFiat> {
+    const update: Partial<BuyFiat> = {
+      outputAmount,
+      outputAssetEntity,
+    };
 
     Object.assign(this, update);
 
