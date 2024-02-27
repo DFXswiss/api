@@ -89,9 +89,48 @@ export class Util {
     );
   }
 
-  static arraysHaveSameElements(arr1: string[], arr2: string[], replaceKey?: string, replaceString?: string) {
-    const replacedArray1 = arr1.map((a) => a.split(replaceKey).join(replaceString));
-    const replacedArray2 = arr2.map((a) => a.split(replaceKey).join(replaceString));
+  static isSameName(input1: string, input2: string): boolean {
+    const array1 = this.getVerifiedNameArray(input1);
+    const array2 = this.getVerifiedNameArray(input2);
+
+    const replacements = [
+      [[undefined, undefined]],
+      [
+        ['ö', 'oe'],
+        ['ä', 'ae'],
+        ['ü', 'ue'],
+      ],
+      [
+        ['ä', 'a'],
+        ['ö', 'o'],
+        ['ü', 'u'],
+      ],
+    ];
+
+    return replacements.some((r) => Util.arraysHaveSameElements(array1, array2, r));
+  }
+
+  static getVerifiedNameArray(name: string): string[] {
+    return name
+      .toLowerCase()
+      .toLowerCase()
+      .replace(/[ìíî]/g, 'i')
+      .replace(/[úûù]/g, 'u')
+      .replace(/[áâåà]/g, 'a')
+      .replace(/[éèê]/g, 'e')
+      .replace(/[ñ]/g, 'n')
+      .replace(/[ç]/g, 'c')
+      .split(' ');
+  }
+
+  static arraysHaveSameElements(arr1: string[], arr2: string[], replaceArray?: string[][]) {
+    let replacedArray1: string[] = arr1;
+    let replacedArray2: string[] = arr2;
+
+    for (const replaceElement of replaceArray) {
+      replacedArray1 = replacedArray1.map((a) => a.split(replaceElement[0]).join(replaceElement[1]));
+      replacedArray2 = replacedArray2.map((a) => a.split(replaceElement[0]).join(replaceElement[1]));
+    }
 
     return (
       replacedArray1.every((element) => replacedArray2.includes(element)) ||

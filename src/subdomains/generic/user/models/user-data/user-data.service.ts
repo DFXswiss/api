@@ -391,7 +391,7 @@ export class UserDataService {
           u.kycLevel >= KycLevel.LEVEL_30 &&
           u.isDfxUser &&
           u.verifiedName &&
-          (!user.verifiedName || this.isSameName(user.verifiedName, u.verifiedName)),
+          (!user.verifiedName || Util.isSameName(user.verifiedName, u.verifiedName)),
       );
       if (matchingUser) {
         // send a merge request
@@ -401,36 +401,6 @@ export class UserDataService {
     }
 
     return false;
-  }
-
-  isSameName(input1: string, input2: string): boolean {
-    const array1 = this.getVerifiedNameArray(input1);
-    const array2 = this.getVerifiedNameArray(input2);
-
-    const replacements = [
-      [undefined, undefined],
-      ['ö', 'oe'],
-      ['ö', 'o'],
-      ['ä', 'ae'],
-      ['ä', 'a'],
-      ['ü', 'ue'],
-      ['ü', 'u'],
-    ];
-
-    return replacements.some(([k, v]) => Util.arraysHaveSameElements(array1, array2, k, v));
-  }
-
-  getVerifiedNameArray(name: string): string[] {
-    return name
-      .toLowerCase()
-      .toLowerCase()
-      .replace(/[ìíî]/g, 'i')
-      .replace(/[úûù]/g, 'u')
-      .replace(/[áâåà]/g, 'a')
-      .replace(/[éèê]/g, 'e')
-      .replace(/[ñ]/g, 'n')
-      .replace(/[ç]/g, 'c')
-      .split(' ');
   }
 
   async mergeUserData(masterId: number, slaveId: number, notifyUser = false): Promise<void> {
@@ -464,7 +434,7 @@ export class UserDataService {
     if (slave.amlListAddedDate) throw new BadRequestException('Slave is on AML list');
     if ([master.status, slave.status].includes(UserDataStatus.MERGED))
       throw new BadRequestException('Master or slave is already merged');
-    if (slave.verifiedName && !this.isSameName(master.verifiedName, slave.verifiedName))
+    if (slave.verifiedName && !Util.isSameName(master.verifiedName, slave.verifiedName))
       throw new BadRequestException('Verified name mismatch');
 
     const bankAccountsToReassign = slave.bankAccounts.filter(
