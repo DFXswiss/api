@@ -409,7 +409,6 @@ export class UserDataService {
 
     const replacements = [
       [undefined, undefined],
-      ['r', 'n'],
       ['ö', 'oe'],
       ['ö', 'o'],
       ['ä', 'ae'],
