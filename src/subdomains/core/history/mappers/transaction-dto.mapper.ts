@@ -67,7 +67,7 @@ export class TransactionDtoMapper {
       inputPaymentMethod: CryptoPaymentMethod.CRYPTO,
       ...(buyFiat.outputAmount ? buyFiat.exchangeRate : null),
       outputAmount: buyFiat.outputAmount,
-      outputAsset: buyFiat.outputAsset,
+      outputAsset: buyFiat.outputAssetEntity.name,
       outputAssetId: buyFiat.outputAssetEntity.id,
       outputBlockchain: null,
       outputPaymentMethod: FiatPaymentMethod.BANK,
@@ -172,7 +172,7 @@ export function getTransactionState(entity: BuyFiat | BuyCrypto | RefReward): Tr
         break;
     }
 
-    if (entity.outputReferenceAsset) return TransactionState.PROCESSING;
+    if (entity.outputReferenceAssetEntity) return TransactionState.PROCESSING;
 
     return TransactionState.CREATED;
   }

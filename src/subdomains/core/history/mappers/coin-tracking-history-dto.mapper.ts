@@ -143,7 +143,7 @@ export class CoinTrackingHistoryDtoMapper {
           buyFiat.fiatOutput.bankTx &&
           buyFiat.cryptoInput &&
           buyFiat.outputAmount &&
-          buyFiat.outputAsset &&
+          buyFiat.outputAssetEntity &&
           buyFiat.inputAmount &&
           buyFiat.fiatOutput.remittanceInfo &&
           buyFiat.fiatOutput.outputDate,
@@ -152,7 +152,7 @@ export class CoinTrackingHistoryDtoMapper {
         {
           type: CoinTrackingTransactionType.TRADE,
           buyAmount: buyFiat.outputAmount,
-          buyAsset: buyFiat.outputAsset,
+          buyAsset: buyFiat.outputAssetEntity.name,
           sellAmount: buyFiat.inputAmount,
           sellAsset: this.getAssetSymbol(buyFiat.cryptoInput.asset?.dexName),
           fee: buyFiat.totalFeeAmount
@@ -172,7 +172,7 @@ export class CoinTrackingHistoryDtoMapper {
           buyAmount: null,
           buyAsset: null,
           sellAmount: buyFiat.outputAmount,
-          sellAsset: buyFiat.outputAsset,
+          sellAsset: buyFiat.outputAssetEntity.name,
           fee: null,
           feeAsset: null,
           exchange: 'DFX',

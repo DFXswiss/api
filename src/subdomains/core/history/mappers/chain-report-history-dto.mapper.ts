@@ -129,7 +129,7 @@ export class ChainReportHistoryDtoMapper {
           buyFiat.fiatOutput.bankTx &&
           buyFiat.cryptoInput &&
           buyFiat.outputAmount &&
-          buyFiat.outputAsset &&
+          buyFiat.outputAssetEntity &&
           buyFiat.inputAmount &&
           buyFiat.fiatOutput.remittanceInfo &&
           buyFiat.fiatOutput.outputDate,
@@ -139,7 +139,7 @@ export class ChainReportHistoryDtoMapper {
           timestamp: buyFiat.cryptoInput.created,
           transactionType: ChainReportTransactionType.TRADE,
           inputAmount: buyFiat.outputAmount,
-          inputAsset: buyFiat.outputAsset,
+          inputAsset: buyFiat.outputAssetEntity.name,
           outputAmount: buyFiat.inputAmount,
           outputAsset: this.getAssetSymbol(buyFiat.cryptoInput.asset?.dexName),
           feeAmount: buyFiat.totalFeeAmount
@@ -155,7 +155,7 @@ export class ChainReportHistoryDtoMapper {
           inputAmount: null,
           inputAsset: null,
           outputAmount: buyFiat.outputAmount,
-          outputAsset: this.getAssetSymbol(buyFiat.outputAsset),
+          outputAsset: this.getAssetSymbol(buyFiat.outputAssetEntity.name),
           feeAmount: null,
           feeAsset: null,
           txid: buyFiat.fiatOutput.remittanceInfo,

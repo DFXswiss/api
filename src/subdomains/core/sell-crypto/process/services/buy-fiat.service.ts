@@ -126,9 +126,8 @@ export class BuyFiatService {
 
   async extendBuyFiat(buyFiat: BuyFiat): Promise<BuyFiatExtended> {
     const inputAssetEntity = buyFiat.cryptoInput.asset;
-    const outputAssetEntity = await this.fiatService.getFiatByName(buyFiat.outputAsset);
 
-    return Object.assign(buyFiat, { inputAssetEntity, outputAssetEntity });
+    return Object.assign(buyFiat, { inputAssetEntity, outputAssetEntity: buyFiat.outputAssetEntity });
   }
 
   async resetAmlCheck(id: number): Promise<void> {
@@ -222,7 +221,7 @@ export class BuyFiatService {
       inputAmount: buyFiat.inputAmount,
       inputAsset: buyFiat.inputAsset,
       outputAmount: buyFiat.outputAmount,
-      outputAsset: buyFiat.outputAsset,
+      outputAsset: buyFiat.outputAssetEntity.name,
       txId: buyFiat.cryptoInput.inTxId,
       txUrl: txExplorerUrl(buyFiat.cryptoInput.asset.blockchain, buyFiat.cryptoInput.inTxId),
       date: buyFiat.fiatOutput?.outputDate,
