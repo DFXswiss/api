@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { isFiat } from 'src/shared/models/active';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -43,37 +42,35 @@ export class BuyFiatPreparationService {
 
     for (const entity of entities) {
       try {
-        const inputReferenceCurrency =
-          (await this.fiatService.getFiatByName(entity.inputReferenceAsset)) ??
-          (await this.assetService.getNativeMainLayerAsset(entity.inputReferenceAsset));
+        const inputCurrency = entity.cryptoInput.asset;
 
         const { fee } = await this.transactionHelper.getTxFeeInfos(
-          entity.inputReferenceAmount,
-          entity.cryptoInput.asset,
-          inputReferenceCurrency,
+          entity.inputAmount,
+          inputCurrency,
+          inputCurrency,
           entity.sell.fiat,
           CryptoPaymentMethod.CRYPTO,
           FiatPaymentMethod.BANK,
           entity.sell.user,
         );
 
-        const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatEur, false);
-        const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
+        const eurPrice = await this.pricingService.getPrice(inputCurrency, fiatEur, false);
+        const chfPrice = await this.pricingService.getPrice(inputCurrency, fiatChf, false);
 
-        const amountInChf = referenceChfPrice.convert(entity.inputReferenceAmount, 2);
+        const amountInChf = chfPrice.convert(entity.inputAmount, 2);
 
         await this.buyFiatRepo.update(
           ...entity.setFeeAndFiatReference(
-            referenceEurPrice.convert(entity.inputReferenceAmount, 2),
+            eurPrice.convert(entity.inputAmount, 2),
             amountInChf,
             fee.fees,
             fee.rate,
             fee.fixed,
             fee.payoutRefBonus,
             fee.min,
-            isFiat(inputReferenceCurrency) ? fee.min : referenceEurPrice.convert(fee.min, 2),
+            eurPrice.convert(fee.min, 2),
             fee.total,
-            referenceChfPrice.convert(fee.total, 2),
+            chfPrice.convert(fee.total, 2),
           ),
         );
 
