@@ -19,6 +19,7 @@ export enum BankTxType {
   GSHEET = 'GSheet',
   KRAKEN = 'Kraken',
   CHECKOUT_LTD = 'CheckoutLtd',
+  REVOLUT_CARD_PAYMENT = 'RevolutCardPayment',
   BANK_ACCOUNT_FEE = 'BankAccountFee',
   EXTRAORDINARY_EXPENSES = 'ExtraordinaryExpenses',
   PENDING = 'Pending',
