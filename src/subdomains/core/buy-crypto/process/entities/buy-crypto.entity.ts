@@ -185,6 +185,9 @@ export class BuyCrypto extends IEntity {
   @JoinColumn()
   transactionRequest: TransactionRequest;
 
+  @Column({ length: 256, nullable: true })
+  externalTransactionId: string;
+
   //*** FACTORY METHODS ***//
 
   static createFromPayIn(payIn: CryptoInput, cryptoRoute: CryptoRoute): BuyCrypto {
@@ -409,6 +412,7 @@ export class BuyCrypto extends IEntity {
     totalFeeAmount: number,
     totalFeeAmountChf: number,
     transactionRequest: TransactionRequest,
+    externalTransactionId: string,
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       absoluteFeeAmount: fixedFee,
@@ -424,6 +428,7 @@ export class BuyCrypto extends IEntity {
       refFactor: payoutRefBonus ? this.refFactor : 0,
       usedFees: fees?.map((fee) => fee.id).join(';'),
       transactionRequest,
+      externalTransactionId,
     };
 
     if (update.inputReferenceAmountMinusFee < 0) throw new ConflictException('InputReferenceAmountMinusFee smaller 0');

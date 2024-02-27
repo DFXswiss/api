@@ -172,6 +172,9 @@ export class BuyFiat extends IEntity {
   @JoinColumn()
   transactionRequest: TransactionRequest;
 
+  @Column({ length: 256, nullable: true })
+  externalTransactionId: string;
+
   //*** FACTORY METHODS ***//
 
   static createFromPayIn(payIn: CryptoInput, sellRoute: Sell): BuyFiat {
@@ -238,6 +241,7 @@ export class BuyFiat extends IEntity {
     totalFeeAmount: number,
     totalFeeAmountChf: number,
     transactionRequest: TransactionRequest,
+    externalTransactionId: string,
   ): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
       absoluteFeeAmount: fixedFee,
@@ -253,6 +257,7 @@ export class BuyFiat extends IEntity {
       refFactor: payoutRefBonus ? this.refFactor : 0,
       usedFees: fees?.map((fee) => fee.id).join(';'),
       transactionRequest,
+      externalTransactionId,
     };
 
     if (update.inputReferenceAmountMinusFee < 0) throw new ConflictException('InputReferenceAmountMinusFee smaller 0');
