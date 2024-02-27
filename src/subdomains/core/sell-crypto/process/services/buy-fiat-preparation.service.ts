@@ -79,7 +79,6 @@ export class BuyFiatPreparationService {
             fee.total,
             chfPrice.convert(fee.total, 2),
             transactionRequest,
-            transactionRequest.externalTransactionId,
           ),
         );
 
