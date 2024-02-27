@@ -6,7 +6,7 @@ import { BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
-import { Between, In } from 'typeorm';
+import { Between, Brackets, In } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { CheckStatus } from '../../../buy-crypto/process/enums/check-status.enum';
 import { BuyCryptoService } from '../../../buy-crypto/process/services/buy-crypto.service';
@@ -176,6 +176,24 @@ export class BuyFiatService {
       where: { sell: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
       relations: ['cryptoInput', 'bankTx', 'sell', 'sell.user', 'fiatOutput', 'fiatOutput.bankTx'],
     });
+  }
+
+  async getUserVolume(userId: number, dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<number> {
+    return this.buyFiatRepo
+      .createQueryBuilder('buyFiat')
+      .select('SUM(amountInChf)', 'volume')
+      .leftJoin('buyFiat.sell', 'sell')
+      .where('sell.userId = :id', { id: userId })
+      .andWhere('amlCheck != :check', { check: CheckStatus.FAIL })
+      .andWhere(
+        new Brackets((query) =>
+          query
+            .where('buyFiat.outputDate IS NULL')
+            .orWhere('buyFiat.outputDate BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo }),
+        ),
+      )
+      .getRawOne<{ volume: number }>()
+      .then((r) => r.volume ?? 0);
   }
 
   async getAllUserTransactions(userIds: number[]): Promise<BuyFiat[]> {
