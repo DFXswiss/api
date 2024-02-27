@@ -90,22 +90,22 @@ export class BuyFiat extends IEntity {
   percentFee: number;
 
   @Column({ type: 'float', nullable: true })
-  percentFeeAmount: number; //inputReferenceAsset
+  percentFeeAmount: number; //inputAsset
 
   @Column({ type: 'float', nullable: true })
-  absoluteFeeAmount: number; //inputReferenceAsset
+  absoluteFeeAmount: number; //inputAsset
 
   @Column({ type: 'float', nullable: true })
   inputReferenceAmountMinusFee: number;
 
   @Column({ type: 'float', nullable: true })
-  minFeeAmount: number; //inputReferenceAsset
+  minFeeAmount: number; //inputAsset
 
   @Column({ type: 'float', nullable: true })
-  minFeeAmountFiat: number; //outputReferenceAsset
+  minFeeAmountFiat: number; //EUR
 
   @Column({ type: 'float', nullable: true })
-  totalFeeAmount: number; //inputReferenceAsset
+  totalFeeAmount: number; //inputAsset
 
   @Column({ type: 'float', nullable: true })
   totalFeeAmountChf: number;
