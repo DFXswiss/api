@@ -169,7 +169,6 @@ export class BuyCryptoPreparationService {
             fee.total,
             referenceChfPrice.convert(fee.total, 2),
             transactionRequest,
-            transactionRequest.externalTransactionId,
           ),
         );
 
