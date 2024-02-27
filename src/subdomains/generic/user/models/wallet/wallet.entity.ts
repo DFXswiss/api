@@ -18,9 +18,6 @@ export class Wallet extends IEntity {
   @Column({ default: false })
   isKycClient: boolean;
 
-  @Column({ length: 256, nullable: true })
-  apiUrl: string;
-
   @Column({ nullable: true })
   customKyc: KycType;
 
@@ -29,6 +26,9 @@ export class Wallet extends IEntity {
 
   @Column({ length: 256, nullable: true })
   identMethod?: KycStatus;
+
+  @Column({ length: 256, nullable: true })
+  apiUrl: string;
 
   @Column({ length: 256, nullable: true })
   apiKey: string;

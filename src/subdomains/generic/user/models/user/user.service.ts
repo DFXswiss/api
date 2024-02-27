@@ -7,8 +7,6 @@ import {
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Environment } from 'src/config/config';
-import { DfiTaxService } from 'src/integration/blockchain/ain/services/dfi-tax.service';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { Active } from 'src/shared/models/active';
@@ -50,7 +48,6 @@ export class UserService {
     private readonly userDataRepo: UserDataRepository,
     private readonly userDataService: UserDataService,
     private readonly walletService: WalletService,
-    private readonly dfiTaxService: DfiTaxService,
     private readonly apiKeyService: ApiKeyService,
     private readonly geoLocationService: GeoLocationService,
     private readonly countryService: CountryService,
@@ -149,9 +146,6 @@ export class UserService {
     } catch (e) {
       this.logger.warn(`Error while adding discountCode to new user ${user.id}:`, e);
     }
-
-    const blockchains = this.cryptoService.getBlockchainsBasedOn(user.address);
-    if (blockchains.includes(Blockchain.DEFICHAIN)) this.dfiTaxService.activateAddress(user.address);
 
     return user;
   }
@@ -308,7 +302,7 @@ export class UserService {
     userId: number,
     paymentMethodIn: PaymentMethod,
     paymentMethodOut: PaymentMethod,
-    from: Active | undefined,
+    from: Active,
     to: Active,
     minFee: number,
   ): Promise<FeeDto> {

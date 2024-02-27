@@ -20,9 +20,11 @@ export class AsyncCache<T> {
       const entry = this.cache.get(id);
       if (entry?.update) return await entry.update;
 
-      const updateCall = update().then((data) => {
-        this.cache.set(id, { updated: new Date(), data, update: undefined });
-      });
+      const updateCall = update()
+        .then((data) => {
+          this.cache.set(id, { updated: new Date(), data });
+        })
+        .finally(() => this.cache.set(id, { ...this.cache.get(id), update: undefined }));
 
       this.cache.set(id, { ...entry, update: updateCall });
 
@@ -33,6 +35,6 @@ export class AsyncCache<T> {
   }
 
   private get expiration(): Date {
-    return this.itemValiditySeconds ? Util.secondsBefore(this.itemValiditySeconds) : new Date(0);
+    return this.itemValiditySeconds != null ? Util.secondsBefore(this.itemValiditySeconds) : new Date(0);
   }
 }

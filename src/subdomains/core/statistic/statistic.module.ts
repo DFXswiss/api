@@ -5,14 +5,13 @@ import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { BuyCryptoModule } from '../buy-crypto/buy-crypto.module';
 import { ReferralModule } from '../referral/referral.module';
 import { SellCryptoModule } from '../sell-crypto/sell-crypto.module';
-import { CfpService } from './cfp.service';
 import { StatisticController } from './statistic.controller';
 import { StatisticService } from './statistic.service';
 
 @Module({
   imports: [SharedModule, BuyCryptoModule, SellCryptoModule, ReferralModule, UserModule, AinModule],
   controllers: [StatisticController],
-  providers: [StatisticService, CfpService],
+  providers: [StatisticService],
   exports: [],
 })
 export class StatisticModule {}

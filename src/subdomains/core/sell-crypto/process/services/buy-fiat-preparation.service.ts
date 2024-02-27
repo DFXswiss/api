@@ -1,11 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { isFiat } from 'src/shared/models/active';
-import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../buy-crypto/process/enums/check-status.enum';
@@ -21,9 +20,9 @@ export class BuyFiatPreparationService {
     private readonly transactionHelper: TransactionHelper,
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
-    private readonly assetService: AssetService,
     private readonly feeService: FeeService,
     private readonly buyFiatService: BuyFiatService,
+    private readonly transactionRequestService: TransactionRequestService,
   ) {}
 
   async refreshFee(): Promise<void> {
@@ -43,37 +42,43 @@ export class BuyFiatPreparationService {
 
     for (const entity of entities) {
       try {
-        const inputReferenceCurrency =
-          (await this.fiatService.getFiatByName(entity.inputReferenceAsset)) ??
-          (await this.assetService.getNativeMainLayerAsset(entity.inputReferenceAsset));
+        const inputCurrency = entity.cryptoInput.asset;
+
+        const transactionRequest = await this.transactionRequestService.findAndCompleteRequest(
+          entity.inputAmount,
+          entity.sell.id,
+          inputCurrency.id,
+          entity.sell.fiat.id,
+        );
 
         const { fee } = await this.transactionHelper.getTxFeeInfos(
-          entity.inputReferenceAmount,
-          entity.cryptoInput.asset,
-          inputReferenceCurrency,
+          entity.inputAmount,
+          inputCurrency,
+          inputCurrency,
           entity.sell.fiat,
           CryptoPaymentMethod.CRYPTO,
           FiatPaymentMethod.BANK,
           entity.sell.user,
         );
 
-        const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatEur, false);
-        const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
+        const eurPrice = await this.pricingService.getPrice(inputCurrency, fiatEur, false);
+        const chfPrice = await this.pricingService.getPrice(inputCurrency, fiatChf, false);
 
-        const amountInChf = referenceChfPrice.convert(entity.inputReferenceAmount, 2);
+        const amountInChf = chfPrice.convert(entity.inputAmount, 2);
 
         await this.buyFiatRepo.update(
           ...entity.setFeeAndFiatReference(
-            referenceEurPrice.convert(entity.inputReferenceAmount, 2),
+            eurPrice.convert(entity.inputAmount, 2),
             amountInChf,
             fee.fees,
             fee.rate,
             fee.fixed,
             fee.payoutRefBonus,
             fee.min,
-            isFiat(inputReferenceCurrency) ? fee.min : referenceEurPrice.convert(fee.min, 2),
+            eurPrice.convert(fee.min, 2),
             fee.total,
-            referenceChfPrice.convert(fee.total, 2),
+            chfPrice.convert(fee.total, 2),
+            transactionRequest,
           ),
         );
 
@@ -84,7 +89,57 @@ export class BuyFiatPreparationService {
         await this.buyFiatService.updateSellVolume([entity.sell?.id]);
         await this.buyFiatService.updateRefVolume([entity.usedRef]);
       } catch (e) {
-        this.logger.error(`Error during buy-crypto ${entity.id} fee and fiat reference refresh:`, e);
+        this.logger.error(`Error during buy-fiat ${entity.id} fee and fiat reference refresh:`, e);
+      }
+    }
+  }
+
+  async setOutput(): Promise<void> {
+    const entities = await this.buyFiatRepo.find({
+      where: {
+        amlCheck: CheckStatus.PASS,
+        isComplete: false,
+        inputReferenceAmountMinusFee: Not(IsNull()),
+        outputAmount: IsNull(),
+      },
+      relations: ['sell', 'cryptoInput'],
+    });
+
+    for (const entity of entities) {
+      try {
+        const asset = entity.cryptoInput.asset;
+        const currency = entity.sell.fiat;
+        const price = await this.pricingService.getPrice(asset, currency, false);
+
+        await this.buyFiatRepo.update(
+          ...entity.setOutput(price.convert(entity.inputReferenceAmountMinusFee), currency),
+        );
+      } catch (e) {
+        this.logger.error(`Error during buy-fiat ${entity.id} output setting:`, e);
+      }
+    }
+  }
+
+  async setOutputAssetEntity(): Promise<void> {
+    const entities = await this.buyFiatRepo.find({
+      where: {
+        amlCheck: CheckStatus.PASS,
+        outputAsset: Not(IsNull()),
+        outputAssetEntity: IsNull(),
+      },
+      relations: ['sell'],
+    });
+
+    for (const entity of entities) {
+      try {
+        const outputAssetEntity = entity.sell.fiat;
+        const outputReferenceAssetEntity = entity.outputReferenceAsset
+          ? await this.fiatService.getFiatByName(entity.outputReferenceAsset)
+          : null;
+
+        await this.buyFiatRepo.update(entity.id, { outputAssetEntity, outputReferenceAssetEntity });
+      } catch (e) {
+        this.logger.error(`Error during buy-fiat ${entity.id} outputAssetEntity setting:`, e);
       }
     }
   }

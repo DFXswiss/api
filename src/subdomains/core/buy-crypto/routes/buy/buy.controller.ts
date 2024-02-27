@@ -10,6 +10,7 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -43,6 +44,7 @@ export class BuyController {
     private readonly transactionHelper: TransactionHelper,
     private readonly checkoutService: CheckoutService,
     private readonly transactionRequestService: TransactionRequestService,
+    private readonly fiatService: FiatService,
   ) {}
 
   @Get()
@@ -173,7 +175,7 @@ export class BuyController {
       userId,
       FiatPaymentMethod.BANK,
       CryptoPaymentMethod.CRYPTO,
-      undefined,
+      await this.fiatService.getFiatByName('EUR'),
       buy.asset,
       minFee.amount,
     );

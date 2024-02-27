@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { Process } from 'src/shared/services/process.service';
-import { CakeFlowDto, CakeSettings } from './dto/cake-flow.dto';
 import { CustomSignUpFeesDto } from './dto/custom-sign-up-fees.dto';
 import { UpdateProcessDto } from './dto/update-process.dto';
 import { Setting } from './setting.entity';
@@ -20,14 +19,6 @@ export class SettingService {
 
   async set(key: string, value: string): Promise<void> {
     await this.settingRepo.save({ key, value });
-  }
-
-  async setCakeFlow(dto: CakeFlowDto): Promise<void> {
-    const cakeSettings = await this.getObj<CakeSettings>('cake', { assets: {} });
-
-    cakeSettings.assets[dto.asset] = { direction: dto.direction, threshold: dto.threshold };
-
-    await this.setObj<CakeSettings>('cake', cakeSettings);
   }
 
   async updateCustomSignUpFees(dto: CustomSignUpFeesDto): Promise<void> {

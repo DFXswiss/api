@@ -54,8 +54,6 @@ export class WebhookNotificationService {
     try {
       if (!webhook.user.wallet.apiUrl)
         throw new Error(`ApiUrl for wallet ${webhook.user.wallet.name} not available anymore in webhook ${webhook.id}`);
-      if (!webhook.user.wallet.apiKey)
-        throw new Error(`ApiKey for wallet ${webhook.user.wallet.name} not available in webhook ${webhook.id}`);
 
       const webhookDto: WebhookDto<T> = {
         id: webhook.user.address,

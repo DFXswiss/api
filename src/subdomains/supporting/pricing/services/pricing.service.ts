@@ -24,6 +24,7 @@ export class PricingService {
 
   private readonly providerMap: { [s in PriceSource]: PricingProvider };
   private readonly priceCache = new AsyncCache<Price>(10);
+  private readonly updateCalls = new AsyncCache<Price>(0);
 
   constructor(
     private readonly priceRuleRepo: PriceRuleRepository,
@@ -51,14 +52,16 @@ export class PricingService {
     try {
       if (this.areEqual(from, to)) return Price.create(from.name, to.name, 1);
 
-      const fromPrice = await this.getPriceFor(from, allowExpired);
-      const toPrice = await this.getPriceFor(to, allowExpired);
+      const [fromPrice, toPrice] = await Promise.all([
+        this.getPriceForActive(from, allowExpired),
+        this.getPriceForActive(to, allowExpired),
+      ]);
 
       const price = Price.join(fromPrice, toPrice.invert());
 
-      if (fromPrice.target !== toPrice.target) throw new Error('Price reference mismatch');
       if (!price.isValid && !allowExpired) throw new Error('Price invalid');
 
+      if (Math.abs(price.price - 1) < 0.001) price.price = 1;
       price.source = from.name;
       price.target = to.name;
 
@@ -82,25 +85,39 @@ export class PricingService {
   }
 
   // --- PRIVATE METHODS --- //
-  private async getPriceFor(item: Active, allowExpired: boolean): Promise<Price> {
-    let rule = await this.getRuleFor(item);
-    if (!rule) throw new Error(`No price rule found for ${this.getItemString(item)}`);
+  private async getPriceForActive(item: Active, allowExpired: boolean): Promise<Price> {
+    const rules: { active: Active; rule: PriceRule }[] = [];
 
-    const referencePrice = rule.reference
-      ? await this.getPriceFor(rule.reference, allowExpired)
-      : Price.create('DFX-USD', 'DFX-USD', 1);
+    let rule: PriceRule;
+    do {
+      const active = rule?.reference ?? item;
+      rule = await this.getRuleFor(active);
+      if (!rule) throw new Error(`No price rule found for ${this.getItemString(active)}`);
 
+      rules.push({ active, rule });
+    } while (rule.reference);
+
+    const prices = await Promise.all(
+      rules.map(({ active, rule }) =>
+        this.updateCalls.get(`${rule.id}`, () => this.getPriceForRule(rule, allowExpired, active)),
+      ),
+    );
+
+    return Price.join(...prices);
+  }
+
+  private async getPriceForRule(rule: PriceRule, allowExpired: boolean, active?: Active): Promise<Price> {
     if (!rule.isPriceValid) {
-      const updateTask = this.updatePriceFor(rule, item, rule.reference);
+      const updateTask = this.updatePriceFor(rule, active);
 
       if (!allowExpired || rule.currentPrice == null || rule.isPriceObsolete) {
         rule = await updateTask;
       } else {
-        updateTask.catch((e) => this.logger.error(`Failed to update price for rule ${rule.id}:`, e));
+        updateTask.catch((e) => this.logger.error(`Failed to update price for rule ${rule.id} in background:`, e));
       }
     }
 
-    return Price.join(rule.price, referencePrice);
+    return rule.price;
   }
 
   private async getRuleFor(item: Active): Promise<PriceRule | undefined> {
@@ -110,14 +127,19 @@ export class PricingService {
     return query.leftJoinAndSelect('rule.reference', 'reference').where('item.id = :id', { id: item.id }).getOne();
   }
 
-  private async updatePriceFor(rule: PriceRule, from?: Active, to?: Active): Promise<PriceRule> {
-    const price = await this.getRulePrice(rule.rule);
+  private async updatePriceFor(rule: PriceRule, from?: Active): Promise<PriceRule> {
+    const [price, check1Price, check2Price] = await Promise.all([
+      this.getRulePrice(rule.rule),
+      rule.check1 && this.getRulePrice(rule.check1),
+      rule.check2 && this.getRulePrice(rule.check2),
+    ]);
+
     const source = from?.name ?? price.source;
-    const target = to?.name ?? price.target;
+    const target = rule.reference?.name ?? price.target;
 
     if (
-      (await this.isPriceValid(source, target, price.price, rule.check1)) &&
-      (await this.isPriceValid(source, target, price.price, rule.check2))
+      (await this.isPriceValid(source, target, price.price, rule.check1, check1Price)) &&
+      (await this.isPriceValid(source, target, price.price, rule.check2, check2Price))
     ) {
       rule.currentPrice = price.price;
       rule.priceTimestamp = new Date();
@@ -127,10 +149,15 @@ export class PricingService {
     return rule;
   }
 
-  private async isPriceValid(from: string, to: string, price: number, rule?: Rule): Promise<boolean> {
-    if (!rule) return true;
+  private async isPriceValid(
+    from: string,
+    to: string,
+    price: number,
+    rule?: Rule,
+    rulePrice?: Price,
+  ): Promise<boolean> {
+    if (!rule || !rulePrice) return true;
 
-    const rulePrice = await this.getRulePrice(rule);
     const difference = Math.abs(rulePrice.price - price) / price;
 
     if (difference > rule.limit) {
@@ -167,8 +194,12 @@ export class PricingService {
   }
 
   private async getRulePrice(rule: Rule): Promise<Price> {
-    return this.priceCache.get(`${rule.source}:${rule.asset}/${rule.reference}`, () =>
-      this.getPriceFrom(rule.source, rule.asset, rule.reference),
-    );
+    return this.priceCache
+      .get(`${rule.source}:${rule.asset}/${rule.reference}`, () =>
+        this.getPriceFrom(rule.source, rule.asset, rule.reference),
+      )
+      .catch((e) => {
+        throw new Error(`Failed to get price ${rule.asset} -> ${rule.reference} on ${rule.source}: ${e.message}`);
+      });
   }
 }

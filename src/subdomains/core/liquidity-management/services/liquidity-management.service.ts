@@ -1,6 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
@@ -106,9 +105,8 @@ export class LiquidityManagementService {
       if (result.deficit || result.redundancy) {
         if (!this.ruleActivations.has(rule.id)) this.ruleActivations.set(rule.id, new Date());
 
-        // execute rule 30 seconds/minutes after activation
-        const requiredActivationTime =
-          rule.targetAsset?.blockchain === Blockchain.DEFICHAIN ? Util.secondsBefore(30) : Util.minutesBefore(30);
+        // execute rule 30 minutes after activation
+        const requiredActivationTime = Util.minutesBefore(30);
 
         if (this.ruleActivations.get(rule.id) < requiredActivationTime) {
           this.ruleActivations.delete(rule.id);

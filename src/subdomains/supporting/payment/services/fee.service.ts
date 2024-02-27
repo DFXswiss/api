@@ -36,7 +36,7 @@ export interface OptionalFeeRequest extends FeeRequestBase {
 export interface FeeRequestBase {
   paymentMethodIn: PaymentMethod;
   paymentMethodOut: PaymentMethod;
-  from: Active | undefined;
+  from: Active;
   to: Active;
   txVolume?: number;
   blockchainFee: number;

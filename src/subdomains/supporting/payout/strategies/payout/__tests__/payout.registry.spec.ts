@@ -3,14 +3,12 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutArbitrumService } from '../../../services/payout-arbitrum.service';
 import { PayoutBaseService } from '../../../services/payout-base.service';
 import { PayoutBitcoinService } from '../../../services/payout-bitcoin.service';
 import { PayoutBscService } from '../../../services/payout-bsc.service';
-import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
 import { PayoutEthereumService } from '../../../services/payout-ethereum.service';
 import { PayoutMoneroService } from '../../../services/payout-monero.service';
 import { PayoutOptimismService } from '../../../services/payout-optimism.service';
@@ -23,8 +21,6 @@ import { PayoutStrategyRegistry } from '../impl/base/payout.strategy-registry';
 import { BitcoinStrategy } from '../impl/bitcoin.strategy';
 import { BscCoinStrategy } from '../impl/bsc-coin.strategy';
 import { BscTokenStrategy } from '../impl/bsc-token.strategy';
-import { DeFiChainCoinStrategy } from '../impl/defichain-coin.strategy';
-import { DeFiChainTokenStrategy } from '../impl/defichain-token.strategy';
 import { EthereumCoinStrategy } from '../impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy } from '../impl/ethereum-token.strategy';
 import { MoneroStrategy } from '../impl/monero.strategy';
@@ -39,8 +35,6 @@ describe('PayoutStrategyRegistry', () => {
   let bitcoin: BitcoinStrategy;
   let bscCoin: BscCoinStrategy;
   let bscToken: BscTokenStrategy;
-  let deFiChainCoin: DeFiChainCoinStrategy;
-  let deFiChainToken: DeFiChainTokenStrategy;
   let ethereumCoin: EthereumCoinStrategy;
   let ethereumToken: EthereumTokenStrategy;
   let monero: MoneroStrategy;
@@ -72,19 +66,7 @@ describe('PayoutStrategyRegistry', () => {
     );
     bscCoin = new BscCoinStrategy(mock<PayoutBscService>(), mock<AssetService>(), mock<PayoutOrderRepository>());
     bscToken = new BscTokenStrategy(mock<PayoutBscService>(), mock<AssetService>(), mock<PayoutOrderRepository>());
-    deFiChainCoin = new DeFiChainCoinStrategy(
-      mock<NotificationService>(),
-      mock<PayoutDeFiChainService>(),
-      mock<PayoutOrderRepository>(),
-      mock<AssetService>(),
-    );
-    deFiChainToken = new DeFiChainTokenStrategy(
-      mock<NotificationService>(),
-      mock<DexService>(),
-      mock<PayoutDeFiChainService>(),
-      mock<PayoutOrderRepository>(),
-      mock<AssetService>(),
-    );
+
     ethereumCoin = new EthereumCoinStrategy(
       mock<PayoutEthereumService>(),
       mock<AssetService>(),
@@ -130,8 +112,6 @@ describe('PayoutStrategyRegistry', () => {
       bitcoin,
       bscCoin,
       bscToken,
-      deFiChainCoin,
-      deFiChainToken,
       ethereumCoin,
       ethereumToken,
       monero,
@@ -184,22 +164,6 @@ describe('PayoutStrategyRegistry', () => {
         );
 
         expect(strategy).toBeInstanceOf(BscTokenStrategy);
-      });
-
-      it('gets DEFICHAIN_COIN strategy', () => {
-        const strategy = registry.getPayoutStrategy(
-          createCustomAsset({ blockchain: Blockchain.DEFICHAIN, type: AssetType.COIN }),
-        );
-
-        expect(strategy).toBeInstanceOf(DeFiChainCoinStrategy);
-      });
-
-      it('gets DEFICHAIN_TOKEN strategy for DEFICHAIN', () => {
-        const strategy = registry.getPayoutStrategy(
-          createCustomAsset({ blockchain: Blockchain.DEFICHAIN, type: AssetType.TOKEN }),
-        );
-
-        expect(strategy).toBeInstanceOf(DeFiChainTokenStrategy);
       });
 
       it('gets ETHEREUM_COIN strategy', () => {
@@ -294,8 +258,6 @@ class PayoutStrategyRegistryWrapper extends PayoutStrategyRegistry {
     bitcoin: BitcoinStrategy,
     bscCoin: BscCoinStrategy,
     bscToken: BscTokenStrategy,
-    deFiChainCoin: DeFiChainCoinStrategy,
-    deFiChainToken: DeFiChainTokenStrategy,
     ethereumCoin: EthereumCoinStrategy,
     ethereumToken: EthereumTokenStrategy,
     monero: MoneroStrategy,
@@ -313,8 +275,6 @@ class PayoutStrategyRegistryWrapper extends PayoutStrategyRegistry {
     this.add({ blockchain: Blockchain.BITCOIN, assetType: AssetType.COIN }, bitcoin);
     this.add({ blockchain: Blockchain.BINANCE_SMART_CHAIN, assetType: AssetType.COIN }, bscCoin);
     this.add({ blockchain: Blockchain.BINANCE_SMART_CHAIN, assetType: AssetType.TOKEN }, bscToken);
-    this.add({ blockchain: Blockchain.DEFICHAIN, assetType: AssetType.COIN }, deFiChainCoin);
-    this.add({ blockchain: Blockchain.DEFICHAIN, assetType: AssetType.TOKEN }, deFiChainToken);
     this.add({ blockchain: Blockchain.ETHEREUM, assetType: AssetType.COIN }, ethereumCoin);
     this.add({ blockchain: Blockchain.ETHEREUM, assetType: AssetType.TOKEN }, ethereumToken);
     this.add({ blockchain: Blockchain.MONERO, assetType: AssetType.COIN }, monero);

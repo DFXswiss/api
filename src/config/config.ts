@@ -108,11 +108,6 @@ export class Configuration {
     resolvers: [{ resolve: () => this.defaultLanguage }],
   };
 
-  mydefichain = {
-    username: process.env.MYDEFICHAIN_USER,
-    password: process.env.MYDEFICHAIN_PASSWORD,
-  };
-
   auth = {
     jwt: {
       secret: process.env.JWT_SECRET,
@@ -341,9 +336,6 @@ export class Configuration {
       },
       Monero: {
         XMR: 0.000001,
-      },
-      DeFiChain: {
-        DFI: 0.01,
       },
     },
     forwardFeeLimit: +(process.env.PAY_IN_FEE_LIMIT ?? 0.001),

@@ -63,4 +63,19 @@ describe('Lock', () => {
 
     expect(hasUpdated).toBeTruthy();
   });
+
+  it('should be true', async () => {
+    const result = Util.isSameName('Màx Müstermann', 'Max Mustêrmañn');
+    expect(result).toBe(true);
+  });
+
+  it('should be true', async () => {
+    const result = Util.isSameName('Màx Mueller', 'Mâx Peter Müllér');
+    expect(result).toBe(true);
+  });
+
+  it('should be true', async () => {
+    const result = Util.isSameName('Maex Moeller', 'Mäx Peter Möllér');
+    expect(result).toBe(true);
+  });
 });

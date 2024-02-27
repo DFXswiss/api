@@ -1,13 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { BuyPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
 import { GetBuyPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/get-buy-payment-info.dto';
 import { CryptoPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/crypto-route/dto/crypto-payment-info.dto';
 import { GetCryptoPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/crypto-route/dto/get-crypto-payment-info.dto';
 import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/sell-payment-info.dto';
+import { MoreThan } from 'typeorm';
 import { CryptoPaymentMethod, FiatPaymentMethod } from '../dto/payment-method.enum';
-import { TransactionRequestType } from '../entities/transaction-request.entity';
+import { TransactionRequest, TransactionRequestType } from '../entities/transaction-request.entity';
 import { TransactionRequestRepository } from '../repositories/transaction-request.repository';
 
 @Injectable()
@@ -35,6 +37,7 @@ export class TransactionRequestService {
         isValid: response.isValid,
         error: response.error,
         fee: response.fee,
+        exactPrice: response.exactPrice,
         minFee: response.minFee,
       });
 
@@ -74,5 +77,26 @@ export class TransactionRequestService {
     } catch (e) {
       this.logger.error(`Failed to store ${type} transaction request for route ${response.routeId}:`, e);
     }
+  }
+
+  async findAndCompleteRequest(
+    amount: number,
+    routeId: number,
+    sourceId: number,
+    targetId: number,
+  ): Promise<TransactionRequest> {
+    const transactionRequest = await this.transactionRequestRepo.findOne({
+      where: {
+        amount,
+        routeId,
+        sourceId,
+        targetId,
+        isComplete: false,
+        created: MoreThan(Util.daysBefore(2)),
+      },
+      order: { created: 'DESC' },
+    });
+    if (transactionRequest) await this.transactionRequestRepo.update(transactionRequest.id, { isComplete: true });
+    return transactionRequest;
   }
 }

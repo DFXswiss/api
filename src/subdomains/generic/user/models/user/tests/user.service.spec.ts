@@ -1,6 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { DfiTaxService } from 'src/integration/blockchain/ain/services/dfi-tax.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { CountryService } from 'src/shared/models/country/country.service';
@@ -20,7 +19,6 @@ describe('UserService', () => {
   let userDataRepo: UserDataRepository;
   let userDataService: UserDataService;
   let walletService: WalletService;
-  let dfiTaxService: DfiTaxService;
   let geoLocationService: GeoLocationService;
   let countryService: CountryService;
   let cryptoService: CryptoService;
@@ -32,7 +30,6 @@ describe('UserService', () => {
     userDataRepo = createMock<UserDataRepository>();
     userDataService = createMock<UserDataService>();
     walletService = createMock<WalletService>();
-    dfiTaxService = createMock<DfiTaxService>();
     geoLocationService = createMock<GeoLocationService>();
     countryService = createMock<CountryService>();
     cryptoService = createMock<CryptoService>();
@@ -46,7 +43,6 @@ describe('UserService', () => {
         { provide: UserDataRepository, useValue: userDataRepo },
         { provide: UserDataService, useValue: userDataService },
         { provide: WalletService, useValue: walletService },
-        { provide: DfiTaxService, useValue: dfiTaxService },
         { provide: GeoLocationService, useValue: geoLocationService },
         { provide: CountryService, useValue: countryService },
         { provide: CryptoService, useValue: cryptoService },

@@ -8,6 +8,7 @@ import { IpGuard } from 'src/shared/auth/ip.guard';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
@@ -40,6 +41,7 @@ export class CryptoRouteController {
     private readonly transactionHelper: TransactionHelper,
     private readonly cryptoService: CryptoService,
     private readonly transactionRequestService: TransactionRequestService,
+    private readonly assetService: AssetService,
   ) {}
 
   @Get()
@@ -173,11 +175,12 @@ export class CryptoRouteController {
       crypto.asset.dexName,
     );
 
+    const defaultBlockchain = this.cryptoService.getDefaultBlockchainBasedOn(crypto.user.address);
     const fee = await this.userService.getUserFee(
       userId,
       CryptoPaymentMethod.CRYPTO,
       CryptoPaymentMethod.CRYPTO,
-      undefined,
+      await this.assetService.getNativeAsset(defaultBlockchain),
       crypto.asset,
       minFee.amount,
     );
