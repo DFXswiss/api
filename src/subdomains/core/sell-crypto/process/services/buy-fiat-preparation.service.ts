@@ -84,7 +84,55 @@ export class BuyFiatPreparationService {
         await this.buyFiatService.updateSellVolume([entity.sell?.id]);
         await this.buyFiatService.updateRefVolume([entity.usedRef]);
       } catch (e) {
-        this.logger.error(`Error during buy-crypto ${entity.id} fee and fiat reference refresh:`, e);
+        this.logger.error(`Error during buy-fiat ${entity.id} fee and fiat reference refresh:`, e);
+      }
+    }
+  }
+
+  async setOutput(): Promise<void> {
+    const entities = await this.buyFiatRepo.find({
+      where: {
+        amlCheck: CheckStatus.PASS,
+        isComplete: false,
+        inputReferenceAmountMinusFee: Not(IsNull()),
+        outputAmount: IsNull(),
+      },
+      relations: ['sell', 'sell.user', 'sell.user.wallet', 'sell.user.userData', 'cryptoInput'],
+    });
+
+    for (const entity of entities) {
+      try {
+        const asset = entity.cryptoInput.asset;
+        const currency = entity.sell.fiat;
+        const price = await this.pricingService.getPrice(asset, currency, false);
+
+        await this.buyFiatRepo.update(
+          ...entity.setOutput(price.convert(entity.inputReferenceAmountMinusFee), currency),
+        );
+      } catch (e) {
+        this.logger.error(`Error during buy-fiat ${entity.id} output setting:`, e);
+      }
+    }
+  }
+
+  async setOutputAssetEntity(): Promise<void> {
+    const entities = await this.buyFiatRepo.find({
+      where: {
+        amlCheck: CheckStatus.PASS,
+        outputAsset: Not(IsNull()),
+        outputAssetEntity: IsNull(),
+      },
+      relations: ['sell', 'sell.user', 'sell.user.wallet', 'sell.user.userData', 'cryptoInput'],
+    });
+
+    for (const entity of entities) {
+      try {
+        const outputAssetEntity = entity.sell.fiat;
+        const outputReferenceAssetEntity = await this.fiatService.getFiatByName(entity.outputReferenceAsset);
+
+        await this.buyFiatRepo.update(entity.id, { outputAssetEntity, outputReferenceAssetEntity });
+      } catch (e) {
+        this.logger.error(`Error during buy-fiat ${entity.id} output setting:`, e);
       }
     }
   }

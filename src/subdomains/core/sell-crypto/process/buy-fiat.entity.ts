@@ -1,5 +1,7 @@
+import { ConflictException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -9,7 +11,6 @@ import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { AmlReason } from '../../buy-crypto/process/enums/aml-reason.enum';
 import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
 import { Sell } from '../route/sell.entity';
-import { ConflictException } from '@nestjs/common';
 
 @Entity()
 export class BuyFiat extends IEntity {
@@ -126,11 +127,17 @@ export class BuyFiat extends IEntity {
   @Column({ length: 256, nullable: true })
   outputReferenceAsset: string;
 
+  @ManyToOne(() => Fiat, { eager: true, nullable: true })
+  outputReferenceAssetEntity: Fiat;
+
   @Column({ type: 'float', nullable: true })
   outputAmount: number;
 
   @Column({ length: 256, nullable: true })
   outputAsset: string;
+
+  @ManyToOne(() => Fiat, { eager: true, nullable: true })
+  outputAssetEntity: Fiat;
 
   // Transaction details
   @Column({ length: 256, nullable: true })
@@ -242,6 +249,17 @@ export class BuyFiat extends IEntity {
     };
 
     if (update.inputReferenceAmountMinusFee < 0) throw new ConflictException('InputReferenceAmountMinusFee smaller 0');
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  setOutput(outputAmount: number, outputAssetEntity: Fiat): UpdateResult<BuyFiat> {
+    const update: Partial<BuyFiat> = {
+      outputAmount,
+      outputAssetEntity,
+    };
 
     Object.assign(this, update);
 
