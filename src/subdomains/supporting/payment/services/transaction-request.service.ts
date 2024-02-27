@@ -7,7 +7,7 @@ import { CryptoPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/cryp
 import { GetCryptoPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/crypto-route/dto/get-crypto-payment-info.dto';
 import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/sell-payment-info.dto';
-import { LessThan } from 'typeorm';
+import { MoreThan } from 'typeorm';
 import { CryptoPaymentMethod, FiatPaymentMethod } from '../dto/payment-method.enum';
 import { TransactionRequest, TransactionRequestType } from '../entities/transaction-request.entity';
 import { TransactionRequestRepository } from '../repositories/transaction-request.repository';
@@ -92,11 +92,11 @@ export class TransactionRequestService {
         sourceId,
         targetId,
         isComplete: false,
-        created: LessThan(Util.daysBefore(2, new Date())),
+        created: MoreThan(Util.daysBefore(2)),
       },
       order: { created: 'DESC' },
     });
-    if (!transactionRequest) await this.transactionRequestRepo.update(transactionRequest.id, { isComplete: true });
+    if (transactionRequest) await this.transactionRequestRepo.update(transactionRequest.id, { isComplete: true });
     return transactionRequest;
   }
 }
