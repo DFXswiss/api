@@ -240,7 +240,7 @@ export class BuyFiat extends IEntity {
     minFeeAmountFiat: number,
     totalFeeAmount: number,
     totalFeeAmountChf: number,
-    transactionRequest: TransactionRequest,
+    transactionRequest?: TransactionRequest,
   ): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
       absoluteFeeAmount: fixedFee,
@@ -256,7 +256,7 @@ export class BuyFiat extends IEntity {
       refFactor: payoutRefBonus ? this.refFactor : 0,
       usedFees: fees?.map((fee) => fee.id).join(';'),
       transactionRequest,
-      externalTransactionId: transactionRequest.externalTransactionId,
+      externalTransactionId: transactionRequest?.externalTransactionId,
     };
 
     if (update.inputReferenceAmountMinusFee < 0) throw new ConflictException('InputReferenceAmountMinusFee smaller 0');

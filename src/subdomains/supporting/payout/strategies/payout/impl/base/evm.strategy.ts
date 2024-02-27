@@ -29,6 +29,10 @@ export abstract class EvmStrategy extends PayoutStrategy {
     return { asset: await this.feeAsset(), amount: gasPerTransaction };
   }
 
+  async estimateBlockchainFee(asset: Asset): Promise<FeeResult> {
+    return this.estimateFee(asset);
+  }
+
   async doPayout(orders: PayoutOrder[]): Promise<void> {
     for (const order of orders) {
       try {
