@@ -13,7 +13,6 @@ export class BuyCryptoExtended extends BuyCrypto {
 
 export class BuyFiatExtended extends BuyFiat {
   inputAssetEntity: Active;
-  outputAssetEntity: Active;
 }
 
 export class RefRewardExtended extends RefReward {
