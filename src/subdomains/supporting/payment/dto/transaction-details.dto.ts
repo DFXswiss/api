@@ -1,5 +1,5 @@
-import { TransactionError } from '../services/transaction-helper';
 import { FeeDto } from './fee.dto';
+import { TransactionError } from './transaction.dto';
 
 export interface TargetEstimation {
   sourceAmount: number;

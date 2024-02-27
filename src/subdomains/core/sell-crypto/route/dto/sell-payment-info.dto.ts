@@ -3,7 +3,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/min-amount.dto';
-import { TransactionError } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionError } from 'src/subdomains/supporting/payment/dto/transaction.dto';
 
 export class SellPaymentInfoDto {
   @ApiProperty()

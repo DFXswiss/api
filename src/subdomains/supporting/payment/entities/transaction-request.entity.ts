@@ -1,7 +1,7 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity } from 'typeorm';
 import { PaymentMethod } from '../dto/payment-method.enum';
-import { TransactionError } from '../services/transaction-helper';
+import { TransactionError } from '../dto/transaction.dto';
 
 export enum TransactionRequestType {
   Buy = 'Buy',

@@ -169,8 +169,7 @@ export class BuyFiat extends IEntity {
   isComplete: boolean;
 
   @OneToOne(() => TransactionRequest, { nullable: true })
-  @JoinColumn()
-  transactionRequest: TransactionRequest; 
+  transactionRequest: TransactionRequest;
 
   //*** FACTORY METHODS ***//
 

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TransactionError } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionError } from 'src/subdomains/supporting/payment/dto/transaction.dto';
 
 export class BuyQuoteDto {
   @ApiProperty({ description: 'Fee amount in source currency' })
