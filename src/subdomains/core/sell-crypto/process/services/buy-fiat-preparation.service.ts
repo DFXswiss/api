@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -20,7 +19,6 @@ export class BuyFiatPreparationService {
     private readonly transactionHelper: TransactionHelper,
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
-    private readonly assetService: AssetService,
     private readonly feeService: FeeService,
     private readonly buyFiatService: BuyFiatService,
   ) {}
@@ -94,7 +92,7 @@ export class BuyFiatPreparationService {
         inputReferenceAmountMinusFee: Not(IsNull()),
         outputAmount: IsNull(),
       },
-      relations: ['sell', 'sell.user', 'sell.user.wallet', 'sell.user.userData', 'cryptoInput'],
+      relations: ['sell', 'cryptoInput'],
     });
 
     for (const entity of entities) {
@@ -119,7 +117,7 @@ export class BuyFiatPreparationService {
         outputAsset: Not(IsNull()),
         outputAssetEntity: IsNull(),
       },
-      relations: ['sell', 'sell.user', 'sell.user.wallet', 'sell.user.userData', 'cryptoInput'],
+      relations: ['sell'],
     });
 
     for (const entity of entities) {
@@ -129,7 +127,7 @@ export class BuyFiatPreparationService {
 
         await this.buyFiatRepo.update(entity.id, { outputAssetEntity, outputReferenceAssetEntity });
       } catch (e) {
-        this.logger.error(`Error during buy-fiat ${entity.id} output setting:`, e);
+        this.logger.error(`Error during buy-fiat ${entity.id} outputAssetEntity setting:`, e);
       }
     }
   }

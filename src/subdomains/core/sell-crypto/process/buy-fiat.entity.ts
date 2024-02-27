@@ -51,10 +51,10 @@ export class BuyFiat extends IEntity {
   inputAsset: string;
 
   @Column({ type: 'float', nullable: true })
-  inputReferenceAmount: number;
+  inputReferenceAmount: number; // deprecated
 
   @Column({ length: 256, nullable: true })
-  inputReferenceAsset: string;
+  inputReferenceAsset: string; // deprecated
 
   @Column({ type: 'float', nullable: true })
   amountInChf: number;
