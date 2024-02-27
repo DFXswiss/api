@@ -113,7 +113,6 @@ export class Util {
   static getVerifiedNameArray(name: string): string[] {
     return name
       .toLowerCase()
-      .toLowerCase()
       .replace(/[ìíî]/g, 'i')
       .replace(/[úûù]/g, 'u')
       .replace(/[áâåà]/g, 'a')
@@ -127,9 +126,9 @@ export class Util {
     let replacedArray1: string[] = arr1;
     let replacedArray2: string[] = arr2;
 
-    for (const replaceElement of replaceArray) {
-      replacedArray1 = replacedArray1.map((a) => a.split(replaceElement[0]).join(replaceElement[1]));
-      replacedArray2 = replacedArray2.map((a) => a.split(replaceElement[0]).join(replaceElement[1]));
+    for (const [key, value] of replaceArray) {
+      replacedArray1 = replacedArray1.map((a) => a.split(key).join(value));
+      replacedArray2 = replacedArray2.map((a) => a.split(key).join(value));
     }
 
     return (
