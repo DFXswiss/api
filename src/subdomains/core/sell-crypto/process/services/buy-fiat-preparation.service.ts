@@ -133,7 +133,9 @@ export class BuyFiatPreparationService {
     for (const entity of entities) {
       try {
         const outputAssetEntity = entity.sell.fiat;
-        const outputReferenceAssetEntity = await this.fiatService.getFiatByName(entity.outputReferenceAsset);
+        const outputReferenceAssetEntity = entity.outputReferenceAsset
+          ? await this.fiatService.getFiatByName(entity.outputReferenceAsset)
+          : null;
 
         await this.buyFiatRepo.update(entity.id, { outputAssetEntity, outputReferenceAssetEntity });
       } catch (e) {
