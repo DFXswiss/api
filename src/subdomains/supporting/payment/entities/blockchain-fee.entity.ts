@@ -4,7 +4,7 @@ import { Column, Entity, JoinColumn, OneToOne } from 'typeorm';
 
 @Entity()
 export class BlockchainFee extends IEntity {
-  @OneToOne(() => Asset, { nullable: false })
+  @OneToOne(() => Asset, { nullable: false, eager: true })
   @JoinColumn()
   asset: Asset;
 

@@ -71,8 +71,7 @@ export class PayoutService {
 
   async estimateBlockchainFee(feeAsset: Asset): Promise<FeeResult> {
     const payoutStrategy = this.payoutStrategyRegistry.getPayoutStrategy(feeAsset);
-    const { asset, amount } = await payoutStrategy.estimateBlockchainFee(feeAsset);
-    return { asset, amount };
+    return payoutStrategy.estimateBlockchainFee(feeAsset);
   }
 
   async speedupTransaction(id: number): Promise<void> {

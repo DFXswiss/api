@@ -7,7 +7,7 @@ import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module'
 import { SharedModule } from '../../../shared/shared.module';
 import { PayoutModule } from '../payout/payout.module';
 import { FeeController } from './controllers/fee.controller';
-import { BlockchainFee } from './entities/blockchain-fee';
+import { BlockchainFee } from './entities/blockchain-fee.entity';
 import { Fee } from './entities/fee.entity';
 import { TransactionRequest } from './entities/transaction-request.entity';
 import { TransactionSpecification } from './entities/transaction-specification.entity';
