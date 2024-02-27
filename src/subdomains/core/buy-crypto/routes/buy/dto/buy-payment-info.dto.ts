@@ -2,7 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/min-amount.dto';
-import { TransactionError } from 'src/subdomains/supporting/payment/dto/transaction.dto';
+import { TransactionError } from 'src/subdomains/supporting/payment/dto/transaction-error.enum';
 
 export class BankInfoDto {
   @ApiProperty()

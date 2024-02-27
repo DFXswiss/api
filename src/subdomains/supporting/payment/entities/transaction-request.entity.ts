@@ -1,7 +1,7 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity } from 'typeorm';
 import { PaymentMethod } from '../dto/payment-method.enum';
-import { TransactionError } from '../dto/transaction.dto';
+import { TransactionError } from '../dto/transaction-error.enum';
 
 export enum TransactionRequestType {
   Buy = 'Buy',
@@ -65,6 +65,6 @@ export class TransactionRequest extends IEntity {
   @Column()
   exactPrice: boolean;
 
-  @Column()
+  @Column({ default: false })
   isComplete: boolean;
 }

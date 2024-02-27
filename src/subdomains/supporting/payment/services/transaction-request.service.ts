@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { BuyPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
 import { GetBuyPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/get-buy-payment-info.dto';
 import { CryptoPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/crypto-route/dto/crypto-payment-info.dto';
 import { GetCryptoPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/crypto-route/dto/get-crypto-payment-info.dto';
 import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/sell-payment-info.dto';
+import { LessThan } from 'typeorm';
 import { CryptoPaymentMethod, FiatPaymentMethod } from '../dto/payment-method.enum';
 import { TransactionRequest, TransactionRequestType } from '../entities/transaction-request.entity';
 import { TransactionRequestRepository } from '../repositories/transaction-request.repository';
@@ -77,17 +79,24 @@ export class TransactionRequestService {
     }
   }
 
-  async findTransactionRequest(
+  async findAndCompleteRequest(
     amount: number,
     routeId: number,
     sourceId: number,
     targetId: number,
   ): Promise<TransactionRequest> {
     const transactionRequest = await this.transactionRequestRepo.findOne({
-      where: { amount, routeId, sourceId, targetId, isComplete: false },
+      where: {
+        amount,
+        routeId,
+        sourceId,
+        targetId,
+        isComplete: false,
+        created: LessThan(Util.daysBefore(2, new Date())),
+      },
       order: { created: 'DESC' },
     });
-    await this.transactionRequestRepo.update(transactionRequest.id, { isComplete: true });
+    if (!transactionRequest) await this.transactionRequestRepo.update(transactionRequest.id, { isComplete: true });
     return transactionRequest;
   }
 }

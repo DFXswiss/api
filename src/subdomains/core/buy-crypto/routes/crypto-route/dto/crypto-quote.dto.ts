@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TransactionError } from 'src/subdomains/supporting/payment/dto/transaction.dto';
+import { TransactionError } from 'src/subdomains/supporting/payment/dto/transaction-error.enum';
 
 export class CryptoQuoteDto {
   @ApiProperty({ description: 'Fee amount in source asset' })

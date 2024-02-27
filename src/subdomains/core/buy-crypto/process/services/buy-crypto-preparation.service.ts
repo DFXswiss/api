@@ -134,7 +134,7 @@ export class BuyCryptoPreparationService {
 
         const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
 
-        const transactionRequest = await this.transactionRequestService.findTransactionRequest(
+        const transactionRequest = await this.transactionRequestService.findAndCompleteRequest(
           entity.inputAmount,
           entity.route.id,
           inputCurrency.id,

@@ -16,7 +16,7 @@ import { PricingService } from '../../pricing/services/pricing.service';
 import { FeeDto } from '../dto/fee.dto';
 import { FiatPaymentMethod, PaymentMethod } from '../dto/payment-method.enum';
 import { TargetEstimation, TransactionDetails } from '../dto/transaction-details.dto';
-import { TransactionError } from '../dto/transaction.dto';
+import { TransactionError } from '../dto/transaction-error.enum';
 import { TxFeeDetails } from '../dto/tx-fee-details.dto';
 import { TxSpec, TxSpecExtended } from '../dto/tx-spec.dto';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';

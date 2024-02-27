@@ -44,7 +44,7 @@ export class BuyFiatPreparationService {
       try {
         const inputCurrency = entity.cryptoInput.asset;
 
-        const transactionRequest = await this.transactionRequestService.findTransactionRequest(
+        const transactionRequest = await this.transactionRequestService.findAndCompleteRequest(
           entity.inputAmount,
           entity.sell.id,
           inputCurrency.id,
