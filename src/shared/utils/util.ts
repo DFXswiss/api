@@ -90,14 +90,13 @@ export class Util {
   }
 
   static arraysHaveSameElements(arr1: string[], arr2: string[], replaceKey?: string, replaceString?: string) {
-    return replaceKey
-      ? arr1.every((element) => arr2.includes(element.split(replaceKey).join(replaceString))) ||
-          arr2.every((element) => arr1.includes(element)) ||
-          arr1.every((element) => arr2.includes(element)) ||
-          arr2.every((element) => arr1.includes(element.split(replaceKey).join(replaceString))) ||
-          arr1.every((element) => arr2.includes(element.split(replaceKey).join(replaceString))) ||
-          arr2.every((element) => arr1.includes(element.split(replaceKey).join(replaceString)))
-      : arr1.every((element) => arr2.includes(element)) || arr2.every((element) => arr1.includes(element));
+    const replacedArray1 = arr1.map((a) => a.split(replaceKey).join(replaceString));
+    const replacedArray2 = arr2.map((a) => a.split(replaceKey).join(replaceString));
+
+    return (
+      replacedArray1.every((element) => replacedArray2.includes(element)) ||
+      replacedArray2.every((element) => replacedArray1.includes(element))
+    );
   }
 
   static fixRoundingMismatch<T>(list: T[], key: KeyType<T, number>, targetAmount: number, precision = 8): T[] {

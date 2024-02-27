@@ -292,6 +292,7 @@ export class UserDataService {
 
   private async loadDtoRelations(userData: UserData, dto: UpdateUserDataDto | CreateUserDataDto): Promise<void> {
     if (dto.countryId) {
+      userData.country = await this.countryService.getCountry(dto.countryId);
       if (!userData.country) throw new BadRequestException('Country not found');
     }
 
@@ -390,7 +391,7 @@ export class UserDataService {
           u.kycLevel >= KycLevel.LEVEL_30 &&
           u.isDfxUser &&
           u.verifiedName &&
-          (!user.verifiedName || this.checkVerifiedName(user.verifiedName, u.verifiedName)),
+          (!user.verifiedName || this.isSameName(user.verifiedName, u.verifiedName)),
       );
       if (matchingUser) {
         // send a merge request
@@ -402,51 +403,34 @@ export class UserDataService {
     return false;
   }
 
-  checkVerifiedName(input1: string, input2: string): boolean {
+  isSameName(input1: string, input2: string): boolean {
     const array1 = this.getVerifiedNameArray(input1);
     const array2 = this.getVerifiedNameArray(input2);
 
-    if (Util.arraysHaveSameElements(array1, array2)) return true;
-    if (Util.arraysHaveSameElements(array1, array2, 'ö', 'oe')) return true;
-    if (Util.arraysHaveSameElements(array1, array2, 'ö', 'o')) return true;
-    if (Util.arraysHaveSameElements(array1, array2, 'ä', 'ae')) return true;
-    if (Util.arraysHaveSameElements(array1, array2, 'ä', 'a')) return true;
-    if (Util.arraysHaveSameElements(array1, array2, 'ü', 'ue')) return true;
-    if (Util.arraysHaveSameElements(array1, array2, 'ü', 'u')) return true;
+    const replacements = [
+      [undefined, undefined],
+      ['r', 'n'],
+      ['ö', 'oe'],
+      ['ö', 'o'],
+      ['ä', 'ae'],
+      ['ä', 'a'],
+      ['ü', 'ue'],
+      ['ü', 'u'],
+    ];
 
-    return false;
+    return replacements.some(([k, v]) => Util.arraysHaveSameElements(array1, array2, k, v));
   }
 
   getVerifiedNameArray(name: string): string[] {
     return name
       .toLowerCase()
-      .replace(/[ìíîúûùáâåàéèêñç]/g, function (match) {
-        switch (match) {
-          case 'ì':
-          case 'í':
-          case 'î':
-            return 'i';
-          case 'ú':
-          case 'û':
-          case 'ù':
-            return 'u';
-          case 'á':
-          case 'â':
-          case 'å':
-          case 'à':
-            return 'a';
-          case 'é':
-          case 'è':
-          case 'ê':
-            return 'e';
-          case 'ñ':
-            return 'n';
-          case 'ç':
-            return 'c';
-          default:
-            return match;
-        }
-      })
+      .toLowerCase()
+      .replace(/[ìíî]/g, 'i')
+      .replace(/[úûù]/g, 'u')
+      .replace(/[áâåà]/g, 'a')
+      .replace(/[éèê]/g, 'e')
+      .replace(/[ñ]/g, 'n')
+      .replace(/[ç]/g, 'c')
       .split(' ');
   }
 
@@ -481,6 +465,8 @@ export class UserDataService {
     if (slave.amlListAddedDate) throw new BadRequestException('Slave is on AML list');
     if ([master.status, slave.status].includes(UserDataStatus.MERGED))
       throw new BadRequestException('Master or slave is already merged');
+    if (slave.verifiedName && !this.isSameName(master.verifiedName, slave.verifiedName))
+      throw new BadRequestException('Verified name mismatch');
 
     const bankAccountsToReassign = slave.bankAccounts.filter(
       (sba) => !master.bankAccounts.some((mba) => sba.iban === mba.iban),
