@@ -33,6 +33,6 @@ export class AsyncCache<T> {
   }
 
   private get expiration(): Date {
-    return this.itemValiditySeconds ? Util.secondsBefore(this.itemValiditySeconds) : new Date(0);
+    return this.itemValiditySeconds != null ? Util.secondsBefore(this.itemValiditySeconds) : new Date(0);
   }
 }

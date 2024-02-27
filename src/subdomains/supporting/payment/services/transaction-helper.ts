@@ -6,7 +6,6 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -302,18 +301,11 @@ export class TransactionHelper implements OnModuleInit {
   ): Promise<number> {
     if (!user) return inputAmount;
 
-    const buyCryptos = await this.buyCryptoService
-      .getUserTransactions(user.id, Util.daysBefore(1))
-      .then((buyCryptos) => buyCryptos.filter((b) => b.amlCheck !== CheckStatus.FAIL));
-
-    const buyFiats = await this.buyFiatService
-      .getUserTransactions(user.id, Util.daysBefore(1))
-      .then((buyFiats) => buyFiats.filter((b) => b.amlCheck !== CheckStatus.FAIL));
+    const buyVolume = await this.buyCryptoService.getUserVolume(user.id, Util.daysBefore(1));
+    const sellVolume = await this.buyFiatService.getUserVolume(user.id, Util.daysBefore(1));
 
     const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
-    const volume24hChf = Util.sumObjValue(buyCryptos, 'amountInChf') + Util.sumObjValue(buyFiats, 'amountInChf');
-
-    return price.convert(inputAmount) + volume24hChf;
+    return price.convert(inputAmount) + buyVolume + sellVolume;
   }
 
   private async convertToSource(

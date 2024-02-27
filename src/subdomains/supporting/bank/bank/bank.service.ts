@@ -41,9 +41,11 @@ export class BankService {
     let account: Bank;
 
     if (paymentMethod === FiatPaymentMethod.INSTANT) {
+      // instant + bank tx => Revolut
       if (userData.hasBankTxVerification) {
         account = this.getMatchingBank(banks, BankName.REVOLUT, currency, fallBackCurrency);
-      } else {
+      }
+      if (!account) {
         // instant => Olkypay / EUR
         account = this.getMatchingBank(banks, BankName.OLKY, currency, fallBackCurrency);
       }

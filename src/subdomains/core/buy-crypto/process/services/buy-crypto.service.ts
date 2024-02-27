@@ -21,7 +21,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
-import { Between, In, IsNull, Not } from 'typeorm';
+import { Between, Brackets, In, IsNull, Not } from 'typeorm';
 import { Buy } from '../../routes/buy/buy.entity';
 import { BuyRepository } from '../../routes/buy/buy.repository';
 import { BuyService } from '../../routes/buy/buy.service';
@@ -255,6 +255,29 @@ export class BuyCryptoService {
       ],
       relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
     });
+  }
+
+  async getUserVolume(userId: number, dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<number> {
+    return this.buyCryptoRepo
+      .createQueryBuilder('buyCrypto')
+      .select('SUM(amountInChf)', 'volume')
+      .leftJoin('buyCrypto.buy', 'buy')
+      .leftJoin('buyCrypto.cryptoRoute', 'cryptoRoute')
+      .where(
+        new Brackets((query) =>
+          query.where('buy.userId = :id', { id: userId }).orWhere('cryptoRoute.userId = :id', { id: userId }),
+        ),
+      )
+      .andWhere('amlCheck != :check', { check: CheckStatus.FAIL })
+      .andWhere(
+        new Brackets((query) =>
+          query
+            .where('buyCrypto.outputDate IS NULL')
+            .orWhere('buyCrypto.outputDate BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo }),
+        ),
+      )
+      .getRawOne<{ volume: number }>()
+      .then((r) => r.volume ?? 0);
   }
 
   async getRefTransactions(
