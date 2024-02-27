@@ -7,7 +7,7 @@ import { GetCryptoPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/c
 import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/sell-payment-info.dto';
 import { CryptoPaymentMethod, FiatPaymentMethod } from '../dto/payment-method.enum';
-import { TransactionRequestType } from '../entities/transaction-request.entity';
+import { TransactionRequest, TransactionRequestType } from '../entities/transaction-request.entity';
 import { TransactionRequestRepository } from '../repositories/transaction-request.repository';
 
 @Injectable()
@@ -35,6 +35,7 @@ export class TransactionRequestService {
         isValid: response.isValid,
         error: response.error,
         fee: response.fee,
+        exactPrice: response.exactPrice,
         minFee: response.minFee,
       });
 
@@ -74,5 +75,19 @@ export class TransactionRequestService {
     } catch (e) {
       this.logger.error(`Failed to store ${type} transaction request for route ${response.routeId}:`, e);
     }
+  }
+
+  async findTransactionRequest(
+    amount: number,
+    routeId: number,
+    sourceId: number,
+    targetId: number,
+  ): Promise<TransactionRequest> {
+    const transactionRequest = await this.transactionRequestRepo.findOne({
+      where: { amount, routeId, sourceId, targetId, isComplete: false },
+      order: { created: 'DESC' },
+    });
+    await this.transactionRequestRepo.update(transactionRequest.id, { isComplete: true });
+    return transactionRequest;
   }
 }

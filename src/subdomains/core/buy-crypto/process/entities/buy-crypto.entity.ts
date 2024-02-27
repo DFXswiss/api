@@ -17,6 +17,7 @@ import {
   PaymentMethod,
 } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { Fee } from 'src/subdomains/supporting/payment/entities/fee.entity';
+import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { Buy } from '../../routes/buy/buy.entity';
@@ -179,6 +180,10 @@ export class BuyCrypto extends IEntity {
 
   @Column({ default: false })
   isComplete: boolean;
+
+  @OneToOne(() => TransactionRequest, { nullable: true })
+  @JoinColumn()
+  transactionRequest: TransactionRequest;
 
   //*** FACTORY METHODS ***//
 
@@ -403,6 +408,7 @@ export class BuyCrypto extends IEntity {
     minFeeAmountFiat: number,
     totalFeeAmount: number,
     totalFeeAmountChf: number,
+    transactionRequest: TransactionRequest,
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       absoluteFeeAmount: fixedFee,
@@ -417,6 +423,7 @@ export class BuyCrypto extends IEntity {
       amountInChf,
       refFactor: payoutRefBonus ? this.refFactor : 0,
       usedFees: fees?.map((fee) => fee.id).join(';'),
+      transactionRequest,
     };
 
     if (update.inputReferenceAmountMinusFee < 0) throw new ConflictException('InputReferenceAmountMinusFee smaller 0');
@@ -565,6 +572,10 @@ export class BuyCrypto extends IEntity {
 
   get user(): User {
     return this.buy ? this.buy.user : this.cryptoRoute.user;
+  }
+
+  get route(): Buy | CryptoRoute {
+    return this.buy ?? this.cryptoRoute;
   }
 
   get paymentMethodIn(): PaymentMethod {

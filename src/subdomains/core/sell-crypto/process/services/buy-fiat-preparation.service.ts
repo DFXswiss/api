@@ -6,6 +6,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../buy-crypto/process/enums/check-status.enum';
@@ -24,6 +25,7 @@ export class BuyFiatPreparationService {
     private readonly assetService: AssetService,
     private readonly feeService: FeeService,
     private readonly buyFiatService: BuyFiatService,
+    private readonly transactionRequestService: TransactionRequestService,
   ) {}
 
   async refreshFee(): Promise<void> {
@@ -46,6 +48,13 @@ export class BuyFiatPreparationService {
         const inputReferenceCurrency =
           (await this.fiatService.getFiatByName(entity.inputReferenceAsset)) ??
           (await this.assetService.getNativeMainLayerAsset(entity.inputReferenceAsset));
+
+        const transactionRequest = await this.transactionRequestService.findTransactionRequest(
+          entity.inputAmount,
+          entity.sell.id,
+          entity.cryptoInput.asset.id,
+          entity.sell.fiat.id,
+        );
 
         const { fee } = await this.transactionHelper.getTxFeeInfos(
           entity.inputReferenceAmount,
@@ -74,6 +83,7 @@ export class BuyFiatPreparationService {
             isFiat(inputReferenceCurrency) ? fee.min : referenceEurPrice.convert(fee.min, 2),
             fee.total,
             referenceChfPrice.convert(fee.total, 2),
+            transactionRequest,
           ),
         );
 
