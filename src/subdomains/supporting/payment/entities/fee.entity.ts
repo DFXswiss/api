@@ -148,18 +148,16 @@ export class Fee extends IEntity {
 
     return (
       this?.active &&
-      !(
-        this.isExpired(request.userDataId) ||
-        (this.accountType && this.accountType !== request.accountType) ||
-        (this.wallet && this.wallet.id !== request.wallet?.id) ||
-        (this.paymentMethodsIn && !this.paymentMethodsIn.includes(request.paymentMethodIn)) ||
-        (this.paymentMethodsOut && !this.paymentMethodsOut.includes(request.paymentMethodOut)) ||
-        (request.from && !this.verifyCurrency(request.from)) ||
-        !this.verifyCurrency(request.to) ||
-        (this.maxTxVolume && this.maxTxVolume < request.txVolume) ||
-        (this.minTxVolume && this.minTxVolume > request.txVolume) ||
-        (this.maxAnnualUserTxVolume && this.maxAnnualUserTxVolume < annualUserTxVolume)
-      )
+      !this.isExpired(request.userDataId) &&
+      (!this.accountType || this.accountType === request.accountType) &&
+      (!this.wallet || this.wallet.id === request.wallet?.id) &&
+      (!this.paymentMethodsIn || this.paymentMethodsIn.includes(request.paymentMethodIn)) &&
+      (!this.paymentMethodsOut || this.paymentMethodsOut.includes(request.paymentMethodOut)) &&
+      this.verifyCurrency(request.from) &&
+      this.verifyCurrency(request.to) &&
+      (!this.maxTxVolume || this.maxTxVolume >= request.txVolume) &&
+      (!this.minTxVolume || this.minTxVolume >= request.txVolume) &&
+      (!this.maxAnnualUserTxVolume || this.maxAnnualUserTxVolume >= annualUserTxVolume)
     );
   }
 

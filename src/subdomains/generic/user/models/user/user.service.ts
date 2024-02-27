@@ -302,7 +302,7 @@ export class UserService {
     userId: number,
     paymentMethodIn: PaymentMethod,
     paymentMethodOut: PaymentMethod,
-    from: Active | undefined,
+    from: Active,
     to: Active,
     minFee: number,
   ): Promise<FeeDto> {
