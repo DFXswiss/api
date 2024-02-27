@@ -156,7 +156,7 @@ export class Fee extends IEntity {
       this.verifyCurrency(request.from) &&
       this.verifyCurrency(request.to) &&
       (!this.maxTxVolume || this.maxTxVolume >= request.txVolume) &&
-      (!this.minTxVolume || this.minTxVolume >= request.txVolume) &&
+      (!this.minTxVolume || this.minTxVolume <= request.txVolume) &&
       (!this.maxAnnualUserTxVolume || this.maxAnnualUserTxVolume >= annualUserTxVolume)
     );
   }
