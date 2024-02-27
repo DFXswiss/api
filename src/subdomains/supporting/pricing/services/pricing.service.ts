@@ -156,7 +156,7 @@ export class PricingService {
     rule?: Rule,
     rulePrice?: Price,
   ): Promise<boolean> {
-    if (!rule) return true;
+    if (!rule || !rulePrice) return true;
 
     const difference = Math.abs(rulePrice.price - price) / price;
 
