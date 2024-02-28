@@ -200,7 +200,7 @@ export class UserService {
 
     const ipCountry = await this.geoLocationService.getCountry(userIp);
 
-    const country = await this.countryService.getCountryWithSymbol(ipCountry);
+    const country = ipCountry && (await this.countryService.getCountryWithSymbol(ipCountry));
 
     if (!country) return;
 

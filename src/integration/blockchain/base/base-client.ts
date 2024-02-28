@@ -161,6 +161,7 @@ export class BaseClient extends EvmClient implements L2BridgeEvmClient {
       from: this.dfxAddress,
       to: this.randomReceiverAddress,
       value: 1,
+      type: 2,
     });
 
     return this.fromWeiAmount(totalGasCost);
@@ -171,6 +172,7 @@ export class BaseClient extends EvmClient implements L2BridgeEvmClient {
       from: this.dfxAddress,
       to: token.chainId,
       data: this.dummyTokenPayload,
+      type: 2,
     });
 
     return this.fromWeiAmount(totalGasCost);
