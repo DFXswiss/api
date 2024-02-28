@@ -201,12 +201,15 @@ export class BankTx extends IEntity {
 
   get senderAccount(): string | undefined {
     if (externalManagedIban.includes(this.iban)) return `${this.iban};${this.completeName.split(' ').join('')}`;
+    if (this.iban) {
+      if (!isNaN(+this.iban)) return `NOIBAN${this.iban}`;
+      return this.iban;
+    }
     if (!this.iban) {
       if (this.name.startsWith('/C/')) return this.name.split('/C/')[1];
       if (this.name === 'Schaltereinzahlung') return this.name;
+      return `${this.name ?? ''}:${this.ultimateName ?? ''}`.trim().split(' ').join(':');
     }
-    if (!isNaN(+this.iban)) return `NOIBAN${this.iban}`;
-    if (this.iban) return this.iban;
     return undefined;
   }
 }
