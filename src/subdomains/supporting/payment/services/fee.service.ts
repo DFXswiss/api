@@ -1,9 +1,11 @@
 import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Active } from 'src/shared/models/active';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -12,10 +14,13 @@ import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { In, IsNull } from 'typeorm';
+import { PayoutService } from '../../payout/services/payout.service';
+import { PricingService } from '../../pricing/services/pricing.service';
 import { CreateFeeDto } from '../dto/create-fee.dto';
 import { FeeDto } from '../dto/fee.dto';
 import { PaymentMethod } from '../dto/payment-method.enum';
 import { Fee, FeeType } from '../entities/fee.entity';
+import { BlockchainFeeRepository } from '../repositories/blockchain-fee.repository';
 import { FeeRepository } from '../repositories/fee.repository';
 
 export interface UserFeeRequest extends FeeRequestBase {
@@ -36,7 +41,7 @@ export interface OptionalFeeRequest extends FeeRequestBase {
 export interface FeeRequestBase {
   paymentMethodIn: PaymentMethod;
   paymentMethodOut: PaymentMethod;
-  from: Active | undefined;
+  from: Active;
   to: Active;
   txVolume?: number;
   blockchainFee: number;
@@ -54,8 +59,29 @@ export class FeeService {
     private readonly userDataService: UserDataService,
     private readonly settingService: SettingService,
     private readonly walletService: WalletService,
+    private readonly blockchainFeeRepo: BlockchainFeeRepository,
+    private readonly payoutService: PayoutService,
+    private readonly pricingService: PricingService,
   ) {}
 
+  // --- JOBS --- //
+  @Cron(CronExpression.EVERY_MINUTE) //TODO: change to EVERY_30_MINUTES
+  @Lock(1800)
+  async updateBlockchainFees() {
+    const blockchainFees = await this.blockchainFeeRepo.find({ relations: ['asset'] });
+    const fiat = await this.fiatService.getFiatByName('CHF');
+
+    for (const blockchainFee of blockchainFees) {
+      try {
+        const { asset, amount } = await this.payoutService.estimateBlockchainFee(blockchainFee.asset);
+        const price = await this.pricingService.getPrice(asset, fiat, true);
+        blockchainFee.amount = price.convert(amount);
+        await this.blockchainFeeRepo.save(blockchainFee);
+      } catch (e) {
+        this.logger.error(`Failed to get fee of asset id ${blockchainFee.asset.id}:`, e);
+      }
+    }
+  }
   async createFee(dto: CreateFeeDto): Promise<Fee> {
     // check if exists
     const existing = await this.feeRepo.findOneBy({

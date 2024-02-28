@@ -8,6 +8,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { createDefaultCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
@@ -65,6 +66,7 @@ describe('BuyController', () => {
   let transactionHelper: TransactionHelper;
   let checkoutService: CheckoutService;
   let transactionRequestService: TransactionRequestService;
+  let fiatService: FiatService;
 
   beforeEach(async () => {
     buyService = createMock<BuyService>();
@@ -77,6 +79,7 @@ describe('BuyController', () => {
     transactionHelper = createMock<TransactionHelper>();
     checkoutService = createMock<CheckoutService>();
     transactionRequestService = createMock<TransactionRequestService>();
+    fiatService = createMock<FiatService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -92,6 +95,7 @@ describe('BuyController', () => {
         { provide: TransactionHelper, useValue: transactionHelper },
         { provide: CheckoutService, useValue: checkoutService },
         { provide: TransactionRequestService, useValue: transactionRequestService },
+        { provide: FiatService, useValue: fiatService },
 
         TestUtil.provideConfig(),
       ],

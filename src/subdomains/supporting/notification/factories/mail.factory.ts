@@ -237,7 +237,7 @@ export class MailFactory {
   private translateParams(params: TranslationParams, lang: string): TranslationParams {
     return params
       ? Object.entries(params)
-          .map(([key, value]) => [key, this.translate(value, lang)])
+          .map(([key, value]) => [key, this.translate(value, lang, params)])
           .reduce((prev, [key, value]) => {
             prev[key] = value;
             return prev;

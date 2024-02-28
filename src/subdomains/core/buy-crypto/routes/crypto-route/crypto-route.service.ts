@@ -9,7 +9,6 @@ import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { IsNull, Not } from 'typeorm';
-import { User } from '../../../../generic/user/models/user/user.entity';
 import { DepositService } from '../../../../supporting/address-pool/deposit/deposit.service';
 import { CryptoRoute } from './crypto-route.entity';
 import { CryptoRouteRepository } from './crypto-route.repository';
@@ -77,7 +76,7 @@ export class CryptoRouteService {
 
   // --- CRYPTOS --- //
   async get(userId: number, id: number): Promise<CryptoRoute> {
-    return this.cryptoRepo.findOneBy({ id, user: { id: userId } });
+    return this.cryptoRepo.findOne({ where: { id, user: { id: userId } }, relations: { user: true } });
   }
 
   async createCrypto(
@@ -100,7 +99,7 @@ export class CryptoRouteService {
         user: { id: userId },
         deposit: { blockchain: blockchain },
       },
-      relations: ['deposit'],
+      relations: ['deposit', 'user'],
     });
 
     if (existing) {
@@ -117,7 +116,7 @@ export class CryptoRouteService {
 
     // create the entity
     const crypto = this.cryptoRepo.create({ asset });
-    crypto.user = { id: userId } as User;
+    crypto.user = await this.userService.getUser(userId);
     crypto.deposit = await this.depositService.getNextDeposit(blockchain);
 
     // save
@@ -128,7 +127,10 @@ export class CryptoRouteService {
     const userData = await this.userDataService.getUserDataByUser(userId);
     if (!userData.hasBankTxVerification) return [];
 
-    return this.cryptoRepo.findBy({ user: { id: userId }, asset: { buyable: true } });
+    return this.cryptoRepo.find({
+      where: { user: { id: userId }, asset: { buyable: true } },
+      relations: { user: true },
+    });
   }
 
   async updateCrypto(userId: number, cryptoId: number, dto: UpdateCryptoRouteDto): Promise<CryptoRoute> {

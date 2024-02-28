@@ -46,6 +46,7 @@ export class TransactionDtoMapper {
       outputTxId: buyCrypto.txId,
       outputTxUrl: buyCrypto.txId ? txExplorerUrl(buyCrypto.target.asset.blockchain, buyCrypto.txId) : null,
       date: buyCrypto.outputDate,
+      externalTransactionId: buyCrypto.externalTransactionId,
     };
 
     return Object.assign(new TransactionDto(), dto);
@@ -81,6 +82,7 @@ export class TransactionDtoMapper {
       outputTxId: buyFiat.fiatOutput?.remittanceInfo ?? null,
       outputTxUrl: null,
       date: buyFiat.outputDate,
+      externalTransactionId: buyFiat.externalTransactionId,
     };
 
     return Object.assign(new TransactionDto(), dto);

@@ -6,6 +6,7 @@ import { Util } from 'src/shared/utils/util';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Fee } from 'src/subdomains/supporting/payment/entities/fee.entity';
+import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { AmlReason } from '../../buy-crypto/process/enums/aml-reason.enum';
@@ -161,6 +162,13 @@ export class BuyFiat extends IEntity {
   @Column({ default: false })
   isComplete: boolean;
 
+  @OneToOne(() => TransactionRequest, { nullable: true })
+  @JoinColumn()
+  transactionRequest: TransactionRequest;
+
+  @Column({ length: 256, nullable: true })
+  externalTransactionId: string;
+
   //*** FACTORY METHODS ***//
 
   static createFromPayIn(payIn: CryptoInput, sellRoute: Sell): BuyFiat {
@@ -226,6 +234,7 @@ export class BuyFiat extends IEntity {
     minFeeAmountFiat: number,
     totalFeeAmount: number,
     totalFeeAmountChf: number,
+    transactionRequest?: TransactionRequest,
   ): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
       absoluteFeeAmount: fixedFee,
@@ -240,6 +249,8 @@ export class BuyFiat extends IEntity {
       amountInChf,
       refFactor: payoutRefBonus ? this.refFactor : 0,
       usedFees: fees?.map((fee) => fee.id).join(';'),
+      transactionRequest,
+      externalTransactionId: transactionRequest?.externalTransactionId,
     };
 
     if (update.inputReferenceAmountMinusFee < 0) throw new ConflictException('InputReferenceAmountMinusFee smaller 0');

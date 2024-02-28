@@ -99,10 +99,13 @@ export class NodeService {
   }
 
   private setConnectedNode(type: NodeType): BehaviorSubject<NodeClient | null> {
-    const active = this.isNodeClientAvailable(type);
+    const node = this.isNodeClientAvailable(type);
 
-    if (active) {
+    if (node) {
       return new BehaviorSubject(this.#allNodes.get(type));
+    } else {
+      this.logger.warn(`Warning. Node ${type} is not available in NodeClient pool`);
+      return new BehaviorSubject(null);
     }
   }
 

@@ -1,8 +1,10 @@
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import {
   PayoutBitcoinBasedService,
   PayoutGroup,
@@ -20,6 +22,12 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
     protected readonly bitcoinBasedService: PayoutBitcoinBasedService,
   ) {
     super();
+  }
+
+  abstract estimateFee(asset: Asset): Promise<FeeResult>;
+
+  async estimateBlockchainFee(asset: Asset): Promise<FeeResult> {
+    return this.estimateFee(asset);
   }
 
   async doPayout(orders: PayoutOrder[]): Promise<void> {

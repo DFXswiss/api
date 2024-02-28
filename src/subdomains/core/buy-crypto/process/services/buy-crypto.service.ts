@@ -82,6 +82,19 @@ export class BuyCryptoService {
     // buy
     if (buyId) entity.buy = await this.getBuy(buyId);
 
+    if (checkoutTx.cardFingerPrint && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
+      const bankData = await this.bankDataService.getBankDataWithIban(
+        checkoutTx.cardFingerPrint,
+        entity.buy.user.userData.id,
+      );
+
+      if (!bankData)
+        await this.bankDataService.createBankData(entity.buy.user.userData, {
+          iban: checkoutTx.cardFingerPrint,
+          type: BankDataType.CARD_IN,
+        });
+    }
+
     return this.buyCryptoRepo.save(entity);
   }
 
