@@ -73,11 +73,17 @@ export class BuyCryptoService {
     return this.buyCryptoRepo.save(entity);
   }
 
-  async createFromCheckoutTx(checkoutTx: CheckoutTx, buyId: number): Promise<BuyCrypto> {
+  async createFromCheckoutTx(checkoutTx: CheckoutTx, buyId: number): Promise<void> {
     let entity = await this.buyCryptoRepo.findOneBy({ checkoutTx: { id: checkoutTx.id } });
     if (entity) throw new ConflictException('There is already a buy-crypto for the specified checkout TX');
 
-    entity = this.buyCryptoRepo.create({ checkoutTx });
+    entity = this.buyCryptoRepo.create({
+      checkoutTx,
+      inputAmount: checkoutTx.amount,
+      inputAsset: checkoutTx.currency,
+      inputReferenceAmount: checkoutTx.amount,
+      inputReferenceAsset: checkoutTx.currency,
+    });
 
     // buy
     if (buyId) entity.buy = await this.getBuy(buyId);
@@ -95,7 +101,9 @@ export class BuyCryptoService {
         });
     }
 
-    return this.buyCryptoRepo.save(entity);
+    entity = await this.buyCryptoRepo.save(entity);
+
+    await this.buyCryptoWebhookService.triggerWebhook(entity);
   }
 
   async update(id: number, dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
@@ -181,7 +189,6 @@ export class BuyCryptoService {
 
     // payment webhook
     if (
-      (dto.inputAmount && dto.inputAsset) ||
       dto.isComplete ||
       (dto.amlCheck && dto.amlCheck !== CheckStatus.PASS) ||
       dto.outputReferenceAssetId ||
