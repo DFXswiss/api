@@ -74,9 +74,9 @@ export class AuthService {
     const existingUser = await this.userRepo.getByAddress(dto.address, true);
     if (existingUser) throw new ConflictException('User already exists');
 
-    const wallet = await this.walletService.getByIdOrName(dto.walletId, dto.wallet);
+    const wallets = await this.walletService.getAllWithMasterKey();
 
-    if (wallet?.masterKey === dto.signature) {
+    if (wallets.some((w) => w.masterKey === dto.signature)) {
       delete dto.signature;
     } else if (!(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key)))
       throw new BadRequestException('Invalid signature');
@@ -86,6 +86,7 @@ export class AuthService {
 
     if (dto.key) dto.signature = [dto.signature, dto.key].join(';');
 
+    const wallet = await this.walletService.getByIdOrName(dto.walletId, dto.wallet);
     const user = await this.userService.createUser(dto, userIp, ref?.origin, wallet, dto.discountCode);
     return { accessToken: this.generateUserToken(user, userIp) };
   }
@@ -98,7 +99,9 @@ export class AuthService {
     if (!user) throw new NotFoundException('User not found');
     if (user.status === UserStatus.BLOCKED) throw new ConflictException('User is blocked');
 
-    if (user.wallet.masterKey !== dto.signature) {
+    const wallets = await this.walletService.getAllWithMasterKey();
+
+    if (!wallets.some((w) => w.masterKey === dto.signature)) {
       if (!(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature))) {
         throw new UnauthorizedException('Invalid credentials');
       } else if (!user.signature) {
