@@ -94,6 +94,7 @@ export class BuyCryptoOutService {
         'transactions.cryptoRoute.asset',
         'transactions.cryptoInput',
         'transactions.bankTx',
+        'transactions.checkoutTx',
       ],
     });
   }

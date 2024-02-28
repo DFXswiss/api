@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { WalletRepository } from 'src/subdomains/generic/user/models/wallet/wallet.repository';
-import { FindOptionsRelations } from 'typeorm';
+import { FindOptionsRelations, IsNull, Not } from 'typeorm';
 import { Wallet } from './wallet.entity';
 
 @Injectable()
 export class WalletService {
   constructor(private readonly repo: WalletRepository) {}
+
+  async getAllWithMasterKey(): Promise<Wallet[]> {
+    return this.repo.findBy({ masterKey: Not(IsNull()) });
+  }
 
   async getByAddress(address: string): Promise<Wallet | undefined> {
     return this.repo.findOneBy({ address });

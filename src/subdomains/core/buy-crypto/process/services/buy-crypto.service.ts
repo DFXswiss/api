@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
@@ -21,6 +22,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { Between, Brackets, In, IsNull, Not } from 'typeorm';
 import { Buy } from '../../routes/buy/buy.entity';
 import { BuyRepository } from '../../routes/buy/buy.repository';
@@ -46,18 +48,29 @@ export class BuyCryptoService {
     private readonly cryptoRouteService: CryptoRouteService,
     private readonly userService: UserService,
     private readonly assetService: AssetService,
+    private readonly fiatService: FiatService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly bankDataService: BankDataService,
+    private readonly transactionRequestService: TransactionRequestService,
   ) {}
 
-  async createFromBankTx(bankTx: BankTx, buyId: number): Promise<BuyCrypto> {
+  async createFromBankTx(bankTx: BankTx, buyId: number): Promise<void> {
     let entity = await this.buyCryptoRepo.findOneBy({ bankTx: { id: bankTx.id } });
     if (entity) throw new ConflictException('There is already a buy-crypto for the specified bank TX');
 
-    entity = this.buyCryptoRepo.create({ bankTx });
+    entity = this.buyCryptoRepo.create({
+      bankTx,
+      inputAmount: bankTx.txAmount,
+      inputAsset: bankTx.txCurrency,
+      inputReferenceAmount: bankTx.amount + bankTx.chargeAmount,
+      inputReferenceAsset: bankTx.currency,
+    });
 
     // buy
     entity.buy = await this.getBuy(buyId);
+
+    // transaction request
+    entity = await this.setTxRequest(entity);
 
     const senderAccount = bankTx.senderAccount;
     if (senderAccount && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
@@ -70,18 +83,30 @@ export class BuyCryptoService {
         });
     }
 
-    return this.buyCryptoRepo.save(entity);
+    entity = await this.buyCryptoRepo.save(entity);
+
+    await this.buyCryptoWebhookService.triggerWebhook(entity);
   }
 
-  async createFromCheckoutTx(checkoutTx: CheckoutTx, buyId: number): Promise<BuyCrypto> {
+  async createFromCheckoutTx(checkoutTx: CheckoutTx, buyId: number): Promise<void> {
     let entity = await this.buyCryptoRepo.findOneBy({ checkoutTx: { id: checkoutTx.id } });
     if (entity) throw new ConflictException('There is already a buy-crypto for the specified checkout TX');
 
-    entity = this.buyCryptoRepo.create({ checkoutTx });
+    entity = this.buyCryptoRepo.create({
+      checkoutTx,
+      inputAmount: checkoutTx.amount,
+      inputAsset: checkoutTx.currency,
+      inputReferenceAmount: checkoutTx.amount,
+      inputReferenceAsset: checkoutTx.currency,
+    });
 
     // buy
     if (buyId) entity.buy = await this.getBuy(buyId);
 
+    // transaction request
+    entity = await this.setTxRequest(entity);
+
+    // create bank data
     if (checkoutTx.cardFingerPrint && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
       const bankData = await this.bankDataService.getBankDataWithIban(
         checkoutTx.cardFingerPrint,
@@ -95,7 +120,26 @@ export class BuyCryptoService {
         });
     }
 
-    return this.buyCryptoRepo.save(entity);
+    entity = await this.buyCryptoRepo.save(entity);
+
+    await this.buyCryptoWebhookService.triggerWebhook(entity);
+  }
+
+  private async setTxRequest(entity: BuyCrypto): Promise<BuyCrypto> {
+    const inputCurrency = await this.fiatService.getFiatByName(entity.inputAsset);
+
+    const transactionRequest = await this.transactionRequestService.findAndCompleteRequest(
+      entity.inputAmount,
+      entity.route.id,
+      inputCurrency.id,
+      entity.target.asset.id,
+    );
+    if (transactionRequest) {
+      entity.transactionRequest = transactionRequest;
+      entity.externalTransactionId = transactionRequest.externalTransactionId;
+    }
+
+    return entity;
   }
 
   async update(id: number, dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
@@ -111,6 +155,7 @@ export class BuyCryptoService {
         'cryptoRoute.user.wallet',
         'cryptoInput',
         'bankTx',
+        'checkoutTx',
       ],
     });
     if (!entity) throw new NotFoundException('Buy-crypto not found');
@@ -180,7 +225,6 @@ export class BuyCryptoService {
 
     // payment webhook
     if (
-      (dto.inputAmount && dto.inputAsset) ||
       dto.isComplete ||
       (dto.amlCheck && dto.amlCheck !== CheckStatus.PASS) ||
       dto.outputReferenceAssetId ||
@@ -268,7 +312,7 @@ export class BuyCryptoService {
         { cryptoRoute: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
         { cryptoRoute: { user: { id: userId } }, outputDate: IsNull() },
       ],
-      relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
+      relations: ['bankTx', 'checkoutTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
     });
   }
 
@@ -302,7 +346,7 @@ export class BuyCryptoService {
   ): Promise<BuyCrypto[]> {
     return this.buyCryptoRepo.find({
       where: { usedRef: In(refCodes), outputDate: Between(dateFrom, dateTo) },
-      relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
+      relations: ['bankTx', 'checkoutTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
     });
   }
 
@@ -447,7 +491,7 @@ export class BuyCryptoService {
   async getAllRefTransactions(refCodes: string[]): Promise<BuyCrypto[]> {
     return this.buyCryptoRepo.find({
       where: { usedRef: In(refCodes) },
-      relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
+      relations: ['bankTx', 'checkoutTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
       order: { id: 'DESC' },
     });
   }
