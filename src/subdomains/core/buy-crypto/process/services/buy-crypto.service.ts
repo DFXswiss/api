@@ -22,6 +22,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
+import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { Between, Brackets, In, IsNull, Not } from 'typeorm';
 import { Buy } from '../../routes/buy/buy.entity';
@@ -88,20 +89,18 @@ export class BuyCryptoService {
     await this.buyCryptoWebhookService.triggerWebhook(entity);
   }
 
-  async createFromCheckoutTx(checkoutTx: CheckoutTx, buyId: number): Promise<void> {
+  async createFromCheckoutTx(checkoutTx: CheckoutTx, buy: Buy): Promise<void> {
     let entity = await this.buyCryptoRepo.findOneBy({ checkoutTx: { id: checkoutTx.id } });
     if (entity) throw new ConflictException('There is already a buy-crypto for the specified checkout TX');
 
     entity = this.buyCryptoRepo.create({
       checkoutTx,
+      buy,
       inputAmount: checkoutTx.amount,
       inputAsset: checkoutTx.currency,
       inputReferenceAmount: checkoutTx.amount,
       inputReferenceAsset: checkoutTx.currency,
     });
-
-    // buy
-    if (buyId) entity.buy = await this.getBuy(buyId);
 
     // transaction request
     entity = await this.setTxRequest(entity);
@@ -119,6 +118,24 @@ export class BuyCryptoService {
           type: BankDataType.CARD_IN,
         });
     }
+
+    entity = await this.buyCryptoRepo.save(entity);
+
+    await this.buyCryptoWebhookService.triggerWebhook(entity);
+  }
+
+  async createFromCryptoInput(cryptoInput: CryptoInput, cryptoRoute: CryptoRoute): Promise<void> {
+    let entity = this.buyCryptoRepo.create({
+      cryptoInput,
+      cryptoRoute,
+      inputAmount: cryptoInput.amount,
+      inputAsset: cryptoInput.asset.name,
+      inputReferenceAmount: cryptoInput.amount,
+      inputReferenceAsset: cryptoInput.asset.name,
+    });
+
+    // transaction request
+    entity = await this.setTxRequest(entity);
 
     entity = await this.buyCryptoRepo.save(entity);
 

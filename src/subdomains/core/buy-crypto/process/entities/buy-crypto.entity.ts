@@ -188,16 +188,7 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 256, nullable: true })
   externalTransactionId: string;
 
-  //*** FACTORY METHODS ***//
-
-  static createFromPayIn(payIn: CryptoInput, cryptoRoute: CryptoRoute): BuyCrypto {
-    const entity = new BuyCrypto();
-
-    entity.cryptoInput = payIn;
-    entity.cryptoRoute = cryptoRoute;
-
-    return entity;
-  }
+  // --- ENTITY METHODS --- //
 
   defineAssetExchangePair(): { outputReferenceAssetName: string; type: AssetType } | null {
     this.outputAsset = this.target?.asset;
@@ -597,7 +588,7 @@ export class BuyCrypto extends IEntity {
         };
   }
 
-  //*** HELPER METHODS ***//
+  // --- HELPER METHODS --- //
 
   private resetTransaction(): Partial<BuyCrypto> {
     const update: Partial<BuyCrypto> = {

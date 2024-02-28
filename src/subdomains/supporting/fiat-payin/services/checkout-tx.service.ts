@@ -26,7 +26,7 @@ export class CheckoutTxService {
       const buy = await this.buyService.getByBankUsage(match[0]);
 
       if (buy) {
-        await this.buyCryptoService.createFromCheckoutTx(tx, buy.id);
+        await this.buyCryptoService.createFromCheckoutTx(tx, buy);
         return;
       }
     }
