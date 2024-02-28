@@ -8,7 +8,6 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
-import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Between, In, IsNull, Not } from 'typeorm';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
@@ -32,7 +31,6 @@ export class BuyCryptoPreparationService {
     private readonly assetService: AssetService,
     private readonly feeService: FeeService,
     private readonly buyCryptoService: BuyCryptoService,
-    private readonly transactionRequestService: TransactionRequestService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
