@@ -46,6 +46,7 @@ export class Configuration {
   apiKeyVersionCT = '0'; // single digit hex number
   azureIpSubstring = '169.254';
   amlCheckMonthlyTradingLimit = 50000; // EUR
+  maxBlockchainFee = 50; //CHF
 
   colors = {
     white: '#FFFFFF',

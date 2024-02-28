@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Active } from 'src/shared/models/active';
+import { Config } from 'src/config/config';
+import { Active, isAsset } from 'src/shared/models/active';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -13,7 +14,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
-import { In, IsNull } from 'typeorm';
+import { In, IsNull, MoreThan } from 'typeorm';
 import { PayoutService } from '../../payout/services/payout.service';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { CreateFeeDto } from '../dto/create-fee.dto';
@@ -44,7 +45,6 @@ export interface FeeRequestBase {
   from: Active;
   to: Active;
   txVolume?: number;
-  blockchainFee: number;
   discountCodes: string[];
 }
 
@@ -187,7 +187,7 @@ export class FeeService {
     const userFees = await this.getValidFees(request);
 
     try {
-      return this.calculateFee(userFees, request.blockchainFee, request.user.userData?.id);
+      return this.calculateFee(userFees, request.from, request.to, request.user.userData?.id);
     } catch (e) {
       this.logger.error(`Fee exception, request: ${JSON.stringify(request)}`);
       throw e;
@@ -198,7 +198,7 @@ export class FeeService {
     const defaultFees = await this.getValidFees({ ...request, accountType });
 
     try {
-      return this.calculateFee(defaultFees, request.blockchainFee);
+      return this.calculateFee(defaultFees, request.from, request.to);
     } catch (e) {
       this.logger.error(`Fee exception, request: ${JSON.stringify(request)}`);
       throw e;
@@ -207,19 +207,22 @@ export class FeeService {
 
   // --- HELPER METHODS --- //
 
-  private calculateFee(fees: Fee[], blockchainFee: number, userDataId?: number): FeeDto {
+  private async calculateFee(fees: Fee[], from: Active, to: Active, userDataId?: number): Promise<FeeDto> {
     // get min custom fee
     const customFee = Util.minObj(
       fees.filter((fee) => fee.type === FeeType.CUSTOM),
       'rate',
     );
+
+    const blockchainFee = (await this.getBlockchainFee(from)) + (await this.getBlockchainFee(to));
+
     if (customFee)
       return {
         fees: [customFee],
         rate: customFee.rate,
         fixed: customFee.fixed ?? 0,
         payoutRefBonus: customFee.payoutRefBonus,
-        blockchain: customFee.blockchainFactor * blockchainFee,
+        blockchain: Math.min(customFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
 
     // get min base fee
@@ -268,6 +271,20 @@ export class FeeService {
         0,
       ),
     };
+  }
+
+  private async getBlockchainFee(active: Active): Promise<number> {
+    if (isAsset(active)) {
+      const fee = await this.blockchainFeeRepo.findOneBy({
+        asset: { id: active.id },
+        updated: MoreThan(Util.minutesBefore(70)),
+      });
+
+      if (!fee) return 0; //TODO?
+      return fee.amount;
+    } else {
+      return 0;
+    }
   }
 
   private async getValidFees(request: OptionalFeeRequest): Promise<Fee[]> {

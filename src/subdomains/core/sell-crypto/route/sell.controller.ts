@@ -162,7 +162,7 @@ export class SellController {
   }
 
   private async toDto(sell: Sell): Promise<SellDto> {
-    const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
+    const { minDeposit } = this.transactionHelper.getDefaultSpecs(
       sell.deposit.blockchain,
       undefined,
       'Fiat',
@@ -176,7 +176,6 @@ export class SellController {
       FiatPaymentMethod.BANK,
       await this.assetService.getNativeAsset(defaultBlockchain),
       sell.fiat,
-      minFee.amount,
     );
 
     return {

@@ -304,7 +304,6 @@ export class UserService {
     paymentMethodOut: PaymentMethod,
     from: Active,
     to: Active,
-    minFee: number,
   ): Promise<FeeDto> {
     const user = await this.getUser(userId, { userData: true });
     if (!user) throw new NotFoundException('User not found');
@@ -315,7 +314,6 @@ export class UserService {
       paymentMethodOut,
       from,
       to,
-      blockchainFee: minFee,
       txVolume: undefined,
       discountCodes: [],
     });
