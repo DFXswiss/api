@@ -120,7 +120,7 @@ export class BuyFiatNotificationService {
                 [`${MailTranslationKey.PAYMENT}.dfx_fee`]: `${entity.percentFeeString}` + minFee,
                 [`${MailTranslationKey.PAYMENT}.exchange_rate`]: `${entity.exchangeRateString}`,
                 [`${MailTranslationKey.BUY_FIAT}.output_amount`]: `${Util.round(entity.outputAmount, 2)} ${
-                  entity.outputAsset
+                  entity.outputAssetEntity.name
                 }`,
               },
               suffix: [
@@ -163,7 +163,7 @@ export class BuyFiatNotificationService {
               salutation: { key: `${MailTranslationKey.BUY_FIAT}.processed.salutation` },
               table: {
                 [`${MailTranslationKey.BUY_FIAT}.output_amount`]: `${Util.round(entity.outputAmount, 2)} ${
-                  entity.outputAsset
+                  entity.outputAssetEntity.name
                 }`,
                 [`${MailTranslationKey.PAYMENT}.bank_account`]: Util.blankStart(entity.sell.iban),
                 [`${MailTranslationKey.PAYMENT}.remittance_info`]: entity.fiatOutput.remittanceInfo,
