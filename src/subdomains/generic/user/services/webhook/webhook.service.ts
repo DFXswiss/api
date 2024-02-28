@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { BuyCryptoExtended, BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
 import { IsNull } from 'typeorm';
 import { UserData } from '../../models/user-data/user-data.entity';
@@ -7,12 +8,19 @@ import { UserRepository } from '../../models/user/user.repository';
 import { CreateWebhookInput } from './dto/create-webhook.dto';
 import { WebhookType } from './dto/webhook.dto';
 import { WebhookDataMapper } from './mapper/webhook-data.mapper';
+import { WebhookNotificationService } from './webhook-notification.service';
 import { Webhook } from './webhook.entity';
 import { WebhookRepository } from './webhook.repository';
 
 @Injectable()
 export class WebhookService {
-  constructor(private readonly webhookRepo: WebhookRepository, private readonly userRepo: UserRepository) {}
+  private readonly logger = new DfxLogger(WebhookService);
+
+  constructor(
+    private readonly webhookRepo: WebhookRepository,
+    private readonly userRepo: UserRepository,
+    private readonly webhookNotificationService: WebhookNotificationService,
+  ) {}
 
   async kycChanged(userData: UserData): Promise<void> {
     userData.users ??= await this.userRepo.find({
@@ -95,6 +103,14 @@ export class WebhookService {
     if (existing) throw new BadRequestException('Webhook already created');
 
     const entity = this.webhookRepo.create(dto);
+
+    // try to send the webhook
+    try {
+      const result = await this.webhookNotificationService.triggerUserWebhook(entity);
+      entity.sentWebhook(result);
+    } catch (e) {
+      this.logger.error(`Failed to send webhook for ${dto.user.id}:`, e);
+    }
 
     return this.webhookRepo.save(entity);
   }
