@@ -85,9 +85,8 @@ export class TransactionRequestService {
     sourceId: number,
     targetId: number,
   ): Promise<TransactionRequest> {
-    const transactionRequest = await this.transactionRequestRepo.findOne({
+    const transactionRequests = await this.transactionRequestRepo.find({
       where: {
-        amount,
         routeId,
         sourceId,
         targetId,
@@ -96,6 +95,9 @@ export class TransactionRequestService {
       },
       order: { created: 'DESC' },
     });
+
+    const transactionRequest = transactionRequests.find((t) => Math.abs(amount - t.amount) / t.amount < 0.01);
+
     if (transactionRequest) await this.transactionRequestRepo.update(transactionRequest.id, { isComplete: true });
     return transactionRequest;
   }

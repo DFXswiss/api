@@ -82,4 +82,7 @@ export class TransactionDto {
 
   @ApiProperty({ type: Date })
   date: Date;
+
+  @ApiPropertyOptional()
+  externalTransactionId?: string;
 }

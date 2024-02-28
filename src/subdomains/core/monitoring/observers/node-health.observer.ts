@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
-import { AzureService } from 'src/integration/infrastructure/azure-service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
@@ -35,7 +34,6 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
     readonly monitoringService: MonitoringService,
     private readonly nodeService: NodeService,
     private readonly notificationService: NotificationService,
-    private readonly azureService: AzureService,
   ) {
     super(monitoringService, 'node', 'health');
   }
