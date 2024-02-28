@@ -119,27 +119,4 @@ export class BuyFiatPreparationService {
       }
     }
   }
-
-  async setOutputAssetEntity(): Promise<void> {
-    const entities = await this.buyFiatRepo.find({
-      where: {
-        outputAsset: Not(IsNull()),
-        outputAssetEntity: IsNull(),
-      },
-      relations: ['sell'],
-    });
-
-    for (const entity of entities) {
-      try {
-        const outputAssetEntity = entity.sell.fiat;
-        const outputReferenceAssetEntity = entity.outputReferenceAsset
-          ? await this.fiatService.getFiatByName(entity.outputReferenceAsset)
-          : null;
-
-        await this.buyFiatRepo.update(entity.id, { outputAssetEntity, outputReferenceAssetEntity });
-      } catch (e) {
-        this.logger.error(`Error during buy-fiat ${entity.id} outputAssetEntity setting:`, e);
-      }
-    }
-  }
 }

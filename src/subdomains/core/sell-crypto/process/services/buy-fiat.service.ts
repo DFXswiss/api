@@ -6,7 +6,7 @@ import { BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
-import { Between, Brackets, In } from 'typeorm';
+import { Between, Brackets, In, IsNull } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { CheckStatus } from '../../../buy-crypto/process/enums/check-status.enum';
 import { BuyCryptoService } from '../../../buy-crypto/process/services/buy-crypto.service';
@@ -126,9 +126,8 @@ export class BuyFiatService {
 
   async extendBuyFiat(buyFiat: BuyFiat): Promise<BuyFiatExtended> {
     const inputAssetEntity = buyFiat.cryptoInput.asset;
-    const outputAssetEntity = await this.fiatService.getFiatByName(buyFiat.outputAsset);
 
-    return Object.assign(buyFiat, { inputAssetEntity, outputAssetEntity });
+    return Object.assign(buyFiat, { inputAssetEntity });
   }
 
   async resetAmlCheck(id: number): Promise<void> {
@@ -173,7 +172,10 @@ export class BuyFiatService {
     dateTo: Date = new Date(),
   ): Promise<BuyFiat[]> {
     return this.buyFiatRepo.find({
-      where: { sell: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
+      where: [
+        { sell: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
+        { sell: { user: { id: userId } }, outputDate: IsNull() },
+      ],
       relations: ['cryptoInput', 'bankTx', 'sell', 'sell.user', 'fiatOutput', 'fiatOutput.bankTx'],
     });
   }
@@ -222,7 +224,7 @@ export class BuyFiatService {
       inputAmount: buyFiat.inputAmount,
       inputAsset: buyFiat.inputAsset,
       outputAmount: buyFiat.outputAmount,
-      outputAsset: buyFiat.outputAsset,
+      outputAsset: buyFiat.outputAssetEntity.name,
       txId: buyFiat.cryptoInput.inTxId,
       txUrl: txExplorerUrl(buyFiat.cryptoInput.asset.blockchain, buyFiat.cryptoInput.inTxId),
       date: buyFiat.fiatOutput?.outputDate,

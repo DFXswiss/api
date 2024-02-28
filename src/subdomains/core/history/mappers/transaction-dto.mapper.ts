@@ -13,7 +13,6 @@ export class BuyCryptoExtended extends BuyCrypto {
 
 export class BuyFiatExtended extends BuyFiat {
   inputAssetEntity: Active;
-  outputAssetEntity: Active;
 }
 
 export class RefRewardExtended extends RefReward {
@@ -68,8 +67,8 @@ export class TransactionDtoMapper {
       inputPaymentMethod: CryptoPaymentMethod.CRYPTO,
       ...(buyFiat.outputAmount ? buyFiat.exchangeRate : null),
       outputAmount: buyFiat.outputAmount,
-      outputAsset: buyFiat.outputAsset,
-      outputAssetId: buyFiat.outputAssetEntity.id,
+      outputAsset: buyFiat.outputAssetEntity?.name,
+      outputAssetId: buyFiat.outputAssetEntity?.id,
       outputBlockchain: null,
       outputPaymentMethod: FiatPaymentMethod.BANK,
       feeAmount: buyFiat.totalFeeAmount
@@ -106,7 +105,7 @@ export class TransactionDtoMapper {
       rate: null,
       outputAmount: refReward.outputAmount,
       outputAsset: refReward.outputAsset,
-      outputAssetId: refReward.outputAssetEntity.id,
+      outputAssetId: refReward.outputAssetEntity?.id,
       outputBlockchain: refReward.targetBlockchain,
       outputPaymentMethod: CryptoPaymentMethod.CRYPTO,
       feeAmount: null,
@@ -174,7 +173,7 @@ export function getTransactionState(entity: BuyFiat | BuyCrypto | RefReward): Tr
         break;
     }
 
-    if (entity.outputReferenceAsset) return TransactionState.PROCESSING;
+    if (entity.outputReferenceAssetEntity) return TransactionState.PROCESSING;
 
     return TransactionState.CREATED;
   }

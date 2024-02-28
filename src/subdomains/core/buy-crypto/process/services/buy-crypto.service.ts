@@ -82,7 +82,7 @@ export class BuyCryptoService {
     // buy
     if (buyId) entity.buy = await this.getBuy(buyId);
 
-    if (!DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
+    if (checkoutTx.cardFingerPrint && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
       const bankData = await this.bankDataService.getBankDataWithIban(
         checkoutTx.cardFingerPrint,
         entity.buy.user.userData.id,
@@ -264,7 +264,9 @@ export class BuyCryptoService {
     return this.buyCryptoRepo.find({
       where: [
         { buy: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
+        { buy: { user: { id: userId } }, outputDate: IsNull() },
         { cryptoRoute: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
+        { cryptoRoute: { user: { id: userId } }, outputDate: IsNull() },
       ],
       relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
     });
