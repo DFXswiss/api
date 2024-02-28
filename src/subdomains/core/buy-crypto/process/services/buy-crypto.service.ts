@@ -251,7 +251,9 @@ export class BuyCryptoService {
     return this.buyCryptoRepo.find({
       where: [
         { buy: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
+        { buy: { user: { id: userId } }, outputDate: IsNull() },
         { cryptoRoute: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
+        { cryptoRoute: { user: { id: userId } }, outputDate: IsNull() },
       ],
       relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
     });
