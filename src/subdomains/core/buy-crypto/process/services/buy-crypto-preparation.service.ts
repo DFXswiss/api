@@ -197,6 +197,7 @@ export class BuyCryptoPreparationService {
         },
         relations: [
           'bankTx',
+          'checkoutTx',
           'buy',
           'buy.user',
           'buy.user.wallet',

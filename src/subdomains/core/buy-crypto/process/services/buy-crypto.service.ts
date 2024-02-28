@@ -111,6 +111,7 @@ export class BuyCryptoService {
         'cryptoRoute.user.wallet',
         'cryptoInput',
         'bankTx',
+        'checkoutTx',
       ],
     });
     if (!entity) throw new NotFoundException('Buy-crypto not found');
@@ -266,7 +267,7 @@ export class BuyCryptoService {
         { buy: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
         { cryptoRoute: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
       ],
-      relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
+      relations: ['bankTx', 'checkoutTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
     });
   }
 
@@ -300,7 +301,7 @@ export class BuyCryptoService {
   ): Promise<BuyCrypto[]> {
     return this.buyCryptoRepo.find({
       where: { usedRef: In(refCodes), outputDate: Between(dateFrom, dateTo) },
-      relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
+      relations: ['bankTx', 'checkoutTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
     });
   }
 
@@ -445,7 +446,7 @@ export class BuyCryptoService {
   async getAllRefTransactions(refCodes: string[]): Promise<BuyCrypto[]> {
     return this.buyCryptoRepo.find({
       where: { usedRef: In(refCodes) },
-      relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
+      relations: ['bankTx', 'checkoutTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
       order: { id: 'DESC' },
     });
   }
