@@ -66,6 +66,7 @@ export class Configuration {
   allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}`;
 
   masterKeySignatureFormat = '[0-9a-fA-F]{8}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{12}';
+  hashSignatureFormat = '[A-Fa-f0-9]{64}';
   bitcoinSignatureFormat = '.{87}=';
   lightningSignatureFormat = '[a-z0-9]{104}';
   lightningCustodialSignatureFormat = '[a-z0-9]{140,146}';
@@ -73,7 +74,7 @@ export class Configuration {
   ethereumSignatureFormat = '(0x)?[a-f0-9]{130}';
   cardanoSignatureFormat = '[a-f0-9]{582}';
 
-  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.cardanoSignatureFormat}`;
+  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.cardanoSignatureFormat}`;
 
   formats = {
     address: new RegExp(`^(${this.allAddressFormat})$`),
