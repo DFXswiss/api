@@ -47,6 +47,7 @@ export class BuyCryptoNotificationService {
         },
         relations: [
           'bankTx',
+          'checkoutTx',
           'buy',
           'buy.user',
           'buy.user.userData',
@@ -168,6 +169,7 @@ export class BuyCryptoNotificationService {
         'cryptoRoute.user',
         'cryptoRoute.user.userData',
         'bankTx',
+        'checkoutTx',
       ],
     });
 

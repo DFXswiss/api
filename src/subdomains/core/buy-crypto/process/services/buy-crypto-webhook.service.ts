@@ -26,6 +26,7 @@ export class BuyCryptoWebhookService {
         'cryptoRoute.user.wallet',
         'cryptoInput',
         'bankTx',
+        'checkoutTx',
       ],
     });
     if (!buyCrypto) throw new NotFoundException('BuyCrypto not found');

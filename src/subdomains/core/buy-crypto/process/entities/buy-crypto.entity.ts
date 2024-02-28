@@ -411,7 +411,6 @@ export class BuyCrypto extends IEntity {
     minFeeAmountFiat: number,
     totalFeeAmount: number,
     totalFeeAmountChf: number,
-    transactionRequest?: TransactionRequest,
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       absoluteFeeAmount: fixedFee,
@@ -426,8 +425,6 @@ export class BuyCrypto extends IEntity {
       amountInChf,
       refFactor: payoutRefBonus ? this.refFactor : 0,
       usedFees: fees?.map((fee) => fee.id).join(';'),
-      transactionRequest,
-      externalTransactionId: transactionRequest?.externalTransactionId,
     };
 
     if (update.inputReferenceAmountMinusFee < 0) throw new ConflictException('InputReferenceAmountMinusFee smaller 0');

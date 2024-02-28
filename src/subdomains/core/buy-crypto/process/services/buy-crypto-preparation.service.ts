@@ -8,7 +8,6 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
-import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Between, In, IsNull, Not } from 'typeorm';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
@@ -32,7 +31,6 @@ export class BuyCryptoPreparationService {
     private readonly assetService: AssetService,
     private readonly feeService: FeeService,
     private readonly buyCryptoService: BuyCryptoService,
-    private readonly transactionRequestService: TransactionRequestService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
@@ -134,13 +132,6 @@ export class BuyCryptoPreparationService {
 
         const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
 
-        const transactionRequest = await this.transactionRequestService.findAndCompleteRequest(
-          entity.inputAmount,
-          entity.route.id,
-          inputCurrency.id,
-          entity.target.asset.id,
-        );
-
         const { fee } = await this.transactionHelper.getTxFeeInfos(
           entity.inputReferenceAmount,
           inputCurrency,
@@ -168,7 +159,6 @@ export class BuyCryptoPreparationService {
             isFiat(inputReferenceCurrency) ? fee.min : referenceEurPrice.convert(fee.min, 2),
             fee.total,
             referenceChfPrice.convert(fee.total, 2),
-            transactionRequest,
           ),
         );
 
@@ -197,6 +187,7 @@ export class BuyCryptoPreparationService {
         },
         relations: [
           'bankTx',
+          'checkoutTx',
           'buy',
           'buy.user',
           'buy.user.wallet',
