@@ -127,7 +127,10 @@ export class CryptoRouteService {
     const userData = await this.userDataService.getUserDataByUser(userId);
     if (!userData.hasBankTxVerification) return [];
 
-    return this.cryptoRepo.findBy({ user: { id: userId }, asset: { buyable: true } });
+    return this.cryptoRepo.find({
+      where: { user: { id: userId }, asset: { buyable: true } },
+      relations: { user: true },
+    });
   }
 
   async updateCrypto(userId: number, cryptoId: number, dto: UpdateCryptoRouteDto): Promise<CryptoRoute> {

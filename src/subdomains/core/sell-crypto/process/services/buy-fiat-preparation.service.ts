@@ -123,7 +123,6 @@ export class BuyFiatPreparationService {
   async setOutputAssetEntity(): Promise<void> {
     const entities = await this.buyFiatRepo.find({
       where: {
-        amlCheck: CheckStatus.PASS,
         outputAsset: Not(IsNull()),
         outputAssetEntity: IsNull(),
       },
