@@ -72,13 +72,16 @@ export class FeeService {
     const fiat = await this.fiatService.getFiatByName('CHF');
 
     for (const blockchainFee of blockchainFees) {
-      const { asset, amount } = await this.payoutService.estimateBlockchainFee(blockchainFee.asset);
-      const price = await this.pricingService.getPrice(asset, fiat, true);
-      blockchainFee.amount = price.convert(amount);
-      await this.blockchainFeeRepo.save(blockchainFee);
+      try {
+        const { asset, amount } = await this.payoutService.estimateBlockchainFee(blockchainFee.asset);
+        const price = await this.pricingService.getPrice(asset, fiat, true);
+        blockchainFee.amount = price.convert(amount);
+        await this.blockchainFeeRepo.save(blockchainFee);
+      } catch (e) {
+        this.logger.error(`Failed to get fee of asset id ${blockchainFee.asset.id}:`, e);
+      }
     }
   }
-
   async createFee(dto: CreateFeeDto): Promise<Fee> {
     // check if exists
     const existing = await this.feeRepo.findOneBy({
