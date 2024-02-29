@@ -45,7 +45,7 @@ export interface ChallengeData {
 export class AuthService {
   private readonly logger = new DfxLogger(AuthService);
 
-  private readonly masterKeyPrefix = 'Master key ';
+  private readonly masterKeyPrefix = 'MASTER-KEY-';
   private challengeList: Map<string, ChallengeData> = new Map<string, ChallengeData>();
 
   constructor(
