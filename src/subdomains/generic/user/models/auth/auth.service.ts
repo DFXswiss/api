@@ -44,6 +44,8 @@ export interface ChallengeData {
 @Injectable()
 export class AuthService {
   private readonly logger = new DfxLogger(AuthService);
+
+  private readonly masterKeyPrefix = 'MASTER-KEY-';
   private challengeList: Map<string, ChallengeData> = new Map<string, ChallengeData>();
 
   constructor(
@@ -74,10 +76,9 @@ export class AuthService {
     const existingUser = await this.userRepo.getByAddress(dto.address, true);
     if (existingUser) throw new ConflictException('User already exists');
 
-    const wallets = await this.walletService.getAllWithMasterKey();
-
-    if (wallets.some((w) => w.masterKey === dto.signature)) {
-      delete dto.signature;
+    const keyWallet = await this.walletService.getWithMasterKey(dto.signature);
+    if (keyWallet) {
+      dto.signature = `${this.masterKeyPrefix}${keyWallet.id}`;
     } else if (!(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key)))
       throw new BadRequestException('Invalid signature');
 
@@ -99,9 +100,12 @@ export class AuthService {
     if (!user) throw new NotFoundException('User not found');
     if (user.status === UserStatus.BLOCKED) throw new ConflictException('User is blocked');
 
-    const wallets = await this.walletService.getAllWithMasterKey();
+    const keyWalletId = +user.signature?.replace(this.masterKeyPrefix, '');
 
-    if (!wallets.some((w) => w.masterKey === dto.signature)) {
+    if (!isNaN(keyWalletId)) {
+      const wallet = await this.walletService.getByIdOrName(keyWalletId);
+      if (dto.signature !== wallet.masterKey) throw new UnauthorizedException('Invalid credentials');
+    } else {
       if (!(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature))) {
         throw new UnauthorizedException('Invalid credentials');
       } else if (!user.signature) {
