@@ -175,16 +175,7 @@ export class BuyFiat extends IEntity {
   @Column({ length: 256, nullable: true })
   externalTransactionId: string;
 
-  //*** FACTORY METHODS ***//
-
-  static createFromPayIn(payIn: CryptoInput, sellRoute: Sell): BuyFiat {
-    const entity = new BuyFiat();
-
-    entity.cryptoInput = payIn;
-    entity.sell = sellRoute;
-
-    return entity;
-  }
+  // --- ENTITY METHODS --- //
 
   addAmlCheck(amlCheck: CheckStatus): this {
     this.amlCheck = amlCheck;
@@ -240,7 +231,6 @@ export class BuyFiat extends IEntity {
     minFeeAmountFiat: number,
     totalFeeAmount: number,
     totalFeeAmountChf: number,
-    transactionRequest?: TransactionRequest,
   ): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
       absoluteFeeAmount: fixedFee,
@@ -255,8 +245,6 @@ export class BuyFiat extends IEntity {
       amountInChf,
       refFactor: payoutRefBonus ? this.refFactor : 0,
       usedFees: fees?.map((fee) => fee.id).join(';'),
-      transactionRequest,
-      externalTransactionId: transactionRequest?.externalTransactionId,
     };
 
     if (update.inputReferenceAmountMinusFee < 0) throw new ConflictException('InputReferenceAmountMinusFee smaller 0');
