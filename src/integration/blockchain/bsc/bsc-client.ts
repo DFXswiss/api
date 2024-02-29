@@ -1,5 +1,4 @@
 import { Contract, ethers } from 'ethers';
-import { GetConfig } from 'src/config/config';
 import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
 import UNISWAP_ROUTER_02_ABI from 'src/integration/blockchain/shared/evm/abi/uniswap-router02.abi.json';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -22,14 +21,14 @@ export class BscClient extends EvmClient {
     this.scanApiKey = params.scanApiKey;
 
     // old v2 router
-    this.routerV2 = new ethers.Contract(
-      GetConfig().blockchain.bsc.pancakeRouterAddress,
-      UNISWAP_ROUTER_02_ABI,
-      this.wallet,
-    );
+    this.routerV2 = new ethers.Contract(params.swapContractAddress, UNISWAP_ROUTER_02_ABI, this.wallet);
   }
 
-  async testSwap(sourceToken: Asset, sourceAmount: number, targetToken: Asset): Promise<number> {
+  async testSwap(
+    sourceToken: Asset,
+    sourceAmount: number,
+    targetToken: Asset,
+  ): Promise<{ targetAmount: number; feeAmount: number }> {
     const sourceContract = new ethers.Contract(sourceToken.chainId, ERC20_ABI, this.wallet);
     const sourceTokenDecimals = await sourceContract.decimals();
 
@@ -39,7 +38,7 @@ export class BscClient extends EvmClient {
     const inputAmount = this.toWeiAmount(sourceAmount, sourceTokenDecimals);
     const outputAmounts = await this.routerV2.getAmountsOut(inputAmount, [sourceToken.chainId, targetToken.chainId]);
 
-    return this.fromWeiAmount(outputAmounts[1], targetTokenDecimals);
+    return { targetAmount: this.fromWeiAmount(outputAmounts[1], targetTokenDecimals), feeAmount: 0 };
   }
 
   async getNativeCoinTransactions(walletAddress: string, fromBlock: number): Promise<EvmCoinHistoryEntry[]> {
@@ -76,7 +75,7 @@ export class BscClient extends EvmClient {
   async getTokenBalance(asset: Asset): Promise<number> {
     const contract = this.getERC20ContractForDex(asset.chainId);
     const balance = await contract.balanceOf(this.dfxAddress);
-    const token = await this.getToken(contract);
+    const token = await this.getTokenByContract(contract);
 
     return this.fromWeiAmount(balance, token.decimals);
   }

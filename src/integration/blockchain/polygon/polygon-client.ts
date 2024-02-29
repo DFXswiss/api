@@ -45,7 +45,7 @@ export class PolygonClient extends EvmClient implements L2BridgeEvmClient {
     throw new Error(`Method not implemented.`);
   }
 
-  async approveToken(l1Token: Asset, _l2Token: Asset): Promise<string> {
+  async approveBridge(l1Token: Asset, _l2Token: Asset): Promise<string> {
     const l1Erc20Token = this.posClient.erc20(l1Token.chainId, true);
 
     const approveResult = await l1Erc20Token.approveMax();

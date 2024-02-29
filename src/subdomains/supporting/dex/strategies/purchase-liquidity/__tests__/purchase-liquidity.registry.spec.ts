@@ -2,13 +2,9 @@ import { mock } from 'jest-mock-extended';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
-import { AssetService } from 'src/shared/models/asset/asset.service';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { DexArbitrumService } from '../../../services/dex-arbitrum.service';
 import { DexBaseService } from '../../../services/dex-base.service';
-import { DexBitcoinService } from '../../../services/dex-bitcoin.service';
 import { DexBscService } from '../../../services/dex-bsc.service';
-import { DexMoneroService } from '../../../services/dex-monero.service';
 import { DexOptimismService } from '../../../services/dex-optimism.service';
 import { DexPolygonService } from '../../../services/dex-polygon.service';
 import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
@@ -46,45 +42,25 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
   let registry: PurchaseLiquidityStrategyRegistryWrapper;
 
   beforeEach(() => {
-    arbitrumCoin = new ArbitrumCoinStrategy(
-      mock<AssetService>(),
-      mock<NotificationService>(),
-      mock<DexArbitrumService>(),
-    );
-    arbitrumToken = new ArbitrumTokenStrategy(
-      mock<AssetService>(),
-      mock<NotificationService>(),
-      mock<DexArbitrumService>(),
-    );
-    bitcoin = new BitcoinStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBitcoinService>());
-    bscCoin = new BscCoinStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBscService>());
-    bscToken = new BscTokenStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBscService>());
+    arbitrumCoin = new ArbitrumCoinStrategy();
+    arbitrumToken = new ArbitrumTokenStrategy(mock<DexArbitrumService>());
+    bitcoin = new BitcoinStrategy();
+    bscCoin = new BscCoinStrategy();
+    bscToken = new BscTokenStrategy(mock<DexBscService>());
 
-    ethereumCoin = new EthereumCoinStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBscService>());
-    ethereumToken = new EthereumTokenStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBscService>());
+    ethereumCoin = new EthereumCoinStrategy();
+    ethereumToken = new EthereumTokenStrategy(mock<DexBscService>());
 
-    monero = new MoneroStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexMoneroService>());
+    monero = new MoneroStrategy();
 
-    optimismCoin = new OptimismCoinStrategy(
-      mock<AssetService>(),
-      mock<NotificationService>(),
-      mock<DexOptimismService>(),
-    );
-    optimismToken = new OptimismTokenStrategy(
-      mock<AssetService>(),
-      mock<NotificationService>(),
-      mock<DexOptimismService>(),
-    );
+    optimismCoin = new OptimismCoinStrategy();
+    optimismToken = new OptimismTokenStrategy(mock<DexOptimismService>());
 
-    polygonCoin = new PolygonCoinStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexPolygonService>());
-    polygonToken = new PolygonTokenStrategy(
-      mock<AssetService>(),
-      mock<NotificationService>(),
-      mock<DexPolygonService>(),
-    );
+    polygonCoin = new PolygonCoinStrategy();
+    polygonToken = new PolygonTokenStrategy(mock<DexPolygonService>());
 
-    baseCoin = new BaseCoinStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBaseService>());
-    baseToken = new BaseTokenStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBaseService>());
+    baseCoin = new BaseCoinStrategy();
+    baseToken = new BaseTokenStrategy(mock<DexBaseService>());
 
     registry = new PurchaseLiquidityStrategyRegistryWrapper(
       arbitrumCoin,
@@ -215,21 +191,19 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
       });
 
       it('fails to get strategy for non-supported Blockchain', () => {
-        const testCall = () =>
-          registry.getPurchaseLiquidityStrategy(createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }));
+        const strategy = registry.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }),
+        );
 
-        expect(testCall).toThrow();
-        expect(testCall).toThrowError('No PurchaseLiquidityStrategy found. Blockchain: NewBlockchain, AssetType: Coin');
+        expect(strategy).toBeUndefined();
       });
 
       it('fails to get strategy for non-supported AssetCategory', () => {
-        const testCall = () =>
-          registry.getPurchaseLiquidityStrategy(
-            createCustomAsset({ blockchain: Blockchain.DEFICHAIN, category: 'NewCategory' as AssetCategory }),
-          );
+        const strategy = registry.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.DEFICHAIN, category: 'NewCategory' as AssetCategory }),
+        );
 
-        expect(testCall).toThrow();
-        expect(testCall).toThrowError('No PurchaseLiquidityStrategy found. Blockchain: DeFiChain, AssetType: Coin');
+        expect(strategy).toBeUndefined();
       });
     });
   });

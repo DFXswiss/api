@@ -104,6 +104,9 @@
     "ethGatewayUrl": {
       "value": "https://eth-goerli.g.alchemy.com/v2"
     },
+    "ethSwapContractAddress": {
+      "value": "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"
+    },
     "ethChainId": {
       "value": "5"
     },
@@ -115,6 +118,9 @@
     },
     "optimismGatewayUrl": {
       "value": "https://opt-goerli.g.alchemy.com/v2"
+    },
+    "optimismSwapContractAddress": {
+      "value": "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"
     },
     "optimismChainId": {
       "value": "420"
@@ -128,6 +134,9 @@
     "arbitrumGatewayUrl": {
       "value": "https://arb-goerli.g.alchemy.com/v2"
     },
+    "arbitrumSwapContractAddress": {
+      "value": "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"
+    },
     "arbitrumChainId": {
       "value": "421613"
     },
@@ -140,6 +149,9 @@
     "polygonGatewayUrl": {
       "value": "https://polygon-mumbai.g.alchemy.com/v2"
     },
+    "polygonSwapContractAddress": {
+      "value": "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"
+    },
     "polygonChainId": {
       "value": "80001"
     },
@@ -151,6 +163,9 @@
     },
     "baseGatewayUrl": {
       "value": "https://base-goerli.g.alchemy.com/v2"
+    },
+    "baseSwapContractAddress": {
+      "value": "0x2626664c2603336E57B271c5C0b26F421741e481"
     },
     "baseChainId": {
       "value": "84531"
@@ -274,7 +289,7 @@
     },
     "frickPrivateKey": {
       "value": "xxx"
-    }, 
+    },
     "revolutRefreshToken": {
       "value": "xxx"
     },
