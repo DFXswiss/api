@@ -221,7 +221,11 @@ export class TransactionHelper implements OnModuleInit {
         ? TransactionError.AMOUNT_TOO_LOW
         : txAmountChf > extendedSpecs.maxVolume
         ? TransactionError.AMOUNT_TOO_HIGH
-        : isFiat(to) && user && !user.userData.hasBankTxVerification && txAmountChf > Config.defaultDailyTradingLimit
+        : isFiat(to) &&
+          to.name !== 'CHF' &&
+          user &&
+          !user.userData.hasBankTxVerification &&
+          txAmountChf > Config.defaultDailyTradingLimit
         ? TransactionError.BANK_TRANSACTION_MISSING
         : paymentMethodIn === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed
         ? TransactionError.KYC_REQUIRED
