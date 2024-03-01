@@ -25,9 +25,6 @@ import { BankDataRepository } from './models/bank-data/bank-data.repository';
 import { BankDataService } from './models/bank-data/bank-data.service';
 import { KycClientController, KycController } from './models/kyc/kyc.controller';
 import { KycService } from './models/kyc/kyc.service';
-import { MultiAccountIban } from './models/multi-account-iban/multi-account-iban.entity';
-import { MultiAccountIbanRepository } from './models/multi-account-iban/multi-account-iban.repository';
-import { MultiAccountIbanService } from './models/multi-account-iban/multi-account-iban.service';
 import { UserDataRelationController } from './models/user-data-relation/user-data-relation.controller';
 import { UserDataRelationRepository } from './models/user-data-relation/user-data-relation.repository';
 import { UserDataRelationService } from './models/user-data-relation/user-data-relation.service';
@@ -45,7 +42,7 @@ import { WebhookService } from './services/webhook/webhook.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, UserData, Wallet, BankData, AccountMerge, Webhook, MultiAccountIban]),
+    TypeOrmModule.forFeature([User, UserData, Wallet, BankData, AccountMerge, Webhook]),
     SharedModule,
     NotificationModule,
     BlockchainModule,
@@ -85,9 +82,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     UserDataNotificationService,
     UserDataRelationService,
     AccountMergeService,
-    MultiAccountIbanRepository,
-    MultiAccountIbanService,
   ],
-  exports: [UserService, UserDataService, WebhookService, BankDataService, WalletService, MultiAccountIbanService],
+  exports: [UserService, UserDataService, WebhookService, BankDataService, WalletService],
 })
 export class UserModule {}
