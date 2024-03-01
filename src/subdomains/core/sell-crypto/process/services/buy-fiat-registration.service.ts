@@ -1,17 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
-import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionHelper, ValidationError } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { IsNull, Not } from 'typeorm';
 import { Sell } from '../../route/sell.entity';
 import { SellRepository } from '../../route/sell.repository';
-import { BuyFiat } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
+import { BuyFiatService } from './buy-fiat.service';
 
 @Injectable()
 export class BuyFiatRegistrationService {
@@ -19,10 +16,10 @@ export class BuyFiatRegistrationService {
 
   constructor(
     private readonly buyFiatRepo: BuyFiatRepository,
+    private readonly buyFiatService: BuyFiatService,
     private readonly sellRepository: SellRepository,
     private readonly payInService: PayInService,
     private readonly transactionHelper: TransactionHelper,
-    private readonly bankDataService: BankDataService,
   ) {}
 
   async registerSellPayIn(): Promise<void> {
@@ -72,15 +69,10 @@ export class BuyFiatRegistrationService {
   private async createBuyFiatsAndAckPayIns(payInsPairs: [CryptoInput, Sell][]): Promise<void> {
     for (const [payIn, sellRoute] of payInsPairs) {
       try {
-        let buyFiat = await this.buyFiatRepo.findOneBy({ cryptoInput: { id: payIn.id } });
+        const buyFiat = await this.buyFiatRepo.findOneBy({ cryptoInput: { id: payIn.id } });
 
         if (!buyFiat) {
-          buyFiat = BuyFiat.createFromPayIn(payIn, sellRoute);
-
-          const result = await this.transactionHelper.validateInput(
-            buyFiat.cryptoInput.asset,
-            buyFiat.cryptoInput.amount,
-          );
+          const result = await this.transactionHelper.validateInput(payIn.asset, payIn.amount);
 
           if (result === ValidationError.PAY_IN_TOO_SMALL) {
             await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_FIAT, sellRoute);
@@ -95,16 +87,7 @@ export class BuyFiatRegistrationService {
             continue;
           }
 
-          if (!DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
-            const bankData = await this.bankDataService.getBankDataWithIban(sellRoute.iban, sellRoute.user.userData.id);
-            if (!bankData)
-              await this.bankDataService.createBankData(sellRoute.user.userData, {
-                iban: sellRoute.iban,
-                type: BankDataType.BANK_OUT,
-              });
-          }
-
-          await this.buyFiatRepo.save(buyFiat);
+          await this.buyFiatService.createFromCryptoInput(payIn, sellRoute);
         }
 
         await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_FIAT, sellRoute);
