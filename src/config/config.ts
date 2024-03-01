@@ -45,7 +45,8 @@ export class Configuration {
   defaultCardTradingLimit = 4000; // CHF
   apiKeyVersionCT = '0'; // single digit hex number
   azureIpSubstring = '169.254';
-  amlCheckMonthlyTradingLimit = 50000; // EUR
+  amlCheckMonthlyTradingLimit = 50000; // CHF
+  amlCheckLastNameCheckValidity = 90; // days
 
   colors = {
     white: '#FFFFFF',

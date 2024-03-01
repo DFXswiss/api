@@ -4,6 +4,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { BuyFiatPreparationService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat-preparation.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -31,6 +32,7 @@ export class BuyCryptoPreparationService {
     private readonly assetService: AssetService,
     private readonly feeService: FeeService,
     private readonly buyCryptoService: BuyCryptoService,
+    private readonly buyFiatPreparationService: BuyFiatPreparationService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
@@ -47,7 +49,6 @@ export class BuyCryptoPreparationService {
     );
 
     // CHF/EUR Price
-    const fiatEur = await this.fiatService.getFiatByName('EUR');
     const fiatChf = await this.fiatService.getFiatByName('CHF');
 
     for (const entity of entities) {
@@ -55,7 +56,7 @@ export class BuyCryptoPreparationService {
         const inputReferenceCurrency = await this.fiatService.getFiatByName(entity.bankTx.txCurrency);
         const inputCurrency = await this.fiatService.getFiatByName(entity.inputAsset);
 
-        const { fee, minVolume } = await this.transactionHelper.getTxFeeInfos(
+        const { minVolume } = await this.transactionHelper.getTxFeeInfos(
           entity.inputReferenceAmount,
           inputCurrency,
           inputReferenceCurrency,
@@ -65,7 +66,6 @@ export class BuyCryptoPreparationService {
           entity.user,
         );
 
-        const inputAssetEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatEur, false);
         const inputAssetChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
 
         const bankData = await this.bankDataService.getBankDataWithIban(entity.bankTx.iban, undefined, true);
@@ -77,16 +77,16 @@ export class BuyCryptoPreparationService {
           dateFrom,
         );
 
+        const userDataBuyFiatVolume = await this.buyFiatPreparationService.getUserVolume(
+          entity.user.userData.users.map((user) => user.id),
+          dateFrom,
+        );
+
         await this.buyCryptoRepo.update(
           ...entity.amlCheckAndFillUp(
-            inputAssetEurPrice,
             inputAssetChfPrice,
-            fee.total,
-            fee.rate,
-            fee.fixed,
-            fee.min,
             minVolume,
-            userDataVolume.buy + userDataVolume.checkout, // + convert?
+            userDataVolume.buy + userDataVolume.checkout + userDataVolume.convert + userDataBuyFiatVolume.sell,
             bankData?.userData,
           ),
         );
@@ -269,7 +269,7 @@ export class BuyCryptoPreparationService {
   ): Promise<{ buy: number; convert: number; checkout: number }> {
     const buyVolume = await this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
-      .select('COUNT(amountInEur)', 'volume')
+      .select('SUM(amountInChf)', 'volume')
       .leftJoin('buyCrypto.bankTx', 'bankTx')
       .leftJoin('buyCrypto.buy', 'buy')
       .leftJoin('buy.user', 'user')
@@ -281,7 +281,7 @@ export class BuyCryptoPreparationService {
 
     const convertVolume = await this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
-      .select('COUNT(amountInEur)', 'volume')
+      .select('SUM(amountInChf)', 'volume')
       .leftJoin('buyCrypto.cryptoInput', 'cryptoInput')
       .leftJoin('buyCrypto.cryptoRoute', 'cryptoRoute')
       .leftJoin('cryptoRoute.user', 'user')
@@ -293,7 +293,7 @@ export class BuyCryptoPreparationService {
 
     const checkoutVolume = await this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
-      .select('COUNT(amountInEur)', 'volume')
+      .select('SUM(amountInChf)', 'volume')
       .leftJoin('buyCrypto.checkoutTx', 'checkoutTx')
       .leftJoin('buyCrypto.buy', 'buy')
       .leftJoin('buy.user', 'user')

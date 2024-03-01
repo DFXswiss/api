@@ -4,9 +4,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
-import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { IsNull, Not } from 'typeorm';
+import { Between, In, IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../buy-crypto/process/enums/check-status.enum';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatService } from './buy-fiat.service';
@@ -22,7 +21,6 @@ export class BuyFiatPreparationService {
     private readonly fiatService: FiatService,
     private readonly feeService: FeeService,
     private readonly buyFiatService: BuyFiatService,
-    private readonly transactionRequestService: TransactionRequestService,
   ) {}
 
   async refreshFee(): Promise<void> {
@@ -133,5 +131,27 @@ export class BuyFiatPreparationService {
         this.logger.error(`Error during buy-fiat ${entity.id} outputAssetEntity setting:`, e);
       }
     }
+  }
+
+  // --- HELPER METHODS --- //
+
+  async getUserVolume(
+    userIds: number[],
+    dateFrom: Date = new Date(0),
+    dateTo: Date = new Date(),
+  ): Promise<{ sell: number }> {
+    const sellVolume = await this.buyFiatRepo
+      .createQueryBuilder('buyFiat')
+      .select('SUM(amountInChf)', 'volume')
+      .leftJoin('buyFiat.cryptoInput', 'cryptoInput')
+      .leftJoin('buyCrypto.sell', 'sell')
+      .leftJoin('sell.user', 'user')
+      .where(`user.id = :userId`, { userId: In(userIds) })
+      .andWhere('cryptoInput.created = :date', { date: Between(dateFrom, dateTo) })
+      .andWhere('buyFiat.amlCheck = :amlCheck', { amlCheck: CheckStatus.PASS })
+      .getRawOne<{ volume: number }>()
+      .then((result) => result.volume);
+
+    return { sell: sellVolume };
   }
 }
