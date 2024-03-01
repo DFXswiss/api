@@ -31,8 +31,6 @@ export enum BankTxIndicator {
   DEBIT = 'DBIT',
 }
 
-const externalManagedIban = ['CH3704835284238523000', 'BE48967056780227'];
-
 @Entity()
 export class BankTx extends IEntity {
   @Column({ length: 256, unique: true })
@@ -199,7 +197,7 @@ export class BankTx extends IEntity {
     return `${this.name} ${this.ultimateName}`;
   }
 
-  get senderAccount(): string | undefined {
+  senderAccount(externalManagedIban: string[]): string | undefined {
     if (externalManagedIban.includes(this.iban)) return `${this.iban};${this.completeName.split(' ').join('')}`;
     if (this.iban) {
       if (!isNaN(+this.iban)) return `NOIBAN${this.iban}`;
