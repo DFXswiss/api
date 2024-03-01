@@ -176,7 +176,7 @@ export class BuyFiatService {
 
   async extendBuyFiat(buyFiat: BuyFiat): Promise<BuyFiatExtended> {
     const inputAssetEntity = buyFiat.cryptoInput.asset;
-    const outputAssetEntity = await this.fiatService.getFiatByName(buyFiat.outputAsset);
+    const outputAssetEntity = buyFiat.outputAsset && (await this.fiatService.getFiatByName(buyFiat.outputAsset));
 
     return Object.assign(buyFiat, { inputAssetEntity, outputAssetEntity });
   }

@@ -100,9 +100,10 @@ export class AuthService {
     if (!user) throw new NotFoundException('User not found');
     if (user.status === UserStatus.BLOCKED) throw new ConflictException('User is blocked');
 
-    const keyWalletId = +user.signature?.replace(this.masterKeyPrefix, '');
+    const keyWalletId =
+      user.signature?.includes(this.masterKeyPrefix) && +user.signature?.replace(this.masterKeyPrefix, '');
 
-    if (!isNaN(keyWalletId)) {
+    if (keyWalletId) {
       const wallet = await this.walletService.getByIdOrName(keyWalletId);
       if (dto.signature !== wallet.masterKey) throw new UnauthorizedException('Invalid credentials');
     } else {
