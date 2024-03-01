@@ -10,7 +10,7 @@ import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payme
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { Between, In, IsNull, Not } from 'typeorm';
+import { In, IsNull, Not } from 'typeorm';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { CheckStatus } from '../enums/check-status.enum';
@@ -272,9 +272,8 @@ export class BuyCryptoPreparationService {
       .select('SUM(amountInChf)', 'volume')
       .leftJoin('buyCrypto.bankTx', 'bankTx')
       .leftJoin('buyCrypto.buy', 'buy')
-      .leftJoin('buy.user', 'user')
-      .where(`user.id = :userId`, { userId: In(userIds) })
-      .andWhere('bankTx.created = :date', { date: Between(dateFrom, dateTo) })
+      .where(`buy.userId = :userId`, { userId: In(userIds) })
+      .andWhere('bankTx.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
       .andWhere('buyCrypto.amlCheck = :amlCheck', { amlCheck: CheckStatus.PASS })
       .getRawOne<{ volume: number }>()
       .then((result) => result.volume);
@@ -284,9 +283,8 @@ export class BuyCryptoPreparationService {
       .select('SUM(amountInChf)', 'volume')
       .leftJoin('buyCrypto.cryptoInput', 'cryptoInput')
       .leftJoin('buyCrypto.cryptoRoute', 'cryptoRoute')
-      .leftJoin('cryptoRoute.user', 'user')
-      .where(`user.id = :userId`, { userId: In(userIds) })
-      .andWhere('cryptoInput.created = :date', { date: Between(dateFrom, dateTo) })
+      .where(`cryptoRoute.userId = :userId`, { userId: In(userIds) })
+      .andWhere('cryptoInput.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
       .andWhere('buyCrypto.amlCheck = :amlCheck', { amlCheck: CheckStatus.PASS })
       .getRawOne<{ volume: number }>()
       .then((result) => result.volume);
@@ -296,9 +294,8 @@ export class BuyCryptoPreparationService {
       .select('SUM(amountInChf)', 'volume')
       .leftJoin('buyCrypto.checkoutTx', 'checkoutTx')
       .leftJoin('buyCrypto.buy', 'buy')
-      .leftJoin('buy.user', 'user')
-      .where(`user.id = :userId`, { userId: In(userIds) })
-      .andWhere('checkoutTx.requestedOn = :date', { date: Between(dateFrom, dateTo) })
+      .where(`buy.userId = :userId`, { userId: In(userIds) })
+      .andWhere('checkoutTx.requestedOn BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
       .andWhere('buyCrypto.amlCheck = :amlCheck', { amlCheck: CheckStatus.PASS })
       .getRawOne<{ volume: number }>()
       .then((result) => result.volume);

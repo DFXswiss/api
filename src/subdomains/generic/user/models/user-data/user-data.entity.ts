@@ -85,9 +85,6 @@ export enum UserDataStatus {
   KYC_ONLY = 'KycOnly',
 }
 
-const UserDataPaymentStates = [UserDataStatus.ACTIVE, UserDataStatus.NA];
-const BankTransactionVerificationPaymentStates = [CheckStatus.PASS, CheckStatus.UNNECESSARY];
-
 @Entity()
 @Index(
   (userData: UserData) => [userData.identDocumentId, userData.nationality, userData.accountType, userData.kycType],
@@ -539,20 +536,15 @@ export class UserData extends IEntity {
   }
 
   get isPaymentStatusEnabled(): boolean {
-    return UserDataPaymentStates.includes(this.status);
+    return [UserDataStatus.ACTIVE, UserDataStatus.NA].includes(this.status);
   }
 
   get isPaymentKycStatusEnabled(): boolean {
-    return KycPaymentEnabledStates.includes(this.kycStatus);
-  }
-
-  get isPaymentBankTransactionVerified(): boolean {
-    return BankTransactionVerificationPaymentStates.includes(this.bankTransactionVerification);
+    return [KycStatus.COMPLETED, KycStatus.NA].includes(this.kycStatus);
   }
 }
 
 export const KycCompletedStates = [KycStatus.COMPLETED];
-export const KycPaymentEnabledStates = [KycStatus.COMPLETED, KycStatus.NA];
 
 export function KycCompleted(kycStatus?: KycStatus): boolean {
   return KycCompletedStates.includes(kycStatus);

@@ -458,7 +458,7 @@ export class BuyCrypto extends IEntity {
       this.userData.isPaymentKycStatusEnabled &&
       this.user.isPaymentStatusEnabled &&
       this.userData.isPaymentStatusEnabled &&
-      this.userData.isPaymentBankTransactionVerified &&
+      this.userData.hasBankTxVerification &&
       this.userData.verifiedName &&
       this.userData.verifiedCountry &&
       this.userData.letterSentDate &&
