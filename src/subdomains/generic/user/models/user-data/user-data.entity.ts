@@ -534,6 +534,14 @@ export class UserData extends IEntity {
   get hasBankTxVerification(): boolean {
     return [CheckStatus.PASS, CheckStatus.UNNECESSARY].includes(this.bankTransactionVerification);
   }
+
+  get isPaymentStatusEnabled(): boolean {
+    return [UserDataStatus.ACTIVE, UserDataStatus.NA].includes(this.status);
+  }
+
+  get isPaymentKycStatusEnabled(): boolean {
+    return [KycStatus.COMPLETED, KycStatus.NA].includes(this.kycStatus);
+  }
 }
 
 export const KycCompletedStates = [KycStatus.COMPLETED];

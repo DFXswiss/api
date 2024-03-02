@@ -50,7 +50,7 @@ export class WebhookNotificationService {
 
   // --- HELPER METHODS --- //
 
-  private async triggerUserWebhook<T extends PaymentWebhookData | KycWebhookData>(webhook: Webhook): Promise<boolean> {
+  async triggerUserWebhook<T extends PaymentWebhookData | KycWebhookData>(webhook: Webhook): Promise<boolean> {
     try {
       if (!webhook.user.wallet.apiUrl)
         throw new Error(`ApiUrl for wallet ${webhook.user.wallet.name} not available anymore in webhook ${webhook.id}`);

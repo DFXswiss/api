@@ -8,6 +8,7 @@ import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { WalletRepository } from 'src/subdomains/generic/user/models/wallet/wallet.repository';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
+import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
 import { KycModule } from '../kyc/kyc.module';
@@ -50,6 +51,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     KycModule,
     forwardRef(() => PaymentModule),
     forwardRef(() => KycModule),
+    BankModule,
   ],
   controllers: [
     UserController,

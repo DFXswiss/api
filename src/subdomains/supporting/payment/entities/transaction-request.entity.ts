@@ -44,7 +44,7 @@ export class TransactionRequest extends IEntity {
   @Column({ type: 'float' })
   rate: number;
 
-  @Column({ nullable: true })
+  @Column({ length: 'MAX', nullable: true })
   paymentRequest: string;
 
   @Column({ nullable: true })

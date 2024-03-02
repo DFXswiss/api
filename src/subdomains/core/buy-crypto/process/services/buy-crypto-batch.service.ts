@@ -57,6 +57,7 @@ export class BuyCryptoBatchService {
         },
         relations: [
           'bankTx',
+          'checkoutTx',
           'buy',
           'buy.user',
           'buy.asset',

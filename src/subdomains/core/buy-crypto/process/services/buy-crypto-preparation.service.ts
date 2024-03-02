@@ -4,13 +4,13 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { BuyFiatPreparationService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat-preparation.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
-import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { Between, In, IsNull, Not } from 'typeorm';
+import { In, IsNull, Not } from 'typeorm';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { CheckStatus } from '../enums/check-status.enum';
@@ -32,7 +32,7 @@ export class BuyCryptoPreparationService {
     private readonly assetService: AssetService,
     private readonly feeService: FeeService,
     private readonly buyCryptoService: BuyCryptoService,
-    private readonly transactionRequestService: TransactionRequestService,
+    private readonly buyFiatPreparationService: BuyFiatPreparationService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
@@ -49,7 +49,6 @@ export class BuyCryptoPreparationService {
     );
 
     // CHF/EUR Price
-    const fiatEur = await this.fiatService.getFiatByName('EUR');
     const fiatChf = await this.fiatService.getFiatByName('CHF');
 
     for (const entity of entities) {
@@ -57,7 +56,7 @@ export class BuyCryptoPreparationService {
         const inputReferenceCurrency = await this.fiatService.getFiatByName(entity.bankTx.txCurrency);
         const inputCurrency = await this.fiatService.getFiatByName(entity.inputAsset);
 
-        const { fee, minVolume } = await this.transactionHelper.getTxFeeInfos(
+        const { minVolume } = await this.transactionHelper.getTxFeeInfos(
           entity.inputReferenceAmount,
           inputCurrency,
           inputReferenceCurrency,
@@ -67,7 +66,6 @@ export class BuyCryptoPreparationService {
           entity.user,
         );
 
-        const inputAssetEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatEur, false);
         const inputAssetChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
 
         const bankData = await this.bankDataService.getBankDataWithIban(entity.bankTx.iban, undefined, true);
@@ -79,16 +77,16 @@ export class BuyCryptoPreparationService {
           dateFrom,
         );
 
+        const userDataBuyFiatVolume = await this.buyFiatPreparationService.getUserVolume(
+          entity.user.userData.users.map((user) => user.id),
+          dateFrom,
+        );
+
         await this.buyCryptoRepo.update(
           ...entity.amlCheckAndFillUp(
-            inputAssetEurPrice,
             inputAssetChfPrice,
-            fee.total,
-            fee.rate,
-            fee.fixed,
-            fee.min,
             minVolume,
-            userDataVolume.buy + userDataVolume.checkout, // + convert?
+            userDataVolume.buy + userDataVolume.checkout + userDataVolume.convert + userDataBuyFiatVolume.sell,
             bankData?.userData,
           ),
         );
@@ -134,13 +132,6 @@ export class BuyCryptoPreparationService {
 
         const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
 
-        const transactionRequest = await this.transactionRequestService.findAndCompleteRequest(
-          entity.inputAmount,
-          entity.route.id,
-          inputCurrency.id,
-          entity.target.asset.id,
-        );
-
         const { fee } = await this.transactionHelper.getTxFeeInfos(
           entity.inputReferenceAmount,
           inputCurrency,
@@ -168,7 +159,6 @@ export class BuyCryptoPreparationService {
             isFiat(inputReferenceCurrency) ? fee.min : referenceEurPrice.convert(fee.min, 2),
             fee.total,
             referenceChfPrice.convert(fee.total, 2),
-            transactionRequest,
           ),
         );
 
@@ -197,6 +187,7 @@ export class BuyCryptoPreparationService {
         },
         relations: [
           'bankTx',
+          'checkoutTx',
           'buy',
           'buy.user',
           'buy.user.wallet',
@@ -278,36 +269,33 @@ export class BuyCryptoPreparationService {
   ): Promise<{ buy: number; convert: number; checkout: number }> {
     const buyVolume = await this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
-      .select('COUNT(amountInEur)', 'volume')
+      .select('SUM(amountInChf)', 'volume')
       .leftJoin('buyCrypto.bankTx', 'bankTx')
       .leftJoin('buyCrypto.buy', 'buy')
-      .leftJoin('buy.user', 'user')
-      .where(`user.id = :userId`, { userId: In(userIds) })
-      .andWhere('bankTx.created = :date', { date: Between(dateFrom, dateTo) })
+      .where(`buy.userId = :userId`, { userId: In(userIds) })
+      .andWhere('bankTx.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
       .andWhere('buyCrypto.amlCheck = :amlCheck', { amlCheck: CheckStatus.PASS })
       .getRawOne<{ volume: number }>()
       .then((result) => result.volume);
 
     const convertVolume = await this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
-      .select('COUNT(amountInEur)', 'volume')
+      .select('SUM(amountInChf)', 'volume')
       .leftJoin('buyCrypto.cryptoInput', 'cryptoInput')
       .leftJoin('buyCrypto.cryptoRoute', 'cryptoRoute')
-      .leftJoin('cryptoRoute.user', 'user')
-      .where(`user.id = :userId`, { userId: In(userIds) })
-      .andWhere('cryptoInput.created = :date', { date: Between(dateFrom, dateTo) })
+      .where(`cryptoRoute.userId = :userId`, { userId: In(userIds) })
+      .andWhere('cryptoInput.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
       .andWhere('buyCrypto.amlCheck = :amlCheck', { amlCheck: CheckStatus.PASS })
       .getRawOne<{ volume: number }>()
       .then((result) => result.volume);
 
     const checkoutVolume = await this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
-      .select('COUNT(amountInEur)', 'volume')
+      .select('SUM(amountInChf)', 'volume')
       .leftJoin('buyCrypto.checkoutTx', 'checkoutTx')
       .leftJoin('buyCrypto.buy', 'buy')
-      .leftJoin('buy.user', 'user')
-      .where(`user.id = :userId`, { userId: In(userIds) })
-      .andWhere('checkoutTx.requestedOn = :date', { date: Between(dateFrom, dateTo) })
+      .where(`buy.userId = :userId`, { userId: In(userIds) })
+      .andWhere('checkoutTx.requestedOn BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
       .andWhere('buyCrypto.amlCheck = :amlCheck', { amlCheck: CheckStatus.PASS })
       .getRawOne<{ volume: number }>()
       .then((result) => result.volume);

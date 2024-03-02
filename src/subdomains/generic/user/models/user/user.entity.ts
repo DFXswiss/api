@@ -16,6 +16,8 @@ export enum UserStatus {
   BLOCKED = 'Blocked',
 }
 
+const UserPaymentStates = [UserStatus.ACTIVE, UserStatus.NA];
+
 @Entity()
 export class User extends IEntity {
   @Column({ length: 256, unique: true })
@@ -135,5 +137,15 @@ export class User extends IEntity {
     Object.assign(this, update);
 
     return [this.id, update];
+  }
+
+  get specifiedRef(): { usedRef: string; refProvision: number } {
+    return this.wallet?.name === 'CakeWallet'
+      ? { usedRef: '160-195', refProvision: 2 }
+      : { usedRef: this.usedRef, refProvision: this.usedRef === '000-000' ? 0 : this.refFeePercent };
+  }
+
+  get isPaymentStatusEnabled(): boolean {
+    return UserPaymentStates.includes(this.status);
   }
 }

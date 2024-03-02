@@ -7,8 +7,8 @@ import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entit
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionHelper, ValidationError } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { IsNull, Not } from 'typeorm';
-import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
+import { BuyCryptoService } from './buy-crypto.service';
 
 @Injectable()
 export class BuyCryptoRegistrationService {
@@ -16,6 +16,7 @@ export class BuyCryptoRegistrationService {
 
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
+    private readonly buyCryptoService: BuyCryptoService,
     private readonly cryptoRouteRepository: CryptoRouteRepository,
     private readonly payInService: PayInService,
     private readonly transactionHelper: TransactionHelper,
@@ -71,12 +72,7 @@ export class BuyCryptoRegistrationService {
         const existingBuyCrypto = await this.buyCryptoRepo.findOneBy({ cryptoInput: { id: payIn.id } });
 
         if (!existingBuyCrypto) {
-          const newBuyCrypto = BuyCrypto.createFromPayIn(payIn, cryptoRoute);
-
-          const result = await this.transactionHelper.validateInput(
-            newBuyCrypto.cryptoInput.asset,
-            newBuyCrypto.cryptoInput.amount,
-          );
+          const result = await this.transactionHelper.validateInput(payIn.asset, payIn.amount);
 
           if (result === ValidationError.PAY_IN_TOO_SMALL) {
             await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_CRYPTO, cryptoRoute);
@@ -93,7 +89,7 @@ export class BuyCryptoRegistrationService {
             }
           }
 
-          await this.buyCryptoRepo.save(newBuyCrypto);
+          await this.buyCryptoService.createFromCryptoInput(payIn, cryptoRoute);
         }
 
         await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_CRYPTO, cryptoRoute);

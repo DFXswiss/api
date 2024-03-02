@@ -7,6 +7,10 @@ import { Wallet } from './wallet.entity';
 export class WalletService {
   constructor(private readonly repo: WalletRepository) {}
 
+  async getWithMasterKey(masterKey: string): Promise<Wallet | undefined> {
+    return masterKey && this.repo.findOneBy({ masterKey });
+  }
+
   async getByAddress(address: string): Promise<Wallet | undefined> {
     return this.repo.findOneBy({ address });
   }

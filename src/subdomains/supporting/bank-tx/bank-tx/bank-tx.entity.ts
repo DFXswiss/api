@@ -31,7 +31,8 @@ export enum BankTxIndicator {
   DEBIT = 'DBIT',
 }
 
-const externalManagedIban = ['CH3704835284238523000', 'BE48967056780227'];
+export const BicBlacklist = ['FPELFR21XXX'];
+export const OlkypayIban = ['LU116060002000005040', 'GB77REVO00996972945099'];
 
 @Entity()
 export class BankTx extends IEntity {
@@ -199,7 +200,7 @@ export class BankTx extends IEntity {
     return `${this.name} ${this.ultimateName}`;
   }
 
-  get senderAccount(): string | undefined {
+  senderAccount(externalManagedIban: string[]): string | undefined {
     if (externalManagedIban.includes(this.iban)) return `${this.iban};${this.completeName.split(' ').join('')}`;
     if (this.iban) {
       if (!isNaN(+this.iban)) return `NOIBAN${this.iban}`;

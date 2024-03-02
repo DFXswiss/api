@@ -5,9 +5,9 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
-import { KycLevel, UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
-import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
+import { KycLevel, KycType, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { BankTx, BicBlacklist, OlkypayIban } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -188,16 +188,7 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 256, nullable: true })
   externalTransactionId: string;
 
-  //*** FACTORY METHODS ***//
-
-  static createFromPayIn(payIn: CryptoInput, cryptoRoute: CryptoRoute): BuyCrypto {
-    const entity = new BuyCrypto();
-
-    entity.cryptoInput = payIn;
-    entity.cryptoRoute = cryptoRoute;
-
-    return entity;
-  }
+  // --- ENTITY METHODS --- //
 
   defineAssetExchangePair(): { outputReferenceAssetName: string; type: AssetType } | null {
     this.outputAsset = this.target?.asset;
@@ -380,7 +371,7 @@ export class BuyCrypto extends IEntity {
 
   confirmSentMail(): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
-      recipientMail: this.user.userData.mail,
+      recipientMail: this.userData.mail,
       mailSendDate: new Date(),
     };
 
@@ -411,7 +402,6 @@ export class BuyCrypto extends IEntity {
     minFeeAmountFiat: number,
     totalFeeAmount: number,
     totalFeeAmountChf: number,
-    transactionRequest?: TransactionRequest,
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       absoluteFeeAmount: fixedFee,
@@ -426,8 +416,6 @@ export class BuyCrypto extends IEntity {
       amountInChf,
       refFactor: payoutRefBonus ? this.refFactor : 0,
       usedFees: fees?.map((fee) => fee.id).join(';'),
-      transactionRequest,
-      externalTransactionId: transactionRequest?.externalTransactionId,
     };
 
     if (update.inputReferenceAmountMinusFee < 0) throw new ConflictException('InputReferenceAmountMinusFee smaller 0');
@@ -438,37 +426,18 @@ export class BuyCrypto extends IEntity {
   }
 
   amlCheckAndFillUp(
-    eurPrice: Price,
     chfPrice: Price,
-    totalFeeAmount: number,
-    feeRate: number,
-    fixedFee: number,
-    minFeeAmount: number,
     minVolume: number,
-    monthlyAmountInEur: number,
+    monthlyAmountInChf: number,
     bankDataUserData: UserData,
   ): UpdateResult<BuyCrypto> {
-    const usedRef = this.user.usedRef;
+    const { usedRef, refProvision } = this.user.specifiedRef;
     const amountInChf = chfPrice.convert(this.bankTx.txAmount, 2);
 
-    const update: Partial<BuyCrypto> = this.isAmlPass(minVolume, amountInChf, bankDataUserData?.id, monthlyAmountInEur)
+    const update: Partial<BuyCrypto> = this.isAmlPass(minVolume, amountInChf, bankDataUserData?.id, monthlyAmountInChf)
       ? {
-          inputAmount: this.bankTx.txAmount,
-          inputAsset: this.bankTx.txCurrency,
-          inputReferenceAmount: this.bankTx.txAmount,
-          inputReferenceAsset: this.bankTx.currency,
-          amountInChf,
-          amountInEur: eurPrice.convert(this.bankTx.txAmount, 2),
-          absoluteFeeAmount: fixedFee,
-          percentFee: feeRate,
-          percentFeeAmount: feeRate * this.bankTx.txAmount,
-          minFeeAmount,
-          minFeeAmountFiat: minFeeAmount,
-          totalFeeAmount,
-          totalFeeAmountChf: chfPrice.convert(totalFeeAmount, 2),
-          inputReferenceAmountMinusFee: this.bankTx.txAmount - totalFeeAmount,
           usedRef,
-          refProvision: usedRef === '000-000' ? 0 : this.user.refFeePercent,
+          refProvision,
           refFactor: usedRef === '000-000' ? 0 : 1,
           amlCheck: CheckStatus.PASS,
         }
@@ -479,18 +448,28 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
-  isAmlPass(minVolume: number, amountInChf: number, bankDataUserDataId: number, monthlyAmountInEur: number): boolean {
+  isAmlPass(minVolume: number, amountInChf: number, bankDataUserDataId: number, monthlyAmountInChf: number): boolean {
     return (
       this.bankTx.currency === this.bankTx.txCurrency &&
+      this.bankTx.txAmount >= minVolume * 0.9 && // in referenceAsset! Only valid for bankTx.currency === bankTx.txCurrency // factor 0.9 puffer
       this.target.asset.buyable &&
-      this.bankTx.txAmount >= minVolume &&
-      this.user.userData.annualBuyVolume + amountInChf < this.user.userData.depositLimit &&
-      bankDataUserDataId === this.user.userData.id &&
-      this.user.userData.kycLevel >= KycLevel.LEVEL_50 &&
-      this.user.status === UserStatus.ACTIVE &&
-      this.user.userData.status === UserDataStatus.ACTIVE &&
-      // this.user.userData.riskState === RiskState.C && // TODO
-      monthlyAmountInEur <= Config.amlCheckMonthlyTradingLimit
+      bankDataUserDataId === this.userData.id &&
+      this.userData.kycLevel >= KycLevel.LEVEL_50 &&
+      this.userData.isPaymentKycStatusEnabled &&
+      this.user.isPaymentStatusEnabled &&
+      this.userData.isPaymentStatusEnabled &&
+      this.userData.hasBankTxVerification &&
+      this.userData.verifiedName &&
+      this.userData.verifiedCountry &&
+      this.userData.letterSentDate &&
+      this.userData.amlListAddedDate &&
+      this.userData.kycType === KycType.DFX &&
+      this.userData.kycFileId > 0 &&
+      this.userData.annualBuyVolume + amountInChf < this.userData.depositLimit &&
+      Util.daysDiff(this.userData.lastNameCheckDate, new Date()) <= Config.amlCheckLastNameCheckValidity &&
+      monthlyAmountInChf <= Config.amlCheckMonthlyTradingLimit &&
+      !BicBlacklist.includes(this.bankTx.bic) &&
+      (!OlkypayIban.includes(this.bankTx.iban) || this.userData.olkypayAllowed)
     );
   }
 
@@ -578,6 +557,10 @@ export class BuyCrypto extends IEntity {
     return this.buy ? this.buy.user : this.cryptoRoute.user;
   }
 
+  get userData(): UserData {
+    return this.user.userData;
+  }
+
   get route(): Buy | CryptoRoute {
     return this.buy ?? this.cryptoRoute;
   }
@@ -600,7 +583,7 @@ export class BuyCrypto extends IEntity {
         };
   }
 
-  //*** HELPER METHODS ***//
+  // --- HELPER METHODS --- //
 
   private resetTransaction(): Partial<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
