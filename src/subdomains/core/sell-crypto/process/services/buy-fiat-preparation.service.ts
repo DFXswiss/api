@@ -109,4 +109,25 @@ export class BuyFiatPreparationService {
       }
     }
   }
+
+  // --- HELPER METHODS --- //
+
+  async getUserVolume(
+    userIds: number[],
+    dateFrom: Date = new Date(0),
+    dateTo: Date = new Date(),
+  ): Promise<{ sell: number }> {
+    const sellVolume = await this.buyFiatRepo
+      .createQueryBuilder('buyFiat')
+      .select('SUM(amountInChf)', 'volume')
+      .leftJoin('buyFiat.cryptoInput', 'cryptoInput')
+      .leftJoin('buyFiat.sell', 'sell')
+      .where(`sell.userId = :userId`, { userId: In(userIds) })
+      .andWhere('cryptoInput.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
+      .andWhere('buyFiat.amlCheck = :amlCheck', { amlCheck: CheckStatus.PASS })
+      .getRawOne<{ volume: number }>()
+      .then((result) => result.volume);
+
+    return { sell: sellVolume };
+  }
 }

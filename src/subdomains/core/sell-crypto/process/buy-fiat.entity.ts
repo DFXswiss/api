@@ -252,9 +252,8 @@ export class BuyFiat extends IEntity {
     const update: Partial<BuyFiat> = {
       outputAmount,
       outputReferenceAmount: outputAmount,
-      outputAsset: outputAssetEntity.name,
-      outputReferenceAsset: outputAssetEntity.name,
       outputAssetEntity,
+      outputReferenceAssetEntity: outputAssetEntity,
     };
 
     Object.assign(this, update);
