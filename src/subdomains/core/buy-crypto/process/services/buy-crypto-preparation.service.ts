@@ -4,13 +4,13 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { BuyFiatPreparationService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat-preparation.service';
+import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { In, IsNull, Not } from 'typeorm';
+import { IsNull, Not } from 'typeorm';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { CheckStatus } from '../enums/check-status.enum';
@@ -32,7 +32,7 @@ export class BuyCryptoPreparationService {
     private readonly assetService: AssetService,
     private readonly feeService: FeeService,
     private readonly buyCryptoService: BuyCryptoService,
-    private readonly buyFiatPreparationService: BuyFiatPreparationService,
+    private readonly buyFiatService: BuyFiatService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
@@ -72,12 +72,12 @@ export class BuyCryptoPreparationService {
 
         const dateFrom = Util.daysBefore(30);
 
-        const userDataVolume = await this.getUserVolume(
+        const userDataVolume = await this.buyCryptoService.getUserVolume(
           entity.user.userData.users.map((user) => user.id),
           dateFrom,
         );
 
-        const userDataBuyFiatVolume = await this.buyFiatPreparationService.getUserVolume(
+        const userDataBuyFiatVolume = await this.buyFiatService.getUserVolume(
           entity.user.userData.users.map((user) => user.id),
           dateFrom,
         );
@@ -260,46 +260,5 @@ export class BuyCryptoPreparationService {
     }
 
     return transactions;
-  }
-
-  private async getUserVolume(
-    userIds: number[],
-    dateFrom: Date = new Date(0),
-    dateTo: Date = new Date(),
-  ): Promise<{ buy: number; convert: number; checkout: number }> {
-    const buyVolume = await this.buyCryptoRepo
-      .createQueryBuilder('buyCrypto')
-      .select('SUM(amountInChf)', 'volume')
-      .leftJoin('buyCrypto.bankTx', 'bankTx')
-      .leftJoin('buyCrypto.buy', 'buy')
-      .where(`buy.userId = :userId`, { userId: In(userIds) })
-      .andWhere('bankTx.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
-      .andWhere('buyCrypto.amlCheck = :amlCheck', { amlCheck: CheckStatus.PASS })
-      .getRawOne<{ volume: number }>()
-      .then((result) => result.volume);
-
-    const convertVolume = await this.buyCryptoRepo
-      .createQueryBuilder('buyCrypto')
-      .select('SUM(amountInChf)', 'volume')
-      .leftJoin('buyCrypto.cryptoInput', 'cryptoInput')
-      .leftJoin('buyCrypto.cryptoRoute', 'cryptoRoute')
-      .where(`cryptoRoute.userId = :userId`, { userId: In(userIds) })
-      .andWhere('cryptoInput.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
-      .andWhere('buyCrypto.amlCheck = :amlCheck', { amlCheck: CheckStatus.PASS })
-      .getRawOne<{ volume: number }>()
-      .then((result) => result.volume);
-
-    const checkoutVolume = await this.buyCryptoRepo
-      .createQueryBuilder('buyCrypto')
-      .select('SUM(amountInChf)', 'volume')
-      .leftJoin('buyCrypto.checkoutTx', 'checkoutTx')
-      .leftJoin('buyCrypto.buy', 'buy')
-      .where(`buy.userId = :userId`, { userId: In(userIds) })
-      .andWhere('checkoutTx.requestedOn BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
-      .andWhere('buyCrypto.amlCheck = :amlCheck', { amlCheck: CheckStatus.PASS })
-      .getRawOne<{ volume: number }>()
-      .then((result) => result.volume);
-
-    return { buy: buyVolume, convert: convertVolume, checkout: checkoutVolume };
   }
 }

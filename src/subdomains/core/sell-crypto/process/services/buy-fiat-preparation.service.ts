@@ -5,7 +5,7 @@ import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supportin
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { In, IsNull, Not } from 'typeorm';
+import { IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../buy-crypto/process/enums/check-status.enum';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatService } from './buy-fiat.service';
@@ -131,26 +131,5 @@ export class BuyFiatPreparationService {
         this.logger.error(`Error during buy-fiat ${entity.id} outputAssetEntity setting:`, e);
       }
     }
-  }
-
-  // --- HELPER METHODS --- //
-
-  async getUserVolume(
-    userIds: number[],
-    dateFrom: Date = new Date(0),
-    dateTo: Date = new Date(),
-  ): Promise<{ sell: number }> {
-    const sellVolume = await this.buyFiatRepo
-      .createQueryBuilder('buyFiat')
-      .select('SUM(amountInChf)', 'volume')
-      .leftJoin('buyFiat.cryptoInput', 'cryptoInput')
-      .leftJoin('buyFiat.sell', 'sell')
-      .where(`sell.userId = :userId`, { userId: In(userIds) })
-      .andWhere('cryptoInput.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
-      .andWhere('buyFiat.amlCheck = :amlCheck', { amlCheck: CheckStatus.PASS })
-      .getRawOne<{ volume: number }>()
-      .then((result) => result.volume);
-
-    return { sell: sellVolume };
   }
 }

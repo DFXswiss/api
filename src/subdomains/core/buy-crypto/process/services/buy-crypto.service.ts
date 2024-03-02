@@ -25,7 +25,7 @@ import { MultiAccountIbanService } from 'src/subdomains/supporting/bank/multi-ac
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
-import { Between, Brackets, In, IsNull, Not } from 'typeorm';
+import { Between, In, IsNull, Not } from 'typeorm';
 import { Buy } from '../../routes/buy/buy.entity';
 import { BuyRepository } from '../../routes/buy/buy.repository';
 import { BuyService } from '../../routes/buy/buy.service';
@@ -334,27 +334,45 @@ export class BuyCryptoService {
     });
   }
 
-  async getUserVolume(userId: number, dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<number> {
-    return this.buyCryptoRepo
+  async getUserVolume(
+    userIds: number[],
+    dateFrom: Date = new Date(0),
+    dateTo: Date = new Date(),
+  ): Promise<{ buy: number; convert: number; checkout: number }> {
+    const buyVolume = await this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
       .select('SUM(amountInChf)', 'volume')
+      .leftJoin('buyCrypto.bankTx', 'bankTx')
       .leftJoin('buyCrypto.buy', 'buy')
-      .leftJoin('buyCrypto.cryptoRoute', 'cryptoRoute')
-      .where(
-        new Brackets((query) =>
-          query.where('buy.userId = :id', { id: userId }).orWhere('cryptoRoute.userId = :id', { id: userId }),
-        ),
-      )
-      .andWhere('amlCheck != :check', { check: CheckStatus.FAIL })
-      .andWhere(
-        new Brackets((query) =>
-          query
-            .where('buyCrypto.outputDate IS NULL')
-            .orWhere('buyCrypto.outputDate BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo }),
-        ),
-      )
+      .where(`buy.userId = :userId`, { userId: In(userIds) })
+      .andWhere('bankTx.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
+      .andWhere('buyCrypto.amlCheck != :amlCheck', { amlCheck: CheckStatus.FAIL })
       .getRawOne<{ volume: number }>()
-      .then((r) => r.volume ?? 0);
+      .then((result) => result.volume);
+
+    const convertVolume = await this.buyCryptoRepo
+      .createQueryBuilder('buyCrypto')
+      .select('SUM(amountInChf)', 'volume')
+      .leftJoin('buyCrypto.cryptoInput', 'cryptoInput')
+      .leftJoin('buyCrypto.cryptoRoute', 'cryptoRoute')
+      .where(`cryptoRoute.userId = :userId`, { userId: In(userIds) })
+      .andWhere('cryptoInput.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
+      .andWhere('buyCrypto.amlCheck != :amlCheck', { amlCheck: CheckStatus.FAIL })
+      .getRawOne<{ volume: number }>()
+      .then((result) => result.volume);
+
+    const checkoutVolume = await this.buyCryptoRepo
+      .createQueryBuilder('buyCrypto')
+      .select('SUM(amountInChf)', 'volume')
+      .leftJoin('buyCrypto.checkoutTx', 'checkoutTx')
+      .leftJoin('buyCrypto.buy', 'buy')
+      .where(`buy.userId = :userId`, { userId: In(userIds) })
+      .andWhere('checkoutTx.requestedOn BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
+      .andWhere('buyCrypto.amlCheck != :amlCheck', { amlCheck: CheckStatus.FAIL })
+      .getRawOne<{ volume: number }>()
+      .then((result) => result.volume);
+
+    return { buy: buyVolume, convert: convertVolume, checkout: checkoutVolume };
   }
 
   async getRefTransactions(

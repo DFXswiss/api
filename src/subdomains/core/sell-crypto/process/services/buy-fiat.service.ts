@@ -11,7 +11,7 @@ import { WebhookService } from 'src/subdomains/generic/user/services/webhook/web
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
-import { Between, Brackets, In } from 'typeorm';
+import { Between, In } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { CheckStatus } from '../../../buy-crypto/process/enums/check-status.enum';
 import { BuyCryptoService } from '../../../buy-crypto/process/services/buy-crypto.service';
@@ -228,22 +228,23 @@ export class BuyFiatService {
     });
   }
 
-  async getUserVolume(userId: number, dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<number> {
-    return this.buyFiatRepo
+  async getUserVolume(
+    userIds: number[],
+    dateFrom: Date = new Date(0),
+    dateTo: Date = new Date(),
+  ): Promise<{ sell: number }> {
+    const sellVolume = await this.buyFiatRepo
       .createQueryBuilder('buyFiat')
       .select('SUM(amountInChf)', 'volume')
+      .leftJoin('buyFiat.cryptoInput', 'cryptoInput')
       .leftJoin('buyFiat.sell', 'sell')
-      .where('sell.userId = :id', { id: userId })
-      .andWhere('amlCheck != :check', { check: CheckStatus.FAIL })
-      .andWhere(
-        new Brackets((query) =>
-          query
-            .where('buyFiat.outputDate IS NULL')
-            .orWhere('buyFiat.outputDate BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo }),
-        ),
-      )
+      .where(`sell.userId = :userId`, { userId: In(userIds) })
+      .andWhere('cryptoInput.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
+      .andWhere('buyFiat.amlCheck != :amlCheck', { amlCheck: CheckStatus.FAIL })
       .getRawOne<{ volume: number }>()
-      .then((r) => r.volume ?? 0);
+      .then((result) => result.volume);
+
+    return { sell: sellVolume };
   }
 
   async getAllUserTransactions(userIds: number[]): Promise<BuyFiat[]> {
