@@ -47,6 +47,7 @@ export class Configuration {
   azureIpSubstring = '169.254';
   amlCheckMonthlyTradingLimit = 50000; // CHF
   amlCheckLastNameCheckValidity = 90; // days
+  maxBlockchainFee = 50;
 
   colors = {
     white: '#FFFFFF',
