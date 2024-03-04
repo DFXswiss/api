@@ -37,9 +37,16 @@ export class BuyCryptoPreparationService {
 
   async doAmlCheck(): Promise<void> {
     // Atm only for bankTx BuyCrypto
-
     const entities = await this.buyCryptoRepo.find({
-      where: { amlCheck: IsNull(), amlReason: IsNull(), bankTx: Not(IsNull()), buy: Not(IsNull()), status: IsNull() },
+      where: {
+        amlCheck: IsNull(),
+        amlReason: IsNull(),
+        inputAmount: Not(IsNull()),
+        inputAsset: Not(IsNull()),
+        bankTx: Not(IsNull()),
+        buy: Not(IsNull()),
+        status: IsNull(),
+      },
       relations: ['bankTx', 'buy', 'buy.user', 'buy.user.wallet', 'buy.user.userData', 'buy.user.userData.users'],
     });
     if (entities.length === 0) return;
