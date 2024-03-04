@@ -322,13 +322,7 @@ export class TransactionHelper implements OnModuleInit {
     const buyFiatVolume = await this.buyFiatService.getUserVolume([user.id], Util.daysBefore(1));
 
     const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
-    return (
-      price.convert(inputAmount) +
-      buyCryptoVolume.buy +
-      buyCryptoVolume.checkout +
-      buyCryptoVolume.convert +
-      buyFiatVolume.sell
-    );
+    return price.convert(inputAmount) + buyCryptoVolume + buyFiatVolume;
   }
 
   private async convertToSource(

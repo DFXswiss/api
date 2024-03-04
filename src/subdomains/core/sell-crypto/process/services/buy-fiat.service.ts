@@ -228,23 +228,17 @@ export class BuyFiatService {
     });
   }
 
-  async getUserVolume(
-    userIds: number[],
-    dateFrom: Date = new Date(0),
-    dateTo: Date = new Date(),
-  ): Promise<{ sell: number }> {
-    const sellVolume = await this.buyFiatRepo
+  async getUserVolume(userIds: number[], dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<number> {
+    return this.buyFiatRepo
       .createQueryBuilder('buyFiat')
       .select('SUM(amountInChf)', 'volume')
       .leftJoin('buyFiat.cryptoInput', 'cryptoInput')
       .leftJoin('buyFiat.sell', 'sell')
-      .where(`sell.userId = :userId`, { userId: In(userIds) })
+      .where('sell.userId IN (:...userIds)', { userIds })
       .andWhere('cryptoInput.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
       .andWhere('buyFiat.amlCheck != :amlCheck', { amlCheck: CheckStatus.FAIL })
       .getRawOne<{ volume: number }>()
-      .then((result) => result.volume);
-
-    return { sell: sellVolume };
+      .then((result) => result.volume ?? 0);
   }
 
   async getAllUserTransactions(userIds: number[]): Promise<BuyFiat[]> {

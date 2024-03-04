@@ -72,7 +72,7 @@ export class BuyCryptoPreparationService {
 
         const dateFrom = Util.daysBefore(30);
 
-        const userDataVolume = await this.buyCryptoService.getUserVolume(
+        const userDataBuyCryptoVolume = await this.buyCryptoService.getUserVolume(
           entity.user.userData.users.map((user) => user.id),
           dateFrom,
         );
@@ -86,7 +86,7 @@ export class BuyCryptoPreparationService {
           ...entity.amlCheckAndFillUp(
             inputAssetChfPrice,
             minVolume,
-            userDataVolume.buy + userDataVolume.checkout + userDataVolume.convert + userDataBuyFiatVolume.sell,
+            userDataBuyCryptoVolume + userDataBuyFiatVolume,
             bankData?.userData,
           ),
         );
