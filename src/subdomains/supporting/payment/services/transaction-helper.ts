@@ -318,11 +318,11 @@ export class TransactionHelper implements OnModuleInit {
   ): Promise<number> {
     if (!user) return inputAmount;
 
-    const buyVolume = await this.buyCryptoService.getUserVolume(user.id, Util.daysBefore(1));
-    const sellVolume = await this.buyFiatService.getUserVolume(user.id, Util.daysBefore(1));
+    const buyCryptoVolume = await this.buyCryptoService.getUserVolume([user.id], Util.daysBefore(1));
+    const buyFiatVolume = await this.buyFiatService.getUserVolume([user.id], Util.daysBefore(1));
 
     const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
-    return price.convert(inputAmount) + buyVolume + sellVolume;
+    return price.convert(inputAmount) + buyCryptoVolume + buyFiatVolume;
   }
 
   private async convertToSource(
