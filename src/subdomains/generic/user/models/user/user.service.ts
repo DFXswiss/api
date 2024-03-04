@@ -176,7 +176,7 @@ export class UserService {
     user.userData = await this.userDataService.updateKycData(user.userData, KycDataMapper.toUserData(dto));
 
     const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(user.userData, {
-      mail: user.userData.mail,
+      mail: dto.mail,
     });
     user.userData = update;
 
