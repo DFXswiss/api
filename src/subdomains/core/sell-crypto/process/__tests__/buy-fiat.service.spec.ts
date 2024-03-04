@@ -1,5 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { createDefaultFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
@@ -87,21 +88,21 @@ describe('BuyFiatService', () => {
     inputAmount: 0.00005,
     inputAsset: 'BTC',
     outputAmount: 1,
-    outputAsset: 'EUR',
+    outputAsset: createDefaultFiat(),
   };
 
   const txTwo = {
     inputAmount: 0.0005,
     inputAsset: 'BTC',
     outputAmount: 10,
-    outputAsset: 'EUR',
+    outputAsset: createDefaultFiat(),
   };
 
   const txSmallAmount = {
     inputAmount: 3e-8,
     inputAsset: 'GOOGL',
     outputAmount: 1,
-    outputAsset: 'EUR',
+    outputAsset: createDefaultFiat(),
   };
 
   function setup(mock: MockBuyData, date?: Date) {
@@ -156,12 +157,14 @@ describe('BuyFiatService', () => {
         txId: 'IN_TX_ID_0',
         txUrl: 'https://defiscan.live/transactions/IN_TX_ID_0',
         ...txOne,
+        outputAsset: txOne.outputAsset.name,
       }),
       createCustomSellHistory({
         date: date,
         txId: 'IN_TX_ID_1',
         txUrl: 'https://defiscan.live/transactions/IN_TX_ID_1',
         ...txTwo,
+        outputAsset: txTwo.outputAsset.name,
       }),
     ]);
   });
@@ -176,6 +179,7 @@ describe('BuyFiatService', () => {
         txId: 'IN_TX_ID_0',
         txUrl: 'https://defiscan.live/transactions/IN_TX_ID_0',
         ...txSmallAmount,
+        outputAsset: txSmallAmount.outputAsset.name,
       }),
     ]);
   });
