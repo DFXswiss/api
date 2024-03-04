@@ -49,7 +49,7 @@ If a user wants to get notified about ongoing transactions, he can register his 
 KYC is not required for a daily transaction volume up to 1000 CHF. To increase the transaction volume, the user needs to be verified with a KYC process, which can be done on the DFX KYC page.
 
 1. Get the user's KYC hash from [user endpoint](https://api.dfx.swiss/swagger/#/User/UserController_getUser)
-1. Open then link to the KYC page: `https://payment.dfx.swiss/kyc?code=<kyc-hash>`
+1. Open then link to the KYC page: `https://services.dfx.swiss/kyc?code=<kyc-hash>`
 
 ### Transactions
 
@@ -88,7 +88,7 @@ _Get a quote_
 
 _Get payment infos_
 
-<em>In order to perform bank transactions, DFX needs to know the name and address of the recipient. Therefore, user data must be collected once before a sale can be made. The user data can be updated with the [kyc data endpoint](https://api.dfx.swiss/swagger#/KYC/KycController_updateKycData). Required fields are `mail, phone, firstname, surname, street, houseNumber, location, zip, country`. For non personal accounts, `organizationName, organizationStreet, organizationHouseNumber, organizationLocation, organizationZip, organizationCountry` are also required.</em>
+<em>In order to perform bank transactions, DFX needs to know the name and address of the recipient. Therefore, user data must be collected once before a sale can be made. The user data can be updated with the [kyc data endpoint](https://api.dfx.swiss/swagger#/User/UserController_updateKycData). Required fields are `accountType, mail, phone, firstname, lastName, address (street, city, zip, country)`. For non personal accounts, `organizationName, organizationAddress (street, city, zip, country)` are also required.</em>
 
 1. Update user data, if required (check with `kycDataComplete` field from [user endpoint](https://api.dfx.swiss/swagger/#/User/UserController_getUser))
 1. Get all available assets with the [asset endpoint](https://api.dfx.swiss/swagger/#/Asset/AssetController_getAllAsset)

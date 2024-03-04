@@ -1,3 +1,4 @@
+import { createDefaultFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { createDefaultSell } from 'src/subdomains/core/sell-crypto/route/__mocks__/sell.entity.mock';
 import { createDefaultBankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
@@ -28,9 +29,9 @@ const defaultBuyFiat: Partial<BuyFiat> = {
   cryptoReturnDate: null,
   mailReturnSendDate: null,
   outputReferenceAmount: 1,
-  outputReferenceAsset: 'EUR',
+  outputReferenceAssetEntity: createDefaultFiat(),
   outputAmount: 1,
-  outputAsset: 'EUR',
+  outputAssetEntity: createDefaultFiat(),
   remittanceInfo: null,
   instantSepa: null,
   usedBank: null,

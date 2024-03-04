@@ -23,6 +23,7 @@ import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto'
 import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
+import { MultiAccountIbanService } from 'src/subdomains/supporting/bank/multi-account-iban/multi-account-iban.service';
 import { FindOptionsRelations, In, IsNull, Not } from 'typeorm';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
@@ -54,6 +55,7 @@ export class UserDataService {
     private readonly kycAdminService: KycAdminService,
     private readonly userDataNotificationService: UserDataNotificationService,
     @Inject(forwardRef(() => AccountMergeService)) private readonly mergeService: AccountMergeService,
+    private readonly multiAccountIbanService: MultiAccountIbanService,
   ) {}
 
   async getUserDataByUser(userId: number): Promise<UserData> {
@@ -134,7 +136,7 @@ export class UserDataService {
       if (userWithSameFileId) throw new ConflictException('A user with this KYC file ID already exists');
     }
 
-    await this.loadDtoRelations(userData, dto);
+    await this.loadRelationsAndVerify(userData, dto);
 
     return this.userDataRepo.save(userData);
   }
@@ -176,7 +178,7 @@ export class UserDataService {
       await this.userDataRepo.save(Object.assign(userData, { kycFileId: dto.kycFileId }));
     }
 
-    await this.loadDtoRelations(userData, dto);
+    await this.loadRelationsAndVerify(userData, dto);
 
     const kycChanged = dto.kycLevel && dto.kycLevel !== userData.kycLevel;
 
@@ -290,7 +292,7 @@ export class UserDataService {
     return this.userRepo.exist({ where: { userData: { id: userDataId }, role } });
   }
 
-  private async loadDtoRelations(userData: UserData, dto: UpdateUserDataDto | CreateUserDataDto): Promise<void> {
+  private async loadRelationsAndVerify(userData: UserData, dto: UpdateUserDataDto | CreateUserDataDto): Promise<void> {
     if (dto.countryId) {
       userData.country = await this.countryService.getCountry(dto.countryId);
       if (!userData.country) throw new BadRequestException('Country not found');
@@ -324,6 +326,12 @@ export class UserDataService {
     if (dto.accountOpener) {
       userData.accountOpener = await this.userDataRepo.findOneBy({ id: dto.accountOpener.id });
       if (!userData.accountOpener) throw new BadRequestException('AccountOpener not found');
+    }
+
+    if (dto.verifiedName) {
+      const multiAccountIban = await this.multiAccountIbanService.getAllMultiAccountIban();
+      if (multiAccountIban.some((m) => dto.verifiedName.includes(m.name)))
+        throw new BadRequestException('VerifiedName includes a multiAccountIban');
     }
   }
 
@@ -388,7 +396,7 @@ export class UserDataService {
       const matchingUser = users.find(
         (u) =>
           u.id !== user.id &&
-          u.kycLevel >= KycLevel.LEVEL_30 &&
+          u.identDocumentId != null &&
           u.isDfxUser &&
           u.verifiedName &&
           (!user.verifiedName || Util.isSameName(user.verifiedName, u.verifiedName)),

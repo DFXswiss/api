@@ -21,7 +21,9 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
+import { MultiAccountIbanService } from 'src/subdomains/supporting/bank/multi-account-iban/multi-account-iban.service';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
+import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { Between, Brackets, In, IsNull, Not } from 'typeorm';
 import { Buy } from '../../routes/buy/buy.entity';
@@ -52,6 +54,7 @@ export class BuyCryptoService {
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly bankDataService: BankDataService,
     private readonly transactionRequestService: TransactionRequestService,
+    private readonly multiAccountIbanService: MultiAccountIbanService,
   ) {}
 
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<void> {
@@ -72,7 +75,8 @@ export class BuyCryptoService {
     // transaction request
     entity = await this.setTxRequest(entity);
 
-    const senderAccount = bankTx.senderAccount;
+    const multiAccountIban = await this.multiAccountIbanService.getAllMultiAccountIban();
+    const senderAccount = bankTx.senderAccount(multiAccountIban.map((m) => m.iban));
     if (senderAccount && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
       const bankData = await this.bankDataService.getBankDataWithIban(senderAccount, entity.buy.user.userData.id);
 
@@ -88,20 +92,18 @@ export class BuyCryptoService {
     await this.buyCryptoWebhookService.triggerWebhook(entity);
   }
 
-  async createFromCheckoutTx(checkoutTx: CheckoutTx, buyId: number): Promise<void> {
+  async createFromCheckoutTx(checkoutTx: CheckoutTx, buy: Buy): Promise<void> {
     let entity = await this.buyCryptoRepo.findOneBy({ checkoutTx: { id: checkoutTx.id } });
     if (entity) throw new ConflictException('There is already a buy-crypto for the specified checkout TX');
 
     entity = this.buyCryptoRepo.create({
       checkoutTx,
+      buy,
       inputAmount: checkoutTx.amount,
       inputAsset: checkoutTx.currency,
       inputReferenceAmount: checkoutTx.amount,
       inputReferenceAsset: checkoutTx.currency,
     });
-
-    // buy
-    if (buyId) entity.buy = await this.getBuy(buyId);
 
     // transaction request
     entity = await this.setTxRequest(entity);
@@ -119,6 +121,24 @@ export class BuyCryptoService {
           type: BankDataType.CARD_IN,
         });
     }
+
+    entity = await this.buyCryptoRepo.save(entity);
+
+    await this.buyCryptoWebhookService.triggerWebhook(entity);
+  }
+
+  async createFromCryptoInput(cryptoInput: CryptoInput, cryptoRoute: CryptoRoute): Promise<void> {
+    let entity = this.buyCryptoRepo.create({
+      cryptoInput,
+      cryptoRoute,
+      inputAmount: cryptoInput.amount,
+      inputAsset: cryptoInput.asset.name,
+      inputReferenceAmount: cryptoInput.amount,
+      inputReferenceAsset: cryptoInput.asset.name,
+    });
+
+    // transaction request
+    entity = await this.setTxRequest(entity);
 
     entity = await this.buyCryptoRepo.save(entity);
 
@@ -308,33 +328,41 @@ export class BuyCryptoService {
     return this.buyCryptoRepo.find({
       where: [
         { buy: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
+        { buy: { user: { id: userId } }, outputDate: IsNull() },
         { cryptoRoute: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
+        { cryptoRoute: { user: { id: userId } }, outputDate: IsNull() },
       ],
       relations: ['bankTx', 'checkoutTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
     });
   }
 
-  async getUserVolume(userId: number, dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<number> {
+  async getUserVolume(userIds: number[], dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<number> {
     return this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
       .select('SUM(amountInChf)', 'volume')
+      .leftJoin('buyCrypto.bankTx', 'bankTx')
+      .leftJoin('buyCrypto.cryptoInput', 'cryptoInput')
+      .leftJoin('buyCrypto.checkoutTx', 'checkoutTx')
       .leftJoin('buyCrypto.buy', 'buy')
       .leftJoin('buyCrypto.cryptoRoute', 'cryptoRoute')
       .where(
         new Brackets((query) =>
-          query.where('buy.userId = :id', { id: userId }).orWhere('cryptoRoute.userId = :id', { id: userId }),
+          query
+            .where('buy.userId IN (:...userIds)', { userIds })
+            .orWhere('cryptoRoute.userId IN (:...userIds)', { userIds }),
         ),
       )
-      .andWhere('amlCheck != :check', { check: CheckStatus.FAIL })
       .andWhere(
         new Brackets((query) =>
           query
-            .where('buyCrypto.outputDate IS NULL')
-            .orWhere('buyCrypto.outputDate BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo }),
+            .where('bankTx.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
+            .orWhere('cryptoInput.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
+            .orWhere('checkoutTx.requestedOn BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo }),
         ),
       )
+      .andWhere('buyCrypto.amlCheck != :amlCheck', { amlCheck: CheckStatus.FAIL })
       .getRawOne<{ volume: number }>()
-      .then((r) => r.volume ?? 0);
+      .then((result) => result.volume ?? 0);
   }
 
   async getRefTransactions(

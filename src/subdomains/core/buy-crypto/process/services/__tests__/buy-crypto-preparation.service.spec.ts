@@ -4,10 +4,10 @@ import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/_
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
-import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../../entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
@@ -29,7 +29,7 @@ describe('BuyCryptoPreparationService', () => {
   let buyCryptoWebhookService: BuyCryptoWebhookService;
   let feeService: FeeService;
   let buyCryptoService: BuyCryptoService;
-  let transactionRequestService: TransactionRequestService;
+  let buyFiatService: BuyFiatService;
 
   /*** Spies ***/
 
@@ -77,7 +77,7 @@ describe('BuyCryptoPreparationService', () => {
     buyCryptoWebhookService = mock<BuyCryptoWebhookService>();
     feeService = mock<FeeService>();
     buyCryptoService = mock<BuyCryptoService>();
-    transactionRequestService = mock<TransactionRequestService>();
+    buyFiatService = mock<BuyFiatService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -91,7 +91,7 @@ describe('BuyCryptoPreparationService', () => {
         { provide: BuyCryptoWebhookService, useValue: buyCryptoWebhookService },
         { provide: FeeService, useValue: feeService },
         { provide: BuyCryptoService, useValue: buyCryptoService },
-        { provide: TransactionRequestService, useValue: transactionRequestService },
+        { provide: BuyFiatService, useValue: buyFiatService },
         TestUtil.provideConfig(),
       ],
     }).compile();
