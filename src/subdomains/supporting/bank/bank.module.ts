@@ -11,17 +11,27 @@ import { BankAccountService } from './bank-account/bank-account.service';
 import { Bank } from './bank/bank.entity';
 import { BankRepository } from './bank/bank.repository';
 import { BankService } from './bank/bank.service';
+import { MultiAccountIban } from './multi-account-iban/multi-account-iban.entity';
+import { MultiAccountIbanRepository } from './multi-account-iban/multi-account-iban.repository';
+import { MultiAccountIbanService } from './multi-account-iban/multi-account-iban.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([BankAccount, Bank]),
+    TypeOrmModule.forFeature([BankAccount, Bank, MultiAccountIban]),
     SharedModule,
     BankIntegrationModule,
     forwardRef(() => UserModule),
   ],
 
   controllers: [BankAccountController, BankAccountAdminController],
-  providers: [BankAccountRepository, BankRepository, BankAccountService, BankService],
-  exports: [BankAccountService, BankService],
+  providers: [
+    BankAccountRepository,
+    BankRepository,
+    BankAccountService,
+    BankService,
+    MultiAccountIbanService,
+    MultiAccountIbanRepository,
+  ],
+  exports: [BankAccountService, BankService, MultiAccountIbanService],
 })
 export class BankModule {}

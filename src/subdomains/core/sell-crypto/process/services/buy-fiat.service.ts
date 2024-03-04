@@ -1,12 +1,21 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
+import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
+import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
-import { Between, Brackets, In, IsNull } from 'typeorm';
+<<<<<<< HEAD
+import { Between, In, IsNull } from 'typeorm';
+=======
+import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
+import { Between, In } from 'typeorm';
+>>>>>>> develop
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { CheckStatus } from '../../../buy-crypto/process/enums/check-status.enum';
 import { BuyCryptoService } from '../../../buy-crypto/process/services/buy-crypto.service';
@@ -34,7 +43,53 @@ export class BuyFiatService {
     private readonly fiatOutputService: FiatOutputService,
     private readonly webhookService: WebhookService,
     private readonly fiatService: FiatService,
+    private readonly transactionRequestService: TransactionRequestService,
+    private readonly bankDataService: BankDataService,
   ) {}
+
+  async createFromCryptoInput(cryptoInput: CryptoInput, sell: Sell): Promise<void> {
+    let entity = this.buyFiatRepo.create({
+      cryptoInput,
+      sell,
+      inputAmount: cryptoInput.amount,
+      inputAsset: cryptoInput.asset.name,
+      inputReferenceAmount: cryptoInput.amount,
+      inputReferenceAsset: cryptoInput.asset.name,
+    });
+
+    // transaction request
+    entity = await this.setTxRequest(entity);
+
+    if (!DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
+      const bankData = await this.bankDataService.getBankDataWithIban(sell.iban, sell.user.userData.id);
+      if (!bankData)
+        await this.bankDataService.createBankData(sell.user.userData, {
+          iban: sell.iban,
+          type: BankDataType.BANK_OUT,
+        });
+    }
+
+    entity = await this.buyFiatRepo.save(entity);
+
+    await this.triggerWebhook(entity);
+  }
+
+  private async setTxRequest(entity: BuyFiat): Promise<BuyFiat> {
+    const inputCurrency = await this.fiatService.getFiatByName(entity.inputAsset);
+
+    const transactionRequest = await this.transactionRequestService.findAndCompleteRequest(
+      entity.inputAmount,
+      entity.sell.id,
+      inputCurrency.id,
+      entity.sell.fiat.id,
+    );
+    if (transactionRequest) {
+      entity.transactionRequest = transactionRequest;
+      entity.externalTransactionId = transactionRequest.externalTransactionId;
+    }
+
+    return entity;
+  }
 
   async update(id: number, dto: UpdateBuyFiatDto): Promise<BuyFiat> {
     let entity = await this.buyFiatRepo.findOne({
@@ -75,7 +130,6 @@ export class BuyFiatService {
 
     // payment webhook
     if (
-      (dto.inputAmount && dto.inputAsset) ||
       dto.isComplete ||
       (dto.amlCheck && dto.amlCheck !== CheckStatus.PASS) ||
       dto.outputReferenceAsset ||
@@ -180,22 +234,23 @@ export class BuyFiatService {
     });
   }
 
-  async getUserVolume(userId: number, dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<number> {
-    return this.buyFiatRepo
+  async getUserVolume(
+    userIds: number[],
+    dateFrom: Date = new Date(0),
+    dateTo: Date = new Date(),
+  ): Promise<{ sell: number }> {
+    const sellVolume = await this.buyFiatRepo
       .createQueryBuilder('buyFiat')
       .select('SUM(amountInChf)', 'volume')
+      .leftJoin('buyFiat.cryptoInput', 'cryptoInput')
       .leftJoin('buyFiat.sell', 'sell')
-      .where('sell.userId = :id', { id: userId })
-      .andWhere('amlCheck != :check', { check: CheckStatus.FAIL })
-      .andWhere(
-        new Brackets((query) =>
-          query
-            .where('buyFiat.outputDate IS NULL')
-            .orWhere('buyFiat.outputDate BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo }),
-        ),
-      )
+      .where(`sell.userId = :userId`, { userId: In(userIds) })
+      .andWhere('cryptoInput.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
+      .andWhere('buyFiat.amlCheck != :amlCheck', { amlCheck: CheckStatus.FAIL })
       .getRawOne<{ volume: number }>()
-      .then((r) => r.volume ?? 0);
+      .then((result) => result.volume);
+
+    return { sell: sellVolume };
   }
 
   async getAllUserTransactions(userIds: number[]): Promise<BuyFiat[]> {

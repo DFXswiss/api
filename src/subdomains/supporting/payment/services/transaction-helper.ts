@@ -4,6 +4,7 @@ import { Config } from 'src/config/config';
 import { Active, isFiat } from 'src/shared/models/active';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
@@ -29,6 +30,8 @@ export enum ValidationError {
 
 @Injectable()
 export class TransactionHelper implements OnModuleInit {
+  private readonly logger = new DfxLogger(TransactionHelper);
+
   private chf: Fiat;
   private transactionSpecifications: TransactionSpecification[];
 
@@ -163,6 +166,8 @@ export class TransactionHelper implements OnModuleInit {
     user?: User,
     discountCodes: string[] = [],
   ): Promise<TransactionDetails> {
+    const times = [Date.now()];
+
     // get fee
     const specs = this.getSpecs(from, to);
     const fee = await this.getTxFee(
@@ -177,6 +182,8 @@ export class TransactionHelper implements OnModuleInit {
       discountCodes,
     );
 
+    times.push(Date.now());
+
     const extendedSpecs = {
       ...specs,
       minFee: fee.blockchain,
@@ -189,6 +196,8 @@ export class TransactionHelper implements OnModuleInit {
     const txSpecSource = await this.convertToSource(from, extendedSpecs, allowExpiredPrice);
     const txSpecTarget = await this.convertToTarget(to, extendedSpecs, allowExpiredPrice);
 
+    times.push(Date.now());
+
     // target estimation
     const target = await this.getTargetEstimation(
       sourceAmount,
@@ -200,18 +209,32 @@ export class TransactionHelper implements OnModuleInit {
       to,
       allowExpiredPrice,
     );
+
+    times.push(Date.now());
+
     const txAmountChf = await this.getVolumeLast24hChf(target.sourceAmount, from, allowExpiredPrice, user);
+
+    times.push(Date.now());
 
     const error =
       target.sourceAmount < txSpecSource.minVolume
         ? TransactionError.AMOUNT_TOO_LOW
         : txAmountChf > extendedSpecs.maxVolume
         ? TransactionError.AMOUNT_TOO_HIGH
-        : isFiat(to) && user && !user.userData.hasBankTxVerification && txAmountChf > Config.defaultDailyTradingLimit
+        : isFiat(to) &&
+          to.name !== 'CHF' &&
+          user &&
+          !user.userData.hasBankTxVerification &&
+          txAmountChf > Config.defaultDailyTradingLimit
         ? TransactionError.BANK_TRANSACTION_MISSING
         : paymentMethodIn === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed
         ? TransactionError.KYC_REQUIRED
         : undefined;
+
+    if (Date.now() - times[0] > 300) {
+      const timesString = times.map((t, i, a) => Util.round((t - (a[i - 1] ?? t)) / 1000, 3)).join(', ');
+      this.logger.verbose(`${allowExpiredPrice ? 'Quote' : 'Info'} request times: ${timesString}`);
+    }
 
     return {
       ...target,
@@ -295,11 +318,17 @@ export class TransactionHelper implements OnModuleInit {
   ): Promise<number> {
     if (!user) return inputAmount;
 
-    const buyVolume = await this.buyCryptoService.getUserVolume(user.id, Util.daysBefore(1));
-    const sellVolume = await this.buyFiatService.getUserVolume(user.id, Util.daysBefore(1));
+    const buyCryptoVolume = await this.buyCryptoService.getUserVolume([user.id], Util.daysBefore(1));
+    const buyFiatVolume = await this.buyFiatService.getUserVolume([user.id], Util.daysBefore(1));
 
     const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
-    return price.convert(inputAmount) + buyVolume + sellVolume;
+    return (
+      price.convert(inputAmount) +
+      buyCryptoVolume.buy +
+      buyCryptoVolume.checkout +
+      buyCryptoVolume.convert +
+      buyFiatVolume.sell
+    );
   }
 
   private async convertToSource(
