@@ -125,17 +125,11 @@ export class BuyFiat extends IEntity {
   @Column({ type: 'float', nullable: true })
   outputReferenceAmount: number;
 
-  @Column({ length: 256, nullable: true })
-  outputReferenceAsset: string;
-
   @ManyToOne(() => Fiat, { eager: true, nullable: true })
   outputReferenceAssetEntity: Fiat;
 
   @Column({ type: 'float', nullable: true })
   outputAmount: number;
-
-  @Column({ length: 256, nullable: true })
-  outputAsset: string;
 
   @ManyToOne(() => Fiat, { eager: true, nullable: true })
   outputAssetEntity: Fiat;
@@ -258,9 +252,8 @@ export class BuyFiat extends IEntity {
     const update: Partial<BuyFiat> = {
       outputAmount,
       outputReferenceAmount: outputAmount,
-      outputAsset: outputAssetEntity.name,
-      outputReferenceAsset: outputAssetEntity.name,
       outputAssetEntity,
+      outputReferenceAssetEntity: outputAssetEntity,
     };
 
     Object.assign(this, update);
@@ -281,9 +274,9 @@ export class BuyFiat extends IEntity {
       amountInChf: null,
       amountInEur: null,
       outputReferenceAmount: null,
-      outputReferenceAsset: null,
+      outputReferenceAssetEntity: null,
       outputAmount: null,
-      outputAsset: null,
+      outputAssetEntity: null,
       minFeeAmount: null,
       minFeeAmountFiat: null,
       totalFeeAmount: null,
