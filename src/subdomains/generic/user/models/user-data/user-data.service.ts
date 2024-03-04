@@ -396,7 +396,7 @@ export class UserDataService {
       const matchingUser = users.find(
         (u) =>
           u.id !== user.id &&
-          u.kycLevel >= KycLevel.LEVEL_30 &&
+          u.identDocumentId != null &&
           u.isDfxUser &&
           u.verifiedName &&
           (!user.verifiedName || Util.isSameName(user.verifiedName, u.verifiedName)),
