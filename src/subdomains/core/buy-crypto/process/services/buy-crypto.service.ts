@@ -21,7 +21,6 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
-import { SpecialExternalIbanType } from 'src/subdomains/supporting/bank/special-external-iban/special-external-iban.entity';
 import { SpecialExternalIbanService } from 'src/subdomains/supporting/bank/special-external-iban/special-external-iban.service';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -78,9 +77,7 @@ export class BuyCryptoService {
     // transaction request
     entity = await this.setTxRequest(entity);
 
-    const multiAccountIban = await this.specialExternalIbanService.getMultiAccountIban(
-      SpecialExternalIbanType.MULTI_ACCOUNT_IBAN,
-    );
+    const multiAccountIban = await this.specialExternalIbanService.getMultiAccountIban();
     const senderAccount = bankTx.senderAccount(multiAccountIban.map((m) => m.iban));
     if (senderAccount && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
       const bankData = await this.bankDataService.getBankDataWithIban(senderAccount, entity.buy.user.userData.id);

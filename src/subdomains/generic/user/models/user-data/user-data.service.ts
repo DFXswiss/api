@@ -23,7 +23,6 @@ import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto'
 import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
-import { SpecialExternalIbanType } from 'src/subdomains/supporting/bank/special-external-iban/special-external-iban.entity';
 import { SpecialExternalIbanService } from 'src/subdomains/supporting/bank/special-external-iban/special-external-iban.service';
 import { FindOptionsRelations, In, IsNull, Not } from 'typeorm';
 import { AccountMergeService } from '../account-merge/account-merge.service';
@@ -330,9 +329,7 @@ export class UserDataService {
     }
 
     if (dto.verifiedName) {
-      const multiAccountIban = await this.specialExternalIbanService.getMultiAccountIban(
-        SpecialExternalIbanType.MULTI_ACCOUNT_IBAN,
-      );
+      const multiAccountIban = await this.specialExternalIbanService.getMultiAccountIban();
       if (multiAccountIban.some((m) => dto.verifiedName.includes(m.name)))
         throw new BadRequestException('VerifiedName includes a multiAccountIban');
     }
