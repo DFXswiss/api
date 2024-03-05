@@ -119,6 +119,7 @@ export class Util {
       .replace(/[éèê]/g, 'e')
       .replace(/[ñ]/g, 'n')
       .replace(/[ç]/g, 'c')
+      .replace(/[\.]/g, '')
       .split(' ');
   }
 
