@@ -62,11 +62,13 @@ export class BuyCryptoService {
     let entity = await this.buyCryptoRepo.findOneBy({ bankTx: { id: bankTx.id } });
     if (entity) throw new ConflictException('There is already a buy-crypto for the specified bank TX');
 
+    const forexFee = bankTx.txCurrency === bankTx.currency ? 0 : 0.02;
+
     entity = this.buyCryptoRepo.create({
       bankTx,
       inputAmount: bankTx.txAmount,
       inputAsset: bankTx.txCurrency,
-      inputReferenceAmount: bankTx.amount + bankTx.chargeAmount,
+      inputReferenceAmount: (bankTx.amount + bankTx.chargeAmount) * (1 - forexFee),
       inputReferenceAsset: bankTx.currency,
     });
 

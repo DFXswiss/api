@@ -188,8 +188,8 @@ export class TransactionHelper implements OnModuleInit {
       ...specs,
       minFee: fee.blockchain,
       maxVolume: [paymentMethodIn, paymentMethodOut].includes(FiatPaymentMethod.CARD)
-        ? Math.min(user?.userData.availableTradingLimit ?? Infinity, Config.defaultCardTradingLimit)
-        : user?.userData.availableTradingLimit ?? Config.defaultTradingLimit,
+        ? Math.min(user?.userData.availableTradingLimit ?? Infinity, Config.tradingLimits.cardDefault)
+        : user?.userData.availableTradingLimit ?? Config.tradingLimits.yearlyDefault,
       fixedFee: fee.fixed,
     };
 
@@ -225,7 +225,7 @@ export class TransactionHelper implements OnModuleInit {
           to.name !== 'CHF' &&
           user &&
           !user.userData.hasBankTxVerification &&
-          txAmountChf > Config.defaultDailyTradingLimit
+          txAmountChf > Config.tradingLimits.dailyDefault
         ? TransactionError.BANK_TRANSACTION_MISSING
         : paymentMethodIn === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed
         ? TransactionError.KYC_REQUIRED
@@ -233,7 +233,7 @@ export class TransactionHelper implements OnModuleInit {
 
     if (Date.now() - times[0] > 300) {
       const timesString = times.map((t, i, a) => Util.round((t - (a[i - 1] ?? t)) / 1000, 3)).join(', ');
-      this.logger.verbose(`${allowExpiredPrice ? 'Quote' : 'Info'} request times: ${timesString}`);
+      this.logger.verbose(`${user ? 'Info' : 'Quote'} request times: ${timesString}`);
     }
 
     return {
