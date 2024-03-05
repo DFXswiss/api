@@ -233,7 +233,7 @@ export class TransactionHelper implements OnModuleInit {
 
     if (Date.now() - times[0] > 300) {
       const timesString = times.map((t, i, a) => Util.round((t - (a[i - 1] ?? t)) / 1000, 3)).join(', ');
-      this.logger.verbose(`${allowExpiredPrice ? 'Quote' : 'Info'} request times: ${timesString}`);
+      this.logger.verbose(`${user ? 'Info' : 'Quote'} request times: ${timesString}`);
     }
 
     return {
