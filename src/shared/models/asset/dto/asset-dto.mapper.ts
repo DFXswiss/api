@@ -38,7 +38,7 @@ export class AssetDtoMapper {
     return Object.assign(this.toDto(asset), {
       limits: {
         minVolume: Util.roundByPrecision(spec.minVolume / price, 5),
-        maxVolume: Util.roundByPrecision(Config.defaultTradingLimit / price, 5),
+        maxVolume: Util.roundByPrecision(Config.tradingLimits.yearlyDefault / price, 5),
       },
     });
   }

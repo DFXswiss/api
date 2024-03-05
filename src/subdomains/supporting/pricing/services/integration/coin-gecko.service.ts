@@ -13,7 +13,7 @@ export class CoinGeckoService implements OnModuleInit, PricingProvider {
   private currencies: string[];
 
   constructor() {
-    this.client = new CoinGeckoClient({ autoRetry: false }, GetConfig().transaction.pricing.coinGeckoApiKey);
+    this.client = new CoinGeckoClient({ autoRetry: false }, GetConfig().coinGecko.apiKey);
   }
 
   onModuleInit() {
