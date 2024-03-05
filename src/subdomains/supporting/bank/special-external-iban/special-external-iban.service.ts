@@ -6,14 +6,14 @@ import { SpecialExternalIbanRepository } from './special-external-iban.repositor
 export class SpecialExternalIbanService {
   constructor(private readonly specialExternalIbanRepo: SpecialExternalIbanRepository) {}
 
-  async getAllSpecialExternalIban(type: SpecialExternalIbanType): Promise<SpecialExternalIban[]> {
-    return this.specialExternalIbanRepo.findBy({ type });
+  async getMultiAccountIban(): Promise<SpecialExternalIban[]> {
+    return this.specialExternalIbanRepo.findBy({ type: SpecialExternalIbanType.MULTI_ACCOUNT_IBAN });
   }
 
-  async getAllBlacklist(): Promise<SpecialExternalIban[]> {
+  async getBlacklist(): Promise<SpecialExternalIban[]> {
     return this.specialExternalIbanRepo.findBy([
-      { type: SpecialExternalIbanType.IBAN_BLACKLIST },
-      { type: SpecialExternalIbanType.BIC_BLACKLIST },
+      { type: SpecialExternalIbanType.BANNED_IBAN },
+      { type: SpecialExternalIbanType.BANNED_BIC },
     ]);
   }
 }

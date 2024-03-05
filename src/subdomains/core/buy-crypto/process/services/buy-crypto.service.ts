@@ -76,7 +76,7 @@ export class BuyCryptoService {
     // transaction request
     entity = await this.setTxRequest(entity);
 
-    const multiAccountIban = await this.specialExternalIbanService.getAllSpecialExternalIban(
+    const multiAccountIban = await this.specialExternalIbanService.getMultiAccountIban(
       SpecialExternalIbanType.MULTI_ACCOUNT_IBAN,
     );
     const senderAccount = bankTx.senderAccount(multiAccountIban.map((m) => m.iban));

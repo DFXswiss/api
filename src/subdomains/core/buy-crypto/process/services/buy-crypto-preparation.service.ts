@@ -91,7 +91,7 @@ export class BuyCryptoPreparationService {
           dateFrom,
         );
 
-        const blacklist = await this.specialExternalIbanService.getAllBlacklist();
+        const blacklist = await this.specialExternalIbanService.getBlacklist();
 
         await this.buyCryptoRepo.update(
           ...entity.amlCheckAndFillUp(

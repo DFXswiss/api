@@ -3,8 +3,8 @@ import { Column, Entity } from 'typeorm';
 
 export enum SpecialExternalIbanType {
   MULTI_ACCOUNT_IBAN = 'MultiAccountIban',
-  IBAN_BLACKLIST = 'IbanBlacklist',
-  BIC_BLACKLIST = 'BicBlacklist',
+  BANNED_IBAN = 'BannedIban',
+  BANNED_BIC = 'BannedBic',
 }
 
 @Entity()

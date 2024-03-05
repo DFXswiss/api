@@ -330,7 +330,7 @@ export class UserDataService {
     }
 
     if (dto.verifiedName) {
-      const multiAccountIban = await this.specialExternalIbanService.getAllSpecialExternalIban(
+      const multiAccountIban = await this.specialExternalIbanService.getMultiAccountIban(
         SpecialExternalIbanType.MULTI_ACCOUNT_IBAN,
       );
       if (multiAccountIban.some((m) => dto.verifiedName.includes(m.name)))
