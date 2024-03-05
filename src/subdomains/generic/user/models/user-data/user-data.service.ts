@@ -329,8 +329,8 @@ export class UserDataService {
     }
 
     if (dto.verifiedName) {
-      const multiAccountIban = await this.specialExternalIbanService.getMultiAccountIban();
-      if (multiAccountIban.some((m) => dto.verifiedName.includes(m.name)))
+      const multiAccountIbans = await this.specialExternalIbanService.getMultiAccountIbans();
+      if (multiAccountIbans.some((m) => dto.verifiedName.includes(m.name)))
         throw new BadRequestException('VerifiedName includes a multiAccountIban');
     }
   }
