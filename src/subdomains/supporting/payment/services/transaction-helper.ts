@@ -212,9 +212,13 @@ export class TransactionHelper implements OnModuleInit {
 
     times.push(Date.now());
 
-    const txAmountChf = await this.getVolumeChfSince(target.sourceAmount, from, allowExpiredPrice, Util.daysBefore(1), [
-      user,
-    ]);
+    const txAmountChf = await this.getVolumeChfSince(
+      target.sourceAmount,
+      from,
+      allowExpiredPrice,
+      Util.daysBefore(1),
+      user ? [user] : undefined,
+    );
 
     times.push(Date.now());
 
@@ -258,7 +262,7 @@ export class TransactionHelper implements OnModuleInit {
     dateFrom: Date,
     users?: User[],
   ): Promise<number> {
-    if (!users || users?.length === 0) return inputAmount;
+    if (!users?.length) return inputAmount;
 
     const buyCryptoVolume = await this.buyCryptoService.getUserVolume(
       users.map((u) => u.id),

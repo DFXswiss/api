@@ -5,6 +5,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
@@ -28,6 +29,7 @@ describe('BuyCryptoPreparationService', () => {
   let buyCryptoWebhookService: BuyCryptoWebhookService;
   let feeService: FeeService;
   let buyCryptoService: BuyCryptoService;
+  let bankService: BankService;
 
   /*** Spies ***/
 
@@ -75,6 +77,7 @@ describe('BuyCryptoPreparationService', () => {
     buyCryptoWebhookService = mock<BuyCryptoWebhookService>();
     feeService = mock<FeeService>();
     buyCryptoService = mock<BuyCryptoService>();
+    bankService = mock<BankService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -88,6 +91,7 @@ describe('BuyCryptoPreparationService', () => {
         { provide: BuyCryptoWebhookService, useValue: buyCryptoWebhookService },
         { provide: FeeService, useValue: feeService },
         { provide: BuyCryptoService, useValue: buyCryptoService },
+        { provide: BankService, useValue: bankService },
         TestUtil.provideConfig(),
       ],
     }).compile();

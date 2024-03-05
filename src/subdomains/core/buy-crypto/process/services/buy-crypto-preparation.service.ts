@@ -5,6 +5,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -31,6 +32,7 @@ export class BuyCryptoPreparationService {
     private readonly assetService: AssetService,
     private readonly feeService: FeeService,
     private readonly buyCryptoService: BuyCryptoService,
+    private readonly bankService: BankService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
@@ -91,6 +93,8 @@ export class BuyCryptoPreparationService {
           entity.userData.users,
         );
 
+        const instantBanks = await this.bankService.getInstantBanks();
+
         await this.buyCryptoRepo.update(
           ...entity.amlCheckAndFillUp(
             inputReferenceAssetChfPrice,
@@ -98,6 +102,7 @@ export class BuyCryptoPreparationService {
             last24hVolume,
             last30dVolume,
             bankData?.userData,
+            instantBanks,
           ),
         );
       } catch (e) {

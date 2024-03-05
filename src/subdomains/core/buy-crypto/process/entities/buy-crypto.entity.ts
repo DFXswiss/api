@@ -7,12 +7,8 @@ import { Util } from 'src/shared/utils/util';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { KycLevel, KycType, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import {
-  BankTx,
-  BicBlacklist,
-  OlkypayIban,
-  RevolutIban,
-} from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
+import { BankTx, BicBlacklist } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
+import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -434,8 +430,9 @@ export class BuyCrypto extends IEntity {
     chfReferencePrice: Price,
     minVolume: number,
     last24hVolume: number,
-    monthlyAmountInChf: number,
+    last30dVolume: number,
     bankDataUserData: UserData,
+    instantBanks: Bank[],
   ): UpdateResult<BuyCrypto> {
     const { usedRef, refProvision } = this.user.specifiedRef;
     const amountInChf = chfReferencePrice.convert(this.inputReferenceAmount, 2);
@@ -445,7 +442,8 @@ export class BuyCrypto extends IEntity {
       amountInChf,
       bankDataUserData?.id,
       last24hVolume,
-      monthlyAmountInChf,
+      last30dVolume,
+      instantBanks,
     )
       ? {
           usedRef,
@@ -465,7 +463,8 @@ export class BuyCrypto extends IEntity {
     amountInChf: number,
     bankDataUserDataId: number,
     last24hVolume: number,
-    monthlyAmountInChf: number,
+    last30dVolume: number,
+    instantBanks: Bank[],
   ): boolean {
     return (
       this.inputReferenceAmount >= minVolume * 0.9 && // factor 0.9 puffer
@@ -479,10 +478,9 @@ export class BuyCrypto extends IEntity {
       this.userData.verifiedCountry &&
       this.userData.lastNameCheckDate &&
       Util.daysDiff(this.userData.lastNameCheckDate, new Date()) <= Config.amlCheckLastNameCheckValidity &&
-      monthlyAmountInChf <= Config.tradingLimits.monthlyDefault &&
+      last30dVolume <= Config.tradingLimits.monthlyDefault &&
       !BicBlacklist.includes(this.bankTx.bic) &&
-      ((!RevolutIban.includes(this.bankTx.iban) && !OlkypayIban.includes(this.bankTx.iban)) ||
-        this.userData.olkypayAllowed) &&
+      (!instantBanks.some((b) => b.iban === this.bankTx.accountIban) || this.userData.olkypayAllowed) &&
       (last24hVolume <= Config.tradingLimits.dailyDefault || this.isKycAmlPass(amountInChf))
     );
   }
