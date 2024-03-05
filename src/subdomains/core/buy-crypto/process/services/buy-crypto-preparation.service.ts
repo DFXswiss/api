@@ -4,7 +4,6 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -32,7 +31,6 @@ export class BuyCryptoPreparationService {
     private readonly assetService: AssetService,
     private readonly feeService: FeeService,
     private readonly buyCryptoService: BuyCryptoService,
-    private readonly buyFiatService: BuyFiatService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
@@ -77,23 +75,20 @@ export class BuyCryptoPreparationService {
 
         const bankData = await this.bankDataService.getBankDataWithIban(entity.bankTx.iban, undefined, true);
 
-        const dateFrom = Util.daysBefore(30);
-
-        const userDataBuyCryptoVolume = await this.buyCryptoService.getUserVolume(
-          entity.user.userData.users.map((user) => user.id),
-          dateFrom,
-        );
-
-        const userDataBuyFiatVolume = await this.buyFiatService.getUserVolume(
-          entity.user.userData.users.map((user) => user.id),
-          dateFrom,
-        );
-
-        const last24hVolume = await this.transactionHelper.getVolumeLast24hChf(
+        const last24hVolume = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,
           inputReferenceCurrency,
           false,
-          entity.user,
+          Util.daysBefore(1),
+          entity.userData.users,
+        );
+
+        const last30dVolume = await this.transactionHelper.getVolumeChfSince(
+          entity.inputReferenceAmount,
+          inputReferenceCurrency,
+          false,
+          Util.daysBefore(30),
+          entity.userData.users,
         );
 
         await this.buyCryptoRepo.update(
@@ -101,7 +96,7 @@ export class BuyCryptoPreparationService {
             inputReferenceAssetChfPrice,
             minVolume,
             last24hVolume,
-            userDataBuyCryptoVolume + userDataBuyFiatVolume,
+            last30dVolume,
             bankData?.userData,
           ),
         );
