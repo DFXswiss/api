@@ -73,7 +73,7 @@ export class BuyCryptoPreparationService {
           entity.user,
         );
 
-        const inputAssetChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
+        const inputReferenceAssetChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
 
         const bankData = await this.bankDataService.getBankDataWithIban(entity.bankTx.iban, undefined, true);
 
@@ -89,10 +89,18 @@ export class BuyCryptoPreparationService {
           dateFrom,
         );
 
+        const last24hVolume = await this.transactionHelper.getVolumeLast24hChf(
+          entity.inputReferenceAmount,
+          inputReferenceCurrency,
+          false,
+          entity.user,
+        );
+
         await this.buyCryptoRepo.update(
           ...entity.amlCheckAndFillUp(
-            inputAssetChfPrice,
+            inputReferenceAssetChfPrice,
             minVolume,
+            last24hVolume,
             userDataBuyCryptoVolume + userDataBuyFiatVolume,
             bankData?.userData,
           ),

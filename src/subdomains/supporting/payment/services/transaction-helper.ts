@@ -249,6 +249,21 @@ export class TransactionHelper implements OnModuleInit {
     };
   }
 
+  async getVolumeLast24hChf(
+    inputAmount: number,
+    from: Active,
+    allowExpiredPrice: boolean,
+    user?: User,
+  ): Promise<number> {
+    if (!user) return inputAmount;
+
+    const buyCryptoVolume = await this.buyCryptoService.getUserVolume([user.id], Util.daysBefore(1));
+    const buyFiatVolume = await this.buyFiatService.getUserVolume([user.id], Util.daysBefore(1));
+
+    const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
+    return price.convert(inputAmount) + buyCryptoVolume + buyFiatVolume;
+  }
+
   private async getTxFee(
     user: User | undefined,
     paymentMethodIn: PaymentMethod,
@@ -310,20 +325,6 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   // --- HELPER METHODS --- //
-  private async getVolumeLast24hChf(
-    inputAmount: number,
-    from: Active,
-    allowExpiredPrice: boolean,
-    user?: User,
-  ): Promise<number> {
-    if (!user) return inputAmount;
-
-    const buyCryptoVolume = await this.buyCryptoService.getUserVolume([user.id], Util.daysBefore(1));
-    const buyFiatVolume = await this.buyFiatService.getUserVolume([user.id], Util.daysBefore(1));
-
-    const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
-    return price.convert(inputAmount) + buyCryptoVolume + buyFiatVolume;
-  }
 
   private async convertToSource(
     from: Active,
