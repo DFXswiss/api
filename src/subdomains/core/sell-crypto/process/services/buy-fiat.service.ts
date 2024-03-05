@@ -109,6 +109,16 @@ export class BuyFiatService {
       await this.bankTxService.getBankTxRepo().setNewUpdateTime(dto.bankTxId);
     }
 
+    if (dto.outputReferenceAssetId) {
+      update.outputReferenceAsset = await this.fiatService.getFiat(dto.outputReferenceAssetId);
+      if (!update.outputReferenceAsset) throw new BadRequestException('OutputReferenceAsset not found');
+    }
+
+    if (dto.outputAssetId) {
+      update.outputAsset = await this.fiatService.getFiat(dto.outputAssetId);
+      if (!update.outputAsset) throw new BadRequestException('OutputAsset not found');
+    }
+
     Util.removeNullFields(entity);
 
     const forceUpdate = {
@@ -128,7 +138,7 @@ export class BuyFiatService {
     if (
       dto.isComplete ||
       (dto.amlCheck && dto.amlCheck !== CheckStatus.PASS) ||
-      dto.outputReferenceAsset ||
+      dto.outputReferenceAssetId ||
       dto.cryptoReturnDate
     )
       await this.triggerWebhook(entity);
@@ -269,7 +279,7 @@ export class BuyFiatService {
       inputAmount: buyFiat.inputAmount,
       inputAsset: buyFiat.inputAsset,
       outputAmount: buyFiat.outputAmount,
-      outputAsset: buyFiat.outputAssetEntity.name,
+      outputAsset: buyFiat.outputAsset.name,
       txId: buyFiat.cryptoInput.inTxId,
       txUrl: txExplorerUrl(buyFiat.cryptoInput.asset.blockchain, buyFiat.cryptoInput.inTxId),
       date: buyFiat.fiatOutput?.outputDate,
