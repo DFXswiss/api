@@ -10,7 +10,7 @@ export class OptimismTokenStrategy extends PurchaseStrategy {
   protected readonly logger = new DfxLogger(OptimismTokenStrategy);
 
   constructor(dexOptimismService: DexOptimismService) {
-    super(dexOptimismService, [{ name: 'ETH', type: AssetType.COIN }]);
+    super(dexOptimismService);
   }
 
   get blockchain(): Blockchain {

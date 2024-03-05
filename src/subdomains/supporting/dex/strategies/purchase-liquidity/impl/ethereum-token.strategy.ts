@@ -10,7 +10,7 @@ export class EthereumTokenStrategy extends PurchaseStrategy {
   protected readonly logger = new DfxLogger(EthereumTokenStrategy);
 
   constructor(dexEthereumService: DexEthereumService) {
-    super(dexEthereumService, []);
+    super(dexEthereumService);
   }
 
   get blockchain(): Blockchain {

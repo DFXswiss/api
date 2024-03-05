@@ -19,15 +19,11 @@ export abstract class PurchaseLiquidityStrategy implements OnModuleInit, OnModul
 
   private _feeAsset: Asset;
 
-  private prioritySwapAssets: Asset[];
-
   @Inject() protected readonly assetService: AssetService;
   @Inject() protected readonly liquidityOrderRepo: LiquidityOrderRepository;
   @Inject() protected readonly liquidityOrderFactory: LiquidityOrderFactory;
   @Inject() private readonly registry: PurchaseLiquidityStrategyRegistry;
   @Inject() private readonly notificationService: NotificationService;
-
-  constructor(private swapAssetDescriptors: { name: string; type: AssetType }[]) {}
 
   onModuleInit() {
     this.registry.add(
@@ -54,10 +50,6 @@ export abstract class PurchaseLiquidityStrategy implements OnModuleInit, OnModul
     return (this._feeAsset ??= await this.getFeeAsset());
   }
 
-  async swapAssets(): Promise<Asset[]> {
-    return (this.prioritySwapAssets ??= await this.getSwapAssets());
-  }
-
   abstract get blockchain(): Blockchain;
   abstract get assetType(): AssetType;
   abstract get assetCategory(): AssetCategory;
@@ -66,28 +58,6 @@ export abstract class PurchaseLiquidityStrategy implements OnModuleInit, OnModul
   abstract purchaseLiquidity(request: PurchaseLiquidityRequest): Promise<void>;
   abstract addPurchaseData(order: LiquidityOrder): Promise<void>;
   protected abstract getFeeAsset(): Promise<Asset>;
-
-  // --- SWAP ASSETS --- //
-  private async getSwapAssets(): Promise<Asset[]> {
-    const prioritySwapAssets = [];
-
-    for (const descriptor of this.swapAssetDescriptors) {
-      try {
-        const prioritySwapAsset = await this.getSwapAsset(descriptor);
-        if (prioritySwapAsset) prioritySwapAssets.push(prioritySwapAsset);
-      } catch {}
-    }
-
-    return prioritySwapAssets;
-  }
-
-  private async getSwapAsset({ name, type }: { name: string; type: AssetType }): Promise<Asset> {
-    const asset = await this.assetService.getAssetByQuery({ dexName: name, type, blockchain: this.blockchain });
-    if (!asset)
-      throw new Error(`Swap Asset reference not found (name: ${name}, type: ${type}, blockchain: ${this.blockchain})`);
-
-    return asset;
-  }
 
   // --- ERROR HANDLING --- //
   protected async handlePurchaseLiquidityError(e: Error, request: PurchaseLiquidityRequest): Promise<void> {

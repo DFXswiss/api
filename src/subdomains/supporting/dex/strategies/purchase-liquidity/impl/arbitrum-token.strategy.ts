@@ -10,7 +10,7 @@ export class ArbitrumTokenStrategy extends PurchaseStrategy {
   protected readonly logger = new DfxLogger(ArbitrumTokenStrategy);
 
   constructor(dexArbitrumService: DexArbitrumService) {
-    super(dexArbitrumService, [{ name: 'ETH', type: AssetType.COIN }]);
+    super(dexArbitrumService);
   }
 
   get blockchain(): Blockchain {

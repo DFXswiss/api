@@ -2,10 +2,6 @@ import { PurchaseLiquidityRequest } from '../../../../interfaces';
 import { PurchaseLiquidityStrategy } from './purchase-liquidity.strategy';
 
 export abstract class NoPurchaseStrategy extends PurchaseLiquidityStrategy {
-  constructor() {
-    super([]);
-  }
-
   async purchaseLiquidity(request: PurchaseLiquidityRequest): Promise<void> {
     const { targetAsset, context, correlationId } = request;
 

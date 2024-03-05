@@ -10,7 +10,7 @@ export class PolygonTokenStrategy extends PurchaseStrategy {
   protected readonly logger = new DfxLogger(PolygonTokenStrategy);
 
   constructor(dexPolygonService: DexPolygonService) {
-    super(dexPolygonService, [{ name: 'ETH', type: AssetType.COIN }]);
+    super(dexPolygonService);
   }
 
   get blockchain(): Blockchain {

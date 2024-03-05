@@ -10,7 +10,7 @@ export class BscTokenStrategy extends PurchaseStrategy {
   protected readonly logger = new DfxLogger(BscTokenStrategy);
 
   constructor(dexBscService: DexBscService) {
-    super(dexBscService, []);
+    super(dexBscService);
   }
 
   get blockchain(): Blockchain {
