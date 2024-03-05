@@ -6,7 +6,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
-import { SpecialExternalIbanService } from 'src/subdomains/supporting/bank/special-external-iban/special-external-iban.service';
+import { SpecialExternalBankAccountService } from 'src/subdomains/supporting/bank/special-external-bank-account/special-external-bank-account.service';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -34,7 +34,7 @@ export class BuyCryptoPreparationService {
     private readonly feeService: FeeService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyFiatService: BuyFiatService,
-    private readonly specialExternalIbanService: SpecialExternalIbanService,
+    private readonly specialExternalBankAccountService: SpecialExternalBankAccountService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
@@ -91,7 +91,7 @@ export class BuyCryptoPreparationService {
           dateFrom,
         );
 
-        const blacklist = await this.specialExternalIbanService.getBlacklist();
+        const blacklist = await this.specialExternalBankAccountService.getBlacklist();
 
         await this.buyCryptoRepo.update(
           ...entity.amlCheckAndFillUp(

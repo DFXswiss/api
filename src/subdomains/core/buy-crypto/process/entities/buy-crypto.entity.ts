@@ -8,7 +8,7 @@ import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/
 import { KycLevel, KycType, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx, OlkypayIban } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
-import { SpecialExternalIban } from 'src/subdomains/supporting/bank/special-external-iban/special-external-iban.entity';
+import { SpecialExternalBankAccount } from 'src/subdomains/supporting/bank/special-external-bank-account/special-external-bank-account.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -431,7 +431,7 @@ export class BuyCrypto extends IEntity {
     minVolume: number,
     monthlyAmountInChf: number,
     bankDataUserData: UserData,
-    blacklist: SpecialExternalIban[],
+    blacklist: SpecialExternalBankAccount[],
   ): UpdateResult<BuyCrypto> {
     const { usedRef, refProvision } = this.user.specifiedRef;
     const amountInChf = chfPrice.convert(this.bankTx.txAmount, 2);
@@ -461,7 +461,7 @@ export class BuyCrypto extends IEntity {
     amountInChf: number,
     bankDataUserDataId: number,
     monthlyAmountInChf: number,
-    blacklist: SpecialExternalIban[],
+    blacklist: SpecialExternalBankAccount[],
   ): boolean {
     return (
       this.bankTx.currency === this.bankTx.txCurrency &&

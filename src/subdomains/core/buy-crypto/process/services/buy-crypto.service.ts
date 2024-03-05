@@ -21,7 +21,7 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
-import { SpecialExternalIbanService } from 'src/subdomains/supporting/bank/special-external-iban/special-external-iban.service';
+import { SpecialExternalBankAccountService } from 'src/subdomains/supporting/bank/special-external-bank-account/special-external-bank-account.service';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
@@ -54,7 +54,7 @@ export class BuyCryptoService {
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly bankDataService: BankDataService,
     private readonly transactionRequestService: TransactionRequestService,
-    private readonly specialExternalIbanService: SpecialExternalIbanService,
+    private readonly specialExternalBankAccountService: SpecialExternalBankAccountService,
   ) {}
 
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<void> {
@@ -77,7 +77,7 @@ export class BuyCryptoService {
     // transaction request
     entity = await this.setTxRequest(entity);
 
-    const multiAccountIbans = await this.specialExternalIbanService.getMultiAccountIbans();
+    const multiAccountIbans = await this.specialExternalBankAccountService.getMultiAccountIbans();
     const senderAccount = bankTx.senderAccount(multiAccountIbans.map((m) => m.iban));
     if (senderAccount && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
       const bankData = await this.bankDataService.getBankDataWithIban(senderAccount, entity.buy.user.userData.id);
