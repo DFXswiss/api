@@ -5,6 +5,7 @@ import { AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { DexArbitrumService } from '../../../services/dex-arbitrum.service';
 import { DexBaseService } from '../../../services/dex-base.service';
 import { DexBscService } from '../../../services/dex-bsc.service';
+import { DexEthereumService } from '../../../services/dex-ethereum.service';
 import { DexOptimismService } from '../../../services/dex-optimism.service';
 import { DexPolygonService } from '../../../services/dex-polygon.service';
 import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
@@ -42,24 +43,24 @@ describe('PurchaseLiquidityStrategyRegistry', () => {
   let registry: PurchaseLiquidityStrategyRegistryWrapper;
 
   beforeEach(() => {
-    arbitrumCoin = new ArbitrumCoinStrategy();
+    arbitrumCoin = new ArbitrumCoinStrategy(mock<DexArbitrumService>());
     arbitrumToken = new ArbitrumTokenStrategy(mock<DexArbitrumService>());
     bitcoin = new BitcoinStrategy();
-    bscCoin = new BscCoinStrategy();
+    bscCoin = new BscCoinStrategy(mock<DexBscService>());
     bscToken = new BscTokenStrategy(mock<DexBscService>());
 
-    ethereumCoin = new EthereumCoinStrategy();
-    ethereumToken = new EthereumTokenStrategy(mock<DexBscService>());
+    ethereumCoin = new EthereumCoinStrategy(mock<DexEthereumService>());
+    ethereumToken = new EthereumTokenStrategy(mock<DexEthereumService>());
 
     monero = new MoneroStrategy();
 
-    optimismCoin = new OptimismCoinStrategy();
+    optimismCoin = new OptimismCoinStrategy(mock<DexOptimismService>());
     optimismToken = new OptimismTokenStrategy(mock<DexOptimismService>());
 
-    polygonCoin = new PolygonCoinStrategy();
+    polygonCoin = new PolygonCoinStrategy(mock<DexPolygonService>());
     polygonToken = new PolygonTokenStrategy(mock<DexPolygonService>());
 
-    baseCoin = new BaseCoinStrategy();
+    baseCoin = new BaseCoinStrategy(mock<DexBaseService>());
     baseToken = new BaseTokenStrategy(mock<DexBaseService>());
 
     registry = new PurchaseLiquidityStrategyRegistryWrapper(
