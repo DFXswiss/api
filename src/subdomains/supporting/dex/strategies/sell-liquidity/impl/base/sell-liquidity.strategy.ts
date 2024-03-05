@@ -11,8 +11,7 @@ export abstract class SellLiquidityStrategy implements OnModuleInit, OnModuleDes
 
   private _feeAsset: Asset;
 
-  @Inject()
-  private readonly registry: SellLiquidityStrategyRegistry;
+  @Inject() private readonly registry: SellLiquidityStrategyRegistry;
 
   onModuleInit() {
     this.registry.add({ blockchain: this.blockchain, assetType: this.assetType }, this);

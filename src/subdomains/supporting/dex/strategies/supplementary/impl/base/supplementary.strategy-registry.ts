@@ -4,17 +4,11 @@ import { StrategyRegistry } from 'src/subdomains/supporting/common/strategy-regi
 import { SupplementaryStrategy } from './supplementary.strategy';
 
 export class SupplementaryStrategyRegistry extends StrategyRegistry<Blockchain, SupplementaryStrategy> {
-  getSupplementaryStrategyByAsset(asset: Asset): SupplementaryStrategy {
+  getSupplementaryStrategyByAsset(asset: Asset): SupplementaryStrategy | undefined {
     return this.getSupplementaryStrategyByBlockchain(asset.blockchain);
   }
 
-  getSupplementaryStrategyByBlockchain(blockchain: Blockchain): SupplementaryStrategy {
-    const strategy = super.get(blockchain);
-
-    if (!strategy) {
-      throw new Error(`No SupplementaryStrategy found. Blockchain: ${blockchain}`);
-    }
-
-    return strategy;
+  getSupplementaryStrategyByBlockchain(blockchain: Blockchain): SupplementaryStrategy | undefined {
+    return super.get(blockchain);
   }
 }

@@ -1,4 +1,3 @@
-import { BadRequestException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
@@ -31,12 +30,10 @@ export abstract class EvmStrategy extends SupplementaryStrategy {
   async findTransaction(query: TransactionQuery): Promise<TransactionResult> {
     const { asset, amount, since } = query;
     const [coinHistory, tokenHistory] = await this.dexEvmService.getDexHistory();
-    const [relevantCoinHistory, relevantTokenHistory] = this.filterRelevantHistory(coinHistory, tokenHistory, since);
 
-    const targetEntry =
-      asset.type === AssetType.COIN
-        ? this.findTargetCoinEntry(relevantCoinHistory, amount)
-        : await this.findTargetTokenEntry(relevantTokenHistory, asset, amount);
+    const relevantHistory = this.filterRelevantHistory(coinHistory, tokenHistory, asset, since);
+
+    const targetEntry = await this.findHistoryEntry(relevantHistory, asset, amount);
 
     if (!targetEntry) return { isComplete: false };
 
@@ -47,38 +44,27 @@ export abstract class EvmStrategy extends SupplementaryStrategy {
     return this.dexEvmService.getTargetAmount(from, amount, to);
   }
 
-  //*** HELPER METHODS ***//
+  // --- HELPER METHODS --- //
 
   private filterRelevantHistory(
     coinHistory: EvmCoinHistoryEntry[],
     tokenHistory: EvmTokenHistoryEntry[],
+    asset: Asset,
     since: Date,
-  ): [EvmCoinHistoryEntry[], EvmTokenHistoryEntry[]] {
-    return [
-      coinHistory.filter((h) => Util.round(parseInt(h.timeStamp) * 1000, 0) > since.getTime()),
-      tokenHistory.filter((h) => Util.round(parseInt(h.timeStamp) * 1000, 0) > since.getTime()),
-    ];
+  ): (EvmCoinHistoryEntry | EvmTokenHistoryEntry)[] {
+    return asset.type === AssetType.COIN
+      ? coinHistory.filter((h) => Util.round(parseInt(h.timeStamp) * 1000, 0) > since.getTime())
+      : tokenHistory.filter((h) => Util.round(parseInt(h.timeStamp) * 1000, 0) > since.getTime());
   }
 
-  private findTargetCoinEntry(history: EvmCoinHistoryEntry[], amount: number): EvmCoinHistoryEntry | undefined {
-    return history.find((h) => this.dexEvmService.fromWeiAmount(h.value) === amount);
-  }
-
-  private async findTargetTokenEntry(
-    history: EvmTokenHistoryEntry[],
+  private async findHistoryEntry<T extends EvmCoinHistoryEntry | EvmTokenHistoryEntry>(
+    history: T[],
     asset: Asset,
     amount: number,
-  ): Promise<EvmTokenHistoryEntry | undefined> {
-    const contract = this.dexEvmService.getERC20ContractForDex(asset.chainId);
-
-    if (!contract) {
-      throw new BadRequestException(
-        `No ERC-20 contract found for token ID ${asset.chainId} when trying to execute #findTransaction() API `,
-      );
+  ): Promise<T> {
+    for (const h of history) {
+      const historyAmount = await this.dexEvmService.fromWeiAmount(h.value, asset);
+      if (historyAmount === amount) return h;
     }
-
-    const decimals = await contract.decimals();
-
-    return history.find((h) => this.dexEvmService.fromWeiAmount(h.value, decimals) === amount);
   }
 }

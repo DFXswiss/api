@@ -59,7 +59,7 @@ export class DexService {
     } catch (e) {
       this.logger.error('Error while checking liquidity:', e);
 
-      throw new Error(`Error while checking liquidity. Context: ${context}. Correlation ID: ${correlationId}. `);
+      throw new Error(`Error while checking liquidity. Context: ${context}. Correlation ID: ${correlationId}`);
     }
   }
 
@@ -295,21 +295,21 @@ export class DexService {
     }
   }
 
-  async getTargetAmount(amount: number, from: Asset, to: Asset): Promise<number> {
+  async calculatePrice(from: Asset, to: Asset): Promise<number> {
     if (from.blockchain !== to.blockchain) throw new Error('Swapping between chains is not possible');
 
     const strategy = this.supplementaryStrategyRegistry.getSupplementaryStrategyByAsset(from);
 
     if (!strategy) {
-      throw new Error(`No supplementary strategy found for asset ${from.uniqueName} during #getTargetAmount(...)`);
+      throw new Error(`No supplementary strategy found for asset ${from.uniqueName} during #calculatePrice(...)`);
     }
     try {
-      return await strategy.getTargetAmount(amount, from, to);
+      return await strategy.calculatePrice(from, to);
     } catch (e) {
       this.logger.error('Error while getting target amount:', e);
 
       // default public exception
-      throw new Error(`Error while getting target amount from ${amount} ${from.uniqueName} to ${to.uniqueName}.`);
+      throw new Error(`Error while getting price from ${from.uniqueName} to ${to.uniqueName}.`);
     }
   }
 
