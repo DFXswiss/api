@@ -479,7 +479,7 @@ export class BuyCrypto extends IEntity {
       this.userData.verifiedCountry &&
       this.userData.lastNameCheckDate &&
       Util.daysDiff(this.userData.lastNameCheckDate, new Date()) <= Config.amlCheckLastNameCheckValidity &&
-      monthlyAmountInChf <= Config.amlCheckMonthlyTradingLimit &&
+      monthlyAmountInChf <= Config.tradingLimits.monthlyDefault &&
       !BicBlacklist.includes(this.bankTx.bic) &&
       ((!RevolutIban.includes(this.bankTx.iban) && !OlkypayIban.includes(this.bankTx.iban)) ||
         this.userData.olkypayAllowed) &&
