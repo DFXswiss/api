@@ -126,13 +126,13 @@ export class BuyFiat extends IEntity {
   outputReferenceAmount: number;
 
   @ManyToOne(() => Fiat, { eager: true, nullable: true })
-  outputReferenceAssetEntity: Fiat;
+  outputReferenceAsset: Fiat;
 
   @Column({ type: 'float', nullable: true })
   outputAmount: number;
 
   @ManyToOne(() => Fiat, { eager: true, nullable: true })
-  outputAssetEntity: Fiat;
+  outputAsset: Fiat;
 
   // Transaction details
   @Column({ length: 256, nullable: true })
@@ -252,7 +252,8 @@ export class BuyFiat extends IEntity {
     const update: Partial<BuyFiat> = {
       outputAmount,
       outputReferenceAmount: outputAmount,
-      outputAssetEntity,
+      outputAsset: outputAssetEntity,
+      outputReferenceAsset: outputAssetEntity,
     };
 
     Object.assign(this, update);
@@ -273,9 +274,9 @@ export class BuyFiat extends IEntity {
       amountInChf: null,
       amountInEur: null,
       outputReferenceAmount: null,
-      outputReferenceAssetEntity: null,
+      outputReferenceAsset: null,
       outputAmount: null,
-      outputAssetEntity: null,
+      outputAsset: null,
       minFeeAmount: null,
       minFeeAmountFiat: null,
       totalFeeAmount: null,
@@ -313,7 +314,7 @@ export class BuyFiat extends IEntity {
   }
 
   get exchangeRateString(): string {
-    return `${Util.round(1 / this.exchangeRate.exchangeRate, 2)} ${this.outputAssetEntity.name}/${this.inputAsset}`;
+    return `${Util.round(1 / this.exchangeRate.exchangeRate, 2)} ${this.outputAsset.name}/${this.inputAsset}`;
   }
 
   get percentFeeString(): string {

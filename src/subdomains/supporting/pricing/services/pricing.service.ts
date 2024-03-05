@@ -24,7 +24,7 @@ export class PricingService {
 
   private readonly providerMap: { [s in PriceSource]: PricingProvider };
   private readonly priceCache = new AsyncCache<Price>(10);
-  private readonly updateCalls = new AsyncCache<Price>(0);
+  private readonly updateCalls = new AsyncCache<PriceRule>(0);
 
   constructor(
     private readonly priceRuleRepo: PriceRuleRepository,
@@ -97,18 +97,14 @@ export class PricingService {
       rules.push({ active, rule });
     } while (rule.reference);
 
-    const prices = await Promise.all(
-      rules.map(({ active, rule }) =>
-        this.updateCalls.get(`${rule.id}`, () => this.getPriceForRule(rule, allowExpired, active)),
-      ),
-    );
+    const prices = await Promise.all(rules.map(({ active, rule }) => this.getPriceForRule(rule, allowExpired, active)));
 
     return Price.join(...prices);
   }
 
   private async getPriceForRule(rule: PriceRule, allowExpired: boolean, active?: Active): Promise<Price> {
     if (!rule.isPriceValid) {
-      const updateTask = this.updatePriceFor(rule, active);
+      const updateTask = this.updateCalls.get(`${rule.id}`, () => this.updatePriceFor(rule, active));
 
       if (!allowExpired || rule.currentPrice == null || rule.isPriceObsolete) {
         rule = await updateTask;

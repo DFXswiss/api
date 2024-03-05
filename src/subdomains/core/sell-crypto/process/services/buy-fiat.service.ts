@@ -71,12 +71,10 @@ export class BuyFiatService {
   }
 
   private async setTxRequest(entity: BuyFiat): Promise<BuyFiat> {
-    const inputCurrency = await this.fiatService.getFiatByName(entity.inputAsset);
-
     const transactionRequest = await this.transactionRequestService.findAndCompleteRequest(
       entity.inputAmount,
       entity.sell.id,
-      inputCurrency.id,
+      entity.cryptoInput.asset.id,
       entity.sell.fiat.id,
     );
     if (transactionRequest) {
@@ -109,6 +107,16 @@ export class BuyFiatService {
       await this.bankTxService.getBankTxRepo().setNewUpdateTime(dto.bankTxId);
     }
 
+    if (dto.outputReferenceAssetId) {
+      update.outputReferenceAsset = await this.fiatService.getFiat(dto.outputReferenceAssetId);
+      if (!update.outputReferenceAsset) throw new BadRequestException('OutputReferenceAsset not found');
+    }
+
+    if (dto.outputAssetId) {
+      update.outputAsset = await this.fiatService.getFiat(dto.outputAssetId);
+      if (!update.outputAsset) throw new BadRequestException('OutputAsset not found');
+    }
+
     Util.removeNullFields(entity);
 
     const forceUpdate = {
@@ -128,7 +136,7 @@ export class BuyFiatService {
     if (
       dto.isComplete ||
       (dto.amlCheck && dto.amlCheck !== CheckStatus.PASS) ||
-      dto.outputReferenceAsset ||
+      dto.outputReferenceAssetId ||
       dto.cryptoReturnDate
     )
       await this.triggerWebhook(entity);
@@ -230,23 +238,17 @@ export class BuyFiatService {
     });
   }
 
-  async getUserVolume(
-    userIds: number[],
-    dateFrom: Date = new Date(0),
-    dateTo: Date = new Date(),
-  ): Promise<{ sell: number }> {
-    const sellVolume = await this.buyFiatRepo
+  async getUserVolume(userIds: number[], dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<number> {
+    return this.buyFiatRepo
       .createQueryBuilder('buyFiat')
       .select('SUM(amountInChf)', 'volume')
       .leftJoin('buyFiat.cryptoInput', 'cryptoInput')
       .leftJoin('buyFiat.sell', 'sell')
-      .where(`sell.userId = :userId`, { userId: In(userIds) })
+      .where('sell.userId IN (:...userIds)', { userIds })
       .andWhere('cryptoInput.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
       .andWhere('buyFiat.amlCheck != :amlCheck', { amlCheck: CheckStatus.FAIL })
       .getRawOne<{ volume: number }>()
-      .then((result) => result.volume);
-
-    return { sell: sellVolume };
+      .then((result) => result.volume ?? 0);
   }
 
   async getAllUserTransactions(userIds: number[]): Promise<BuyFiat[]> {
@@ -275,7 +277,7 @@ export class BuyFiatService {
       inputAmount: buyFiat.inputAmount,
       inputAsset: buyFiat.inputAsset,
       outputAmount: buyFiat.outputAmount,
-      outputAsset: buyFiat.outputAssetEntity.name,
+      outputAsset: buyFiat.outputAsset.name,
       txId: buyFiat.cryptoInput.inTxId,
       txUrl: txExplorerUrl(buyFiat.cryptoInput.asset.blockchain, buyFiat.cryptoInput.inTxId),
       date: buyFiat.fiatOutput?.outputDate,

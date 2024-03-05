@@ -37,9 +37,16 @@ export class BuyCryptoPreparationService {
 
   async doAmlCheck(): Promise<void> {
     // Atm only for bankTx BuyCrypto
-
     const entities = await this.buyCryptoRepo.find({
-      where: { amlCheck: IsNull(), amlReason: IsNull(), bankTx: Not(IsNull()), buy: Not(IsNull()), status: IsNull() },
+      where: {
+        amlCheck: IsNull(),
+        amlReason: IsNull(),
+        inputAmount: Not(IsNull()),
+        inputAsset: Not(IsNull()),
+        bankTx: Not(IsNull()),
+        buy: Not(IsNull()),
+        status: IsNull(),
+      },
       relations: ['bankTx', 'buy', 'buy.user', 'buy.user.wallet', 'buy.user.userData', 'buy.user.userData.users'],
     });
     if (entities.length === 0) return;
@@ -72,7 +79,7 @@ export class BuyCryptoPreparationService {
 
         const dateFrom = Util.daysBefore(30);
 
-        const userDataVolume = await this.buyCryptoService.getUserVolume(
+        const userDataBuyCryptoVolume = await this.buyCryptoService.getUserVolume(
           entity.user.userData.users.map((user) => user.id),
           dateFrom,
         );
@@ -86,7 +93,7 @@ export class BuyCryptoPreparationService {
           ...entity.amlCheckAndFillUp(
             inputAssetChfPrice,
             minVolume,
-            userDataVolume.buy + userDataVolume.checkout + userDataVolume.convert + userDataBuyFiatVolume.sell,
+            userDataBuyCryptoVolume + userDataBuyFiatVolume,
             bankData?.userData,
           ),
         );

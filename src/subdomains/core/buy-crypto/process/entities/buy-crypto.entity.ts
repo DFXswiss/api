@@ -466,6 +466,7 @@ export class BuyCrypto extends IEntity {
       this.userData.kycType === KycType.DFX &&
       this.userData.kycFileId > 0 &&
       this.userData.annualBuyVolume + amountInChf < this.userData.depositLimit &&
+      this.userData.lastNameCheckDate &&
       Util.daysDiff(this.userData.lastNameCheckDate, new Date()) <= Config.amlCheckLastNameCheckValidity &&
       monthlyAmountInChf <= Config.amlCheckMonthlyTradingLimit &&
       !BicBlacklist.includes(this.bankTx.bic) &&

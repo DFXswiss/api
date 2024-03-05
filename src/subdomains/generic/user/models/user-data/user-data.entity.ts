@@ -384,7 +384,7 @@ export class UserData extends IEntity {
     } else if (this.isKycTerminated) {
       return { limit: 0, period: LimitPeriod.DAY };
     } else {
-      return { limit: Config.defaultDailyTradingLimit, period: LimitPeriod.DAY };
+      return { limit: Config.tradingLimits.dailyDefault, period: LimitPeriod.DAY };
     }
   }
 

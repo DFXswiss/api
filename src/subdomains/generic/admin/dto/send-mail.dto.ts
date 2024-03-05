@@ -48,17 +48,17 @@ export class SendMailDto {
 
   @IsOptional()
   @IsString()
-  telegramUrl: string = Config.defaultTelegramUrl;
+  telegramUrl: string = Config.social.telegram;
 
   @IsOptional()
   @IsString()
-  instagramUrl: string = Config.defaultInstagramUrl;
+  instagramUrl: string = Config.social.instagram;
 
   @IsOptional()
   @IsString()
-  linkedinUrl: string = Config.defaultLinkedinUrl;
+  linkedinUrl: string = Config.social.linkedin;
 
   @IsOptional()
   @IsString()
-  twitterUrl: string = Config.defaultTwitterUrl;
+  twitterUrl: string = Config.social.twitter;
 }

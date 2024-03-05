@@ -36,10 +36,10 @@ export interface UserMailParams {
 export class UserMail extends Mail {
   constructor(params: UserMailParams) {
     const defaultParams: Partial<UserMailParams> = {
-      twitterUrl: Config.defaultTwitterUrl,
-      telegramUrl: Config.defaultTelegramUrl,
-      linkedinUrl: Config.defaultLinkedinUrl,
-      instagramUrl: Config.defaultInstagramUrl,
+      twitterUrl: Config.social.twitter,
+      telegramUrl: Config.social.telegram,
+      linkedinUrl: Config.social.linkedin,
+      instagramUrl: Config.social.instagram,
     };
 
     super({ ...params, template: 'user', templateParams: { ...defaultParams, ...params } });

@@ -115,7 +115,7 @@ export class UpdateBuyFiatDto {
 
   @IsOptional()
   @IsString()
-  outputReferenceAsset: string;
+  outputReferenceAssetId: number;
 
   @IsOptional()
   @IsNumber()
@@ -123,7 +123,7 @@ export class UpdateBuyFiatDto {
 
   @IsOptional()
   @IsString()
-  outputAsset: string;
+  outputAssetId: number;
 
   @IsOptional()
   @IsString()
