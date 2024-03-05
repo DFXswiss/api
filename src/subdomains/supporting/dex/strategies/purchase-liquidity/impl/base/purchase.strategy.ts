@@ -4,7 +4,6 @@ import { PurchaseLiquidityRequest } from '../../../../interfaces';
 import { PurchaseLiquidityStrategy } from './purchase-liquidity.strategy';
 
 export interface PurchaseDexService {
-  getAssetAvailability(asset: Asset): Promise<number>;
   getTargetAmount(referenceAsset: Asset, referenceAmount: number, targetAsset: Asset): Promise<number>;
   swap(swapAsset: Asset, swapAmount: number, targetAsset: Asset, maxPriceSlippage: number): Promise<ChainSwapId>;
   getSwapResult(txId: string, asset: Asset): Promise<{ targetAmount: number; feeAmount: number }>;
