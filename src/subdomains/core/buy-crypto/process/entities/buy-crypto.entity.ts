@@ -483,7 +483,7 @@ export class BuyCrypto extends IEntity {
       !BicBlacklist.includes(this.bankTx.bic) &&
       ((!RevolutIban.includes(this.bankTx.iban) && !OlkypayIban.includes(this.bankTx.iban)) ||
         this.userData.olkypayAllowed) &&
-      (last24hVolume <= Config.defaultDailyTradingLimit || this.isKycAmlPass(amountInChf))
+      (last24hVolume <= Config.tradingLimits.dailyDefault || this.isKycAmlPass(amountInChf))
     );
   }
 
