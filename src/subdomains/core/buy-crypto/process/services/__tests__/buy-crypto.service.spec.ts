@@ -10,7 +10,7 @@ import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
-import { MultiAccountIbanService } from 'src/subdomains/supporting/bank/multi-account-iban/multi-account-iban.service';
+import { SpecialExternalIbanService } from 'src/subdomains/supporting/bank/special-external-iban/special-external-iban.service';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { BuyRepository } from '../../../routes/buy/buy.repository';
@@ -46,7 +46,7 @@ describe('BuyCryptoService', () => {
   let fiatService: FiatService;
   let bankDataService: BankDataService;
   let transactionRequestService: TransactionRequestService;
-  let multiAccountIbanService: MultiAccountIbanService;
+  let specialExternalIbanService: SpecialExternalIbanService;
 
   beforeEach(async () => {
     buyCryptoRepo = createMock<BuyCryptoRepository>();
@@ -61,7 +61,7 @@ describe('BuyCryptoService', () => {
     fiatService = createMock<FiatService>();
     bankDataService = createMock<BankDataService>();
     transactionRequestService = createMock<TransactionRequestService>();
-    multiAccountIbanService = createMock<MultiAccountIbanService>();
+    specialExternalIbanService = createMock<SpecialExternalIbanService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -79,7 +79,7 @@ describe('BuyCryptoService', () => {
         { provide: FiatService, useValue: fiatService },
         { provide: BankDataService, useValue: bankDataService },
         { provide: TransactionRequestService, useValue: transactionRequestService },
-        { provide: MultiAccountIbanService, useValue: multiAccountIbanService },
+        { provide: SpecialExternalIbanService, useValue: specialExternalIbanService },
       ],
     }).compile();
 

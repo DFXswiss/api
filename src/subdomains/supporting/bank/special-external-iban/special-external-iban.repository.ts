@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
 import { EntityManager } from 'typeorm';
-import { MultiAccountIban } from './multi-account-iban.entity';
+import { SpecialExternalIban } from './special-external-iban.entity';
 
 @Injectable()
-export class MultiAccountIbanRepository extends BaseRepository<MultiAccountIban> {
+export class SpecialExternalIbanRepository extends BaseRepository<SpecialExternalIban> {
   constructor(manager: EntityManager) {
-    super(MultiAccountIban, manager);
+    super(SpecialExternalIban, manager);
   }
 }

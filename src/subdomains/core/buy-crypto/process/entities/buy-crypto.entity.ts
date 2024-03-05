@@ -7,7 +7,8 @@ import { Util } from 'src/shared/utils/util';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { KycLevel, KycType, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { BankTx, BicBlacklist, OlkypayIban } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
+import { BankTx, OlkypayIban } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
+import { SpecialExternalIban } from 'src/subdomains/supporting/bank/special-external-iban/special-external-iban.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -430,11 +431,18 @@ export class BuyCrypto extends IEntity {
     minVolume: number,
     monthlyAmountInChf: number,
     bankDataUserData: UserData,
+    blacklist: SpecialExternalIban[],
   ): UpdateResult<BuyCrypto> {
     const { usedRef, refProvision } = this.user.specifiedRef;
     const amountInChf = chfPrice.convert(this.bankTx.txAmount, 2);
 
-    const update: Partial<BuyCrypto> = this.isAmlPass(minVolume, amountInChf, bankDataUserData?.id, monthlyAmountInChf)
+    const update: Partial<BuyCrypto> = this.isAmlPass(
+      minVolume,
+      amountInChf,
+      bankDataUserData?.id,
+      monthlyAmountInChf,
+      blacklist,
+    )
       ? {
           usedRef,
           refProvision,
@@ -448,7 +456,13 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
-  isAmlPass(minVolume: number, amountInChf: number, bankDataUserDataId: number, monthlyAmountInChf: number): boolean {
+  isAmlPass(
+    minVolume: number,
+    amountInChf: number,
+    bankDataUserDataId: number,
+    monthlyAmountInChf: number,
+    blacklist: SpecialExternalIban[],
+  ): boolean {
     return (
       this.bankTx.currency === this.bankTx.txCurrency &&
       this.bankTx.txAmount >= minVolume * 0.9 && // in referenceAsset! Only valid for bankTx.currency === bankTx.txCurrency // factor 0.9 puffer
@@ -469,7 +483,7 @@ export class BuyCrypto extends IEntity {
       this.userData.lastNameCheckDate &&
       Util.daysDiff(this.userData.lastNameCheckDate, new Date()) <= Config.amlCheckLastNameCheckValidity &&
       monthlyAmountInChf <= Config.amlCheckMonthlyTradingLimit &&
-      !BicBlacklist.includes(this.bankTx.bic) &&
+      !blacklist.some((b) => b.bic === this.bankTx.bic || b.iban === this.bankTx.iban) &&
       (!OlkypayIban.includes(this.bankTx.iban) || this.userData.olkypayAllowed)
     );
   }
