@@ -2,23 +2,18 @@ import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DexBaseService } from '../../../services/dex-base.service';
-import { PurchaseStrategy } from './base/purchase.strategy';
+import { NoPurchaseStrategy } from './base/no-purchase.strategy';
 
 @Injectable()
-export class BaseTokenStrategy extends PurchaseStrategy {
-  protected readonly logger = new DfxLogger(BaseTokenStrategy);
-
-  constructor(dexBaseService: DexBaseService) {
-    super(dexBaseService);
-  }
+export class LightningStrategy extends NoPurchaseStrategy {
+  protected readonly logger = new DfxLogger(LightningStrategy);
 
   get blockchain(): Blockchain {
-    return Blockchain.BASE;
+    return Blockchain.LIGHTNING;
   }
 
   get assetType(): AssetType {
-    return AssetType.TOKEN;
+    return undefined;
   }
 
   get assetCategory(): AssetCategory {
@@ -30,6 +25,6 @@ export class BaseTokenStrategy extends PurchaseStrategy {
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getBaseCoin();
+    return this.assetService.getLightningCoin();
   }
 }

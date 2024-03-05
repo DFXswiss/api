@@ -24,9 +24,9 @@ export class FiatDtoMapper {
   static toDetailDto(fiat: Fiat, spec: TxSpec): FiatDetailDto {
     return Object.assign(this.toDto(fiat), {
       limits: {
-        [FiatPaymentMethod.BANK]: this.convert(spec.minVolume, Config.defaultTradingLimit, fiat),
-        [FiatPaymentMethod.INSTANT]: this.convert(spec.minVolume, Config.defaultTradingLimit, fiat),
-        [FiatPaymentMethod.CARD]: this.convert(spec.minVolume, Config.defaultCardTradingLimit, fiat),
+        [FiatPaymentMethod.BANK]: this.convert(spec.minVolume, Config.tradingLimits.yearlyDefault, fiat),
+        [FiatPaymentMethod.INSTANT]: this.convert(spec.minVolume, Config.tradingLimits.yearlyDefault, fiat),
+        [FiatPaymentMethod.CARD]: this.convert(spec.minVolume, Config.tradingLimits.cardDefault, fiat),
       },
     });
   }

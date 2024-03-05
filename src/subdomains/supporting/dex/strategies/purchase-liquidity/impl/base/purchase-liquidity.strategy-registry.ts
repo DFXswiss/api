@@ -14,8 +14,8 @@ export class PurchaseLiquidityStrategyRegistry extends StrategyRegistry<
   StrategyRegistryKey,
   PurchaseLiquidityStrategy
 > {
-  getPurchaseLiquidityStrategy(asset: Asset): PurchaseLiquidityStrategy {
-    const strategy =
+  getPurchaseLiquidityStrategy(asset: Asset): PurchaseLiquidityStrategy | undefined {
+    return (
       super.get({ blockchain: asset.blockchain, assetType: asset.type }) ??
       super.get({
         blockchain: asset.blockchain,
@@ -23,12 +23,7 @@ export class PurchaseLiquidityStrategyRegistry extends StrategyRegistry<
         dexName: asset.dexName,
       }) ??
       super.get({ blockchain: asset.blockchain, assetCategory: asset.category }) ??
-      super.get({ blockchain: asset.blockchain });
-
-    if (!strategy) {
-      throw new Error(`No PurchaseLiquidityStrategy found. Blockchain: ${asset.blockchain}, AssetType: ${asset.type}`);
-    }
-
-    return strategy;
+      super.get({ blockchain: asset.blockchain })
+    );
   }
 }

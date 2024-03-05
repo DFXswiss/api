@@ -26,17 +26,10 @@ const SkipTestSwapAssets = ['ZCHF'];
 export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy {
   protected abstract readonly logger: DfxLogger;
 
-  @Inject()
-  private readonly dexService: DexService;
-
-  @Inject()
-  private readonly payInFactory: PayInFactory;
-
-  @Inject()
-  private readonly registry: RegisterStrategyRegistry;
-
-  @Inject()
-  private readonly pricingService: PricingService;
+  @Inject() private readonly dexService: DexService;
+  @Inject() private readonly payInFactory: PayInFactory;
+  @Inject() private readonly registry: RegisterStrategyRegistry;
+  @Inject() private readonly pricingService: PricingService;
 
   constructor(protected readonly payInRepository: PayInRepository) {}
 
