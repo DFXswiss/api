@@ -64,7 +64,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     return withdrawTx.hash;
   }
 
-  async approveToken(l1Token: Asset, _l2Token: Asset): Promise<string> {
+  async approveBridge(l1Token: Asset, _l2Token: Asset): Promise<string> {
     const erc20Bridge = new Erc20Bridger(this.#l2Network);
 
     const approveTx = await erc20Bridge.approveToken({

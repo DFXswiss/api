@@ -1,22 +1,29 @@
 import { Inject, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { LiquidityOrder } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
+import { NotEnoughLiquidityException } from 'src/subdomains/supporting/dex/exceptions/not-enough-liquidity.exception';
+import { PriceSlippageException } from 'src/subdomains/supporting/dex/exceptions/price-slippage.exception';
+import { LiquidityOrderFactory } from 'src/subdomains/supporting/dex/factories/liquidity-order.factory';
+import { LiquidityOrderRepository } from 'src/subdomains/supporting/dex/repositories/liquidity-order.repository';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { NotEnoughLiquidityException } from '../../../../exceptions/not-enough-liquidity.exception';
-import { PriceSlippageException } from '../../../../exceptions/price-slippage.exception';
 import { PurchaseLiquidityRequest } from '../../../../interfaces';
 import { PurchaseLiquidityStrategyRegistry } from './purchase-liquidity.strategy-registry';
 
 export abstract class PurchaseLiquidityStrategy implements OnModuleInit, OnModuleDestroy {
+  protected abstract readonly logger: DfxLogger;
+
   private _feeAsset: Asset;
 
-  @Inject()
-  private readonly registry: PurchaseLiquidityStrategyRegistry;
-
-  constructor(protected readonly notificationService: NotificationService) {}
+  @Inject() protected readonly assetService: AssetService;
+  @Inject() protected readonly liquidityOrderRepo: LiquidityOrderRepository;
+  @Inject() protected readonly liquidityOrderFactory: LiquidityOrderFactory;
+  @Inject() private readonly registry: PurchaseLiquidityStrategyRegistry;
+  @Inject() private readonly notificationService: NotificationService;
 
   onModuleInit() {
     this.registry.add(
@@ -52,6 +59,7 @@ export abstract class PurchaseLiquidityStrategy implements OnModuleInit, OnModul
   abstract addPurchaseData(order: LiquidityOrder): Promise<void>;
   protected abstract getFeeAsset(): Promise<Asset>;
 
+  // --- ERROR HANDLING --- //
   protected async handlePurchaseLiquidityError(e: Error, request: PurchaseLiquidityRequest): Promise<void> {
     const errorMessage = `Correlation ID: ${request.correlationId}. Context: ${request.context}. ${e.message}`;
 
@@ -68,8 +76,6 @@ export abstract class PurchaseLiquidityStrategy implements OnModuleInit, OnModul
 
     throw new Error(errorMessage);
   }
-
-  //*** HELPER METHODS ***//
 
   private createMailRequest(liquidityRequest: PurchaseLiquidityRequest, errorMessage: string): MailRequest {
     const correlationId = `PurchaseLiquidity&${liquidityRequest.context}&${liquidityRequest.correlationId}`;

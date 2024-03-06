@@ -26,33 +26,36 @@ export function GetConfig(): Configuration {
 export class Configuration {
   port = process.env.PORT ?? 3000;
   environment = process.env.ENVIRONMENT as Environment;
+  network = process.env.NETWORK as NetworkName;
+
   defaultVersion: Version = '1';
   kycVersion: Version = '2';
   defaultVersionString = `v${this.defaultVersion}`;
-  network = process.env.NETWORK as NetworkName;
-  githubToken = process.env.GH_TOKEN;
+
   defaultLanguage = 'en';
   defaultCountry = 'DE';
   defaultCurrency = 'EUR';
-  defaultTelegramUrl = 'https://t.me/DFXswiss';
-  defaultLinkedinUrl = 'https://www.linkedin.com/company/dfxswiss/';
-  defaultInstagramUrl = 'https://www.instagram.com/dfx.swiss/';
-  defaultTwitterUrl = 'https://twitter.com/DFX_Swiss';
+
   defaultVolumeDecimal = 2;
   defaultPercentageDecimal = 2;
-  defaultDailyTradingLimit = 1000; // CHF
-  defaultTradingLimit = 1000000000; // CHF
-  defaultCardTradingLimit = 4000; // CHF
+
   apiKeyVersionCT = '0'; // single digit hex number
   azureIpSubstring = '169.254';
+
   amlCheckMonthlyTradingLimit = 50000; // CHF
   amlCheckLastNameCheckValidity = 90; // days
 
-  colors = {
-    white: '#FFFFFF',
-    red: '#F5516C',
-    lightBlue: '#0A355C',
-    darkBlue: '#072440',
+  tradingLimits = {
+    dailyDefault: 1000, // CHF
+    yearlyDefault: 1000000000, // CHF
+    cardDefault: 4000, // CHF
+  };
+
+  social = {
+    telegram: 'https://t.me/DFXswiss',
+    linkedin: 'https://www.linkedin.com/company/dfxswiss/',
+    instagram: 'https://www.instagram.com/dfx.swiss/',
+    twitter: 'https://twitter.com/DFX_Swiss',
   };
 
   bitcoinAddressFormat = '([13]|bc1)[a-zA-HJ-NP-Z0-9]{25,62}';
@@ -202,17 +205,8 @@ export class Configuration {
     },
   };
 
-  whale = {
-    version: 'v0',
-    network: this.network,
-    urls: process.env.OCEAN_URLS?.split(','),
-  };
-
-  transaction = {
-    pricing: {
-      refreshRate: 15, // minutes
-      coinGeckoApiKey: process.env.COIN_GECKO_API_KEY,
-    },
+  coinGecko = {
+    apiKey: process.env.COIN_GECKO_API_KEY,
   };
 
   blockchain = {
@@ -256,6 +250,7 @@ export class Configuration {
       ethGatewayUrl: process.env.ETH_GATEWAY_URL,
       ethApiKey: process.env.ALCHEMY_API_KEY,
       ethChainId: +process.env.ETH_CHAIN_ID,
+      swapContractAddress: process.env.ETH_SWAP_CONTRACT_ADDRESS,
     },
     optimism: {
       optimismWalletAddress: process.env.OPTIMISM_WALLET_ADDRESS,
@@ -263,6 +258,7 @@ export class Configuration {
       optimismGatewayUrl: process.env.OPTIMISM_GATEWAY_URL,
       optimismApiKey: process.env.ALCHEMY_API_KEY,
       optimismChainId: +process.env.OPTIMISM_CHAIN_ID,
+      swapContractAddress: process.env.OPTIMISM_SWAP_CONTRACT_ADDRESS,
     },
     arbitrum: {
       arbitrumWalletAddress: process.env.ARBITRUM_WALLET_ADDRESS,
@@ -270,6 +266,7 @@ export class Configuration {
       arbitrumGatewayUrl: process.env.ARBITRUM_GATEWAY_URL,
       arbitrumApiKey: process.env.ALCHEMY_API_KEY,
       arbitrumChainId: +process.env.ARBITRUM_CHAIN_ID,
+      swapContractAddress: process.env.ARBITRUM_SWAP_CONTRACT_ADDRESS,
     },
     polygon: {
       polygonWalletAddress: process.env.POLYGON_WALLET_ADDRESS,
@@ -277,6 +274,7 @@ export class Configuration {
       polygonGatewayUrl: process.env.POLYGON_GATEWAY_URL,
       polygonApiKey: process.env.ALCHEMY_API_KEY,
       polygonChainId: +process.env.POLYGON_CHAIN_ID,
+      swapContractAddress: process.env.POLYGON_SWAP_CONTRACT_ADDRESS,
     },
     base: {
       baseWalletAddress: process.env.BASE_WALLET_ADDRESS,
@@ -284,6 +282,7 @@ export class Configuration {
       baseGatewayUrl: process.env.BASE_GATEWAY_URL,
       baseApiKey: process.env.ALCHEMY_API_KEY,
       baseChainId: +process.env.BASE_CHAIN_ID,
+      swapContractAddress: process.env.BASE_SWAP_CONTRACT_ADDRESS,
     },
     bsc: {
       bscScanApiUrl: process.env.BSC_SCAN_API_URL,
@@ -292,7 +291,7 @@ export class Configuration {
       bscWalletPrivateKey: process.env.BSC_WALLET_PRIVATE_KEY,
       bscGatewayUrl: process.env.BSC_GATEWAY_URL,
       bscChainId: +process.env.BSC_CHAIN_ID,
-      pancakeRouterAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
+      swapContractAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
     },
     lightning: {
       lnbits: {
@@ -353,6 +352,7 @@ export class Configuration {
     enableRateLimit: true,
     timeout: 30000,
   };
+
   exchangeTxSyncLimit = +(process.env.EXCHANGE_TX_SYNC_LIMIT ?? 720); // minutes
 
   dilisense = {

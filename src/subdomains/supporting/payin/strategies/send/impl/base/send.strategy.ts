@@ -30,17 +30,10 @@ export enum SendType {
 export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
   protected abstract readonly logger: DfxLogger;
 
-  @Inject()
-  private readonly priceProvider: PricingService;
-
-  @Inject()
-  private readonly payoutService: PayoutService;
-
-  @Inject()
-  private readonly transactionHelper: TransactionHelper;
-
-  @Inject()
-  private readonly registry: SendStrategyRegistry;
+  @Inject() private readonly priceProvider: PricingService;
+  @Inject() private readonly payoutService: PayoutService;
+  @Inject() private readonly transactionHelper: TransactionHelper;
+  @Inject() private readonly registry: SendStrategyRegistry;
 
   onModuleInit() {
     this.registry.add({ blockchain: this.blockchain, assetType: this.assetType }, this);

@@ -58,30 +58,35 @@ param ethWalletAddress string
 @secure()
 param ethWalletPrivateKey string
 param ethGatewayUrl string
+param ethSwapContractAddress string
 param ethChainId string
 
 param optimismWalletAddress string
 @secure()
 param optimismWalletPrivateKey string
 param optimismGatewayUrl string
+param optimismSwapContractAddress string
 param optimismChainId string
 
 param arbitrumWalletAddress string
 @secure()
 param arbitrumWalletPrivateKey string
 param arbitrumGatewayUrl string
+param arbitrumSwapContractAddress string
 param arbitrumChainId string
 
 param polygonWalletAddress string
 @secure()
 param polygonWalletPrivateKey string
 param polygonGatewayUrl string
+param polygonSwapContractAddress string
 param polygonChainId string
 
 param baseWalletAddress string
 @secure()
 param baseWalletPrivateKey string
 param baseGatewayUrl string
+param baseSwapContractAddress string
 param baseChainId string
 
 param bscWalletAddress string
@@ -619,6 +624,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: ethGatewayUrl
         }
         {
+          name: 'ETH_SWAP_CONTRACT_ADDRESS'
+          value: ethSwapContractAddress
+        }
+        {
           name: 'ETH_CHAIN_ID'
           value: ethChainId
         }
@@ -633,6 +642,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'OPTIMISM_GATEWAY_URL'
           value: optimismGatewayUrl
+        }
+        {
+          name: 'OPTIMISM_SWAP_CONTRACT_ADDRESS'
+          value: optimismSwapContractAddress
         }
         {
           name: 'OPTIMISM_CHAIN_ID'
@@ -651,6 +664,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: arbitrumGatewayUrl
         }
         {
+          name: 'ARBITRUM_SWAP_CONTRACT_ADDRESS'
+          value: arbitrumSwapContractAddress
+        }
+        {
           name: 'ARBITRUM_CHAIN_ID'
           value: arbitrumChainId
         }
@@ -667,6 +684,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: polygonGatewayUrl
         }
         {
+          name: 'POLYGON_SWAP_CONTRACT_ADDRESS'
+          value: polygonSwapContractAddress
+        }
+        {
           name: 'POLYGON_CHAIN_ID'
           value: polygonChainId
         }
@@ -681,6 +702,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'BASE_GATEWAY_URL'
           value: baseGatewayUrl
+        }
+        {
+          name: 'BASE_SWAP_CONTRACT_ADDRESS'
+          value: baseSwapContractAddress
         }
         {
           name: 'BASE_CHAIN_ID'

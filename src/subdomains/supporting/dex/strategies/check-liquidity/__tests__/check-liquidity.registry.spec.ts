@@ -208,11 +208,11 @@ describe('CheckLiquidityStrategies', () => {
       });
 
       it('fails to get strategy for non-supported Blockchain', () => {
-        const testCall = () =>
-          register.getCheckLiquidityStrategy(createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }));
+        const strategy = register.getCheckLiquidityStrategy(
+          createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }),
+        );
 
-        expect(testCall).toThrow();
-        expect(testCall).toThrowError('No CheckLiquidityStrategy found. Blockchain: NewBlockchain, AssetType: Coin');
+        expect(strategy).toBeUndefined();
       });
     });
   });

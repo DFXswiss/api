@@ -8,7 +8,7 @@ import { ArbitrumClient } from './arbitrum-client';
 @Injectable()
 export class ArbitrumService extends EvmService {
   constructor(http: HttpService, alchemyService: AlchemyService) {
-    const { arbitrumGatewayUrl, arbitrumApiKey, arbitrumWalletPrivateKey, arbitrumChainId } =
+    const { arbitrumGatewayUrl, arbitrumApiKey, arbitrumWalletPrivateKey, arbitrumChainId, swapContractAddress } =
       GetConfig().blockchain.arbitrum;
 
     super(ArbitrumClient, {
@@ -18,6 +18,7 @@ export class ArbitrumService extends EvmService {
       apiKey: arbitrumApiKey,
       walletPrivateKey: arbitrumWalletPrivateKey,
       chainId: arbitrumChainId,
+      swapContractAddress,
     });
   }
 }

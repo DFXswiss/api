@@ -103,10 +103,10 @@ export class MailFactory {
     const { metadata, options } = request;
 
     const defaultParams: Partial<MailRequestGenericInput> = {
-      twitterUrl: Config.defaultTwitterUrl,
-      telegramUrl: Config.defaultTelegramUrl,
-      linkedinUrl: Config.defaultLinkedinUrl,
-      instagramUrl: Config.defaultInstagramUrl,
+      twitterUrl: Config.social.twitter,
+      telegramUrl: Config.social.telegram,
+      linkedinUrl: Config.social.linkedin,
+      instagramUrl: Config.social.instagram,
       date: new Date().getFullYear(),
     };
 

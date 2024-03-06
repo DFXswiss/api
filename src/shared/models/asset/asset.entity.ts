@@ -84,4 +84,8 @@ export class Asset extends IEntity {
 
   @ManyToOne(() => PriceRule)
   priceRule: PriceRule;
+
+  get minimalPriceReferenceAmount() {
+    return this.approxPriceChf ? 1 / this.approxPriceChf : 1;
+  }
 }
