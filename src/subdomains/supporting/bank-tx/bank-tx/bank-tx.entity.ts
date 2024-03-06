@@ -32,7 +32,6 @@ export enum BankTxIndicator {
 }
 
 export const BicBlacklist = ['FPELFR21XXX'];
-export const OlkypayIban = ['LU116060002000005040', 'GB77REVO00996972945099'];
 
 @Entity()
 export class BankTx extends IEntity {
