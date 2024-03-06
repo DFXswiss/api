@@ -7,8 +7,9 @@ import { Util } from 'src/shared/utils/util';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { KycLevel, KycType, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { BankTx, BicBlacklist } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
+import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
+import { SpecialExternalBankAccount } from 'src/subdomains/supporting/bank/special-external-bank-account/special-external-bank-account.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -432,6 +433,7 @@ export class BuyCrypto extends IEntity {
     last24hVolume: number,
     last30dVolume: number,
     bankDataUserData: UserData,
+    blacklist: SpecialExternalBankAccount[],
     instantBanks: Bank[],
   ): UpdateResult<BuyCrypto> {
     const { usedRef, refProvision } = this.user.specifiedRef;
@@ -440,9 +442,10 @@ export class BuyCrypto extends IEntity {
     const update: Partial<BuyCrypto> = this.isAmlPass(
       minVolume,
       amountInChf,
-      bankDataUserData?.id,
       last24hVolume,
       last30dVolume,
+      bankDataUserData?.id,
+      blacklist,
       instantBanks,
     )
       ? {
@@ -463,9 +466,10 @@ export class BuyCrypto extends IEntity {
   isAmlPass(
     minVolume: number,
     amountInChf: number,
-    bankDataUserDataId: number,
     last24hVolume: number,
     last30dVolume: number,
+    bankDataUserDataId: number,
+    blacklist: SpecialExternalBankAccount[],
     instantBanks: Bank[],
   ): boolean {
     return (
@@ -481,7 +485,7 @@ export class BuyCrypto extends IEntity {
       this.userData.lastNameCheckDate &&
       Util.daysDiff(this.userData.lastNameCheckDate, new Date()) <= Config.amlCheckLastNameCheckValidity &&
       last30dVolume <= Config.tradingLimits.monthlyDefault &&
-      !BicBlacklist.includes(this.bankTx.bic) &&
+      !blacklist.some((b) => b.bic === this.bankTx.bic || b.iban === this.bankTx.iban) &&
       (!instantBanks.some((b) => b.iban === this.bankTx.accountIban) || this.userData.olkypayAllowed) &&
       (last24hVolume <= Config.tradingLimits.dailyDefault || this.isKycAmlPass(amountInChf))
     );

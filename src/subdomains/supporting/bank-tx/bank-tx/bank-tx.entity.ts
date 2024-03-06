@@ -31,8 +31,6 @@ export enum BankTxIndicator {
   DEBIT = 'DBIT',
 }
 
-export const BicBlacklist = ['FPELFR21XXX'];
-
 @Entity()
 export class BankTx extends IEntity {
   @Column({ length: 256, unique: true })
