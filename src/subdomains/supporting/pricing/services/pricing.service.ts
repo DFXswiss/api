@@ -91,6 +91,8 @@ export class PricingService {
   private async getPriceForActive(item: Active, allowExpired: boolean): Promise<Price> {
     const rules: { active: Active; rule: PriceRule }[] = [];
 
+    const times = [Date.now()];
+
     let rule: PriceRule;
     do {
       const active = rule?.reference ?? item;
@@ -100,12 +102,23 @@ export class PricingService {
       rules.push({ active, rule });
     } while (rule.reference);
 
+    times.push(Date.now());
+
     const prices = await Promise.all(rules.map(({ active, rule }) => this.getPriceForRule(rule, allowExpired, active)));
+
+    times.push(Date.now());
+
+    if (Date.now() - times[0] > 300 && allowExpired) {
+      const timesString = times.map((t, i, a) => Util.round((t - (a[i - 1] ?? t)) / 1000, 3)).join(', ');
+      this.logger.verbose(`Price request times for ${item.name}: ${timesString}`);
+    }
 
     return Price.join(...prices);
   }
 
   private async getPriceForRule(rule: PriceRule, allowExpired: boolean, active?: Active): Promise<Price> {
+    const start = Date.now();
+
     if (!rule.isPriceValid) {
       const updateTask = this.updateCalls.get(`${rule.id}`, () => this.updatePriceFor(rule, active));
 
@@ -114,6 +127,11 @@ export class PricingService {
       } else {
         updateTask.catch((e) => this.logger.error(`Failed to update price for rule ${rule.id} in background:`, e));
       }
+    }
+
+    const timeDiff = Date.now() - start;
+    if (timeDiff > 300 && allowExpired) {
+      this.logger.verbose(`Rule request times for ${rule.id}: ${timeDiff / 1000}`);
     }
 
     return rule.price;

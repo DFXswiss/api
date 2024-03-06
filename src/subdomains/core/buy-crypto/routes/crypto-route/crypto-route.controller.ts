@@ -204,7 +204,7 @@ export class CryptoRouteController {
     cryptoRoute: CryptoRoute,
     dto: GetCryptoPaymentInfoDto,
   ): Promise<CryptoPaymentInfoDto> {
-    const user = await this.userService.getUser(userId, { userData: true, wallet: true });
+    const user = await this.userService.getUser(userId, { userData: { users: true }, wallet: true });
 
     const {
       minVolume,

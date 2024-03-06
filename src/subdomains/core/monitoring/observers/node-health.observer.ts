@@ -111,7 +111,7 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
     }
 
     // check for required restarts
-    if (!node.restarted && node.downSince && Util.minutesDiff(node.downSince, new Date()) > 30) {
+    if (!node.restarted && node.downSince && Util.minutesDiff(node.downSince) > 30) {
       node.restarted = true;
 
       // send notification

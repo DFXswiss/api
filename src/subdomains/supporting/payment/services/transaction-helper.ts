@@ -212,7 +212,13 @@ export class TransactionHelper implements OnModuleInit {
 
     times.push(Date.now());
 
-    const txAmountChf = await this.getVolumeLast24hChf(target.sourceAmount, from, allowExpiredPrice, user);
+    const txAmountChf = await this.getVolumeChfSince(
+      target.sourceAmount,
+      from,
+      allowExpiredPrice,
+      Util.daysBefore(1),
+      user ? [user] : undefined,
+    );
 
     times.push(Date.now());
 
@@ -247,6 +253,28 @@ export class TransactionHelper implements OnModuleInit {
       isValid: error == null,
       error,
     };
+  }
+
+  async getVolumeChfSince(
+    inputAmount: number,
+    from: Active,
+    allowExpiredPrice: boolean,
+    dateFrom: Date,
+    users?: User[],
+  ): Promise<number> {
+    if (!users?.length) return inputAmount;
+
+    const buyCryptoVolume = await this.buyCryptoService.getUserVolume(
+      users.map((u) => u.id),
+      dateFrom,
+    );
+    const buyFiatVolume = await this.buyFiatService.getUserVolume(
+      users.map((u) => u.id),
+      dateFrom,
+    );
+
+    const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
+    return price.convert(inputAmount) + buyCryptoVolume + buyFiatVolume;
   }
 
   private async getTxFee(
@@ -310,20 +338,6 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   // --- HELPER METHODS --- //
-  private async getVolumeLast24hChf(
-    inputAmount: number,
-    from: Active,
-    allowExpiredPrice: boolean,
-    user?: User,
-  ): Promise<number> {
-    if (!user) return inputAmount;
-
-    const buyCryptoVolume = await this.buyCryptoService.getUserVolume([user.id], Util.daysBefore(1));
-    const buyFiatVolume = await this.buyFiatService.getUserVolume([user.id], Util.daysBefore(1));
-
-    const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
-    return price.convert(inputAmount) + buyCryptoVolume + buyFiatVolume;
-  }
 
   private async convertToSource(
     from: Active,

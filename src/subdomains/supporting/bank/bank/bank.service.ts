@@ -22,6 +22,10 @@ export class BankService {
     return this.bankRepo.find();
   }
 
+  async getInstantBanks(): Promise<Bank[]> {
+    return this.bankRepo.findBy({ sctInst: true });
+  }
+
   async getBankInternal(name: BankName, currency: string): Promise<Bank> {
     return this.bankRepo.findOneBy({ name, currency });
   }

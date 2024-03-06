@@ -80,7 +80,7 @@ export class AppController {
       const nextAdIndex = (adSettings.ads.findIndex((ad) => ad.id === id) + 1) % adSettings.ads.length;
       nextAd = adSettings.ads[nextAdIndex];
 
-      if (Util.daysDiff(date, new Date()) < adSettings.displayInterval || !nextAd) return undefined;
+      if (Util.daysDiff(date) < adSettings.displayInterval || !nextAd) return undefined;
     }
 
     return {
