@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { IsNull, LessThan } from 'typeorm';
 import { Ref } from './ref.entity';
 import { RefRepository } from './ref.repository';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Lock } from 'src/shared/utils/lock';
 
 @Injectable()
 export class RefService {
@@ -29,7 +29,7 @@ export class RefService {
       const entity = (await this.repo.findOneBy({ ip })) ?? this.repo.create({ ip, ref, origin });
 
       // ignore update if ref is still valid
-      if (entity.updated && Util.daysDiff(entity.updated, new Date()) < this.refExpirationDays) return;
+      if (entity.updated && Util.daysDiff(entity.updated) < this.refExpirationDays) return;
 
       return await this.repo.save({ ...entity, ref, origin });
     } catch (e) {

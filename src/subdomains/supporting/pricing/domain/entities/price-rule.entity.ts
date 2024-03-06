@@ -84,12 +84,12 @@ export class PriceRule extends IEntity {
     return (
       this.currentPrice != null &&
       this.priceTimestamp != null &&
-      Util.secondsDiff(this.priceTimestamp, new Date()) <= this.priceValiditySeconds
+      Util.secondsDiff(this.priceTimestamp) <= this.priceValiditySeconds
     );
   }
 
   get isPriceObsolete(): boolean {
-    return Util.hoursDiff(this.priceTimestamp, new Date()) >= 24;
+    return Util.hoursDiff(this.priceTimestamp) >= 24;
   }
 
   get price(): Price {

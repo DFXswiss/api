@@ -121,7 +121,7 @@ export class LiquidityManagementRule extends IEntity {
   shouldReactivate(): boolean {
     return (
       this.status === LiquidityManagementRuleStatus.PAUSED &&
-      Util.minutesDiff(this.updated, new Date()) > this.reactivationTime
+      Util.minutesDiff(this.updated) > this.reactivationTime
     );
   }
 

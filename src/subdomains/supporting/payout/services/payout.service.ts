@@ -107,7 +107,7 @@ export class PayoutService {
   }
 
   private verifyDebounceTime(date: Date): boolean {
-    return Util.secondsDiff(date, new Date()) > 5;
+    return Util.secondsDiff(date) > 5;
   }
 
   private async checkExistingOrders(): Promise<void> {

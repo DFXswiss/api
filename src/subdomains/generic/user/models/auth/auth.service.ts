@@ -283,7 +283,7 @@ export class AuthService {
   }
 
   private isChallengeValid(challenge: ChallengeData): boolean {
-    return challenge && Util.secondsDiff(challenge.created, new Date()) <= Config.auth.challenge.expiresIn;
+    return challenge && Util.secondsDiff(challenge.created) <= Config.auth.challenge.expiresIn;
   }
 
   private getBlockchains(user: User): Blockchain[] {
