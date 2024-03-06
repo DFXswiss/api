@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Active, isAsset } from 'src/shared/models/active';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -280,11 +281,21 @@ export class FeeService {
         updated: MoreThan(Util.minutesBefore(70)),
       });
 
-      if (!fee) return 0; //TODO?
+      if (!fee) return this.getBlockchainMaxFee(active.blockchain);
       return fee.amount;
     } else {
       return 0;
     }
+  }
+
+  private async getBlockchainMaxFee(blockchain: Blockchain): Promise<number> {
+    const { fee } = await this.blockchainFeeRepo
+      .createQueryBuilder('fee')
+      .select('MAX(amount)', 'fee')
+      .innerJoin('fee.asset', 'asset')
+      .where('asset.blockchain = :blockchain', { blockchain })
+      .getRawOne<{ fee: number }>();
+    return fee;
   }
 
   private async getValidFees(request: OptionalFeeRequest): Promise<Fee[]> {
