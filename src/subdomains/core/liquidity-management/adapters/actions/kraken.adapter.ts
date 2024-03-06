@@ -20,6 +20,7 @@ export class KrakenAdapter extends CcxtExchangeAdapter {
     Optimism: 'optimism',
     Polygon: 'polygon',
     Base: undefined,
+    Haqq: undefined,
     Liquid: undefined,
   };
 
