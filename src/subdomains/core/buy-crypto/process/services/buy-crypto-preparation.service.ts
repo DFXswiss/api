@@ -62,7 +62,9 @@ export class BuyCryptoPreparationService {
 
     for (const entity of entities) {
       try {
-        const inputReferenceCurrency = await this.fiatService.getFiatByName(entity.bankTx.txCurrency);
+        const inputReferenceCurrency =
+          (await this.fiatService.getFiatByName(entity.inputReferenceAsset)) ??
+          (await this.assetService.getNativeMainLayerAsset(entity.inputReferenceAsset));
         const inputCurrency = await this.fiatService.getFiatByName(entity.inputAsset);
 
         const { minVolume } = await this.transactionHelper.getTxFeeInfos(
