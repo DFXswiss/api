@@ -451,7 +451,9 @@ export class BuyCrypto extends IEntity {
           refFactor: usedRef === '000-000' ? 0 : 1,
           amlCheck: CheckStatus.PASS,
         }
-      : { amlCheck: CheckStatus.GSHEET };
+      : Util.minutesDiff(this.created) > 10
+      ? { amlCheck: CheckStatus.GSHEET }
+      : {};
 
     Object.assign(this, update);
 

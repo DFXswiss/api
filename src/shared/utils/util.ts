@@ -167,7 +167,7 @@ export class Util {
   // --- DATES --- //
 
   static secondsDiff(from?: Date, to?: Date): number {
-    return ((to?.getTime() ?? 0) - (from?.getTime() ?? 0)) / 1000;
+    return ((to?.getTime() ?? Date.now()) - (from?.getTime() ?? 0)) / 1000;
   }
 
   static minutesDiff(from?: Date, to?: Date): number {
