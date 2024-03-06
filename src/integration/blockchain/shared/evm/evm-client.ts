@@ -113,17 +113,14 @@ export abstract class EvmClient {
     return this.provider.getBlockNumber();
   }
 
-  async getTokenGasLimitForAsset(asset: Asset): Promise<EthersNumber> {
-    const contract = this.getERC20ContractForDex(asset.chainId);
-    const token = await this.getTokenByContract(contract);
+  async getTokenGasLimitForAsset(token: Asset): Promise<EthersNumber> {
+    const contract = this.getERC20ContractForDex(token.chainId);
 
-    const amount = this.toWeiAmount(asset.minimalPriceReferenceAmount, token.decimals);
-
-    return this.getTokenGasLimitForContact(contract, amount);
+    return this.getTokenGasLimitForContact(contract);
   }
 
-  async getTokenGasLimitForContact(contract: Contract, amount: EthersNumber): Promise<EthersNumber> {
-    return contract.estimateGas.transfer(this.randomReceiverAddress, amount).then((l) => l.mul(12).div(10));
+  async getTokenGasLimitForContact(contract: Contract): Promise<EthersNumber> {
+    return contract.estimateGas.transfer(this.randomReceiverAddress, 1).then((l) => l.mul(12).div(10));
   }
 
   // --- PUBLIC API - WRITE TRANSACTIONS --- //
@@ -406,13 +403,13 @@ export abstract class EvmClient {
     feeLimit?: number,
     nonce?: number,
   ): Promise<string> {
-    const token = await this.getTokenByContract(contract);
-    const targetAmount = this.toWeiAmount(amount, token.decimals);
-
-    const gasLimit = +(await this.getTokenGasLimitForContact(contract, targetAmount));
+    const gasLimit = +(await this.getTokenGasLimitForContact(contract));
     const gasPrice = await this.getGasPrice(gasLimit, feeLimit);
     const currentNonce = await this.getNonce(fromAddress);
     const txNonce = nonce ?? currentNonce;
+
+    const token = await this.getTokenByContract(contract);
+    const targetAmount = this.toWeiAmount(amount, token.decimals);
 
     const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit, nonce: txNonce });
 
