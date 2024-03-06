@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { BinanceService } from 'src/integration/exchange/services/binance.service';
 import { KrakenService } from 'src/integration/exchange/services/kraken.service';
+import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
 import { Active, isFiat } from 'src/shared/models/active';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncCache } from 'src/shared/utils/async-cache';
@@ -31,6 +32,7 @@ export class PricingService {
     private readonly notificationService: NotificationService,
     readonly krakenService: KrakenService,
     readonly binanceService: BinanceService,
+    readonly kucoinService: KucoinService,
     readonly coinGeckoService: CoinGeckoService,
     readonly dexService: PricingDexService,
     readonly fixerService: FixerService,
@@ -40,6 +42,7 @@ export class PricingService {
     this.providerMap = {
       [PriceSource.KRAKEN]: krakenService,
       [PriceSource.BINANCE]: binanceService,
+      [PriceSource.KUCOIN]: kucoinService,
       [PriceSource.COIN_GECKO]: coinGeckoService,
       [PriceSource.DEX]: dexService,
       [PriceSource.FIXER]: fixerService,
