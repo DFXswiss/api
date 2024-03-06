@@ -24,6 +24,7 @@ export class CryptoService {
     Blockchain.OPTIMISM,
     Blockchain.POLYGON,
     Blockchain.BASE,
+    Blockchain.HAQQ,
   ];
 
   constructor(
@@ -54,6 +55,7 @@ export class CryptoService {
       case Blockchain.OPTIMISM:
       case Blockchain.POLYGON:
       case Blockchain.BASE:
+      case Blockchain.HAQQ:
       case Blockchain.BINANCE_SMART_CHAIN:
         const evmService = this.evmRegistryService.getService(asset.blockchain);
         return evmService.getPaymentRequest(address, asset, amount);

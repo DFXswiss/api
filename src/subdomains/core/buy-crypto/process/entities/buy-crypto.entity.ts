@@ -7,7 +7,8 @@ import { Util } from 'src/shared/utils/util';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { KycLevel, KycType, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { BankTx, OlkypayIban } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
+import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
+import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { SpecialExternalBankAccount } from 'src/subdomains/supporting/bank/special-external-bank-account/special-external-bank-account.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
@@ -427,21 +428,25 @@ export class BuyCrypto extends IEntity {
   }
 
   amlCheckAndFillUp(
-    chfPrice: Price,
+    chfReferencePrice: Price,
     minVolume: number,
-    monthlyAmountInChf: number,
+    last24hVolume: number,
+    last30dVolume: number,
     bankDataUserData: UserData,
     blacklist: SpecialExternalBankAccount[],
+    instantBanks: Bank[],
   ): UpdateResult<BuyCrypto> {
     const { usedRef, refProvision } = this.user.specifiedRef;
-    const amountInChf = chfPrice.convert(this.bankTx.txAmount, 2);
+    const amountInChf = chfReferencePrice.convert(this.inputReferenceAmount, 2);
 
     const update: Partial<BuyCrypto> = this.isAmlPass(
       minVolume,
       amountInChf,
+      last24hVolume,
+      last30dVolume,
       bankDataUserData?.id,
-      monthlyAmountInChf,
       blacklist,
+      instantBanks,
     )
       ? {
           usedRef,
@@ -449,7 +454,9 @@ export class BuyCrypto extends IEntity {
           refFactor: usedRef === '000-000' ? 0 : 1,
           amlCheck: CheckStatus.PASS,
         }
-      : { amlCheck: CheckStatus.GSHEET };
+      : Util.minutesDiff(this.created) > 10
+      ? { amlCheck: CheckStatus.GSHEET }
+      : {};
 
     Object.assign(this, update);
 
@@ -459,32 +466,39 @@ export class BuyCrypto extends IEntity {
   isAmlPass(
     minVolume: number,
     amountInChf: number,
+    last24hVolume: number,
+    last30dVolume: number,
     bankDataUserDataId: number,
-    monthlyAmountInChf: number,
     blacklist: SpecialExternalBankAccount[],
+    instantBanks: Bank[],
   ): boolean {
     return (
-      this.bankTx.currency === this.bankTx.txCurrency &&
-      this.bankTx.txAmount >= minVolume * 0.9 && // in referenceAsset! Only valid for bankTx.currency === bankTx.txCurrency // factor 0.9 puffer
+      this.inputReferenceAmount >= minVolume * 0.9 && // factor 0.9 puffer
       this.target.asset.buyable &&
-      bankDataUserDataId === this.userData.id &&
-      this.userData.kycLevel >= KycLevel.LEVEL_50 &&
-      this.userData.isPaymentKycStatusEnabled &&
       this.user.isPaymentStatusEnabled &&
       this.userData.isPaymentStatusEnabled &&
-      this.userData.hasBankTxVerification &&
+      this.userData.kycType === KycType.DFX &&
+      this.userData.id === bankDataUserDataId &&
+      this.userData.isPaymentKycStatusEnabled && //
       this.userData.verifiedName &&
       this.userData.verifiedCountry &&
-      this.userData.letterSentDate &&
-      this.userData.amlListAddedDate &&
-      this.userData.kycType === KycType.DFX &&
-      this.userData.kycFileId > 0 &&
-      this.userData.annualBuyVolume + amountInChf < this.userData.depositLimit &&
       this.userData.lastNameCheckDate &&
       Util.daysDiff(this.userData.lastNameCheckDate, new Date()) <= Config.amlCheckLastNameCheckValidity &&
-      monthlyAmountInChf <= Config.amlCheckMonthlyTradingLimit &&
+      last30dVolume <= Config.tradingLimits.monthlyDefault &&
       !blacklist.some((b) => b.bic === this.bankTx.bic || b.iban === this.bankTx.iban) &&
-      (!OlkypayIban.includes(this.bankTx.iban) || this.userData.olkypayAllowed)
+      (!instantBanks.some((b) => b.iban === this.bankTx.accountIban) || this.userData.olkypayAllowed) &&
+      (last24hVolume <= Config.tradingLimits.dailyDefault || this.isKycAmlPass(amountInChf))
+    );
+  }
+
+  isKycAmlPass(amountInChf: number): boolean {
+    return (
+      this.userData.kycLevel >= KycLevel.LEVEL_50 &&
+      this.userData.hasBankTxVerification &&
+      this.userData.letterSentDate &&
+      this.userData.amlListAddedDate &&
+      this.userData.kycFileId > 0 &&
+      this.userData.annualBuyVolume + amountInChf < this.userData.depositLimit
     );
   }
 

@@ -8,6 +8,7 @@ import { Price } from './price';
 export enum PriceSource {
   KRAKEN = 'Kraken',
   BINANCE = 'Binance',
+  KUCOIN = 'Kucoin',
   COIN_GECKO = 'CoinGecko',
   DEX = 'DEX',
   FIXER = 'Fixer',

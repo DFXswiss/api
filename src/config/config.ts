@@ -42,11 +42,11 @@ export class Configuration {
   apiKeyVersionCT = '0'; // single digit hex number
   azureIpSubstring = '169.254';
 
-  amlCheckMonthlyTradingLimit = 50000; // CHF
   amlCheckLastNameCheckValidity = 90; // days
 
   tradingLimits = {
     dailyDefault: 1000, // CHF
+    monthlyDefault: 50000, // CHF
     yearlyDefault: 1000000000, // CHF
     cardDefault: 4000, // CHF
   };

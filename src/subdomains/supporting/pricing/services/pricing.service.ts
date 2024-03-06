@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { BinanceService } from 'src/integration/exchange/services/binance.service';
 import { KrakenService } from 'src/integration/exchange/services/kraken.service';
+import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
 import { Active, isFiat } from 'src/shared/models/active';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncCache } from 'src/shared/utils/async-cache';
@@ -31,6 +32,7 @@ export class PricingService {
     private readonly notificationService: NotificationService,
     readonly krakenService: KrakenService,
     readonly binanceService: BinanceService,
+    readonly kucoinService: KucoinService,
     readonly coinGeckoService: CoinGeckoService,
     readonly dexService: PricingDexService,
     readonly fixerService: FixerService,
@@ -40,6 +42,7 @@ export class PricingService {
     this.providerMap = {
       [PriceSource.KRAKEN]: krakenService,
       [PriceSource.BINANCE]: binanceService,
+      [PriceSource.KUCOIN]: kucoinService,
       [PriceSource.COIN_GECKO]: coinGeckoService,
       [PriceSource.DEX]: dexService,
       [PriceSource.FIXER]: fixerService,
@@ -88,6 +91,8 @@ export class PricingService {
   private async getPriceForActive(item: Active, allowExpired: boolean): Promise<Price> {
     const rules: { active: Active; rule: PriceRule }[] = [];
 
+    const times = [Date.now()];
+
     let rule: PriceRule;
     do {
       const active = rule?.reference ?? item;
@@ -97,12 +102,23 @@ export class PricingService {
       rules.push({ active, rule });
     } while (rule.reference);
 
+    times.push(Date.now());
+
     const prices = await Promise.all(rules.map(({ active, rule }) => this.getPriceForRule(rule, allowExpired, active)));
+
+    times.push(Date.now());
+
+    if (Date.now() - times[0] > 300 && allowExpired) {
+      const timesString = times.map((t, i, a) => Util.round((t - (a[i - 1] ?? t)) / 1000, 3)).join(', ');
+      this.logger.verbose(`Price request times for ${item.name}: ${timesString}`);
+    }
 
     return Price.join(...prices);
   }
 
   private async getPriceForRule(rule: PriceRule, allowExpired: boolean, active?: Active): Promise<Price> {
+    const start = Date.now();
+
     if (!rule.isPriceValid) {
       const updateTask = this.updateCalls.get(`${rule.id}`, () => this.updatePriceFor(rule, active));
 
@@ -111,6 +127,11 @@ export class PricingService {
       } else {
         updateTask.catch((e) => this.logger.error(`Failed to update price for rule ${rule.id} in background:`, e));
       }
+    }
+
+    const timeDiff = Date.now() - start;
+    if (timeDiff > 300 && allowExpired) {
+      this.logger.verbose(`Rule request times for ${rule.id}: ${timeDiff / 1000}`);
     }
 
     return rule.price;
