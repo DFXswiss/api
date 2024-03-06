@@ -15,6 +15,7 @@ import { PayoutModule } from 'src/subdomains/supporting/payout/payout.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { LiquidityManagementModule } from '../liquidity-management/liquidity-management.module';
 import { SellCryptoModule } from '../sell-crypto/sell-crypto.module';
+import { TransactionModule } from '../transaction/transaction.module';
 import { BuyCryptoController } from './process/buy-crypto.controller';
 import { BuyCryptoBatch } from './process/entities/buy-crypto-batch.entity';
 import { BuyCryptoFee } from './process/entities/buy-crypto-fees.entity';
@@ -56,6 +57,7 @@ import { CryptoRouteService } from './routes/crypto-route/crypto-route.service';
     forwardRef(() => AddressPoolModule),
     LiquidityManagementModule,
     IntegrationModule,
+    TransactionModule,
   ],
   controllers: [BuyCryptoController, BuyController, CryptoRouteController],
   providers: [

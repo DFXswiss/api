@@ -7,6 +7,7 @@ import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { CryptoRouteService } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.service';
 import { createCustomHistory } from 'src/subdomains/core/history/dto/__mocks__/history.dto.mock';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
+import { TransactionService } from 'src/subdomains/core/transaction/transaction.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
@@ -47,6 +48,7 @@ describe('BuyCryptoService', () => {
   let bankDataService: BankDataService;
   let transactionRequestService: TransactionRequestService;
   let specialExternalBankAccountService: SpecialExternalBankAccountService;
+  let transactionService: TransactionService;
 
   beforeEach(async () => {
     buyCryptoRepo = createMock<BuyCryptoRepository>();
@@ -62,6 +64,7 @@ describe('BuyCryptoService', () => {
     bankDataService = createMock<BankDataService>();
     transactionRequestService = createMock<TransactionRequestService>();
     specialExternalBankAccountService = createMock<SpecialExternalBankAccountService>();
+    transactionService = createMock<TransactionService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -80,6 +83,7 @@ describe('BuyCryptoService', () => {
         { provide: BankDataService, useValue: bankDataService },
         { provide: TransactionRequestService, useValue: transactionRequestService },
         { provide: SpecialExternalBankAccountService, useValue: specialExternalBankAccountService },
+        { provide: TransactionService, useValue: transactionService },
       ],
     }).compile();
 

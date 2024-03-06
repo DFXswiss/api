@@ -4,6 +4,8 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
+import { TransactionType } from 'src/subdomains/core/transaction/transaction.entity';
+import { TransactionService } from 'src/subdomains/core/transaction/transaction.service';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -41,9 +43,21 @@ export class BuyFiatService {
     private readonly fiatService: FiatService,
     private readonly transactionRequestService: TransactionRequestService,
     private readonly bankDataService: BankDataService,
+    private readonly transactionService: TransactionService,
   ) {}
 
+  async createAndSetMissingTransaction(): Promise<void> {
+    const entities = await this.buyFiatRepo.findBy({ transaction: IsNull() });
+
+    for (const entity of entities) {
+      const transaction = await this.transactionService.create({ type: TransactionType.BUY_FIAT });
+      await this.buyFiatRepo.update(entity.id, { transaction });
+    }
+  }
+
   async createFromCryptoInput(cryptoInput: CryptoInput, sell: Sell): Promise<void> {
+    const transaction = await this.transactionService.create({ type: TransactionType.BUY_FIAT });
+
     let entity = this.buyFiatRepo.create({
       cryptoInput,
       sell,
@@ -51,6 +65,7 @@ export class BuyFiatService {
       inputAsset: cryptoInput.asset.name,
       inputReferenceAmount: cryptoInput.amount,
       inputReferenceAsset: cryptoInput.asset.name,
+      transaction,
     });
 
     // transaction request

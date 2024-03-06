@@ -8,6 +8,7 @@ import { BuyCryptoNotificationService } from './buy-crypto-notification.service'
 import { BuyCryptoOutService } from './buy-crypto-out.service';
 import { BuyCryptoPreparationService } from './buy-crypto-preparation.service';
 import { BuyCryptoRegistrationService } from './buy-crypto-registration.service';
+import { BuyCryptoService } from './buy-crypto.service';
 
 @Injectable()
 export class BuyCryptoJobService {
@@ -18,6 +19,7 @@ export class BuyCryptoJobService {
     private readonly buyCryptoRegistrationService: BuyCryptoRegistrationService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly buyCryptoPreparationService: BuyCryptoPreparationService,
+    private readonly buyCryptoService: BuyCryptoService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -38,5 +40,6 @@ export class BuyCryptoJobService {
     await this.buyCryptoDexService.secureLiquidity();
     await this.buyCryptoOutService.payoutTransactions();
     await this.buyCryptoNotificationService.sendNotificationMails();
+    await this.buyCryptoService.createAndSetMissingTransaction(); // TODO remove
   }
 }

@@ -26,10 +26,10 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { TransactionDto } from '../../transaction/dto/transaction.dto';
 import { ExportFormat, HistoryQuery, HistoryQueryExportType, HistoryQueryUser } from '../dto/history-query.dto';
 import { TypedHistoryDto } from '../dto/history.dto';
 import { CoinTrackingApiHistoryDto } from '../dto/output/coin-tracking-history.dto';
-import { TransactionDto } from '../dto/output/transaction.dto';
 import { ExportType, HistoryService } from '../services/history.service';
 import { TransactionController } from './transaction.controller';
 

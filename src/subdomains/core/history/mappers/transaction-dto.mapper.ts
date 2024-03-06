@@ -5,7 +5,7 @@ import { BuyCrypto, BuyCryptoStatus } from '../../buy-crypto/process/entities/bu
 import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
 import { RefReward, RewardStatus } from '../../referral/reward/ref-reward.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
-import { TransactionDto, TransactionState, TransactionType } from '../dto/output/transaction.dto';
+import { TransactionDto, TransactionState, TransactionType } from '../../transaction/dto/transaction.dto';
 
 export class BuyCryptoExtended extends BuyCrypto {
   inputAssetEntity: Active;

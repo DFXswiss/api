@@ -12,6 +12,7 @@ import { PayInModule } from 'src/subdomains/supporting/payin/payin.module';
 import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { BuyCryptoModule } from '../buy-crypto/buy-crypto.module';
+import { TransactionModule } from '../transaction/transaction.module';
 import { BuyFiatController } from './process/buy-fiat.controller';
 import { BuyFiat } from './process/buy-fiat.entity';
 import { BuyFiatRepository } from './process/buy-fiat.repository';
@@ -40,6 +41,7 @@ import { SellService } from './route/sell.service';
     forwardRef(() => AddressPoolModule),
     FiatOutputModule,
     PricingModule,
+    TransactionModule,
   ],
   controllers: [BuyFiatController, SellController],
   providers: [
