@@ -34,7 +34,7 @@ export class FrankencoinService {
     this.client = new FrankencoinClient(zchfGatewayUrl, zchfApiKey);
   }
 
-  @Cron(CronExpression.EVERY_MINUTE)
+  @Cron(CronExpression.EVERY_10_MINUTES)
   @Lock()
   async processLogInfo() {
     if (DisabledProcess(Process.FRANKENCOIN_LOG_INFO)) return;
