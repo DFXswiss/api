@@ -18,6 +18,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
 import { EvmClient, EvmClientParams } from '../shared/evm/evm-client';
+import { EvmUtil } from '../shared/evm/evm.util';
 import { L2BridgeEvmClient } from '../shared/evm/interfaces';
 
 export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
@@ -43,7 +44,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     const ethBridger = new EthBridger(this.#l2Network);
 
     const depositTx = await ethBridger.deposit({
-      amount: this.toWeiAmount(amount),
+      amount: EvmUtil.toWeiAmount(amount),
       l1Signer: this.#l1Wallet,
       l2Provider: this.provider,
     } as EthDepositParams);
@@ -55,7 +56,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     const ethBridger = new EthBridger(this.#l2Network);
 
     const withdrawTx = await ethBridger.withdraw({
-      amount: this.toWeiAmount(amount),
+      amount: EvmUtil.toWeiAmount(amount),
       l2Signer: this.wallet,
       from: this.wallet.address,
       destinationAddress: this.#l1Wallet.address,
@@ -81,7 +82,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     const decimals = await contract.decimals();
 
     const depositTx = await erc20Bridge.deposit({
-      amount: this.toWeiAmount(amount, decimals),
+      amount: EvmUtil.toWeiAmount(amount, decimals),
       erc20L1Address: l1Token.chainId,
       l1Signer: this.#l1Wallet,
       l2Provider: this.provider,
@@ -96,7 +97,7 @@ export class ArbitrumClient extends EvmClient implements L2BridgeEvmClient {
     const decimals = await contract.decimals();
 
     const withdrawTx = await erc20Bridge.withdraw({
-      amount: this.toWeiAmount(amount, decimals),
+      amount: EvmUtil.toWeiAmount(amount, decimals),
       destinationAddress: this.#l1Wallet.address,
       erc20l1Address: l1Token.chainId,
       l2Signer: this.wallet,

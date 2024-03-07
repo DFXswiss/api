@@ -117,6 +117,9 @@ param zchfEquityContractAddress string
 param zchfStablecoinBridgeContractAddress string
 param zchfXchfContractAddress string
 
+param uniswapEthereumZchfUsdtPool string
+param uniswapPolygonZchfUsdtPool string
+
 param buyCryptoFeeLimit string
 
 param nodeServicePlanSkuName string
@@ -806,6 +809,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'ZCHF_XCHF_CONTRACT_ADDRESS'
           value: zchfXchfContractAddress
+        }
+        {
+          name: 'UNISWAP_ETH_ZCHF_USDT_POOL'
+          value: uniswapEthereumZchfUsdtPool
+        }
+        {
+          name: 'UNISWAP_POLYGON_ZCHF_USDT_POOL'
+          value: uniswapPolygonZchfUsdtPool
         }
         {
           name: 'BUY_CRYPTO_FEE_LIMIT'

@@ -224,6 +224,12 @@
     "zchfXchfContractAddress": {
       "value": "0xb4272071ecadd69d933adcd19ca99fe80664fc08"
     },
+    "uniswapEthereumZchfUsdtPool": {
+      "value": "0x8e4318e2cb1ae291254b187001a59a1f8ac78cef"
+    },
+    "uniswapPolygonZchfUsdtPool": {
+      "value": "0xde04b24bd3e3abbbd119b8eea219f72c8d6d4c60"
+    },
     "buyCryptoFeeLimit": {
       "value": "0.001"
     },
