@@ -1,6 +1,5 @@
 import { ConflictException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config } from 'src/config/config';
 import { RevolutService } from 'src/integration/bank/services/revolut.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -87,19 +86,15 @@ export class BankTxService {
 
   async assignTransactions() {
     const unassignedBankTx = await this.bankTxRepo.find({ where: { type: IsNull() } });
+    const buys = await this.buyService.getAll();
 
     for (const tx of unassignedBankTx) {
-      const match = Config.formats.bankUsage.exec(tx.remittanceInfo);
+      const remittanceInfo = tx.remittanceInfo?.replace(/[ -]/g, '');
+      const buy = remittanceInfo && buys.find((b) => remittanceInfo.includes(b.bankUsage.replace(/-/g, '')));
 
-      if (match) {
-        const buy = await this.buyService.getByBankUsage(match[0]);
+      const update = buy ? { type: BankTxType.BUY_CRYPTO, buyId: buy.id } : { type: BankTxType.GSHEET };
 
-        if (buy) {
-          await this.update(tx.id, { type: BankTxType.BUY_CRYPTO, buyId: buy.id });
-          continue;
-        }
-      }
-      await this.update(tx.id, { type: BankTxType.GSHEET });
+      await this.update(tx.id, update);
     }
   }
 

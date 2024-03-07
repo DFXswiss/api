@@ -60,6 +60,10 @@ export class BuyService {
   }
 
   // --- BUYS --- //
+  async getAll(): Promise<Buy[]> {
+    return this.buyRepo.find();
+  }
+
   async get(userId: number, id: number): Promise<Buy> {
     return this.buyRepo.findOneBy({ id, user: { id: userId } });
   }
