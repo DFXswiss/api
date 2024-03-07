@@ -79,7 +79,12 @@ export class BuyCryptoPreparationService {
 
         const inputReferenceAssetChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
 
-        const bankData = await this.bankDataService.getBankDataWithIban(entity.bankTx.iban, undefined, true);
+        const multiAccountIbans = await this.specialExternalBankAccountService.getMultiAccountIbans();
+        const bankData = await this.bankDataService.getBankDataWithIban(
+          entity.bankTx.senderAccount(multiAccountIbans.map((m) => m.iban)),
+          undefined,
+          true,
+        );
 
         const last24hVolume = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,
