@@ -172,7 +172,7 @@
         "changed_mail": {
             "title": "Se ha modificado la dirección de correo electrónico de la cuenta",
             "salutation": "El correo electrónico de su cuenta ha sido modificado",
-            "message": "El correo electrónico {userMail} se utilizará para su cuenta a partir de ahora."
+            "message": "Ha creado dos cuentas con direcciones de correo electrónico diferentes, que ahora se han fusionado. El correo electrónico {userMail} se utilizará para su cuenta a partir de ahora."
         }
     },
     "limit_request": {
