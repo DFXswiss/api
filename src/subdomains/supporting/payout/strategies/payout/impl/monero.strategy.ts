@@ -42,7 +42,7 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
   }
 
   protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
-    const payoutGroups = this.createPayoutGroups(orders, 100);
+    const payoutGroups = this.createPayoutGroups(orders, 15);
 
     for (const group of payoutGroups) {
       try {

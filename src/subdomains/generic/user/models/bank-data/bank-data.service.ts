@@ -55,6 +55,7 @@ export class BankDataService {
   }
 
   async getBankDataWithIban(iban: string, userDataId?: number, active?: boolean): Promise<BankData> {
+    if (!iban) return undefined;
     return this.bankDataRepo.findOne({
       where: { iban, active, userData: { id: userDataId } },
       relations: ['userData'],
