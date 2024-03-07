@@ -194,21 +194,24 @@ export class BankTx extends IEntity {
   //*** GETTER METHODS ***//
 
   get completeName(): string {
-    return `${this.name} ${this.ultimateName}`;
+    return [this.name, this.ultimateName]
+      .filter((n) => n)
+      .map((n) => n.trim())
+      .join(' ');
   }
 
   senderAccount(externalManagedIban: string[]): string | undefined {
     if (externalManagedIban.includes(this.iban)) return `${this.iban};${this.completeName.split(' ').join('')}`;
+
     if (this.iban) {
       if (!isNaN(+this.iban)) return `NOIBAN${this.iban}`;
       return this.iban;
-    }
-    if (!this.iban) {
+    } else {
       if (this.name.startsWith('/C/')) return this.name.split('/C/')[1];
       if (this.name === 'Schaltereinzahlung') return this.name;
-      return `${this.name ?? ''}:${this.ultimateName ?? ''}`.trim().split(' ').join(':');
+
+      return this.completeName.split(' ').join(':');
     }
-    return undefined;
   }
 }
 
