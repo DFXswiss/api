@@ -46,7 +46,7 @@ export class Configuration {
 
   tradingLimits = {
     dailyDefault: 1000, // CHF
-    monthlyDefault: 50000, // CHF
+    monthlyDefault: 500000, // CHF
     yearlyDefault: 1000000000, // CHF
     cardDefault: 4000, // CHF
   };
