@@ -172,7 +172,7 @@
         "changed_mail": {
             "title": "L'e-mail dell'account è stata modificata",
             "salutation": "L'e-mail dell'account è stata modificata",
-            "message": "L'email {userMail} sarà utilizzata d'ora in poi per il vostro account."
+            "message": "Sono stati creati due account con indirizzi e-mail diversi, che ora sono stati uniti. L'email {userMail} sarà utilizzata d'ora in poi per il vostro account."
         }
     },
     "limit_request": {
