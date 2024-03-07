@@ -172,7 +172,7 @@
         "changed_mail": {
             "title": "Account email has been changed",
             "salutation": "Your account email has been changed",
-            "message": "The email {userMail} will be used for your account from now on."
+            "message": "You have created two accounts with different email addresses, which have now been merged. The email {userMail} will be used for your account from now on."
         }
     },
     "limit_request": {
