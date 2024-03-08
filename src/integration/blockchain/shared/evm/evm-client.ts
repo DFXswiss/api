@@ -1,17 +1,23 @@
 import { ChainId, Currency, CurrencyAmount, Ether, Percent, Token, TradeType } from '@uniswap/sdk-core';
 import { AlphaRouter, SwapRoute, SwapType } from '@uniswap/smart-order-router';
+import IUniswapV3PoolABI from '@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Pool.sol/IUniswapV3Pool.json';
+import QuoterV2ABI from '@uniswap/v3-periphery/artifacts/contracts/lens/QuoterV2.sol/QuoterV2.json';
+import { FeeAmount, Pool } from '@uniswap/v3-sdk';
 import { AssetTransfersCategory } from 'alchemy-sdk';
 import { Contract, BigNumber as EthersNumber, ethers } from 'ethers';
 import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
+import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
-import ERC20_ABI from './abi/erc20.abi.json';
+import { PoolBalanceDto } from 'src/subdomains/core/trading/dto/trading.dto';
 import { WalletAccount } from './domain/wallet-account';
 import { EvmTokenBalance } from './dto/evm-token-balance.dto';
 import { EvmUtil } from './evm.util';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
+
+const QUOTER_V2_CONTRACT_ADDRESS = '0x61fFE014bA17989E743c5F6cB21bF9697530B21e';
 
 export interface EvmClientParams {
   http: HttpService;
@@ -120,6 +126,40 @@ export abstract class EvmClient {
 
   async getTokenGasLimitForContact(contract: Contract): Promise<EthersNumber> {
     return contract.estimateGas.transfer(this.randomReceiverAddress, 1).then((l) => l.mul(12).div(10));
+  }
+
+  async getUniswapPoolAddress(asset1: Asset, asset2: Asset): Promise<string> {
+    const token1 = await this.getToken(asset1);
+    const token2 = await this.getToken(asset2);
+
+    if (token1 instanceof Token && token2 instanceof Token) {
+      return Pool.getAddress(token1, token2, FeeAmount.LOWEST);
+    } else {
+      throw new Error(`Only tokens can be in a pool`);
+    }
+  }
+
+  async getUniswapPoolBalance(poolAddress: string): Promise<PoolBalanceDto> {
+    const poolContract = this.getUniswapPoolContract(poolAddress);
+
+    const token0Address = await poolContract.token0();
+    const token1Address = await poolContract.token1();
+
+    const token0Contract = this.getERC20ContractForDex(token0Address);
+    const token1Contract = this.getERC20ContractForDex(token1Address);
+
+    const token0 = await this.getTokenByContract(token0Contract);
+    const token1 = await this.getTokenByContract(token1Contract);
+
+    const token0PoolBalance = await token0Contract.balanceOf(poolContract.address);
+    const token1PoolBalance = await token1Contract.balanceOf(poolContract.address);
+
+    return {
+      token0: token0,
+      balance0: EvmUtil.fromWeiAmount(token0PoolBalance, token0.decimals),
+      token1: token1,
+      balance1: EvmUtil.fromWeiAmount(token1PoolBalance, token1.decimals),
+    };
   }
 
   // --- PUBLIC API - WRITE TRANSACTIONS --- //
@@ -320,8 +360,16 @@ export abstract class EvmClient {
     return this.getTokenByContract(contract);
   }
 
-  protected getERC20ContractForDex(tokenAddress: string): Contract {
+  getERC20ContractForDex(tokenAddress: string): Contract {
     return new ethers.Contract(tokenAddress, ERC20_ABI, this.wallet);
+  }
+
+  getUniswapPoolContract(poolAddress: string): Contract {
+    return new ethers.Contract(poolAddress, IUniswapV3PoolABI.abi, this.wallet);
+  }
+
+  getUniswapQuoterV2Contract(): Contract {
+    return new ethers.Contract(QUOTER_V2_CONTRACT_ADDRESS, QuoterV2ABI.abi, this.wallet);
   }
 
   protected async getTokenByContract(contract: Contract): Promise<Token> {

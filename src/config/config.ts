@@ -330,15 +330,6 @@ export class Configuration {
     },
   };
 
-  uniswap = {
-    ethereum: {
-      zchfUsdtPool: process.env.UNISWAP_ETH_ZCHF_USDT_POOL,
-    },
-    polygon: {
-      zchfUsdtPool: process.env.UNISWAP_POLYGON_ZCHF_USDT_POOL,
-    },
-  };
-
   payIn = {
     minDeposit: {
       Bitcoin: {

@@ -1,7 +1,7 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, JoinColumn, JoinTable, ManyToOne } from 'typeorm';
-import { UniswapPoolTradingInfoDto } from '../dto/uniswap.dto';
+import { TradingInfoDto } from '../dto/trading.dto';
 import { TradingOrderStatus } from '../enums';
 import { TradingRule } from './trading-rule.entity';
 
@@ -42,17 +42,17 @@ export class TradingOrder extends IEntity {
 
   //*** FACTORY ***//
 
-  static create(tradingRule: TradingRule, tradingInfo: UniswapPoolTradingInfoDto): TradingOrder {
+  static create(tradingRule: TradingRule, tradingInfo: TradingInfoDto): TradingOrder {
     const order = new TradingOrder();
 
     order.status = TradingOrderStatus.CREATED;
     order.tradingRule = tradingRule;
-    order.price1 = tradingInfo.source1.price;
-    order.price2 = tradingInfo.source2.price;
-    order.priceImpact = tradingInfo.swap.priceImpact;
-    order.assetIn = tradingInfo.swap.assetIn;
-    order.assetOut = tradingInfo.swap.assetOut;
-    order.amountIn = tradingInfo.swap.amountIn;
+    order.price1 = tradingInfo.price1;
+    order.price2 = tradingInfo.price2;
+    order.priceImpact = tradingInfo.priceImpact;
+    order.assetIn = tradingInfo.assetIn;
+    order.assetOut = tradingInfo.assetOut;
+    order.amountIn = tradingInfo.amountIn;
 
     return order;
   }
