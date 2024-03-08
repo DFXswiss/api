@@ -86,6 +86,8 @@ export class BankTxService {
 
   async assignTransactions() {
     const unassignedBankTx = await this.bankTxRepo.find({ where: { type: IsNull() } });
+    if (!unassignedBankTx.length) return;
+
     const buys = await this.buyService.getAll();
 
     for (const tx of unassignedBankTx) {
