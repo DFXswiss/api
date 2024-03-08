@@ -49,7 +49,15 @@ export class BuyCryptoPreparationService {
         buy: Not(IsNull()),
         status: IsNull(),
       },
-      relations: ['bankTx', 'buy', 'buy.user', 'buy.user.wallet', 'buy.user.userData', 'buy.user.userData.users'],
+      relations: [
+        'bankTx',
+        'buy',
+        'buy.user',
+        'buy.user.wallet',
+        'buy.user.userData',
+        'buy.user.userData.users',
+        'cryptoInput',
+      ],
     });
     if (entities.length === 0) return;
 
@@ -63,6 +71,7 @@ export class BuyCryptoPreparationService {
     for (const entity of entities) {
       try {
         const inputReferenceCurrency =
+          entity.cryptoInput?.asset ??
           (await this.fiatService.getFiatByName(entity.inputReferenceAsset)) ??
           (await this.assetService.getNativeMainLayerAsset(entity.inputReferenceAsset));
         const inputCurrency = await this.fiatService.getFiatByName(entity.inputAsset);
@@ -153,6 +162,7 @@ export class BuyCryptoPreparationService {
     for (const entity of entities) {
       try {
         const inputReferenceCurrency =
+          entity.cryptoInput?.asset ??
           (await this.fiatService.getFiatByName(entity.inputReferenceAsset)) ??
           (await this.assetService.getNativeMainLayerAsset(entity.inputReferenceAsset));
 

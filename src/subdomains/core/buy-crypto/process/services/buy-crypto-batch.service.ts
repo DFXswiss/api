@@ -65,6 +65,7 @@ export class BuyCryptoBatchService {
           'cryptoRoute',
           'cryptoRoute.user',
           'cryptoRoute.asset',
+          'cryptoInput',
           'fee',
         ],
       });
@@ -95,6 +96,7 @@ export class BuyCryptoBatchService {
     for (const tx of transactions) {
       try {
         const inputReferenceCurrency =
+          tx.cryptoInput?.asset ??
           (await this.fiatService.getFiatByName(tx.inputReferenceAsset)) ??
           (await this.assetService.getNativeMainLayerAsset(tx.inputReferenceAsset));
 
