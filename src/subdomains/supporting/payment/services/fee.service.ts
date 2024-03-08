@@ -15,7 +15,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
-import { In, IsNull, MoreThan } from 'typeorm';
+import { In, IsNull, MoreThan, MoreThanOrEqual } from 'typeorm';
 import { PayoutService } from '../../payout/services/payout.service';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { CreateFeeDto } from '../dto/create-fee.dto';
@@ -77,7 +77,7 @@ export class FeeService {
         const { asset, amount } = await this.payoutService.estimateBlockchainFee(blockchainFee.asset);
         const price = await this.pricingService.getPrice(asset, fiat, true);
         blockchainFee.amount = price.convert(amount);
-        await this.blockchainFeeRepo.save(blockchainFee);
+        await this.blockchainFeeRepo.save({ updated: new Date(), ...blockchainFee });
       } catch (e) {
         this.logger.error(`Failed to get fee of asset id ${blockchainFee.asset.id}:`, e);
       }
@@ -252,7 +252,7 @@ export class FeeService {
         rate: baseFee.rate,
         fixed: baseFee.fixed,
         payoutRefBonus: true,
-        blockchain: Math.min(customFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
+        blockchain: Math.min(baseFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
     }
 
@@ -296,8 +296,9 @@ export class FeeService {
       .select('MAX(amount)', 'fee')
       .innerJoin('fee.asset', 'asset')
       .where('asset.blockchain = :blockchain', { blockchain })
+      .andWhere({ updated: MoreThanOrEqual(Util.daysBefore(70)) })
       .getRawOne<{ fee: number }>();
-    return fee;
+    return fee ?? 0;
   }
 
   private async getValidFees(request: OptionalFeeRequest): Promise<Fee[]> {
