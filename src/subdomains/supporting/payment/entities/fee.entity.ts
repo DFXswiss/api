@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { Active, isAsset } from 'src/shared/models/active';
+import { isAsset, isFiat } from 'src/shared/models/active';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
@@ -146,6 +146,9 @@ export class Fee extends IEntity {
   verifyForTx(request: FeeRequest): boolean {
     const annualUserTxVolume = this.getAnnualUserTxVolume(request.userDataId) + (request.txVolume ?? 0);
 
+    const assets = [request.from, request.to].filter((a) => isAsset(a));
+    const fiats = [request.from, request.to].filter((f) => isFiat(f));
+
     return (
       this?.active &&
       !this.isExpired(request.userDataId) &&
@@ -153,8 +156,8 @@ export class Fee extends IEntity {
       (!this.wallet || this.wallet.id === request.wallet?.id) &&
       (!this.paymentMethodsIn || this.paymentMethodsIn.includes(request.paymentMethodIn)) &&
       (!this.paymentMethodsOut || this.paymentMethodsOut.includes(request.paymentMethodOut)) &&
-      this.verifyCurrency(request.from) &&
-      this.verifyCurrency(request.to) &&
+      (!this.assetList?.length || assets.some((a) => this.assetList.includes(a.id))) &&
+      (!this.fiatList?.length || fiats.some((f) => this.fiatList.includes(f.id))) &&
       (!this.maxTxVolume || this.maxTxVolume >= request.txVolume) &&
       (!this.minTxVolume || this.minTxVolume <= request.txVolume) &&
       (!this.maxAnnualUserTxVolume || this.maxAnnualUserTxVolume >= annualUserTxVolume)
@@ -193,12 +196,6 @@ export class Fee extends IEntity {
   }
 
   //*** HELPER METHODS ***//+
-  private verifyCurrency(currency: Active): boolean {
-    const list = isAsset(currency) ? this.assetList : this.fiatList;
-
-    return !list?.length || list.includes(currency.id);
-  }
-
   private getUserTxUsages(): Record<number, number> {
     return this.parseStringListToRecord(this.userTxUsages);
   }
