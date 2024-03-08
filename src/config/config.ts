@@ -44,7 +44,7 @@ export class Configuration {
 
   amlCheckMonthlyTradingLimit = 50000; // CHF
   amlCheckLastNameCheckValidity = 90; // days
-  maxBlockchainFee = 50;
+  maxBlockchainFee = 50; // CHF
 
   tradingLimits = {
     dailyDefault: 1000, // CHF

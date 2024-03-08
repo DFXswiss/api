@@ -66,7 +66,7 @@ export class FeeService {
   ) {}
 
   // --- JOBS --- //
-  @Cron(CronExpression.EVERY_MINUTE) //TODO: change to EVERY_30_MINUTES
+  @Cron(CronExpression.EVERY_30_MINUTES)
   @Lock(1800)
   async updateBlockchainFees() {
     const blockchainFees = await this.blockchainFeeRepo.find({ relations: ['asset'] });
@@ -188,7 +188,7 @@ export class FeeService {
     const userFees = await this.getValidFees(request);
 
     try {
-      return this.calculateFee(userFees, request.from, request.to, request.user.userData?.id);
+      return await this.calculateFee(userFees, request.from, request.to, request.user.userData?.id);
     } catch (e) {
       this.logger.error(`Fee exception, request: ${JSON.stringify(request)}`);
       throw e;
@@ -199,7 +199,7 @@ export class FeeService {
     const defaultFees = await this.getValidFees({ ...request, accountType });
 
     try {
-      return this.calculateFee(defaultFees, request.from, request.to);
+      return await this.calculateFee(defaultFees, request.from, request.to);
     } catch (e) {
       this.logger.error(`Fee exception, request: ${JSON.stringify(request)}`);
       throw e;
@@ -252,7 +252,7 @@ export class FeeService {
         rate: baseFee.rate,
         fixed: baseFee.fixed,
         payoutRefBonus: true,
-        blockchain: blockchainFee * baseFee.blockchainFactor,
+        blockchain: Math.min(customFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
     }
 
@@ -264,12 +264,15 @@ export class FeeService {
         baseFee.payoutRefBonus &&
         (discountFee?.payoutRefBonus ?? true) &&
         additiveFees.every((fee) => fee.payoutRefBonus),
-      blockchain: Math.max(
-        blockchainFee *
-          (baseFee.blockchainFactor -
-            (discountFee?.blockchainFactor ?? 0) +
-            Util.sumObjValue(additiveFees, 'blockchainFactor')),
-        0,
+      blockchain: Math.min(
+        Math.max(
+          blockchainFee *
+            (baseFee.blockchainFactor -
+              (discountFee?.blockchainFactor ?? 0) +
+              Util.sumObjValue(additiveFees, 'blockchainFactor')),
+          0,
+        ),
+        Config.maxBlockchainFee,
       ),
     };
   }
@@ -281,8 +284,7 @@ export class FeeService {
         updated: MoreThan(Util.minutesBefore(70)),
       });
 
-      if (!fee) return this.getBlockchainMaxFee(active.blockchain);
-      return fee.amount;
+      return fee ? fee.amount : this.getBlockchainMaxFee(active.blockchain);
     } else {
       return 0;
     }
