@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetRepository } from 'src/shared/models/asset/asset.repository';
 import { AsyncCache } from 'src/shared/utils/async-cache';
@@ -11,13 +11,6 @@ export interface AssetQuery {
   blockchain: Blockchain;
   type: AssetType;
 }
-
-const MainLayerBlockchain: { [name in string]: Blockchain } = {
-  BTC: Blockchain.BITCOIN,
-  XMR: Blockchain.MONERO,
-  ETH: Blockchain.ETHEREUM,
-  BNB: Blockchain.BINANCE_SMART_CHAIN,
-};
 
 @Injectable()
 export class AssetService {
@@ -58,12 +51,6 @@ export class AssetService {
 
   async getNativeAsset(blockchain: Blockchain): Promise<Asset> {
     return this.assetRepo.findOneBy({ blockchain, type: AssetType.COIN });
-  }
-
-  async getNativeMainLayerAsset(dexName: string): Promise<Asset> {
-    const blockchain = MainLayerBlockchain[dexName];
-    if (!blockchain) throw new NotFoundException('Main layer blockchain not found');
-    return this.assetRepo.findOneBy({ dexName, blockchain, type: AssetType.COIN });
   }
 
   async getSellableBlockchains(): Promise<Blockchain[]> {
