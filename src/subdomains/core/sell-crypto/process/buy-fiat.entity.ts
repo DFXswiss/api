@@ -9,9 +9,9 @@ import { Fee } from 'src/subdomains/supporting/payment/entities/fee.entity';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
+import { Transaction } from '../../../supporting/payment/entities/transaction.entity';
 import { AmlReason } from '../../buy-crypto/process/enums/aml-reason.enum';
 import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
-import { Transaction } from '../../transaction/transaction.entity';
 import { Sell } from '../route/sell.entity';
 
 @Entity()

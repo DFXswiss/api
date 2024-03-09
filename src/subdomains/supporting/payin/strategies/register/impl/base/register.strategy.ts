@@ -13,6 +13,8 @@ import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-inp
 import { PayInFactory } from 'src/subdomains/supporting/payin/factories/payin.factory';
 import { PayInEntry } from 'src/subdomains/supporting/payin/interfaces';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
+import { TransactionSourceType } from 'src/subdomains/supporting/payment/entities/transaction.entity';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { v4 as uuid } from 'uuid';
 import { RegisterStrategyRegistry } from './register.strategy-registry';
@@ -30,6 +32,7 @@ export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy 
   @Inject() private readonly payInFactory: PayInFactory;
   @Inject() private readonly registry: RegisterStrategyRegistry;
   @Inject() private readonly pricingService: PricingService;
+  @Inject() private readonly transactionService: TransactionService;
 
   constructor(protected readonly payInRepository: PayInRepository) {}
 
@@ -49,7 +52,13 @@ export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy 
   protected async createPayInsAndSave(transactions: PayInEntry[], log: PayInInputLog): Promise<void> {
     const payIns = transactions.map((t) => this.payInFactory.createFromEntry(t));
 
-    await this.payInRepository.saveMany(payIns);
+    for (const payIn of payIns) {
+      const cryptoInput = await this.payInRepository.save(payIn);
+      await this.transactionService.create({
+        sourceId: cryptoInput.id,
+        sourceType: TransactionSourceType.CRYPTO_INPUT,
+      });
+    }
 
     log.newRecords.push(...transactions.map((p) => ({ address: p.address.address, txId: p.txId })));
   }

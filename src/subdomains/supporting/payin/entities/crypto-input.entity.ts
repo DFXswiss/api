@@ -10,7 +10,8 @@ import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { DepositRoute, DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
-import { Column, Entity, Index, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
+import { Transaction } from '../../payment/entities/transaction.entity';
 
 export enum PayInPurpose {
   STAKING = 'Staking',
@@ -99,6 +100,10 @@ export class CryptoInput extends IEntity {
 
   @ManyToOne(() => DepositRoute, { eager: true, nullable: true })
   route: DepositRouteType;
+
+  @OneToOne(() => Transaction, { nullable: true })
+  @JoinColumn()
+  transaction: Transaction;
 
   @Column({ type: 'float', nullable: true })
   btcAmount?: number;

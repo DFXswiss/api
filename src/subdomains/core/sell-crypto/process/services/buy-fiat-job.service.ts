@@ -45,6 +45,5 @@ export class BuyFiatJobService {
     await this.buyFiatRegistrationService.registerSellPayIn();
     if (!DisabledProcess(Process.BUY_FIAT_SET_FEE)) await this.buyFiatPreparationService.refreshFee();
     await this.buyFiatPreparationService.setOutput();
-    await this.buyFiatService.createAndSetMissingTransaction(); // TODO remove
   }
 }

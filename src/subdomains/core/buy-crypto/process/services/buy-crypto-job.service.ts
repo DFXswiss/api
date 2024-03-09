@@ -40,6 +40,5 @@ export class BuyCryptoJobService {
     await this.buyCryptoDexService.secureLiquidity();
     await this.buyCryptoOutService.payoutTransactions();
     await this.buyCryptoNotificationService.sendNotificationMails();
-    await this.buyCryptoService.createAndSetMissingTransaction(); // TODO remove
   }
 }

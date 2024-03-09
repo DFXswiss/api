@@ -16,8 +16,8 @@ import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.
 import { In, IsNull } from 'typeorm';
 import { PayoutService } from '../../payout/services/payout.service';
 import { PricingService } from '../../pricing/services/pricing.service';
-import { CreateFeeDto } from '../dto/create-fee.dto';
 import { FeeDto } from '../dto/fee.dto';
+import { CreateFeeDto } from '../dto/input/create-fee.dto';
 import { PaymentMethod } from '../dto/payment-method.enum';
 import { Fee, FeeType } from '../entities/fee.entity';
 import { BlockchainFeeRepository } from '../repositories/blockchain-fee.repository';

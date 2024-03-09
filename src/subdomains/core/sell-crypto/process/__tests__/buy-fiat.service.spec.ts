@@ -4,7 +4,6 @@ import { createDefaultFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
-import { TransactionService } from 'src/subdomains/core/transaction/transaction.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
@@ -13,6 +12,7 @@ import { createCustomFiatOutput } from 'src/subdomains/supporting/fiat-output/__
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { createCustomSellHistory } from '../../route/dto/__mocks__/sell-history.dto.mock';
 import { SellRepository } from '../../route/sell.repository';
 import { SellService } from '../../route/sell.service';

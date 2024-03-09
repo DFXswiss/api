@@ -4,15 +4,15 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
-import { TransactionType } from 'src/subdomains/core/transaction/transaction.entity';
-import { TransactionService } from 'src/subdomains/core/transaction/transaction.service';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { TransactionSourceType, TransactionType } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Between, In, IsNull } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { CheckStatus } from '../../../buy-crypto/process/enums/check-status.enum';
@@ -46,17 +46,10 @@ export class BuyFiatService {
     private readonly transactionService: TransactionService,
   ) {}
 
-  async createAndSetMissingTransaction(): Promise<void> {
-    const entities = await this.buyFiatRepo.findBy({ transaction: IsNull() });
-
-    for (const entity of entities) {
-      const transaction = await this.transactionService.create({ type: TransactionType.BUY_FIAT });
-      await this.buyFiatRepo.update(entity.id, { transaction });
-    }
-  }
-
   async createFromCryptoInput(cryptoInput: CryptoInput, sell: Sell): Promise<void> {
-    const transaction = await this.transactionService.create({ type: TransactionType.BUY_FIAT });
+    const transaction = await this.transactionService.update(cryptoInput.id, TransactionSourceType.CRYPTO_INPUT, {
+      type: TransactionType.BUY_FIAT,
+    });
 
     let entity = this.buyFiatRepo.create({
       cryptoInput,

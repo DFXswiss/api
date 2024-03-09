@@ -6,6 +6,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
+import { TransactionSourceType } from '../../payment/entities/transaction.entity';
+import { TransactionService } from '../../payment/services/transaction.service';
 import { CheckoutTx } from '../entities/checkout-tx.entity';
 import { CheckoutTxRepository } from '../repositories/checkout-tx.repository';
 import { CheckoutTxService } from './checkout-tx.service';
@@ -18,6 +20,7 @@ export class FiatPayInSyncService {
     private readonly checkoutService: CheckoutService,
     private readonly checkoutTxRepo: CheckoutTxRepository,
     private readonly checkoutTxService: CheckoutTxService,
+    private readonly transactionService: TransactionService,
   ) {}
 
   // --- JOBS --- //
@@ -32,6 +35,10 @@ export class FiatPayInSyncService {
     for (const payment of payments) {
       try {
         const checkoutTx = await this.createCheckoutTx(payment);
+        await this.transactionService.create({
+          sourceId: checkoutTx.id,
+          sourceType: TransactionSourceType.CHECKOUT_TX,
+        });
 
         if (checkoutTx.approved && !checkoutTx.buyCrypto)
           await this.checkoutTxService.createCheckoutBuyCrypto(checkoutTx);

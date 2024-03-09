@@ -16,8 +16,6 @@ import { CryptoRouteService } from 'src/subdomains/core/buy-crypto/routes/crypto
 import { HistoryDtoDeprecated, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
-import { TransactionType } from 'src/subdomains/core/transaction/transaction.entity';
-import { TransactionService } from 'src/subdomains/core/transaction/transaction.service';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -26,7 +24,9 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx
 import { SpecialExternalBankAccountService } from 'src/subdomains/supporting/bank/special-external-bank-account/special-external-bank-account.service';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { TransactionSourceType, TransactionType } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Between, Brackets, In, IsNull, Not } from 'typeorm';
 import { Buy } from '../../routes/buy/buy.entity';
 import { BuyRepository } from '../../routes/buy/buy.repository';
@@ -60,20 +60,13 @@ export class BuyCryptoService {
     private readonly transactionService: TransactionService,
   ) {}
 
-  async createAndSetMissingTransaction(): Promise<void> {
-    const entities = await this.buyCryptoRepo.findBy({ transaction: IsNull() });
-
-    for (const entity of entities) {
-      const transaction = await this.transactionService.create({ type: TransactionType.BUY_CRYPTO });
-      await this.buyCryptoRepo.update(entity.id, { transaction });
-    }
-  }
-
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<void> {
     let entity = await this.buyCryptoRepo.findOneBy({ bankTx: { id: bankTx.id } });
     if (entity) throw new ConflictException('There is already a buy-crypto for the specified bank TX');
 
-    const transaction = await this.transactionService.create({ type: TransactionType.BUY_CRYPTO });
+    const transaction = await this.transactionService.update(bankTx.id, TransactionSourceType.BANK_TX, {
+      type: TransactionType.BUY_CRYPTO,
+    });
 
     const forexFee = bankTx.txCurrency === bankTx.currency ? 0 : 0.02;
 
@@ -113,7 +106,9 @@ export class BuyCryptoService {
     let entity = await this.buyCryptoRepo.findOneBy({ checkoutTx: { id: checkoutTx.id } });
     if (entity) throw new ConflictException('There is already a buy-crypto for the specified checkout TX');
 
-    const transaction = await this.transactionService.create({ type: TransactionType.BUY_CRYPTO });
+    const transaction = await this.transactionService.update(checkoutTx.id, TransactionSourceType.CHECKOUT_TX, {
+      type: TransactionType.BUY_CRYPTO,
+    });
 
     entity = this.buyCryptoRepo.create({
       checkoutTx,
@@ -148,7 +143,9 @@ export class BuyCryptoService {
   }
 
   async createFromCryptoInput(cryptoInput: CryptoInput, cryptoRoute: CryptoRoute): Promise<void> {
-    const transaction = await this.transactionService.create({ type: TransactionType.BUY_CRYPTO });
+    const transaction = await this.transactionService.update(cryptoInput.id, TransactionSourceType.CRYPTO_INPUT, {
+      type: TransactionType.BUY_CRYPTO,
+    });
 
     let entity = this.buyCryptoRepo.create({
       cryptoInput,

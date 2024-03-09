@@ -23,7 +23,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Util } from 'src/shared/utils/util';
-import { TransactionDto } from '../../transaction/dto/transaction.dto';
+import { TransactionDto } from '../../../supporting/payment/dto/transaction.dto';
 import { ExportFormat, HistoryQueryExportType, HistoryQueryUser } from '../dto/history-query.dto';
 import { HistoryDto } from '../dto/history.dto';
 import { ChainReportCsvHistoryDto } from '../dto/output/chain-report-history.dto';

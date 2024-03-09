@@ -15,6 +15,8 @@ import { In, IsNull } from 'typeorm';
 import { OlkypayService } from '../../../../integration/bank/services/olkypay.service';
 import { BankName } from '../../bank/bank/bank.entity';
 import { BankService } from '../../bank/bank/bank.service';
+import { TransactionSourceType } from '../../payment/entities/transaction.entity';
+import { TransactionService } from '../../payment/services/transaction.service';
 import { BankTxRepeatService } from '../bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnService } from '../bank-tx-return/bank-tx-return.service';
 import { BankTxBatch } from './bank-tx-batch.entity';
@@ -41,6 +43,7 @@ export class BankTxService {
     private readonly buyService: BuyService,
     private readonly bankService: BankService,
     private readonly revolutService: RevolutService,
+    private readonly transactionService: TransactionService,
   ) {}
 
   // --- TRANSACTION HANDLING --- //
@@ -73,9 +76,10 @@ export class BankTxService {
     );
     const allTransactions = olkyTransactions.concat(revolutTransactions);
 
-    for (const bankTx of allTransactions) {
+    for (const transaction of allTransactions) {
       try {
-        await this.create(bankTx);
+        const bankTx = await this.create(transaction);
+        await this.transactionService.create({ sourceId: bankTx.id, sourceType: TransactionSourceType.BANK_TX });
       } catch (e) {
         if (!(e instanceof ConflictException)) this.logger.error(`Failed to import transaction:`, e);
       }
