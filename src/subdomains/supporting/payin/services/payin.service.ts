@@ -46,6 +46,10 @@ export class PayInService {
     });
   }
 
+  async getCryptoInputWithoutTransaction(): Promise<CryptoInput[]> {
+    return this.payInRepository.find({ where: { transaction: IsNull() }, relations: { transaction: true,  } });
+  }
+
   async acknowledgePayIn(
     payInId: number,
     purpose: PayInPurpose,

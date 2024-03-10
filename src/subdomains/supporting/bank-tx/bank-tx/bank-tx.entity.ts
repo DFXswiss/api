@@ -3,6 +3,7 @@ import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-c
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { Transaction } from '../../payment/entities/transaction.entity';
+import { BankTxRepeat } from '../bank-tx-repeat/bank-tx-repeat.entity';
 import { BankTxReturn } from '../bank-tx-return/bank-tx-return.entity';
 import { BankTxBatch } from './bank-tx-batch.entity';
 
@@ -185,6 +186,9 @@ export class BankTx extends IEntity {
 
   @OneToOne(() => BankTxReturn, (bankTxReturn) => bankTxReturn.bankTx, { nullable: true })
   bankTxReturn?: BankTxReturn;
+
+  @OneToOne(() => BankTxRepeat, (bankTxRepeat) => bankTxRepeat.bankTx, { nullable: true })
+  bankTxRepeat?: BankTxRepeat;
 
   @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.bankTx, { nullable: true })
   buyCrypto?: BuyCrypto;

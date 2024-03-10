@@ -8,7 +8,6 @@ import { CheckStatus } from '../../../buy-crypto/process/enums/check-status.enum
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatPreparationService } from './buy-fiat-preparation.service';
 import { BuyFiatRegistrationService } from './buy-fiat-registration.service';
-import { BuyFiatService } from './buy-fiat.service';
 
 @Injectable()
 export class BuyFiatJobService {
@@ -17,7 +16,6 @@ export class BuyFiatJobService {
     private readonly buyFiatRegistrationService: BuyFiatRegistrationService,
     private readonly fiatOutputService: FiatOutputService,
     private readonly buyFiatPreparationService: BuyFiatPreparationService,
-    private readonly buyFiatService: BuyFiatService,
   ) {}
 
   // --- CHECK BUY FIAT --- //

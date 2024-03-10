@@ -64,9 +64,11 @@ export class BuyCryptoService {
     let entity = await this.buyCryptoRepo.findOneBy({ bankTx: { id: bankTx.id } });
     if (entity) throw new ConflictException('There is already a buy-crypto for the specified bank TX');
 
-    const transaction = await this.transactionService.update(bankTx.id, TransactionSourceType.BANK_TX, {
-      type: TransactionType.BUY_CRYPTO,
-    });
+    const transaction = !DisabledProcess(Process.CREATE_TRANSACTION)
+      ? await this.transactionService.update(bankTx.id, TransactionSourceType.BANK_TX, {
+          type: TransactionType.BUY_CRYPTO,
+        })
+      : null;
 
     const forexFee = bankTx.txCurrency === bankTx.currency ? 0 : 0.02;
 
@@ -106,9 +108,11 @@ export class BuyCryptoService {
     let entity = await this.buyCryptoRepo.findOneBy({ checkoutTx: { id: checkoutTx.id } });
     if (entity) throw new ConflictException('There is already a buy-crypto for the specified checkout TX');
 
-    const transaction = await this.transactionService.update(checkoutTx.id, TransactionSourceType.CHECKOUT_TX, {
-      type: TransactionType.BUY_CRYPTO,
-    });
+    const transaction = !DisabledProcess(Process.CREATE_TRANSACTION)
+      ? await this.transactionService.update(checkoutTx.id, TransactionSourceType.CHECKOUT_TX, {
+          type: TransactionType.BUY_CRYPTO,
+        })
+      : null;
 
     entity = this.buyCryptoRepo.create({
       checkoutTx,
@@ -143,9 +147,11 @@ export class BuyCryptoService {
   }
 
   async createFromCryptoInput(cryptoInput: CryptoInput, cryptoRoute: CryptoRoute): Promise<void> {
-    const transaction = await this.transactionService.update(cryptoInput.id, TransactionSourceType.CRYPTO_INPUT, {
-      type: TransactionType.BUY_CRYPTO,
-    });
+    const transaction = !DisabledProcess(Process.CREATE_TRANSACTION)
+      ? await this.transactionService.update(cryptoInput.id, TransactionSourceType.CRYPTO_INPUT, {
+          type: TransactionType.BUY_CRYPTO,
+        })
+      : null;
 
     let entity = this.buyCryptoRepo.create({
       cryptoInput,

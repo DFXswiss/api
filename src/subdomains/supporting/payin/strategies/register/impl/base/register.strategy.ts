@@ -2,6 +2,7 @@ import { Inject, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
@@ -54,10 +55,11 @@ export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy 
 
     for (const payIn of payIns) {
       const cryptoInput = await this.payInRepository.save(payIn);
-      await this.transactionService.create({
-        sourceId: cryptoInput.id,
-        sourceType: TransactionSourceType.CRYPTO_INPUT,
-      });
+      if (!DisabledProcess(Process.CREATE_TRANSACTION))
+        await this.transactionService.create({
+          sourceId: cryptoInput.id,
+          sourceType: TransactionSourceType.CRYPTO_INPUT,
+        });
     }
 
     log.newRecords.push(...transactions.map((p) => ({ address: p.address.address, txId: p.txId })));

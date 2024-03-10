@@ -2,7 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { PaymentMethod, PaymentMethodSwagger } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 
-export enum TransactionType {
+export enum TransactionExportType {
   BUY = 'Buy',
   SELL = 'Sell',
   CONVERT = 'Convert',
@@ -20,8 +20,8 @@ export enum TransactionState {
 }
 
 export class TransactionDto {
-  @ApiProperty({ enum: TransactionType })
-  type: TransactionType;
+  @ApiProperty({ enum: TransactionExportType })
+  type: TransactionExportType;
 
   @ApiProperty({ enum: TransactionState })
   state: TransactionState;

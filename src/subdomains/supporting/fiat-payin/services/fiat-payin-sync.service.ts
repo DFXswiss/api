@@ -35,10 +35,11 @@ export class FiatPayInSyncService {
     for (const payment of payments) {
       try {
         const checkoutTx = await this.createCheckoutTx(payment);
-        await this.transactionService.create({
-          sourceId: checkoutTx.id,
-          sourceType: TransactionSourceType.CHECKOUT_TX,
-        });
+        if (!DisabledProcess(Process.CREATE_TRANSACTION))
+          await this.transactionService.create({
+            sourceId: checkoutTx.id,
+            sourceType: TransactionSourceType.CHECKOUT_TX,
+          });
 
         if (checkoutTx.approved && !checkoutTx.buyCrypto)
           await this.checkoutTxService.createCheckoutBuyCrypto(checkoutTx);
