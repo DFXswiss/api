@@ -164,7 +164,7 @@ export class BuyController {
   }
 
   private async toDto(userId: number, buy: Buy): Promise<BuyDto> {
-    const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
+    const { minDeposit } = this.transactionHelper.getDefaultSpecs(
       'Fiat',
       undefined,
       buy.asset.blockchain,
@@ -177,7 +177,6 @@ export class BuyController {
       CryptoPaymentMethod.CRYPTO,
       await this.fiatService.getFiatByName('EUR'),
       buy.asset,
-      minFee.amount,
     );
 
     return {

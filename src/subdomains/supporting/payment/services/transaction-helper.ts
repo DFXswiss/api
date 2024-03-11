@@ -131,7 +131,6 @@ export class TransactionHelper implements OnModuleInit {
       to,
       inputReferenceAmount,
       fromReference,
-      specs.minFee,
       [],
     );
 
@@ -178,7 +177,6 @@ export class TransactionHelper implements OnModuleInit {
       to,
       targetAmount ?? sourceAmount,
       targetAmount ? to : from,
-      specs.minFee,
       discountCodes,
     );
 
@@ -285,7 +283,6 @@ export class TransactionHelper implements OnModuleInit {
     to: Active,
     txVolume: number,
     txAsset: Active,
-    minFeeChf: number,
     discountCodes: string[],
   ): Promise<FeeDto> {
     const price = await this.pricingService.getPrice(txAsset, this.chf, true);
@@ -299,7 +296,6 @@ export class TransactionHelper implements OnModuleInit {
       from,
       to,
       txVolume: txVolumeInChf,
-      blockchainFee: minFeeChf,
       discountCodes,
     };
 

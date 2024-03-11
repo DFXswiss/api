@@ -43,6 +43,7 @@ export class Configuration {
   azureIpSubstring = '169.254';
 
   amlCheckLastNameCheckValidity = 90; // days
+  maxBlockchainFee = 50; // CHF
 
   tradingLimits = {
     dailyDefault: 1000, // CHF
