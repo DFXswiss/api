@@ -76,8 +76,10 @@ export class FeeService {
       try {
         const { asset, amount } = await this.payoutService.estimateBlockchainFee(blockchainFee.asset);
         const price = await this.pricingService.getPrice(asset, fiat, true);
+
         blockchainFee.amount = price.convert(amount);
-        await this.blockchainFeeRepo.save({ updated: new Date(), ...blockchainFee });
+        blockchainFee.updated = new Date();
+        await this.blockchainFeeRepo.save(blockchainFee);
       } catch (e) {
         this.logger.error(`Failed to get fee of asset id ${blockchainFee.asset.id}:`, e);
       }
