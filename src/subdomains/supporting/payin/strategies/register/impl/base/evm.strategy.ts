@@ -58,31 +58,6 @@ export abstract class EvmStrategy extends RegisterStrategy {
     return route.user.userData.kycLevel === KycLevel.REJECTED ? CheckStatus.FAIL : CheckStatus.PASS;
   }
 
-  async addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void> {
-    const { btc, usdt } = await this.getReferenceAssets();
-
-    for (const entry of entries) {
-      try {
-        if (!entry.asset) {
-          this.logger.warn(
-            `No asset identified for ${entry.address.blockchain} pay-in ${'txId' in entry ? entry.txId : entry.inTxId}`,
-          );
-          continue;
-        }
-
-        const asset = await this.getSourceAssetRepresentation(entry.asset);
-
-        const btcAmount = await this.getReferenceAmount(asset, btc, entry);
-        const usdtAmount = await this.getReferenceAmount(asset, usdt, entry);
-
-        await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
-      } catch (e) {
-        this.logger.error(`Could not set reference amounts for ${entry.address.blockchain} pay-in:`, e);
-        continue;
-      }
-    }
-  }
-
   //*** HELPER METHODS ***//
 
   private async getPayInAddresses(): Promise<string[]> {
@@ -172,8 +147,6 @@ export abstract class EvmStrategy extends RegisterStrategy {
 
     if (newEntries.length === 0) return;
 
-    await this.addReferenceAmounts(newEntries);
-
     await this.createPayInsAndSave(newEntries, log);
   }
 
@@ -187,13 +160,11 @@ export abstract class EvmStrategy extends RegisterStrategy {
 
   private async processWebhookTransactions(dto: AlchemyWebhookDto): Promise<void> {
     const fromAddresses = this.getOwnAddresses();
-    const toAdresses = await this.getPayInAddresses();
+    const toAddresses = await this.getPayInAddresses();
 
-    const relevantTransactions = this.filterWebhookTransactionsByRelevantAddresses(fromAddresses, toAdresses, dto);
+    const relevantTransactions = this.filterWebhookTransactionsByRelevantAddresses(fromAddresses, toAddresses, dto);
 
     const payInEntries = await this.mapWebhookTransactions(relevantTransactions);
-
-    await this.addReferenceAmounts(payInEntries);
 
     const log = this.createNewLogObject();
     await this.createPayInsAndSave(payInEntries, log);
@@ -293,8 +264,6 @@ export abstract class EvmStrategy extends RegisterStrategy {
     }
 
     if (payInEntries.length) {
-      await this.addReferenceAmounts(payInEntries);
-
       const log = this.createNewLogObject();
       await this.createPayInsAndSave(payInEntries, log);
     }

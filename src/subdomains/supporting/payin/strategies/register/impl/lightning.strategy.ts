@@ -35,20 +35,6 @@ export class LightningStrategy extends RegisterStrategy {
     return Blockchain.LIGHTNING;
   }
 
-  async addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void> {
-    for (const entry of entries) {
-      try {
-        const btcAmount = entry.amount;
-        const usdtAmount = null;
-
-        await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
-      } catch (e) {
-        this.logger.error('Could not set reference amounts for Lightning pay-in:', e);
-        continue;
-      }
-    }
-  }
-
   doAmlCheck(_: CryptoInput, route: Staking | Sell | CryptoRoute): CheckStatus | Promise<CheckStatus> {
     return route.user.userData.kycLevel === KycLevel.REJECTED ? CheckStatus.FAIL : CheckStatus.PASS;
   }
@@ -78,8 +64,6 @@ export class LightningStrategy extends RegisterStrategy {
       .then((input) => input?.inTxId ?? '');
 
     const newEntries = await this.getNewEntries(lastCheckedTxId);
-
-    await this.addReferenceAmounts(newEntries);
 
     await this.createPayInsAndSave(newEntries, log);
 

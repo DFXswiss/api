@@ -41,20 +41,6 @@ export class MoneroStrategy extends RegisterStrategy {
     return route.user.userData.kycLevel === KycLevel.REJECTED ? CheckStatus.FAIL : CheckStatus.PASS;
   }
 
-  async addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void> {
-    for (const entry of entries) {
-      try {
-        const xmrAmount = entry.amount;
-        const usdtAmount = null;
-
-        await this.addReferenceAmountsToEntry(entry, xmrAmount, usdtAmount);
-      } catch (e) {
-        this.logger.error('Could not set reference amounts for Monero pay-in:', e);
-        continue;
-      }
-    }
-  }
-
   //*** JOBS ***//
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -75,7 +61,6 @@ export class MoneroStrategy extends RegisterStrategy {
     const newEntries = await this.getNewEntries(lastCheckedBlockHeight);
 
     if (newEntries?.length) {
-      await this.addReferenceAmounts(newEntries);
       await this.createPayInsAndSave(newEntries, log);
     }
 
