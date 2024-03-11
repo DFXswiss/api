@@ -185,6 +185,7 @@ export class PricingService {
       this.logger.warn(message);
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,
+        context: MailContext.PRICING,
         input: { subject: 'Price Mismatch', errors: [message] },
         metadata: {
           context: MailContext.PRICING,

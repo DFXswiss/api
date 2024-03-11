@@ -1,7 +1,7 @@
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { MailAffix, TranslationItem } from '../../interfaces';
 import { NotificationMetadata, NotificationOptions } from '../notification.entity';
-import { Mail } from './base/mail';
+import { MailBase } from './base/mail';
 
 export interface MailRequestPersonalInput {
   userData: UserData;
@@ -24,7 +24,7 @@ export interface PersonalMailParams {
   options?: NotificationOptions;
 }
 
-export class PersonalMail extends Mail {
+export class PersonalMail extends MailBase {
   constructor(params: PersonalMailParams) {
     super({ ...params, template: 'personal', templateParams: params });
   }
