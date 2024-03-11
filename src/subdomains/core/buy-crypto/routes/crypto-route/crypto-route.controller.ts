@@ -168,7 +168,7 @@ export class CryptoRouteController {
   }
 
   private async toDto(userId: number, crypto: CryptoRoute): Promise<CryptoRouteDto> {
-    const { minDeposit } = this.transactionHelper.getDefaultSpecs(
+    const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
       crypto.deposit.blockchain,
       undefined,
       crypto.asset.blockchain,
@@ -182,6 +182,7 @@ export class CryptoRouteController {
       CryptoPaymentMethod.CRYPTO,
       await this.assetService.getNativeAsset(defaultBlockchain),
       crypto.asset,
+      minFee.amount,
     );
 
     return {
