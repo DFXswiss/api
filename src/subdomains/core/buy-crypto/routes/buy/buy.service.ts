@@ -13,6 +13,8 @@ import { UpdateBuyDto } from './dto/update-buy.dto';
 
 @Injectable()
 export class BuyService {
+  private cache: { id: number; bankUsage: string }[] = [];
+
   constructor(
     private readonly buyRepo: BuyRepository,
     private readonly userService: UserService,
@@ -60,8 +62,16 @@ export class BuyService {
   }
 
   // --- BUYS --- //
-  async getAll(): Promise<Buy[]> {
-    return this.buyRepo.find();
+  async getAllBankUsages(): Promise<{ id: number; bankUsage: string }[]> {
+    if (!this.cache.length)
+      this.cache = await this.buyRepo.find().then((b) =>
+        b.map((b) => ({
+          id: b.id,
+          bankUsage: b.bankUsage,
+        })),
+      );
+
+    return this.cache;
   }
 
   async get(userId: number, id: number): Promise<Buy> {
@@ -105,7 +115,11 @@ export class BuyService {
     buy.bankUsage = `${hash.slice(0, 4)}-${hash.slice(4, 8)}-${hash.slice(8, 12)}`;
 
     // save
-    return this.buyRepo.save(buy);
+    const entity = await this.buyRepo.save(buy);
+
+    this.cache.push({ id: entity.id, bankUsage: entity.bankUsage });
+
+    return entity;
   }
 
   async getUserBuys(userId: number): Promise<Buy[]> {
