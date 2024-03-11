@@ -110,7 +110,9 @@ export class PricingService {
 
     if (Date.now() - times[0] > 300 && allowExpired) {
       const timesString = times.map((t, i, a) => Util.round((t - (a[i - 1] ?? t)) / 1000, 3)).join(', ');
-      this.logger.verbose(`Price request times for ${item.name} (total ${Date.now() - times[0]}): ${timesString}`);
+      this.logger.verbose(
+        `Price request times for ${item.name} (total ${Util.round((Date.now() - times[0]) / 1000, 3)}): ${timesString}`,
+      );
     }
 
     return Price.join(...prices);
