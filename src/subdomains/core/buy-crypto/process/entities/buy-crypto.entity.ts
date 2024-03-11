@@ -454,7 +454,7 @@ export class BuyCrypto extends IEntity {
           refFactor: usedRef === '000-000' ? 0 : 1,
           amlCheck: CheckStatus.PASS,
         }
-      : Util.minutesDiff(this.created) > 10
+      : Util.minutesDiff(this.created) >= 10
       ? { amlCheck: CheckStatus.GSHEET }
       : {};
 
@@ -485,9 +485,22 @@ export class BuyCrypto extends IEntity {
       this.userData.lastNameCheckDate &&
       Util.daysDiff(this.userData.lastNameCheckDate) <= Config.amlCheckLastNameCheckValidity &&
       last30dVolume <= Config.tradingLimits.monthlyDefault &&
+      (last24hVolume <= Config.tradingLimits.dailyDefault || this.isKycAmlPass(amountInChf)) &&
+      (this.bankTx ? this.isBankTxAmlPass(blacklist, instantBanks) : this.isCheckoutTxAmlPass(blacklist))
+    );
+  }
+
+  isBankTxAmlPass(blacklist: SpecialExternalBankAccount[], instantBanks: Bank[]): boolean {
+    return (
       !blacklist.some((b) => (b.bic && b.bic === this.bankTx.bic) || (b.iban && b.iban === this.bankTx.iban)) &&
-      (!instantBanks.some((b) => b.iban === this.bankTx.accountIban) || this.userData.olkypayAllowed) &&
-      (last24hVolume <= Config.tradingLimits.dailyDefault || this.isKycAmlPass(amountInChf))
+      (!instantBanks.some((b) => b.iban === this.bankTx.accountIban) ||
+        (this.userData.olkypayAllowed && this.target.asset.instantBuyable))
+    );
+  }
+
+  isCheckoutTxAmlPass(blacklist: SpecialExternalBankAccount[]): boolean {
+    return (
+      this.target.asset.cardBuyable && !blacklist.some((b) => b.iban && b.iban === this.checkoutTx.cardFingerPrint)
     );
   }
 
