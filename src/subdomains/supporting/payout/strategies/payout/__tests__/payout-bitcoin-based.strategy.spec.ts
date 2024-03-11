@@ -212,6 +212,7 @@ describe('PayoutBitcoinBasedStrategy', () => {
       expect(sendErrorMailSpy).toBeCalledWith({
         input: { errors: ['Test message', 'Another message'], subject: 'Payout Error' },
         type: 'ErrorMonitoring',
+        context: 'Payout',
         metadata: {
           context: 'Payout',
           correlationId: 'PayoutOrder&BuyCrypto&1',
@@ -229,6 +230,7 @@ describe('PayoutBitcoinBasedStrategy', () => {
       expect(sendErrorMailSpy).toBeCalledWith({
         input: { errors: [''], subject: 'Payout Error' },
         type: 'ErrorMonitoring',
+        context: 'Payout',
         metadata: {
           context: 'Payout',
           correlationId: 'PayoutOrder&BuyCrypto&1',
