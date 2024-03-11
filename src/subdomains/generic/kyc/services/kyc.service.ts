@@ -11,7 +11,7 @@ import { LessThan } from 'typeorm';
 import { KycLevel, UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { IdentStatus } from '../dto/ident.dto';
-import { IdentResult, IdentResultDto, IdentShortResult, getIdentResult } from '../dto/input/ident-result.dto';
+import { IdentResultDto, IdentShortResult, getIdentResult } from '../dto/input/ident-result.dto';
 import { KycContactData, KycPersonalData } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { KycContentType, KycFileType } from '../dto/kyc-file.dto';
@@ -201,8 +201,11 @@ export class KycService {
     switch (getIdentResult(dto)) {
       case IdentShortResult.CANCEL:
         user = user.pauseStep(kycStep, dto);
-        if (dto.identificationprocess.result === IdentResult.CANCELED)
-          await this.kycNotificationService.identFailed(kycStep, reason);
+        await this.kycNotificationService.identFailed(kycStep, reason);
+        break;
+
+      case IdentShortResult.ABORT:
+        user = user.pauseStep(kycStep, dto);
         break;
 
       case IdentShortResult.REVIEW:

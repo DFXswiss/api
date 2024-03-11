@@ -11,6 +11,7 @@ export enum IdentResult {
 
 export enum IdentShortResult {
   CANCEL = 'Cancel',
+  ABORT = 'Abort',
   REVIEW = 'Review',
   SUCCESS = 'Success',
   FAIL = 'Fail',
@@ -85,7 +86,7 @@ const IdentResultMap: Record<IdentResult, IdentShortResult> = {
   [IdentResult.FRAUD_SUSPICION_PENDING]: IdentShortResult.REVIEW,
   [IdentResult.SUCCESS]: IdentShortResult.SUCCESS,
   [IdentResult.SUCCESS_DATA_CHANGED]: IdentShortResult.SUCCESS,
-  [IdentResult.ABORTED]: IdentShortResult.CANCEL,
+  [IdentResult.ABORTED]: IdentShortResult.ABORT,
   [IdentResult.CANCELED]: IdentShortResult.CANCEL,
   [IdentResult.FRAUD_SUSPICION_CONFIRMED]: IdentShortResult.FAIL,
 };
