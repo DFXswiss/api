@@ -472,7 +472,8 @@ export class BuyCrypto extends IEntity {
     blacklist: SpecialExternalBankAccount[],
     instantBanks: Bank[],
   ): boolean {
-    return this.inputReferenceAmount >= minVolume * 0.9 && // factor 0.9 puffer
+    return (
+      this.inputReferenceAmount >= minVolume * 0.9 && // factor 0.9 puffer
       this.target.asset.buyable &&
       this.user.isPaymentStatusEnabled &&
       this.userData.isPaymentStatusEnabled &&
@@ -485,9 +486,8 @@ export class BuyCrypto extends IEntity {
       Util.daysDiff(this.userData.lastNameCheckDate) <= Config.amlCheckLastNameCheckValidity &&
       last30dVolume <= Config.tradingLimits.monthlyDefault &&
       (last24hVolume <= Config.tradingLimits.dailyDefault || this.isKycAmlPass(amountInChf)) &&
-      this.bankTx
-      ? this.isBankTxAmlPass(blacklist, instantBanks)
-      : this.isCheckoutTxAmlPass(blacklist);
+      (this.bankTx ? this.isBankTxAmlPass(blacklist, instantBanks) : this.isCheckoutTxAmlPass(blacklist))
+    );
   }
 
   isBankTxAmlPass(blacklist: SpecialExternalBankAccount[], instantBanks: Bank[]): boolean {
