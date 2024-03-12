@@ -25,10 +25,9 @@ export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy 
   @Inject() private readonly payInFactory: PayInFactory;
   @Inject() private readonly registry: RegisterStrategyRegistry;
   @Inject() private readonly transactionService: TransactionService;
+
   @Inject() protected readonly payInRepository: PayInRepository;
   @Inject() protected readonly assetService: AssetService;
-
-  constructor() {}
 
   onModuleInit() {
     this.registry.add(this.blockchain, this);
