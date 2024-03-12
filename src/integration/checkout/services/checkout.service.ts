@@ -67,6 +67,8 @@ export class CheckoutService {
       payments.push(...batch.data);
     }
 
+    payments.reverse();
+
     return payments.filter((p) => !(new Date(p.requested_on) < since));
   }
 }

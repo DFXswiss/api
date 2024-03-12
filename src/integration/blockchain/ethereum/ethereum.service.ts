@@ -8,7 +8,7 @@ import { EthereumClient } from './ethereum-client';
 @Injectable()
 export class EthereumService extends EvmService {
   constructor(http: HttpService, alchemyService: AlchemyService) {
-    const { ethGatewayUrl, ethApiKey, ethWalletPrivateKey, ethChainId, swapContractAddress } =
+    const { ethGatewayUrl, ethApiKey, ethWalletPrivateKey, ethChainId, swapContractAddress, quoteContractAddress } =
       GetConfig().blockchain.ethereum;
 
     super(EthereumClient, {
@@ -19,6 +19,7 @@ export class EthereumService extends EvmService {
       walletPrivateKey: ethWalletPrivateKey,
       chainId: ethChainId,
       swapContractAddress,
+      quoteContractAddress,
     });
   }
 }

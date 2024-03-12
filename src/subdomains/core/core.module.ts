@@ -6,6 +6,7 @@ import { MonitoringModule } from './monitoring/monitoring.module';
 import { ReferralModule } from './referral/referral.module';
 import { SellCryptoModule } from './sell-crypto/sell-crypto.module';
 import { StatisticModule } from './statistic/statistic.module';
+import { TradingModule } from './trading/trading.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { StatisticModule } from './statistic/statistic.module';
     SellCryptoModule,
     StatisticModule,
     LiquidityManagementModule,
+    TradingModule,
   ],
   controllers: [],
   providers: [],

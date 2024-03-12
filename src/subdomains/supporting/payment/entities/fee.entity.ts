@@ -11,6 +11,7 @@ export enum FeeType {
   DISCOUNT = 'Discount',
   ADDITION = 'Addition',
   CUSTOM = 'Custom',
+  SPECIAL = 'Special',
 }
 
 @Entity()

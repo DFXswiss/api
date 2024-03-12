@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
@@ -119,7 +120,7 @@ export class BscStrategy extends EvmStrategy {
       txId: tx.hash,
       txType: null,
       blockHeight: parseInt(tx.blockNumber),
-      amount: this.payInEvmService.fromWeiAmount(tx.value),
+      amount: EvmUtil.fromWeiAmount(tx.value),
       asset: this.getTransactionAsset(supportedAssets) ?? null,
     }));
   }
@@ -130,7 +131,7 @@ export class BscStrategy extends EvmStrategy {
       txId: tx.hash,
       txType: null,
       blockHeight: parseInt(tx.blockNumber),
-      amount: this.payInEvmService.fromWeiAmount(tx.value, parseInt(tx.tokenDecimal)),
+      amount: EvmUtil.fromWeiAmount(tx.value, parseInt(tx.tokenDecimal)),
       asset: this.getTransactionAsset(supportedAssets, tx.contractAddress) ?? null,
     }));
   }

@@ -88,7 +88,7 @@ export class BankTxService {
     const unassignedBankTx = await this.bankTxRepo.find({ where: { type: IsNull() } });
     if (!unassignedBankTx.length) return;
 
-    const buys = await this.buyService.getAll();
+    const buys = await this.buyService.getAllBankUsages();
 
     for (const tx of unassignedBankTx) {
       const remittanceInfo = tx.remittanceInfo?.replace(/[ -]/g, '');

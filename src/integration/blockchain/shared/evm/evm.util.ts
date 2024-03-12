@@ -1,4 +1,5 @@
-import { ethers } from 'ethers';
+import BigNumber from 'bignumber.js';
+import { BigNumberish, ethers, BigNumber as EthersNumber } from 'ethers';
 import { defaultPath } from 'ethers/lib/utils';
 import { WalletAccount } from './domain/wallet-account';
 
@@ -12,5 +13,18 @@ export class EvmUtil {
     const components = defaultPath.split('/');
     components[components.length - 1] = accountIndex.toString();
     return components.join('/');
+  }
+
+  static fromWeiAmount(amountWeiLike: BigNumberish, decimals?: number): number {
+    const amount =
+      decimals != null ? ethers.utils.formatUnits(amountWeiLike, decimals) : ethers.utils.formatEther(amountWeiLike);
+
+    return parseFloat(amount);
+  }
+
+  static toWeiAmount(amountEthLike: number, decimals?: number): EthersNumber {
+    const amount = new BigNumber(amountEthLike).toFixed(decimals ?? 18);
+
+    return decimals ? ethers.utils.parseUnits(amount, decimals) : ethers.utils.parseEther(amount);
   }
 }

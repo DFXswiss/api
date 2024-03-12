@@ -4,8 +4,10 @@ import UNISWAP_ROUTER_02_ABI from 'src/integration/blockchain/shared/evm/abi/uni
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpRequestConfig } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
+import { EvmTokenBalance } from '../shared/evm/dto/evm-token-balance.dto';
 import { ScanApiResponse } from '../shared/evm/dto/scan-api-response.dto';
 import { EvmClient, EvmClientParams } from '../shared/evm/evm-client';
+import { EvmUtil } from '../shared/evm/evm.util';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from '../shared/evm/interfaces';
 
 export class BscClient extends EvmClient {
@@ -35,10 +37,10 @@ export class BscClient extends EvmClient {
     const targetContract = new ethers.Contract(targetToken.chainId, ERC20_ABI, this.wallet);
     const targetTokenDecimals = await targetContract.decimals();
 
-    const inputAmount = this.toWeiAmount(sourceAmount, sourceTokenDecimals);
+    const inputAmount = EvmUtil.toWeiAmount(sourceAmount, sourceTokenDecimals);
     const outputAmounts = await this.routerV2.getAmountsOut(inputAmount, [sourceToken.chainId, targetToken.chainId]);
 
-    return { targetAmount: this.fromWeiAmount(outputAmounts[1], targetTokenDecimals), feeAmount: 0 };
+    return { targetAmount: EvmUtil.fromWeiAmount(outputAmounts[1], targetTokenDecimals), feeAmount: 0 };
   }
 
   async getNativeCoinTransactions(walletAddress: string, fromBlock: number): Promise<EvmCoinHistoryEntry[]> {
@@ -69,15 +71,22 @@ export class BscClient extends EvmClient {
   async getNativeCoinBalance(): Promise<number> {
     const balance = await this.provider.getBalance(this.dfxAddress);
 
-    return this.fromWeiAmount(balance);
+    return EvmUtil.fromWeiAmount(balance);
   }
 
-  async getTokenBalance(asset: Asset): Promise<number> {
+  async getTokenBalance(asset: Asset, address?: string): Promise<number> {
     const contract = this.getERC20ContractForDex(asset.chainId);
-    const balance = await contract.balanceOf(this.dfxAddress);
+    const balance = await contract.balanceOf(address ?? this.dfxAddress);
     const token = await this.getTokenByContract(contract);
 
-    return this.fromWeiAmount(balance, token.decimals);
+    return EvmUtil.fromWeiAmount(balance, token.decimals);
+  }
+
+  async getTokenBalances(assets: Asset[], address?: string): Promise<EvmTokenBalance[]> {
+    return Util.asyncMap(assets, async (a) => ({
+      contractAddress: a.chainId,
+      balance: await this.getTokenBalance(a, address),
+    }));
   }
 
   private async callBscScanApi<T>(config: HttpRequestConfig, nthTry = 10): Promise<ScanApiResponse<T>> {
