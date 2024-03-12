@@ -76,7 +76,6 @@ export interface ReserveLiquidityResult {
 
 export interface LiquidityTransactionResult {
   type: LiquidityOrderType;
-  txId: string;
   target: {
     asset: Asset;
     amount: number;
