@@ -330,10 +330,8 @@ export class FeeService {
     const discountFeeIds = request.user?.userData?.individualFeeList ?? [];
 
     const userFees = await this.feeRepo.findBy([
-      { type: FeeType.BASE },
-      { type: FeeType.DISCOUNT, discountCode: IsNull() },
-      { type: FeeType.ADDITION, discountCode: IsNull() },
-      { type: FeeType.SPECIAL },
+      { type: In([FeeType.BASE, FeeType.SPECIAL]) },
+      { type: In([FeeType.DISCOUNT, FeeType.ADDITION]), discountCode: IsNull() },
       { id: In(discountFeeIds) },
       { discountCode: In(request.discountCodes) },
     ]);
