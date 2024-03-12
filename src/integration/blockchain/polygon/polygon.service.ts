@@ -8,8 +8,14 @@ import { PolygonClient } from './polygon-client';
 @Injectable()
 export class PolygonService extends EvmService {
   constructor(http: HttpService, alchemyService: AlchemyService) {
-    const { polygonGatewayUrl, polygonApiKey, polygonWalletPrivateKey, polygonChainId, swapContractAddress } =
-      GetConfig().blockchain.polygon;
+    const {
+      polygonGatewayUrl,
+      polygonApiKey,
+      polygonWalletPrivateKey,
+      polygonChainId,
+      swapContractAddress,
+      quoteContractAddress,
+    } = GetConfig().blockchain.polygon;
 
     super(PolygonClient, {
       http,
@@ -19,6 +25,7 @@ export class PolygonService extends EvmService {
       walletPrivateKey: polygonWalletPrivateKey,
       chainId: polygonChainId,
       swapContractAddress,
+      quoteContractAddress,
     });
   }
 }

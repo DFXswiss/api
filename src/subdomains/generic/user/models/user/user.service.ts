@@ -315,8 +315,8 @@ export class UserService {
       paymentMethodOut,
       from,
       to,
-      blockchainFee: minFee,
       txVolume: undefined,
+      blockchainFee: minFee,
       discountCodes: [],
     });
   }

@@ -100,9 +100,9 @@ export class PricingService {
       if (!rule) throw new Error(`No price rule found for ${this.getItemString(active)}`);
 
       rules.push({ active, rule });
-    } while (rule.reference);
 
-    times.push(Date.now());
+      times.push(Date.now());
+    } while (rule.reference);
 
     const prices = await Promise.all(rules.map(({ active, rule }) => this.getPriceForRule(rule, allowExpired, active)));
 
@@ -110,7 +110,9 @@ export class PricingService {
 
     if (Date.now() - times[0] > 300 && allowExpired) {
       const timesString = times.map((t, i, a) => Util.round((t - (a[i - 1] ?? t)) / 1000, 3)).join(', ');
-      this.logger.verbose(`Price request times for ${item.name}: ${timesString}`);
+      this.logger.verbose(
+        `Price request times for ${item.name} (total ${Util.round((Date.now() - times[0]) / 1000, 3)}): ${timesString}`,
+      );
     }
 
     return Price.join(...prices);

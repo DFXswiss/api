@@ -3,6 +3,7 @@ import { AssetTransfersWithMetadataResult } from 'alchemy-sdk';
 import { AlchemyWebhookActivityDto, AlchemyWebhookDto } from 'src/integration/alchemy/dto/alchemy-webhook.dto';
 import { AlchemyWebhookService } from 'src/integration/alchemy/services/alchemy-webhook.service';
 import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -151,7 +152,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
       txId: tx.hash,
       txType: null,
       blockHeight: parseInt(tx.blockNumber),
-      amount: this.payInEvmService.fromWeiAmount(tx.value),
+      amount: EvmUtil.fromWeiAmount(tx.value),
       asset: this.getTransactionAsset(supportedAssets) ?? null,
     }));
   }
@@ -162,7 +163,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
       txId: tx.hash,
       txType: null,
       blockHeight: parseInt(tx.blockNumber),
-      amount: this.payInEvmService.fromWeiAmount(tx.value, parseInt(tx.tokenDecimal)),
+      amount: EvmUtil.fromWeiAmount(tx.value, parseInt(tx.tokenDecimal)),
       asset: this.getTransactionAsset(supportedAssets, tx.contractAddress) ?? null,
     }));
   }
@@ -219,7 +220,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
       txId: tx.hash,
       txType: null,
       blockHeight: Number(tx.blockNum),
-      amount: this.payInEvmService.fromWeiAmount(tx.rawContract.rawValue, tx.rawContract.decimals),
+      amount: EvmUtil.fromWeiAmount(tx.rawContract.rawValue, tx.rawContract.decimals),
       asset: this.getTransactionAsset(supportedAssets, tx.rawContract.address) ?? null,
     }));
   }
@@ -280,10 +281,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
             txId: txId,
             txType: null,
             blockHeight: Number(assetTransfer.blockNum),
-            amount: this.payInEvmService.fromWeiAmount(
-              assetTransfer.rawContract.value,
-              Number(assetTransfer.rawContract.decimal),
-            ),
+            amount: EvmUtil.fromWeiAmount(assetTransfer.rawContract.value, Number(assetTransfer.rawContract.decimal)),
             asset: asset,
           };
 

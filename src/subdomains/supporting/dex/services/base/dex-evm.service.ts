@@ -1,14 +1,16 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmService } from 'src/integration/blockchain/shared/evm/evm.service';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityOrder } from '../../entities/liquidity-order.entity';
 import { PriceSlippageException } from '../../exceptions/price-slippage.exception';
 import { LiquidityOrderRepository } from '../../repositories/liquidity-order.repository';
+import { PurchaseDexService } from '../../strategies/purchase-liquidity/impl/base/purchase.strategy';
 
-export abstract class DexEvmService {
+export abstract class DexEvmService implements PurchaseDexService {
   #client: EvmClient;
 
   constructor(
@@ -102,7 +104,7 @@ export abstract class DexEvmService {
 
   async fromWeiAmount(amountWeiLike: string, asset: Asset): Promise<number> {
     const token = await this.#client.getToken(asset);
-    return this.#client.fromWeiAmount(amountWeiLike, token.decimals);
+    return EvmUtil.fromWeiAmount(amountWeiLike, token.decimals);
   }
 
   get _nativeCoin(): string {

@@ -14,6 +14,7 @@ export enum LiquidityOrderContext {
   BUY_CRYPTO_RETURN = 'BuyCryptoReturn',
   MANUAL = 'Manual',
   REF_PAYOUT = 'RefPayout',
+  TRADING = 'Trading',
 }
 
 export enum LiquidityOrderType {
@@ -128,6 +129,7 @@ export class LiquidityOrder extends IEntity {
   getLiquidityTransactionResult(): LiquidityTransactionResult {
     return {
       type: this.type,
+      txId: this.txId,
       target: { asset: this.targetAsset, amount: this.targetAmount },
       fee: { asset: this.feeAsset, amount: this.feeAmount },
     };

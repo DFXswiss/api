@@ -36,6 +36,7 @@ export enum Process {
   WEBHOOK = 'Webhook',
   AUTO_CREATE_BANK_DATA = 'AutoCreateBankData',
   TX_SPEEDUP = 'TxSpeedup',
+  TRADING = 'Trading',
 }
 
 type ProcessMap = { [p in Process]?: boolean };
