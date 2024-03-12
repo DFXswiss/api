@@ -3,7 +3,7 @@ import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { IsNull, Not } from 'typeorm';
@@ -47,6 +47,7 @@ export class RefRewardNotificationService {
         if (recipientMail) {
           await this.notificationService.sendMail({
             type: MailType.USER,
+            context: MailContext.REF_REWARD,
             input: {
               userData: entity.user.userData,
               title: `${MailTranslationKey.REFERRAL}.title`,

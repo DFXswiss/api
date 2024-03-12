@@ -37,7 +37,7 @@ export interface MailParamsNew {
   metadata?: NotificationMetadata;
 }
 
-export class Mail extends Notification {
+export class MailBase extends Notification {
   readonly #from: { name: string; address: string } = {
     name: 'DFX.swiss',
     address: GetConfig().mail.contact.noReplyMail,

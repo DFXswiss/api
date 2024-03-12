@@ -2,7 +2,7 @@ import { Config } from 'src/config/config';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { MailAffix, TranslationItem } from '../../interfaces';
 import { NotificationMetadata, NotificationOptions } from '../notification.entity';
-import { Mail } from './base/mail';
+import { MailBase } from './base/mail';
 
 export interface MailRequestUserInput {
   userData: UserData;
@@ -33,7 +33,7 @@ export interface UserMailParams {
   options?: NotificationOptions;
 }
 
-export class UserMail extends Mail {
+export class UserMail extends MailBase {
   constructor(params: UserMailParams) {
     const defaultParams: Partial<UserMailParams> = {
       twitterUrl: Config.social.twitter,

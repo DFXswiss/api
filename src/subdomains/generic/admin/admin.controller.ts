@@ -4,7 +4,7 @@ import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { LetterService } from 'src/integration/letter/letter.service';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { AdminService } from './admin.service';
 import { PayoutRequestDto } from './dto/payout-request.dto';
@@ -26,7 +26,7 @@ export class AdminController {
   async sendMail(@Body() dtoList: SendMailDto[]): Promise<void> {
     for (const dto of dtoList) {
       if (dto.template === 'default') dto.template = 'user';
-      await this.notificationService.sendMail({ type: MailType.GENERIC, input: dto });
+      await this.notificationService.sendMail({ type: MailType.GENERIC, context: MailContext.CUSTOM, input: dto });
     }
   }
 

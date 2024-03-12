@@ -1,7 +1,7 @@
 import { GetConfig } from 'src/config/config';
 import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { NotificationMetadata, NotificationOptions } from '../notification.entity';
-import { Mail, MailParams } from './base/mail';
+import { MailBase, MailParams } from './base/mail';
 
 export type ErrorMonitoringMailInput = ErrorMonitoringMailParams;
 
@@ -12,7 +12,7 @@ export interface ErrorMonitoringMailParams {
   options?: NotificationOptions;
 }
 
-export class ErrorMonitoringMail extends Mail {
+export class ErrorMonitoringMail extends MailBase {
   constructor(params: ErrorMonitoringMailParams) {
     const to = [GetConfig().mail.contact.monitoringMail];
     ErrorMonitoringMail.isLiqMail(params) && to.push(GetConfig().mail.contact.liqMail);

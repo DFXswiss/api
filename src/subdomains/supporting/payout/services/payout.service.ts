@@ -233,6 +233,7 @@ export class PayoutService {
 
     return {
       type: MailType.ERROR_MONITORING,
+      context: MailContext.PAYOUT,
       input: { subject: 'Payout Error', errors: [errorMessage] },
       metadata: {
         context: MailContext.PAYOUT,

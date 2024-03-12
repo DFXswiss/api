@@ -25,7 +25,22 @@ export class NotificationService {
       await this.persist(mail);
 
       await this.mailService.send(mail);
+      await this.mailService.createOrUpdate({
+        type: request.type,
+        context: request.context,
+        data: JSON.stringify(request.input),
+        isComplete: true,
+        lastTryDate: new Date(),
+      });
     } catch (e) {
+      await this.mailService.createOrUpdate({
+        type: request.type,
+        context: request.context,
+        data: JSON.stringify(request.input),
+        isComplete: false,
+        lastTryDate: new Date(),
+        error: e,
+      });
       this.handleNotificationError(e, request.metadata);
     }
   }

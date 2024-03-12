@@ -3,7 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In } from 'typeorm';
@@ -255,6 +255,7 @@ export class LiquidityManagementPipelineService {
 
     const mailRequest: MailRequest = {
       type: MailType.ERROR_MONITORING,
+      context: MailContext.LIQUIDITY_MANAGEMENT,
       input: {
         subject: 'Liquidity management pipeline SUCCESS',
         errors: [successMessage],
@@ -273,6 +274,7 @@ export class LiquidityManagementPipelineService {
 
     const mailRequest: MailRequest = {
       type: MailType.ERROR_MONITORING,
+      context: MailContext.LIQUIDITY_MANAGEMENT,
       input: {
         subject: 'Liquidity management pipeline FAIL',
         errors: [errorMessage, `Error: ${order.errorMessage}`],

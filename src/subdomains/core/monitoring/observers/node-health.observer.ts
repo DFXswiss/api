@@ -7,7 +7,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 
 interface NodePoolState {
@@ -120,6 +120,7 @@ export class NodeHealthObserver extends MetricObserver<NodesState> {
 
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,
+        context: MailContext.MONITORING,
         input: {
           subject: 'Node Error: Restart',
           errors: [message],
