@@ -232,6 +232,21 @@ export class FeeService {
         blockchain: Math.min(customFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
 
+    // get min special fee
+    const specialFee = Util.minObj(
+      fees.filter((fee) => fee.type === FeeType.SPECIAL),
+      'rate',
+    );
+
+    if (specialFee)
+      return {
+        fees: [specialFee],
+        rate: specialFee.rate,
+        fixed: specialFee.fixed ?? 0,
+        payoutRefBonus: specialFee.payoutRefBonus,
+        blockchain: Math.min(specialFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
+      };
+
     // get min base fee
     const baseFee = Util.minObj(
       fees.filter((fee) => fee.type === FeeType.BASE),
@@ -318,6 +333,7 @@ export class FeeService {
       { type: FeeType.BASE },
       { type: FeeType.DISCOUNT, discountCode: IsNull() },
       { type: FeeType.ADDITION, discountCode: IsNull() },
+      { type: FeeType.SPECIAL },
       { id: In(discountFeeIds) },
       { discountCode: In(request.discountCodes) },
     ]);
