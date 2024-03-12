@@ -251,6 +251,7 @@ export class Configuration {
       ethApiKey: process.env.ALCHEMY_API_KEY,
       ethChainId: +process.env.ETH_CHAIN_ID,
       swapContractAddress: process.env.ETH_SWAP_CONTRACT_ADDRESS,
+      quoteContractAddress: process.env.ETH_QUOTE_CONTRACT_ADDRESS,
     },
     optimism: {
       optimismWalletAddress: process.env.OPTIMISM_WALLET_ADDRESS,
@@ -259,6 +260,7 @@ export class Configuration {
       optimismApiKey: process.env.ALCHEMY_API_KEY,
       optimismChainId: +process.env.OPTIMISM_CHAIN_ID,
       swapContractAddress: process.env.OPTIMISM_SWAP_CONTRACT_ADDRESS,
+      quoteContractAddress: process.env.OPTIMISM_QUOTE_CONTRACT_ADDRESS,
     },
     arbitrum: {
       arbitrumWalletAddress: process.env.ARBITRUM_WALLET_ADDRESS,
@@ -267,6 +269,7 @@ export class Configuration {
       arbitrumApiKey: process.env.ALCHEMY_API_KEY,
       arbitrumChainId: +process.env.ARBITRUM_CHAIN_ID,
       swapContractAddress: process.env.ARBITRUM_SWAP_CONTRACT_ADDRESS,
+      quoteContractAddress: process.env.ARBITRUM_QUOTE_CONTRACT_ADDRESS,
     },
     polygon: {
       polygonWalletAddress: process.env.POLYGON_WALLET_ADDRESS,
@@ -275,6 +278,7 @@ export class Configuration {
       polygonApiKey: process.env.ALCHEMY_API_KEY,
       polygonChainId: +process.env.POLYGON_CHAIN_ID,
       swapContractAddress: process.env.POLYGON_SWAP_CONTRACT_ADDRESS,
+      quoteContractAddress: process.env.POLYGON_QUOTE_CONTRACT_ADDRESS,
     },
     base: {
       baseWalletAddress: process.env.BASE_WALLET_ADDRESS,
@@ -283,6 +287,7 @@ export class Configuration {
       baseApiKey: process.env.ALCHEMY_API_KEY,
       baseChainId: +process.env.BASE_CHAIN_ID,
       swapContractAddress: process.env.BASE_SWAP_CONTRACT_ADDRESS,
+      quoteContractAddress: process.env.BASE_QUOTE_CONTRACT_ADDRESS,
     },
     bsc: {
       bscScanApiUrl: process.env.BSC_SCAN_API_URL,
@@ -292,6 +297,7 @@ export class Configuration {
       bscGatewayUrl: process.env.BSC_GATEWAY_URL,
       bscChainId: +process.env.BSC_CHAIN_ID,
       swapContractAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
+      quoteContractAddress: process.env.BSC_QUOTE_CONTRACT_ADDRESS,
     },
     lightning: {
       lnbits: {

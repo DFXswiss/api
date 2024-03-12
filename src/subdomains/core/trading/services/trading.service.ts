@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { NativeCurrency } from '@uniswap/sdk-core';
 import { ethers } from 'ethers';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
@@ -7,7 +8,7 @@ import { PricingService } from 'src/subdomains/supporting/pricing/services/prici
 import { TradingInfoDto } from '../dto/trading.dto';
 import { TradingRule } from '../entities/trading-rule.entity';
 
-const START_AMOUNT_IN = 10000;
+const START_AMOUNT_IN = 10000; // CHF
 
 @Injectable()
 export class TradingService {
@@ -25,29 +26,18 @@ export class TradingService {
     const tradingInfo = await this.getPriceImpactForTrading(tradingRule);
 
     if (tradingInfo.priceImpact >= tradingRule.upperLimit) {
-      const client = this.evmRegistryService.getClient(tradingRule.leftAsset.blockchain);
-      const poolContract = await this.getPoolContract(client, tradingRule);
-
       tradingInfo.assetIn = tradingRule.leftAsset;
       tradingInfo.assetOut = tradingRule.rightAsset;
 
-      await this.calculateAmountForPriceImpact(client, poolContract, tradingInfo, true);
+      await this.calculateAmountForPriceImpact(tradingInfo);
     } else if (tradingInfo.priceImpact <= -tradingRule.lowerLimit) {
-      const client = this.evmRegistryService.getClient(tradingRule.leftAsset.blockchain);
-      const poolContract = await this.getPoolContract(client, tradingRule);
-
       tradingInfo.assetIn = tradingRule.rightAsset;
       tradingInfo.assetOut = tradingRule.leftAsset;
 
-      await this.calculateAmountForPriceImpact(client, poolContract, tradingInfo, false);
+      await this.calculateAmountForPriceImpact(tradingInfo);
     }
 
     return tradingInfo;
-  }
-
-  private async getPoolContract(client: EvmClient, tradingRule: TradingRule): Promise<ethers.Contract> {
-    const poolAddress = await client.getUniswapPoolAddress(tradingRule.leftAsset, tradingRule.rightAsset);
-    return client.getUniswapPoolContract(poolAddress);
   }
 
   private async getPriceImpactForTrading(tradingRule: TradingRule): Promise<TradingInfoDto> {
@@ -77,14 +67,19 @@ export class TradingService {
     return tradingInfo;
   }
 
-  private async calculateAmountForPriceImpact(
-    client: EvmClient,
-    poolContract: ethers.Contract,
-    tradingInfo: TradingInfoDto,
-    token0IsInToken: boolean,
-  ): Promise<void> {
-    const tokenInAddress = tradingInfo.assetIn.chainId;
-    const tokenOutAddress = tradingInfo.assetOut.chainId;
+  private async calculateAmountForPriceImpact(tradingInfo: TradingInfoDto): Promise<void> {
+    const client = this.evmRegistryService.getClient(tradingInfo.assetIn.blockchain);
+
+    const tokenIn = await client.getToken(tradingInfo.assetIn);
+    const tokenOut = await client.getToken(tradingInfo.assetOut);
+
+    if (tokenIn instanceof NativeCurrency || tokenOut instanceof NativeCurrency)
+      throw new Error('Only tokens can be in a pool');
+
+    const poolContract = await this.getPoolContract(client, tradingInfo);
+
+    const token0Address = await poolContract.token0();
+    const token0IsInToken = tokenIn.address === token0Address;
 
     const priceImpact = tradingInfo.priceImpact;
     const usePriceImpact = Math.abs(priceImpact) / 2;
@@ -94,24 +89,21 @@ export class TradingService {
     const sqrtPriceX96 = slot0.sqrtPriceX96;
     const fee = await poolContract.fee();
 
-    const tokenInContract = client.getERC20ContractForDex(tokenInAddress);
-    const tokenInDecimals = await tokenInContract.decimals();
-
-    const poolBalance = await client.getUniswapPoolBalance(poolContract.address);
+    const poolBalance = await client.getTokenBalance(tradingInfo.assetIn, poolContract.address);
     const poolBalanceLimit = 0.99; // cannot swap 100% of the pool balance, therefore reduce by 1%
-    const checkPoolBalance = (token0IsInToken ? poolBalance.balance1 : poolBalance.balance0) * poolBalanceLimit;
+    const checkPoolBalance = poolBalance * poolBalanceLimit;
 
-    let amountIn = START_AMOUNT_IN;
+    let amountIn = START_AMOUNT_IN * tradingInfo.assetIn.minimalPriceReferenceAmount;
     if (checkPoolBalance <= amountIn)
       throw new Error(`Pool balance ${checkPoolBalance} is lower than start amount ${amountIn}`);
 
     const quoterV2Contract = client.getUniswapQuoterV2Contract();
 
     const quoterV2Params = {
-      tokenIn: tokenInAddress,
-      tokenOut: tokenOutAddress,
+      tokenIn: tokenIn.address,
+      tokenOut: tokenOut.address,
       fee: fee,
-      amountIn: EvmUtil.toWeiAmount(amountIn, tokenInDecimals),
+      amountIn: EvmUtil.toWeiAmount(amountIn, tokenIn.decimals),
       sqrtPriceLimitX96: '0',
     };
 
@@ -132,7 +124,7 @@ export class TradingService {
       if (checkPoolBalance <= amountIn)
         throw new Error(`Pool balance ${checkPoolBalance} is lower than calculated amount ${amountIn}`);
 
-      quoterV2Params.amountIn = EvmUtil.toWeiAmount(amountIn, tokenInDecimals);
+      quoterV2Params.amountIn = EvmUtil.toWeiAmount(amountIn, tokenIn.decimals);
       calcPriceImpact = await this.calculatePriceImpact(
         quoterV2Contract,
         quoterV2Params,
@@ -164,5 +156,10 @@ export class TradingService {
     if (!token0IsInToken) sqrtPriceRatio = 1 / sqrtPriceRatio;
 
     return Math.abs(1 - sqrtPriceRatio) + 0.0001;
+  }
+
+  private async getPoolContract(client: EvmClient, tradingInfo: TradingInfoDto): Promise<ethers.Contract> {
+    const poolAddress = await client.getUniswapPoolAddress(tradingInfo.assetIn, tradingInfo.assetOut);
+    return client.getUniswapPoolContract(poolAddress);
   }
 }

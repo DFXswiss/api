@@ -5,8 +5,8 @@ import { PurchaseLiquidityRequest, ReserveLiquidityRequest } from 'src/subdomain
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { TradingOrder } from '../entities/trading-order.entity';
 import { TradingOrderStatus } from '../enums';
-import { TradingOrderRepository } from '../repositories/trading-order.respoitory';
-import { TradingRuleRepository } from '../repositories/trading-rule.respoitory';
+import { TradingOrderRepository } from '../repositories/trading-order.respository';
+import { TradingRuleRepository } from '../repositories/trading-rule.respository';
 
 @Injectable()
 export class TradingOrderService {
@@ -71,6 +71,10 @@ export class TradingOrderService {
       throw new Error(`Liquidity not available: reserved ${reservedLiquidity}, needed ${order.amountIn}`);
   }
 
+  private async closeReservation(order: TradingOrder): Promise<void> {
+    return this.dexService.completeOrders(LiquidityOrderContext.TRADING, order.id.toString());
+  }
+
   private async purchaseLiquidity(order: TradingOrder): Promise<void> {
     const purchaseRequest: PurchaseLiquidityRequest = {
       context: LiquidityOrderContext.TRADING,
@@ -109,6 +113,8 @@ export class TradingOrderService {
       );
 
       if (isComplete) {
+        await this.closeReservation(order);
+
         order.complete();
         await this.orderRepo.save(order);
 
@@ -125,6 +131,8 @@ export class TradingOrderService {
   }
 
   private async handleOrderFail(order: TradingOrder, message: string): Promise<void> {
+    await this.closeReservation(order);
+
     order.fail(message);
     await this.orderRepo.save(order);
 

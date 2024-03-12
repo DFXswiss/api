@@ -1,46 +1,43 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity, JoinColumn, JoinTable, ManyToOne } from 'typeorm';
+import { Column, Entity, ManyToOne } from 'typeorm';
 import { TradingInfoDto } from '../dto/trading.dto';
 import { TradingOrderStatus } from '../enums';
 import { TradingRule } from './trading-rule.entity';
 
 @Entity()
 export class TradingOrder extends IEntity {
-  @Column({ length: 256, nullable: true })
+  @Column()
   status: TradingOrderStatus;
 
   @ManyToOne(() => TradingRule, { nullable: false, eager: true })
-  @JoinTable()
   tradingRule: TradingRule;
 
-  @Column({ type: 'float', nullable: false })
+  @Column({ type: 'float' })
   price1: number;
 
-  @Column({ type: 'float', nullable: false })
+  @Column({ type: 'float' })
   price2: number;
 
-  @Column({ type: 'float', nullable: false })
+  @Column({ type: 'float' })
   priceImpact: number;
 
   @ManyToOne(() => Asset, { nullable: false, eager: true })
-  @JoinColumn()
   assetIn: Asset;
 
   @ManyToOne(() => Asset, { nullable: false, eager: true })
-  @JoinColumn()
   assetOut: Asset;
 
-  @Column({ type: 'float', nullable: false })
+  @Column({ type: 'float' })
   amountIn: number;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ nullable: true })
   txId: string;
 
   @Column({ length: 'MAX', nullable: true })
   errorMessage: string;
 
-  //*** FACTORY ***//
+  // --- FACTORY --- //
 
   static create(tradingRule: TradingRule, tradingInfo: TradingInfoDto): TradingOrder {
     const order = new TradingOrder();
@@ -57,7 +54,7 @@ export class TradingOrder extends IEntity {
     return order;
   }
 
-  //*** PUBLIC API ***//
+  // --- PUBLIC API --- //
 
   isCreated(): boolean {
     return this.status === TradingOrderStatus.CREATED;

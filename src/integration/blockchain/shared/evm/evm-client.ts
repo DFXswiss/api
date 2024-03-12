@@ -11,13 +11,10 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
-import { PoolBalanceDto } from 'src/subdomains/core/trading/dto/trading.dto';
 import { WalletAccount } from './domain/wallet-account';
 import { EvmTokenBalance } from './dto/evm-token-balance.dto';
 import { EvmUtil } from './evm.util';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
-
-const QUOTER_V2_CONTRACT_ADDRESS = '0x61fFE014bA17989E743c5F6cB21bF9697530B21e';
 
 export interface EvmClientParams {
   http: HttpService;
@@ -27,6 +24,7 @@ export interface EvmClientParams {
   walletPrivateKey: string;
   chainId: ChainId;
   swapContractAddress: string;
+  quoteContractAddress: string;
   scanApiUrl?: string;
   scanApiKey?: string;
 }
@@ -50,6 +48,7 @@ export abstract class EvmClient {
   private tokens = new AsyncCache<Token>();
   private router: AlphaRouter;
   private swapContractAddress: string;
+  private quoteContractAddress: string;
 
   constructor(params: EvmClientParams) {
     this.http = params.http;
@@ -66,6 +65,7 @@ export abstract class EvmClient {
       provider: this.provider,
     });
     this.swapContractAddress = params.swapContractAddress;
+    this.quoteContractAddress = params.quoteContractAddress;
   }
 
   // --- PUBLIC API - GETTERS --- //
@@ -88,16 +88,16 @@ export abstract class EvmClient {
     return EvmUtil.fromWeiAmount(balance);
   }
 
-  async getTokenBalance(asset: Asset): Promise<number> {
-    const evmTokenBalances = await this.getTokenBalances([asset]);
+  async getTokenBalance(asset: Asset, address?: string): Promise<number> {
+    const evmTokenBalances = await this.getTokenBalances([asset], address);
 
     return evmTokenBalances[0]?.balance ?? 0;
   }
 
-  async getTokenBalances(assets: Asset[]): Promise<EvmTokenBalance[]> {
+  async getTokenBalances(assets: Asset[], address?: string): Promise<EvmTokenBalance[]> {
     const evmTokenBalances: EvmTokenBalance[] = [];
 
-    const tokenBalances = await this.alchemyService.getTokenBalances(this.chainId, this.dfxAddress, assets);
+    const tokenBalances = await this.alchemyService.getTokenBalances(this.chainId, address ?? this.dfxAddress, assets);
 
     for (const tokenBalance of tokenBalances) {
       const token = await this.getTokenByAddress(tokenBalance.contractAddress);
@@ -137,29 +137,6 @@ export abstract class EvmClient {
     } else {
       throw new Error(`Only tokens can be in a pool`);
     }
-  }
-
-  async getUniswapPoolBalance(poolAddress: string): Promise<PoolBalanceDto> {
-    const poolContract = this.getUniswapPoolContract(poolAddress);
-
-    const token0Address = await poolContract.token0();
-    const token1Address = await poolContract.token1();
-
-    const token0Contract = this.getERC20ContractForDex(token0Address);
-    const token1Contract = this.getERC20ContractForDex(token1Address);
-
-    const token0 = await this.getTokenByContract(token0Contract);
-    const token1 = await this.getTokenByContract(token1Contract);
-
-    const token0PoolBalance = await token0Contract.balanceOf(poolContract.address);
-    const token1PoolBalance = await token1Contract.balanceOf(poolContract.address);
-
-    return {
-      token0: token0,
-      balance0: EvmUtil.fromWeiAmount(token0PoolBalance, token0.decimals),
-      token1: token1,
-      balance1: EvmUtil.fromWeiAmount(token1PoolBalance, token1.decimals),
-    };
   }
 
   // --- PUBLIC API - WRITE TRANSACTIONS --- //
@@ -347,6 +324,14 @@ export abstract class EvmClient {
     return asset.type === AssetType.COIN ? Ether.onChain(this.chainId) : this.getTokenByAddress(asset.chainId);
   }
 
+  getUniswapPoolContract(poolAddress: string): Contract {
+    return new ethers.Contract(poolAddress, IUniswapV3PoolABI.abi, this.wallet);
+  }
+
+  getUniswapQuoterV2Contract(): Contract {
+    return new ethers.Contract(this.quoteContractAddress, QuoterV2ABI.abi, this.wallet);
+  }
+
   // --- PRIVATE HELPER METHODS --- //
 
   private toCurrencyAmount(amount: number, token: Currency): CurrencyAmount<Currency> {
@@ -360,16 +345,8 @@ export abstract class EvmClient {
     return this.getTokenByContract(contract);
   }
 
-  getERC20ContractForDex(tokenAddress: string): Contract {
+  protected getERC20ContractForDex(tokenAddress: string): Contract {
     return new ethers.Contract(tokenAddress, ERC20_ABI, this.wallet);
-  }
-
-  getUniswapPoolContract(poolAddress: string): Contract {
-    return new ethers.Contract(poolAddress, IUniswapV3PoolABI.abi, this.wallet);
-  }
-
-  getUniswapQuoterV2Contract(): Contract {
-    return new ethers.Contract(QUOTER_V2_CONTRACT_ADDRESS, QuoterV2ABI.abi, this.wallet);
   }
 
   protected async getTokenByContract(contract: Contract): Promise<Token> {

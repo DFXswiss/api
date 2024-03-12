@@ -4,8 +4,8 @@ import { IsNull, Not } from 'typeorm';
 import { TradingOrder } from '../entities/trading-order.entity';
 import { TradingRule } from '../entities/trading-rule.entity';
 import { TradingRuleStatus } from '../enums';
-import { TradingOrderRepository } from '../repositories/trading-order.respoitory';
-import { TradingRuleRepository } from '../repositories/trading-rule.respoitory';
+import { TradingOrderRepository } from '../repositories/trading-order.respository';
+import { TradingRuleRepository } from '../repositories/trading-rule.respository';
 import { TradingService } from './trading.service';
 
 @Injectable()
@@ -49,8 +49,7 @@ export class TradingRuleService {
   private async executeRule(rule: TradingRule): Promise<void> {
     try {
       if (!rule.isActive()) {
-        const message = `Could not execute rule ${rule.id}: status is ${rule.status}`;
-        this.logger.info(message);
+        this.logger.error(`Could not execute rule ${rule.id}: status is ${rule.status}`);
         return;
       }
 

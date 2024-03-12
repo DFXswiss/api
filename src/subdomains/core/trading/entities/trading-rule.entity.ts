@@ -2,50 +2,48 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { PriceSource } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
-import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
+import { Column, Entity, ManyToOne } from 'typeorm';
 import { TradingRuleStatus } from '../enums';
 
 @Entity()
 export class TradingRule extends IEntity {
-  @Column({ length: 256, nullable: true })
+  @Column()
   status: TradingRuleStatus;
 
   @ManyToOne(() => Asset, { nullable: false, eager: true })
-  @JoinColumn()
   leftAsset: Asset;
 
   @ManyToOne(() => Asset, { nullable: false, eager: true })
-  @JoinColumn()
   rightAsset: Asset;
 
-  @Column({ nullable: false })
+  @Column()
   source1: PriceSource;
 
-  @Column({ nullable: false })
+  @Column()
   leftAsset1: string;
 
-  @Column({ nullable: false })
+  @Column()
   rightAsset1: string;
 
-  @Column({ nullable: false })
+  @Column()
   source2: PriceSource;
 
-  @Column({ nullable: false })
+  @Column()
   leftAsset2: string;
 
-  @Column({ nullable: false })
+  @Column()
   rightAsset2: string;
 
-  @Column({ type: 'float', nullable: false })
+  @Column({ type: 'float' })
   lowerLimit: number;
 
-  @Column({ type: 'float', nullable: false })
+  @Column({ type: 'float' })
   upperLimit: number;
 
   @Column({ type: 'int', nullable: true })
   reactivationTime: number;
 
-  //*** PUBLIC API ***//
+  // --- PUBLIC API --- //
 
   isActive(): boolean {
     return this.status === TradingRuleStatus.ACTIVE;
@@ -83,12 +81,6 @@ export class TradingRule extends IEntity {
 
   pause(): this {
     this.status = TradingRuleStatus.PAUSED;
-
-    return this;
-  }
-
-  updateRuleSettings(reactivationTime: number | undefined): this {
-    if (reactivationTime !== undefined) this.reactivationTime = reactivationTime;
 
     return this;
   }

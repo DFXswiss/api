@@ -4,6 +4,7 @@ import UNISWAP_ROUTER_02_ABI from 'src/integration/blockchain/shared/evm/abi/uni
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpRequestConfig } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
+import { EvmTokenBalance } from '../shared/evm/dto/evm-token-balance.dto';
 import { ScanApiResponse } from '../shared/evm/dto/scan-api-response.dto';
 import { EvmClient, EvmClientParams } from '../shared/evm/evm-client';
 import { EvmUtil } from '../shared/evm/evm.util';
@@ -73,12 +74,19 @@ export class BscClient extends EvmClient {
     return EvmUtil.fromWeiAmount(balance);
   }
 
-  async getTokenBalance(asset: Asset): Promise<number> {
+  async getTokenBalance(asset: Asset, address?: string): Promise<number> {
     const contract = this.getERC20ContractForDex(asset.chainId);
-    const balance = await contract.balanceOf(this.dfxAddress);
+    const balance = await contract.balanceOf(address ?? this.dfxAddress);
     const token = await this.getTokenByContract(contract);
 
     return EvmUtil.fromWeiAmount(balance, token.decimals);
+  }
+
+  async getTokenBalances(assets: Asset[], address?: string): Promise<EvmTokenBalance[]> {
+    return Util.asyncMap(assets, async (a) => ({
+      contractAddress: a.chainId,
+      balance: await this.getTokenBalance(a, address),
+    }));
   }
 
   private async callBscScanApi<T>(config: HttpRequestConfig, nthTry = 10): Promise<ScanApiResponse<T>> {
