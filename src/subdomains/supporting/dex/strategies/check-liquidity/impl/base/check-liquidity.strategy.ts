@@ -7,8 +7,7 @@ import { CheckLiquidityStrategyRegistry } from './check-liquidity.strategy-regis
 export abstract class CheckLiquidityStrategy implements OnModuleInit, OnModuleDestroy {
   private _feeAsset: Asset;
 
-  @Inject()
-  private readonly registry: CheckLiquidityStrategyRegistry;
+  @Inject() private readonly registry: CheckLiquidityStrategyRegistry;
 
   onModuleInit() {
     this.registry.add(

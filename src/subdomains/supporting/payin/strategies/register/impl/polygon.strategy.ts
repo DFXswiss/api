@@ -3,11 +3,8 @@ import { Config } from 'src/config/config';
 import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-mapper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
-import { AssetService } from 'src/shared/models/asset/asset.service';
-import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
-import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInPolygonService } from '../../../services/payin-polygon.service';
 import { EvmStrategy } from './base/evm.strategy';
 
@@ -15,13 +12,8 @@ import { EvmStrategy } from './base/evm.strategy';
 export class PolygonStrategy extends EvmStrategy implements OnModuleInit {
   protected readonly logger = new DfxLogger(PolygonStrategy);
 
-  constructor(
-    polygonService: PayInPolygonService,
-    payInRepository: PayInRepository,
-    assetService: AssetService,
-    repos: RepositoryFactory,
-  ) {
-    super('MATIC', polygonService, payInRepository, assetService, repos);
+  constructor(polygonService: PayInPolygonService) {
+    super(polygonService);
   }
 
   onModuleInit() {

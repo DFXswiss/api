@@ -1,5 +1,6 @@
 import { Inject, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
@@ -20,8 +21,8 @@ export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy 
 
   @Inject() private readonly payInFactory: PayInFactory;
   @Inject() private readonly registry: RegisterStrategyRegistry;
-
-  constructor(protected readonly payInRepository: PayInRepository) {}
+  @Inject() protected readonly payInRepository: PayInRepository;
+  @Inject() protected readonly assetService: AssetService;
 
   onModuleInit() {
     this.registry.add(this.blockchain, this);

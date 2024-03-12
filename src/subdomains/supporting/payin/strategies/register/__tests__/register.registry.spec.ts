@@ -2,9 +2,6 @@ import { mock } from 'jest-mock-extended';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
-import { AssetService } from 'src/shared/models/asset/asset.service';
-import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
-import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInArbitrumService } from '../../../services/payin-arbitrum.service';
 import { PayInBaseService } from '../../../services/payin-base.service';
 import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
@@ -38,53 +35,23 @@ describe('RegisterStrategyRegistry', () => {
   let registry: RegisterStrategyRegistryWrapper;
 
   beforeEach(() => {
-    bitcoinStrategy = new BitcoinStrategy(mock<AssetService>(), mock<PayInBitcoinService>(), mock<PayInRepository>());
+    bitcoinStrategy = new BitcoinStrategy(mock<PayInBitcoinService>());
 
-    lightningStrategy = new LightningStrategy(mock<LightningService>(), mock<AssetService>(), mock<PayInRepository>());
+    lightningStrategy = new LightningStrategy(mock<LightningService>());
 
-    moneroStrategy = new MoneroStrategy(mock<AssetService>(), mock<PayInMoneroService>(), mock<PayInRepository>());
+    moneroStrategy = new MoneroStrategy(mock<PayInMoneroService>());
 
-    ethereumStrategy = new EthereumStrategy(
-      mock<PayInEthereumService>(),
-      mock<PayInRepository>(),
-      mock<AssetService>(),
-      mock<RepositoryFactory>(),
-    );
+    ethereumStrategy = new EthereumStrategy(mock<PayInEthereumService>());
 
-    bscStrategy = new BscStrategy(
-      mock<PayInBscService>(),
-      mock<PayInRepository>(),
-      mock<AssetService>(),
-      mock<RepositoryFactory>(),
-    );
+    bscStrategy = new BscStrategy(mock<PayInBscService>());
 
-    arbitrumStrategy = new ArbitrumStrategy(
-      mock<PayInArbitrumService>(),
-      mock<PayInRepository>(),
-      mock<AssetService>(),
-      mock<RepositoryFactory>(),
-    );
+    arbitrumStrategy = new ArbitrumStrategy(mock<PayInArbitrumService>());
 
-    optimismStrategy = new OptimismStrategy(
-      mock<PayInOptimismService>(),
-      mock<PayInRepository>(),
-      mock<AssetService>(),
-      mock<RepositoryFactory>(),
-    );
+    optimismStrategy = new OptimismStrategy(mock<PayInOptimismService>());
 
-    polygonStrategy = new PolygonStrategy(
-      mock<PayInPolygonService>(),
-      mock<PayInRepository>(),
-      mock<AssetService>(),
-      mock<RepositoryFactory>(),
-    );
+    polygonStrategy = new PolygonStrategy(mock<PayInPolygonService>());
 
-    baseStrategy = new BaseStrategy(
-      mock<PayInBaseService>(),
-      mock<PayInRepository>(),
-      mock<AssetService>(),
-      mock<RepositoryFactory>(),
-    );
+    baseStrategy = new BaseStrategy(mock<PayInBaseService>());
 
     registry = new RegisterStrategyRegistryWrapper(
       bitcoinStrategy,

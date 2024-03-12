@@ -3,11 +3,8 @@ import { Config } from 'src/config/config';
 import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-mapper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
-import { AssetService } from 'src/shared/models/asset/asset.service';
-import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
-import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInBaseService } from '../../../services/payin-base.service';
 import { EvmStrategy } from './base/evm.strategy';
 
@@ -15,13 +12,8 @@ import { EvmStrategy } from './base/evm.strategy';
 export class BaseStrategy extends EvmStrategy implements OnModuleInit {
   protected readonly logger = new DfxLogger(BaseStrategy);
 
-  constructor(
-    baseService: PayInBaseService,
-    payInRepository: PayInRepository,
-    assetService: AssetService,
-    repos: RepositoryFactory,
-  ) {
-    super('ETH', baseService, payInRepository, assetService, repos);
+  constructor(baseService: PayInBaseService) {
+    super(baseService);
   }
 
   onModuleInit() {
