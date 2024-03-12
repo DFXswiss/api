@@ -295,14 +295,14 @@ export class FeeService {
   }
 
   private async getBlockchainMaxFee(blockchain: Blockchain): Promise<number> {
-    const { fee } = await this.blockchainFeeRepo
+    const { maxFee } = await this.blockchainFeeRepo
       .createQueryBuilder('fee')
-      .select('MAX(amount)', 'fee')
+      .select('MAX(amount)', 'maxFee')
       .innerJoin('fee.asset', 'asset')
-      .where('asset.blockchain = :blockchain', { blockchain })
+      .where({ blockchain })
       .andWhere({ updated: MoreThanOrEqual(Util.daysBefore(70)) })
-      .getRawOne<{ fee: number }>();
-    return fee ?? 0;
+      .getRawOne<{ maxFee: number }>();
+    return maxFee ?? 0;
   }
 
   private async getValidFees(request: OptionalFeeRequest): Promise<Fee[]> {
