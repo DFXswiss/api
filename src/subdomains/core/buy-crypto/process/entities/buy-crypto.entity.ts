@@ -481,7 +481,6 @@ export class BuyCrypto extends IEntity {
       this.userData.id === bankDataUserDataId &&
       this.userData.isPaymentKycStatusEnabled && //
       this.userData.verifiedName &&
-      this.userData.verifiedCountry &&
       this.userData.lastNameCheckDate &&
       Util.daysDiff(this.userData.lastNameCheckDate) <= Config.amlCheckLastNameCheckValidity &&
       last30dVolume <= Config.tradingLimits.monthlyDefault &&
@@ -492,6 +491,7 @@ export class BuyCrypto extends IEntity {
 
   isBankTxAmlPass(blacklist: SpecialExternalBankAccount[], instantBanks: Bank[]): boolean {
     return (
+      this.userData.verifiedCountry &&
       !blacklist.some((b) => (b.bic && b.bic === this.bankTx.bic) || (b.iban && b.iban === this.bankTx.iban)) &&
       (!instantBanks.some((b) => b.iban === this.bankTx.accountIban) ||
         (this.userData.olkypayAllowed && this.target.asset.instantBuyable))
@@ -520,10 +520,6 @@ export class BuyCrypto extends IEntity {
       amlCheck: null,
       amlReason: null,
       mailSendDate: null,
-      inputAmount: null,
-      inputAsset: null,
-      inputReferenceAmount: null,
-      inputReferenceAsset: null,
       amountInChf: null,
       amountInEur: null,
       absoluteFeeAmount: null,

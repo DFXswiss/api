@@ -88,14 +88,6 @@ export class TradingOrderService {
     };
 
     await this.dexService.purchaseLiquidity(purchaseRequest);
-
-    const { txId } = await this.dexService.fetchLiquidityTransactionResult(
-      LiquidityOrderContext.TRADING,
-      this.correlationId(order, false),
-    );
-
-    order.txId = txId;
-    await this.orderRepo.save(order);
   }
 
   private async checkRunningOrders(): Promise<void> {
@@ -108,12 +100,12 @@ export class TradingOrderService {
 
   private async checkOrder(order: TradingOrder): Promise<void> {
     try {
-      const { isReady } = await this.dexService.checkOrderReady(
+      const { isReady, purchaseTxId } = await this.dexService.checkOrderReady(
         LiquidityOrderContext.TRADING,
         this.correlationId(order, false),
       );
 
-      if (isReady) await this.handleOrderCompletion(order);
+      if (isReady) await this.handleOrderCompletion(order, purchaseTxId);
     } catch (e) {
       const message = `Failed to check trading order ${order.id}: ${e.message}`;
       await this.handleOrderFail(order, message);
@@ -121,10 +113,10 @@ export class TradingOrderService {
     }
   }
 
-  private async handleOrderCompletion(order: TradingOrder): Promise<void> {
+  private async handleOrderCompletion(order: TradingOrder, txId: string): Promise<void> {
     await this.closeReservation(order);
 
-    order.complete();
+    order.complete(txId);
     await this.orderRepo.save(order);
 
     const rule = order.tradingRule.reactivate();

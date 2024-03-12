@@ -126,7 +126,6 @@ export class LiquidityOrder extends IEntity {
   getLiquidityTransactionResult(): LiquidityTransactionResult {
     return {
       type: this.type,
-      txId: this.txId,
       target: { asset: this.targetAsset, amount: this.targetAmount },
       fee: { asset: this.feeAsset, amount: this.feeAmount },
     };
