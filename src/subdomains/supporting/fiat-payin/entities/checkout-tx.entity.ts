@@ -24,7 +24,7 @@ export class CheckoutTx extends IEntity {
   @Column()
   status: CheckoutPaymentStatus;
 
-  @Column()
+  @Column({ nullable: true })
   approved: boolean;
 
   @Column({ nullable: true })

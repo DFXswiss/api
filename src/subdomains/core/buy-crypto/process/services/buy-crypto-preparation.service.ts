@@ -38,18 +38,23 @@ export class BuyCryptoPreparationService {
   ) {}
 
   async doAmlCheck(): Promise<void> {
-    // Atm only for bankTx BuyCrypto
+    // Atm only for bankTx, checkoutTx BuyCrypto
     const entities = await this.buyCryptoRepo.find({
       where: {
         amlCheck: IsNull(),
         amlReason: IsNull(),
         inputAmount: Not(IsNull()),
         inputAsset: Not(IsNull()),
-        bankTx: Not(IsNull()),
+        cryptoInput: IsNull(),
         buy: Not(IsNull()),
         status: IsNull(),
       },
-      relations: ['bankTx', 'buy', 'buy.user', 'buy.user.wallet', 'buy.user.userData', 'buy.user.userData.users'],
+      relations: {
+        bankTx: true,
+        checkoutTx: true,
+        cryptoInput: true,
+        buy: { user: { wallet: true, userData: { users: true } } },
+      },
     });
     if (entities.length === 0) return;
 
@@ -62,8 +67,9 @@ export class BuyCryptoPreparationService {
 
     for (const entity of entities) {
       try {
-        const inputReferenceCurrency = await this.fiatService.getFiatByName(entity.bankTx.txCurrency);
-        const inputCurrency = await this.fiatService.getFiatByName(entity.inputAsset);
+        const inputReferenceCurrency =
+          entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputReferenceAsset));
+        const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
 
         const { minVolume } = await this.transactionHelper.getTxFeeInfos(
           entity.inputReferenceAmount,
@@ -77,7 +83,14 @@ export class BuyCryptoPreparationService {
 
         const inputReferenceAssetChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
 
-        const bankData = await this.bankDataService.getBankDataWithIban(entity.bankTx.iban, undefined, true);
+        const multiAccountIbans = await this.specialExternalBankAccountService.getMultiAccountIbans();
+        const bankData = await this.bankDataService.getBankDataWithIban(
+          entity.bankTx
+            ? entity.bankTx.senderAccount(multiAccountIbans.map((m) => m.iban))
+            : entity.checkoutTx.cardFingerPrint,
+          undefined,
+          true,
+        );
 
         const last24hVolume = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,
@@ -146,8 +159,7 @@ export class BuyCryptoPreparationService {
     for (const entity of entities) {
       try {
         const inputReferenceCurrency =
-          (await this.fiatService.getFiatByName(entity.inputReferenceAsset)) ??
-          (await this.assetService.getNativeMainLayerAsset(entity.inputReferenceAsset));
+          entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputReferenceAsset));
 
         const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
 

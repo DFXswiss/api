@@ -459,7 +459,7 @@ export class BuyCrypto extends IEntity {
           refFactor: usedRef === '000-000' ? 0 : 1,
           amlCheck: CheckStatus.PASS,
         }
-      : Util.minutesDiff(this.created) > 10
+      : Util.minutesDiff(this.created) >= 10
       ? { amlCheck: CheckStatus.GSHEET }
       : {};
 
@@ -486,13 +486,26 @@ export class BuyCrypto extends IEntity {
       this.userData.id === bankDataUserDataId &&
       this.userData.isPaymentKycStatusEnabled && //
       this.userData.verifiedName &&
-      this.userData.verifiedCountry &&
       this.userData.lastNameCheckDate &&
       Util.daysDiff(this.userData.lastNameCheckDate) <= Config.amlCheckLastNameCheckValidity &&
       last30dVolume <= Config.tradingLimits.monthlyDefault &&
-      !blacklist.some((b) => b.bic === this.bankTx.bic || b.iban === this.bankTx.iban) &&
-      (!instantBanks.some((b) => b.iban === this.bankTx.accountIban) || this.userData.olkypayAllowed) &&
-      (last24hVolume <= Config.tradingLimits.dailyDefault || this.isKycAmlPass(amountInChf))
+      (last24hVolume <= Config.tradingLimits.dailyDefault || this.isKycAmlPass(amountInChf)) &&
+      (this.bankTx ? this.isBankTxAmlPass(blacklist, instantBanks) : this.isCheckoutTxAmlPass(blacklist))
+    );
+  }
+
+  isBankTxAmlPass(blacklist: SpecialExternalBankAccount[], instantBanks: Bank[]): boolean {
+    return (
+      this.userData.verifiedCountry &&
+      !blacklist.some((b) => (b.bic && b.bic === this.bankTx.bic) || (b.iban && b.iban === this.bankTx.iban)) &&
+      (!instantBanks.some((b) => b.iban === this.bankTx.accountIban) ||
+        (this.userData.olkypayAllowed && this.target.asset.instantBuyable))
+    );
+  }
+
+  isCheckoutTxAmlPass(blacklist: SpecialExternalBankAccount[]): boolean {
+    return (
+      this.target.asset.cardBuyable && !blacklist.some((b) => b.iban && b.iban === this.checkoutTx.cardFingerPrint)
     );
   }
 
@@ -512,10 +525,6 @@ export class BuyCrypto extends IEntity {
       amlCheck: null,
       amlReason: null,
       mailSendDate: null,
-      inputAmount: null,
-      inputAsset: null,
-      inputReferenceAmount: null,
-      inputReferenceAsset: null,
       amountInChf: null,
       amountInEur: null,
       absoluteFeeAmount: null,

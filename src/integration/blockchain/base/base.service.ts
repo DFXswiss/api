@@ -8,7 +8,7 @@ import { BaseClient } from './base-client';
 @Injectable()
 export class BaseService extends EvmService {
   constructor(http: HttpService, alchemyService: AlchemyService) {
-    const { baseGatewayUrl, baseApiKey, baseWalletPrivateKey, baseChainId, swapContractAddress } =
+    const { baseGatewayUrl, baseApiKey, baseWalletPrivateKey, baseChainId, swapContractAddress, quoteContractAddress } =
       GetConfig().blockchain.base;
 
     super(BaseClient, {
@@ -19,6 +19,7 @@ export class BaseService extends EvmService {
       walletPrivateKey: baseWalletPrivateKey,
       chainId: baseChainId,
       swapContractAddress,
+      quoteContractAddress,
     });
   }
 }

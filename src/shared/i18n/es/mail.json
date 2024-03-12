@@ -148,13 +148,14 @@
         "failed": {
             "title": "Tu identificación ha fallado",
             "salutation": "Tu identificación ha fallado",
-            "message": "Nos hemos dado cuenta de que tu identificación ha fallado. Por favor, inténtelo de nuevo con la siguiente URL:<br>[url:{urlText}]"
+            "message": "Su identificación falló por la siguiente razón:<br>{reason}"
         },
         "reminder": {
             "title": "Completa tu verificación",
             "salutation": "Completa tu verificación",
             "message": "Nos hemos dado cuenta de que no has completado la verificación."
         },
+        "retry": "Por favor, inténtelo de nuevo con la siguiente URL:<br>[url:{urlText}]",
         "next_step": "Para proceder a su verificación, haga clic en el elemento de menú situado en la parte superior derecha del sitio web de DFX-Services<br> y, a continuación, en \"KYC\"<br> y haga clic en el botón \"Continuar\"<br> o utilice el siguiente enlace:<br>[url:{urlText}]",
         "last_step": "Da el último paso y empieza a crear tu libertad financiera hoy"
     },
@@ -172,7 +173,7 @@
         "changed_mail": {
             "title": "Se ha modificado la dirección de correo electrónico de la cuenta",
             "salutation": "El correo electrónico de su cuenta ha sido modificado",
-            "message": "El correo electrónico {userMail} se utilizará para su cuenta a partir de ahora."
+            "message": "Ha creado dos cuentas con direcciones de correo electrónico diferentes, que ahora se han fusionado. El correo electrónico {userMail} se utilizará para su cuenta a partir de ahora."
         }
     },
     "limit_request": {

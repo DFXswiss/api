@@ -6,6 +6,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
 import { EvmClient, EvmClientParams } from '../shared/evm/evm-client';
+import { EvmUtil } from '../shared/evm/evm.util';
 import { L2BridgeEvmClient } from '../shared/evm/interfaces';
 
 interface BaseTransactionReceipt extends ethers.providers.TransactionReceipt {
@@ -42,13 +43,13 @@ export class BaseClient extends EvmClient implements L2BridgeEvmClient {
   }
 
   async depositCoinOnDex(amount: number): Promise<string> {
-    const response = await this.crossChainMessenger.depositETH(this.toWeiAmount(amount));
+    const response = await this.crossChainMessenger.depositETH(EvmUtil.toWeiAmount(amount));
 
     return response.hash;
   }
 
   async withdrawCoinOnDex(amount: number): Promise<string> {
-    const response = await this.crossChainMessenger.withdrawETH(this.toWeiAmount(amount));
+    const response = await this.crossChainMessenger.withdrawETH(EvmUtil.toWeiAmount(amount));
 
     return response.hash;
   }
@@ -79,7 +80,7 @@ export class BaseClient extends EvmClient implements L2BridgeEvmClient {
     const response = await this.crossChainMessenger.depositERC20(
       l1Token.chainId,
       l2Token.chainId,
-      this.toWeiAmount(amount, l1Decimals),
+      EvmUtil.toWeiAmount(amount, l1Decimals),
     );
 
     return response.hash;
@@ -101,7 +102,7 @@ export class BaseClient extends EvmClient implements L2BridgeEvmClient {
     const response = await this.crossChainMessenger.withdrawERC20(
       l1Token.chainId,
       l2Token.chainId,
-      this.toWeiAmount(amount, l1Decimals),
+      EvmUtil.toWeiAmount(amount, l1Decimals),
     );
 
     return response.hash;
@@ -164,7 +165,7 @@ export class BaseClient extends EvmClient implements L2BridgeEvmClient {
       type: 2,
     });
 
-    return this.fromWeiAmount(totalGasCost);
+    return EvmUtil.fromWeiAmount(totalGasCost);
   }
 
   async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
@@ -175,7 +176,7 @@ export class BaseClient extends EvmClient implements L2BridgeEvmClient {
       type: 2,
     });
 
-    return this.fromWeiAmount(totalGasCost);
+    return EvmUtil.fromWeiAmount(totalGasCost);
   }
 
   async getTxActualFee(txHash: string): Promise<number> {
@@ -185,8 +186,8 @@ export class BaseClient extends EvmClient implements L2BridgeEvmClient {
 
     const { gasUsed, l1GasPrice, l1GasUsed, l1FeeScalar } = receipt as BaseTransactionReceipt;
 
-    const actualL1Fee = this.fromWeiAmount(l1GasUsed.mul(l1GasPrice)) * l1FeeScalar;
-    const actualL2Fee = this.fromWeiAmount(gasUsed.mul(gasPrice));
+    const actualL1Fee = EvmUtil.fromWeiAmount(l1GasUsed.mul(l1GasPrice)) * l1FeeScalar;
+    const actualL2Fee = EvmUtil.fromWeiAmount(gasUsed.mul(gasPrice));
 
     return actualL1Fee + actualL2Fee;
   }

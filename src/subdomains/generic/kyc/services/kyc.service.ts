@@ -201,6 +201,11 @@ export class KycService {
     switch (getIdentResult(dto)) {
       case IdentShortResult.CANCEL:
         user = user.pauseStep(kycStep, dto);
+        await this.kycNotificationService.identFailed(kycStep, reason);
+        break;
+
+      case IdentShortResult.ABORT:
+        user = user.pauseStep(kycStep, dto);
         break;
 
       case IdentShortResult.REVIEW:

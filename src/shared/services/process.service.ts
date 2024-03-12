@@ -38,6 +38,7 @@ export enum Process {
   TX_SPEEDUP = 'TxSpeedup',
   CREATE_TRANSACTION = 'CreateTransaction',
   SYNCHRONIZE_TRANSACTION = 'SynchronizeTransaction',
+  TRADING = 'Trading',
 }
 
 type ProcessMap = { [p in Process]?: boolean };

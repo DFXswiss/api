@@ -61,6 +61,8 @@ export class LimitRequestService {
             { key: `Limit: ${entity.limit} EUR` },
             { key: `Investment date: ${entity.investmentDate}` },
             { key: `Fund origin: ${entity.fundOrigin}` },
+            { key: `Fund origin text: ${entity.fundOriginText}` },
+            { key: `Document url: ${entity.documentProofUrl}` },
             { key: `UserData id: ${entity.userData.id}` },
           ],
         },

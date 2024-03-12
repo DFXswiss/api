@@ -104,6 +104,13 @@ export class KycNotificationService {
               {
                 key: `${MailTranslationKey.KYC_FAILED}.message`,
                 params: {
+                  reason,
+                },
+              },
+              { key: MailKey.SPACE, params: { value: '2' } },
+              {
+                key: `${MailTranslationKey.KYC}.retry`,
+                params: {
                   url: entity.userData.kycUrl,
                   urlText: entity.userData.kycUrl,
                 },

@@ -75,7 +75,12 @@ export class TransactionRequestService {
       // save
       await this.transactionRequestRepo.save(transactionRequest);
     } catch (e) {
-      this.logger.error(`Failed to store ${type} transaction request for route ${response.routeId}:`, e);
+      this.logger.error(
+        `Failed to store ${type} transaction request for route ${response.routeId}, request was ${JSON.stringify(
+          request,
+        )}, response was ${JSON.stringify(response)}:`,
+        e,
+      );
     }
   }
 

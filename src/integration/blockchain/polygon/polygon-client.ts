@@ -7,6 +7,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
 import { EvmClient, EvmClientParams } from '../shared/evm/evm-client';
+import { EvmUtil } from '../shared/evm/evm.util';
 import { L2BridgeEvmClient } from '../shared/evm/interfaces';
 
 export class PolygonClient extends EvmClient implements L2BridgeEvmClient {
@@ -72,7 +73,7 @@ export class PolygonClient extends EvmClient implements L2BridgeEvmClient {
     const l1Erc20Token = this.posClient.erc20(l1Token.chainId, true);
 
     const depositResult = await l1Erc20Token.deposit(
-      this.toWeiAmount(amount, l1Decimals).toString(),
+      EvmUtil.toWeiAmount(amount, l1Decimals).toString(),
       this.wallet.address,
       {
         gasLimit: gasLimit.toString(),
@@ -97,7 +98,7 @@ export class PolygonClient extends EvmClient implements L2BridgeEvmClient {
 
     const l2Erc20Token = this.posClient.erc20(l2Token.chainId);
 
-    const withdrawStartResult = await l2Erc20Token.withdrawStart(this.toWeiAmount(amount, l2Decimals).toString());
+    const withdrawStartResult = await l2Erc20Token.withdrawStart(EvmUtil.toWeiAmount(amount, l2Decimals).toString());
     const withdrawStartTxHash = await withdrawStartResult.getTransactionHash();
     this.logger.info(`Polygon withdrawStartTxHash: ${withdrawStartTxHash}`);
 

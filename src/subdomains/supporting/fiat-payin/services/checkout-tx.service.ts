@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { IsNull } from 'typeorm';
@@ -55,5 +57,14 @@ export class CheckoutTxService {
 
   async getCheckoutTxWithoutTransaction(): Promise<CheckoutTx[]> {
     return this.checkoutTxRepo.find({ where: { transaction: IsNull() }, relations: { transaction: true } });
+  }
+
+  async getSyncDate(): Promise<Date> {
+    return this.checkoutTxRepo
+      .findOne({
+        where: { status: CheckoutPaymentStatus.PENDING },
+        order: { requestedOn: 'ASC' },
+      })
+      .then((tx) => tx?.requestedOn ?? Util.minutesBefore(10));
   }
 }

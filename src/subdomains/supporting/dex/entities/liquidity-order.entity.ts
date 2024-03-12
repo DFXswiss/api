@@ -6,14 +6,12 @@ import { LiquidityTransactionResult } from '../interfaces';
 
 export enum LiquidityOrderContext {
   BUY_CRYPTO = 'BuyCrypto',
-  CREATE_POOL_PAIR = 'CreatePoolPair',
-  PRICING = 'Pricing',
   LIQUIDITY_MANAGEMENT = 'LiquidityManagement',
-  PAY_IN = 'PayIn',
   BUY_FIAT_RETURN = 'BuyFiatReturn',
   BUY_CRYPTO_RETURN = 'BuyCryptoReturn',
   MANUAL = 'Manual',
   REF_PAYOUT = 'RefPayout',
+  TRADING = 'Trading',
 }
 
 export enum LiquidityOrderType {

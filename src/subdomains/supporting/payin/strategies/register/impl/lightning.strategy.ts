@@ -4,7 +4,6 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { LnurlpPaymentData } from 'src/integration/lightning/data/lnurlp-payment.data';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
-import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -16,37 +15,18 @@ import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { PayInEntry } from '../../../interfaces';
-import { PayInRepository } from '../../../repositories/payin.repository';
 import { RegisterStrategy } from './base/register.strategy';
 
 @Injectable()
 export class LightningStrategy extends RegisterStrategy {
   protected logger: DfxLogger = new DfxLogger(LightningStrategy);
 
-  constructor(
-    private readonly lightningService: LightningService,
-    private readonly assetService: AssetService,
-    protected readonly payInRepository: PayInRepository,
-  ) {
-    super(payInRepository);
+  constructor(private readonly lightningService: LightningService) {
+    super();
   }
 
   get blockchain(): Blockchain {
     return Blockchain.LIGHTNING;
-  }
-
-  async addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void> {
-    for (const entry of entries) {
-      try {
-        const btcAmount = entry.amount;
-        const usdtAmount = null;
-
-        await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
-      } catch (e) {
-        this.logger.error('Could not set reference amounts for Lightning pay-in:', e);
-        continue;
-      }
-    }
   }
 
   doAmlCheck(_: CryptoInput, route: Staking | Sell | CryptoRoute): CheckStatus | Promise<CheckStatus> {
@@ -78,8 +58,6 @@ export class LightningStrategy extends RegisterStrategy {
       .then((input) => input?.inTxId ?? '');
 
     const newEntries = await this.getNewEntries(lastCheckedTxId);
-
-    await this.addReferenceAmounts(newEntries);
 
     await this.createPayInsAndSave(newEntries, log);
 

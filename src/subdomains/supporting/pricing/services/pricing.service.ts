@@ -24,7 +24,8 @@ export class PricingService {
   private readonly logger = new DfxLogger(PricingService);
 
   private readonly providerMap: { [s in PriceSource]: PricingProvider };
-  private readonly priceCache = new AsyncCache<Price>(10);
+  private readonly priceCache = new AsyncCache<Price>(60 * 60 * 6);
+  private readonly providerPriceCache = new AsyncCache<Price>(10);
   private readonly updateCalls = new AsyncCache<PriceRule>(0);
 
   constructor(
@@ -56,8 +57,8 @@ export class PricingService {
       if (this.areEqual(from, to)) return Price.create(from.name, to.name, 1);
 
       const [fromPrice, toPrice] = await Promise.all([
-        this.getPriceForActive(from, allowExpired),
-        this.getPriceForActive(to, allowExpired),
+        this.priceCache.get(this.itemString(from), () => this.getPriceForActive(from, allowExpired), !allowExpired),
+        this.priceCache.get(this.itemString(to), () => this.getPriceForActive(to, allowExpired), !allowExpired),
       ]);
 
       const price = Price.join(fromPrice, toPrice.invert());
@@ -70,7 +71,7 @@ export class PricingService {
 
       return price;
     } catch (e) {
-      this.logger.error(`Failed to get price for ${this.getItemString(from)} -> ${this.getItemString(to)}:`, e);
+      this.logger.error(`Failed to get price for ${this.itemString(from)} -> ${this.itemString(to)}:`, e);
 
       throw new PriceInvalidException(`No valid price found for ${from.name} -> ${to.name}`);
     }
@@ -97,12 +98,12 @@ export class PricingService {
     do {
       const active = rule?.reference ?? item;
       rule = await this.getRuleFor(active);
-      if (!rule) throw new Error(`No price rule found for ${this.getItemString(active)}`);
+      if (!rule) throw new Error(`No price rule found for ${this.itemString(active)}`);
 
       rules.push({ active, rule });
-    } while (rule.reference);
 
-    times.push(Date.now());
+      times.push(Date.now());
+    } while (rule.reference);
 
     const prices = await Promise.all(rules.map(({ active, rule }) => this.getPriceForRule(rule, allowExpired, active)));
 
@@ -110,7 +111,9 @@ export class PricingService {
 
     if (Date.now() - times[0] > 300 && allowExpired) {
       const timesString = times.map((t, i, a) => Util.round((t - (a[i - 1] ?? t)) / 1000, 3)).join(', ');
-      this.logger.verbose(`Price request times for ${item.name}: ${timesString}`);
+      this.logger.verbose(
+        `Price request times for ${item.name} (total ${Util.round((Date.now() - times[0]) / 1000, 3)}): ${timesString}`,
+      );
     }
 
     return Price.join(...prices);
@@ -202,7 +205,7 @@ export class PricingService {
   }
 
   // --- HELPER METHODS --- //
-  private getItemString(item: Active): string {
+  private itemString(item: Active): string {
     return `${isFiat(item) ? 'fiat' : 'asset'} ${item.id}`;
   }
 
@@ -211,7 +214,7 @@ export class PricingService {
   }
 
   private async getRulePrice(rule: Rule): Promise<Price> {
-    return this.priceCache
+    return this.providerPriceCache
       .get(`${rule.source}:${rule.asset}/${rule.reference}`, () =>
         this.getPriceFrom(rule.source, rule.asset, rule.reference),
       )

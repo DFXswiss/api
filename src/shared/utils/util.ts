@@ -90,52 +90,29 @@ export class Util {
   }
 
   static isSameName(input1: string, input2: string): boolean {
-    const array1 = this.getVerifiedNameArray(input1);
-    const array2 = this.getVerifiedNameArray(input2);
+    const array1 = this.removeSpecialChars(input1).split(' ');
+    const array2 = this.removeSpecialChars(input2).split(' ');
 
-    const replacements = [
-      [[undefined, undefined]],
-      [
-        ['ö', 'oe'],
-        ['ä', 'ae'],
-        ['ü', 'ue'],
-      ],
-      [
-        ['ä', 'a'],
-        ['ö', 'o'],
-        ['ü', 'u'],
-      ],
-    ];
-
-    return replacements.some((r) => Util.arraysHaveSameElements(array1, array2, r));
+    return (
+      array1.every((element) => array2.some((i) => i.includes(element))) ||
+      array2.every((element) => array1.some((i) => i.includes(element)))
+    );
   }
 
-  static getVerifiedNameArray(name: string): string[] {
+  static removeSpecialChars(name: string): string {
     return name
       .toLowerCase()
       .replace(/[ìíî]/g, 'i')
-      .replace(/[úûù]/g, 'u')
-      .replace(/[áâåà]/g, 'a')
+      .replace(/[úûùü]/g, 'u')
+      .replace(/[áâåàä]/g, 'a')
       .replace(/[éèê]/g, 'e')
+      .replace(/[ö]/g, 'o')
+      .replace(/ae/g, 'a')
+      .replace(/ue/g, 'u')
+      .replace(/oe/g, 'o')
       .replace(/[ñ]/g, 'n')
       .replace(/[ç]/g, 'c')
-      .replace(/[\.]/g, '')
-      .split(' ');
-  }
-
-  static arraysHaveSameElements(arr1: string[], arr2: string[], replaceArray?: string[][]) {
-    let replacedArray1: string[] = arr1;
-    let replacedArray2: string[] = arr2;
-
-    for (const [key, value] of replaceArray) {
-      replacedArray1 = replacedArray1.map((a) => a.split(key).join(value));
-      replacedArray2 = replacedArray2.map((a) => a.split(key).join(value));
-    }
-
-    return (
-      replacedArray1.every((element) => replacedArray2.includes(element)) ||
-      replacedArray2.every((element) => replacedArray1.includes(element))
-    );
+      .replace(/[\.]/g, '');
   }
 
   static fixRoundingMismatch<T>(list: T[], key: KeyType<T, number>, targetAmount: number, precision = 8): T[] {

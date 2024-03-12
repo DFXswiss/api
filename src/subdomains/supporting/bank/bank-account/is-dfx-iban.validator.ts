@@ -10,12 +10,12 @@ import * as ibantools from 'ibantools';
 @ValidatorConstraint({ name: 'IsDfxIban' })
 export class IsDfxIbanValidator implements ValidatorConstraintInterface {
   private blockedIban = [
-    'LT..37800000',
-    'AT..14200200',
-    'AT..20602099',
-    'LT..60378000',
+    '^LT..37800000',
+    '^AT..14200200',
+    '^AT..20602099',
+    '^LT..60378000',
     'CH8008635008770000647',
-    'BG..',
+    '^BG',
   ];
 
   validate(_: string, args: ValidationArguments) {
@@ -28,7 +28,7 @@ export class IsDfxIbanValidator implements ValidatorConstraintInterface {
     if (!valid) return `${args.property} not valid`;
 
     // check blocked IBANs
-    const isBlocked = this.blockedIban.some((i) => args.value.toLowerCase().match(i.toLowerCase()) != null);
+    const isBlocked = this.blockedIban.some((i) => new RegExp(i.toLowerCase()).test(args.value.toLowerCase()));
     if (isBlocked) return `${args.property} not allowed`;
   }
 }

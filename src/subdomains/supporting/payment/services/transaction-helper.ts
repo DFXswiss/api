@@ -329,7 +329,7 @@ export class TransactionHelper implements OnModuleInit {
 
     return {
       exchangeRate: this.round(price.price, isFiat(from)),
-      rate: this.round(sourceAmount / targetAmount, isFiat(from)),
+      rate: targetAmount ? this.round(sourceAmount / targetAmount, isFiat(from)) : Number.MAX_VALUE,
       feeAmount: this.round(feeAmount, isFiat(from)),
       estimatedAmount: this.round(targetAmount, isFiat(to)),
       sourceAmount: this.round(sourceAmount, isFiat(from)),

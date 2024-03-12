@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityManagementRuleStatus } from 'src/subdomains/core/liquidity-management/enums';
 import { LiquidityManagementService } from 'src/subdomains/core/liquidity-management/services/liquidity-management.service';
@@ -65,6 +65,7 @@ export class BuyCryptoBatchService {
           'cryptoRoute',
           'cryptoRoute.user',
           'cryptoRoute.asset',
+          'cryptoInput',
           'fee',
         ],
       });
@@ -95,8 +96,7 @@ export class BuyCryptoBatchService {
     for (const tx of transactions) {
       try {
         const inputReferenceCurrency =
-          (await this.fiatService.getFiatByName(tx.inputReferenceAsset)) ??
-          (await this.assetService.getNativeMainLayerAsset(tx.inputReferenceAsset));
+          tx.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(tx.inputReferenceAsset));
 
         const price = await this.pricingService.getPrice(inputReferenceCurrency, tx.outputReferenceAsset, false);
 
@@ -207,7 +207,8 @@ export class BuyCryptoBatchService {
 
         optimizedBatches.push(batch);
       } catch (e) {
-        this.logger.error(`Error in optimizing new batch for ${batch.outputAsset.uniqueName}:`, e);
+        const logLevel = e instanceof MissingBuyCryptoLiquidityException ? LogLevel.INFO : LogLevel.ERROR;
+        this.logger.log(logLevel, `Error in optimizing new batch for ${batch.outputAsset.uniqueName}:`, e);
       }
     }
 

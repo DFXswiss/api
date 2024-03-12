@@ -148,13 +148,14 @@
         "failed": {
             "title": "Identifikation fehlgeschlagen",
             "salutation": "Deine Identifikation ist fehlgeschlagen",
-            "message": "Wir haben festgestellt, dass deine Identifizierung fehlgeschlagen ist. Bitte versuche es über die folgende URL erneut:<br>[url:{urlText}]"
+            "message": "Deine Identifizierung ist aus folgendem Grund fehlgeschlagen:<br>{reason}"
         },
         "reminder": {
             "title": "Vervollständige Verifizierung",
             "salutation": "Vervollständige deine Verifizierung",
             "message": "Uns ist aufgefallen, dass deine Verifizierung noch nicht vollständig abgeschlossen wurde."
         },
+        "retry": "Bitte versuche es über die folgende URL erneut:<br>[url:{urlText}]",
         "next_step": "Um mit deiner Verifizierung fortzufahren, klicke auf der DFX-Services Webseite<br> oben rechts auf den Menüpunkt und dann auf \"KYC\"<br> und klicke den \"Weiter\" Button oder nutze den folgenden Link:<br>[url:{urlText}]",
         "last_step": "Mache den letzten Schritt und beginne noch heute deine Reise zur finanziellen Freiheit"
     },
@@ -172,7 +173,7 @@
         "changed_mail": {
             "title": "Account Email wurde geändert",
             "salutation": "Deine Account Email wurde geändert",
-            "message": "Die Email {userMail} wird ab sofort für deinen Account verwendet."
+            "message": "Du hast zwei Accounts mit unterschiedlichen Email Adressen angelegt, welche nun zusammengelegt wurden. Die Email {userMail} wird ab sofort für deinen Account verwendet."
         }
     },
     "limit_request": {
