@@ -15,7 +15,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
-import { In, IsNull, MoreThan, MoreThanOrEqual } from 'typeorm';
+import { In, IsNull, MoreThan } from 'typeorm';
 import { PayoutService } from '../../payout/services/payout.service';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { CreateFeeDto } from '../dto/create-fee.dto';
@@ -49,6 +49,8 @@ export interface FeeRequestBase {
   blockchainFee: number;
   discountCodes: string[];
 }
+
+const FeeValidityMinutes = 70;
 
 @Injectable()
 export class FeeService {
@@ -285,7 +287,7 @@ export class FeeService {
     if (isAsset(active)) {
       const fee = await this.blockchainFeeRepo.findOneBy({
         asset: { id: active.id },
-        updated: MoreThan(Util.minutesBefore(70)),
+        updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)),
       });
 
       return fee ? fee.amount : this.getBlockchainMaxFee(active.blockchain);
@@ -300,7 +302,7 @@ export class FeeService {
       .select('MAX(amount)', 'maxFee')
       .innerJoin('fee.asset', 'asset')
       .where({ blockchain })
-      .andWhere({ updated: MoreThanOrEqual(Util.daysBefore(70)) })
+      .andWhere({ updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)) })
       .getRawOne<{ maxFee: number }>();
     return maxFee ?? 0;
   }
