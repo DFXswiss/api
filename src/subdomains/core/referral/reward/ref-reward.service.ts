@@ -139,6 +139,13 @@ export class RefRewardService {
     return Object.assign(reward, { outputAssetEntity });
   }
 
+  async getRewardsWithoutTransaction(): Promise<RefReward[]> {
+    return this.rewardRepo.find({
+      where: { transaction: IsNull() },
+      relations: { transaction: true },
+    });
+  }
+
   // --- HELPER METHODS --- //
   private async updatePaidRefCredit(userIds: number[]): Promise<void> {
     userIds = userIds.filter((u, j) => userIds.indexOf(u) === j).filter((i) => i); // distinct, not null

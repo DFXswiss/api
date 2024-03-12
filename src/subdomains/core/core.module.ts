@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { TransactionModule } from '../supporting/payment/transaction.module';
 import { BuyCryptoModule } from './buy-crypto/buy-crypto.module';
 import { HistoryModule } from './history/history.module';
 import { LiquidityManagementModule } from './liquidity-management/liquidity-management.module';
@@ -17,7 +16,6 @@ import { StatisticModule } from './statistic/statistic.module';
     SellCryptoModule,
     StatisticModule,
     LiquidityManagementModule,
-    TransactionModule,
   ],
   controllers: [],
   providers: [],

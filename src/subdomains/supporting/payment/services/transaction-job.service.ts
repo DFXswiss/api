@@ -4,15 +4,17 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
+import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
+import { RefRewardService } from 'src/subdomains/core/referral/reward/ref-reward.service';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
-import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
-import { BankTx } from '../../bank-tx/bank-tx/bank-tx.entity';
+import { BankTx, BankTxType } from '../../bank-tx/bank-tx/bank-tx.entity';
 import { BankTxService, TransactionBankTxTypeMapper } from '../../bank-tx/bank-tx/bank-tx.service';
 import { CheckoutTx } from '../../fiat-payin/entities/checkout-tx.entity';
 import { CheckoutTxService } from '../../fiat-payin/services/checkout-tx.service';
 import { CryptoInput } from '../../payin/entities/crypto-input.entity';
 import { PayInService } from '../../payin/services/payin.service';
-import { TransactionSourceType, TransactionType } from '../entities/transaction.entity';
+import { CreateTransactionDto } from '../dto/input/create-transaction.dto';
+import { TransactionSourceType, TransactionTypeInternal } from '../entities/transaction.entity';
 import { TransactionService } from './transaction.service';
 
 @Injectable()
@@ -22,6 +24,7 @@ export class TransactionJobService {
     private readonly payInService: PayInService,
     private readonly checkoutTxService: CheckoutTxService,
     private readonly transactionService: TransactionService,
+    private readonly refRewardService: RefRewardService,
   ) {}
 
   // --- CHECK BUY FIAT --- //
@@ -35,38 +38,48 @@ export class TransactionJobService {
         ...(await this.bankTxService.getBankTxWithoutTransaction()),
         ...(await this.payInService.getCryptoInputWithoutTransaction()),
         ...(await this.checkoutTxService.getCheckoutTxWithoutTransaction()),
+        ...(await this.refRewardService.getRewardsWithoutTransaction()),
       ],
       'created',
     );
 
     for (const unassignedTx of sortedUnassignedTx) {
       await this.transactionService.create({
-        sourceId: unassignedTx.id,
         sourceType: this.getSourceType(unassignedTx),
-        type: this.getType(unassignedTx),
+        ...this.getTypeAndEntity(unassignedTx),
       });
     }
   }
 
-  private getType(tx: BankTx | CryptoInput | CheckoutTx): TransactionType {
-    return tx instanceof BankTx
-      ? TransactionBankTxTypeMapper[tx.type]
+  private getTypeAndEntity(tx: BankTx | CryptoInput | CheckoutTx | RefReward): Partial<CreateTransactionDto> {
+    if (tx instanceof BankTx) {
+      const type = TransactionBankTxTypeMapper[tx.type];
+      return tx.type === BankTxType.BANK_TX_RETURN
+        ? { type, bankTxReturn: tx.bankTxReturn }
+        : tx.type === BankTxType.BANK_TX_REPEAT
+        ? { type, bankTxRepeat: tx.bankTxRepeat }
+        : tx.type === BankTxType.BUY_CRYPTO
+        ? { type, buyCrypto: tx.buyCrypto }
+        : null;
+    }
+    return tx instanceof RefReward
+      ? { type: TransactionTypeInternal.REF_REWARD, refReward: tx }
       : tx instanceof CheckoutTx
-      ? TransactionType.BUY_CRYPTO
+      ? { type: TransactionTypeInternal.BUY_CRYPTO, buyCrypto: tx.buyCrypto }
       : tx.route instanceof Sell
-      ? TransactionType.BUY_FIAT
+      ? { type: TransactionTypeInternal.BUY_FIAT, buyFiat: tx.buyFiat }
       : tx.route instanceof CryptoRoute
-      ? TransactionType.BUY_CRYPTO
-      : tx.route instanceof Staking
-      ? TransactionType.STAKING
+      ? { type: TransactionTypeInternal.CRYPTO_CRYPTO, buyCrypto: tx.buyCrypto }
       : null;
   }
 
-  private getSourceType(tx: BankTx | CryptoInput | CheckoutTx): TransactionSourceType {
+  private getSourceType(tx: BankTx | CryptoInput | CheckoutTx | RefReward): TransactionSourceType {
     return tx instanceof BankTx
       ? TransactionSourceType.BANK_TX
       : tx instanceof CheckoutTx
       ? TransactionSourceType.CHECKOUT_TX
-      : TransactionSourceType.CRYPTO_INPUT;
+      : tx instanceof CryptoInput
+      ? TransactionSourceType.CRYPTO_INPUT
+      : TransactionSourceType.REF;
   }
 }

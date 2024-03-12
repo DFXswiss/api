@@ -15,7 +15,7 @@ import { In, IsNull } from 'typeorm';
 import { OlkypayService } from '../../../../integration/bank/services/olkypay.service';
 import { BankName } from '../../bank/bank/bank.entity';
 import { BankService } from '../../bank/bank/bank.service';
-import { TransactionSourceType, TransactionType } from '../../payment/entities/transaction.entity';
+import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { BankTxRepeatService } from '../bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnService } from '../bank-tx-return/bank-tx-return.service';
@@ -27,14 +27,14 @@ import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
 import { SepaParser } from './sepa-parser.service';
 
 export const TransactionBankTxTypeMapper: {
-  [key in BankTxType]: TransactionType;
+  [key in BankTxType]: TransactionTypeInternal;
 } = {
-  [BankTxType.INTERNAL]: TransactionType.INTERNAL,
-  [BankTxType.BUY_CRYPTO_RETURN]: TransactionType.BUY_CRYPTO_RETURN,
-  [BankTxType.BANK_TX_RETURN]: TransactionType.BANK_TX_RETURN,
-  [BankTxType.BUY_CRYPTO]: TransactionType.BUY_CRYPTO,
-  [BankTxType.BUY_FIAT]: TransactionType.BUY_FIAT,
-  [BankTxType.BANK_TX_REPEAT]: TransactionType.BANK_TX_REPEAT,
+  [BankTxType.INTERNAL]: TransactionTypeInternal.INTERNAL,
+  [BankTxType.BUY_CRYPTO_RETURN]: TransactionTypeInternal.BUY_CRYPTO_RETURN,
+  [BankTxType.BANK_TX_RETURN]: TransactionTypeInternal.BANK_TX_RETURN,
+  [BankTxType.BUY_CRYPTO]: TransactionTypeInternal.BUY_CRYPTO,
+  [BankTxType.BUY_FIAT]: TransactionTypeInternal.BUY_FIAT,
+  [BankTxType.BANK_TX_REPEAT]: TransactionTypeInternal.BANK_TX_REPEAT,
   [BankTxType.BANK_TX_RETURN_CHARGEBACK]: null,
   [BankTxType.BANK_TX_REPEAT_CHARGEBACK]: null,
   [BankTxType.FIAT_FIAT]: null,
@@ -101,9 +101,7 @@ export class BankTxService {
 
     for (const transaction of allTransactions) {
       try {
-        const bankTx = await this.create(transaction);
-        if (!DisabledProcess(Process.CREATE_TRANSACTION))
-          await this.transactionService.create({ sourceId: bankTx.id, sourceType: TransactionSourceType.BANK_TX });
+        await this.create(transaction);
       } catch (e) {
         if (!(e instanceof ConflictException)) this.logger.error(`Failed to import transaction:`, e);
       }
@@ -137,11 +135,15 @@ export class BankTxService {
       throw new ConflictException(`There is already a bank tx with the accountServiceRef: ${bankTx.accountServiceRef}`);
 
     entity = this.bankTxRepo.create(bankTx);
+
+    if (!DisabledProcess(Process.CREATE_TRANSACTION))
+      entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.BANK_TX });
+
     return this.bankTxRepo.save(entity);
   }
 
   async update(bankTxId: number, dto: UpdateBankTxDto): Promise<BankTx> {
-    const bankTx = await this.bankTxRepo.findOneBy({ id: bankTxId });
+    const bankTx = await this.bankTxRepo.findOne({ where: { id: bankTxId }, relations: { transaction: true } });
     if (!bankTx) throw new NotFoundException('BankTx not found');
     if (dto.type && dto.type != bankTx.type) {
       if (BankTxTypeCompleted(bankTx.type)) throw new ConflictException('BankTx type already set');
@@ -158,7 +160,7 @@ export class BankTxService {
           break;
         default:
           if (!DisabledProcess(Process.CREATE_TRANSACTION) && dto.type)
-            await this.transactionService.update(bankTx.id, TransactionSourceType.BANK_TX, {
+            await this.transactionService.update(bankTx.transaction.id, {
               type: TransactionBankTxTypeMapper[dto.type],
             });
           break;

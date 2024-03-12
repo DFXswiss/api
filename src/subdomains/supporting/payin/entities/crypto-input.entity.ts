@@ -5,8 +5,10 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
+import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { AmlReason } from 'src/subdomains/core/buy-crypto/process/enums/aml-reason.enum';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
+import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { DepositRoute, DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
@@ -104,6 +106,12 @@ export class CryptoInput extends IEntity {
   @OneToOne(() => Transaction, { nullable: true })
   @JoinColumn()
   transaction: Transaction;
+
+  @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.cryptoInput, { eager: false, nullable: true })
+  buyFiat: BuyFiat;
+
+  @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.cryptoInput, { eager: false, nullable: true })
+  buyCrypto: BuyCrypto;
 
   @Column({ type: 'float', nullable: true })
   btcAmount?: number;

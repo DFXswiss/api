@@ -24,7 +24,7 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx
 import { SpecialExternalBankAccountService } from 'src/subdomains/supporting/bank/special-external-bank-account/special-external-bank-account.service';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { TransactionSourceType, TransactionType } from 'src/subdomains/supporting/payment/entities/transaction.entity';
+import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Between, Brackets, In, IsNull, Not } from 'typeorm';
@@ -65,8 +65,8 @@ export class BuyCryptoService {
     if (entity) throw new ConflictException('There is already a buy-crypto for the specified bank TX');
 
     const transaction = !DisabledProcess(Process.CREATE_TRANSACTION)
-      ? await this.transactionService.update(bankTx.id, TransactionSourceType.BANK_TX, {
-          type: TransactionType.BUY_CRYPTO,
+      ? await this.transactionService.update(bankTx.transaction.id, {
+          type: TransactionTypeInternal.BUY_CRYPTO,
         })
       : null;
 
@@ -109,8 +109,8 @@ export class BuyCryptoService {
     if (entity) throw new ConflictException('There is already a buy-crypto for the specified checkout TX');
 
     const transaction = !DisabledProcess(Process.CREATE_TRANSACTION)
-      ? await this.transactionService.update(checkoutTx.id, TransactionSourceType.CHECKOUT_TX, {
-          type: TransactionType.BUY_CRYPTO,
+      ? await this.transactionService.update(checkoutTx.transaction.id, {
+          type: TransactionTypeInternal.BUY_CRYPTO,
         })
       : null;
 
@@ -148,8 +148,8 @@ export class BuyCryptoService {
 
   async createFromCryptoInput(cryptoInput: CryptoInput, cryptoRoute: CryptoRoute): Promise<void> {
     const transaction = !DisabledProcess(Process.CREATE_TRANSACTION)
-      ? await this.transactionService.update(cryptoInput.id, TransactionSourceType.CRYPTO_INPUT, {
-          type: TransactionType.BUY_CRYPTO,
+      ? await this.transactionService.update(cryptoInput.transaction.id, {
+          type: TransactionTypeInternal.BUY_CRYPTO,
         })
       : null;
 

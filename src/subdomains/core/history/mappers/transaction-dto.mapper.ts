@@ -1,11 +1,7 @@
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { Active } from 'src/shared/models/active';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
-import {
-  TransactionDto,
-  TransactionExportType,
-  TransactionState,
-} from '../../../supporting/payment/dto/transaction.dto';
+import { TransactionDto, TransactionState, TransactionType } from '../../../supporting/payment/dto/transaction.dto';
 import { BuyCrypto, BuyCryptoStatus } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
 import { RefReward, RewardStatus } from '../../referral/reward/ref-reward.entity';
@@ -26,7 +22,7 @@ export class RefRewardExtended extends RefReward {
 export class TransactionDtoMapper {
   static mapBuyCryptoTransaction(buyCrypto: BuyCryptoExtended): TransactionDto {
     const dto: TransactionDto = {
-      type: buyCrypto.isCryptoCryptoTransaction ? TransactionExportType.CONVERT : TransactionExportType.BUY,
+      type: buyCrypto.isCryptoCryptoTransaction ? TransactionType.CONVERT : TransactionType.BUY,
       state: getTransactionState(buyCrypto),
       inputAmount: buyCrypto.inputAmount,
       inputAsset: buyCrypto.inputAsset,
@@ -62,7 +58,7 @@ export class TransactionDtoMapper {
 
   static mapBuyFiatTransaction(buyFiat: BuyFiatExtended): TransactionDto {
     const dto: TransactionDto = {
-      type: TransactionExportType.SELL,
+      type: TransactionType.SELL,
       state: getTransactionState(buyFiat),
       inputAmount: buyFiat.inputAmount,
       inputAsset: buyFiat.inputAsset,
@@ -98,7 +94,7 @@ export class TransactionDtoMapper {
 
   static mapReferralReward(refReward: RefRewardExtended): TransactionDto {
     const dto: TransactionDto = {
-      type: TransactionExportType.REFERRAL,
+      type: TransactionType.REFERRAL,
       state: getTransactionState(refReward),
       inputAmount: null,
       inputAsset: null,

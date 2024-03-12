@@ -35,11 +35,6 @@ export class FiatPayInSyncService {
     for (const payment of payments) {
       try {
         const checkoutTx = await this.createCheckoutTx(payment);
-        if (!DisabledProcess(Process.CREATE_TRANSACTION))
-          await this.transactionService.create({
-            sourceId: checkoutTx.id,
-            sourceType: TransactionSourceType.CHECKOUT_TX,
-          });
 
         if (checkoutTx.approved && !checkoutTx.buyCrypto)
           await this.checkoutTxService.createCheckoutBuyCrypto(checkoutTx);
@@ -54,13 +49,19 @@ export class FiatPayInSyncService {
 
     let entity = await this.checkoutTxRepo.findOne({
       where: { paymentId: tx.paymentId },
-      relations: { buyCrypto: true },
+      relations: { buyCrypto: true, transaction: true },
     });
     if (entity) {
       Object.assign(entity, tx);
     } else {
       entity = tx;
     }
+
+    if (!entity.transaction)
+      if (!DisabledProcess(Process.CREATE_TRANSACTION))
+        entity.transaction = await this.transactionService.create({
+          sourceType: TransactionSourceType.CHECKOUT_TX,
+        });
 
     return this.checkoutTxRepo.save(entity);
   }

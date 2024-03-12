@@ -1,4 +1,5 @@
 import { IEntity } from 'src/shared/models/entity';
+import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { Column, Entity, OneToOne } from 'typeorm';
 import { BuyCrypto } from '../../../core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../../../core/sell-crypto/process/buy-fiat.entity';
@@ -8,51 +9,53 @@ import { BankTx } from '../../bank-tx/bank-tx/bank-tx.entity';
 import { CheckoutTx } from '../../fiat-payin/entities/checkout-tx.entity';
 import { CryptoInput } from '../../payin/entities/crypto-input.entity';
 
-export enum TransactionType {
+export enum TransactionTypeInternal {
   BUY_CRYPTO = 'BuyCrypto',
   BUY_FIAT = 'BuyFiat',
+  CRYPTO_CRYPTO = 'CryptoCrypto',
   INTERNAL = 'Internal',
   BANK_TX_RETURN = 'BankTxReturn',
   BANK_TX_REPEAT = 'BankTxRepeat',
   BUY_CRYPTO_RETURN = 'BuyCryptoReturn',
-  STAKING = 'Staking',
+  REF_REWARD = 'RefReward',
 }
 
 export enum TransactionSourceType {
   BANK_TX = 'BankTx',
   CRYPTO_INPUT = 'CryptoInput',
   CHECKOUT_TX = 'CheckoutTx',
+  REF = 'Ref',
 }
 
 @Entity()
 export class Transaction extends IEntity {
-  @Column({ type: 'integer' })
-  sourceId: number;
-
   @Column({ length: 256 })
   sourceType: TransactionSourceType;
 
   @Column({ length: 256, nullable: true })
-  type?: TransactionType;
+  type?: TransactionTypeInternal;
 
-  @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.transaction, { eager: true, nullable: true })
+  @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.transaction, { eager: false, nullable: true })
   buyCrypto: BuyCrypto;
 
-  @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.transaction, { eager: true, nullable: true })
+  @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.transaction, { eager: false, nullable: true })
   buyFiat: BuyFiat;
 
-  @OneToOne(() => BankTxReturn, (bankTxReturn) => bankTxReturn.transaction, { eager: true, nullable: true })
+  @OneToOne(() => BankTxReturn, (bankTxReturn) => bankTxReturn.transaction, { eager: false, nullable: true })
   bankTxReturn: BankTxReturn;
 
-  @OneToOne(() => BankTxRepeat, (bankTxRepeat) => bankTxRepeat.transaction, { eager: true, nullable: true })
+  @OneToOne(() => BankTxRepeat, (bankTxRepeat) => bankTxRepeat.transaction, { eager: false, nullable: true })
   bankTxRepeat: BankTxRepeat;
 
-  @OneToOne(() => BankTx, (bankTx) => bankTx.transaction, { eager: true, nullable: true })
+  @OneToOne(() => RefReward, (refReward) => refReward.transaction, { eager: false, nullable: true })
+  refReward: RefReward;
+
+  @OneToOne(() => BankTx, (bankTx) => bankTx.transaction, { eager: false, nullable: true })
   bankTx: BankTx;
 
-  @OneToOne(() => CryptoInput, (cryptoInput) => cryptoInput.transaction, { eager: true, nullable: true })
+  @OneToOne(() => CryptoInput, (cryptoInput) => cryptoInput.transaction, { eager: false, nullable: true })
   cryptoInput: CryptoInput;
 
-  @OneToOne(() => CheckoutTx, (checkoutTx) => checkoutTx.transaction, { eager: true, nullable: true })
+  @OneToOne(() => CheckoutTx, (checkoutTx) => checkoutTx.transaction, { eager: false, nullable: true })
   checkoutTx: CheckoutTx;
 }
