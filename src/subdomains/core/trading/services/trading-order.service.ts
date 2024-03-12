@@ -64,7 +64,7 @@ export class TradingOrderService {
       correlationId: order.id.toString(),
       referenceAmount: order.amountIn,
       referenceAsset: order.assetIn,
-      targetAsset: order.assetOut,
+      targetAsset: order.assetIn,
     };
 
     const reservedLiquidity = await this.dexService.reserveLiquidity(reservationRequest);
