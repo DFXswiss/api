@@ -6,7 +6,6 @@ import { Active, isFiat } from 'src/shared/models/active';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
-import { In } from 'typeorm';
 import { MailContext, MailType } from '../../notification/enums';
 import { NotificationService } from '../../notification/services/notification.service';
 import { Price } from '../domain/entities/price';
@@ -20,22 +19,11 @@ import { FixerService } from './integration/fixer.service';
 import { PricingDexService } from './integration/pricing-dex.service';
 import { PricingFrankencoinService } from './integration/pricing-frankencoin.service';
 
-interface PriceRuleEntry {
-  active: Active;
-  rule: PriceRule;
-}
-
-interface PriceRuleCacheEntry {
-  active: Active;
-  ruleId: number;
-}
-
 @Injectable()
 export class PricingService {
   private readonly logger = new DfxLogger(PricingService);
 
   private readonly providerMap: { [s in PriceSource]: PricingProvider };
-  private readonly ruleCache = new Map<string, PriceRuleCacheEntry[]>();
   private readonly priceCache = new AsyncCache<Price>(10);
   private readonly updateCalls = new AsyncCache<PriceRule>(0);
 
@@ -101,11 +89,20 @@ export class PricingService {
 
   // --- PRIVATE METHODS --- //
   private async getPriceForActive(item: Active, allowExpired: boolean): Promise<Price> {
+    const rules: { active: Active; rule: PriceRule }[] = [];
+
     const times = [Date.now()];
 
-    const rules = (await this.getRulesFromCache(item)) ?? (await this.loadRulesFor(item));
+    let rule: PriceRule;
+    do {
+      const active = rule?.reference ?? item;
+      rule = await this.getRuleFor(active);
+      if (!rule) throw new Error(`No price rule found for ${this.getItemString(active)}`);
 
-    times.push(Date.now());
+      rules.push({ active, rule });
+
+      times.push(Date.now());
+    } while (rule.reference);
 
     const prices = await Promise.all(rules.map(({ active, rule }) => this.getPriceForRule(rule, allowExpired, active)));
 
@@ -113,46 +110,12 @@ export class PricingService {
 
     if (Date.now() - times[0] > 300 && allowExpired) {
       const timesString = times.map((t, i, a) => Util.round((t - (a[i - 1] ?? t)) / 1000, 3)).join(', ');
-      this.logger.verbose(`Price request times for ${item.name}: ${timesString}`);
+      this.logger.verbose(
+        `Price request times for ${item.name} (total ${Util.round((Date.now() - times[0]) / 1000, 3)}): ${timesString}`,
+      );
     }
 
     return Price.join(...prices);
-  }
-
-  private async getRulesFromCache(item: Active): Promise<PriceRuleEntry[] | undefined> {
-    const entries = this.ruleCache.get(this.getItemString(item));
-    if (!entries) return undefined;
-
-    const rules = await this.priceRuleRepo.findBy({ id: In(entries.map((e) => e.ruleId)) });
-
-    return entries.map((e) => ({ active: e.active, rule: rules.find((r) => r.id === e.ruleId) }));
-  }
-
-  private async loadRulesFor(item: Active): Promise<PriceRuleEntry[]> {
-    const rules: PriceRuleEntry[] = [];
-
-    let rule: PriceRule;
-    do {
-      const active = rule?.reference ?? item;
-      rule = await this.loadRuleFor(active);
-      if (!rule) throw new Error(`No price rule found for ${this.getItemString(active)}`);
-
-      rules.push({ active, rule });
-    } while (rule.reference);
-
-    this.ruleCache.set(
-      this.getItemString(item),
-      rules.map((e) => ({ active: e.active, ruleId: e.rule.id })),
-    );
-
-    return rules;
-  }
-
-  private async loadRuleFor(item: Active): Promise<PriceRule | undefined> {
-    const query = this.priceRuleRepo.createQueryBuilder('rule');
-    isFiat(item) ? query.innerJoin('rule.fiats', 'item') : query.innerJoin('rule.assets', 'item');
-
-    return query.leftJoinAndSelect('rule.reference', 'reference').where('item.id = :id', { id: item.id }).getOne();
   }
 
   private async getPriceForRule(rule: PriceRule, allowExpired: boolean, active?: Active): Promise<Price> {
@@ -174,6 +137,13 @@ export class PricingService {
     }
 
     return rule.price;
+  }
+
+  private async getRuleFor(item: Active): Promise<PriceRule | undefined> {
+    const query = this.priceRuleRepo.createQueryBuilder('rule');
+    isFiat(item) ? query.innerJoin('rule.fiats', 'item') : query.innerJoin('rule.assets', 'item');
+
+    return query.leftJoinAndSelect('rule.reference', 'reference').where('item.id = :id', { id: item.id }).getOne();
   }
 
   private async updatePriceFor(rule: PriceRule, from?: Active): Promise<PriceRule> {
