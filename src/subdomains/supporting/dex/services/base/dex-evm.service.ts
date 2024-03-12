@@ -8,8 +8,9 @@ import { Util } from 'src/shared/utils/util';
 import { LiquidityOrder } from '../../entities/liquidity-order.entity';
 import { PriceSlippageException } from '../../exceptions/price-slippage.exception';
 import { LiquidityOrderRepository } from '../../repositories/liquidity-order.repository';
+import { PurchaseDexService } from '../../strategies/purchase-liquidity/impl/base/purchase.strategy';
 
-export abstract class DexEvmService {
+export abstract class DexEvmService implements PurchaseDexService {
   #client: EvmClient;
 
   constructor(
