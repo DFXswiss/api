@@ -39,8 +39,4 @@ export abstract class PayInEvmService {
 
     return [allCoinTransactions, allTokenTransactions];
   }
-
-  fromWeiAmount(value: string, decimals?: number): number {
-    return this.#client.fromWeiAmount(value, decimals);
-  }
 }
