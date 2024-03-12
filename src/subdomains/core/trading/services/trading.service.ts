@@ -19,22 +19,20 @@ export class TradingService {
 
   async createTradingInfo(tradingRule: TradingRule): Promise<TradingInfoDto> {
     if (tradingRule.leftAsset.blockchain !== tradingRule.rightAsset.blockchain)
-      throw new Error(
-        `Blockchain mismatch: ${tradingRule.leftAsset.blockchain} and ${tradingRule.rightAsset.blockchain} in trading rule ${tradingRule.id}`,
-      );
+      throw new Error(`Blockchain mismatch in trading rule ${tradingRule.id}`);
 
-    const tradingInfo = await this.getPriceImpactForTrading(tradingRule);
+    let tradingInfo = await this.getPriceImpactForTrading(tradingRule);
 
     if (tradingInfo.priceImpact >= tradingRule.upperLimit) {
       tradingInfo.assetIn = tradingRule.leftAsset;
       tradingInfo.assetOut = tradingRule.rightAsset;
 
-      await this.calculateAmountForPriceImpact(tradingInfo);
+      tradingInfo = await this.calculateAmountForPriceImpact(tradingInfo);
     } else if (tradingInfo.priceImpact <= -tradingRule.lowerLimit) {
       tradingInfo.assetIn = tradingRule.rightAsset;
       tradingInfo.assetOut = tradingRule.leftAsset;
 
-      await this.calculateAmountForPriceImpact(tradingInfo);
+      tradingInfo = await this.calculateAmountForPriceImpact(tradingInfo);
     }
 
     return tradingInfo;
@@ -67,7 +65,7 @@ export class TradingService {
     return tradingInfo;
   }
 
-  private async calculateAmountForPriceImpact(tradingInfo: TradingInfoDto): Promise<void> {
+  private async calculateAmountForPriceImpact(tradingInfo: TradingInfoDto): Promise<TradingInfoDto> {
     const client = this.evmRegistryService.getClient(tradingInfo.assetIn.blockchain);
 
     const tokenIn = await client.getToken(tradingInfo.assetIn);
@@ -97,7 +95,7 @@ export class TradingService {
     if (checkPoolBalance <= amountIn)
       throw new Error(`Pool balance ${checkPoolBalance} is lower than start amount ${amountIn}`);
 
-    const quoterV2Contract = client.getUniswapQuoterV2Contract();
+    const quoterV2Contract = client.getQuoteContract();
 
     const quoterV2Params = {
       tokenIn: tokenIn.address,
@@ -134,13 +132,15 @@ export class TradingService {
 
       if (++currentLoopCounter > maxAllowedLoopCounter)
         throw new Error(
-          `Max allowed loop counter exceeded: checkPriceImpact ${checkPriceImpact}%, calcPriceImpact ${calcPriceImpact.toFixed(
+          `Max allowed loop counter exceeded: checkPriceImpact ${checkPriceImpact}, calcPriceImpact ${calcPriceImpact.toFixed(
             6,
-          )}%`,
+          )}`,
         );
     }
 
     tradingInfo.amountIn = amountIn;
+
+    return tradingInfo;
   }
 
   private async calculatePriceImpact(
@@ -159,7 +159,7 @@ export class TradingService {
   }
 
   private async getPoolContract(client: EvmClient, tradingInfo: TradingInfoDto): Promise<ethers.Contract> {
-    const poolAddress = await client.getUniswapPoolAddress(tradingInfo.assetIn, tradingInfo.assetOut);
-    return client.getUniswapPoolContract(poolAddress);
+    const poolAddress = await client.getPoolAddress(tradingInfo.assetIn, tradingInfo.assetOut);
+    return client.getPoolContract(poolAddress);
   }
 }

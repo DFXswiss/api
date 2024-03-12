@@ -128,17 +128,6 @@ export abstract class EvmClient {
     return contract.estimateGas.transfer(this.randomReceiverAddress, 1).then((l) => l.mul(12).div(10));
   }
 
-  async getUniswapPoolAddress(asset1: Asset, asset2: Asset): Promise<string> {
-    const token1 = await this.getToken(asset1);
-    const token2 = await this.getToken(asset2);
-
-    if (token1 instanceof Token && token2 instanceof Token) {
-      return Pool.getAddress(token1, token2, FeeAmount.LOWEST);
-    } else {
-      throw new Error(`Only tokens can be in a pool`);
-    }
-  }
-
   // --- PUBLIC API - WRITE TRANSACTIONS --- //
 
   async sendRawTransactionFromAccount(
@@ -256,6 +245,17 @@ export abstract class EvmClient {
   }
 
   // --- PUBLIC API - SWAPS --- //
+  async getPoolAddress(asset1: Asset, asset2: Asset): Promise<string> {
+    const token1 = await this.getToken(asset1);
+    const token2 = await this.getToken(asset2);
+
+    if (token1 instanceof Token && token2 instanceof Token) {
+      return Pool.getAddress(token1, token2, FeeAmount.LOWEST);
+    } else {
+      throw new Error(`Only tokens can be in a pool`);
+    }
+  }
+
   async testSwap(
     source: Asset,
     sourceAmount: number,
@@ -324,11 +324,11 @@ export abstract class EvmClient {
     return asset.type === AssetType.COIN ? Ether.onChain(this.chainId) : this.getTokenByAddress(asset.chainId);
   }
 
-  getUniswapPoolContract(poolAddress: string): Contract {
+  getPoolContract(poolAddress: string): Contract {
     return new ethers.Contract(poolAddress, IUniswapV3PoolABI.abi, this.wallet);
   }
 
-  getUniswapQuoterV2Contract(): Contract {
+  getQuoteContract(): Contract {
     return new ethers.Contract(this.quoteContractAddress, QuoterV2ABI.abi, this.wallet);
   }
 

@@ -53,28 +53,24 @@ export class TradingRuleService {
         return;
       }
 
-      const leftAsset = rule.leftAsset;
-      const rightAsset = rule.rightAsset;
+      if (rule.leftAsset.blockchain !== rule.rightAsset.blockchain) {
+        rule.deactivate();
+        await this.ruleRepo.save(rule);
 
-      leftAsset.blockchain === rightAsset.blockchain ? rule.processing() : rule.deactivate();
-      await this.ruleRepo.save(rule);
-
-      if (!rule.isProcessing()) {
-        throw new Error(
-          `Blockchain mismatch: ${leftAsset.blockchain} and ${rightAsset.blockchain} in trading rule ${rule.id}`,
-        );
+        throw new Error(`Blockchain mismatch in trading rule ${rule.id}`);
       }
 
       const tradingInfo = await this.tradingService.createTradingInfo(rule);
 
       if (tradingInfo.amountIn) {
-        const order = TradingOrder.create(rule, tradingInfo);
+        rule.processing();
+        await this.ruleRepo.save(rule);
 
+        const order = TradingOrder.create(rule, tradingInfo);
         await this.orderRepo.save(order);
       }
     } catch (e) {
-      const message = `Error processing trading rule ${rule.id}`;
-      this.logger.error(message, e);
+      this.logger.error(`Error processing trading rule ${rule.id}:`, e);
     }
   }
 }

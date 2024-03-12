@@ -37,8 +37,7 @@ export class TradingOrderService {
   private async executeOrder(order: TradingOrder): Promise<void> {
     try {
       if (!order.isCreated()) {
-        const message = `Could not execute order ${order.id}: status is ${order.status}`;
-        this.logger.info(message);
+        this.logger.info(`Could not execute order ${order.id}: status is ${order.status}`);
         return;
       }
 
@@ -50,7 +49,7 @@ export class TradingOrderService {
 
       this.logger.verbose(`Trading order ${order.id} in progress`);
     } catch (e) {
-      const message = `Execute trading order ${order.id}: ${e.message}`;
+      const message = `Failed to execute trading order ${order.id}: ${e.message}`;
       await this.handleOrderFail(order, message);
       this.logger.error(message, e);
     }
@@ -96,8 +95,6 @@ export class TradingOrderService {
   }
 
   private async checkRunningOrders(): Promise<void> {
-    this.logger.verbose('Trading Order: checkRunningOrders()');
-
     const runningOrders = await this.orderRepo.findBy({ status: TradingOrderStatus.IN_PROGRESS });
 
     for (const order of runningOrders) {
@@ -124,7 +121,7 @@ export class TradingOrderService {
         this.logger.verbose(`Trading order ${order.id} complete`);
       }
     } catch (e) {
-      const message = `Check trading order ${order.id}: ${e.message}`;
+      const message = `Failed to check trading order ${order.id}: ${e.message}`;
       await this.handleOrderFail(order, message);
       this.logger.error(message, e);
     }
