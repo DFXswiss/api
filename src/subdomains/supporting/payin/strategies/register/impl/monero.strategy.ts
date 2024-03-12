@@ -3,7 +3,6 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { MoneroTransferDto } from 'src/integration/blockchain/monero/dto/monero.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -15,7 +14,6 @@ import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { PayInEntry } from '../../../interfaces';
-import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInMoneroService } from '../../../services/payin-monero.service';
 import { RegisterStrategy } from './base/register.strategy';
 
@@ -23,12 +21,8 @@ import { RegisterStrategy } from './base/register.strategy';
 export class MoneroStrategy extends RegisterStrategy {
   protected logger: DfxLogger = new DfxLogger(MoneroStrategy);
 
-  constructor(
-    private readonly assetService: AssetService,
-    private readonly payInMoneroService: PayInMoneroService,
-    protected readonly payInRepository: PayInRepository,
-  ) {
-    super(payInRepository);
+  constructor(private readonly payInMoneroService: PayInMoneroService) {
+    super();
   }
 
   get blockchain(): Blockchain {
@@ -39,20 +33,6 @@ export class MoneroStrategy extends RegisterStrategy {
 
   async doAmlCheck(_: CryptoInput, route: Staking | Sell | CryptoRoute): Promise<CheckStatus> {
     return route.user.userData.kycLevel === KycLevel.REJECTED ? CheckStatus.FAIL : CheckStatus.PASS;
-  }
-
-  async addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void> {
-    for (const entry of entries) {
-      try {
-        const xmrAmount = entry.amount;
-        const usdtAmount = null;
-
-        await this.addReferenceAmountsToEntry(entry, xmrAmount, usdtAmount);
-      } catch (e) {
-        this.logger.error('Could not set reference amounts for Monero pay-in:', e);
-        continue;
-      }
-    }
   }
 
   //*** JOBS ***//
@@ -75,7 +55,6 @@ export class MoneroStrategy extends RegisterStrategy {
     const newEntries = await this.getNewEntries(lastCheckedBlockHeight);
 
     if (newEntries?.length) {
-      await this.addReferenceAmounts(newEntries);
       await this.createPayInsAndSave(newEntries, log);
     }
 
