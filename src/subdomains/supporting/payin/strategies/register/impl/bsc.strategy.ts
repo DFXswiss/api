@@ -3,7 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
-import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -24,27 +24,6 @@ export class BscStrategy extends EvmStrategy {
 
   get blockchain(): Blockchain {
     return Blockchain.BINANCE_SMART_CHAIN;
-  }
-
-  //*** PUBLIC API ***//
-
-  async getReferenceAssets(): Promise<{ btc: Asset; usdt: Asset }> {
-    return Promise.all([
-      this.assetService.getAssetByQuery({
-        dexName: 'BTCB',
-        blockchain: Blockchain.BINANCE_SMART_CHAIN,
-        type: AssetType.TOKEN,
-      }),
-      this.assetService.getAssetByQuery({
-        dexName: 'BUSD',
-        blockchain: Blockchain.BINANCE_SMART_CHAIN,
-        type: AssetType.TOKEN,
-      }),
-    ]).then(([btc, usdt]) => ({ btc, usdt }));
-  }
-
-  async getSourceAssetRepresentation(asset: Asset): Promise<Asset> {
-    return asset;
   }
 
   //*** HELPER METHODS ***//

@@ -33,7 +33,6 @@ export enum PayInStatus {
   PREPARING = 'Preparing',
   PREPARED = 'Prepared',
   COMPLETED = 'Completed',
-  WAITING_FOR_PRICE_REFERENCE = 'WaitingForPriceReference',
 }
 
 @Entity()

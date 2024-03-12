@@ -33,8 +33,6 @@ export abstract class EvmStrategy extends RegisterStrategy {
   }
 
   protected abstract getOwnAddresses(): string[];
-  protected abstract getReferenceAssets(): Promise<{ btc: Asset; usdt: Asset }>;
-  protected abstract getSourceAssetRepresentation(asset: Asset): Promise<Asset>;
 
   doAmlCheck(_: CryptoInput, route: Staking | Sell | CryptoRoute): CheckStatus {
     return route.user.userData.kycLevel === KycLevel.REJECTED ? CheckStatus.FAIL : CheckStatus.PASS;
