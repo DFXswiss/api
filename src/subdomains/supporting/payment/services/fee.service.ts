@@ -214,6 +214,21 @@ export class FeeService {
   // --- HELPER METHODS --- //
 
   private async calculateFee(fees: Fee[], blockchainFee: number, userDataId?: number): Promise<FeeDto> {
+    // get min special fee
+    const specialFee = Util.minObj(
+      fees.filter((fee) => fee.type === FeeType.SPECIAL),
+      'rate',
+    );
+
+    if (specialFee)
+      return {
+        fees: [specialFee],
+        rate: specialFee.rate,
+        fixed: specialFee.fixed ?? 0,
+        payoutRefBonus: specialFee.payoutRefBonus,
+        blockchain: Math.min(specialFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
+      };
+
     // get min custom fee
     const customFee = Util.minObj(
       fees.filter((fee) => fee.type === FeeType.CUSTOM),
@@ -230,21 +245,6 @@ export class FeeService {
         fixed: customFee.fixed ?? 0,
         payoutRefBonus: customFee.payoutRefBonus,
         blockchain: Math.min(customFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
-      };
-
-    // get min special fee
-    const specialFee = Util.minObj(
-      fees.filter((fee) => fee.type === FeeType.SPECIAL),
-      'rate',
-    );
-
-    if (specialFee)
-      return {
-        fees: [specialFee],
-        rate: specialFee.rate,
-        fixed: specialFee.fixed ?? 0,
-        payoutRefBonus: specialFee.payoutRefBonus,
-        blockchain: Math.min(specialFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
 
     // get min base fee
