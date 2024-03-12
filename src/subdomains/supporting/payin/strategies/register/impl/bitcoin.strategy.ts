@@ -2,7 +2,6 @@ import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -14,20 +13,15 @@ import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { PayInEntry } from '../../../interfaces';
-import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
-import { JellyfishStrategy } from './base/jellyfish.strategy';
+import { RegisterStrategy } from './base/register.strategy';
 
 @Injectable()
-export class BitcoinStrategy extends JellyfishStrategy {
+export class BitcoinStrategy extends RegisterStrategy {
   protected readonly logger = new DfxLogger(BitcoinStrategy);
 
-  constructor(
-    private readonly assetService: AssetService,
-    private readonly bitcoinService: PayInBitcoinService,
-    protected readonly payInRepository: PayInRepository,
-  ) {
-    super(payInRepository);
+  constructor(private readonly bitcoinService: PayInBitcoinService) {
+    super();
   }
 
   get blockchain(): Blockchain {
@@ -38,24 +32,6 @@ export class BitcoinStrategy extends JellyfishStrategy {
 
   async doAmlCheck(_: CryptoInput, route: Staking | Sell | CryptoRoute): Promise<CheckStatus> {
     return route.user.userData.kycLevel === KycLevel.REJECTED ? CheckStatus.FAIL : CheckStatus.PASS;
-  }
-
-  /**
-   * @note
-   * accepting CryptoInput (PayIn) entities for retry mechanism (see PayInService -> #retryGettingReferencePrices())
-   */
-  async addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void> {
-    for (const entry of entries) {
-      try {
-        const btcAmount = entry.amount;
-        const usdtAmount = null;
-
-        await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
-      } catch (e) {
-        this.logger.error('Could not set reference amounts for Bitcoin pay-in:', e);
-        continue;
-      }
-    }
   }
 
   //*** JOBS ***//
@@ -73,8 +49,6 @@ export class BitcoinStrategy extends JellyfishStrategy {
   private async processNewPayInEntries(): Promise<void> {
     const log = this.createNewLogObject();
     const newEntries = await this.getNewEntries();
-
-    await this.addReferenceAmounts(newEntries);
 
     await this.createPayInsAndSave(newEntries, log);
 

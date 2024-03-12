@@ -1,7 +1,7 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, ManyToOne } from 'typeorm';
-import { TradingInfoDto } from '../dto/trading.dto';
+import { TradingInfo } from '../dto/trading.dto';
 import { TradingOrderStatus } from '../enums';
 import { TradingRule } from './trading-rule.entity';
 
@@ -39,7 +39,7 @@ export class TradingOrder extends IEntity {
 
   // --- FACTORY --- //
 
-  static create(tradingRule: TradingRule, tradingInfo: TradingInfoDto): TradingOrder {
+  static create(tradingRule: TradingRule, tradingInfo: TradingInfo): TradingOrder {
     const order = new TradingOrder();
 
     order.status = TradingOrderStatus.CREATED;

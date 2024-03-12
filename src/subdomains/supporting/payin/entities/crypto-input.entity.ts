@@ -1,6 +1,5 @@
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { isBtcChain } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
@@ -34,7 +33,6 @@ export enum PayInStatus {
   PREPARING = 'Preparing',
   PREPARED = 'Prepared',
   COMPLETED = 'Completed',
-  WAITING_FOR_PRICE_REFERENCE = 'WaitingForPriceReference',
 }
 
 @Entity()
@@ -100,12 +98,6 @@ export class CryptoInput extends IEntity {
   @ManyToOne(() => DepositRoute, { eager: true, nullable: true })
   route: DepositRouteType;
 
-  @Column({ type: 'float', nullable: true })
-  btcAmount?: number;
-
-  @Column({ type: 'float', nullable: true })
-  usdtAmount?: number;
-
   //*** FACTORY METHODS ***//
 
   static create(
@@ -116,8 +108,6 @@ export class CryptoInput extends IEntity {
     blockHeight: number,
     amount: number,
     asset: Asset,
-    btcAmount: number,
-    usdtAmount: number,
   ): CryptoInput {
     const payIn = new CryptoInput();
 
@@ -130,8 +120,6 @@ export class CryptoInput extends IEntity {
     payIn.asset = asset;
 
     payIn.status = PayInStatus.CREATED;
-
-    payIn.addReferenceAmounts(btcAmount, usdtAmount);
 
     if (!payIn.asset || !payIn.amount) payIn.status = PayInStatus.FAILED;
 
@@ -256,25 +244,6 @@ export class CryptoInput extends IEntity {
     Object.assign(this, update);
 
     return [this.id, update];
-  }
-
-  addReferenceAmounts(btcAmount: number, usdtAmount: number): this {
-    if (btcAmount == null || (usdtAmount == null && !isBtcChain(this.address.blockchain))) {
-      this.status = PayInStatus.WAITING_FOR_PRICE_REFERENCE;
-      return this;
-    }
-
-    this.btcAmount = btcAmount;
-    this.usdtAmount = usdtAmount;
-
-    /**
-     * @note
-     * setting status to Created when reference amounts are added
-     * done here in addition to factory method for a retry getting reference amounts case and changing WAITING_FOR_PRICE_REFERENCE status
-     */
-    this.status = PayInStatus.CREATED;
-
-    return this;
   }
 
   get isLightningInput(): boolean {

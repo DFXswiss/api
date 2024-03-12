@@ -5,7 +5,7 @@ import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { TradingInfoDto } from '../dto/trading.dto';
+import { TradingInfo } from '../dto/trading.dto';
 import { TradingRule } from '../entities/trading-rule.entity';
 
 const START_AMOUNT_IN = 10000; // CHF
@@ -17,7 +17,7 @@ export class TradingService {
     private readonly pricingService: PricingService,
   ) {}
 
-  async createTradingInfo(tradingRule: TradingRule): Promise<TradingInfoDto> {
+  async createTradingInfo(tradingRule: TradingRule): Promise<TradingInfo> {
     if (tradingRule.leftAsset.blockchain !== tradingRule.rightAsset.blockchain)
       throw new Error(`Blockchain mismatch in trading rule ${tradingRule.id}`);
 
@@ -38,7 +38,7 @@ export class TradingService {
     return tradingInfo;
   }
 
-  private async getPriceImpactForTrading(tradingRule: TradingRule): Promise<TradingInfoDto> {
+  private async getPriceImpactForTrading(tradingRule: TradingRule): Promise<TradingInfo> {
     const price1 = await this.pricingService.getPriceFrom(
       tradingRule.source1,
       tradingRule.leftAsset1,
@@ -51,7 +51,7 @@ export class TradingService {
       tradingRule.rightAsset2,
     );
 
-    const tradingInfo: TradingInfoDto = {
+    const tradingInfo: TradingInfo = {
       price1: price1.price,
       price2: price2.price,
       priceImpact: 0,
@@ -65,7 +65,7 @@ export class TradingService {
     return tradingInfo;
   }
 
-  private async calculateAmountForPriceImpact(tradingInfo: TradingInfoDto): Promise<TradingInfoDto> {
+  private async calculateAmountForPriceImpact(tradingInfo: TradingInfo): Promise<TradingInfo> {
     const client = this.evmRegistryService.getClient(tradingInfo.assetIn.blockchain);
 
     const tokenIn = await client.getToken(tradingInfo.assetIn);
@@ -158,7 +158,7 @@ export class TradingService {
     return Math.abs(1 - sqrtPriceRatio) + 0.0001;
   }
 
-  private async getPoolContract(client: EvmClient, tradingInfo: TradingInfoDto): Promise<ethers.Contract> {
+  private async getPoolContract(client: EvmClient, tradingInfo: TradingInfo): Promise<ethers.Contract> {
     const poolAddress = await client.getPoolAddress(tradingInfo.assetIn, tradingInfo.assetOut);
     return client.getPoolContract(poolAddress);
   }
