@@ -3,6 +3,9 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { PurchaseLiquidityRequest, ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
+import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { TradingOrder } from '../entities/trading-order.entity';
 import { TradingOrderStatus } from '../enums';
 import { TradingOrderRepository } from '../repositories/trading-order.respository';
@@ -15,7 +18,7 @@ export class TradingOrderService {
   @Inject() private readonly ruleRepo: TradingRuleRepository;
   @Inject() private readonly orderRepo: TradingOrderRepository;
 
-  constructor(private readonly dexService: DexService) {}
+  constructor(private readonly dexService: DexService, private readonly notificationService: NotificationService) {}
 
   // --- PUBLIC API --- //
 
@@ -109,22 +112,36 @@ export class TradingOrderService {
         order.id.toString(),
       );
 
-      if (isComplete) {
-        await this.closeReservation(order);
-
-        order.complete();
-        await this.orderRepo.save(order);
-
-        const rule = order.tradingRule.reactivate();
-        await this.ruleRepo.save(rule);
-
-        this.logger.verbose(`Trading order ${order.id} complete`);
-      }
+      if (isComplete) await this.handleOrderCompletion(order);
     } catch (e) {
       const message = `Failed to check trading order ${order.id}: ${e.message}`;
       await this.handleOrderFail(order, message);
       this.logger.error(message, e);
     }
+  }
+
+  private async handleOrderCompletion(order: TradingOrder): Promise<void> {
+    await this.closeReservation(order);
+
+    order.complete();
+    await this.orderRepo.save(order);
+
+    const rule = order.tradingRule.reactivate();
+    await this.ruleRepo.save(rule);
+
+    const message = `Trading order ${order.id} complete: swapped ${order.amountIn} ${order.assetIn.uniqueName} to ${order.assetOut.uniqueName}`;
+    this.logger.verbose(message);
+
+    // send mail
+    const mailRequest: MailRequest = {
+      type: MailType.ERROR_MONITORING,
+      input: {
+        subject: 'Trading order SUCCESS',
+        errors: [message],
+      },
+    };
+
+    await this.notificationService.sendMail(mailRequest);
   }
 
   private async handleOrderFail(order: TradingOrder, message: string): Promise<void> {
@@ -135,5 +152,16 @@ export class TradingOrderService {
 
     const rule = order.tradingRule.pause();
     await this.ruleRepo.save(rule);
+
+    // send mail
+    const mailRequest: MailRequest = {
+      type: MailType.ERROR_MONITORING,
+      input: {
+        subject: 'Trading order FAIL',
+        errors: [message],
+      },
+    };
+
+    await this.notificationService.sendMail(mailRequest);
   }
 }
