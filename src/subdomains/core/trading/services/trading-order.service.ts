@@ -61,7 +61,7 @@ export class TradingOrderService {
   private async reserveLiquidity(order: TradingOrder): Promise<void> {
     const reservationRequest: ReserveLiquidityRequest = {
       context: LiquidityOrderContext.TRADING,
-      correlationId: order.id.toString(),
+      correlationId: this.correlationId(order, true),
       referenceAmount: order.amountIn,
       referenceAsset: order.assetIn,
       targetAsset: order.assetIn,
@@ -74,13 +74,14 @@ export class TradingOrderService {
   }
 
   private async closeReservation(order: TradingOrder): Promise<void> {
-    return this.dexService.completeOrders(LiquidityOrderContext.TRADING, order.id.toString());
+    await this.dexService.completeOrders(LiquidityOrderContext.TRADING, this.correlationId(order, true));
+    await this.dexService.completeOrders(LiquidityOrderContext.TRADING, this.correlationId(order, false));
   }
 
   private async purchaseLiquidity(order: TradingOrder): Promise<void> {
     const purchaseRequest: PurchaseLiquidityRequest = {
       context: LiquidityOrderContext.TRADING,
-      correlationId: order.id.toString(),
+      correlationId: this.correlationId(order, false),
       referenceAmount: order.amountIn,
       referenceAsset: order.assetIn,
       targetAsset: order.assetOut,
@@ -90,7 +91,7 @@ export class TradingOrderService {
 
     const { txId } = await this.dexService.fetchLiquidityTransactionResult(
       LiquidityOrderContext.TRADING,
-      order.id.toString(),
+      this.correlationId(order, false),
     );
 
     order.txId = txId;
@@ -107,12 +108,12 @@ export class TradingOrderService {
 
   private async checkOrder(order: TradingOrder): Promise<void> {
     try {
-      const { isComplete } = await this.dexService.checkOrderCompletion(
+      const { isReady } = await this.dexService.checkOrderReady(
         LiquidityOrderContext.TRADING,
-        order.id.toString(),
+        this.correlationId(order, false),
       );
 
-      if (isComplete) await this.handleOrderCompletion(order);
+      if (isReady) await this.handleOrderCompletion(order);
     } catch (e) {
       const message = `Failed to check trading order ${order.id}: ${e.message}`;
       await this.handleOrderFail(order, message);
@@ -163,5 +164,9 @@ export class TradingOrderService {
     };
 
     await this.notificationService.sendMail(mailRequest);
+  }
+
+  private correlationId(order: TradingOrder, isReservation: boolean): string {
+    return `${order.id}${isReservation ? '-reservation' : ''}`;
   }
 }
