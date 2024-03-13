@@ -8,11 +8,11 @@ import { Util } from 'src/shared/utils/util';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { IsNull, LessThan, MoreThanOrEqual } from 'typeorm';
+import { IsNull, LessThan, MoreThanOrEqual, Not } from 'typeorm';
 import { KycLevel, UserData } from '../../user/models/user-data/user-data.entity';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { KycStep } from '../entities/kyc-step.entity';
-import { KycStepStatus } from '../enums/kyc.enum';
+import { KycStepName, KycStepStatus } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 
 @Injectable()
@@ -36,6 +36,7 @@ export class KycNotificationService {
     const entities = await this.kycStepRepo.find({
       where: {
         reminderSentDate: IsNull(),
+        name: Not(KycStepName.CONTACT_DATA),
         status: KycStepStatus.IN_PROGRESS,
         updated: LessThan(Util.daysBefore(Config.kyc.reminderAfterDays)),
         userData: { kycLevel: MoreThanOrEqual(0) },
