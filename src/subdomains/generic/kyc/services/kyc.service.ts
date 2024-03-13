@@ -424,7 +424,7 @@ export class KycService {
       throw new NotFoundException();
     }
 
-    return { user: kycStep.userData, stepId: kycStep.id };
+    return { user: await this.getUser(kycStep.userData.kycHash), stepId: kycStep.id };
   }
 
   private async saveUser(user: UserData): Promise<UserData> {
