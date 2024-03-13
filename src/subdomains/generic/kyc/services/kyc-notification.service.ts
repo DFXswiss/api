@@ -11,7 +11,6 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { IsNull, LessThan, MoreThanOrEqual, Not } from 'typeorm';
 import { KycLevel, UserData } from '../../user/models/user-data/user-data.entity';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
-import { KycStep } from '../entities/kyc-step.entity';
 import { KycStepName, KycStepStatus } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 
@@ -91,13 +90,13 @@ export class KycNotificationService {
     }
   }
 
-  async identFailed(entity: KycStep, reason: string): Promise<void> {
+  async identFailed(userData: UserData, reason: string): Promise<void> {
     try {
-      if ((entity.userData.mail, !DisabledProcess(Process.KYC_MAIL))) {
+      if ((userData.mail, !DisabledProcess(Process.KYC_MAIL))) {
         await this.notificationService.sendMail({
           type: MailType.USER,
           input: {
-            userData: entity.userData,
+            userData: userData,
             title: `${MailTranslationKey.KYC_FAILED}.title`,
             salutation: { key: `${MailTranslationKey.KYC_FAILED}.salutation` },
             suffix: [
@@ -112,14 +111,14 @@ export class KycNotificationService {
               {
                 key: `${MailTranslationKey.KYC}.retry`,
                 params: {
-                  url: entity.userData.kycUrl,
-                  urlText: entity.userData.kycUrl,
+                  url: userData.kycUrl,
+                  urlText: userData.kycUrl,
                 },
               },
               {
                 key: `${MailTranslationKey.GENERAL}.button`,
                 params: {
-                  url: entity.userData.kycUrl,
+                  url: userData.kycUrl,
                 },
               },
               { key: MailKey.SPACE, params: { value: '2' } },
@@ -129,14 +128,14 @@ export class KycNotificationService {
           },
         });
       } else {
-        !entity.userData.mail &&
-          this.logger.warn(`Failed to send ident failed mail for user data ${entity.userData.id}: user has no email`);
+        !userData.mail &&
+          this.logger.warn(`Failed to send ident failed mail for user data ${userData.id}: user has no email`);
       }
 
       // KYC webhook external services
-      await this.webhookService.kycFailed(entity.userData, reason);
+      await this.webhookService.kycFailed(userData, reason);
     } catch (e) {
-      this.logger.error(`Failed to send ident failed mail or webhook ${entity.id}:`, e);
+      this.logger.error(`Failed to send ident failed mail or webhook ${userData.id}:`, e);
     }
   }
 

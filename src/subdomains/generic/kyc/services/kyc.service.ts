@@ -201,7 +201,7 @@ export class KycService {
     switch (getIdentResult(dto)) {
       case IdentShortResult.CANCEL:
         user = user.pauseStep(kycStep, dto);
-        await this.kycNotificationService.identFailed(kycStep, reason);
+        await this.kycNotificationService.identFailed(user, reason);
         break;
 
       case IdentShortResult.ABORT:
@@ -220,7 +220,7 @@ export class KycService {
       case IdentShortResult.FAIL:
         user = user.failStep(kycStep, dto);
         await this.downloadIdentDocuments(user, kycStep, 'fail/');
-        await this.kycNotificationService.identFailed(kycStep, reason);
+        await this.kycNotificationService.identFailed(user, reason);
         break;
 
       default:
