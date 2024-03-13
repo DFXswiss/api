@@ -477,15 +477,27 @@ export class BuyCrypto extends IEntity {
       this.target.asset.buyable &&
       this.user.isPaymentStatusEnabled &&
       this.userData.isPaymentStatusEnabled &&
+      this.userData.isPaymentKycStatusEnabled &&
       this.userData.kycType === KycType.DFX &&
-      this.userData.id === bankDataUserDataId &&
-      this.userData.isPaymentKycStatusEnabled && //
+      (this.cryptoInput || this.userData.id === bankDataUserDataId) &&
       this.userData.verifiedName &&
       this.userData.lastNameCheckDate &&
       Util.daysDiff(this.userData.lastNameCheckDate) <= Config.amlCheckLastNameCheckValidity &&
       last30dVolume <= Config.tradingLimits.monthlyDefault &&
       (last24hVolume <= Config.tradingLimits.dailyDefault || this.isKycAmlPass(amountInChf)) &&
-      (this.bankTx ? this.isBankTxAmlPass(blacklist, instantBanks) : this.isCheckoutTxAmlPass(blacklist))
+      (this.bankTx
+        ? this.isBankTxAmlPass(blacklist, instantBanks)
+        : this.checkoutTx
+        ? this.isCheckoutTxAmlPass(blacklist)
+        : this.isCryptoCryptoAmlPass())
+    );
+  }
+
+  isCryptoCryptoAmlPass(): boolean {
+    return (
+      this.cryptoInput.amlCheck === CheckStatus.PASS &&
+      this.cryptoInput.isConfirmed &&
+      this.userData.cryptoCryptoAllowed
     );
   }
 

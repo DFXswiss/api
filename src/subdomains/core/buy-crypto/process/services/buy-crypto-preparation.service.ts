@@ -4,8 +4,11 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { SpecialExternalBankAccount } from 'src/subdomains/supporting/bank/special-external-bank-account/special-external-bank-account.entity';
 import { SpecialExternalBankAccountService } from 'src/subdomains/supporting/bank/special-external-bank-account/special-external-bank-account.service';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -38,15 +41,12 @@ export class BuyCryptoPreparationService {
   ) {}
 
   async doAmlCheck(): Promise<void> {
-    // Atm only for bankTx, checkoutTx BuyCrypto
     const entities = await this.buyCryptoRepo.find({
       where: {
         amlCheck: IsNull(),
         amlReason: IsNull(),
         inputAmount: Not(IsNull()),
         inputAsset: Not(IsNull()),
-        cryptoInput: IsNull(),
-        buy: Not(IsNull()),
         status: IsNull(),
       },
       relations: {
@@ -54,6 +54,7 @@ export class BuyCryptoPreparationService {
         checkoutTx: true,
         cryptoInput: true,
         buy: { user: { wallet: true, userData: { users: true } } },
+        cryptoRoute: { user: { wallet: true, userData: { users: true } } },
       },
     });
     if (entities.length === 0) return;
@@ -67,9 +68,11 @@ export class BuyCryptoPreparationService {
 
     for (const entity of entities) {
       try {
+        const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
         const inputReferenceCurrency =
           entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputReferenceAsset));
-        const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
+
+        const inputReferenceAssetChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
 
         const { minVolume } = await this.transactionHelper.getTxFeeInfos(
           entity.inputReferenceAmount,
@@ -79,17 +82,6 @@ export class BuyCryptoPreparationService {
           entity.paymentMethodIn,
           CryptoPaymentMethod.CRYPTO,
           entity.user,
-        );
-
-        const inputReferenceAssetChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
-
-        const multiAccountIbans = await this.specialExternalBankAccountService.getMultiAccountIbans();
-        const bankData = await this.bankDataService.getBankDataWithIban(
-          entity.bankTx
-            ? entity.bankTx.senderAccount(multiAccountIbans.map((m) => m.iban))
-            : entity.checkoutTx.cardFingerPrint,
-          undefined,
-          true,
         );
 
         const last24hVolume = await this.transactionHelper.getVolumeChfSince(
@@ -108,8 +100,7 @@ export class BuyCryptoPreparationService {
           entity.userData.users,
         );
 
-        const blacklist = await this.specialExternalBankAccountService.getBlacklist();
-        const instantBanks = await this.bankService.getInstantBanks();
+        const { bankData, blacklist, instantBanks } = await this.getAmlCheckInput(entity);
 
         await this.buyCryptoRepo.update(
           ...entity.amlCheckAndFillUp(
@@ -291,5 +282,25 @@ export class BuyCryptoPreparationService {
     }
 
     return transactions;
+  }
+
+  private async getAmlCheckInput(
+    entity: BuyCrypto,
+  ): Promise<{ bankData: BankData; blacklist: SpecialExternalBankAccount[]; instantBanks: Bank[] }> {
+    if (entity.cryptoInput) return { bankData: undefined, blacklist: undefined, instantBanks: undefined };
+
+    const multiAccountIbans = await this.specialExternalBankAccountService.getMultiAccountIbans();
+    const bankData = await this.bankDataService.getBankDataWithIban(
+      entity.bankTx
+        ? entity.bankTx.senderAccount(multiAccountIbans.map((m) => m.iban))
+        : entity.checkoutTx.cardFingerPrint,
+      undefined,
+      true,
+    );
+
+    const blacklist = await this.specialExternalBankAccountService.getBlacklist();
+    const instantBanks = await this.bankService.getInstantBanks();
+
+    return { bankData, blacklist, instantBanks };
   }
 }
