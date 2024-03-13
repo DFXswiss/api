@@ -135,7 +135,7 @@ export class KycNotificationService {
       // KYC webhook external services
       await this.webhookService.kycFailed(userData, reason);
     } catch (e) {
-      this.logger.error(`Failed to send ident failed mail or webhook ${userData.id}:`, e);
+      this.logger.error(`Failed to send ident failed mail or webhook for user data ${userData.id}:`, e);
     }
   }
 
