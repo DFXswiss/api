@@ -131,18 +131,20 @@ export class TransactionHelper implements OnModuleInit {
       to,
       inputReferenceAmount,
       fromReference,
-      specs.minFee,
       [],
     );
 
     const txSpecReferenceSource = await this.convertToSource(
       fromReference,
-      { ...specs, fixedFee: fee.fixed, minFee: fee.blockchain },
+      { ...specs, fixedFee: fee.fixed, blockchainFee: fee.blockchain },
       false,
     );
 
     const percentFeeAmount = inputReferenceAmount * fee.rate;
-    const feeAmount = Math.max(percentFeeAmount + txSpecReferenceSource.fixedFee, txSpecReferenceSource.minFee);
+    const feeAmount = Math.max(
+      percentFeeAmount + txSpecReferenceSource.fixedFee + txSpecReferenceSource.blockchainFee,
+      txSpecReferenceSource.minFee,
+    );
 
     return {
       minVolume: this.round(txSpecReferenceSource.minVolume, isFiat(from)),
@@ -151,6 +153,7 @@ export class TransactionHelper implements OnModuleInit {
         fixed: this.round(txSpecReferenceSource.fixedFee, isFiat(from)),
         min: this.round(txSpecReferenceSource.minFee, isFiat(from)),
         total: this.round(feeAmount, isFiat(from)),
+        blockchain: this.round(txSpecReferenceSource.blockchainFee, isFiat(from)),
       },
     };
   }
@@ -178,7 +181,6 @@ export class TransactionHelper implements OnModuleInit {
       to,
       targetAmount ?? sourceAmount,
       targetAmount ? to : from,
-      specs.minFee,
       discountCodes,
     );
 
@@ -186,7 +188,7 @@ export class TransactionHelper implements OnModuleInit {
 
     const extendedSpecs = {
       ...specs,
-      minFee: fee.blockchain,
+      blockchainFee: fee.blockchain,
       maxVolume: [paymentMethodIn, paymentMethodOut].includes(FiatPaymentMethod.CARD)
         ? Math.min(user?.userData.availableTradingLimit ?? Infinity, Config.tradingLimits.cardDefault)
         : user?.userData.availableTradingLimit ?? Config.tradingLimits.yearlyDefault,
@@ -285,7 +287,6 @@ export class TransactionHelper implements OnModuleInit {
     to: Active,
     txVolume: number,
     txAsset: Active,
-    minFeeChf: number,
     discountCodes: string[],
   ): Promise<FeeDto> {
     const price = await this.pricingService.getPrice(txAsset, this.chf, true);
@@ -299,7 +300,6 @@ export class TransactionHelper implements OnModuleInit {
       from,
       to,
       txVolume: txVolumeInChf,
-      blockchainFee: minFeeChf,
       discountCodes,
     };
 
@@ -341,7 +341,7 @@ export class TransactionHelper implements OnModuleInit {
 
   private async convertToSource(
     from: Active,
-    { minFee, minVolume, maxVolume, fixedFee }: TxSpecExtended,
+    { minFee, minVolume, maxVolume, fixedFee, blockchainFee }: TxSpecExtended,
     allowExpiredPrice: boolean,
   ): Promise<TxSpecExtended> {
     const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice).then((p) => p.invert());
@@ -353,12 +353,13 @@ export class TransactionHelper implements OnModuleInit {
       minVolume: this.convert(minVolume, price, isFiat(from)),
       maxVolume: maxVolumeSource && this.roundMaxAmount(maxVolumeSource, isFiat(from)),
       fixedFee: fixedFee && this.convert(fixedFee, price, isFiat(from)),
+      blockchainFee: blockchainFee && this.convert(blockchainFee, price, isFiat(from)),
     };
   }
 
   private async convertToTarget(
     to: Active,
-    { minFee, minVolume, maxVolume, fixedFee }: TxSpecExtended,
+    { minFee, minVolume, maxVolume, fixedFee, blockchainFee }: TxSpecExtended,
     allowExpiredPrice: boolean,
   ): Promise<TxSpecExtended> {
     const price = await this.pricingService.getPrice(this.chf, to, allowExpiredPrice);
@@ -370,6 +371,7 @@ export class TransactionHelper implements OnModuleInit {
       minVolume: this.convert(minVolume, price, isFiat(to)),
       maxVolume: maxVolumeTarget && this.roundMaxAmount(maxVolumeTarget, isFiat(to)),
       fixedFee: fixedFee && this.convert(fixedFee, price, isFiat(to)),
+      blockchainFee: blockchainFee && this.convert(blockchainFee, price, isFiat(to)),
     };
   }
 

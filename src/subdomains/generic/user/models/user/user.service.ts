@@ -316,7 +316,6 @@ export class UserService {
       from,
       to,
       txVolume: undefined,
-      blockchainFee: minFee,
       discountCodes: [],
     });
   }

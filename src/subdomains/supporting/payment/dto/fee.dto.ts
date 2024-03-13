@@ -6,4 +6,6 @@ export class FeeDto {
   fixed: number; // final fixed fee
   blockchain: number; // final blockchain fee
   payoutRefBonus: boolean;
+  min?: number;
+  total?: number;
 }

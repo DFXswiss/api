@@ -46,7 +46,6 @@ export interface FeeRequestBase {
   from: Active;
   to: Active;
   txVolume?: number;
-  blockchainFee: number;
   discountCodes: string[];
 }
 
@@ -191,7 +190,7 @@ export class FeeService {
     const userFees = await this.getValidFees(request);
 
     try {
-      return await this.calculateFee(userFees, request.blockchainFee, request.user.userData?.id);
+      return await this.calculateFee(userFees, request.from, request.to, request.user.userData?.id);
     } catch (e) {
       this.logger.error(`Fee exception, request: ${JSON.stringify(request)}`);
       throw e;
@@ -202,7 +201,7 @@ export class FeeService {
     const defaultFees = await this.getValidFees({ ...request, accountType });
 
     try {
-      return await this.calculateFee(defaultFees, request.blockchainFee);
+      return await this.calculateFee(defaultFees, request.from, request.to);
     } catch (e) {
       this.logger.error(`Fee exception, request: ${JSON.stringify(request)}`);
       throw e;
@@ -211,15 +210,14 @@ export class FeeService {
 
   // --- HELPER METHODS --- //
 
-  private async calculateFee(fees: Fee[], blockchainFee: number, userDataId?: number): Promise<FeeDto> {
+  private async calculateFee(fees: Fee[], from: Active, to: Active, userDataId?: number): Promise<FeeDto> {
     // get min custom fee
     const customFee = Util.minObj(
       fees.filter((fee) => fee.type === FeeType.CUSTOM),
       'rate',
     );
 
-    // TODO: reactivate
-    // const blockchainFee = (await this.getBlockchainFee(from)) + (await this.getBlockchainFee(to));
+    const blockchainFee = (await this.getBlockchainFee(from)) + (await this.getBlockchainFee(to));
 
     if (customFee)
       return {
