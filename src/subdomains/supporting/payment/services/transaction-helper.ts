@@ -14,7 +14,7 @@ import { MinAmount } from 'src/subdomains/supporting/payment/dto/min-amount.dto'
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PricingService } from '../../pricing/services/pricing.service';
-import { FeeDto } from '../dto/fee.dto';
+import { InternalFeeDto } from '../dto/fee.dto';
 import { FiatPaymentMethod, PaymentMethod } from '../dto/payment-method.enum';
 import { TargetEstimation, TransactionDetails } from '../dto/transaction-details.dto';
 import { TransactionError } from '../dto/transaction-error.enum';
@@ -288,7 +288,7 @@ export class TransactionHelper implements OnModuleInit {
     txVolume: number,
     txAsset: Active,
     discountCodes: string[],
-  ): Promise<FeeDto> {
+  ): Promise<InternalFeeDto> {
     const price = await this.pricingService.getPrice(txAsset, this.chf, true);
 
     const txVolumeInChf = price.convert(txVolume);

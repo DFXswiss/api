@@ -19,7 +19,7 @@ import { In, IsNull, MoreThan, MoreThanOrEqual } from 'typeorm';
 import { PayoutService } from '../../payout/services/payout.service';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { CreateFeeDto } from '../dto/create-fee.dto';
-import { FeeDto } from '../dto/fee.dto';
+import { InternalFeeDto } from '../dto/fee.dto';
 import { PaymentMethod } from '../dto/payment-method.enum';
 import { Fee, FeeType } from '../entities/fee.entity';
 import { BlockchainFeeRepository } from '../repositories/blockchain-fee.repository';
@@ -186,7 +186,7 @@ export class FeeService {
     return fee;
   }
 
-  async getUserFee(request: UserFeeRequest): Promise<FeeDto> {
+  async getUserFee(request: UserFeeRequest): Promise<InternalFeeDto> {
     const userFees = await this.getValidFees(request);
 
     try {
@@ -197,7 +197,7 @@ export class FeeService {
     }
   }
 
-  async getDefaultFee(request: FeeRequestBase, accountType = AccountType.PERSONAL): Promise<FeeDto> {
+  async getDefaultFee(request: FeeRequestBase, accountType = AccountType.PERSONAL): Promise<InternalFeeDto> {
     const defaultFees = await this.getValidFees({ ...request, accountType });
 
     try {
@@ -210,7 +210,7 @@ export class FeeService {
 
   // --- HELPER METHODS --- //
 
-  private async calculateFee(fees: Fee[], from: Active, to: Active, userDataId?: number): Promise<FeeDto> {
+  private async calculateFee(fees: Fee[], from: Active, to: Active, userDataId?: number): Promise<InternalFeeDto> {
     // get min custom fee
     const customFee = Util.minObj(
       fees.filter((fee) => fee.type === FeeType.CUSTOM),
