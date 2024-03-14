@@ -56,7 +56,10 @@ export class CheckoutTxService {
   }
 
   async getCheckoutTxWithoutTransaction(): Promise<CheckoutTx[]> {
-    return this.checkoutTxRepo.find({ where: { transaction: IsNull() }, relations: { transaction: true } });
+    return this.checkoutTxRepo.find({
+      where: { transaction: IsNull() },
+      relations: { transaction: true, buyCrypto: true },
+    });
   }
 
   async getSyncDate(): Promise<Date> {

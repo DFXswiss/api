@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
@@ -19,6 +20,8 @@ import { TransactionService } from './transaction.service';
 
 @Injectable()
 export class TransactionJobService {
+  private readonly logger = new DfxLogger(TransactionJobService);
+
   constructor(
     private readonly bankTxService: BankTxService,
     private readonly payInService: PayInService,
@@ -33,21 +36,25 @@ export class TransactionJobService {
   async synchronizeTransactions(): Promise<void> {
     if (DisabledProcess(Process.SYNCHRONIZE_TRANSACTION)) return;
 
-    const sortedUnassignedTx = Util.sort(
-      [
-        ...(await this.bankTxService.getBankTxWithoutTransaction()),
-        ...(await this.payInService.getCryptoInputWithoutTransaction()),
-        ...(await this.checkoutTxService.getCheckoutTxWithoutTransaction()),
-        ...(await this.refRewardService.getRewardsWithoutTransaction()),
-      ],
-      'created',
-    );
+    try {
+      const sortedUnassignedTx = Util.sort(
+        [
+          ...(await this.bankTxService.getBankTxWithoutTransaction()),
+          ...(await this.payInService.getCryptoInputWithoutTransaction()),
+          ...(await this.checkoutTxService.getCheckoutTxWithoutTransaction()),
+          ...(await this.refRewardService.getRewardsWithoutTransaction()),
+        ],
+        'created',
+      );
 
-    for (const unassignedTx of sortedUnassignedTx) {
-      await this.transactionService.create({
-        sourceType: this.getSourceType(unassignedTx),
-        ...this.getTypeAndEntity(unassignedTx),
-      });
+      for (const unassignedTx of sortedUnassignedTx) {
+        await this.transactionService.create({
+          sourceType: this.getSourceType(unassignedTx),
+          ...this.getTypeAndEntity(unassignedTx),
+        });
+      }
+    } catch (e) {
+      this.logger.error(`Error during synchronize transactions:`, e);
     }
   }
 
@@ -55,22 +62,22 @@ export class TransactionJobService {
     if (tx instanceof BankTx) {
       const type = TransactionBankTxTypeMapper[tx.type];
       return tx.type === BankTxType.BANK_TX_RETURN
-        ? { type, bankTxReturn: tx.bankTxReturn }
+        ? { type, bankTxReturn: tx.bankTxReturn, bankTx: tx }
         : tx.type === BankTxType.BANK_TX_REPEAT
-        ? { type, bankTxRepeat: tx.bankTxRepeat }
+        ? { type, bankTxRepeat: tx.bankTxRepeat, bankTx: tx }
         : tx.type === BankTxType.BUY_CRYPTO
-        ? { type, buyCrypto: tx.buyCrypto }
-        : null;
+        ? { type, buyCrypto: tx.buyCrypto, bankTx: tx }
+        : { type, bankTx: tx };
     }
     return tx instanceof RefReward
       ? { type: TransactionTypeInternal.REF_REWARD, refReward: tx }
       : tx instanceof CheckoutTx
-      ? { type: TransactionTypeInternal.BUY_CRYPTO, buyCrypto: tx.buyCrypto }
+      ? { type: TransactionTypeInternal.BUY_CRYPTO, buyCrypto: tx.buyCrypto, checkoutTx: tx }
       : tx.route instanceof Sell
-      ? { type: TransactionTypeInternal.BUY_FIAT, buyFiat: tx.buyFiat }
+      ? { type: TransactionTypeInternal.BUY_FIAT, buyFiat: tx.buyFiat, cryptoInput: tx }
       : tx.route instanceof CryptoRoute
-      ? { type: TransactionTypeInternal.CRYPTO_CRYPTO, buyCrypto: tx.buyCrypto }
-      : null;
+      ? { type: TransactionTypeInternal.CRYPTO_CRYPTO, buyCrypto: tx.buyCrypto, cryptoInput: tx }
+      : {};
   }
 
   private getSourceType(tx: BankTx | CryptoInput | CheckoutTx | RefReward): TransactionSourceType {

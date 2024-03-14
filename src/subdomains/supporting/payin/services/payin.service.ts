@@ -49,7 +49,7 @@ export class PayInService {
   async getCryptoInputWithoutTransaction(): Promise<CryptoInput[]> {
     return this.payInRepository.find({
       where: { transaction: IsNull(), route: { type: In([RouteType.SELL, RouteType.CRYPTO]) } },
-      relations: { transaction: true },
+      relations: { transaction: true, buyCrypto: true, buyFiat: true },
     });
   }
 

@@ -33,7 +33,7 @@ export class Transaction extends IEntity {
   sourceType: TransactionSourceType;
 
   @Column({ length: 256, nullable: true })
-  type?: TransactionTypeInternal;
+  type: TransactionTypeInternal;
 
   @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.transaction, { nullable: true })
   buyCrypto: BuyCrypto;
