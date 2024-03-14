@@ -94,6 +94,8 @@ export class BuyController {
       minVolumeTarget,
       maxVolume,
       maxVolumeTarget,
+      feeSource,
+      feeTarget,
       isValid,
       error,
     } = await this.transactionHelper.getTxDetails(
@@ -118,6 +120,8 @@ export class BuyController {
       maxVolume,
       minVolumeTarget,
       maxVolumeTarget,
+      fee: feeSource,
+      feeTarget,
       isValid,
       error,
     };
@@ -164,7 +168,7 @@ export class BuyController {
   }
 
   private async toDto(userId: number, buy: Buy): Promise<BuyDto> {
-    const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
+    const { minDeposit } = this.transactionHelper.getDefaultSpecs(
       'Fiat',
       undefined,
       buy.asset.blockchain,
@@ -177,7 +181,6 @@ export class BuyController {
       CryptoPaymentMethod.CRYPTO,
       await this.fiatService.getFiatByName('EUR'),
       buy.asset,
-      minFee.amount,
     );
 
     return {
@@ -212,6 +215,8 @@ export class BuyController {
       isValid,
       error,
       exactPrice,
+      feeSource,
+      feeTarget,
     } = await this.transactionHelper.getTxDetails(
       dto.amount,
       dto.targetAmount,
@@ -232,6 +237,8 @@ export class BuyController {
       minFee,
       minVolumeTarget,
       minFeeTarget,
+      feeSource,
+      feeTarget,
       exchangeRate,
       rate,
       exactPrice,

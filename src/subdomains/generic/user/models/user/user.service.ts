@@ -20,7 +20,7 @@ import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto
 import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { KycDataMapper } from 'src/subdomains/generic/kyc/dto/mapper/kyc-data.mapper';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
+import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
@@ -304,8 +304,7 @@ export class UserService {
     paymentMethodOut: PaymentMethod,
     from: Active,
     to: Active,
-    minFee: number,
-  ): Promise<FeeDto> {
+  ): Promise<InternalFeeDto> {
     const user = await this.getUser(userId, { userData: true });
     if (!user) throw new NotFoundException('User not found');
 

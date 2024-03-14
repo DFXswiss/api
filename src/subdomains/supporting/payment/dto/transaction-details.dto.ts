@@ -1,4 +1,4 @@
-import { FeeDto } from './fee.dto';
+import { BaseFeeDto, FeeDto } from './fee.dto';
 import { TransactionError } from './transaction-error.enum';
 
 export interface TargetEstimation {
@@ -17,7 +17,9 @@ export interface TransactionDetails extends TargetEstimation {
   minVolumeTarget: number;
   maxVolume: number;
   maxVolumeTarget: number;
-  fee: FeeDto;
+  fee: BaseFeeDto;
+  feeSource: FeeDto;
+  feeTarget: FeeDto;
   isValid: boolean;
   error?: TransactionError;
 }

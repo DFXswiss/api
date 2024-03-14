@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
+import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/min-amount.dto';
 import { TransactionError } from 'src/subdomains/supporting/payment/dto/transaction-error.enum';
 
@@ -17,11 +18,14 @@ export class CryptoPaymentInfoDto {
   @ApiProperty({ type: MinAmount, deprecated: true })
   minDeposit: MinAmount;
 
-  @ApiProperty({ description: 'Fee in percentage' })
+  @ApiProperty({ description: 'Fee in percentage', deprecated: true })
   fee: number;
 
-  @ApiProperty({ description: 'Minimum fee in source asset' })
+  @ApiProperty({ description: 'Minimum fee in source asset', deprecated: true })
   minFee: number;
+
+  @ApiProperty({ description: 'Fee dto in source asset' })
+  feeSource: FeeDto;
 
   @ApiProperty({ description: 'Minimum volume in source asset' })
   minVolume: number;
@@ -35,8 +39,11 @@ export class CryptoPaymentInfoDto {
   @ApiProperty({ type: AssetDto, description: 'Source asset' })
   sourceAsset: AssetDto;
 
-  @ApiProperty({ description: 'Minimum fee in target asset' })
+  @ApiProperty({ description: 'Minimum fee in target asset', deprecated: true })
   minFeeTarget: number;
+
+  @ApiProperty({ description: 'Fee dto in target asset' })
+  feeTarget: FeeDto;
 
   @ApiProperty({ description: 'Minimum volume in target asset' })
   minVolumeTarget: number;

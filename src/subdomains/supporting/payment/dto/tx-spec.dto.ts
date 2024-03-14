@@ -7,4 +7,5 @@ export interface TxSpecExtended extends TxSpec {
   maxVolume?: number;
   fixedFee?: number;
   blockchainFee?: number;
+  totalFee?: number;
 }

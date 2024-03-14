@@ -1,6 +1,6 @@
-import { InternalFeeDto } from './fee.dto';
+import { FeeDto, InternalFeeDto } from './fee.dto';
 
 export interface TxFeeDetails {
   minVolume: number;
-  fee: InternalFeeDto;
+  fee: InternalFeeDto & FeeDto;
 }

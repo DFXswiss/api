@@ -252,6 +252,20 @@ export class TransactionHelper implements OnModuleInit {
       maxVolumeTarget: txSpecTarget.maxVolume ?? undefined,
       minVolumeTarget: txSpecTarget.minVolume,
       fee,
+      feeSource: {
+        ...fee,
+        blockchain: txSpecSource.blockchainFee,
+        fixed: txSpecSource.fixedFee,
+        min: txSpecSource.minFee,
+        total: txSpecSource.totalFee,
+      },
+      feeTarget: {
+        ...fee,
+        blockchain: txSpecTarget.blockchainFee,
+        fixed: txSpecTarget.fixedFee,
+        min: txSpecTarget.minFee,
+        total: txSpecTarget.totalFee,
+      },
       isValid: error == null,
       error,
     };
@@ -341,7 +355,7 @@ export class TransactionHelper implements OnModuleInit {
 
   private async convertToSource(
     from: Active,
-    { minFee, minVolume, maxVolume, fixedFee, blockchainFee }: TxSpecExtended,
+    { minFee, minVolume, maxVolume, fixedFee, blockchainFee, totalFee }: TxSpecExtended,
     allowExpiredPrice: boolean,
   ): Promise<TxSpecExtended> {
     const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice).then((p) => p.invert());
@@ -354,12 +368,13 @@ export class TransactionHelper implements OnModuleInit {
       maxVolume: maxVolumeSource && this.roundMaxAmount(maxVolumeSource, isFiat(from)),
       fixedFee: fixedFee && this.convert(fixedFee, price, isFiat(from)),
       blockchainFee: blockchainFee && this.convert(blockchainFee, price, isFiat(from)),
+      totalFee: totalFee && this.convert(totalFee, price, isFiat(from)),
     };
   }
 
   private async convertToTarget(
     to: Active,
-    { minFee, minVolume, maxVolume, fixedFee, blockchainFee }: TxSpecExtended,
+    { minFee, minVolume, maxVolume, fixedFee, blockchainFee, totalFee }: TxSpecExtended,
     allowExpiredPrice: boolean,
   ): Promise<TxSpecExtended> {
     const price = await this.pricingService.getPrice(this.chf, to, allowExpiredPrice);
@@ -372,6 +387,7 @@ export class TransactionHelper implements OnModuleInit {
       maxVolume: maxVolumeTarget && this.roundMaxAmount(maxVolumeTarget, isFiat(to)),
       fixedFee: fixedFee && this.convert(fixedFee, price, isFiat(to)),
       blockchainFee: blockchainFee && this.convert(blockchainFee, price, isFiat(to)),
+      totalFee: totalFee && this.convert(totalFee, price, isFiat(to)),
     };
   }
 
