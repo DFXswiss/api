@@ -105,10 +105,10 @@ export class CryptoInput extends IEntity {
   @JoinColumn()
   transaction: Transaction;
 
-  @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.cryptoInput, { eager: false, nullable: true })
+  @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.cryptoInput, { nullable: true })
   buyFiat: BuyFiat;
 
-  @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.cryptoInput, { eager: false, nullable: true })
+  @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.cryptoInput, { nullable: true })
   buyCrypto: BuyCrypto;
 
   //*** FACTORY METHODS ***//

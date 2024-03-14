@@ -27,10 +27,10 @@ export class TransactionJobService {
     private readonly refRewardService: RefRewardService,
   ) {}
 
-  // --- CHECK BUY FIAT --- //
+  // --- SYNCHRONIZE TRANSACTIONS --- //
   @Cron(CronExpression.EVERY_30_MINUTES)
   @Lock(7200)
-  async addFiatOutputs(): Promise<void> {
+  async synchronizeTransactions(): Promise<void> {
     if (DisabledProcess(Process.SYNCHRONIZE_TRANSACTION)) return;
 
     const sortedUnassignedTx = Util.sort(

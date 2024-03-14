@@ -35,27 +35,27 @@ export class Transaction extends IEntity {
   @Column({ length: 256, nullable: true })
   type?: TransactionTypeInternal;
 
-  @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.transaction, { eager: false, nullable: true })
+  @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.transaction, { nullable: true })
   buyCrypto: BuyCrypto;
 
-  @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.transaction, { eager: false, nullable: true })
+  @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.transaction, { nullable: true })
   buyFiat: BuyFiat;
 
-  @OneToOne(() => BankTxReturn, (bankTxReturn) => bankTxReturn.transaction, { eager: false, nullable: true })
+  @OneToOne(() => BankTxReturn, (bankTxReturn) => bankTxReturn.transaction, { nullable: true })
   bankTxReturn: BankTxReturn;
 
-  @OneToOne(() => BankTxRepeat, (bankTxRepeat) => bankTxRepeat.transaction, { eager: false, nullable: true })
+  @OneToOne(() => BankTxRepeat, (bankTxRepeat) => bankTxRepeat.transaction, { nullable: true })
   bankTxRepeat: BankTxRepeat;
 
-  @OneToOne(() => RefReward, (refReward) => refReward.transaction, { eager: false, nullable: true })
+  @OneToOne(() => RefReward, (refReward) => refReward.transaction, { nullable: true })
   refReward: RefReward;
 
-  @OneToOne(() => BankTx, (bankTx) => bankTx.transaction, { eager: false, nullable: true })
+  @OneToOne(() => BankTx, (bankTx) => bankTx.transaction, { nullable: true })
   bankTx: BankTx;
 
-  @OneToOne(() => CryptoInput, (cryptoInput) => cryptoInput.transaction, { eager: false, nullable: true })
+  @OneToOne(() => CryptoInput, (cryptoInput) => cryptoInput.transaction, { nullable: true })
   cryptoInput: CryptoInput;
 
-  @OneToOne(() => CheckoutTx, (checkoutTx) => checkoutTx.transaction, { eager: false, nullable: true })
+  @OneToOne(() => CheckoutTx, (checkoutTx) => checkoutTx.transaction, { nullable: true })
   checkoutTx: CheckoutTx;
 }
