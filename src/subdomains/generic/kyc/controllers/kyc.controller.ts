@@ -158,7 +158,7 @@ export class KycController {
     try {
       await this.kycService.updateIdent(data);
     } catch (e) {
-      this.logger.error(`Failed to handle ident webhook call for session ${data.identificationprocess.id}`);
+      this.logger.error(`Failed to handle ident webhook call for session ${data.identificationprocess.id}:`, e);
       throw new InternalServerErrorException(e.message);
     }
   }

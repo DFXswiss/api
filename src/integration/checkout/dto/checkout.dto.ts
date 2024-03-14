@@ -98,6 +98,7 @@ export interface CheckoutPayment {
     bin: string;
     card_type: CheckoutCardType;
     card_category: CheckoutCardCategory;
+    issuer: string;
     issuer_country: string;
     product_id: string;
     product_type: string;
