@@ -5,7 +5,6 @@ import { CheckoutService } from 'src/integration/checkout/services/checkout.serv
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { Util } from 'src/shared/utils/util';
 import { CheckoutTx } from '../entities/checkout-tx.entity';
 import { CheckoutTxRepository } from '../repositories/checkout-tx.repository';
 import { CheckoutTxService } from './checkout-tx.service';
@@ -27,7 +26,8 @@ export class FiatPayInSyncService {
   async syncCheckout() {
     if (DisabledProcess(Process.FIAT_PAY_IN)) return;
 
-    const payments = await this.checkoutService.getPayments(Util.minutesBefore(10));
+    const syncDate = await this.checkoutTxService.getSyncDate();
+    const payments = await this.checkoutService.getPayments(syncDate);
 
     for (const payment of payments) {
       try {
@@ -70,7 +70,11 @@ export class FiatPayInSyncService {
       description: payment.description,
       type: payment.payment_type,
       cardName: payment.source?.name,
+      cardBin: payment.source?.bin,
+      cardLast4: payment.source?.last4,
       cardFingerPrint: payment.source?.fingerprint,
+      cardIssuer: payment.source?.issuer,
+      cardIssuerCountry: payment.source?.issuer_country,
       ip: payment.payment_ip,
       risk: payment.risk?.flagged,
       riskScore: payment.risk?.score,

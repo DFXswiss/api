@@ -2,6 +2,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { TradeChangedException } from 'src/integration/exchange/exceptions/trade-changed.exception';
 import { ExchangeService } from 'src/integration/exchange/services/exchange.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { LiquidityManagementOrder } from '../../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../../enums';
@@ -94,13 +95,17 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     const asset = order.pipeline.rule.targetAsset.dexName;
 
     const balance = await this.exchangeService.getBalance(asset);
+    const amount = Util.round(order.amount * 1.01 - balance, 8); // small cap for price changes
 
     try {
-      // small cap for price changes
-      return await this.exchangeService.buy(tradeAsset, asset, order.amount * 1.01 - balance);
+      return await this.exchangeService.buy(tradeAsset, asset, amount);
     } catch (e) {
       if (e.message?.includes('not enough balance')) {
         throw new OrderNotProcessableException(e.message);
+      }
+
+      if (e.message?.includes('Illegal characters found')) {
+        throw new Error(`Invalid trade request, ${amount} ${tradeAsset} to ${asset}: ${e.message}`);
       }
 
       throw e;

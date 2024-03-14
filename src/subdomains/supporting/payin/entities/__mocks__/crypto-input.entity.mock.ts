@@ -10,8 +10,6 @@ const defaultCryptoInput: Partial<CryptoInput> = {
   returnTxId: null,
   blockHeight: 42,
   amount: 0.00005,
-  btcAmount: 0.00005,
-  usdtAmount: 1,
   asset: createDefaultAsset(),
   route: createDefaultSell(),
   isConfirmed: false,

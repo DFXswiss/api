@@ -179,4 +179,8 @@ export class UpdateBuyFiatDto {
   @IsOptional()
   @IsBoolean()
   highRisk: boolean;
+
+  @IsOptional()
+  @IsString()
+  comment: string;
 }

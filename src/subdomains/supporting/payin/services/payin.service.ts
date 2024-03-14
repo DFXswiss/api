@@ -111,14 +111,6 @@ export class PayInService {
 
   @Cron(CronExpression.EVERY_MINUTE)
   @Lock(7200)
-  async retryGettingReferencePrices(): Promise<void> {
-    if (DisabledProcess(Process.PAY_IN)) return;
-
-    await this.retryPayIns();
-  }
-
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(7200)
   async checkInputConfirmations(): Promise<void> {
     if (DisabledProcess(Process.PAY_IN)) return;
 
@@ -182,29 +174,6 @@ export class PayInService {
       try {
         const strategy = group[0];
         await strategy.doSend(group[1], SendType.RETURN);
-      } catch {
-        continue;
-      }
-    }
-  }
-
-  private async retryPayIns(): Promise<void> {
-    const payIns = await this.payInRepository.find({
-      where: {
-        status: PayInStatus.WAITING_FOR_PRICE_REFERENCE,
-        asset: Not(IsNull()),
-      },
-      relations: ['route', 'asset'],
-    });
-
-    if (payIns.length === 0) return;
-
-    const groups = this.groupByStrategies(payIns, (a) => this.registerStrategyRegistry.getRegisterStrategy(a));
-
-    for (const group of groups.entries()) {
-      try {
-        const strategy = group[0];
-        await strategy.addReferenceAmounts(group[1]);
       } catch {
         continue;
       }

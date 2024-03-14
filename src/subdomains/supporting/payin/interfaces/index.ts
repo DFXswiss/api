@@ -9,6 +9,4 @@ export interface PayInEntry {
   blockHeight: number | null;
   amount: number;
   asset: Asset | null;
-  btcAmount?: number;
-  usdtAmount?: number;
 }
