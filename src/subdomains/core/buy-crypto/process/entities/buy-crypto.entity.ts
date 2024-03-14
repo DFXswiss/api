@@ -518,11 +518,13 @@ export class BuyCrypto extends IEntity {
         if (!this.userData.olkypayAllowed) errors.push('InstantNotAllowed');
         if (!this.target.asset.instantBuyable) errors.push('AssetNotInstantBuyable');
       }
+      if (this.user.status === UserStatus.NA && this.hasSuspiciousMail) errors.push('SuspiciousMail');
     } else if (this.checkoutTx) {
       // checkout
       if (!this.target.asset.cardBuyable) errors.push('AssetNotCardBuyable');
       if (blacklist.some((b) => b.iban && b.iban === this.checkoutTx.cardFingerPrint)) errors.push('CardBlacklisted');
       if (this.user.status === UserStatus.NA && this.checkoutTx.ip !== this.user.ip) errors.push('IpMismatch');
+      if (this.user.status === UserStatus.NA && this.hasSuspiciousMail) errors.push('SuspiciousMail');
     } else {
       // crypto input
       if (this.cryptoInput.amlCheck !== CheckStatus.PASS) errors.push('InputAmlFailed');
@@ -531,6 +533,10 @@ export class BuyCrypto extends IEntity {
     }
 
     return errors;
+  }
+
+  private hasSuspiciousMail(): boolean {
+    return (this.userData.mail?.split('@')[0].match(/\d/g) || []).length > 2;
   }
 
   resetAmlCheck(): UpdateResult<BuyCrypto> {
