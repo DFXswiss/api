@@ -183,7 +183,7 @@ export class BuyCrypto extends IEntity {
   @Column({ default: false })
   isComplete: boolean;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 'MAX', nullable: true })
   comment: string;
 
   @OneToOne(() => TransactionRequest, { nullable: true })
@@ -442,7 +442,7 @@ export class BuyCrypto extends IEntity {
     const { usedRef, refProvision } = this.user.specifiedRef;
     const amountInChf = chfReferencePrice.convert(this.inputReferenceAmount, 2);
 
-    const amlError = this.getAmlError(
+    const amlErrors = this.getAmlErrors(
       minVolume,
       amountInChf,
       last24hVolume,
@@ -452,23 +452,25 @@ export class BuyCrypto extends IEntity {
       instantBanks,
     );
 
-    const update: Partial<BuyCrypto> = !amlError
-      ? {
-          usedRef,
-          refProvision,
-          refFactor: usedRef === '000-000' ? 0 : 1,
-          amlCheck: CheckStatus.PASS,
-        }
-      : Util.minutesDiff(this.created) >= 10
-      ? { amlCheck: CheckStatus.GSHEET, comment: amlError }
-      : {};
+    const comment = amlErrors.join(';');
+    const update: Partial<BuyCrypto> =
+      amlErrors.length === 0
+        ? {
+            usedRef,
+            refProvision,
+            refFactor: usedRef === '000-000' ? 0 : 1,
+            amlCheck: CheckStatus.PASS,
+          }
+        : Util.minutesDiff(this.created) >= 10
+        ? { amlCheck: CheckStatus.GSHEET, comment }
+        : { comment };
 
     Object.assign(this, update);
 
     return [this.id, update];
   }
 
-  private getAmlError(
+  private getAmlErrors(
     minVolume: number,
     amountInChf: number,
     last24hVolume: number,
@@ -476,53 +478,52 @@ export class BuyCrypto extends IEntity {
     bankDataUserDataId: number,
     blacklist: SpecialExternalBankAccount[],
     instantBanks: Bank[],
-  ): string | undefined {
-    if (this.inputReferenceAmount < minVolume * 0.9) return 'MinVolumeNotReached';
-    if (!this.target.asset.buyable) return 'AssetNotBuyable';
-    if (!this.user.isPaymentStatusEnabled) return 'InvalidUserStatus';
-    if (!this.userData.isPaymentStatusEnabled) return 'InvalidUserDataStatus';
-    if (!this.userData.isPaymentKycStatusEnabled) return 'InvalidKycStatus';
-    if (this.userData.kycType !== KycType.DFX) return 'InvalidKycType';
-    if (!this.cryptoInput && this.userData.id !== bankDataUserDataId) return 'BankDataUserMismatch';
-    if (!this.userData.verifiedName) return 'NoVerifiedName';
-    if (!this.userData.lastNameCheckDate) return 'NoNameCheck';
+  ): string[] {
+    const errors = [];
+
+    if (this.inputReferenceAmount < minVolume * 0.9) errors.push('MinVolumeNotReached');
+    if (!this.target.asset.buyable) errors.push('AssetNotBuyable');
+    if (!this.user.isPaymentStatusEnabled) errors.push('InvalidUserStatus');
+    if (!this.userData.isPaymentStatusEnabled) errors.push('InvalidUserDataStatus');
+    if (!this.userData.isPaymentKycStatusEnabled) errors.push('InvalidKycStatus');
+    if (this.userData.kycType !== KycType.DFX) errors.push('InvalidKycType');
+    if (!this.cryptoInput && this.userData.id !== bankDataUserDataId) errors.push('BankDataUserMismatch');
+    if (!this.userData.verifiedName) errors.push('NoVerifiedName');
+    if (!this.userData.lastNameCheckDate) errors.push('NoNameCheck');
     if (Util.daysDiff(this.userData.lastNameCheckDate) > Config.amlCheckLastNameCheckValidity)
-      return 'OutdatedNameCheck';
-    if (last30dVolume > Config.tradingLimits.monthlyDefault) return 'MonthlyLimitReached';
+      errors.push('OutdatedNameCheck');
+    if (last30dVolume > Config.tradingLimits.monthlyDefault) errors.push('MonthlyLimitReached');
     if (last24hVolume > Config.tradingLimits.dailyDefault) {
       // KYC required
-      if (this.userData.kycLevel < KycLevel.LEVEL_50) return 'KycLevelTooLow';
-      if (!this.userData.hasBankTxVerification) return 'NoBankTxVerification';
-      if (!this.userData.letterSentDate) return 'NoLetter';
-      if (!this.userData.amlListAddedDate) return 'NoAmlList';
-      if (!this.userData.kycFileId) return 'NoKycFileId';
-      if (this.userData.annualBuyVolume + amountInChf > this.userData.depositLimit) return 'DepositLimitReached';
+      if (this.userData.kycLevel < KycLevel.LEVEL_50) errors.push('KycLevelTooLow');
+      if (!this.userData.hasBankTxVerification) errors.push('NoBankTxVerification');
+      if (!this.userData.letterSentDate) errors.push('NoLetter');
+      if (!this.userData.amlListAddedDate) errors.push('NoAmlList');
+      if (!this.userData.kycFileId) errors.push('NoKycFileId');
+      if (this.userData.annualBuyVolume + amountInChf > this.userData.depositLimit) errors.push('DepositLimitReached');
     }
 
-    if (this.bankTx) return this.getBankTxAmlError(blacklist, instantBanks);
-    if (this.checkoutTx) return this.getCheckoutTxAmlError(blacklist);
-    return this.getCryptoCryptoAmlError();
-  }
-
-  private getBankTxAmlError(blacklist: SpecialExternalBankAccount[], instantBanks: Bank[]): string | undefined {
-    if (!this.userData.verifiedCountry) return 'NoVerifiedCountry';
-    if (blacklist.some((b) => b.bic && b.bic === this.bankTx.bic)) return 'BicBlacklisted';
-    if (blacklist.some((b) => b.iban && b.iban === this.bankTx.iban)) return 'IbanBlacklisted';
-    if (instantBanks.some((b) => b.iban === this.bankTx.accountIban)) {
-      if (!this.userData.olkypayAllowed) return 'InstantNotAllowed';
-      if (!this.target.asset.instantBuyable) return 'AssetNotInstantBuyable';
+    if (this.bankTx) {
+      // bank
+      if (!this.userData.verifiedCountry) errors.push('NoVerifiedCountry');
+      if (blacklist.some((b) => b.bic && b.bic === this.bankTx.bic)) errors.push('BicBlacklisted');
+      if (blacklist.some((b) => b.iban && b.iban === this.bankTx.iban)) errors.push('IbanBlacklisted');
+      if (instantBanks.some((b) => b.iban === this.bankTx.accountIban)) {
+        if (!this.userData.olkypayAllowed) errors.push('InstantNotAllowed');
+        if (!this.target.asset.instantBuyable) errors.push('AssetNotInstantBuyable');
+      }
+    } else if (this.checkoutTx) {
+      // checkout
+      if (!this.target.asset.cardBuyable) errors.push('AssetNotCardBuyable');
+      if (blacklist.some((b) => b.iban && b.iban === this.checkoutTx.cardFingerPrint)) errors.push('CardBlacklisted');
+    } else {
+      // crypto input
+      if (this.cryptoInput.amlCheck !== CheckStatus.PASS) errors.push('InputAmlFailed');
+      if (!this.cryptoInput.isConfirmed) errors.push('InputNotConfirmed');
+      if (!this.userData.cryptoCryptoAllowed) errors.push('CryptoNotAllowed');
     }
-  }
 
-  private getCheckoutTxAmlError(blacklist: SpecialExternalBankAccount[]): string | undefined {
-    if (!this.target.asset.cardBuyable) return 'AssetNotCardBuyable';
-    if (blacklist.some((b) => b.iban && b.iban === this.checkoutTx.cardFingerPrint)) return 'CardBlacklisted';
-  }
-
-  private getCryptoCryptoAmlError(): string | undefined {
-    if (this.cryptoInput.amlCheck !== CheckStatus.PASS) return 'InputAmlFailed';
-    if (!this.cryptoInput.isConfirmed) return 'InputNotConfirmed';
-    if (!this.userData.cryptoCryptoAllowed) return 'CryptoNotAllowed';
+    return errors;
   }
 
   resetAmlCheck(): UpdateResult<BuyCrypto> {
