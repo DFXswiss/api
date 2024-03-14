@@ -487,7 +487,13 @@ export class BuyCrypto extends IEntity {
     if (!this.userData.isPaymentStatusEnabled) errors.push('InvalidUserDataStatus');
     if (!this.userData.isPaymentKycStatusEnabled) errors.push('InvalidKycStatus');
     if (this.userData.kycType !== KycType.DFX) errors.push('InvalidKycType');
-    if (!this.cryptoInput && this.userData.id !== bankDataUserDataId) errors.push('BankDataUserMismatch');
+    if (!this.cryptoInput) {
+      if (!bankDataUserDataId) {
+        errors.push('BankDataMissing');
+      } else if (this.userData.id !== bankDataUserDataId) {
+        errors.push('BankDataUserMismatch');
+      }
+    }
     if (!this.userData.verifiedName) errors.push('NoVerifiedName');
     if (!this.userData.lastNameCheckDate) errors.push('NoNameCheck');
     if (Util.daysDiff(this.userData.lastNameCheckDate) > Config.amlCheckLastNameCheckValidity)
