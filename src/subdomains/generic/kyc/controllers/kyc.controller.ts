@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Get,
   Headers,
+  InternalServerErrorException,
   Param,
   Post,
   Put,
@@ -153,7 +154,13 @@ export class KycController {
   @ApiExcludeEndpoint()
   async identWebhook(@RealIP() ip: string, @Body() data: IdentResultDto) {
     this.checkWebhookIp(ip, data);
-    await this.kycService.updateIdent(data);
+
+    try {
+      await this.kycService.updateIdent(data);
+    } catch (e) {
+      this.logger.error(`Failed to handle ident webhook call for session ${data.identificationprocess.id}:`, e);
+      throw new InternalServerErrorException(e.message);
+    }
   }
 
   @Get('ident/:type/:channel/:status')

@@ -236,9 +236,12 @@ export abstract class EvmClient {
 
     const transaction = await contract.populateTransaction.approve(contractAddress, ethers.constants.MaxInt256);
 
+    const gasPrice = await this.getRecommendedGasPrice();
+
     const tx = await this.wallet.sendTransaction({
       ...transaction,
       from: this.dfxAddress,
+      gasPrice,
     });
 
     return tx.hash;
@@ -275,11 +278,14 @@ export abstract class EvmClient {
   async swap(sourceToken: Asset, sourceAmount: number, targetToken: Asset, maxSlippage: number): Promise<string> {
     const route = await this.getRoute(sourceToken, targetToken, sourceAmount, maxSlippage);
 
+    const gasPrice = await this.getRecommendedGasPrice();
+
     const tx = await this.wallet.sendTransaction({
       data: route.methodParameters?.calldata,
       to: this.swapContractAddress,
       value: route.methodParameters?.value,
       from: this.dfxAddress,
+      gasPrice,
     });
 
     return tx.hash;
