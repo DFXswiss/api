@@ -487,13 +487,6 @@ export class BuyCrypto extends IEntity {
     if (!this.userData.isPaymentStatusEnabled) errors.push('InvalidUserDataStatus');
     if (!this.userData.isPaymentKycStatusEnabled) errors.push('InvalidKycStatus');
     if (this.userData.kycType !== KycType.DFX) errors.push('InvalidKycType');
-    if (!this.cryptoInput) {
-      if (!bankDataUserDataId) {
-        errors.push('BankDataMissing');
-      } else if (this.userData.id !== bankDataUserDataId) {
-        errors.push('BankDataUserMismatch');
-      }
-    }
     if (!this.userData.verifiedName) errors.push('NoVerifiedName');
     if (!this.userData.verifiedCountry) errors.push('NoVerifiedCountry');
     if (!this.userData.lastNameCheckDate) errors.push('NoNameCheck');
@@ -510,6 +503,15 @@ export class BuyCrypto extends IEntity {
       if (this.userData.annualBuyVolume + amountInChf > this.userData.depositLimit) errors.push('DepositLimitReached');
     }
 
+    if (!this.cryptoInput) {
+      if (!bankDataUserDataId) {
+        errors.push('BankDataMissing');
+      } else if (this.userData.id !== bankDataUserDataId) {
+        errors.push('BankDataUserMismatch');
+      }
+      if (this.user.status === UserStatus.NA && this.userData.hasSuspiciousMail) errors.push('SuspiciousMail');
+    }
+
     if (this.bankTx) {
       // bank
       if (blacklist.some((b) => b.bic && b.bic === this.bankTx.bic)) errors.push('BicBlacklisted');
@@ -518,13 +520,11 @@ export class BuyCrypto extends IEntity {
         if (!this.userData.olkypayAllowed) errors.push('InstantNotAllowed');
         if (!this.target.asset.instantBuyable) errors.push('AssetNotInstantBuyable');
       }
-      if (this.user.status === UserStatus.NA && this.hasSuspiciousMail) errors.push('SuspiciousMail');
     } else if (this.checkoutTx) {
       // checkout
       if (!this.target.asset.cardBuyable) errors.push('AssetNotCardBuyable');
       if (blacklist.some((b) => b.iban && b.iban === this.checkoutTx.cardFingerPrint)) errors.push('CardBlacklisted');
       if (this.user.status === UserStatus.NA && this.checkoutTx.ip !== this.user.ip) errors.push('IpMismatch');
-      if (this.user.status === UserStatus.NA && this.hasSuspiciousMail) errors.push('SuspiciousMail');
     } else {
       // crypto input
       if (this.cryptoInput.amlCheck !== CheckStatus.PASS) errors.push('InputAmlFailed');
@@ -533,10 +533,6 @@ export class BuyCrypto extends IEntity {
     }
 
     return errors;
-  }
-
-  private hasSuspiciousMail(): boolean {
-    return (this.userData.mail?.split('@')[0].match(/\d/g) || []).length > 2;
   }
 
   resetAmlCheck(): UpdateResult<BuyCrypto> {
