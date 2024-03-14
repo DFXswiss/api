@@ -150,4 +150,8 @@ export class UpdateBuyCryptoDto {
   @IsOptional()
   @IsBoolean()
   highRisk: boolean;
+
+  @IsOptional()
+  @IsString()
+  comment: string;
 }

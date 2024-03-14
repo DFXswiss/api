@@ -124,6 +124,7 @@ export class BuyFiatService {
         ? { amlCheck: update.amlCheck, mailSendDate: null }
         : undefined),
       isComplete: dto.isComplete,
+      comment: update.comment,
     };
     entity = await this.buyFiatRepo.save(Object.assign(new BuyFiat(), { ...update, ...entity, ...forceUpdate }));
 
