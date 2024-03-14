@@ -8,11 +8,10 @@ import { Util } from 'src/shared/utils/util';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { IsNull, LessThan, MoreThanOrEqual } from 'typeorm';
+import { IsNull, LessThan, MoreThanOrEqual, Not } from 'typeorm';
 import { KycLevel, UserData } from '../../user/models/user-data/user-data.entity';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
-import { KycStep } from '../entities/kyc-step.entity';
-import { KycStepStatus } from '../enums/kyc.enum';
+import { KycStepName, KycStepStatus } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 
 @Injectable()
@@ -36,6 +35,7 @@ export class KycNotificationService {
     const entities = await this.kycStepRepo.find({
       where: {
         reminderSentDate: IsNull(),
+        name: Not(KycStepName.CONTACT_DATA),
         status: KycStepStatus.IN_PROGRESS,
         updated: LessThan(Util.daysBefore(Config.kyc.reminderAfterDays)),
         userData: { kycLevel: MoreThanOrEqual(0) },
@@ -90,13 +90,13 @@ export class KycNotificationService {
     }
   }
 
-  async identFailed(entity: KycStep, reason: string): Promise<void> {
+  async identFailed(userData: UserData, reason: string): Promise<void> {
     try {
-      if ((entity.userData.mail, !DisabledProcess(Process.KYC_MAIL))) {
+      if ((userData.mail, !DisabledProcess(Process.KYC_MAIL))) {
         await this.notificationService.sendMail({
           type: MailType.USER,
           input: {
-            userData: entity.userData,
+            userData: userData,
             title: `${MailTranslationKey.KYC_FAILED}.title`,
             salutation: { key: `${MailTranslationKey.KYC_FAILED}.salutation` },
             suffix: [
@@ -111,14 +111,14 @@ export class KycNotificationService {
               {
                 key: `${MailTranslationKey.KYC}.retry`,
                 params: {
-                  url: entity.userData.kycUrl,
-                  urlText: entity.userData.kycUrl,
+                  url: userData.kycUrl,
+                  urlText: userData.kycUrl,
                 },
               },
               {
                 key: `${MailTranslationKey.GENERAL}.button`,
                 params: {
-                  url: entity.userData.kycUrl,
+                  url: userData.kycUrl,
                 },
               },
               { key: MailKey.SPACE, params: { value: '2' } },
@@ -128,38 +128,39 @@ export class KycNotificationService {
           },
         });
       } else {
-        !entity.userData.mail &&
-          this.logger.warn(`Failed to send ident failed mail for user data ${entity.userData.id}: user has no email`);
+        !userData.mail &&
+          this.logger.warn(`Failed to send ident failed mail for user data ${userData.id}: user has no email`);
       }
 
       // KYC webhook external services
-      await this.webhookService.kycFailed(entity.userData, reason);
+      await this.webhookService.kycFailed(userData, reason);
     } catch (e) {
-      this.logger.error(`Failed to send ident failed mail or webhook ${entity.id}:`, e);
+      this.logger.error(`Failed to send ident failed mail or webhook for user data ${userData.id}:`, e);
     }
   }
 
   async kycChanged(userData: UserData, newLevel?: KycLevel): Promise<void> {
     try {
-      if (userData.mail && newLevel === KycLevel.LEVEL_50 && !DisabledProcess(Process.KYC_MAIL)) {
-        await this.notificationService.sendMail({
-          type: MailType.USER,
-          input: {
-            userData,
-            title: `${MailTranslationKey.KYC_SUCCESS}.title`,
-            salutation: { key: `${MailTranslationKey.KYC_SUCCESS}.salutation` },
-            suffix: [
-              { key: MailKey.SPACE, params: { value: '1' } },
-              { key: `${MailTranslationKey.KYC_SUCCESS}.message` },
-              { key: MailKey.SPACE, params: { value: '4' } },
-              { key: `${MailTranslationKey.GENERAL}.happy_trading` },
-              { key: MailKey.DFX_TEAM_CLOSING },
-            ],
-          },
-        });
-      } else {
-        !userData.mail &&
+      if (newLevel === KycLevel.LEVEL_50 && !DisabledProcess(Process.KYC_MAIL)) {
+        if (userData.mail) {
+          await this.notificationService.sendMail({
+            type: MailType.USER,
+            input: {
+              userData,
+              title: `${MailTranslationKey.KYC_SUCCESS}.title`,
+              salutation: { key: `${MailTranslationKey.KYC_SUCCESS}.salutation` },
+              suffix: [
+                { key: MailKey.SPACE, params: { value: '1' } },
+                { key: `${MailTranslationKey.KYC_SUCCESS}.message` },
+                { key: MailKey.SPACE, params: { value: '4' } },
+                { key: `${MailTranslationKey.GENERAL}.happy_trading` },
+                { key: MailKey.DFX_TEAM_CLOSING },
+              ],
+            },
+          });
+        } else {
           this.logger.warn(`Failed to send KYC completion mail for user data ${userData.id}: user has no email`);
+        }
       }
 
       // KYC webhook external services

@@ -134,7 +134,7 @@ export class BuyCryptoNotificationService {
     await this.notificationService.sendMail({
       type: MailType.ERROR_MONITORING,
       input: { subject: 'Buy Crypto Error - missing liquidity.', errors: messages },
-      options: { debounce: 1800000 },
+      options: { debounce: 3600000 },
       metadata: { context: MailContext.BUY_CRYPTO, correlationId },
     });
   }
