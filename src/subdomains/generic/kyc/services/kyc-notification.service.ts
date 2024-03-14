@@ -158,7 +158,8 @@ export class KycNotificationService {
           },
         });
       } else {
-        !userData.mail &&
+        newLevel === KycLevel.LEVEL_50 &&
+          !userData.mail &&
           this.logger.warn(`Failed to send KYC completion mail for user data ${userData.id}: user has no email`);
       }
 
