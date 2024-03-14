@@ -39,7 +39,19 @@ export class CheckoutTx extends IEntity {
   cardName?: string;
 
   @Column({ nullable: true })
+  cardBin?: string;
+
+  @Column({ nullable: true })
+  cardLast4?: string;
+
+  @Column({ nullable: true })
   cardFingerPrint?: string;
+
+  @Column({ nullable: true })
+  cardIssuer?: string;
+
+  @Column({ nullable: true })
+  cardIssuerCountry?: string;
 
   @Column({ nullable: true })
   ip?: string;
