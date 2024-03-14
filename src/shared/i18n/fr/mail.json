@@ -70,7 +70,9 @@
                 "asset_currently_not_available": "Cet actif n'est actuellement pas disponible à l'échange avec DFX",
                 "staking_discontinued": "Les nouveaux dépôts en staking ne sont plus possible",
                 "bank_not_allowed": "La banque expéditrice que vous avez utilisée n'est pas autorisée. Veuillez utiliser une autre banque pour votre dépôt.",
-                "country_not_allowed": "Malheureusement, votre dépôt ne peut pas être traité <br>car l'argent provient d'un pays que nous ne pouvons pas prendre en charge. Pour plus d'informations:<br><a style='color:white' href='https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html'>https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html</a>"
+                "country_not_allowed": "Malheureusement, votre dépôt ne peut pas être traité <br>car l'argent provient d'un pays que nous ne pouvons pas prendre en charge. Pour plus d'informations:<br><a style='color:white' href='https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html'>https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html</a>",
+                "high_risk_kyc_needed": "Sans vérification (KYC), nous n'avons pas pu nous assurer que cette transaction n'était pas frauduleuse et nous avons donc malheureusement dû la refuser.<br>Les paiements par transaction bancaire sont toujours disponibles.",
+                "high_risk_blocked": "Nous ne pouvons pas nous assurer que cette transaction n'est pas frauduleuse et nous avons donc malheureusement dû la refuser.<br>Les paiements par transaction bancaire sont toujours disponibles."
             },
             "kyc_start": "Vous pouvez commencer le processus KYC ici:<br>[url:{urlText}]"
         },
@@ -116,6 +118,15 @@
                 "salutation": "Votre transaction en attente nécessite une vérification KYC complète pour être traitée",
                 "line1": "Cher client, merci beaucoup pour votre confiance en DFX AG.",
                 "line2": "Nous ne pouvons malheureusement pas traiter votre commande sans une vérification KYC complète.",
+                "line3": "Par conséquent, cliquez sur le lien suivant pour vérifier votre identité:<br>[url:{urlText}]",
+                "line4": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
+                "line5": "Si vous ne souhaitez pas réaliser la vérification, les fonds seront intégralement retournés après 2 jours."
+            },
+            "high_risk_kyc_needed": {
+                "title": "Problème avec votre dépôt",
+                "salutation": "La vérification (KYC) est nécessaire pour exécuter votre transaction en cours",
+                "line1": "Cher client, merci beaucoup pour votre confiance en DFX.",
+                "line2": "Malheureusement, sans vérification complète, nous ne pouvons pas garantir que cette transaction n'est pas frauduleuse.",
                 "line3": "Par conséquent, cliquez sur le lien suivant pour vérifier votre identité:<br>[url:{urlText}]",
                 "line4": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
                 "line5": "Si vous ne souhaitez pas réaliser la vérification, les fonds seront intégralement retournés après 2 jours."
