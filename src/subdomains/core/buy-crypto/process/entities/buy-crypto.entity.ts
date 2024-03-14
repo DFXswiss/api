@@ -495,6 +495,7 @@ export class BuyCrypto extends IEntity {
       }
     }
     if (!this.userData.verifiedName) errors.push('NoVerifiedName');
+    if (!this.userData.verifiedCountry) errors.push('NoVerifiedCountry');
     if (!this.userData.lastNameCheckDate) errors.push('NoNameCheck');
     if (Util.daysDiff(this.userData.lastNameCheckDate) > Config.amlCheckLastNameCheckValidity)
       errors.push('OutdatedNameCheck');
@@ -511,7 +512,6 @@ export class BuyCrypto extends IEntity {
 
     if (this.bankTx) {
       // bank
-      if (!this.userData.verifiedCountry) errors.push('NoVerifiedCountry');
       if (blacklist.some((b) => b.bic && b.bic === this.bankTx.bic)) errors.push('BicBlacklisted');
       if (blacklist.some((b) => b.iban && b.iban === this.bankTx.iban)) errors.push('IbanBlacklisted');
       if (instantBanks.some((b) => b.iban === this.bankTx.accountIban)) {
