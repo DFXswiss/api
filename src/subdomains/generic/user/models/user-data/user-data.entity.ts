@@ -472,6 +472,10 @@ export class UserData extends IEntity {
     return this;
   }
 
+  hasSuspiciousMail(): boolean {
+    return (this.mail?.split('@')[0].match(/\d/g) || []).length > 2;
+  }
+
   getStep(stepId: number): KycStep | undefined {
     return this.kycSteps.find((s) => s.id === stepId);
   }

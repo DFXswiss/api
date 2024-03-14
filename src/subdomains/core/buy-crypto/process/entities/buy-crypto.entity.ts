@@ -487,8 +487,8 @@ export class BuyCrypto extends IEntity {
     if (!this.userData.isPaymentStatusEnabled) errors.push('InvalidUserDataStatus');
     if (!this.userData.isPaymentKycStatusEnabled) errors.push('InvalidKycStatus');
     if (this.userData.kycType !== KycType.DFX) errors.push('InvalidKycType');
-    if (!this.cryptoInput && this.userData.id !== bankDataUserDataId) errors.push('BankDataUserMismatch');
     if (!this.userData.verifiedName) errors.push('NoVerifiedName');
+    if (!this.userData.verifiedCountry) errors.push('NoVerifiedCountry');
     if (!this.userData.lastNameCheckDate) errors.push('NoNameCheck');
     if (Util.daysDiff(this.userData.lastNameCheckDate) > Config.amlCheckLastNameCheckValidity)
       errors.push('OutdatedNameCheck');
@@ -503,9 +503,17 @@ export class BuyCrypto extends IEntity {
       if (this.userData.annualBuyVolume + amountInChf > this.userData.depositLimit) errors.push('DepositLimitReached');
     }
 
+    if (!this.cryptoInput) {
+      if (!bankDataUserDataId) {
+        errors.push('BankDataMissing');
+      } else if (this.userData.id !== bankDataUserDataId) {
+        errors.push('BankDataUserMismatch');
+      }
+      if (this.user.status === UserStatus.NA && this.userData.hasSuspiciousMail) errors.push('SuspiciousMail');
+    }
+
     if (this.bankTx) {
       // bank
-      if (!this.userData.verifiedCountry) errors.push('NoVerifiedCountry');
       if (blacklist.some((b) => b.bic && b.bic === this.bankTx.bic)) errors.push('BicBlacklisted');
       if (blacklist.some((b) => b.iban && b.iban === this.bankTx.iban)) errors.push('IbanBlacklisted');
       if (instantBanks.some((b) => b.iban === this.bankTx.accountIban)) {
