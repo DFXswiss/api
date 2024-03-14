@@ -226,7 +226,7 @@ export class BuyCryptoService {
 
     const forceUpdate: Partial<BuyCrypto> = {
       ...(BuyCryptoEditableAmlCheck.includes(entity.amlCheck) && update?.amlCheck !== entity.amlCheck
-        ? { amlCheck: update.amlCheck, mailSendDate: null, amlReason: update.amlReason }
+        ? { amlCheck: update.amlCheck, mailSendDate: null, amlReason: update.amlReason, comment: update.comment }
         : undefined),
       isComplete: dto.isComplete,
     };

@@ -183,6 +183,9 @@ export class BuyCrypto extends IEntity {
   @Column({ default: false })
   isComplete: boolean;
 
+  @Column({ length: 'MAX', nullable: true })
+  comment: string;
+
   @OneToOne(() => TransactionRequest, { nullable: true })
   @JoinColumn()
   transactionRequest: TransactionRequest;
@@ -439,7 +442,7 @@ export class BuyCrypto extends IEntity {
     const { usedRef, refProvision } = this.user.specifiedRef;
     const amountInChf = chfReferencePrice.convert(this.inputReferenceAmount, 2);
 
-    const update: Partial<BuyCrypto> = this.isAmlPass(
+    const amlErrors = this.getAmlErrors(
       minVolume,
       amountInChf,
       last24hVolume,
@@ -447,23 +450,27 @@ export class BuyCrypto extends IEntity {
       bankDataUserData?.id,
       blacklist,
       instantBanks,
-    )
-      ? {
-          usedRef,
-          refProvision,
-          refFactor: usedRef === '000-000' ? 0 : 1,
-          amlCheck: CheckStatus.PASS,
-        }
-      : Util.minutesDiff(this.created) >= 10
-      ? { amlCheck: CheckStatus.GSHEET }
-      : {};
+    );
+
+    const comment = amlErrors.join(';');
+    const update: Partial<BuyCrypto> =
+      amlErrors.length === 0
+        ? {
+            usedRef,
+            refProvision,
+            refFactor: usedRef === '000-000' ? 0 : 1,
+            amlCheck: CheckStatus.PASS,
+          }
+        : Util.minutesDiff(this.created) >= 10
+        ? { amlCheck: CheckStatus.GSHEET, comment }
+        : { comment };
 
     Object.assign(this, update);
 
     return [this.id, update];
   }
 
-  isAmlPass(
+  private getAmlErrors(
     minVolume: number,
     amountInChf: number,
     last24hVolume: number,
@@ -471,60 +478,52 @@ export class BuyCrypto extends IEntity {
     bankDataUserDataId: number,
     blacklist: SpecialExternalBankAccount[],
     instantBanks: Bank[],
-  ): boolean {
-    return (
-      this.inputReferenceAmount >= minVolume * 0.9 && // factor 0.9 puffer
-      this.target.asset.buyable &&
-      this.user.isPaymentStatusEnabled &&
-      this.userData.isPaymentStatusEnabled &&
-      this.userData.isPaymentKycStatusEnabled &&
-      this.userData.kycType === KycType.DFX &&
-      (this.cryptoInput || this.userData.id === bankDataUserDataId) &&
-      this.userData.verifiedName &&
-      this.userData.lastNameCheckDate &&
-      Util.daysDiff(this.userData.lastNameCheckDate) <= Config.amlCheckLastNameCheckValidity &&
-      last30dVolume <= Config.tradingLimits.monthlyDefault &&
-      (last24hVolume <= Config.tradingLimits.dailyDefault || this.isKycAmlPass(amountInChf)) &&
-      (this.bankTx
-        ? this.isBankTxAmlPass(blacklist, instantBanks)
-        : this.checkoutTx
-        ? this.isCheckoutTxAmlPass(blacklist)
-        : this.isCryptoCryptoAmlPass())
-    );
-  }
+  ): string[] {
+    const errors = [];
 
-  isCryptoCryptoAmlPass(): boolean {
-    return (
-      this.cryptoInput.amlCheck === CheckStatus.PASS &&
-      this.cryptoInput.isConfirmed &&
-      this.userData.cryptoCryptoAllowed
-    );
-  }
+    if (this.inputReferenceAmount < minVolume * 0.9) errors.push('MinVolumeNotReached');
+    if (!this.target.asset.buyable) errors.push('AssetNotBuyable');
+    if (!this.user.isPaymentStatusEnabled) errors.push('InvalidUserStatus');
+    if (!this.userData.isPaymentStatusEnabled) errors.push('InvalidUserDataStatus');
+    if (!this.userData.isPaymentKycStatusEnabled) errors.push('InvalidKycStatus');
+    if (this.userData.kycType !== KycType.DFX) errors.push('InvalidKycType');
+    if (!this.cryptoInput && this.userData.id !== bankDataUserDataId) errors.push('BankDataUserMismatch');
+    if (!this.userData.verifiedName) errors.push('NoVerifiedName');
+    if (!this.userData.lastNameCheckDate) errors.push('NoNameCheck');
+    if (Util.daysDiff(this.userData.lastNameCheckDate) > Config.amlCheckLastNameCheckValidity)
+      errors.push('OutdatedNameCheck');
+    if (last30dVolume > Config.tradingLimits.monthlyDefault) errors.push('MonthlyLimitReached');
+    if (last24hVolume > Config.tradingLimits.dailyDefault) {
+      // KYC required
+      if (this.userData.kycLevel < KycLevel.LEVEL_50) errors.push('KycLevelTooLow');
+      if (!this.userData.hasBankTxVerification) errors.push('NoBankTxVerification');
+      if (!this.userData.letterSentDate) errors.push('NoLetter');
+      if (!this.userData.amlListAddedDate) errors.push('NoAmlList');
+      if (!this.userData.kycFileId) errors.push('NoKycFileId');
+      if (this.userData.annualBuyVolume + amountInChf > this.userData.depositLimit) errors.push('DepositLimitReached');
+    }
 
-  isBankTxAmlPass(blacklist: SpecialExternalBankAccount[], instantBanks: Bank[]): boolean {
-    return (
-      this.userData.verifiedCountry &&
-      !blacklist.some((b) => (b.bic && b.bic === this.bankTx.bic) || (b.iban && b.iban === this.bankTx.iban)) &&
-      (!instantBanks.some((b) => b.iban === this.bankTx.accountIban) ||
-        (this.userData.olkypayAllowed && this.target.asset.instantBuyable))
-    );
-  }
+    if (this.bankTx) {
+      // bank
+      if (!this.userData.verifiedCountry) errors.push('NoVerifiedCountry');
+      if (blacklist.some((b) => b.bic && b.bic === this.bankTx.bic)) errors.push('BicBlacklisted');
+      if (blacklist.some((b) => b.iban && b.iban === this.bankTx.iban)) errors.push('IbanBlacklisted');
+      if (instantBanks.some((b) => b.iban === this.bankTx.accountIban)) {
+        if (!this.userData.olkypayAllowed) errors.push('InstantNotAllowed');
+        if (!this.target.asset.instantBuyable) errors.push('AssetNotInstantBuyable');
+      }
+    } else if (this.checkoutTx) {
+      // checkout
+      if (!this.target.asset.cardBuyable) errors.push('AssetNotCardBuyable');
+      if (blacklist.some((b) => b.iban && b.iban === this.checkoutTx.cardFingerPrint)) errors.push('CardBlacklisted');
+    } else {
+      // crypto input
+      if (this.cryptoInput.amlCheck !== CheckStatus.PASS) errors.push('InputAmlFailed');
+      if (!this.cryptoInput.isConfirmed) errors.push('InputNotConfirmed');
+      if (!this.userData.cryptoCryptoAllowed) errors.push('CryptoNotAllowed');
+    }
 
-  isCheckoutTxAmlPass(blacklist: SpecialExternalBankAccount[]): boolean {
-    return (
-      this.target.asset.cardBuyable && !blacklist.some((b) => b.iban && b.iban === this.checkoutTx.cardFingerPrint)
-    );
-  }
-
-  isKycAmlPass(amountInChf: number): boolean {
-    return (
-      this.userData.kycLevel >= KycLevel.LEVEL_50 &&
-      this.userData.hasBankTxVerification &&
-      this.userData.letterSentDate &&
-      this.userData.amlListAddedDate &&
-      this.userData.kycFileId > 0 &&
-      this.userData.annualBuyVolume + amountInChf < this.userData.depositLimit
-    );
+    return errors;
   }
 
   resetAmlCheck(): UpdateResult<BuyCrypto> {
