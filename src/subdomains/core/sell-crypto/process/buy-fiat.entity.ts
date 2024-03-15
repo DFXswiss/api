@@ -9,6 +9,7 @@ import { Fee } from 'src/subdomains/supporting/payment/entities/fee.entity';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
+import { Transaction } from '../../../supporting/payment/entities/transaction.entity';
 import { AmlReason } from '../../buy-crypto/process/enums/aml-reason.enum';
 import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
 import { Sell } from '../route/sell.entity';
@@ -168,6 +169,10 @@ export class BuyFiat extends IEntity {
   @OneToOne(() => TransactionRequest, { nullable: true })
   @JoinColumn()
   transactionRequest: TransactionRequest;
+
+  @OneToOne(() => Transaction, { nullable: true })
+  @JoinColumn()
+  transaction: Transaction;
 
   @Column({ length: 256, nullable: true })
   externalTransactionId: string;

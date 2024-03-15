@@ -10,7 +10,7 @@ import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
-import { DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
+import { DepositRouteType, RouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { In, IsNull, Not } from 'typeorm';
 import { CryptoInput, PayInPurpose, PayInSendType, PayInStatus } from '../entities/crypto-input.entity';
 import { PayInRepository } from '../repositories/payin.repository';
@@ -31,7 +31,7 @@ export class PayInService {
   //*** PUBLIC API ***//
 
   async getNewPayIns(): Promise<CryptoInput[]> {
-    return this.payInRepository.findBy({ status: PayInStatus.CREATED });
+    return this.payInRepository.find({ where: { status: PayInStatus.CREATED }, relations: { transaction: true } });
   }
 
   async getNewPayInsForBlockchain(blockchain: Blockchain): Promise<CryptoInput[]> {
@@ -43,6 +43,13 @@ export class PayInService {
       where: { route: { user: { id: In(userIds) } } },
       relations: ['route', 'route.user'],
       order: { id: 'DESC' },
+    });
+  }
+
+  async getCryptoInputWithoutTransaction(): Promise<CryptoInput[]> {
+    return this.payInRepository.find({
+      where: { transaction: IsNull(), route: { type: In([RouteType.SELL, RouteType.CRYPTO]) } },
+      relations: { transaction: true, buyCrypto: true, buyFiat: true },
     });
   }
 

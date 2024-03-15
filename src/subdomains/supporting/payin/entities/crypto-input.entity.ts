@@ -4,12 +4,15 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
+import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { AmlReason } from 'src/subdomains/core/buy-crypto/process/enums/aml-reason.enum';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
+import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { DepositRoute, DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
-import { Column, Entity, Index, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
+import { Transaction } from '../../payment/entities/transaction.entity';
 
 export enum PayInPurpose {
   STAKING = 'Staking',
@@ -97,6 +100,16 @@ export class CryptoInput extends IEntity {
 
   @ManyToOne(() => DepositRoute, { eager: true, nullable: true })
   route: DepositRouteType;
+
+  @OneToOne(() => Transaction, { nullable: true })
+  @JoinColumn()
+  transaction: Transaction;
+
+  @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.cryptoInput, { nullable: true })
+  buyFiat: BuyFiat;
+
+  @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.cryptoInput, { nullable: true })
+  buyCrypto: BuyCrypto;
 
   //*** FACTORY METHODS ***//
 

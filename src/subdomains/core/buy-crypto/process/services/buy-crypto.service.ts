@@ -24,7 +24,9 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx
 import { SpecialExternalBankAccountService } from 'src/subdomains/supporting/bank/special-external-bank-account/special-external-bank-account.service';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Between, Brackets, In, IsNull, Not } from 'typeorm';
 import { Buy } from '../../routes/buy/buy.entity';
 import { BuyRepository } from '../../routes/buy/buy.repository';
@@ -55,11 +57,18 @@ export class BuyCryptoService {
     private readonly bankDataService: BankDataService,
     private readonly transactionRequestService: TransactionRequestService,
     private readonly specialExternalBankAccountService: SpecialExternalBankAccountService,
+    private readonly transactionService: TransactionService,
   ) {}
 
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<void> {
     let entity = await this.buyCryptoRepo.findOneBy({ bankTx: { id: bankTx.id } });
     if (entity) throw new ConflictException('There is already a buy-crypto for the specified bank TX');
+
+    const transaction = !DisabledProcess(Process.CREATE_TRANSACTION)
+      ? await this.transactionService.update(bankTx.transaction.id, {
+          type: TransactionTypeInternal.BUY_CRYPTO,
+        })
+      : null;
 
     const forexFee = bankTx.txCurrency === bankTx.currency ? 0 : 0.02;
 
@@ -69,6 +78,7 @@ export class BuyCryptoService {
       inputAsset: bankTx.txCurrency,
       inputReferenceAmount: (bankTx.amount + bankTx.chargeAmount) * (1 - forexFee),
       inputReferenceAsset: bankTx.currency,
+      transaction,
     });
 
     // buy
@@ -98,6 +108,12 @@ export class BuyCryptoService {
     let entity = await this.buyCryptoRepo.findOneBy({ checkoutTx: { id: checkoutTx.id } });
     if (entity) throw new ConflictException('There is already a buy-crypto for the specified checkout TX');
 
+    const transaction = !DisabledProcess(Process.CREATE_TRANSACTION)
+      ? await this.transactionService.update(checkoutTx.transaction.id, {
+          type: TransactionTypeInternal.BUY_CRYPTO,
+        })
+      : null;
+
     entity = this.buyCryptoRepo.create({
       checkoutTx,
       buy,
@@ -105,6 +121,7 @@ export class BuyCryptoService {
       inputAsset: checkoutTx.currency,
       inputReferenceAmount: checkoutTx.amount,
       inputReferenceAsset: checkoutTx.currency,
+      transaction,
     });
 
     // transaction request
@@ -130,6 +147,12 @@ export class BuyCryptoService {
   }
 
   async createFromCryptoInput(cryptoInput: CryptoInput, cryptoRoute: CryptoRoute): Promise<void> {
+    const transaction = !DisabledProcess(Process.CREATE_TRANSACTION)
+      ? await this.transactionService.update(cryptoInput.transaction.id, {
+          type: TransactionTypeInternal.CRYPTO_CRYPTO,
+        })
+      : null;
+
     let entity = this.buyCryptoRepo.create({
       cryptoInput,
       cryptoRoute,
@@ -137,6 +160,7 @@ export class BuyCryptoService {
       inputAsset: cryptoInput.asset.name,
       inputReferenceAmount: cryptoInput.amount,
       inputReferenceAsset: cryptoInput.asset.name,
+      transaction,
     });
 
     // transaction request
