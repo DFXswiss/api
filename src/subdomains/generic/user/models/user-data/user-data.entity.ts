@@ -472,7 +472,7 @@ export class UserData extends IEntity {
     return this;
   }
 
-  hasSuspiciousMail(): boolean {
+  get hasSuspiciousMail(): boolean {
     return (this.mail?.split('@')[0].match(/\d/g) ?? []).length > 2;
   }
 
