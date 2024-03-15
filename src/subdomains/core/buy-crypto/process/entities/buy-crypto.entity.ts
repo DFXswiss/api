@@ -7,6 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { KycLevel, KycType, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
+import { AmlRule } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { SpecialExternalBankAccount } from 'src/subdomains/supporting/bank/special-external-bank-account/special-external-bank-account.entity';
@@ -508,6 +509,21 @@ export class BuyCrypto extends IEntity {
       if (this.userData.annualBuyVolume + amountInChf > this.userData.depositLimit) errors.push('DepositLimitReached');
     }
 
+    switch (this.user.wallet.amlRule) {
+      case AmlRule.LEVEL_0:
+        break;
+      case AmlRule.LEVEL_1:
+        if (this.checkoutTx && this.user.status === UserStatus.NA && this.checkoutTx.ip !== this.user.ip)
+          errors.push('IpMismatch');
+        break;
+      case AmlRule.LEVEL_2:
+        if (this.userData.kycLevel < KycLevel.LEVEL_30) errors.push('KycLevel30NotReached');
+        break;
+      case AmlRule.LEVEL_3:
+        if (this.userData.kycLevel < KycLevel.LEVEL_50) errors.push('KycLevel50NotReached');
+        break;
+    }
+
     if (!this.cryptoInput) {
       if (!bankDataUserDataId) {
         errors.push('BankDataMissing');
@@ -529,7 +545,6 @@ export class BuyCrypto extends IEntity {
       // checkout
       if (!this.target.asset.cardBuyable) errors.push('AssetNotCardBuyable');
       if (blacklist.some((b) => b.iban && b.iban === this.checkoutTx.cardFingerPrint)) errors.push('CardBlacklisted');
-      if (this.user.status === UserStatus.NA && this.checkoutTx.ip !== this.user.ip) errors.push('IpMismatch');
     } else {
       // crypto input
       if (this.cryptoInput.amlCheck !== CheckStatus.PASS) errors.push('InputAmlFailed');
