@@ -1,8 +1,9 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { UpdateResult } from 'src/shared/models/entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { Reward } from '../../../../shared/models/reward.entity';
+import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 
 export enum RewardStatus {
   CREATED = 'Created',
@@ -26,6 +27,10 @@ export class RefReward extends Reward {
 
   @Column({ nullable: true })
   status: RewardStatus;
+
+  @OneToOne(() => Transaction, { nullable: true })
+  @JoinColumn()
+  transaction: Transaction;
 
   //*** FACTORY METHODS ***//
 

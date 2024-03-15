@@ -20,6 +20,7 @@ import {
 } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { Fee } from 'src/subdomains/supporting/payment/entities/fee.entity';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { Buy } from '../../routes/buy/buy.entity';
@@ -192,6 +193,10 @@ export class BuyCrypto extends IEntity {
   @OneToOne(() => TransactionRequest, { nullable: true })
   @JoinColumn()
   transactionRequest: TransactionRequest;
+
+  @OneToOne(() => Transaction, { nullable: true })
+  @JoinColumn()
+  transaction: Transaction;
 
   @Column({ length: 256, nullable: true })
   externalTransactionId: string;
@@ -490,14 +495,8 @@ export class BuyCrypto extends IEntity {
     if (!this.userData.isPaymentStatusEnabled) errors.push('InvalidUserDataStatus');
     if (!this.userData.isPaymentKycStatusEnabled) errors.push('InvalidKycStatus');
     if (this.userData.kycType !== KycType.DFX) errors.push('InvalidKycType');
-    if (!this.cryptoInput) {
-      if (!bankDataUserDataId) {
-        errors.push('BankDataMissing');
-      } else if (this.userData.id !== bankDataUserDataId) {
-        errors.push('BankDataUserMismatch');
-      }
-    }
     if (!this.userData.verifiedName) errors.push('NoVerifiedName');
+    if (!this.userData.verifiedCountry) errors.push('NoVerifiedCountry');
     if (!this.userData.lastNameCheckDate) errors.push('NoNameCheck');
     if (Util.daysDiff(this.userData.lastNameCheckDate) > Config.amlCheckLastNameCheckValidity)
       errors.push('OutdatedNameCheck');
@@ -512,22 +511,28 @@ export class BuyCrypto extends IEntity {
       if (this.userData.annualBuyVolume + amountInChf > this.userData.depositLimit) errors.push('DepositLimitReached');
     }
 
+    if (!this.cryptoInput) {
+      if (!bankDataUserDataId) {
+        errors.push('BankDataMissing');
+      } else if (this.userData.id !== bankDataUserDataId) {
+        errors.push('BankDataUserMismatch');
+      }
+      if (this.user.status === UserStatus.NA && this.userData.hasSuspiciousMail) errors.push('SuspiciousMail');
+    }
+
     if (this.bankTx) {
       // bank
-      if (!this.userData.verifiedCountry) errors.push('NoVerifiedCountry');
       if (blacklist.some((b) => b.bic && b.bic === this.bankTx.bic)) errors.push('BicBlacklisted');
       if (blacklist.some((b) => b.iban && b.iban === this.bankTx.iban)) errors.push('IbanBlacklisted');
       if (instantBanks.some((b) => b.iban === this.bankTx.accountIban)) {
         if (!this.userData.olkypayAllowed) errors.push('InstantNotAllowed');
         if (!this.target.asset.instantBuyable) errors.push('AssetNotInstantBuyable');
       }
-      if (this.user.status === UserStatus.NA && this.hasSuspiciousMail) errors.push('SuspiciousMail');
     } else if (this.checkoutTx) {
       // checkout
       if (!this.target.asset.cardBuyable) errors.push('AssetNotCardBuyable');
       if (blacklist.some((b) => b.iban && b.iban === this.checkoutTx.cardFingerPrint)) errors.push('CardBlacklisted');
       if (this.user.status === UserStatus.NA && this.checkoutTx.ip !== this.user.ip) errors.push('IpMismatch');
-      if (this.user.status === UserStatus.NA && this.hasSuspiciousMail) errors.push('SuspiciousMail');
     } else {
       // crypto input
       if (this.cryptoInput.amlCheck !== CheckStatus.PASS) errors.push('InputAmlFailed');
@@ -536,10 +541,6 @@ export class BuyCrypto extends IEntity {
     }
 
     return errors;
-  }
-
-  private hasSuspiciousMail(): boolean {
-    return (this.userData.mail?.split('@')[0].match(/\d/g) || []).length > 2;
   }
 
   resetAmlCheck(): UpdateResult<BuyCrypto> {

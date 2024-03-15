@@ -15,8 +15,8 @@ import {
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
-import { FeeType } from '../entities/fee.entity';
-import { CryptoPaymentMethod, FiatPaymentMethod } from './payment-method.enum';
+import { FeeType } from '../../entities/fee.entity';
+import { CryptoPaymentMethod, FiatPaymentMethod } from '../payment-method.enum';
 
 export class CreateFeeDto {
   @IsNotEmpty()

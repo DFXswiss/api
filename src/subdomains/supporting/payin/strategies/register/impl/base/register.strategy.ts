@@ -2,6 +2,7 @@ import { Inject, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
@@ -10,6 +11,8 @@ import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-inp
 import { PayInFactory } from 'src/subdomains/supporting/payin/factories/payin.factory';
 import { PayInEntry } from 'src/subdomains/supporting/payin/interfaces';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
+import { TransactionSourceType } from 'src/subdomains/supporting/payment/entities/transaction.entity';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { RegisterStrategyRegistry } from './register.strategy-registry';
 
 export interface PayInInputLog {
@@ -21,6 +24,8 @@ export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy 
 
   @Inject() private readonly payInFactory: PayInFactory;
   @Inject() private readonly registry: RegisterStrategyRegistry;
+  @Inject() private readonly transactionService: TransactionService;
+
   @Inject() protected readonly payInRepository: PayInRepository;
   @Inject() protected readonly assetService: AssetService;
 
@@ -39,7 +44,14 @@ export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy 
   protected async createPayInsAndSave(transactions: PayInEntry[], log: PayInInputLog): Promise<void> {
     const payIns = transactions.map((t) => this.payInFactory.createFromEntry(t));
 
-    await this.payInRepository.saveMany(payIns);
+    for (const payIn of payIns) {
+      if (!DisabledProcess(Process.CREATE_TRANSACTION))
+        payIn.transaction = await this.transactionService.create({
+          sourceType: TransactionSourceType.CRYPTO_INPUT,
+        });
+
+      await this.payInRepository.save(payIn);
+    }
 
     log.newRecords.push(...transactions.map((p) => ({ address: p.address.address, txId: p.txId })));
   }

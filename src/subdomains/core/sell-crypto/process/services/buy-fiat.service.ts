@@ -10,7 +10,9 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Between, In, IsNull } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { CheckStatus } from '../../../buy-crypto/process/enums/check-status.enum';
@@ -41,9 +43,16 @@ export class BuyFiatService {
     private readonly fiatService: FiatService,
     private readonly transactionRequestService: TransactionRequestService,
     private readonly bankDataService: BankDataService,
+    private readonly transactionService: TransactionService,
   ) {}
 
   async createFromCryptoInput(cryptoInput: CryptoInput, sell: Sell): Promise<void> {
+    const transaction = !DisabledProcess(Process.CREATE_TRANSACTION)
+      ? await this.transactionService.update(cryptoInput.transaction.id, {
+          type: TransactionTypeInternal.BUY_FIAT,
+        })
+      : null;
+
     let entity = this.buyFiatRepo.create({
       cryptoInput,
       sell,
@@ -51,6 +60,7 @@ export class BuyFiatService {
       inputAsset: cryptoInput.asset.name,
       inputReferenceAmount: cryptoInput.amount,
       inputReferenceAsset: cryptoInput.asset.name,
+      transaction,
     });
 
     // transaction request

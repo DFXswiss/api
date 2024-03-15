@@ -23,11 +23,11 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Util } from 'src/shared/utils/util';
+import { TransactionDto } from '../../../supporting/payment/dto/transaction.dto';
 import { ExportFormat, HistoryQueryExportType, HistoryQueryUser } from '../dto/history-query.dto';
 import { HistoryDto } from '../dto/history.dto';
 import { ChainReportCsvHistoryDto } from '../dto/output/chain-report-history.dto';
 import { CoinTrackingCsvHistoryDto } from '../dto/output/coin-tracking-history.dto';
-import { TransactionDto } from '../dto/output/transaction.dto';
 import { ExportType, HistoryService } from '../services/history.service';
 
 @ApiTags('Transaction')
