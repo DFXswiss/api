@@ -7,6 +7,7 @@ import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.mo
 import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
 import { DexModule } from '../dex/dex.module';
 import { NotificationModule } from '../notification/notification.module';
+import { TransactionModule } from '../payment/transaction.module';
 import { PayoutModule } from '../payout/payout.module';
 import { PricingModule } from '../pricing/pricing.module';
 import { CryptoInput } from './entities/crypto-input.entity';
@@ -61,6 +62,7 @@ import { PolygonTokenStrategy as PolygonTokenStrategyS } from './strategies/send
     forwardRef(() => PaymentModule),
     NotificationModule,
     AlchemyModule,
+    TransactionModule,
   ],
   controllers: [],
   providers: [

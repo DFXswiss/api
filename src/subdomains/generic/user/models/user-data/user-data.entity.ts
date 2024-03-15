@@ -473,7 +473,7 @@ export class UserData extends IEntity {
   }
 
   hasSuspiciousMail(): boolean {
-    return (this.mail?.split('@')[0].match(/\d/g) || []).length > 2;
+    return (this.mail?.split('@')[0].match(/\d/g) ?? []).length > 2;
   }
 
   getStep(stepId: number): KycStep | undefined {

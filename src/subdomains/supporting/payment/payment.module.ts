@@ -18,6 +18,8 @@ import { TransactionSpecificationRepository } from './repositories/transaction-s
 import { FeeService } from './services/fee.service';
 import { TransactionHelper } from './services/transaction-helper';
 import { TransactionRequestService } from './services/transaction-request.service';
+import { TransactionJobModule } from './transaction-job.module';
+import { TransactionModule } from './transaction.module';
 
 @Module({
   imports: [
@@ -28,6 +30,8 @@ import { TransactionRequestService } from './services/transaction-request.servic
     forwardRef(() => UserModule),
     forwardRef(() => SellCryptoModule),
     forwardRef(() => BuyCryptoModule),
+    TransactionJobModule,
+    TransactionModule,
   ],
   controllers: [FeeController],
   providers: [

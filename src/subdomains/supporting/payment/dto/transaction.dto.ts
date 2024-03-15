@@ -20,6 +20,9 @@ export enum TransactionState {
 }
 
 export class TransactionDto {
+  @ApiProperty()
+  id: number;
+
   @ApiProperty({ enum: TransactionType })
   type: TransactionType;
 

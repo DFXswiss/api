@@ -10,6 +10,7 @@ import { BankTxRepeatRepository } from '../bank-tx/bank-tx-repeat/bank-tx-repeat
 import { BankTxRepeatService } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankModule } from '../bank/bank.module';
 import { NotificationModule } from '../notification/notification.module';
+import { TransactionModule } from '../payment/transaction.module';
 import { BankTxReturnController } from './bank-tx-return/bank-tx-return.controller';
 import { BankTxReturn } from './bank-tx-return/bank-tx-return.entity';
 import { BankTxReturnRepository } from './bank-tx-return/bank-tx-return.repository';
@@ -30,6 +31,7 @@ import { BankTxService } from './bank-tx/bank-tx.service';
     forwardRef(() => UserModule),
     forwardRef(() => BuyCryptoModule),
     BankModule,
+    TransactionModule,
   ],
 
   controllers: [BankTxController, BankTxReturnController, BankTxRepeatController],

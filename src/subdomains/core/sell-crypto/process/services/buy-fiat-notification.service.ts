@@ -5,7 +5,11 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { AmlReason, KycAmlReasons } from 'src/subdomains/core/buy-crypto/process/enums/aml-reason.enum';
+import {
+  AmlReason,
+  AmlReasonWithoutReason,
+  KycAmlReasons,
+} from 'src/subdomains/core/buy-crypto/process/enums/aml-reason.enum';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import {
   MailFactory,
@@ -226,7 +230,7 @@ export class BuyFiatNotificationService {
                       key: `${MailTranslationKey.CRYPTO_RETURN}.payment_link`,
                       params: { url: txExplorerUrl(entity.cryptoInputBlockchain, entity.cryptoReturnTxId) },
                     },
-                entity.amlReason !== AmlReason.NA
+                !AmlReasonWithoutReason.includes(entity.amlReason)
                   ? {
                       key: `${MailTranslationKey.RETURN}.introduction`,
                       params: {

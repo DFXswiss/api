@@ -7,6 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { KycLevel, KycType, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
+import { AmlRule } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { SpecialExternalBankAccount } from 'src/subdomains/supporting/bank/special-external-bank-account/special-external-bank-account.entity';
@@ -20,6 +21,7 @@ import {
 } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { Fee } from 'src/subdomains/supporting/payment/entities/fee.entity';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { Buy } from '../../routes/buy/buy.entity';
@@ -189,6 +191,10 @@ export class BuyCrypto extends IEntity {
   @OneToOne(() => TransactionRequest, { nullable: true })
   @JoinColumn()
   transactionRequest: TransactionRequest;
+
+  @OneToOne(() => Transaction, { eager: true, nullable: true })
+  @JoinColumn()
+  transaction: Transaction;
 
   @Column({ length: 256, nullable: true })
   externalTransactionId: string;
@@ -503,6 +509,21 @@ export class BuyCrypto extends IEntity {
       if (this.userData.annualBuyVolume + amountInChf > this.userData.depositLimit) errors.push('DepositLimitReached');
     }
 
+    switch (this.user.wallet.amlRule) {
+      case AmlRule.DEFAULT:
+        break;
+      case AmlRule.RULE_1:
+        if (this.checkoutTx && this.user.status === UserStatus.NA && this.checkoutTx.ip !== this.user.ip)
+          errors.push('IpMismatch');
+        break;
+      case AmlRule.RULE_2:
+        if (this.userData.kycLevel < KycLevel.LEVEL_30) errors.push('KycLevel30NotReached');
+        break;
+      case AmlRule.RULE_3:
+        if (this.userData.kycLevel < KycLevel.LEVEL_50) errors.push('KycLevel50NotReached');
+        break;
+    }
+
     if (!this.cryptoInput) {
       if (!bankDataUserDataId) {
         errors.push('BankDataMissing');
@@ -524,7 +545,6 @@ export class BuyCrypto extends IEntity {
       // checkout
       if (!this.target.asset.cardBuyable) errors.push('AssetNotCardBuyable');
       if (blacklist.some((b) => b.iban && b.iban === this.checkoutTx.cardFingerPrint)) errors.push('CardBlacklisted');
-      if (this.user.status === UserStatus.NA && this.checkoutTx.ip !== this.user.ip) errors.push('IpMismatch');
     } else {
       // crypto input
       if (this.cryptoInput.amlCheck !== CheckStatus.PASS) errors.push('InputAmlFailed');
@@ -664,6 +684,8 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.ANNUAL_LIMIT_WITHOUT_KYC,
   AmlReason.OLKY_NO_KYC,
   AmlReason.NAME_CHECK_WITHOUT_KYC,
+  AmlReason.HIGH_RISK_KYC_NEEDED,
+  AmlReason.MANUAL_CHECK,
 ];
 
 export const BuyCryptoEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET];

@@ -1,5 +1,6 @@
-import { Entity, OneToOne, JoinColumn, Column } from 'typeorm';
 import { IEntity } from 'src/shared/models/entity';
+import { Column, Entity, JoinColumn, OneToOne } from 'typeorm';
+import { Transaction } from '../../payment/entities/transaction.entity';
 import { BankTx } from '../bank-tx/bank-tx.entity';
 
 @Entity()
@@ -15,6 +16,10 @@ export class BankTxRepeat extends IEntity {
   @OneToOne(() => BankTx, { nullable: true })
   @JoinColumn()
   chargebackBankTx: BankTx;
+
+  @OneToOne(() => Transaction, { eager: true, nullable: true })
+  @JoinColumn()
+  transaction: Transaction;
 
   @Column({ type: 'integer', nullable: true })
   userId: number;

@@ -10,7 +10,9 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Between, In, IsNull } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { CheckStatus } from '../../../buy-crypto/process/enums/check-status.enum';
@@ -21,7 +23,7 @@ import { SellHistoryDto } from '../../route/dto/sell-history.dto';
 import { Sell } from '../../route/sell.entity';
 import { SellRepository } from '../../route/sell.repository';
 import { SellService } from '../../route/sell.service';
-import { BuyFiat } from '../buy-fiat.entity';
+import { BuyFiat, BuyFiatEditableAmlCheck } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { UpdateBuyFiatDto } from '../dto/update-buy-fiat.dto';
 
@@ -41,9 +43,16 @@ export class BuyFiatService {
     private readonly fiatService: FiatService,
     private readonly transactionRequestService: TransactionRequestService,
     private readonly bankDataService: BankDataService,
+    private readonly transactionService: TransactionService,
   ) {}
 
   async createFromCryptoInput(cryptoInput: CryptoInput, sell: Sell): Promise<void> {
+    const transaction = !DisabledProcess(Process.CREATE_TRANSACTION)
+      ? await this.transactionService.update(cryptoInput.transaction.id, {
+          type: TransactionTypeInternal.BUY_FIAT,
+        })
+      : null;
+
     let entity = this.buyFiatRepo.create({
       cryptoInput,
       sell,
@@ -51,6 +60,7 @@ export class BuyFiatService {
       inputAsset: cryptoInput.asset.name,
       inputReferenceAmount: cryptoInput.amount,
       inputReferenceAsset: cryptoInput.asset.name,
+      transaction,
     });
 
     // transaction request
@@ -119,9 +129,9 @@ export class BuyFiatService {
 
     Util.removeNullFields(entity);
 
-    const forceUpdate = {
-      ...(entity.amlCheck === CheckStatus.PENDING && update.amlCheck && update.amlCheck !== CheckStatus.PENDING
-        ? { amlCheck: update.amlCheck, mailSendDate: null }
+    const forceUpdate: Partial<BuyFiat> = {
+      ...(BuyFiatEditableAmlCheck.includes(entity.amlCheck) && update?.amlCheck !== entity.amlCheck
+        ? { amlCheck: update.amlCheck, mailSendDate: null, amlReason: update.amlReason }
         : undefined),
       isComplete: dto.isComplete,
       comment: update.comment,

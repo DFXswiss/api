@@ -12,6 +12,7 @@ import { createCustomFiatOutput } from 'src/subdomains/supporting/fiat-output/__
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { createCustomSellHistory } from '../../route/dto/__mocks__/sell-history.dto.mock';
 import { SellRepository } from '../../route/sell.repository';
 import { SellService } from '../../route/sell.service';
@@ -45,6 +46,7 @@ describe('BuyFiatService', () => {
   let buyFiatPreparationService: BuyFiatPreparationService;
   let transactionRequestService: TransactionRequestService;
   let bankDataService: BankDataService;
+  let transactionService: TransactionService;
 
   beforeEach(async () => {
     buyFiatRepo = createMock<BuyFiatRepository>();
@@ -60,6 +62,7 @@ describe('BuyFiatService', () => {
     buyFiatPreparationService = createMock<BuyFiatPreparationService>();
     transactionRequestService = createMock<TransactionRequestService>();
     bankDataService = createMock<BankDataService>();
+    transactionService = createMock<TransactionService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -78,6 +81,7 @@ describe('BuyFiatService', () => {
         { provide: BuyFiatPreparationService, useValue: buyFiatPreparationService },
         { provide: TransactionRequestService, useValue: transactionRequestService },
         { provide: BankDataService, useValue: bankDataService },
+        { provide: TransactionService, useValue: transactionService },
       ],
     }).compile();
 

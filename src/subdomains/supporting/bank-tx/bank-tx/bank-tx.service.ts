@@ -14,6 +14,8 @@ import { In, IsNull } from 'typeorm';
 import { OlkypayService } from '../../../../integration/bank/services/olkypay.service';
 import { BankName } from '../../bank/bank/bank.entity';
 import { BankService } from '../../bank/bank/bank.service';
+import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
+import { TransactionService } from '../../payment/services/transaction.service';
 import { BankTxRepeatService } from '../bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnService } from '../bank-tx-return/bank-tx-return.service';
 import { BankTxBatch } from './bank-tx-batch.entity';
@@ -22,6 +24,29 @@ import { BankTx, BankTxType, BankTxTypeCompleted } from './bank-tx.entity';
 import { BankTxRepository } from './bank-tx.repository';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
 import { SepaParser } from './sepa-parser.service';
+
+export const TransactionBankTxTypeMapper: {
+  [key in BankTxType]: TransactionTypeInternal;
+} = {
+  [BankTxType.INTERNAL]: TransactionTypeInternal.INTERNAL,
+  [BankTxType.BUY_CRYPTO_RETURN]: TransactionTypeInternal.BUY_CRYPTO_RETURN,
+  [BankTxType.BANK_TX_RETURN]: TransactionTypeInternal.BANK_TX_RETURN,
+  [BankTxType.BUY_CRYPTO]: TransactionTypeInternal.BUY_CRYPTO,
+  [BankTxType.BUY_FIAT]: TransactionTypeInternal.BUY_FIAT,
+  [BankTxType.BANK_TX_REPEAT]: TransactionTypeInternal.BANK_TX_REPEAT,
+  [BankTxType.BANK_TX_RETURN_CHARGEBACK]: null,
+  [BankTxType.BANK_TX_REPEAT_CHARGEBACK]: null,
+  [BankTxType.FIAT_FIAT]: null,
+  [BankTxType.TEST_FIAT_FIAT]: null,
+  [BankTxType.GSHEET]: null,
+  [BankTxType.KRAKEN]: null,
+  [BankTxType.CHECKOUT_LTD]: null,
+  [BankTxType.REVOLUT_CARD_PAYMENT]: null,
+  [BankTxType.BANK_ACCOUNT_FEE]: null,
+  [BankTxType.EXTRAORDINARY_EXPENSES]: null,
+  [BankTxType.PENDING]: null,
+  [BankTxType.UNKNOWN]: null,
+};
 
 @Injectable()
 export class BankTxService {
@@ -40,6 +65,7 @@ export class BankTxService {
     private readonly buyService: BuyService,
     private readonly bankService: BankService,
     private readonly revolutService: RevolutService,
+    private readonly transactionService: TransactionService,
   ) {}
 
   // --- TRANSACTION HANDLING --- //
@@ -72,9 +98,9 @@ export class BankTxService {
     );
     const allTransactions = olkyTransactions.concat(revolutTransactions);
 
-    for (const bankTx of allTransactions) {
+    for (const transaction of allTransactions) {
       try {
-        await this.create(bankTx);
+        await this.create(transaction);
       } catch (e) {
         if (!(e instanceof ConflictException)) this.logger.error(`Failed to import transaction:`, e);
       }
@@ -106,11 +132,15 @@ export class BankTxService {
       throw new ConflictException(`There is already a bank tx with the accountServiceRef: ${bankTx.accountServiceRef}`);
 
     entity = this.bankTxRepo.create(bankTx);
+
+    if (!DisabledProcess(Process.CREATE_TRANSACTION))
+      entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.BANK_TX });
+
     return this.bankTxRepo.save(entity);
   }
 
   async update(bankTxId: number, dto: UpdateBankTxDto): Promise<BankTx> {
-    const bankTx = await this.bankTxRepo.findOneBy({ id: bankTxId });
+    const bankTx = await this.bankTxRepo.findOne({ where: { id: bankTxId }, relations: { transaction: true } });
     if (!bankTx) throw new NotFoundException('BankTx not found');
     if (dto.type && dto.type != bankTx.type) {
       if (BankTxTypeCompleted(bankTx.type)) throw new ConflictException('BankTx type already set');
@@ -124,6 +154,12 @@ export class BankTxService {
           break;
         case BankTxType.BANK_TX_REPEAT:
           await this.bankTxRepeatService.create(bankTx);
+          break;
+        default:
+          if (!DisabledProcess(Process.CREATE_TRANSACTION) && dto.type)
+            await this.transactionService.update(bankTx.transaction.id, {
+              type: TransactionBankTxTypeMapper[dto.type],
+            });
           break;
       }
     }
@@ -156,6 +192,13 @@ export class BankTxService {
       .leftJoinAndSelect('sellUsers.wallet', 'sellUsersWallet')
       .where(`${key.includes('.') ? key : `bankTx.${key}`} = :param`, { param: value })
       .getOne();
+  }
+
+  async getBankTxWithoutTransaction(): Promise<BankTx[]> {
+    return this.bankTxRepo.find({
+      where: { transaction: IsNull() },
+      relations: { transaction: true, buyCrypto: true, buyFiat: true, bankTxReturn: true, bankTxRepeat: true },
+    });
   }
 
   async storeSepaFile(xmlFile: string): Promise<BankTxBatch> {

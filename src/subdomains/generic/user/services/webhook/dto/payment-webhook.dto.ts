@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TransactionDto } from 'src/subdomains/core/history/dto/output/transaction.dto';
+import { TransactionDto } from 'src/subdomains/supporting/payment/dto/transaction.dto';
 import { WebhookDto, WebhookType } from './webhook.dto';
 
 export enum PaymentWebhookType {
