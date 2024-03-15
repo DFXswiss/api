@@ -191,7 +191,7 @@ export class BuyCrypto extends IEntity {
   @JoinColumn()
   transactionRequest: TransactionRequest;
 
-  @OneToOne(() => Transaction, { nullable: true })
+  @OneToOne(() => Transaction, { eager: true, nullable: true })
   @JoinColumn()
   transaction: Transaction;
 

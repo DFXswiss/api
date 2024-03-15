@@ -13,7 +13,7 @@ export class BankTxReturn extends IEntity {
   @JoinColumn()
   chargebackBankTx: BankTx;
 
-  @OneToOne(() => Transaction, { nullable: true })
+  @OneToOne(() => Transaction, { eager: true, nullable: true })
   @JoinColumn()
   transaction: Transaction;
 
