@@ -224,7 +224,7 @@ export class TransactionHelper implements OnModuleInit {
 
     times.push(Date.now());
 
-    const error = this.getTxError(to, paymentMethodIn, target, extendedSpecs, txSpecSource, txAmountChf, user);
+    const error = this.getTxError(from, to, paymentMethodIn, target, extendedSpecs, txSpecSource, txAmountChf, user);
 
     if (Date.now() - times[0] > 300) {
       const timesString = times.map((t, i, a) => Util.round((t - (a[i - 1] ?? t)) / 1000, 3)).join(', ');
@@ -376,6 +376,7 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   private getTxError(
+    from: Active,
     to: Active,
     paymentMethodIn: PaymentMethod,
     target: TargetEstimation,
@@ -384,14 +385,17 @@ export class TransactionHelper implements OnModuleInit {
     txAmountChf: number,
     user?: User,
   ): TransactionError | undefined {
-    if (
-      (user?.wallet.amlRule === AmlRule.RULE_2 && user?.userData.kycLevel < KycLevel.LEVEL_30) ||
-      (user?.wallet.amlRule === AmlRule.RULE_3 && user?.userData.kycLevel < KycLevel.LEVEL_50)
-    )
-      return TransactionError.KYC_REQUIRED;
+    // KYC checks
+    if (isFiat(from)) {
+      if (
+        (user?.wallet.amlRule === AmlRule.RULE_2 && user?.userData.kycLevel < KycLevel.LEVEL_30) ||
+        (user?.wallet.amlRule === AmlRule.RULE_3 && user?.userData.kycLevel < KycLevel.LEVEL_50)
+      )
+        return TransactionError.KYC_REQUIRED;
+    }
 
-    if (target.sourceAmount < txSpecSource.minVolume) return TransactionError.AMOUNT_TOO_LOW;
-    if (txAmountChf > extendedSpecs.maxVolume) return TransactionError.AMOUNT_TOO_HIGH;
+    if (paymentMethodIn === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed)
+      return TransactionError.KYC_REQUIRED_INSTANT;
     if (
       isFiat(to) &&
       to.name !== 'CHF' &&
@@ -400,7 +404,9 @@ export class TransactionHelper implements OnModuleInit {
       txAmountChf > Config.tradingLimits.dailyDefault
     )
       return TransactionError.BANK_TRANSACTION_MISSING;
-    if (paymentMethodIn === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed)
-      return TransactionError.KYC_REQUIRED_INSTANT;
+
+    // amount checks
+    if (target.sourceAmount < txSpecSource.minVolume) return TransactionError.AMOUNT_TOO_LOW;
+    if (txAmountChf > extendedSpecs.maxVolume) return TransactionError.AMOUNT_TOO_HIGH;
   }
 }
