@@ -510,16 +510,16 @@ export class BuyCrypto extends IEntity {
     }
 
     switch (this.user.wallet.amlRule) {
-      case AmlRule.LEVEL_0:
+      case AmlRule.DEFAULT:
         break;
-      case AmlRule.LEVEL_1:
+      case AmlRule.RULE_1:
         if (this.checkoutTx && this.user.status === UserStatus.NA && this.checkoutTx.ip !== this.user.ip)
           errors.push('IpMismatch');
         break;
-      case AmlRule.LEVEL_2:
+      case AmlRule.RULE_2:
         if (this.userData.kycLevel < KycLevel.LEVEL_30) errors.push('KycLevel30NotReached');
         break;
-      case AmlRule.LEVEL_3:
+      case AmlRule.RULE_3:
         if (this.userData.kycLevel < KycLevel.LEVEL_50) errors.push('KycLevel50NotReached');
         break;
     }

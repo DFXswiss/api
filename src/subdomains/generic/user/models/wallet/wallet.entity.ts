@@ -4,10 +4,10 @@ import { Column, Entity, Index, OneToMany } from 'typeorm';
 import { KycStatus, KycType } from '../user-data/user-data.entity';
 
 export enum AmlRule {
-  LEVEL_0 = 0, // default
-  LEVEL_1 = 1, // IP Check
-  LEVEL_2 = 2, // KycLevel 30
-  LEVEL_3 = 3, // KycLevel 50
+  DEFAULT = 0, // default
+  RULE_1 = 1, // IP Check
+  RULE_2 = 2, // KycLevel 30
+  RULE_3 = 3, // KycLevel 50
 }
 
 @Entity()
@@ -40,6 +40,6 @@ export class Wallet extends IEntity {
   @Column({ length: 256, nullable: true })
   apiKey: string;
 
-  @Column({ default: AmlRule.LEVEL_0 })
+  @Column({ default: AmlRule.DEFAULT })
   amlRule: AmlRule;
 }

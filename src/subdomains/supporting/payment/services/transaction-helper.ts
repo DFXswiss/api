@@ -385,8 +385,8 @@ export class TransactionHelper implements OnModuleInit {
     user?: User,
   ): TransactionError | undefined {
     if (
-      (user?.wallet.amlRule === AmlRule.LEVEL_2 && user?.userData.kycLevel < KycLevel.LEVEL_30) ||
-      (user?.wallet.amlRule === AmlRule.LEVEL_3 && user?.userData.kycLevel < KycLevel.LEVEL_50)
+      (user?.wallet.amlRule === AmlRule.RULE_2 && user?.userData.kycLevel < KycLevel.LEVEL_30) ||
+      (user?.wallet.amlRule === AmlRule.RULE_3 && user?.userData.kycLevel < KycLevel.LEVEL_50)
     )
       return TransactionError.KYC_REQUIRED;
 
