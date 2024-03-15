@@ -31,7 +31,7 @@ export class TransactionJobService {
   ) {}
 
   // --- SYNCHRONIZE TRANSACTIONS --- //
-  @Cron(CronExpression.EVERY_30_MINUTES)
+  @Cron(CronExpression.EVERY_MINUTE)
   @Lock(7200)
   async synchronizeTransactions(): Promise<void> {
     if (DisabledProcess(Process.SYNCHRONIZE_TRANSACTION)) return;
