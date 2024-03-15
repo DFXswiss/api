@@ -15,6 +15,7 @@ export enum AmlReason {
   COUNTRY_NOT_ALLOWED = 'CountryNotAllowed',
   HIGH_RISK_KYC_NEEDED = 'HighRiskKycNeeded',
   HIGH_RISK_BLOCKED = 'HighRiskBlocked',
+  MANUAL_CHECK = 'ManualCheck',
 }
 
 export const KycAmlReasons = [
@@ -24,3 +25,5 @@ export const KycAmlReasons = [
   AmlReason.ANNUAL_LIMIT_WITHOUT_KYC,
   AmlReason.HIGH_RISK_KYC_NEEDED,
 ];
+
+export const AmlReasonWithoutReason = [AmlReason.NA, AmlReason.MANUAL_CHECK];

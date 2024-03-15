@@ -13,7 +13,7 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { In, IsNull, Not } from 'typeorm';
 import { BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
 import { BuyCryptoAmlReasonPendingStates } from '../entities/buy-crypto.entity';
-import { AmlReason, KycAmlReasons } from '../enums/aml-reason.enum';
+import { AmlReason, AmlReasonWithoutReason, KycAmlReasons } from '../enums/aml-reason.enum';
 import { CheckStatus } from '../enums/check-status.enum';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 
@@ -211,7 +211,7 @@ export class BuyCryptoNotificationService {
                       params: { url: txExplorerUrl(entity.cryptoInput.asset.blockchain, entity.chargebackCryptoTxId) },
                     }
                   : null,
-                entity.amlReason !== AmlReason.NA
+                !AmlReasonWithoutReason.includes(entity.amlReason)
                   ? {
                       key: `${MailTranslationKey.RETURN}.introduction`,
                       params: {

@@ -130,6 +130,15 @@
                 "line3": "Klicke daher den nachfolgenden Link um dich zu verifizieren:<br>[url:{urlText}]",
                 "line4": "Alternativ kannst du auch über die DFX-Services Webseite <br> oben rechts auf den Menüpunkt und dann auf \"KYC\" klicken <br> und die Verifizierung über den \"Weiter\" Button starten.",
                 "line5": "Solltest du die Verifizierung nicht vornehmen wollen, wird das Geld vollautomatisch nach 2 Tagen retourniert."
+            },
+            "manual_check": {
+                "title": "Einzahlung wird geprüft",
+                "salutation": "Dine Einzahlung wird geprüft",
+                "line1": "Vielen Dank für dein Vertrauen in DFX.",
+                "line2": "Leider konnte die Transaktion nicht vollautomatisch freigegeben werden und muss nun durch einen Mitarbeiter manuell geprüft werden.",
+                "line3": "Dies dauert in der Regel 24h, maximal aber 7 Tage.",
+                "line4": "Du wirst benachrichtigt sobald die Prüfung abgeschlossen ist und deine Zahlung verarbeitet wurde.",
+                "line5": ""
             }
         },
         "blockchain": "Blockchain",
