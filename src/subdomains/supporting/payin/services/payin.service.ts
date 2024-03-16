@@ -48,7 +48,11 @@ export class PayInService {
 
   async getCryptoInputWithoutTransaction(filterDate: Date): Promise<CryptoInput[]> {
     return this.payInRepository.find({
-      where: { transaction: IsNull(), route: { type: In([RouteType.SELL, RouteType.CRYPTO]), created: LessThanOrEqual(filterDate) } },
+      where: {
+        transaction: IsNull(),
+        route: { type: In([RouteType.SELL, RouteType.CRYPTO]) },
+        created: LessThanOrEqual(filterDate),
+      },
       relations: { transaction: true, buyCrypto: true, buyFiat: true },
     });
   }
