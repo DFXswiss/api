@@ -8,7 +8,7 @@ import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { In, IsNull, Not } from 'typeorm';
-import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
+import { CheckStatus } from '../../aml/enums/check-status.enum';
 
 interface PaymentData {
   lastOutputDates: LastOutputDates;

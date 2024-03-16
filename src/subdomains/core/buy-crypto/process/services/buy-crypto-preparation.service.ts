@@ -15,9 +15,9 @@ import { FeeService } from 'src/subdomains/supporting/payment/services/fee.servi
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { IsNull, Not } from 'typeorm';
+import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
-import { CheckStatus } from '../enums/check-status.enum';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 import { BuyCryptoService } from './buy-crypto.service';

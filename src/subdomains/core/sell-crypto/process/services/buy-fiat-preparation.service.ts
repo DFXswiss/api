@@ -6,7 +6,7 @@ import { FeeService } from 'src/subdomains/supporting/payment/services/fee.servi
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { IsNull, Not } from 'typeorm';
-import { CheckStatus } from '../../../buy-crypto/process/enums/check-status.enum';
+import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatService } from './buy-fiat.service';
 

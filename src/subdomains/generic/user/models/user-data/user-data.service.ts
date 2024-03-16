@@ -18,7 +18,7 @@ import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';

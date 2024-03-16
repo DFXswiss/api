@@ -3,6 +3,8 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Fee } from 'src/subdomains/supporting/payment/entities/fee.entity';
@@ -10,8 +12,8 @@ import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/t
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { Transaction } from '../../../supporting/payment/entities/transaction.entity';
-import { AmlReason } from '../../buy-crypto/process/enums/aml-reason.enum';
-import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
+import { AmlReason } from '../../aml/enums/aml-reason.enum';
+import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { Sell } from '../route/sell.entity';
 
 @Entity()
@@ -335,6 +337,26 @@ export class BuyFiat extends IEntity {
 
   get isLightningTransaction(): boolean {
     return this.cryptoInputBlockchain === Blockchain.LIGHTNING;
+  }
+
+  get user(): User {
+    return this.sell.user;
+  }
+
+  get userData(): UserData {
+    return this.user.userData;
+  }
+
+  get route(): Sell {
+    return this.sell;
+  }
+
+  get target(): { address: string; asset: Fiat; trimmedReturnAddress: string } {
+    return {
+      address: this.sell.deposit?.address,
+      asset: this.sell.fiat,
+      trimmedReturnAddress: this.sell?.iban ? Util.blankStart(this.sell.iban) : null,
+    };
   }
 }
 

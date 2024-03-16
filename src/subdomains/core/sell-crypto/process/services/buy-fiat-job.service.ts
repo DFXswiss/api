@@ -4,7 +4,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { IsNull } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
-import { CheckStatus } from '../../../buy-crypto/process/enums/check-status.enum';
+import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatPreparationService } from './buy-fiat-preparation.service';
 import { BuyFiatRegistrationService } from './buy-fiat-registration.service';

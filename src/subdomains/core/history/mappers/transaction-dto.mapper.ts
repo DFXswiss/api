@@ -2,8 +2,8 @@ import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain
 import { Active } from 'src/shared/models/active';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionDto, TransactionState, TransactionType } from '../../../supporting/payment/dto/transaction.dto';
+import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { BuyCrypto, BuyCryptoStatus } from '../../buy-crypto/process/entities/buy-crypto.entity';
-import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
 import { RefReward, RewardStatus } from '../../referral/reward/ref-reward.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 

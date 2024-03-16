@@ -5,11 +5,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import {
-  AmlReason,
-  AmlReasonWithoutReason,
-  KycAmlReasons,
-} from 'src/subdomains/core/buy-crypto/process/enums/aml-reason.enum';
+import { AmlReason, AmlReasonWithoutReason, KycAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import {
   MailFactory,
@@ -18,7 +14,7 @@ import {
 } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, IsNull, Not } from 'typeorm';
-import { CheckStatus } from '../../../buy-crypto/process/enums/check-status.enum';
+import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyFiatAmlReasonPendingStates } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 
