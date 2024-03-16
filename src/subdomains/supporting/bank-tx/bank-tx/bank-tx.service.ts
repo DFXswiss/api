@@ -10,7 +10,7 @@ import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/service
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { In, IsNull } from 'typeorm';
+import { In, IsNull, LessThanOrEqual } from 'typeorm';
 import { OlkypayService } from '../../../../integration/bank/services/olkypay.service';
 import { BankName } from '../../bank/bank/bank.entity';
 import { BankService } from '../../bank/bank/bank.service';
@@ -194,9 +194,9 @@ export class BankTxService {
       .getOne();
   }
 
-  async getBankTxWithoutTransaction(): Promise<BankTx[]> {
+  async getBankTxWithoutTransaction(filterDate: Date): Promise<BankTx[]> {
     return this.bankTxRepo.find({
-      where: { transaction: IsNull() },
+      where: { transaction: IsNull(), created: LessThanOrEqual(filterDate) },
       relations: { transaction: true, buyCrypto: true, buyFiat: true, bankTxReturn: true, bankTxRepeat: true },
     });
   }
