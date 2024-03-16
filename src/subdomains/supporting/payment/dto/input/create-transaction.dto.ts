@@ -10,6 +10,7 @@ import { TransactionSourceType, TransactionTypeInternal } from '../../entities/t
 
 export class CreateTransactionDto {
   sourceType: TransactionSourceType;
+  created?: Date;
   type?: TransactionTypeInternal;
   buyCrypto?: BuyCrypto;
   buyFiat?: BuyFiat;
