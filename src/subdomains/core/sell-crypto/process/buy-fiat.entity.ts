@@ -6,12 +6,15 @@ import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
+import { SpecialExternalBankAccount } from 'src/subdomains/supporting/bank/special-external-bank-account/special-external-bank-account.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Fee } from 'src/subdomains/supporting/payment/entities/fee.entity';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { Transaction } from '../../../supporting/payment/entities/transaction.entity';
+import { AmlService } from '../../aml/aml.service';
 import { AmlReason } from '../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { Sell } from '../route/sell.entity';
@@ -265,6 +268,45 @@ export class BuyFiat extends IEntity {
       outputAsset: outputAssetEntity,
       outputReferenceAsset: outputAssetEntity,
     };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  amlCheckAndFillUp(
+    chfReferencePrice: Price,
+    minVolume: number,
+    last24hVolume: number,
+    last30dVolume: number,
+    bankDataUserData: UserData,
+    blacklist: SpecialExternalBankAccount[],
+  ): UpdateResult<BuyFiat> {
+    const { usedRef, refProvision } = this.user.specifiedRef;
+    const amountInChf = chfReferencePrice.convert(this.inputReferenceAmount, 2);
+
+    const amlErrors = AmlService.getAmlErrors(
+      this,
+      minVolume,
+      amountInChf,
+      last24hVolume,
+      last30dVolume,
+      bankDataUserData?.id,
+      blacklist,
+    );
+
+    const comment = amlErrors.join(';');
+    const update: Partial<BuyFiat> =
+      amlErrors.length === 0
+        ? {
+            usedRef,
+            refProvision,
+            refFactor: usedRef === '000-000' ? 0 : 1,
+            amlCheck: CheckStatus.PASS,
+          }
+        : Util.minutesDiff(this.created) >= 10
+        ? { amlCheck: CheckStatus.GSHEET, comment }
+        : { comment };
 
     Object.assign(this, update);
 

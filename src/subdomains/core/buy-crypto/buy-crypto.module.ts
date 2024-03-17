@@ -14,6 +14,7 @@ import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module'
 import { TransactionModule } from 'src/subdomains/supporting/payment/transaction.module';
 import { PayoutModule } from 'src/subdomains/supporting/payout/payout.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
+import { AmlModule } from '../aml/aml.module';
 import { LiquidityManagementModule } from '../liquidity-management/liquidity-management.module';
 import { SellCryptoModule } from '../sell-crypto/sell-crypto.module';
 import { BuyCryptoController } from './process/buy-crypto.controller';
@@ -58,6 +59,7 @@ import { CryptoRouteService } from './routes/crypto-route/crypto-route.service';
     LiquidityManagementModule,
     IntegrationModule,
     TransactionModule,
+    AmlModule,
   ],
   controllers: [BuyCryptoController, BuyController, CryptoRouteController],
   providers: [

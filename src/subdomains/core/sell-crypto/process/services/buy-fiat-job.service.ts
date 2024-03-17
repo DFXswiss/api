@@ -41,6 +41,7 @@ export class BuyFiatJobService {
   async checkCryptoPayIn() {
     if (DisabledProcess(Process.BUY_FIAT)) return;
     await this.buyFiatRegistrationService.registerSellPayIn();
+    if (!DisabledProcess(Process.AUTO_AML_CHECK)) await this.buyFiatPreparationService.doAmlCheck();
     if (!DisabledProcess(Process.BUY_FIAT_SET_FEE)) await this.buyFiatPreparationService.refreshFee();
     await this.buyFiatPreparationService.setOutput();
   }
