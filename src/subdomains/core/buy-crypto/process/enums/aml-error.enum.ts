@@ -20,6 +20,7 @@ export enum AmlError {
   NO_KYC_FILE_ID = 'NoKycFileId',
   NO_NAME_CHECK = 'NoNameCheck',
   OUTDATED_NAME_CHECK = 'OutdatedNameCheck',
+  WEEKLY_LIMIT_REACHED = 'WeeklyLimitReached',
   MONTHLY_LIMIT_REACHED = 'MonthlyLimitReached',
   DEPOSIT_LIMIT_REACHED = 'DepositLimitReached',
   BANK_DATA_MISSING = 'BankDataMissing',
@@ -33,4 +34,4 @@ export enum AmlError {
   SUSPICIOUS_MAIL = 'SuspiciousMail',
 }
 
-export const AmlPendingError = [AmlError.IP_MISMATCH, AmlError.SUSPICIOUS_MAIL];
+export const AmlPendingError = [AmlError.IP_MISMATCH, AmlError.SUSPICIOUS_MAIL, AmlError.WEEKLY_LIMIT_REACHED];

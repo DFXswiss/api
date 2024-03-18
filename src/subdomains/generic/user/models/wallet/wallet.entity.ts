@@ -8,6 +8,7 @@ export enum AmlRule {
   RULE_1 = 1, // IP Check
   RULE_2 = 2, // KycLevel 30
   RULE_3 = 3, // KycLevel 50
+  RULE_4 = 4, // UserData maxWeeklyVolume
 }
 
 @Entity()
