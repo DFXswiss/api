@@ -441,6 +441,7 @@ export class BuyCrypto extends IEntity {
     chfReferencePrice: Price,
     minVolume: number,
     last24hVolume: number,
+    last7dVolume: number,
     last30dVolume: number,
     bankDataUserData: UserData,
     blacklist: SpecialExternalBankAccount[],
@@ -453,6 +454,7 @@ export class BuyCrypto extends IEntity {
       minVolume,
       amountInChf,
       last24hVolume,
+      last7dVolume,
       last30dVolume,
       bankDataUserData?.id,
       blacklist,
@@ -483,6 +485,7 @@ export class BuyCrypto extends IEntity {
     minVolume: number,
     amountInChf: number,
     last24hVolume: number,
+    last7dVolume: number,
     last30dVolume: number,
     bankDataUserDataId: number,
     blacklist: SpecialExternalBankAccount[],
@@ -525,6 +528,9 @@ export class BuyCrypto extends IEntity {
         break;
       case AmlRule.RULE_3:
         if (this.userData.kycLevel < KycLevel.LEVEL_50) errors.push(AmlError.KYC_LEVEL_50_NOT_REACHED);
+        break;
+      case AmlRule.RULE_4:
+        if (last7dVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
         break;
     }
 
