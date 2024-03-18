@@ -335,6 +335,9 @@ export class Configuration {
         xchf: process.env.ZCHF_XCHF_CONTRACT_ADDRESS,
       },
     },
+    ebel2x: {
+      contractAddress: process.env.EBEL2X_CONTRACT_ADDRESS,
+    },
   };
 
   payIn = {

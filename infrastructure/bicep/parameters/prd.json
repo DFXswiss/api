@@ -242,6 +242,9 @@
     "zchfXchfContractAddress": {
       "value": "0xb4272071ecadd69d933adcd19ca99fe80664fc08"
     },
+    "ebel2XContractAddress": {
+      "value": "0xe137dd4bcd22e947c896ae33a0920c09c85e263d"
+    },
     "buyCryptoFeeLimit": {
       "value": "0.001"
     },
