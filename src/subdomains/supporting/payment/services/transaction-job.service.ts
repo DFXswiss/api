@@ -54,6 +54,7 @@ export class TransactionJobService {
       for (const unassignedTx of sortedUnassignedTx) {
         await this.transactionService.create({
           sourceType: this.getSourceType(unassignedTx),
+          created: unassignedTx.created,
           ...this.getTypeAndEntity(unassignedTx),
         });
       }

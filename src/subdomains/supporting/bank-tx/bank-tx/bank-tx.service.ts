@@ -231,6 +231,10 @@ export class BankTxService {
         return tx;
       });
 
+    for (const tx of newTxs) {
+      tx.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.BANK_TX });
+    }
+
     // store batch and entries in one transaction
     await this.bankTxBatchRepo.manager.transaction(async (manager) => {
       batch = await manager.save(batch);

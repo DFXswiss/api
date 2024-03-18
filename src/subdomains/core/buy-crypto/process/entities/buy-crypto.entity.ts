@@ -4,6 +4,7 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { AmlService } from 'src/subdomains/core/aml/aml.service';
+import { AmlPendingError } from 'src/subdomains/core/aml/enums/aml-error.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -467,6 +468,8 @@ export class BuyCrypto extends IEntity {
             refFactor: usedRef === '000-000' ? 0 : 1,
             amlCheck: CheckStatus.PASS,
           }
+        : amlErrors.every((e) => AmlPendingError.includes(e))
+        ? { amlCheck: CheckStatus.PENDING, amlReason: AmlReason.MANUAL_CHECK }
         : Util.minutesDiff(this.created) >= 10
         ? { amlCheck: CheckStatus.GSHEET, comment }
         : { comment };
