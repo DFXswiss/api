@@ -351,7 +351,7 @@ export abstract class EvmClient {
     return this.getTokenByContract(contract);
   }
 
-  getERC20ContractForDex(tokenAddress: string): Contract {
+  protected getERC20ContractForDex(tokenAddress: string): Contract {
     return new ethers.Contract(tokenAddress, ERC20_ABI, this.wallet);
   }
 

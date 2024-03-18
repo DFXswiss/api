@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
-import { ArbitrumModule } from '../arbitrum/arbitrum.module';
+import { AlchemyModule } from 'src/integration/alchemy/alchemy.module';
+import { SharedModule } from 'src/shared/shared.module';
 import { Ebel2xService } from './ebel2x.service';
 
 @Module({
-  imports: [ArbitrumModule],
+  imports: [SharedModule, AlchemyModule],
   controllers: [],
   providers: [Ebel2xService],
   exports: [Ebel2xService],

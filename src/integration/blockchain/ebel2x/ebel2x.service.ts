@@ -1,21 +1,39 @@
 import { Injectable } from '@nestjs/common';
-import { Config } from 'src/config/config';
-import { ArbitrumClient } from '../arbitrum/arbitrum-client';
-import { ArbitrumService } from '../arbitrum/arbitrum.service';
+import { GetConfig } from 'src/config/config';
+import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
+import { HttpService } from 'src/shared/services/http.service';
+import { EvmService } from '../shared/evm/evm.service';
 import { EvmUtil } from '../shared/evm/evm.util';
+import { Ebel2xClient } from './ebel2x-client';
 
 @Injectable()
-export class Ebel2xService {
-  private readonly client: ArbitrumClient;
+export class Ebel2xService extends EvmService {
+  constructor(http: HttpService, alchemyService: AlchemyService) {
+    const {
+      arbitrumGatewayUrl,
+      arbitrumApiKey,
+      arbitrumWalletPrivateKey,
+      arbitrumChainId,
+      swapContractAddress,
+      quoteContractAddress,
+    } = GetConfig().blockchain.arbitrum;
 
-  constructor(arbitrumService: ArbitrumService) {
-    this.client = arbitrumService.getDefaultClient();
+    super(Ebel2xClient, {
+      http,
+      alchemyService,
+      gatewayUrl: arbitrumGatewayUrl,
+      apiKey: arbitrumApiKey,
+      walletPrivateKey: arbitrumWalletPrivateKey,
+      chainId: arbitrumChainId,
+      swapContractAddress,
+      quoteContractAddress,
+    });
   }
 
   async getMKXPrice(): Promise<number> {
-    const ebel2xContract = this.client.getERC20ContractForDex(Config.blockchain.ebel2x.contractAddress);
-    const price = await ebel2xContract.price();
+    const pool = await this.getDefaultClient<Ebel2xClient>().getPool();
+    const tokenPrice = await pool.poolLogic.tokenPrice();
 
-    return EvmUtil.fromWeiAmount(price);
+    return EvmUtil.fromWeiAmount(tokenPrice);
   }
 }
