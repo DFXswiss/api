@@ -395,9 +395,9 @@ export class BuyFiat extends IEntity {
 
   get target(): { address: string; asset: Fiat; trimmedReturnAddress: string } {
     return {
-      address: this.sell.deposit?.address,
+      address: this.sell.iban,
       asset: this.sell.fiat,
-      trimmedReturnAddress: this.sell?.iban ? Util.blankStart(this.sell.iban) : null,
+      trimmedReturnAddress: this.user ? Util.blankStart(this.user.address) : null,
     };
   }
 }
