@@ -169,6 +169,7 @@ export class TransactionHelper implements OnModuleInit {
         ...fee,
         ...txSpecReferenceSourceFee,
         total: this.round(feeAmount, isFiat(from)),
+        dfx: undefined,
       },
     };
   }
@@ -284,6 +285,7 @@ export class TransactionHelper implements OnModuleInit {
         blockchain: txSpecSourceFee.blockchain,
         fixed: txSpecSourceFee.fixed,
         min: txSpecSourceFee.min,
+        dfx: txSpecSourceFee.dfx,
         total: txSpecSourceFee.total ?? this.convert(txSpecTargetFee.total, price.invert(), isFiat(from)),
       },
       feeTarget: {
@@ -291,6 +293,7 @@ export class TransactionHelper implements OnModuleInit {
         blockchain: txSpecTargetFee.blockchain,
         fixed: txSpecTargetFee.fixed,
         min: txSpecTargetFee.min,
+        dfx: txSpecTargetFee.dfx,
         total: txSpecTargetFee.total ?? this.convert(txSpecSourceFee.total, price, isFiat(to)),
       },
       isValid: error == null,
@@ -395,13 +398,15 @@ export class TransactionHelper implements OnModuleInit {
     const minFee = this.convert(fee.min, price, isFiat(from));
     const fixedFee = fee.fixed && this.convert(fee.fixed, price, isFiat(from));
     const blockchainFee = fee.blockchain && this.convert(fee.blockchain, price, isFiat(from));
-    const totalFee = sourceAmount && Math.max(sourceAmount * fee.rate + fixedFee + blockchainFee, minFee);
+    const totalFee =
+      sourceAmount && this.round(Math.max(sourceAmount * fee.rate + fixedFee + blockchainFee, minFee), isFiat(from));
 
     return {
       fee: {
         min: minFee,
         fixed: fixedFee,
         blockchain: blockchainFee,
+        dfx: this.round(sourceAmount * fee.rate + fixedFee, isFiat(from)),
         total: totalFee,
       },
       volume: {
@@ -424,13 +429,15 @@ export class TransactionHelper implements OnModuleInit {
     const minFee = this.convert(fee.min, price, isFiat(to));
     const fixedFee = fee.fixed && this.convert(fee.fixed, price, isFiat(to));
     const blockchainFee = fee.blockchain && this.convert(fee.blockchain, price, isFiat(to));
-    const totalFee = targetAmount && Math.max(targetAmount * fee.rate + fixedFee + blockchainFee, minFee);
+    const totalFee =
+      targetAmount && this.round(Math.max(targetAmount * fee.rate + fixedFee + blockchainFee, minFee), isFiat(to));
 
     return {
       fee: {
         min: minFee,
         fixed: fixedFee,
         blockchain: blockchainFee,
+        dfx: this.round(targetAmount * fee.rate + fixedFee, isFiat(to)),
         total: totalFee,
       },
       volume: {

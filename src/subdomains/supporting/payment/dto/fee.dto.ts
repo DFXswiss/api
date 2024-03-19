@@ -16,6 +16,9 @@ export class FeeDto extends BaseFeeDto {
   @ApiProperty({ description: 'Min fee amount' })
   min: number;
 
+  @ApiProperty({ description: 'Dfx fee amount' })
+  dfx: number;
+
   @ApiProperty({ description: 'Total fee amount' })
   total: number;
 }

@@ -12,6 +12,7 @@ export interface TxSpecExtended {
     min: number;
     rate?: number;
     fixed?: number;
+    dfx?: number;
     blockchain?: number;
     total?: number;
   };
