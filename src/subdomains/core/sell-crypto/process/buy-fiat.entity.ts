@@ -173,7 +173,7 @@ export class BuyFiat extends IEntity {
   @JoinColumn()
   transactionRequest: TransactionRequest;
 
-  @OneToOne(() => Transaction, { nullable: true })
+  @OneToOne(() => Transaction, { eager: true, nullable: true })
   @JoinColumn()
   transaction: Transaction;
 
@@ -346,4 +346,8 @@ export const BuyFiatAmlReasonPendingStates = [
   AmlReason.ANNUAL_LIMIT,
   AmlReason.ANNUAL_LIMIT_WITHOUT_KYC,
   AmlReason.NAME_CHECK_WITHOUT_KYC,
+  AmlReason.HIGH_RISK_KYC_NEEDED,
+  AmlReason.MANUAL_CHECK,
 ];
+
+export const BuyFiatEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET];

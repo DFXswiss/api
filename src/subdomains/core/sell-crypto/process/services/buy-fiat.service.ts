@@ -23,7 +23,7 @@ import { SellHistoryDto } from '../../route/dto/sell-history.dto';
 import { Sell } from '../../route/sell.entity';
 import { SellRepository } from '../../route/sell.repository';
 import { SellService } from '../../route/sell.service';
-import { BuyFiat } from '../buy-fiat.entity';
+import { BuyFiat, BuyFiatEditableAmlCheck } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { UpdateBuyFiatDto } from '../dto/update-buy-fiat.dto';
 
@@ -129,9 +129,9 @@ export class BuyFiatService {
 
     Util.removeNullFields(entity);
 
-    const forceUpdate = {
-      ...(entity.amlCheck === CheckStatus.PENDING && update.amlCheck && update.amlCheck !== CheckStatus.PENDING
-        ? { amlCheck: update.amlCheck, mailSendDate: null }
+    const forceUpdate: Partial<BuyFiat> = {
+      ...(BuyFiatEditableAmlCheck.includes(entity.amlCheck) && update?.amlCheck !== entity.amlCheck
+        ? { amlCheck: update.amlCheck, mailSendDate: null, amlReason: update.amlReason }
         : undefined),
       isComplete: dto.isComplete,
       comment: update.comment,

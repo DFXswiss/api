@@ -5,7 +5,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
-import { IsNull } from 'typeorm';
+import { IsNull, LessThanOrEqual } from 'typeorm';
 import { MailType } from '../../notification/enums';
 import { NotificationService } from '../../notification/services/notification.service';
 import { CheckoutTx } from '../entities/checkout-tx.entity';
@@ -55,9 +55,9 @@ export class CheckoutTxService {
     return entity;
   }
 
-  async getCheckoutTxWithoutTransaction(): Promise<CheckoutTx[]> {
+  async getCheckoutTxWithoutTransaction(filterDate: Date): Promise<CheckoutTx[]> {
     return this.checkoutTxRepo.find({
-      where: { transaction: IsNull() },
+      where: { transaction: IsNull(), created: LessThanOrEqual(filterDate) },
       relations: { transaction: true, buyCrypto: true },
     });
   }

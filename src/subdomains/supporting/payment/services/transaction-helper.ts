@@ -9,7 +9,9 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { AmlRule } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/min-amount.dto';
 import { FeeService, UserFeeRequest } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
@@ -249,20 +251,16 @@ export class TransactionHelper implements OnModuleInit {
 
     times.push(Date.now());
 
-    const error =
-      target.sourceAmount < txSpecSourceVolume.min
-        ? TransactionError.AMOUNT_TOO_LOW
-        : txAmountChf > extendedSpecs.volume.max
-        ? TransactionError.AMOUNT_TOO_HIGH
-        : isFiat(to) &&
-          to.name !== 'CHF' &&
-          user &&
-          !user.userData.hasBankTxVerification &&
-          txAmountChf > Config.tradingLimits.dailyDefault
-        ? TransactionError.BANK_TRANSACTION_MISSING
-        : paymentMethodIn === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed
-        ? TransactionError.KYC_REQUIRED
-        : undefined;
+    const error = this.getTxError(
+      from,
+      to,
+      paymentMethodIn,
+      target,
+      txSpecSourceVolume.min,
+      extendedSpecs.volume.max,
+      txAmountChf,
+      user,
+    );
 
     const price = await this.pricingService.getPrice(from, to, allowExpiredPrice);
 
@@ -453,5 +451,40 @@ export class TransactionHelper implements OnModuleInit {
 
   private roundMaxAmount(amount: number, isFiat: boolean): number {
     return isFiat ? Util.round(amount, -1) : Util.roundByPrecision(amount, 3);
+  }
+
+  private getTxError(
+    from: Active,
+    to: Active,
+    paymentMethodIn: PaymentMethod,
+    target: TargetEstimation,
+    txSourceMinVolume: number,
+    maxVolumeChf: number,
+    txAmountChf: number,
+    user?: User,
+  ): TransactionError | undefined {
+    // KYC checks
+    if (isFiat(from)) {
+      if (
+        (user?.wallet.amlRule === AmlRule.RULE_2 && user?.userData.kycLevel < KycLevel.LEVEL_30) ||
+        (user?.wallet.amlRule === AmlRule.RULE_3 && user?.userData.kycLevel < KycLevel.LEVEL_50)
+      )
+        return TransactionError.KYC_REQUIRED;
+    }
+
+    if (paymentMethodIn === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed)
+      return TransactionError.KYC_REQUIRED_INSTANT;
+    if (
+      isFiat(to) &&
+      to.name !== 'CHF' &&
+      user &&
+      !user.userData.hasBankTxVerification &&
+      txAmountChf > Config.tradingLimits.dailyDefault
+    )
+      return TransactionError.BANK_TRANSACTION_MISSING;
+
+    // amount checks
+    if (target.sourceAmount < txSourceMinVolume) return TransactionError.AMOUNT_TOO_LOW;
+    if (txAmountChf > maxVolumeChf) return TransactionError.AMOUNT_TOO_HIGH;
   }
 }

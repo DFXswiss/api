@@ -11,7 +11,7 @@ import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { DepositRouteType, RouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
-import { In, IsNull, Not } from 'typeorm';
+import { In, IsNull, LessThanOrEqual, Not } from 'typeorm';
 import { CryptoInput, PayInPurpose, PayInSendType, PayInStatus } from '../entities/crypto-input.entity';
 import { PayInRepository } from '../repositories/payin.repository';
 import { RegisterStrategyRegistry } from '../strategies/register/impl/base/register.strategy-registry';
@@ -46,9 +46,13 @@ export class PayInService {
     });
   }
 
-  async getCryptoInputWithoutTransaction(): Promise<CryptoInput[]> {
+  async getCryptoInputWithoutTransaction(filterDate: Date): Promise<CryptoInput[]> {
     return this.payInRepository.find({
-      where: { transaction: IsNull(), route: { type: In([RouteType.SELL, RouteType.CRYPTO]) } },
+      where: {
+        transaction: IsNull(),
+        route: { type: In([RouteType.SELL, RouteType.CRYPTO]) },
+        created: LessThanOrEqual(filterDate),
+      },
       relations: { transaction: true, buyCrypto: true, buyFiat: true },
     });
   }

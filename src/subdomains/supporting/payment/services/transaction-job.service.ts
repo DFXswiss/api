@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
@@ -28,21 +29,24 @@ export class TransactionJobService {
     private readonly checkoutTxService: CheckoutTxService,
     private readonly transactionService: TransactionService,
     private readonly refRewardService: RefRewardService,
+    private readonly settingService: SettingService,
   ) {}
 
   // --- SYNCHRONIZE TRANSACTIONS --- //
-  @Cron(CronExpression.EVERY_30_MINUTES)
+  @Cron(CronExpression.EVERY_MINUTE)
   @Lock(7200)
   async synchronizeTransactions(): Promise<void> {
     if (DisabledProcess(Process.SYNCHRONIZE_TRANSACTION)) return;
 
     try {
+      const date = await this.settingService.get('transactionFilterDate', '2022-07-31');
+
       const sortedUnassignedTx = Util.sort(
         [
-          ...(await this.bankTxService.getBankTxWithoutTransaction()),
-          ...(await this.payInService.getCryptoInputWithoutTransaction()),
-          ...(await this.checkoutTxService.getCheckoutTxWithoutTransaction()),
-          ...(await this.refRewardService.getRewardsWithoutTransaction()),
+          ...(await this.bankTxService.getBankTxWithoutTransaction(new Date(date))),
+          ...(await this.payInService.getCryptoInputWithoutTransaction(new Date(date))),
+          ...(await this.checkoutTxService.getCheckoutTxWithoutTransaction(new Date(date))),
+          ...(await this.refRewardService.getRewardsWithoutTransaction(new Date(date))),
         ],
         'created',
       );
@@ -50,6 +54,7 @@ export class TransactionJobService {
       for (const unassignedTx of sortedUnassignedTx) {
         await this.transactionService.create({
           sourceType: this.getSourceType(unassignedTx),
+          created: unassignedTx.created,
           ...this.getTypeAndEntity(unassignedTx),
         });
       }

@@ -22,6 +22,7 @@ export class RefRewardExtended extends RefReward {
 export class TransactionDtoMapper {
   static mapBuyCryptoTransaction(buyCrypto: BuyCryptoExtended): TransactionDto {
     const dto: TransactionDto = {
+      id: buyCrypto.transaction?.id,
       type: buyCrypto.isCryptoCryptoTransaction ? TransactionType.CONVERT : TransactionType.BUY,
       state: getTransactionState(buyCrypto),
       inputAmount: buyCrypto.inputAmount,
@@ -58,6 +59,7 @@ export class TransactionDtoMapper {
 
   static mapBuyFiatTransaction(buyFiat: BuyFiatExtended): TransactionDto {
     const dto: TransactionDto = {
+      id: buyFiat.transaction?.id,
       type: TransactionType.SELL,
       state: getTransactionState(buyFiat),
       inputAmount: buyFiat.inputAmount,
@@ -94,6 +96,7 @@ export class TransactionDtoMapper {
 
   static mapReferralReward(refReward: RefRewardExtended): TransactionDto {
     const dto: TransactionDto = {
+      id: refReward.transaction?.id,
       type: TransactionType.REFERRAL,
       state: getTransactionState(refReward),
       inputAmount: null,
