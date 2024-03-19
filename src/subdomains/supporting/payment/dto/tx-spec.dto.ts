@@ -3,9 +3,16 @@ export interface TxSpec {
   minFee: number;
 }
 
-export interface TxSpecExtended extends TxSpec {
-  maxVolume?: number;
-  fixedFee?: number;
-  blockchainFee?: number;
-  totalFee?: number;
+export interface TxSpecExtended {
+  volume: {
+    min: number;
+    max?: number;
+  };
+  fee: {
+    min: number;
+    rate?: number;
+    fixed?: number;
+    blockchain?: number;
+    total?: number;
+  };
 }

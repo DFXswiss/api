@@ -18,10 +18,10 @@ export class SellQuoteDto {
   @ApiProperty({ description: 'Final rate (incl. fees) in source/target' })
   rate: number;
 
-  @ApiProperty({ description: 'Fee dto in source asset' })
+  @ApiProperty({ type: FeeDto, description: 'Fee infos in source asset' })
   fee: FeeDto;
 
-  @ApiProperty({ description: 'Fee dto in target asset' })
+  @ApiProperty({ type: FeeDto, description: 'Fee infos in target currency' })
   feeTarget: FeeDto;
 
   @ApiProperty({ description: 'Minimum volume in source asset' })

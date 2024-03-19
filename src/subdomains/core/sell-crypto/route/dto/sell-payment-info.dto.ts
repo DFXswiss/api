@@ -25,7 +25,7 @@ export class SellPaymentInfoDto {
   @ApiProperty({ description: 'Minimum fee in source asset', deprecated: true })
   minFee: number;
 
-  @ApiProperty({ description: 'Fee dto in source asset' })
+  @ApiProperty({ type: FeeDto, description: 'Fee infos in source asset' })
   feeSource: FeeDto;
 
   @ApiProperty({ description: 'Minimum volume in source asset' })
@@ -43,7 +43,7 @@ export class SellPaymentInfoDto {
   @ApiProperty({ description: 'Minimum fee in target currency', deprecated: true })
   minFeeTarget: number;
 
-  @ApiProperty({ description: 'Fee dto in target asset' })
+  @ApiProperty({ type: FeeDto, description: 'Fee infos in target currency' })
   feeTarget: FeeDto;
 
   @ApiProperty({ description: 'Minimum volume in target currency' })
