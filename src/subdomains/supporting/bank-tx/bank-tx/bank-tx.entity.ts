@@ -205,7 +205,7 @@ export class BankTx extends IEntity {
   get completeName(): string {
     return [this.name, this.ultimateName]
       .filter((n) => n)
-      .map((n) => n.trim())
+      .map((n) => n.replace(/[,]/g, '').trim())
       .join(' ');
   }
 
