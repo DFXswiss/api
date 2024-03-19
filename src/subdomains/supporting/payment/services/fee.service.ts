@@ -217,8 +217,18 @@ export class FeeService {
     }
   }
 
-  async getBlockchainFee(asset: Active, allowBlockchainFeeFallback: boolean): Promise<number> {
-    return this.getBlockchainFeeInternal(asset, allowBlockchainFeeFallback);
+  async getBlockchainFee(active: Active, allowFallback: boolean): Promise<number> {
+    if (isAsset(active)) {
+      const fee = await this.blockchainFeeRepo.findOneBy({
+        asset: { id: active.id },
+        updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)),
+      });
+      if (!fee && !allowFallback) throw new Error(`No blockchain fee found for asset ${active.id}`);
+
+      return fee?.amount ?? this.getBlockchainMaxFee(active.blockchain);
+    } else {
+      return 0;
+    }
   }
 
   // --- HELPER METHODS --- //
@@ -231,8 +241,8 @@ export class FeeService {
     userDataId?: number,
   ): Promise<InternalFeeDto> {
     const blockchainFee =
-      (await this.getBlockchainFeeInternal(from, allowBlockchainFeeFallback)) +
-      (await this.getBlockchainFeeInternal(to, allowBlockchainFeeFallback));
+      (await this.getBlockchainFee(from, allowBlockchainFeeFallback)) +
+      (await this.getBlockchainFee(to, allowBlockchainFeeFallback));
 
     // get min special fee
     const specialFee = Util.minObj(
@@ -312,20 +322,6 @@ export class FeeService {
         Config.maxBlockchainFee,
       ),
     };
-  }
-
-  private async getBlockchainFeeInternal(active: Active, allowFallback: boolean): Promise<number> {
-    if (isAsset(active)) {
-      const fee = await this.blockchainFeeRepo.findOneBy({
-        asset: { id: active.id },
-        updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)),
-      });
-      if (!fee && !allowFallback) throw new Error(`No blockchain fee found for asset ${active.id}`);
-
-      return fee?.amount ?? this.getBlockchainMaxFee(active.blockchain);
-    } else {
-      return 0;
-    }
   }
 
   private async getBlockchainMaxFee(blockchain: Blockchain): Promise<number> {
