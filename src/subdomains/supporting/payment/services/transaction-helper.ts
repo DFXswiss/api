@@ -11,7 +11,7 @@ import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/service
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/min-amount.dto';
-import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
+import { FeeService, UserFeeRequest } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { InternalFeeDto } from '../dto/fee.dto';
@@ -132,6 +132,7 @@ export class TransactionHelper implements OnModuleInit {
       inputReferenceAmount,
       fromReference,
       [],
+      false,
     );
 
     const txSpecReferenceSource = await this.convertToSource(
@@ -182,6 +183,7 @@ export class TransactionHelper implements OnModuleInit {
       targetAmount ?? sourceAmount,
       targetAmount ? to : from,
       discountCodes,
+      allowExpiredPrice,
     );
 
     times.push(Date.now());
@@ -302,12 +304,13 @@ export class TransactionHelper implements OnModuleInit {
     txVolume: number,
     txAsset: Active,
     discountCodes: string[],
+    allowExpiredPrice: boolean,
   ): Promise<InternalFeeDto> {
     const price = await this.pricingService.getPrice(txAsset, this.chf, true);
 
     const txVolumeInChf = price.convert(txVolume);
 
-    const feeRequest = {
+    const feeRequest: UserFeeRequest = {
       user,
       paymentMethodIn,
       paymentMethodOut,
@@ -315,6 +318,7 @@ export class TransactionHelper implements OnModuleInit {
       to,
       txVolume: txVolumeInChf,
       discountCodes,
+      allowBlockchainFeeFallback: allowExpiredPrice,
     };
 
     return user ? this.feeService.getUserFee(feeRequest) : this.feeService.getDefaultFee(feeRequest);

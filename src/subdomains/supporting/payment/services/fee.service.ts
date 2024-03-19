@@ -47,6 +47,7 @@ export interface FeeRequestBase {
   to: Active;
   txVolume?: number;
   discountCodes: string[];
+  allowBlockchainFeeFallback: boolean;
 }
 
 const FeeValidityMinutes = 70;
@@ -192,7 +193,13 @@ export class FeeService {
     const userFees = await this.getValidFees(request);
 
     try {
-      return await this.calculateFee(userFees, request.from, request.to, request.user.userData?.id);
+      return await this.calculateFee(
+        userFees,
+        request.from,
+        request.to,
+        request.allowBlockchainFeeFallback,
+        request.user.userData?.id,
+      );
     } catch (e) {
       this.logger.error(`Fee exception, request: ${JSON.stringify(request)}`);
       throw e;
@@ -203,7 +210,7 @@ export class FeeService {
     const defaultFees = await this.getValidFees({ ...request, accountType });
 
     try {
-      return await this.calculateFee(defaultFees, request.from, request.to);
+      return await this.calculateFee(defaultFees, request.from, request.to, request.allowBlockchainFeeFallback);
     } catch (e) {
       this.logger.error(`Fee exception, request: ${JSON.stringify(request)}`);
       throw e;
@@ -212,8 +219,16 @@ export class FeeService {
 
   // --- HELPER METHODS --- //
 
-  private async calculateFee(fees: Fee[], from: Active, to: Active, userDataId?: number): Promise<InternalFeeDto> {
-    const blockchainFee = (await this.getBlockchainFee(from)) + (await this.getBlockchainFee(to));
+  private async calculateFee(
+    fees: Fee[],
+    from: Active,
+    to: Active,
+    allowBlockchainFeeFallback: boolean,
+    userDataId?: number,
+  ): Promise<InternalFeeDto> {
+    const blockchainFee =
+      (await this.getBlockchainFee(from, allowBlockchainFeeFallback)) +
+      (await this.getBlockchainFee(to, allowBlockchainFeeFallback));
 
     // get min special fee
     const specialFee = Util.minObj(
@@ -295,14 +310,15 @@ export class FeeService {
     };
   }
 
-  private async getBlockchainFee(active: Active): Promise<number> {
+  private async getBlockchainFee(active: Active, allowFallback: boolean): Promise<number> {
     if (isAsset(active)) {
       const fee = await this.blockchainFeeRepo.findOneBy({
         asset: { id: active.id },
         updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)),
       });
+      if (!fee && !allowFallback) throw new Error(`No blockchain fee found for asset ${active.id}`);
 
-      return fee ? fee.amount : this.getBlockchainMaxFee(active.blockchain);
+      return fee?.amount ?? this.getBlockchainMaxFee(active.blockchain);
     } else {
       return 0;
     }
