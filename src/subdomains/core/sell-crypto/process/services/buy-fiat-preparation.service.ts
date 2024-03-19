@@ -1,12 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
+import { AmlService } from 'src/subdomains/core/aml/aml.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { IsNull, Not } from 'typeorm';
-import { CheckStatus } from '../../../buy-crypto/process/enums/check-status.enum';
+import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatService } from './buy-fiat.service';
 
@@ -21,7 +23,93 @@ export class BuyFiatPreparationService {
     private readonly fiatService: FiatService,
     private readonly feeService: FeeService,
     private readonly buyFiatService: BuyFiatService,
+    private readonly amlService: AmlService,
   ) {}
+
+  async doAmlCheck(): Promise<void> {
+    const entities = await this.buyFiatRepo.find({
+      where: {
+        amlCheck: IsNull(),
+        amlReason: IsNull(),
+        inputAmount: Not(IsNull()),
+        inputAsset: Not(IsNull()),
+        isComplete: false,
+      },
+      relations: {
+        cryptoInput: true,
+        sell: { user: { wallet: true, userData: { users: true } } },
+      },
+    });
+    if (entities.length === 0) return;
+
+    this.logger.verbose(
+      `AmlCheck for ${entities.length} buy-fiat transaction(s). Transaction ID(s): ${entities.map((t) => t.id)}`,
+    );
+
+    // CHF/EUR Price
+    const fiatChf = await this.fiatService.getFiatByName('CHF');
+
+    for (const entity of entities) {
+      try {
+        if (!entity.cryptoInput.isConfirmed || !entity.cryptoInput.amlCheck) continue;
+
+        const inputCurrency = entity.cryptoInput.asset;
+        const inputReferenceCurrency = entity.cryptoInput.asset;
+
+        const inputReferenceAssetChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
+
+        const { minVolume } = await this.transactionHelper.getTxFeeInfos(
+          entity.inputReferenceAmount,
+          inputCurrency,
+          inputReferenceCurrency,
+          entity.target.asset,
+          CryptoPaymentMethod.CRYPTO,
+          FiatPaymentMethod.BANK,
+          entity.user,
+        );
+
+        const last24hVolume = await this.transactionHelper.getVolumeChfSince(
+          entity.inputReferenceAmount,
+          inputReferenceCurrency,
+          false,
+          Util.daysBefore(1),
+          entity.userData.users,
+        );
+
+        const last7dVolume = await this.transactionHelper.getVolumeChfSince(
+          entity.inputReferenceAmount,
+          inputReferenceCurrency,
+          false,
+          Util.daysBefore(7),
+          entity.userData.users,
+        );
+
+        const last30dVolume = await this.transactionHelper.getVolumeChfSince(
+          entity.inputReferenceAmount,
+          inputReferenceCurrency,
+          false,
+          Util.daysBefore(30),
+          entity.userData.users,
+        );
+
+        const { bankData, blacklist } = await this.amlService.getAmlCheckInput(entity);
+
+        await this.buyFiatRepo.update(
+          ...entity.amlCheckAndFillUp(
+            inputReferenceAssetChfPrice,
+            minVolume,
+            last24hVolume,
+            last7dVolume,
+            last30dVolume,
+            bankData?.userData,
+            blacklist,
+          ),
+        );
+      } catch (e) {
+        this.logger.error(`Error during buy-fiat ${entity.id} AML check:`, e);
+      }
+    }
+  }
 
   async refreshFee(): Promise<void> {
     const entities = await this.buyFiatRepo.find({

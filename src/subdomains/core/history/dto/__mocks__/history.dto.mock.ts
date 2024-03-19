@@ -1,4 +1,4 @@
-import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { HistoryDtoDeprecated, PaymentStatus } from 'src/subdomains/core/history/dto/history.dto';
 
 const defaultHistory: HistoryDtoDeprecated = {

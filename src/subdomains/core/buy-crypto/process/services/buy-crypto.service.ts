@@ -28,14 +28,14 @@ import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entit
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Between, Brackets, In, IsNull, Not } from 'typeorm';
+import { AmlReason } from '../../../aml/enums/aml-reason.enum';
+import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { Buy } from '../../routes/buy/buy.entity';
 import { BuyRepository } from '../../routes/buy/buy.repository';
 import { BuyService } from '../../routes/buy/buy.service';
 import { BuyHistoryDto } from '../../routes/buy/dto/buy-history.dto';
 import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
 import { BuyCrypto, BuyCryptoEditableAmlCheck } from '../entities/buy-crypto.entity';
-import { AmlReason } from '../enums/aml-reason.enum';
-import { CheckStatus } from '../enums/check-status.enum';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 

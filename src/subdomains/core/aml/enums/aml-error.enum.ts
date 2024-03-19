@@ -3,6 +3,7 @@ export enum AmlError {
   KYC_LEVEL_30_NOT_REACHED = 'KycLevel30NotReached',
   KYC_LEVEL_50_NOT_REACHED = 'KycLevel50NotReached',
   KYC_LEVEL_TOO_LOW = 'KycLevelTooLow',
+  ASSET_NOT_SELLABLE = 'AssetNotSellable',
   ASSET_NOT_BUYABLE = 'AssetNotBuyable',
   ASSET_NOT_INSTANT_BUYABLE = 'AssetNotInstantBuyable',
   ASSET_NOT_CARD_BUYABLE = 'AssetNotCardBuyable',

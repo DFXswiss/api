@@ -11,10 +11,10 @@ import {
 } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, IsNull, Not } from 'typeorm';
+import { AmlReason, AmlReasonWithoutReason, KycAmlReasons } from '../../../aml/enums/aml-reason.enum';
+import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
 import { BuyCryptoAmlReasonPendingStates } from '../entities/buy-crypto.entity';
-import { AmlReason, AmlReasonWithoutReason, KycAmlReasons } from '../enums/aml-reason.enum';
-import { CheckStatus } from '../enums/check-status.enum';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 
 @Injectable()

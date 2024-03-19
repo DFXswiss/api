@@ -1,6 +1,6 @@
 import { Util } from 'src/shared/utils/util';
+import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
-import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
 import { RefReward } from '../../referral/reward/ref-reward.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { CryptoStaking } from '../../staking/entities/crypto-staking.entity';
