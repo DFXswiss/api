@@ -88,6 +88,14 @@ export class BuyCryptoPreparationService {
           entity.userData.users,
         );
 
+        const last7dVolume = await this.transactionHelper.getVolumeChfSince(
+          entity.inputReferenceAmount,
+          inputReferenceCurrency,
+          false,
+          Util.daysBefore(7),
+          entity.userData.users,
+        );
+
         const last30dVolume = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,
           inputReferenceCurrency,
@@ -103,6 +111,7 @@ export class BuyCryptoPreparationService {
             inputReferenceAssetChfPrice,
             minVolume,
             last24hVolume,
+            last7dVolume,
             last30dVolume,
             bankData?.userData,
             blacklist,

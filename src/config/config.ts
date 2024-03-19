@@ -47,6 +47,7 @@ export class Configuration {
 
   tradingLimits = {
     dailyDefault: 1000, // CHF
+    weeklyAmlRule: 5000, // CHF
     monthlyDefault: 500000, // CHF
     yearlyDefault: 1000000000, // CHF
     cardDefault: 4000, // CHF
@@ -334,6 +335,9 @@ export class Configuration {
         stablecoinBridge: process.env.ZCHF_STABLECOIN_BRIDGE_CONTRACT_ADDRESS,
         xchf: process.env.ZCHF_XCHF_CONTRACT_ADDRESS,
       },
+    },
+    ebel2x: {
+      contractAddress: process.env.EBEL2X_CONTRACT_ADDRESS,
     },
   };
 

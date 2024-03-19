@@ -4,6 +4,7 @@ import { LightningModule } from '../lightning/lightning.module';
 import { ArbitrumModule } from './arbitrum/arbitrum.module';
 import { BaseModule } from './base/base.module';
 import { BscModule } from './bsc/bsc.module';
+import { Ebel2xModule } from './ebel2x/ebel2x.module';
 import { EthereumModule } from './ethereum/ethereum.module';
 import { FrankencoinModule } from './frankencoin/frankencoin.module';
 import { MoneroModule } from './monero/monero.module';
@@ -25,6 +26,7 @@ import { CryptoService } from './shared/services/crypto.service';
     LightningModule,
     MoneroModule,
     FrankencoinModule,
+    Ebel2xModule,
   ],
   exports: [
     AinModule,
@@ -37,6 +39,7 @@ import { CryptoService } from './shared/services/crypto.service';
     LightningModule,
     MoneroModule,
     FrankencoinModule,
+    Ebel2xModule,
     EvmRegistryService,
     CryptoService,
   ],
