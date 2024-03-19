@@ -25,7 +25,7 @@ export class CryptoPaymentInfoDto {
   minFee: number;
 
   @ApiProperty({ type: FeeDto, description: 'Fee infos in source asset' })
-  feeSource: FeeDto;
+  fees: FeeDto;
 
   @ApiProperty({ description: 'Minimum volume in source asset' })
   minVolume: number;
@@ -43,7 +43,7 @@ export class CryptoPaymentInfoDto {
   minFeeTarget: number;
 
   @ApiProperty({ type: FeeDto, description: 'Fee infos in target asset' })
-  feeTarget: FeeDto;
+  feesTarget: FeeDto;
 
   @ApiProperty({ description: 'Minimum volume in target asset' })
   minVolumeTarget: number;

@@ -51,7 +51,7 @@ export class BuyPaymentInfoDto extends BankInfoDto {
   minFee: number;
 
   @ApiProperty({ type: FeeDto, description: 'Fee infos in source currency' })
-  feeSource: FeeDto;
+  fees: FeeDto;
 
   @ApiProperty({ description: 'Minimum volume in source currency' })
   minVolume: number;
@@ -69,7 +69,7 @@ export class BuyPaymentInfoDto extends BankInfoDto {
   minFeeTarget: number;
 
   @ApiProperty({ type: FeeDto, description: 'Fee infos in target asset' })
-  feeTarget: FeeDto;
+  feesTarget: FeeDto;
 
   @ApiProperty({ description: 'Minimum volume in target asset' })
   minVolumeTarget: number;

@@ -25,10 +25,10 @@ export class BuyQuoteDto {
   maxVolume: number;
 
   @ApiProperty({ type: FeeDto, description: 'Fee infos in source currency' })
-  fee: FeeDto;
+  fees: FeeDto;
 
   @ApiProperty({ type: FeeDto, description: 'Fee infos in target asset' })
-  feeTarget: FeeDto;
+  feesTarget: FeeDto;
 
   @ApiProperty({ description: 'Minimum volume in target asset' })
   minVolumeTarget: number;

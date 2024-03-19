@@ -217,6 +217,10 @@ export class FeeService {
     }
   }
 
+  async getBlockchainFee(asset: Active, allowBlockchainFeeFallback: boolean): Promise<number> {
+    return this.getBlockchainFeeInternal(asset, allowBlockchainFeeFallback);
+  }
+
   // --- HELPER METHODS --- //
 
   private async calculateFee(
@@ -227,8 +231,8 @@ export class FeeService {
     userDataId?: number,
   ): Promise<InternalFeeDto> {
     const blockchainFee =
-      (await this.getBlockchainFee(from, allowBlockchainFeeFallback)) +
-      (await this.getBlockchainFee(to, allowBlockchainFeeFallback));
+      (await this.getBlockchainFeeInternal(from, allowBlockchainFeeFallback)) +
+      (await this.getBlockchainFeeInternal(to, allowBlockchainFeeFallback));
 
     // get min special fee
     const specialFee = Util.minObj(
@@ -310,7 +314,7 @@ export class FeeService {
     };
   }
 
-  private async getBlockchainFee(active: Active, allowFallback: boolean): Promise<number> {
+  private async getBlockchainFeeInternal(active: Active, allowFallback: boolean): Promise<number> {
     if (isAsset(active)) {
       const fee = await this.blockchainFeeRepo.findOneBy({
         asset: { id: active.id },
