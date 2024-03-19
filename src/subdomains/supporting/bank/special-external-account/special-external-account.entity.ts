@@ -1,25 +1,23 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity } from 'typeorm';
 
-export enum SpecialExternalBankAccountType {
+export enum SpecialExternalAccountType {
   MULTI_ACCOUNT_IBAN = 'MultiAccountIban',
   BANNED_IBAN = 'BannedIban',
   BANNED_BIC = 'BannedBic',
+  BANNED_MAIL = 'BannedMail',
 }
 
 @Entity()
-export class SpecialExternalBankAccount extends IEntity {
+export class SpecialExternalAccount extends IEntity {
   @Column({ length: 256 })
-  type: SpecialExternalBankAccountType;
+  type: SpecialExternalAccountType;
 
   @Column({ length: 256, nullable: true })
   name: string;
 
   @Column({ length: 256, nullable: true })
-  iban: string;
-
-  @Column({ length: 256, nullable: true })
-  bic: string;
+  value: string;
 
   @Column({ length: 256, nullable: true })
   comment: string;

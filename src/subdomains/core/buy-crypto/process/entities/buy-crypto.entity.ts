@@ -10,7 +10,7 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
-import { SpecialExternalBankAccount } from 'src/subdomains/supporting/bank/special-external-bank-account/special-external-bank-account.entity';
+import { SpecialExternalAccount } from 'src/subdomains/supporting/bank/special-external-account/special-external-account.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -443,7 +443,7 @@ export class BuyCrypto extends IEntity {
     last7dVolume: number,
     last30dVolume: number,
     bankDataUserData: UserData,
-    blacklist: SpecialExternalBankAccount[],
+    blacklist: SpecialExternalAccount[],
     instantBanks: Bank[],
   ): UpdateResult<BuyCrypto> {
     const { usedRef, refProvision } = this.user.specifiedRef;

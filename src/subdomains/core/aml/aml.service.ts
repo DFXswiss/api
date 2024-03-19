@@ -8,8 +8,11 @@ import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity'
 import { AmlRule } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
-import { SpecialExternalBankAccount } from 'src/subdomains/supporting/bank/special-external-bank-account/special-external-bank-account.entity';
-import { SpecialExternalBankAccountService } from 'src/subdomains/supporting/bank/special-external-bank-account/special-external-bank-account.service';
+import {
+  SpecialExternalAccount,
+  SpecialExternalAccountType,
+} from 'src/subdomains/supporting/bank/special-external-account/special-external-account.entity';
+import { SpecialExternalAccountService } from 'src/subdomains/supporting/bank/special-external-account/special-external-account.service';
 import { BuyCrypto } from '../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../sell-crypto/process/buy-fiat.entity';
 import { AmlError } from './enums/aml-error.enum';
@@ -18,7 +21,7 @@ import { CheckStatus } from './enums/check-status.enum';
 @Injectable()
 export class AmlService {
   constructor(
-    private readonly specialExternalBankAccountService: SpecialExternalBankAccountService,
+    private readonly specialExternalBankAccountService: SpecialExternalAccountService,
     private readonly bankDataService: BankDataService,
     private readonly bankService: BankService,
   ) {}
@@ -31,7 +34,7 @@ export class AmlService {
     last7dVolume: number,
     last30dVolume: number,
     bankDataUserDataId: number,
-    blacklist: SpecialExternalBankAccount[],
+    blacklist: SpecialExternalAccount[],
     instantBanks?: Bank[],
   ): AmlError[] {
     const errors = [];
@@ -46,6 +49,10 @@ export class AmlService {
     if (!entity.userData.lastNameCheckDate) errors.push(AmlError.NO_NAME_CHECK);
     if (Util.daysDiff(entity.userData.lastNameCheckDate) > Config.amlCheckLastNameCheckValidity)
       errors.push(AmlError.OUTDATED_NAME_CHECK);
+    if (
+      blacklist.some((b) => b.type === SpecialExternalAccountType.BANNED_MAIL && entity.userData.mail.includes(b.value))
+    )
+      errors.push(AmlError.SUSPICIOUS_MAIL);
     if (last30dVolume > Config.tradingLimits.monthlyDefault) errors.push(AmlError.MONTHLY_LIMIT_REACHED);
     if (last24hVolume > Config.tradingLimits.dailyDefault) {
       // KYC required
@@ -101,8 +108,10 @@ export class AmlService {
 
       if (entity.bankTx) {
         // bank
-        if (blacklist.some((b) => b.bic && b.bic === entity.bankTx.bic)) errors.push(AmlError.BIC_BLACKLISTED);
-        if (blacklist.some((b) => b.iban && b.iban === entity.bankTx.iban)) errors.push(AmlError.IBAN_BLACKLISTED);
+        if (blacklist.some((b) => b.type === SpecialExternalAccountType.BANNED_BIC && b.value === entity.bankTx.bic))
+          errors.push(AmlError.BIC_BLACKLISTED);
+        if (blacklist.some((b) => b.type === SpecialExternalAccountType.BANNED_IBAN && b.value === entity.bankTx.iban))
+          errors.push(AmlError.IBAN_BLACKLISTED);
         if (instantBanks?.some((b) => b.iban === entity.bankTx.accountIban)) {
           if (!entity.userData.olkypayAllowed) errors.push(AmlError.INSTANT_NOT_ALLOWED);
           if (!entity.target.asset.instantBuyable) errors.push(AmlError.ASSET_NOT_INSTANT_BUYABLE);
@@ -110,14 +119,15 @@ export class AmlService {
       } else if (entity.checkoutTx) {
         // checkout
         if (!entity.target.asset.cardBuyable) errors.push(AmlError.ASSET_NOT_CARD_BUYABLE);
-        if (blacklist.some((b) => b.iban && b.iban === entity.checkoutTx.cardFingerPrint))
+        if (blacklist.some((b) => b.value && b.value === entity.checkoutTx.cardFingerPrint))
           errors.push(AmlError.CARD_BLACKLISTED);
         if (last7dVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
       }
     } else {
       // buyFiat
       if (!entity.target.asset.sellable) errors.push(AmlError.ASSET_NOT_SELLABLE);
-      if (blacklist.some((b) => b.iban && b.iban === entity.sell.iban)) errors.push(AmlError.IBAN_BLACKLISTED);
+      if (blacklist.some((b) => b.type === SpecialExternalAccountType.BANNED_IBAN && b.value === entity.sell.iban))
+        errors.push(AmlError.IBAN_BLACKLISTED);
     }
 
     return errors;
@@ -125,7 +135,7 @@ export class AmlService {
 
   async getAmlCheckInput(
     entity: BuyFiat | BuyCrypto,
-  ): Promise<{ bankData: BankData; blacklist: SpecialExternalBankAccount[]; instantBanks?: Bank[] }> {
+  ): Promise<{ bankData: BankData; blacklist: SpecialExternalAccount[]; instantBanks?: Bank[] }> {
     const blacklist = await this.specialExternalBankAccountService.getBlacklist();
 
     if (entity instanceof BuyFiat) {
@@ -137,7 +147,7 @@ export class AmlService {
       const multiAccountIbans = await this.specialExternalBankAccountService.getMultiAccountIbans();
       const bankData = await this.bankDataService.getBankDataWithIban(
         entity.bankTx
-          ? entity.bankTx.senderAccount(multiAccountIbans.map((m) => m.iban))
+          ? entity.bankTx.senderAccount(multiAccountIbans.map((m) => m.value))
           : entity.checkoutTx.cardFingerPrint,
         undefined,
         true,
