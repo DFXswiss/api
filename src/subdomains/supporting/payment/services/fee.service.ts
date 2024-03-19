@@ -333,7 +333,7 @@ export class FeeService {
       .createQueryBuilder('fee')
       .select('MAX(amount)', 'maxFee')
       .innerJoin('fee.asset', 'asset')
-      .where({ blockchain })
+      .where({ asset: { blockchain } })
       .andWhere({ updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)) })
       .getRawOne<{ maxFee: number }>();
     return maxFee ?? 0;
