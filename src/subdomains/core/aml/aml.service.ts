@@ -28,6 +28,7 @@ export class AmlService {
     minVolume: number,
     amountInChf: number,
     last24hVolume: number,
+    last7dVolume: number,
     last30dVolume: number,
     bankDataUserDataId: number,
     blacklist: SpecialExternalBankAccount[],
@@ -86,10 +87,15 @@ export class AmlService {
             errors.push(AmlError.IP_MISMATCH);
           break;
         case AmlRule.RULE_2:
-          if (entity.userData.kycLevel < KycLevel.LEVEL_30) errors.push(AmlError.KYC_LEVEL_30_NOT_REACHED);
+          if (entity.user.status === UserStatus.NA && entity.userData.kycLevel < KycLevel.LEVEL_30)
+            errors.push(AmlError.KYC_LEVEL_30_NOT_REACHED);
           break;
         case AmlRule.RULE_3:
-          if (entity.userData.kycLevel < KycLevel.LEVEL_50) errors.push(AmlError.KYC_LEVEL_50_NOT_REACHED);
+          if (entity.user.status === UserStatus.NA && entity.userData.kycLevel < KycLevel.LEVEL_50)
+            errors.push(AmlError.KYC_LEVEL_50_NOT_REACHED);
+          break;
+        case AmlRule.RULE_4:
+          if (last7dVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
           break;
       }
 
@@ -106,6 +112,7 @@ export class AmlService {
         if (!entity.target.asset.cardBuyable) errors.push(AmlError.ASSET_NOT_CARD_BUYABLE);
         if (blacklist.some((b) => b.iban && b.iban === entity.checkoutTx.cardFingerPrint))
           errors.push(AmlError.CARD_BLACKLISTED);
+        if (last7dVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
       }
     } else {
       // buyFiat
