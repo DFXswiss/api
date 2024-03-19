@@ -14,6 +14,7 @@ import { CoinGeckoService } from './services/integration/coin-gecko.service';
 import { CurrencyService } from './services/integration/currency.service';
 import { FixerService } from './services/integration/fixer.service';
 import { PricingDexService } from './services/integration/pricing-dex.service';
+import { PricingEbel2xService } from './services/integration/pricing-ebel2x.service';
 import { PricingFrankencoinService } from './services/integration/pricing-frankencoin.service';
 import { PricingService } from './services/pricing.service';
 
@@ -37,6 +38,7 @@ import { PricingService } from './services/pricing.service';
     PricingService,
     PricingDexService,
     PricingFrankencoinService,
+    PricingEbel2xService,
   ],
   exports: [PricingService],
 })

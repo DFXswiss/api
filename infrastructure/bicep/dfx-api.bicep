@@ -123,6 +123,8 @@ param zchfEquityContractAddress string
 param zchfStablecoinBridgeContractAddress string
 param zchfXchfContractAddress string
 
+param ebel2XContractAddress string
+
 param buyCryptoFeeLimit string
 
 param nodeServicePlanSkuName string
@@ -383,14 +385,15 @@ resource sqlVNetRule 'Microsoft.Sql/servers/virtualNetworkRules@2021-02-01-previ
   }
 }
 
-resource sqlAllRule 'Microsoft.Sql/servers/firewallRules@2021-02-01-preview' = if (dbAllowAllIps) {
-  parent: sqlServer
-  name: 'all'
-  properties: {
-    startIpAddress: '0.0.0.0'
-    endIpAddress: '255.255.255.255'
+resource sqlAllRule 'Microsoft.Sql/servers/firewallRules@2021-02-01-preview' =
+  if (dbAllowAllIps) {
+    parent: sqlServer
+    name: 'all'
+    properties: {
+      startIpAddress: '0.0.0.0'
+      endIpAddress: '255.255.255.255'
+    }
   }
-}
 
 resource sqlDb 'Microsoft.Sql/servers/databases@2021-02-01-preview' = {
   parent: sqlServer
@@ -838,6 +841,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: zchfXchfContractAddress
         }
         {
+          name: 'EBEL2X_CONTRACT_ADDRESS'
+          value: ebel2XContractAddress
+        }
+        {
           name: 'BUY_CRYPTO_FEE_LIMIT'
           value: buyCryptoFeeLimit
         }
@@ -1067,23 +1074,25 @@ resource appInsights 'microsoft.insights/components@2020-02-02-preview' = {
 }
 
 // DeFi Nodes
-module nodes 'defi-node.bicep' = [for node in nodeProps: {
-  name: node.name
-  params: {
-    location: location
-    servicePlanName: node.servicePlanName
-    servicePlanSkuName: nodeServicePlanSkuName
-    servicePlanSkuTier: nodeServicePlanSkuTier
-    appName: node.appName
-    subnetId: virtualNet.properties.subnets[0].id
-    storageAccountName: storageAccountName
-    storageAccountId: storageAccount.id
-    fileShareNameA: node.fileShareNameA
-    fileShareNameB: node.fileShareNameB
-    allowAllIps: nodeAllowAllIps
-    hasBackup: hasBackupNodes
+module nodes 'defi-node.bicep' = [
+  for node in nodeProps: {
+    name: node.name
+    params: {
+      location: location
+      servicePlanName: node.servicePlanName
+      servicePlanSkuName: nodeServicePlanSkuName
+      servicePlanSkuTier: nodeServicePlanSkuTier
+      appName: node.appName
+      subnetId: virtualNet.properties.subnets[0].id
+      storageAccountName: storageAccountName
+      storageAccountId: storageAccount.id
+      fileShareNameA: node.fileShareNameA
+      fileShareNameB: node.fileShareNameB
+      allowAllIps: nodeAllowAllIps
+      hasBackup: hasBackupNodes
+    }
   }
-}]
+]
 
 // BTC Node
 resource vmNsg 'Microsoft.Network/networkSecurityGroups@2020-11-01' = {
@@ -1134,31 +1143,34 @@ resource vmNsg 'Microsoft.Network/networkSecurityGroups@2020-11-01' = {
   }
 }
 
-resource rpcRule 'Microsoft.Network/networkSecurityGroups/securityRules@2020-11-01' = if (nodeAllowAllIps) {
-  parent: vmNsg
-  name: 'RPC'
-  properties: {
-    protocol: 'TCP'
-    sourcePortRange: '*'
-    destinationPortRange: btcNodePort
-    sourceAddressPrefix: allowedIpRange
-    destinationAddressPrefix: '*'
-    access: 'Allow'
-    priority: 350
-    direction: 'Inbound'
+resource rpcRule 'Microsoft.Network/networkSecurityGroups/securityRules@2020-11-01' =
+  if (nodeAllowAllIps) {
+    parent: vmNsg
+    name: 'RPC'
+    properties: {
+      protocol: 'TCP'
+      sourcePortRange: '*'
+      destinationPortRange: btcNodePort
+      sourceAddressPrefix: allowedIpRange
+      destinationAddressPrefix: '*'
+      access: 'Allow'
+      priority: 350
+      direction: 'Inbound'
+    }
   }
-}
 
-module btcNodes 'btc-node.bicep' = [for node in btcNodeProps: {
-  name: node.name
-  params: {
-    location: location
-    pipName: node.pipName
-    vmName: node.vmName
-    vmDiskName: node.vmDiskName
-    nicName: node.nicName
-    vmUser: btcVmUser
-    vmPassword: btcVmPassword
-    subnetId: virtualNet.properties.subnets[1].id
+module btcNodes 'btc-node.bicep' = [
+  for node in btcNodeProps: {
+    name: node.name
+    params: {
+      location: location
+      pipName: node.pipName
+      vmName: node.vmName
+      vmDiskName: node.vmDiskName
+      nicName: node.nicName
+      vmUser: btcVmUser
+      vmPassword: btcVmPassword
+      subnetId: virtualNet.properties.subnets[1].id
+    }
   }
-}]
+]
