@@ -21,4 +21,10 @@ export class SpecialExternalAccount extends IEntity {
 
   @Column({ length: 256, nullable: true })
   comment: string;
+
+  // --- ENTITY METHODS --- //
+
+  matches(type: SpecialExternalAccountType, value: string): boolean {
+    return this.type === type && new RegExp(this.value).test(value);
+  }
 }

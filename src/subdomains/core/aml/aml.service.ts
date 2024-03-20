@@ -49,11 +49,7 @@ export class AmlService {
     if (!entity.userData.lastNameCheckDate) errors.push(AmlError.NO_NAME_CHECK);
     if (Util.daysDiff(entity.userData.lastNameCheckDate) > Config.amlCheckLastNameCheckValidity)
       errors.push(AmlError.OUTDATED_NAME_CHECK);
-    if (
-      blacklist.some(
-        (b) => b.type === SpecialExternalAccountType.BANNED_MAIL && new RegExp(b.value).test(entity.userData.mail),
-      )
-    )
+    if (blacklist.some((b) => b.matches(SpecialExternalAccountType.BANNED_MAIL, entity.userData.mail)))
       errors.push(AmlError.SUSPICIOUS_MAIL);
     if (last30dVolume > Config.tradingLimits.monthlyDefault) errors.push(AmlError.MONTHLY_LIMIT_REACHED);
     if (last24hVolume > Config.tradingLimits.dailyDefault) {
@@ -112,17 +108,9 @@ export class AmlService {
 
       if (entity.bankTx) {
         // bank
-        if (
-          blacklist.some(
-            (b) => b.type === SpecialExternalAccountType.BANNED_BIC && new RegExp(b.value).test(entity.bankTx.bic),
-          )
-        )
+        if (blacklist.some((b) => b.matches(SpecialExternalAccountType.BANNED_BIC, entity.bankTx.bic)))
           errors.push(AmlError.BIC_BLACKLISTED);
-        if (
-          blacklist.some(
-            (b) => b.type === SpecialExternalAccountType.BANNED_IBAN && new RegExp(b.value).test(entity.bankTx.iban),
-          )
-        )
+        if (blacklist.some((b) => b.matches(SpecialExternalAccountType.BANNED_IBAN, entity.bankTx.iban)))
           errors.push(AmlError.IBAN_BLACKLISTED);
         if (instantBanks?.some((b) => b.iban === entity.bankTx.accountIban)) {
           if (!entity.userData.olkypayAllowed) errors.push(AmlError.INSTANT_NOT_ALLOWED);
@@ -131,24 +119,14 @@ export class AmlService {
       } else if (entity.checkoutTx) {
         // checkout
         if (!entity.target.asset.cardBuyable) errors.push(AmlError.ASSET_NOT_CARD_BUYABLE);
-        if (
-          blacklist.some(
-            (b) =>
-              b.type === SpecialExternalAccountType.BANNED_IBAN &&
-              new RegExp(b.value).test(entity.checkoutTx.cardFingerPrint),
-          )
-        )
+        if (blacklist.some((b) => b.matches(SpecialExternalAccountType.BANNED_IBAN, entity.checkoutTx.cardFingerPrint)))
           errors.push(AmlError.CARD_BLACKLISTED);
         if (last7dVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
       }
     } else {
       // buyFiat
       if (!entity.target.asset.sellable) errors.push(AmlError.ASSET_NOT_SELLABLE);
-      if (
-        blacklist.some(
-          (b) => b.type === SpecialExternalAccountType.BANNED_IBAN && new RegExp(b.value).test(entity.bankTx.iban),
-        )
-      )
+      if (blacklist.some((b) => b.matches(SpecialExternalAccountType.BANNED_IBAN, entity.bankTx.iban)))
         errors.push(AmlError.IBAN_BLACKLISTED);
     }
 
