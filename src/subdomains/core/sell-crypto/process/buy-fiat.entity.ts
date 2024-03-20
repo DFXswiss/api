@@ -3,6 +3,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
+import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
@@ -281,7 +282,7 @@ export class BuyFiat extends IEntity {
     last24hVolume: number,
     last7dVolume: number,
     last30dVolume: number,
-    bankDataUserData: UserData,
+    bankData: BankData,
     blacklist: SpecialExternalBankAccount[],
   ): UpdateResult<BuyFiat> {
     const { usedRef, refProvision } = this.user.specifiedRef;
@@ -294,7 +295,7 @@ export class BuyFiat extends IEntity {
       last24hVolume,
       last7dVolume,
       last30dVolume,
-      bankDataUserData?.id,
+      bankData,
       blacklist,
     );
 

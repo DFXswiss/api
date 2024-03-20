@@ -101,7 +101,7 @@ export class BuyFiatPreparationService {
             last24hVolume,
             last7dVolume,
             last30dVolume,
-            bankData?.userData,
+            bankData,
             blacklist,
           ),
         );

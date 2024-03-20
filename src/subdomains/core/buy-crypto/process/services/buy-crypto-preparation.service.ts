@@ -113,7 +113,7 @@ export class BuyCryptoPreparationService {
             last24hVolume,
             last7dVolume,
             last30dVolume,
-            bankData?.userData,
+            bankData,
             blacklist,
             instantBanks,
           ),
