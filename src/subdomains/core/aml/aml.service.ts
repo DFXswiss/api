@@ -33,7 +33,7 @@ export class AmlService {
     last24hVolume: number,
     last7dVolume: number,
     last30dVolume: number,
-    bankDataUserDataId: number,
+    bankData: BankData,
     blacklist: SpecialExternalAccount[],
     instantBanks?: Bank[],
   ): AmlError[] {
@@ -68,9 +68,11 @@ export class AmlService {
     }
 
     if (entity instanceof BuyFiat || !entity.cryptoInput) {
-      if (!bankDataUserDataId) {
+      if (!bankData || bankData.active === null) {
         errors.push(AmlError.BANK_DATA_MISSING);
-      } else if (entity.userData.id !== bankDataUserDataId) {
+      } else if (!bankData.active) {
+        errors.push(AmlError.BANK_DATA_NOT_ACTIVE);
+      } else if (entity.userData.id !== bankData.userData.id) {
         errors.push(AmlError.BANK_DATA_USER_MISMATCH);
       }
     }
@@ -159,7 +161,7 @@ export class AmlService {
     const blacklist = await this.specialExternalBankAccountService.getBlacklist();
 
     if (entity instanceof BuyFiat) {
-      const bankData = await this.bankDataService.getBankDataWithIban(entity.sell.iban, undefined, true);
+      const bankData = await this.bankDataService.getBankDataWithIban(entity.sell.iban);
       return { bankData, blacklist };
     } else {
       if (entity.cryptoInput) return { bankData: undefined, blacklist, instantBanks: undefined };
@@ -169,8 +171,6 @@ export class AmlService {
         entity.bankTx
           ? entity.bankTx.senderAccount(multiAccountIbans.map((m) => m.value))
           : entity.checkoutTx.cardFingerPrint,
-        undefined,
-        true,
       );
       const instantBanks = await this.bankService.getInstantBanks();
 

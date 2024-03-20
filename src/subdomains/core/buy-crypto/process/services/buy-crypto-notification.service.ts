@@ -44,6 +44,7 @@ export class BuyCryptoNotificationService {
           mailSendDate: IsNull(),
           txId: Not(IsNull()),
           amlCheck: CheckStatus.PASS,
+          amlReason: Not(AmlReason.NO_COMMUNICATION),
         },
         relations: [
           'bankTx',
@@ -177,6 +178,7 @@ export class BuyCryptoNotificationService {
 
     for (const entity of entities) {
       try {
+        if (entity.amlReason === AmlReason.NO_COMMUNICATION) continue;
         if (
           entity.user.userData.mail &&
           (entity.user.userData.verifiedName || entity.amlReason !== AmlReason.NAME_CHECK_WITHOUT_KYC)
@@ -208,7 +210,9 @@ export class BuyCryptoNotificationService {
                 !entity.isLightningInput && entity.isCryptoCryptoTransaction
                   ? {
                       key: `${entity.translationReturnMailKey}.payment_link`,
-                      params: { url: txExplorerUrl(entity.cryptoInput.asset.blockchain, entity.chargebackCryptoTxId) },
+                      params: {
+                        url: txExplorerUrl(entity.cryptoInput.asset.blockchain, entity.chargebackCryptoTxId),
+                      },
                     }
                   : null,
                 !AmlReasonWithoutReason.includes(entity.amlReason)

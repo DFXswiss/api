@@ -6,6 +6,7 @@ import { Util } from 'src/shared/utils/util';
 import { AmlService } from 'src/subdomains/core/aml/aml.service';
 import { AmlPendingError } from 'src/subdomains/core/aml/enums/aml-error.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
+import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
@@ -442,7 +443,7 @@ export class BuyCrypto extends IEntity {
     last24hVolume: number,
     last7dVolume: number,
     last30dVolume: number,
-    bankDataUserData: UserData,
+    bankData: BankData,
     blacklist: SpecialExternalAccount[],
     instantBanks: Bank[],
   ): UpdateResult<BuyCrypto> {
@@ -456,7 +457,7 @@ export class BuyCrypto extends IEntity {
       last24hVolume,
       last7dVolume,
       last30dVolume,
-      bankDataUserData?.id,
+      bankData,
       blacklist,
       instantBanks,
     );

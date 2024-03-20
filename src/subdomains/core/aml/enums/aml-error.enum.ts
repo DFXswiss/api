@@ -25,6 +25,7 @@ export enum AmlError {
   MONTHLY_LIMIT_REACHED = 'MonthlyLimitReached',
   DEPOSIT_LIMIT_REACHED = 'DepositLimitReached',
   BANK_DATA_MISSING = 'BankDataMissing',
+  BANK_DATA_NOT_ACTIVE = 'BankDataNotActive',
   BANK_DATA_USER_MISMATCH = 'BankDataUserMismatch',
   BIC_BLACKLISTED = 'BicBlacklisted',
   IBAN_BLACKLISTED = 'IbanBlacklisted',
