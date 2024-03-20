@@ -10,6 +10,7 @@ export enum Blockchain {
   BASE = 'Base',
   HAQQ = 'Haqq',
   LIQUID = 'Liquid',
+  ARWEAVE = 'Arweave',
   CARDANO = 'Cardano',
   DEFICHAIN = 'DeFiChain',
 }

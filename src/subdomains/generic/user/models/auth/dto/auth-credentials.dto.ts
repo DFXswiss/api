@@ -20,7 +20,10 @@ export class AuthCredentialsDto {
   @IsNotEmpty()
   @IsString()
   @Matches(GetConfig().formats.key)
-  @ValidateIf((dto: AuthCredentialsDto) => CryptoService.isCardanoAddress(dto.address))
+  @ValidateIf(
+    (dto: AuthCredentialsDto) =>
+      CryptoService.isArweaveAddress(dto.address) || CryptoService.isCardanoAddress(dto.address),
+  )
   key?: string;
 
   @ApiPropertyOptional()

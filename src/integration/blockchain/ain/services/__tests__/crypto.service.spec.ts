@@ -1,5 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ArweaveService } from 'src/integration/blockchain/arweave/services/arweave.service';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
@@ -13,12 +14,14 @@ describe('CryptoService', () => {
 
   let lightningService: LightningService;
   let moneroService: MoneroService;
+  let arweaveService: ArweaveService;
   let nodeService: NodeService;
   let evmRegistryService: EvmRegistryService;
 
   beforeEach(async () => {
     lightningService = createMock<LightningService>();
     moneroService = createMock<MoneroService>();
+    arweaveService = createMock<ArweaveService>();
     nodeService = createMock<NodeService>();
     evmRegistryService = createMock<EvmRegistryService>();
 
@@ -27,6 +30,7 @@ describe('CryptoService', () => {
         CryptoService,
         { provide: LightningService, useValue: lightningService },
         { provide: MoneroService, useValue: moneroService },
+        { provide: ArweaveService, useValue: arweaveService },
         { provide: NodeService, useValue: nodeService },
         { provide: EvmRegistryService, useValue: evmRegistryService },
         TestUtil.provideConfig(),
@@ -116,5 +120,19 @@ describe('CryptoService', () => {
     expect(
       service.getBlockchainsBasedOn('VJL8r24A8tovW2f1hmFsHNXPTqBU1rp77hFp7wwj6pkkEboKYUb1qqsf2ZT8P5MCsiZTsnS7Eh4y6Z67'),
     ).toEqual([Blockchain.LIQUID]);
+  });
+
+  it('should return Blockchain.ARWEAVE for address RKYXQy00iKp-HmeYqsiXA_pDZTfdDyT-y-Brg93lgMk', () => {
+    expect(service.getBlockchainsBasedOn('RKYXQy00iKp-HmeYqsiXA_pDZTfdDyT-y-Brg93lgMk')).toEqual([Blockchain.ARWEAVE]);
+  });
+
+  it('should return Blockchain.ARWEAVE for address GRQ7swQO1AMyFgnuAPI7AvGQlW3lzuQuwlJbIpWV7xk', () => {
+    expect(service.getBlockchainsBasedOn('GRQ7swQO1AMyFgnuAPI7AvGQlW3lzuQuwlJbIpWV7xk')).toEqual([Blockchain.ARWEAVE]);
+  });
+
+  it('should return Blockchain.CARDANO for address stake1uxuejpadqz7gtt9r7jk3xkqnzvd4xx7yazz0wgsry6srgvc075tzy', () => {
+    expect(service.getBlockchainsBasedOn('stake1uxuejpadqz7gtt9r7jk3xkqnzvd4xx7yazz0wgsry6srgvc075tzy')).toEqual([
+      Blockchain.CARDANO,
+    ]);
   });
 });
