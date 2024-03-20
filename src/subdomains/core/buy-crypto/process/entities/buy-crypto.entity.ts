@@ -415,6 +415,8 @@ export class BuyCrypto extends IEntity {
     totalFeeAmount: number,
     totalFeeAmountChf: number,
   ): UpdateResult<BuyCrypto> {
+    const { usedRef, refProvision } = this.user.specifiedRef;
+
     const update: Partial<BuyCrypto> = {
       absoluteFeeAmount: fixedFee,
       percentFee: feeRate,
@@ -426,7 +428,9 @@ export class BuyCrypto extends IEntity {
       inputReferenceAmountMinusFee: this.inputReferenceAmount - totalFeeAmount,
       amountInEur,
       amountInChf,
-      refFactor: payoutRefBonus ? this.refFactor : 0,
+      usedRef,
+      refProvision,
+      refFactor: !payoutRefBonus || usedRef === '000-000' ? 0 : 1,
       usedFees: fees?.map((fee) => fee.id).join(';'),
     };
 
@@ -447,7 +451,6 @@ export class BuyCrypto extends IEntity {
     blacklist: SpecialExternalBankAccount[],
     instantBanks: Bank[],
   ): UpdateResult<BuyCrypto> {
-    const { usedRef, refProvision } = this.user.specifiedRef;
     const amountInChf = chfReferencePrice.convert(this.inputReferenceAmount, 2);
 
     const amlErrors = AmlService.getAmlErrors(
@@ -465,12 +468,7 @@ export class BuyCrypto extends IEntity {
     const comment = amlErrors.join(';');
     const update: Partial<BuyCrypto> =
       amlErrors.length === 0
-        ? {
-            usedRef,
-            refProvision,
-            refFactor: usedRef === '000-000' ? 0 : 1,
-            amlCheck: CheckStatus.PASS,
-          }
+        ? { amlCheck: CheckStatus.PASS }
         : amlErrors.every((e) => AmlPendingError.includes(e))
         ? { amlCheck: CheckStatus.PENDING, amlReason: AmlReason.MANUAL_CHECK }
         : Util.minutesDiff(this.created) >= 10
