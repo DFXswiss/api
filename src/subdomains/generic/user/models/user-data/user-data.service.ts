@@ -23,7 +23,7 @@ import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto'
 import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
-import { SpecialExternalBankAccountService } from 'src/subdomains/supporting/bank/special-external-bank-account/special-external-bank-account.service';
+import { SpecialExternalAccountService } from 'src/subdomains/supporting/bank/special-external-account/special-external-account.service';
 import { FindOptionsRelations, In, IsNull, Not } from 'typeorm';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
@@ -55,7 +55,7 @@ export class UserDataService {
     private readonly kycAdminService: KycAdminService,
     private readonly userDataNotificationService: UserDataNotificationService,
     @Inject(forwardRef(() => AccountMergeService)) private readonly mergeService: AccountMergeService,
-    private readonly specialExternalBankAccountService: SpecialExternalBankAccountService,
+    private readonly specialExternalBankAccountService: SpecialExternalAccountService,
   ) {}
 
   async getUserDataByUser(userId: number): Promise<UserData> {

@@ -7,7 +7,7 @@ import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
-import { SpecialExternalBankAccount } from 'src/subdomains/supporting/bank/special-external-bank-account/special-external-bank-account.entity';
+import { SpecialExternalAccount } from 'src/subdomains/supporting/bank/special-external-account/special-external-account.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Fee } from 'src/subdomains/supporting/payment/entities/fee.entity';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
@@ -287,7 +287,7 @@ export class BuyFiat extends IEntity {
     last7dVolume: number,
     last30dVolume: number,
     bankData: BankData,
-    blacklist: SpecialExternalBankAccount[],
+    blacklist: SpecialExternalAccount[],
   ): UpdateResult<BuyFiat> {
     const amountInChf = chfReferencePrice.convert(this.inputReferenceAmount, 2);
 
