@@ -87,7 +87,6 @@ export class BuyController {
     const {
       rate,
       exchangeRate,
-      feeAmount,
       estimatedAmount,
       sourceAmount: amount,
       minVolume,
@@ -111,7 +110,7 @@ export class BuyController {
     );
 
     return {
-      feeAmount,
+      feeAmount: feeSource.total,
       rate,
       exchangeRate,
       estimatedAmount,
@@ -193,7 +192,7 @@ export class BuyController {
       asset: AssetDtoMapper.toDto(buy.asset),
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposits: [minDeposit],
-      minFee: { amount: fee.blockchain, asset: 'CHF' },
+      minFee: { amount: fee.network, asset: 'CHF' },
     };
   }
 
@@ -202,12 +201,9 @@ export class BuyController {
 
     const {
       minVolume,
-      minFee,
       minVolumeTarget,
-      minFeeTarget,
       maxVolume,
       maxVolumeTarget,
-      fee,
       exchangeRate,
       rate,
       estimatedAmount,
@@ -231,12 +227,12 @@ export class BuyController {
 
     const buyDto: BuyPaymentInfoDto = {
       routeId: buy.id,
-      fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
+      fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
       minDeposit: { amount: minVolume, asset: dto.currency.name }, // TODO: remove
       minVolume,
-      minFee,
+      minFee: feeSource.min,
       minVolumeTarget,
-      minFeeTarget,
+      minFeeTarget: feeTarget.min,
       fees: feeSource,
       feesTarget: feeTarget,
       exchangeRate,

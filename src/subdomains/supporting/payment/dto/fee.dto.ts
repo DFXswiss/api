@@ -8,8 +8,8 @@ export class BaseFeeDto {
   @ApiProperty({ description: 'Fixed fee amount' })
   fixed: number; // final fixed fee
 
-  @ApiProperty({ description: 'Blockchain fee amount' })
-  blockchain: number; // final blockchain fee
+  @ApiProperty({ description: 'Network fee amount' })
+  network: number; // final network fee
 }
 
 export class FeeDto extends BaseFeeDto {
@@ -19,7 +19,7 @@ export class FeeDto extends BaseFeeDto {
   @ApiProperty({ description: 'DFX fee amount' })
   dfx: number;
 
-  @ApiProperty({ description: 'Total fee amount' })
+  @ApiProperty({ description: 'Total fee amount (DFX + network fee)' })
   total: number;
 }
 

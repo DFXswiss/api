@@ -86,7 +86,6 @@ export class SellController {
     const {
       rate,
       exchangeRate,
-      feeAmount,
       estimatedAmount,
       sourceAmount: amount,
       minVolume,
@@ -110,7 +109,7 @@ export class SellController {
     );
 
     return {
-      feeAmount,
+      feeAmount: feeSource.total,
       rate,
       exchangeRate,
       estimatedAmount,
@@ -193,7 +192,7 @@ export class SellController {
       deposit: DepositDtoMapper.entityToDto(sell.deposit),
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       blockchain: sell.deposit.blockchain,
-      minFee: { amount: fee.blockchain, asset: 'CHF' },
+      minFee: { amount: fee.network, asset: 'CHF' },
       minDeposits: [minDeposit],
     };
   }
@@ -203,12 +202,9 @@ export class SellController {
 
     const {
       minVolume,
-      minFee,
       minVolumeTarget,
-      minFeeTarget,
       maxVolume,
       maxVolumeTarget,
-      fee,
       exchangeRate,
       rate,
       estimatedAmount,
@@ -231,14 +227,14 @@ export class SellController {
 
     const sellDto: SellPaymentInfoDto = {
       routeId: sell.id,
-      fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
+      fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
       depositAddress: sell.deposit.address,
       blockchain: sell.deposit.blockchain,
       minDeposit: { amount: minVolume, asset: dto.asset.dexName },
       minVolume,
-      minFee,
+      minFee: feeSource.min,
       minVolumeTarget,
-      minFeeTarget,
+      minFeeTarget: feeTarget.min,
       fees: feeSource,
       exchangeRate,
       rate,

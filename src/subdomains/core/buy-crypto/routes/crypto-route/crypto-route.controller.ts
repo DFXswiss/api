@@ -88,7 +88,6 @@ export class CryptoRouteController {
 
     const {
       exchangeRate,
-      feeAmount,
       estimatedAmount,
       sourceAmount: amount,
       minVolume,
@@ -112,7 +111,7 @@ export class CryptoRouteController {
     );
 
     return {
-      feeAmount,
+      feeAmount: feeSource.total,
       exchangeRate,
       estimatedAmount,
       amount,
@@ -198,7 +197,7 @@ export class CryptoRouteController {
       blockchain: crypto.deposit.blockchain,
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposits: [minDeposit],
-      minFee: { amount: fee.blockchain, asset: 'CHF' },
+      minFee: { amount: fee.network, asset: 'CHF' },
     };
   }
 
@@ -211,12 +210,9 @@ export class CryptoRouteController {
 
     const {
       minVolume,
-      minFee,
       minVolumeTarget,
-      minFeeTarget,
       maxVolume,
       maxVolumeTarget,
-      fee,
       exchangeRate,
       rate,
       estimatedAmount,
@@ -239,14 +235,14 @@ export class CryptoRouteController {
 
     const cryptoDto: CryptoPaymentInfoDto = {
       routeId: cryptoRoute.id,
-      fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
+      fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
       depositAddress: cryptoRoute.deposit.address,
       blockchain: cryptoRoute.deposit.blockchain,
       minDeposit: { amount: minVolume, asset: dto.sourceAsset.dexName },
       minVolume,
-      minFee,
+      minFee: feeSource.min,
       minVolumeTarget,
-      minFeeTarget,
+      minFeeTarget: feeTarget.min,
       fees: feeSource,
       feesTarget: feeTarget,
       exchangeRate,

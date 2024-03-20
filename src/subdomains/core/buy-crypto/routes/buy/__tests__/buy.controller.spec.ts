@@ -119,14 +119,10 @@ describe('BuyController', () => {
     );
     jest.spyOn(transactionHelper, 'getTxDetails').mockResolvedValue({
       minVolume: 0,
-      minFee: 0,
       minVolumeTarget: 0,
-      minFeeTarget: 0,
       exchangeRate: 10,
-      feeAmount: 3,
-      fee: { rate: 2.9, fixed: 0, blockchain: 0 },
-      feeSource: { rate: 2.9, fixed: 0, blockchain: 0, min: 0, total: 0, dfx: 0 },
-      feeTarget: { rate: 2.9, fixed: 0, blockchain: 0, min: 0, total: 0, dfx: 0 },
+      feeSource: { rate: 2.9, fixed: 0, network: 0, min: 0, total: 0, dfx: 0 },
+      feeTarget: { rate: 2.9, fixed: 0, network: 0, min: 0, total: 0, dfx: 0 },
       rate: 0.2,
       estimatedAmount: 100,
       sourceAmount: 50,

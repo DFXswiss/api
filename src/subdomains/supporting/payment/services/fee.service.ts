@@ -256,7 +256,7 @@ export class FeeService {
         rate: specialFee.rate,
         fixed: specialFee.fixed ?? 0,
         payoutRefBonus: specialFee.payoutRefBonus,
-        blockchain: Math.min(specialFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
+        network: Math.min(specialFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
     // get min custom fee
     const customFee = Util.minObj(
@@ -270,7 +270,7 @@ export class FeeService {
         rate: customFee.rate,
         fixed: customFee.fixed ?? 0,
         payoutRefBonus: customFee.payoutRefBonus,
-        blockchain: Math.min(customFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
+        network: Math.min(customFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
 
     // get min base fee
@@ -299,7 +299,7 @@ export class FeeService {
         rate: baseFee.rate,
         fixed: baseFee.fixed,
         payoutRefBonus: true,
-        blockchain: Math.min(baseFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
+        network: Math.min(baseFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
     }
 
@@ -311,7 +311,7 @@ export class FeeService {
         baseFee.payoutRefBonus &&
         (discountFee?.payoutRefBonus ?? true) &&
         additiveFees.every((fee) => fee.payoutRefBonus),
-      blockchain: Math.min(
+      network: Math.min(
         Math.max(
           blockchainFee *
             (baseFee.blockchainFactor -

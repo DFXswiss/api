@@ -1,7 +1,7 @@
 import { Config } from 'src/config/config';
 import { assetExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { Util } from 'src/shared/utils/util';
-import { TxSpec } from 'src/subdomains/supporting/payment/dto/tx-spec.dto';
+import { TxMinSpec } from 'src/subdomains/supporting/payment/dto/tx-spec.dto';
 import { Asset } from '../asset.entity';
 import { AssetDetailDto, AssetDto, FeeTier } from './asset.dto';
 
@@ -32,7 +32,7 @@ export class AssetDtoMapper {
     return Object.assign(new AssetDto(), dto);
   }
 
-  static toDetailDto(asset: Asset, spec: TxSpec): AssetDetailDto {
+  static toDetailDto(asset: Asset, spec: TxMinSpec): AssetDetailDto {
     const price = asset.approxPriceChf ?? 1;
 
     return Object.assign(this.toDto(asset), {
