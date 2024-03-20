@@ -120,7 +120,7 @@ export class CryptoService {
       if (blockchain === Blockchain.LIGHTNING) return this.verifyLightning(message, signature, key);
       if (blockchain === Blockchain.MONERO) return await this.verifyMonero(message, address, signature);
       if (blockchain === Blockchain.LIQUID) return this.verifyLiquid(message, address, signature);
-      if (blockchain === Blockchain.ARWEAVE) return this.verifyArweave(message, signature, key);
+      if (blockchain === Blockchain.ARWEAVE) return await this.verifyArweave(message, signature, key);
       if (blockchain === Blockchain.DEFICHAIN)
         return this.verifyBitcoinBased(message, address, signature, MainNet.messagePrefix);
       if (blockchain === Blockchain.CARDANO) return this.verifyCardano(message, address, signature, key);
