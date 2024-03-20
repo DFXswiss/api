@@ -27,7 +27,7 @@ export enum Process {
   STAKING = 'Staking',
   REF_PAYOUT = 'RefPayout',
   PRICING = 'Pricing',
-  BUY_CRYPTO_AML_CHECK = 'BuyCryptoAmlCheck',
+  AUTO_AML_CHECK = 'AutoAmlCheck',
   BUY_CRYPTO_SET_FEE = 'BuyCryptoSetFee',
   BUY_FIAT_SET_FEE = 'BuyFiatSetFee',
   LNURL_AUTH_CACHE = 'LnurlAuthCache',

@@ -1,5 +1,5 @@
 import { createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
-import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { createDefaultSell } from 'src/subdomains/core/sell-crypto/route/__mocks__/sell.entity.mock';
 import { CryptoInput } from '../crypto-input.entity';
 

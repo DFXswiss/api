@@ -4,20 +4,15 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
-import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
-import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
-import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
-import { SpecialExternalBankAccount } from 'src/subdomains/supporting/bank/special-external-bank-account/special-external-bank-account.entity';
-import { SpecialExternalBankAccountService } from 'src/subdomains/supporting/bank/special-external-bank-account/special-external-bank-account.service';
+import { AmlService } from 'src/subdomains/core/aml/aml.service';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { IsNull, Not } from 'typeorm';
+import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
-import { CheckStatus } from '../enums/check-status.enum';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 import { BuyCryptoService } from './buy-crypto.service';
@@ -31,13 +26,11 @@ export class BuyCryptoPreparationService {
     private readonly transactionHelper: TransactionHelper,
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
-    private readonly bankDataService: BankDataService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly assetService: AssetService,
     private readonly feeService: FeeService,
     private readonly buyCryptoService: BuyCryptoService,
-    private readonly specialExternalBankAccountService: SpecialExternalBankAccountService,
-    private readonly bankService: BankService,
+    private readonly amlService: AmlService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
@@ -48,6 +41,7 @@ export class BuyCryptoPreparationService {
         inputAmount: Not(IsNull()),
         inputAsset: Not(IsNull()),
         status: IsNull(),
+        isComplete: false,
       },
       relations: {
         bankTx: true,
@@ -110,7 +104,7 @@ export class BuyCryptoPreparationService {
           entity.userData.users,
         );
 
-        const { bankData, blacklist, instantBanks } = await this.getAmlCheckInput(entity);
+        const { bankData, blacklist, instantBanks } = await this.amlService.getAmlCheckInput(entity);
 
         await this.buyCryptoRepo.update(
           ...entity.amlCheckAndFillUp(
@@ -119,7 +113,7 @@ export class BuyCryptoPreparationService {
             last24hVolume,
             last7dVolume,
             last30dVolume,
-            bankData?.userData,
+            bankData,
             blacklist,
             instantBanks,
           ),
@@ -293,25 +287,5 @@ export class BuyCryptoPreparationService {
     }
 
     return transactions;
-  }
-
-  private async getAmlCheckInput(
-    entity: BuyCrypto,
-  ): Promise<{ bankData: BankData; blacklist: SpecialExternalBankAccount[]; instantBanks: Bank[] }> {
-    if (entity.cryptoInput) return { bankData: undefined, blacklist: undefined, instantBanks: undefined };
-
-    const multiAccountIbans = await this.specialExternalBankAccountService.getMultiAccountIbans();
-    const bankData = await this.bankDataService.getBankDataWithIban(
-      entity.bankTx
-        ? entity.bankTx.senderAccount(multiAccountIbans.map((m) => m.iban))
-        : entity.checkoutTx.cardFingerPrint,
-      undefined,
-      true,
-    );
-
-    const blacklist = await this.specialExternalBankAccountService.getBlacklist();
-    const instantBanks = await this.bankService.getInstantBanks();
-
-    return { bankData, blacklist, instantBanks };
   }
 }

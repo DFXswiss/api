@@ -5,11 +5,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import {
-  AmlReason,
-  AmlReasonWithoutReason,
-  KycAmlReasons,
-} from 'src/subdomains/core/buy-crypto/process/enums/aml-reason.enum';
+import { AmlReason, AmlReasonWithoutReason, KycAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import {
   MailFactory,
@@ -18,7 +14,7 @@ import {
 } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, IsNull, Not } from 'typeorm';
-import { CheckStatus } from '../../../buy-crypto/process/enums/check-status.enum';
+import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyFiatAmlReasonPendingStates } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 
@@ -44,7 +40,7 @@ export class BuyFiatNotificationService {
 
   private async offRampInitiated(): Promise<void> {
     const entities = await this.buyFiatRepo.find({
-      where: { mail1SendDate: IsNull(), cryptoInput: Not(IsNull()) },
+      where: { mail1SendDate: IsNull(), cryptoInput: Not(IsNull()), amlReason: Not(AmlReason.NO_COMMUNICATION) },
       relations: ['cryptoInput', 'sell', 'sell.user', 'sell.user.userData'],
     });
 
@@ -99,6 +95,7 @@ export class BuyFiatNotificationService {
         mail2SendDate: IsNull(),
         outputAmount: Not(IsNull()),
         amlCheck: CheckStatus.PASS,
+        amlReason: Not(AmlReason.NO_COMMUNICATION),
       },
       relations: ['cryptoInput', 'sell', 'sell.user', 'sell.user.userData'],
     });
@@ -150,6 +147,7 @@ export class BuyFiatNotificationService {
         mail3SendDate: IsNull(),
         fiatOutput: { bankTx: Not(IsNull()), remittanceInfo: Not(IsNull()) },
         amlCheck: CheckStatus.PASS,
+        amlReason: Not(AmlReason.NO_COMMUNICATION),
       },
       relations: ['sell', 'sell.user', 'sell.user.userData', 'fiatOutput', 'fiatOutput.bankTx'],
     });
@@ -194,8 +192,8 @@ export class BuyFiatNotificationService {
         mail1SendDate: Not(IsNull()),
         cryptoReturnTxId: Not(IsNull()),
         cryptoReturnDate: Not(IsNull()),
-        amlReason: Not(IsNull()),
         amlCheck: CheckStatus.FAIL,
+        amlReason: Not(IsNull()),
         mailReturnSendDate: IsNull(),
       },
       relations: ['sell', 'sell.user', 'sell.user.userData', 'cryptoInput'],
@@ -205,6 +203,7 @@ export class BuyFiatNotificationService {
 
     for (const entity of entities) {
       try {
+        if (entity.amlReason === AmlReason.NO_COMMUNICATION) continue;
         if (
           entity.sell.user.userData.mail &&
           (entity.sell.user.userData.verifiedName || entity.amlReason !== AmlReason.NAME_CHECK_WITHOUT_KYC)

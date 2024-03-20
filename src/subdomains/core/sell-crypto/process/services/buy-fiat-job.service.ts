@@ -4,7 +4,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { IsNull } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
-import { CheckStatus } from '../../../buy-crypto/process/enums/check-status.enum';
+import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatPreparationService } from './buy-fiat-preparation.service';
 import { BuyFiatRegistrationService } from './buy-fiat-registration.service';
@@ -41,6 +41,7 @@ export class BuyFiatJobService {
   async checkCryptoPayIn() {
     if (DisabledProcess(Process.BUY_FIAT)) return;
     await this.buyFiatRegistrationService.registerSellPayIn();
+    if (!DisabledProcess(Process.AUTO_AML_CHECK)) await this.buyFiatPreparationService.doAmlCheck();
     if (!DisabledProcess(Process.BUY_FIAT_SET_FEE)) await this.buyFiatPreparationService.refreshFee();
     await this.buyFiatPreparationService.setOutput();
   }
