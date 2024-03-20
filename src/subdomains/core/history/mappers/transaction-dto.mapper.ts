@@ -1,7 +1,12 @@
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { Active } from 'src/shared/models/active';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
-import { TransactionDto, TransactionState, TransactionType } from '../../../supporting/payment/dto/transaction.dto';
+import {
+  TransactionDto,
+  TransactionErrorMapper,
+  TransactionState,
+  TransactionType,
+} from '../../../supporting/payment/dto/transaction.dto';
 import { BuyCrypto, BuyCryptoStatus } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
 import { RefReward, RewardStatus } from '../../referral/reward/ref-reward.entity';
@@ -25,6 +30,7 @@ export class TransactionDtoMapper {
       id: buyCrypto.transaction?.id,
       type: buyCrypto.isCryptoCryptoTransaction ? TransactionType.CONVERT : TransactionType.BUY,
       state: getTransactionState(buyCrypto),
+      error: buyCrypto.amlReason ? TransactionErrorMapper[buyCrypto.amlReason] : null,
       inputAmount: buyCrypto.inputAmount,
       inputAsset: buyCrypto.inputAsset,
       inputAssetId: buyCrypto.inputAssetEntity.id,
@@ -62,6 +68,7 @@ export class TransactionDtoMapper {
       id: buyFiat.transaction?.id,
       type: TransactionType.SELL,
       state: getTransactionState(buyFiat),
+      error: buyFiat.amlReason ? TransactionErrorMapper[buyFiat.amlReason] : null,
       inputAmount: buyFiat.inputAmount,
       inputAsset: buyFiat.inputAsset,
       inputAssetId: buyFiat.inputAssetEntity.id,
@@ -99,6 +106,7 @@ export class TransactionDtoMapper {
       id: refReward.transaction?.id,
       type: TransactionType.REFERRAL,
       state: getTransactionState(refReward),
+      error: null,
       inputAmount: null,
       inputAsset: null,
       inputAssetId: null,
