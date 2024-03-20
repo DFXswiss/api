@@ -11,27 +11,17 @@ import { BankAccountService } from './bank-account/bank-account.service';
 import { Bank } from './bank/bank.entity';
 import { BankRepository } from './bank/bank.repository';
 import { BankService } from './bank/bank.service';
-import { SpecialExternalAccount } from './special-external-account/special-external-account.entity';
-import { SpecialExternalAccountRepository } from './special-external-account/special-external-account.repository';
-import { SpecialExternalAccountService } from './special-external-account/special-external-account.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([BankAccount, Bank, SpecialExternalAccount]),
+    TypeOrmModule.forFeature([BankAccount, Bank]),
     SharedModule,
     BankIntegrationModule,
     forwardRef(() => UserModule),
   ],
 
   controllers: [BankAccountController, BankAccountAdminController],
-  providers: [
-    BankAccountRepository,
-    BankRepository,
-    BankAccountService,
-    BankService,
-    SpecialExternalAccountService,
-    SpecialExternalAccountRepository,
-  ],
-  exports: [BankAccountService, BankService, SpecialExternalAccountService],
+  providers: [BankAccountRepository, BankRepository, BankAccountService, BankService],
+  exports: [BankAccountService, BankService],
 })
 export class BankModule {}

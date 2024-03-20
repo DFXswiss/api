@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { In } from 'typeorm';
-import { SpecialExternalAccount, SpecialExternalAccountType } from './special-external-account.entity';
-import { SpecialExternalAccountRepository } from './special-external-account.repository';
+import { SpecialExternalAccount, SpecialExternalAccountType } from '../entities/special-external-account.entity';
+import { SpecialExternalAccountRepository } from '../repositories/special-external-account.repository';
 
 @Injectable()
 export class SpecialExternalAccountService {
