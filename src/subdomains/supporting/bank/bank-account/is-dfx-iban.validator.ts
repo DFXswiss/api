@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 import {
   registerDecorator,
   ValidationArguments,
@@ -6,19 +7,20 @@ import {
   ValidatorConstraintInterface,
 } from 'class-validator';
 import * as ibantools from 'ibantools';
+import { SpecialExternalAccountType } from '../special-external-account/special-external-account.entity';
+import { SpecialExternalAccountService } from '../special-external-account/special-external-account.service';
 
-@ValidatorConstraint({ name: 'IsDfxIban' })
+@ValidatorConstraint({ name: 'IsDfxIban', async: true })
+@Injectable()
 export class IsDfxIbanValidator implements ValidatorConstraintInterface {
-  private blockedIban = [
-    '^LT..37800000',
-    '^AT..14200200',
-    '^AT..20602099',
-    '^LT..60378000',
-    'CH8008635008770000647',
-    '^BG',
-  ];
+  constructor(private readonly specialExternalAccountService: SpecialExternalAccountService) {}
 
-  validate(_: string, args: ValidationArguments) {
+  private blockedIban: string[] = [];
+
+  async validate(_: string, args: ValidationArguments) {
+    this.blockedIban = await this.specialExternalAccountService
+      .getBlacklist(SpecialExternalAccountType.BANNED_IBAN)
+      .then((s) => s.map((b) => b.value));
     return this.defaultMessage(args) == null;
   }
 

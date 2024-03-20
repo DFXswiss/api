@@ -2,6 +2,7 @@ import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as AppInsights from 'applicationinsights';
+import { useContainer } from 'class-validator';
 import cors from 'cors';
 import { json, text } from 'express';
 import helmet from 'helmet';
@@ -24,6 +25,7 @@ async function bootstrap() {
   }
 
   const app = await NestFactory.create(AppModule);
+  useContainer(app.select(AppModule), { fallbackOnErrors: true });
 
   app.use(morgan('dev'));
   app.use(helmet());
