@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { AmlReason } from 'src/subdomains/core/buy-crypto/process/enums/aml-reason.enum';
+import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { PaymentMethod, PaymentMethodSwagger } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 
 export enum TransactionType {
@@ -40,6 +40,7 @@ export const TransactionErrorMapper: {
   [key in AmlReason]: TransactionError;
 } = {
   [AmlReason.NA]: TransactionError.NA,
+  [AmlReason.NO_COMMUNICATION]: TransactionError.NA,
   [AmlReason.DAILY_LIMIT]: TransactionError.DAILY_LIMIT_EXCEEDED,
   [AmlReason.ANNUAL_LIMIT]: TransactionError.ANNUAL_LIMIT_EXCEEDED,
   [AmlReason.ANNUAL_LIMIT_WITHOUT_KYC]: TransactionError.ANNUAL_LIMIT_EXCEEDED,
