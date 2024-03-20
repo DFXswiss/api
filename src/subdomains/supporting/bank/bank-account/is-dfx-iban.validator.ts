@@ -15,10 +15,10 @@ import { SpecialExternalAccountService } from '../special-external-account/speci
 export class IsDfxIbanValidator implements ValidatorConstraintInterface {
   constructor(private readonly specialExternalAccountService: SpecialExternalAccountService) {}
 
-  private blockedIban: string[] = [];
+  private blockedIbans: string[] = [];
 
   async validate(_: string, args: ValidationArguments) {
-    this.blockedIban = await this.specialExternalAccountService
+    this.blockedIbans = await this.specialExternalAccountService
       .getBlacklist(SpecialExternalAccountType.BANNED_IBAN)
       .then((s) => s.map((b) => b.value));
     return this.defaultMessage(args) == null;
@@ -30,7 +30,7 @@ export class IsDfxIbanValidator implements ValidatorConstraintInterface {
     if (!valid) return `${args.property} not valid`;
 
     // check blocked IBANs
-    const isBlocked = this.blockedIban.some((i) => new RegExp(i.toLowerCase()).test(args.value.toLowerCase()));
+    const isBlocked = this.blockedIbans.some((i) => new RegExp(i.toLowerCase()).test(args.value.toLowerCase()));
     if (isBlocked) return `${args.property} not allowed`;
   }
 }
