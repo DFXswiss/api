@@ -16,6 +16,7 @@ export enum AmlReason {
   HIGH_RISK_KYC_NEEDED = 'HighRiskKycNeeded',
   HIGH_RISK_BLOCKED = 'HighRiskBlocked',
   MANUAL_CHECK = 'ManualCheck',
+  NO_COMMUNICATION = 'NoCommunication',
 }
 
 export const KycAmlReasons = [
