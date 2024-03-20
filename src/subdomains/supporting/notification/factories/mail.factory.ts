@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
-import { AmlReason } from 'src/subdomains/core/buy-crypto/process/enums/aml-reason.enum';
+import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { Mail, MailParams } from '../entities/mail/base/mail';
 import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
 import { InternalMail, MailRequestInternalInput } from '../entities/mail/internal-mail';

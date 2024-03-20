@@ -7,8 +7,8 @@ import {
   TransactionState,
   TransactionType,
 } from '../../../supporting/payment/dto/transaction.dto';
+import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { BuyCrypto, BuyCryptoStatus } from '../../buy-crypto/process/entities/buy-crypto.entity';
-import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
 import { RefReward, RewardStatus } from '../../referral/reward/ref-reward.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 

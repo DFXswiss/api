@@ -16,7 +16,7 @@ import { Country } from 'src/shared/models/country/country.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { Util } from 'src/shared/utils/util';
-import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { AccountType } from '../account-type.enum';
 import { IsDfxPhone } from '../is-dfx-phone.validator';
 import { KycIdentificationType, KycLevel, KycStatus, UserData, UserDataStatus } from '../user-data.entity';

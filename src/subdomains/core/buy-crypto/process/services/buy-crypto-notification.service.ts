@@ -11,10 +11,10 @@ import {
 } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, IsNull, Not } from 'typeorm';
+import { AmlReason, AmlReasonWithoutReason, KycAmlReasons } from '../../../aml/enums/aml-reason.enum';
+import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
 import { BuyCryptoAmlReasonPendingStates } from '../entities/buy-crypto.entity';
-import { AmlReason, AmlReasonWithoutReason, KycAmlReasons } from '../enums/aml-reason.enum';
-import { CheckStatus } from '../enums/check-status.enum';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 
 @Injectable()
@@ -44,6 +44,7 @@ export class BuyCryptoNotificationService {
           mailSendDate: IsNull(),
           txId: Not(IsNull()),
           amlCheck: CheckStatus.PASS,
+          amlReason: Not(AmlReason.NO_COMMUNICATION),
         },
         relations: [
           'bankTx',
@@ -177,6 +178,7 @@ export class BuyCryptoNotificationService {
 
     for (const entity of entities) {
       try {
+        if (entity.amlReason === AmlReason.NO_COMMUNICATION) continue;
         if (
           entity.user.userData.mail &&
           (entity.user.userData.verifiedName || entity.amlReason !== AmlReason.NAME_CHECK_WITHOUT_KYC)
@@ -208,7 +210,9 @@ export class BuyCryptoNotificationService {
                 !entity.isLightningInput && entity.isCryptoCryptoTransaction
                   ? {
                       key: `${entity.translationReturnMailKey}.payment_link`,
-                      params: { url: txExplorerUrl(entity.cryptoInput.asset.blockchain, entity.chargebackCryptoTxId) },
+                      params: {
+                        url: txExplorerUrl(entity.cryptoInput.asset.blockchain, entity.chargebackCryptoTxId),
+                      },
                     }
                   : null,
                 !AmlReasonWithoutReason.includes(entity.amlReason)

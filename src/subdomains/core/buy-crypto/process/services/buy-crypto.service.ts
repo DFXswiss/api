@@ -21,21 +21,21 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
-import { SpecialExternalBankAccountService } from 'src/subdomains/supporting/bank/special-external-bank-account/special-external-bank-account.service';
+import { SpecialExternalAccountService } from 'src/subdomains/supporting/bank/special-external-account/special-external-account.service';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Between, Brackets, In, IsNull, Not } from 'typeorm';
+import { AmlReason } from '../../../aml/enums/aml-reason.enum';
+import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { Buy } from '../../routes/buy/buy.entity';
 import { BuyRepository } from '../../routes/buy/buy.repository';
 import { BuyService } from '../../routes/buy/buy.service';
 import { BuyHistoryDto } from '../../routes/buy/dto/buy-history.dto';
 import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
 import { BuyCrypto, BuyCryptoEditableAmlCheck } from '../entities/buy-crypto.entity';
-import { AmlReason } from '../enums/aml-reason.enum';
-import { CheckStatus } from '../enums/check-status.enum';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 
@@ -56,7 +56,7 @@ export class BuyCryptoService {
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly bankDataService: BankDataService,
     private readonly transactionRequestService: TransactionRequestService,
-    private readonly specialExternalBankAccountService: SpecialExternalBankAccountService,
+    private readonly specialExternalBankAccountService: SpecialExternalAccountService,
     private readonly transactionService: TransactionService,
   ) {}
 
@@ -88,7 +88,7 @@ export class BuyCryptoService {
     entity = await this.setTxRequest(entity);
 
     const multiAccountIbans = await this.specialExternalBankAccountService.getMultiAccountIbans();
-    const senderAccount = bankTx.senderAccount(multiAccountIbans.map((m) => m.iban));
+    const senderAccount = bankTx.senderAccount(multiAccountIbans.map((m) => m.value));
     if (senderAccount && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
       const bankData = await this.bankDataService.getBankDataWithIban(senderAccount, entity.buy.user.userData.id);
 

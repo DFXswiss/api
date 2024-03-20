@@ -5,7 +5,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import {
   MailFactory,

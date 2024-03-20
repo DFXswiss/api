@@ -10,7 +10,7 @@ import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { AmlRule } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/min-amount.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -388,8 +388,12 @@ export class TransactionHelper implements OnModuleInit {
     // KYC checks
     if (isFiat(from)) {
       if (
-        (user?.wallet.amlRule === AmlRule.RULE_2 && user?.userData.kycLevel < KycLevel.LEVEL_30) ||
-        (user?.wallet.amlRule === AmlRule.RULE_3 && user?.userData.kycLevel < KycLevel.LEVEL_50)
+        (user?.status === UserStatus.NA &&
+          user?.wallet.amlRule === AmlRule.RULE_2 &&
+          user?.userData.kycLevel < KycLevel.LEVEL_30) ||
+        (user?.status === UserStatus.NA &&
+          user?.wallet.amlRule === AmlRule.RULE_3 &&
+          user?.userData.kycLevel < KycLevel.LEVEL_50)
       )
         return TransactionError.KYC_REQUIRED;
     }

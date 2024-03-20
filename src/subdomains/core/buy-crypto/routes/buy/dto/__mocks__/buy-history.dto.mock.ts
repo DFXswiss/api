@@ -1,5 +1,5 @@
 import { PaymentStatus } from 'src/subdomains/core/history/dto/history.dto';
-import { CheckStatus } from '../../../../process/enums/check-status.enum';
+import { CheckStatus } from '../../../../../aml/enums/check-status.enum';
 import { BuyHistoryDto } from '../buy-history.dto';
 
 const defaultBuyHistory: BuyHistoryDto = {
