@@ -40,7 +40,7 @@ export class BuyFiatNotificationService {
 
   private async offRampInitiated(): Promise<void> {
     const entities = await this.buyFiatRepo.find({
-      where: { mail1SendDate: IsNull(), cryptoInput: Not(IsNull()) },
+      where: { mail1SendDate: IsNull(), cryptoInput: Not(IsNull()), amlReason: Not(AmlReason.NO_COMMUNICATION) },
       relations: ['cryptoInput', 'sell', 'sell.user', 'sell.user.userData'],
     });
 
@@ -95,6 +95,7 @@ export class BuyFiatNotificationService {
         mail2SendDate: IsNull(),
         outputAmount: Not(IsNull()),
         amlCheck: CheckStatus.PASS,
+        amlReason: Not(AmlReason.NO_COMMUNICATION),
       },
       relations: ['cryptoInput', 'sell', 'sell.user', 'sell.user.userData'],
     });
@@ -146,6 +147,7 @@ export class BuyFiatNotificationService {
         mail3SendDate: IsNull(),
         fiatOutput: { bankTx: Not(IsNull()), remittanceInfo: Not(IsNull()) },
         amlCheck: CheckStatus.PASS,
+        amlReason: Not(AmlReason.NO_COMMUNICATION),
       },
       relations: ['sell', 'sell.user', 'sell.user.userData', 'fiatOutput', 'fiatOutput.bankTx'],
     });
@@ -190,8 +192,8 @@ export class BuyFiatNotificationService {
         mail1SendDate: Not(IsNull()),
         cryptoReturnTxId: Not(IsNull()),
         cryptoReturnDate: Not(IsNull()),
-        amlReason: Not(IsNull()),
         amlCheck: CheckStatus.FAIL,
+        amlReason: Not(IsNull()),
         mailReturnSendDate: IsNull(),
       },
       relations: ['sell', 'sell.user', 'sell.user.userData', 'cryptoInput'],
@@ -201,6 +203,7 @@ export class BuyFiatNotificationService {
 
     for (const entity of entities) {
       try {
+        if (entity.amlReason === AmlReason.NO_COMMUNICATION) continue;
         if (
           entity.sell.user.userData.mail &&
           (entity.sell.user.userData.verifiedName || entity.amlReason !== AmlReason.NAME_CHECK_WITHOUT_KYC)
