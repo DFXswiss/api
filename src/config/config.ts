@@ -79,14 +79,20 @@ export class Configuration {
   lightningCustodialSignatureFormat = '[a-z0-9]{140,146}';
   moneroSignatureFormat = 'SigV\\d[0-9a-zA-Z]{88}';
   ethereumSignatureFormat = '(0x)?[a-f0-9]{130}';
+  arweaveSignatureFormat = '[\\w\\-]{683}';
   cardanoSignatureFormat = '[a-f0-9]{582}';
 
-  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.cardanoSignatureFormat}`;
+  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}`;
+
+  arweaveKeyFormat = '[\\w\\-]{683}';
+  cardanoKeyFormat = '[a-f0-9]{84}';
+
+  allKeyFormat = `${this.arweaveKeyFormat}|${this.cardanoKeyFormat}`;
 
   formats = {
     address: new RegExp(`^(${this.allAddressFormat})$`),
     signature: new RegExp(`^(${this.allSignatureFormat})$`),
-    key: /^[a-f0-9]{84}$/,
+    key: new RegExp(`^(${this.allKeyFormat})$`),
     ref: /^(\w{1,3}-\w{1,3})$/,
     bankUsage: /[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}/,
   };
