@@ -126,7 +126,7 @@ export class AmlService {
     } else {
       // buyFiat
       if (!entity.target.asset.sellable) errors.push(AmlError.ASSET_NOT_SELLABLE);
-      if (blacklist.some((b) => b.matches(SpecialExternalAccountType.BANNED_IBAN, entity.bankTx.iban)))
+      if (blacklist.some((b) => b.matches(SpecialExternalAccountType.BANNED_IBAN, entity.sell.iban)))
         errors.push(AmlError.IBAN_BLACKLISTED);
     }
 
