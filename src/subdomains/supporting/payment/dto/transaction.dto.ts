@@ -36,7 +36,6 @@ export enum TransactionReason {
   PAYMENT_ACCOUNT_NOT_ALLOWED = 'PaymentAccountNotAllowed',
   COUNTRY_NOT_ALLOWED = 'CountryNotAllowed',
   INSTANT_PAYMENT = 'InstantPayment',
-  MANUAL_CHECK = 'ManualCheck',
 }
 
 export const KycRequiredReason = [
