@@ -383,7 +383,7 @@ export class BuyCrypto extends IEntity {
 
   confirmSentMail(): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
-      recipientMail: this.userData.mail,
+      recipientMail: this.noCommunication ? null : this.userData.mail,
       mailSendDate: new Date(),
     };
 
@@ -584,6 +584,10 @@ export class BuyCrypto extends IEntity {
           asset: this.cryptoRoute.asset,
           trimmedReturnAddress: this.cryptoRoute?.user?.address ? Util.blankStart(this.cryptoRoute.user.address) : null,
         };
+  }
+
+  get noCommunication(): boolean {
+    return this.amlReason === AmlReason.NO_COMMUNICATION;
   }
 
   // --- HELPER METHODS --- //

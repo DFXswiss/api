@@ -192,8 +192,8 @@ export class BuyFiat extends IEntity {
     return this;
   }
 
-  offRampInitiated(recipientMail: string): UpdateResult<BuyFiat> {
-    this.recipientMail = recipientMail;
+  offRampInitiated(): UpdateResult<BuyFiat> {
+    this.recipientMail = this.noCommunication ? null : this.userData.mail;
     this.mail1SendDate = new Date();
 
     return [this.id, { recipientMail: this.recipientMail, mail1SendDate: this.mail1SendDate }];
@@ -208,7 +208,7 @@ export class BuyFiat extends IEntity {
 
   returnMail(): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
-      recipientMail: this.sell.user.userData.mail,
+      recipientMail: this.noCommunication ? null : this.sell.user.userData.mail,
       mailReturnSendDate: new Date(),
     };
 
@@ -403,6 +403,10 @@ export class BuyFiat extends IEntity {
       asset: this.sell.fiat,
       trimmedReturnAddress: this.user ? Util.blankStart(this.user.address) : null,
     };
+  }
+
+  get noCommunication(): boolean {
+    return this.amlReason === AmlReason.NO_COMMUNICATION;
   }
 }
 
