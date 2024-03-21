@@ -1,8 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
-import { MinAmount } from 'src/subdomains/supporting/payment/dto/min-amount.dto';
-import { TransactionError } from 'src/subdomains/supporting/payment/dto/transaction-error.enum';
+import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-helper/min-amount.dto';
+import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 
 export class CryptoPaymentInfoDto {
   @ApiProperty()
@@ -65,6 +65,6 @@ export class CryptoPaymentInfoDto {
   @ApiProperty()
   isValid: boolean;
 
-  @ApiPropertyOptional({ enum: TransactionError, description: 'Error message in case isValid is false' })
-  error?: TransactionError;
+  @ApiPropertyOptional({ enum: QuoteError, description: 'Error message in case isValid is false' })
+  error?: QuoteError;
 }

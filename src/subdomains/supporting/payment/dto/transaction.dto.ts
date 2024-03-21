@@ -14,49 +14,60 @@ export enum TransactionState {
   CREATED = 'Created',
   PROCESSING = 'Processing',
   AML_PENDING = 'AmlPending',
+  KYC_REQUIRED = 'KycRequired',
   FEE_TOO_HIGH = 'FeeTooHigh',
   COMPLETED = 'Completed',
   FAILED = 'Failed',
   RETURNED = 'Returned',
 }
 
-export enum TransactionError {
-  NA = 'NA',
+export enum TransactionReason {
+  UNKNOWN = 'Unknown',
   DAILY_LIMIT_EXCEEDED = 'DailyLimitExceeded',
   ANNUAL_LIMIT_EXCEEDED = 'AnnualLimitExceeded',
-  BANK_ACCOUNT_NOT_MATCHING = 'BankAccountNotMatching',
-  IBAN_CHECK = 'IbanCheck',
+  ACCOUNT_HOLDER_MISMATCH = 'AccountHolderMismatch',
   KYC_REJECTED = 'KycRejected',
-  KYC_MISSING = 'KycMissing',
+  FRAUD_SUSPICION = 'FraudSuspicion',
+  SANCTION_SUSPICION = 'SanctionSuspicion',
   MIN_DEPOSIT_NOT_REACHED = 'MinDepositNotReached',
   ASSET_NOT_AVAILABLE = 'AssetNotAvailable',
   STAKING_DISCONTINUED = 'StakingDiscontinued',
   BANK_NOT_ALLOWED = 'BankNotAllowed',
+  PAYMENT_ACCOUNT_NOT_ALLOWED = 'PaymentAccountNotAllowed',
   COUNTRY_NOT_ALLOWED = 'CountryNotAllowed',
+  INSTANT_PAYMENT = 'InstantPayment',
   MANUAL_CHECK = 'ManualCheck',
 }
 
-export const TransactionErrorMapper: {
-  [key in AmlReason]: TransactionError;
+export const KycRequiredReason = [
+  TransactionReason.DAILY_LIMIT_EXCEEDED,
+  TransactionReason.ANNUAL_LIMIT_EXCEEDED,
+  TransactionReason.INSTANT_PAYMENT,
+  TransactionReason.SANCTION_SUSPICION,
+  TransactionReason.FRAUD_SUSPICION,
+];
+
+export const TransactionReasonMapper: {
+  [key in AmlReason]: TransactionReason;
 } = {
-  [AmlReason.NA]: TransactionError.NA,
-  [AmlReason.NO_COMMUNICATION]: TransactionError.NA,
-  [AmlReason.DAILY_LIMIT]: TransactionError.DAILY_LIMIT_EXCEEDED,
-  [AmlReason.ANNUAL_LIMIT]: TransactionError.ANNUAL_LIMIT_EXCEEDED,
-  [AmlReason.ANNUAL_LIMIT_WITHOUT_KYC]: TransactionError.ANNUAL_LIMIT_EXCEEDED,
-  [AmlReason.USER_DATA_MISMATCH]: TransactionError.BANK_ACCOUNT_NOT_MATCHING,
-  [AmlReason.IBAN_CHECK]: TransactionError.IBAN_CHECK,
-  [AmlReason.KYC_REJECTED]: TransactionError.KYC_REJECTED,
-  [AmlReason.OLKY_NO_KYC]: TransactionError.KYC_MISSING,
-  [AmlReason.NAME_CHECK_WITHOUT_KYC]: TransactionError.KYC_MISSING,
-  [AmlReason.HIGH_RISK_KYC_NEEDED]: TransactionError.KYC_MISSING,
-  [AmlReason.MIN_DEPOSIT_NOT_REACHED]: TransactionError.MIN_DEPOSIT_NOT_REACHED,
-  [AmlReason.ASSET_CURRENTLY_NOT_AVAILABLE]: TransactionError.ASSET_NOT_AVAILABLE,
-  [AmlReason.STAKING_DISCONTINUED]: TransactionError.STAKING_DISCONTINUED,
-  [AmlReason.BANK_NOT_ALLOWED]: TransactionError.BANK_NOT_ALLOWED,
-  [AmlReason.HIGH_RISK_BLOCKED]: TransactionError.BANK_NOT_ALLOWED,
-  [AmlReason.COUNTRY_NOT_ALLOWED]: TransactionError.COUNTRY_NOT_ALLOWED,
-  [AmlReason.MANUAL_CHECK]: TransactionError.MANUAL_CHECK,
+  [AmlReason.NA]: TransactionReason.UNKNOWN,
+  [AmlReason.NO_COMMUNICATION]: TransactionReason.UNKNOWN,
+  [AmlReason.IBAN_CHECK]: TransactionReason.UNKNOWN,
+  [AmlReason.DAILY_LIMIT]: TransactionReason.DAILY_LIMIT_EXCEEDED,
+  [AmlReason.ANNUAL_LIMIT]: TransactionReason.ANNUAL_LIMIT_EXCEEDED,
+  [AmlReason.ANNUAL_LIMIT_WITHOUT_KYC]: TransactionReason.ANNUAL_LIMIT_EXCEEDED,
+  [AmlReason.USER_DATA_MISMATCH]: TransactionReason.ACCOUNT_HOLDER_MISMATCH,
+  [AmlReason.KYC_REJECTED]: TransactionReason.KYC_REJECTED,
+  [AmlReason.OLKY_NO_KYC]: TransactionReason.INSTANT_PAYMENT,
+  [AmlReason.NAME_CHECK_WITHOUT_KYC]: TransactionReason.SANCTION_SUSPICION,
+  [AmlReason.HIGH_RISK_KYC_NEEDED]: TransactionReason.FRAUD_SUSPICION,
+  [AmlReason.MIN_DEPOSIT_NOT_REACHED]: TransactionReason.MIN_DEPOSIT_NOT_REACHED,
+  [AmlReason.ASSET_CURRENTLY_NOT_AVAILABLE]: TransactionReason.ASSET_NOT_AVAILABLE,
+  [AmlReason.STAKING_DISCONTINUED]: TransactionReason.STAKING_DISCONTINUED,
+  [AmlReason.BANK_NOT_ALLOWED]: TransactionReason.BANK_NOT_ALLOWED,
+  [AmlReason.HIGH_RISK_BLOCKED]: TransactionReason.PAYMENT_ACCOUNT_NOT_ALLOWED,
+  [AmlReason.COUNTRY_NOT_ALLOWED]: TransactionReason.COUNTRY_NOT_ALLOWED,
+  [AmlReason.MANUAL_CHECK]: null,
 };
 
 export class TransactionDto {
@@ -69,8 +80,8 @@ export class TransactionDto {
   @ApiProperty({ enum: TransactionState })
   state: TransactionState;
 
-  @ApiProperty({ enum: TransactionError })
-  error: TransactionError;
+  @ApiPropertyOptional({ enum: TransactionReason })
+  reason?: TransactionReason;
 
   @ApiPropertyOptional()
   inputAmount?: number;

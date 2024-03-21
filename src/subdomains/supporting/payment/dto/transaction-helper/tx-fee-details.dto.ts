@@ -1,4 +1,4 @@
-import { FeeDto } from './fee.dto';
+import { FeeDto } from '../fee.dto';
 
 export interface ExtendedFeeDto extends FeeDto {
   min: number;
