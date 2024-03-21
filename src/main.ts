@@ -25,7 +25,6 @@ async function bootstrap() {
   }
 
   const app = await NestFactory.create(AppModule);
-  useContainer(app.select(AppModule), { fallbackOnErrors: true });
 
   app.use(morgan('dev'));
   app.use(helmet());
@@ -40,6 +39,7 @@ async function bootstrap() {
   });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
   app.useGlobalFilters(new ApiExceptionFilter());
+  useContainer(app.select(AppModule), { fallbackOnErrors: true });
 
   const swaggerOptions = new DocumentBuilder()
     .setTitle('DFX API')
