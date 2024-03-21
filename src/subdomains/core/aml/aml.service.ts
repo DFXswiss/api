@@ -139,20 +139,20 @@ export class AmlService {
     const blacklist = await this.specialExternalBankAccountService.getBlacklist();
 
     if (entity instanceof BuyFiat) {
-      const bankData = await this.bankDataService.getBankDataWithIban(entity.sell.iban);
-      return { bankData, blacklist };
+      const bankDatas = await this.bankDataService.getBankDatasWithIban(entity.sell.iban);
+      return { bankData: bankDatas.filter((b) => b.active)[0] ?? bankDatas[0], blacklist };
     } else {
       if (entity.cryptoInput) return { bankData: undefined, blacklist, instantBanks: undefined };
 
       const multiAccountIbans = await this.specialExternalBankAccountService.getMultiAccountIbans();
-      const bankData = await this.bankDataService.getBankDataWithIban(
+      const bankDatas = await this.bankDataService.getBankDatasWithIban(
         entity.bankTx
           ? entity.bankTx.senderAccount(multiAccountIbans.map((m) => m.value))
           : entity.checkoutTx.cardFingerPrint,
       );
       const instantBanks = await this.bankService.getInstantBanks();
 
-      return { bankData, blacklist, instantBanks };
+      return { bankData: bankDatas.filter((b) => b.active)[0] ?? bankDatas[0], blacklist, instantBanks };
     }
   }
 }

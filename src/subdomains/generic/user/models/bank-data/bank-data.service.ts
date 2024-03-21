@@ -61,4 +61,12 @@ export class BankDataService {
       relations: ['userData'],
     });
   }
+
+  async getBankDatasWithIban(iban: string): Promise<BankData[]> {
+    if (!iban) return undefined;
+    return this.bankDataRepo.find({
+      where: { iban },
+      relations: ['userData'],
+    });
+  }
 }
