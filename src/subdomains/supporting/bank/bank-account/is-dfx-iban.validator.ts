@@ -7,8 +7,8 @@ import {
   ValidatorConstraintInterface,
 } from 'class-validator';
 import * as ibantools from 'ibantools';
-import { SpecialExternalAccountType } from '../special-external-account/special-external-account.entity';
-import { SpecialExternalAccountService } from '../special-external-account/special-external-account.service';
+import { SpecialExternalAccountType } from '../../payment/entities/special-external-account.entity';
+import { SpecialExternalAccountService } from '../../payment/services/special-external-account.service';
 
 @ValidatorConstraint({ name: 'IsDfxIban', async: true })
 @Injectable()
