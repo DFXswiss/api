@@ -50,7 +50,7 @@ export class BuyFiatNotificationService {
       try {
         const recipientMail = entity.sell.user.userData.mail;
 
-        if (recipientMail && entity.amlReason !== AmlReason.NO_COMMUNICATION) {
+        if (recipientMail && !entity.noCommunication) {
           await this.notificationService.sendMail({
             type: MailType.USER,
             input: {
@@ -101,7 +101,7 @@ export class BuyFiatNotificationService {
 
     for (const entity of entities) {
       try {
-        if (entity.sell.user.userData.mail && entity.amlReason !== AmlReason.NO_COMMUNICATION) {
+        if (entity.sell.user.userData.mail && !entity.noCommunication) {
           const minFee = entity.minFeeAmountFiat
             ? ` (min. ${entity.minFeeAmountFiat} ${entity.outputReferenceAsset.name})`
             : '';
@@ -152,7 +152,7 @@ export class BuyFiatNotificationService {
 
     for (const entity of entities) {
       try {
-        if (entity.sell.user.userData.mail && entity.amlReason !== AmlReason.NO_COMMUNICATION) {
+        if (entity.sell.user.userData.mail && !entity.noCommunication) {
           await this.notificationService.sendMail({
             type: MailType.USER,
             input: {
@@ -202,7 +202,7 @@ export class BuyFiatNotificationService {
         if (
           entity.sell.user.userData.mail &&
           (entity.sell.user.userData.verifiedName || entity.amlReason !== AmlReason.NAME_CHECK_WITHOUT_KYC) &&
-          entity.amlReason !== AmlReason.NO_COMMUNICATION
+          !entity.noCommunication
         ) {
           await this.notificationService.sendMail({
             type: MailType.USER,
