@@ -1,8 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
-import { MinAmount } from 'src/subdomains/supporting/payment/dto/min-amount.dto';
-import { TransactionError } from 'src/subdomains/supporting/payment/dto/transaction-error.enum';
+import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-helper/min-amount.dto';
+import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 
 export class BankInfoDto {
   @ApiProperty()
@@ -94,6 +94,6 @@ export class BuyPaymentInfoDto extends BankInfoDto {
   @ApiProperty()
   isValid: boolean;
 
-  @ApiPropertyOptional({ enum: TransactionError, description: 'Error message in case isValid is false' })
-  error?: TransactionError;
+  @ApiPropertyOptional({ enum: QuoteError, description: 'Error message in case isValid is false' })
+  error?: QuoteError;
 }

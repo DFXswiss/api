@@ -1,7 +1,7 @@
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
-import { TxSpec } from 'src/subdomains/supporting/payment/dto/tx-spec.dto';
+import { TxSpec } from 'src/subdomains/supporting/payment/dto/transaction-helper/tx-spec.dto';
 import { Fiat } from '../fiat.entity';
 import { FiatDetailDto, FiatDto, VolumeLimitDto } from './fiat.dto';
 
