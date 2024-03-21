@@ -3,8 +3,6 @@ import { BinanceService } from 'src/integration/exchange/services/binance.servic
 import { KrakenService } from 'src/integration/exchange/services/kraken.service';
 import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
 import { Active, activesEqual, isFiat } from 'src/shared/models/active';
-import { Asset } from 'src/shared/models/asset/asset.entity';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
