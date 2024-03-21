@@ -1,7 +1,7 @@
 import { Config } from 'src/config/config';
 import { assetExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { Util } from 'src/shared/utils/util';
-import { TxSpec } from 'src/subdomains/supporting/payment/dto/tx-spec.dto';
+import { TxSpec } from 'src/subdomains/supporting/payment/dto/transaction-helper/tx-spec.dto';
 import { Asset } from '../asset.entity';
 import { AssetDetailDto, AssetDto, FeeTier } from './asset.dto';
 

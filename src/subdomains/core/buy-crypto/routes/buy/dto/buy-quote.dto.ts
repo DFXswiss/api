@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TransactionError } from 'src/subdomains/supporting/payment/dto/transaction-error.enum';
+import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 
 export class BuyQuoteDto {
   @ApiProperty({ description: 'Fee amount in source currency' })
@@ -32,6 +32,6 @@ export class BuyQuoteDto {
   @ApiProperty()
   isValid: boolean;
 
-  @ApiPropertyOptional({ enum: TransactionError, description: 'Error message in case isValid is false' })
-  error?: TransactionError;
+  @ApiPropertyOptional({ enum: QuoteError, description: 'Error message in case isValid is false' })
+  error?: QuoteError;
 }

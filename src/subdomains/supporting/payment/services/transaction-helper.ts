@@ -12,16 +12,16 @@ import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { AmlRule } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
-import { MinAmount } from 'src/subdomains/supporting/payment/dto/min-amount.dto';
+import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-helper/min-amount.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { FeeDto } from '../dto/fee.dto';
 import { FiatPaymentMethod, PaymentMethod } from '../dto/payment-method.enum';
-import { TargetEstimation, TransactionDetails } from '../dto/transaction-details.dto';
-import { TransactionError } from '../dto/transaction-error.enum';
-import { TxFeeDetails } from '../dto/tx-fee-details.dto';
-import { TxSpec, TxSpecExtended } from '../dto/tx-spec.dto';
+import { QuoteError } from '../dto/transaction-helper/quote-error.enum';
+import { TargetEstimation, TransactionDetails } from '../dto/transaction-helper/transaction-details.dto';
+import { TxFeeDetails } from '../dto/transaction-helper/tx-fee-details.dto';
+import { TxSpec, TxSpecExtended } from '../dto/transaction-helper/tx-spec.dto';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
 import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
 
@@ -384,7 +384,7 @@ export class TransactionHelper implements OnModuleInit {
     txSpecSource: TxSpecExtended,
     txAmountChf: number,
     user?: User,
-  ): TransactionError | undefined {
+  ): QuoteError | undefined {
     // KYC checks
     if (isFiat(from)) {
       if (
@@ -395,11 +395,11 @@ export class TransactionHelper implements OnModuleInit {
           user?.wallet.amlRule === AmlRule.RULE_3 &&
           user?.userData.kycLevel < KycLevel.LEVEL_50)
       )
-        return TransactionError.KYC_REQUIRED;
+        return QuoteError.KYC_REQUIRED;
     }
 
     if (paymentMethodIn === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed)
-      return TransactionError.KYC_REQUIRED_INSTANT;
+      return QuoteError.KYC_REQUIRED_INSTANT;
     if (
       isFiat(to) &&
       to.name !== 'CHF' &&
@@ -407,10 +407,10 @@ export class TransactionHelper implements OnModuleInit {
       !user.userData.hasBankTxVerification &&
       txAmountChf > Config.tradingLimits.dailyDefault
     )
-      return TransactionError.BANK_TRANSACTION_MISSING;
+      return QuoteError.BANK_TRANSACTION_MISSING;
 
     // amount checks
-    if (target.sourceAmount < txSpecSource.minVolume) return TransactionError.AMOUNT_TOO_LOW;
-    if (txAmountChf > extendedSpecs.maxVolume) return TransactionError.AMOUNT_TOO_HIGH;
+    if (target.sourceAmount < txSpecSource.minVolume) return QuoteError.AMOUNT_TOO_LOW;
+    if (txAmountChf > extendedSpecs.maxVolume) return QuoteError.AMOUNT_TOO_HIGH;
   }
 }

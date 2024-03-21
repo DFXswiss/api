@@ -7,9 +7,9 @@ import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
-import { SpecialExternalBankAccount } from 'src/subdomains/supporting/bank/special-external-bank-account/special-external-bank-account.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Fee } from 'src/subdomains/supporting/payment/entities/fee.entity';
+import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
@@ -241,6 +241,8 @@ export class BuyFiat extends IEntity {
     totalFeeAmount: number,
     totalFeeAmountChf: number,
   ): UpdateResult<BuyFiat> {
+    const { usedRef, refProvision } = this.user.specifiedRef;
+
     const update: Partial<BuyFiat> = {
       absoluteFeeAmount: fixedFee,
       percentFee: feeRate,
@@ -252,7 +254,9 @@ export class BuyFiat extends IEntity {
       inputReferenceAmountMinusFee: this.inputReferenceAmount - totalFeeAmount,
       amountInEur,
       amountInChf,
-      refFactor: payoutRefBonus ? this.refFactor : 0,
+      usedRef,
+      refProvision,
+      refFactor: !payoutRefBonus || usedRef === '000-000' ? 0 : 1,
       usedFees: fees?.map((fee) => fee.id).join(';'),
     };
 
@@ -283,9 +287,8 @@ export class BuyFiat extends IEntity {
     last7dVolume: number,
     last30dVolume: number,
     bankData: BankData,
-    blacklist: SpecialExternalBankAccount[],
+    blacklist: SpecialExternalAccount[],
   ): UpdateResult<BuyFiat> {
-    const { usedRef, refProvision } = this.user.specifiedRef;
     const amountInChf = chfReferencePrice.convert(this.inputReferenceAmount, 2);
 
     const amlErrors = AmlService.getAmlErrors(
@@ -302,12 +305,7 @@ export class BuyFiat extends IEntity {
     const comment = amlErrors.join(';');
     const update: Partial<BuyFiat> =
       amlErrors.length === 0
-        ? {
-            usedRef,
-            refProvision,
-            refFactor: usedRef === '000-000' ? 0 : 1,
-            amlCheck: CheckStatus.PASS,
-          }
+        ? { amlCheck: CheckStatus.PASS }
         : amlErrors.every((e) => AmlPendingError.includes(e))
         ? { amlCheck: CheckStatus.PENDING, amlReason: AmlReason.MANUAL_CHECK }
         : Util.minutesDiff(this.created) >= 10

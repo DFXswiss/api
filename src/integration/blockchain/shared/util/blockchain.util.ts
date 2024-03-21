@@ -29,6 +29,7 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.BASE]: 'https://basescan.org',
   [Blockchain.HAQQ]: 'https://explorer.haqq.network',
   [Blockchain.LIQUID]: 'https://blockstream.info/liquid',
+  [Blockchain.ARWEAVE]: 'https://arscan.io',
   [Blockchain.CARDANO]: 'https://cardanoscan.io',
 };
 
@@ -45,6 +46,7 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.BASE]: 'tx',
   [Blockchain.HAQQ]: 'tx',
   [Blockchain.LIQUID]: 'tx',
+  [Blockchain.ARWEAVE]: 'tx',
   [Blockchain.CARDANO]: 'transaction',
 };
 
