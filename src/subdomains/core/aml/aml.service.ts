@@ -11,8 +11,8 @@ import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import {
   SpecialExternalAccount,
   SpecialExternalAccountType,
-} from 'src/subdomains/supporting/bank/special-external-account/special-external-account.entity';
-import { SpecialExternalAccountService } from 'src/subdomains/supporting/bank/special-external-account/special-external-account.service';
+} from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
+import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { BuyCrypto } from '../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../sell-crypto/process/buy-fiat.entity';
 import { AmlError } from './enums/aml-error.enum';
