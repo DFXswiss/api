@@ -68,7 +68,7 @@ export class BuyCryptoNotificationService {
 
       for (const tx of txOutput) {
         try {
-          if (tx.user.userData.mail && tx.amlReason !== AmlReason.NO_COMMUNICATION) {
+          if (tx.user.userData.mail && !tx.noCommunication) {
             const minFee = tx.minFeeAmountFiat
               ? ` (min. ${tx.minFeeAmountFiat} ${tx.cryptoInput ? 'EUR' : tx.inputReferenceAsset})`
               : '';
