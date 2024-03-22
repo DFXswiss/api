@@ -468,7 +468,7 @@ export class BuyCrypto extends IEntity {
     const comment = amlErrors.join(';');
     const update: Partial<BuyCrypto> =
       amlErrors.length === 0
-        ? { amlCheck: CheckStatus.PASS }
+        ? { amlCheck: CheckStatus.PASS, amlReason: AmlReason.NA }
         : amlErrors.every((e) => AmlPendingError.includes(e))
         ? { amlCheck: CheckStatus.PENDING, amlReason: AmlReason.MANUAL_CHECK }
         : Util.minutesDiff(this.created) >= 10
