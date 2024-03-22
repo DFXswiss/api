@@ -81,6 +81,10 @@ export class PriceRule extends IEntity {
   priceTimestamp: Date;
 
   // getters
+  get shouldUpdate(): boolean {
+    return !this.isPriceValid || Util.secondsDiff(this.priceTimestamp) > this.priceValiditySeconds - 15;
+  }
+
   get isPriceValid(): boolean {
     return (
       this.currentPrice != null &&

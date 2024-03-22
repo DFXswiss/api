@@ -1,9 +1,17 @@
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
-import { Active } from 'src/shared/models/active';
+import { Active, isFiat } from 'src/shared/models/active';
+import { Util } from 'src/shared/utils/util';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
-import { TransactionDto, TransactionState, TransactionType } from '../../../supporting/payment/dto/transaction.dto';
+import {
+  KycRequiredReason,
+  TransactionDto,
+  TransactionReason,
+  TransactionReasonMapper,
+  TransactionState,
+  TransactionType,
+} from '../../../supporting/payment/dto/transaction.dto';
+import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { BuyCrypto, BuyCryptoStatus } from '../../buy-crypto/process/entities/buy-crypto.entity';
-import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
 import { RefReward, RewardStatus } from '../../referral/reward/ref-reward.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 
@@ -24,7 +32,7 @@ export class TransactionDtoMapper {
     const dto: TransactionDto = {
       id: buyCrypto.transaction?.id,
       type: buyCrypto.isCryptoCryptoTransaction ? TransactionType.CONVERT : TransactionType.BUY,
-      state: getTransactionState(buyCrypto),
+      ...getTransactionStateDetails(buyCrypto),
       inputAmount: buyCrypto.inputAmount,
       inputAsset: buyCrypto.inputAsset,
       inputAssetId: buyCrypto.inputAssetEntity.id,
@@ -37,7 +45,10 @@ export class TransactionDtoMapper {
       outputBlockchain: buyCrypto.target.asset.blockchain,
       outputPaymentMethod: CryptoPaymentMethod.CRYPTO,
       feeAmount: buyCrypto.totalFeeAmount
-        ? (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount
+        ? Util.roundReadable(
+            (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount,
+            isFiat(buyCrypto.inputAssetEntity),
+          )
         : null,
       feeAsset: buyCrypto.totalFeeAmount ? buyCrypto.inputAsset : null,
       inputTxId: buyCrypto.cryptoInput?.inTxId ?? null,
@@ -61,7 +72,7 @@ export class TransactionDtoMapper {
     const dto: TransactionDto = {
       id: buyFiat.transaction?.id,
       type: TransactionType.SELL,
-      state: getTransactionState(buyFiat),
+      ...getTransactionStateDetails(buyFiat),
       inputAmount: buyFiat.inputAmount,
       inputAsset: buyFiat.inputAsset,
       inputAssetId: buyFiat.inputAssetEntity.id,
@@ -74,7 +85,10 @@ export class TransactionDtoMapper {
       outputBlockchain: null,
       outputPaymentMethod: FiatPaymentMethod.BANK,
       feeAmount: buyFiat.totalFeeAmount
-        ? (buyFiat.totalFeeAmount / buyFiat.inputReferenceAmount) * buyFiat.inputAmount
+        ? Util.roundReadable(
+            (buyFiat.totalFeeAmount / buyFiat.inputReferenceAmount) * buyFiat.inputAmount,
+            isFiat(buyFiat.inputAssetEntity),
+          )
         : null,
       feeAsset: buyFiat.totalFeeAmount ? buyFiat.inputAsset : null,
       inputTxId: buyFiat.cryptoInput?.inTxId ?? null,
@@ -98,7 +112,7 @@ export class TransactionDtoMapper {
     const dto: TransactionDto = {
       id: refReward.transaction?.id,
       type: TransactionType.REFERRAL,
-      state: getTransactionState(refReward),
+      ...getTransactionStateDetails(refReward),
       inputAmount: null,
       inputAsset: null,
       inputAssetId: null,
@@ -139,45 +153,55 @@ export const RefRewardStatusMapper: {
   [RewardStatus.COMPLETE]: TransactionState.COMPLETED,
 };
 
-export function getTransactionState(entity: BuyFiat | BuyCrypto | RefReward): TransactionState {
+function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
+  state: TransactionState;
+  reason: TransactionReason;
+} {
   if (entity instanceof RefReward) {
-    return RefRewardStatusMapper[entity.status];
+    return { state: RefRewardStatusMapper[entity.status], reason: null };
   }
 
-  if (entity instanceof BuyCrypto) {
-    if (entity.chargebackDate) return TransactionState.RETURNED;
+  const reason = entity.amlReason ? TransactionReasonMapper[entity.amlReason] : null;
 
+  if (entity instanceof BuyCrypto) {
     switch (entity.amlCheck) {
+      case null:
       case CheckStatus.PENDING:
-        return TransactionState.AML_PENDING;
+      case CheckStatus.GSHEET:
+        if (KycRequiredReason.includes(reason)) return { state: TransactionState.KYC_REQUIRED, reason };
+        return { state: TransactionState.AML_PENDING, reason };
+
       case CheckStatus.FAIL:
-        return TransactionState.FAILED;
+        if (entity.chargebackDate) return { state: TransactionState.RETURNED, reason };
+        return { state: TransactionState.FAILED, reason };
+
       case CheckStatus.PASS:
-        if (entity.isComplete) return TransactionState.COMPLETED;
-        if (entity.status === BuyCryptoStatus.WAITING_FOR_LOWER_FEE) return TransactionState.FEE_TOO_HIGH;
+        if (entity.isComplete) return { state: TransactionState.COMPLETED, reason };
+        if (entity.status === BuyCryptoStatus.WAITING_FOR_LOWER_FEE)
+          return { state: TransactionState.FEE_TOO_HIGH, reason };
         break;
     }
 
-    if (entity.outputReferenceAsset) return TransactionState.PROCESSING;
-
-    return TransactionState.CREATED;
+    return { state: TransactionState.PROCESSING, reason };
   }
 
   if (entity instanceof BuyFiat) {
-    if (entity.cryptoReturnDate) return TransactionState.RETURNED;
-
     switch (entity.amlCheck) {
+      case null:
       case CheckStatus.PENDING:
-        return TransactionState.AML_PENDING;
+      case CheckStatus.GSHEET:
+        if (KycRequiredReason.includes(reason)) return { state: TransactionState.KYC_REQUIRED, reason };
+        return { state: TransactionState.AML_PENDING, reason };
+
       case CheckStatus.FAIL:
-        return TransactionState.FAILED;
+        if (entity.cryptoReturnDate) return { state: TransactionState.RETURNED, reason };
+        return { state: TransactionState.FAILED, reason };
+
       case CheckStatus.PASS:
-        if (entity.isComplete) return TransactionState.COMPLETED;
+        if (entity.isComplete) return { state: TransactionState.COMPLETED, reason };
         break;
     }
 
-    if (entity.outputReferenceAsset) return TransactionState.PROCESSING;
-
-    return TransactionState.CREATED;
+    return { state: TransactionState.PROCESSING, reason };
   }
 }

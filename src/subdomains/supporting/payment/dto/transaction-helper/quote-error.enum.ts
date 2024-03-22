@@ -1,4 +1,4 @@
-export enum TransactionError {
+export enum QuoteError {
   AMOUNT_TOO_LOW = 'AmountTooLow',
   AMOUNT_TOO_HIGH = 'AmountTooHigh',
   BANK_TRANSACTION_MISSING = 'BankTransactionMissing',

@@ -3,15 +3,22 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
+import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Fee } from 'src/subdomains/supporting/payment/entities/fee.entity';
+import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { Transaction } from '../../../supporting/payment/entities/transaction.entity';
-import { AmlReason } from '../../buy-crypto/process/enums/aml-reason.enum';
-import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
+import { AmlService } from '../../aml/aml.service';
+import { AmlPendingError } from '../../aml/enums/aml-error.enum';
+import { AmlReason } from '../../aml/enums/aml-reason.enum';
+import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { Sell } from '../route/sell.entity';
 
 @Entity()
@@ -188,8 +195,8 @@ export class BuyFiat extends IEntity {
     return this;
   }
 
-  offRampInitiated(recipientMail: string): UpdateResult<BuyFiat> {
-    this.recipientMail = recipientMail;
+  offRampInitiated(): UpdateResult<BuyFiat> {
+    this.recipientMail = this.noCommunication ? null : this.userData.mail;
     this.mail1SendDate = new Date();
 
     return [this.id, { recipientMail: this.recipientMail, mail1SendDate: this.mail1SendDate }];
@@ -204,7 +211,7 @@ export class BuyFiat extends IEntity {
 
   returnMail(): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
-      recipientMail: this.sell.user.userData.mail,
+      recipientMail: this.noCommunication ? null : this.sell.user.userData.mail,
       mailReturnSendDate: new Date(),
     };
 
@@ -237,6 +244,8 @@ export class BuyFiat extends IEntity {
     totalFeeAmount: number,
     totalFeeAmountChf: number,
   ): UpdateResult<BuyFiat> {
+    const { usedRef, refProvision } = this.user.specifiedRef;
+
     const update: Partial<BuyFiat> = {
       absoluteFeeAmount: fixedFee,
       percentFee: feeRate,
@@ -248,7 +257,9 @@ export class BuyFiat extends IEntity {
       inputReferenceAmountMinusFee: this.inputReferenceAmount - totalFeeAmount,
       amountInEur,
       amountInChf,
-      refFactor: payoutRefBonus ? this.refFactor : 0,
+      usedRef,
+      refProvision,
+      refFactor: !payoutRefBonus || usedRef === '000-000' ? 0 : 1,
       usedFees: fees?.map((fee) => fee.id).join(';'),
     };
 
@@ -266,6 +277,43 @@ export class BuyFiat extends IEntity {
       outputAsset: outputAssetEntity,
       outputReferenceAsset: outputAssetEntity,
     };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  amlCheckAndFillUp(
+    chfReferencePrice: Price,
+    minVolume: number,
+    last24hVolume: number,
+    last7dVolume: number,
+    last30dVolume: number,
+    bankData: BankData,
+    blacklist: SpecialExternalAccount[],
+  ): UpdateResult<BuyFiat> {
+    const amountInChf = chfReferencePrice.convert(this.inputReferenceAmount, 2);
+
+    const amlErrors = AmlService.getAmlErrors(
+      this,
+      minVolume,
+      amountInChf,
+      last24hVolume,
+      last7dVolume,
+      last30dVolume,
+      bankData,
+      blacklist,
+    );
+
+    const comment = amlErrors.join(';');
+    const update: Partial<BuyFiat> =
+      amlErrors.length === 0
+        ? { amlCheck: CheckStatus.PASS, amlReason: AmlReason.NA }
+        : amlErrors.every((e) => AmlPendingError.includes(e))
+        ? { amlCheck: CheckStatus.PENDING, amlReason: AmlReason.MANUAL_CHECK }
+        : Util.minutesDiff(this.created) >= 10
+        ? { amlCheck: CheckStatus.GSHEET, comment }
+        : { comment };
 
     Object.assign(this, update);
 
@@ -316,16 +364,18 @@ export class BuyFiat extends IEntity {
 
   get exchangeRate(): { exchangeRate: number; rate: number } {
     return {
-      exchangeRate: Util.roundByPrecision(
+      exchangeRate: Util.roundReadable(
         (this.inputAmount / this.inputReferenceAmount) * (this.inputReferenceAmountMinusFee / this.outputAmount),
-        5,
+        false,
       ),
-      rate: Util.roundByPrecision(this.inputAmount / this.outputAmount, 5),
+      rate: Util.roundReadable(this.inputAmount / this.outputAmount, false),
     };
   }
 
   get exchangeRateString(): string {
-    return `${Util.round(1 / this.exchangeRate.exchangeRate, 2)} ${this.outputAsset.name}/${this.inputAsset}`;
+    return `${Util.roundReadable(1 / this.exchangeRate.exchangeRate, true)} ${this.outputAsset.name}/${
+      this.inputAsset
+    }`;
   }
 
   get percentFeeString(): string {
@@ -338,6 +388,30 @@ export class BuyFiat extends IEntity {
 
   get isLightningTransaction(): boolean {
     return this.cryptoInputBlockchain === Blockchain.LIGHTNING;
+  }
+
+  get user(): User {
+    return this.sell.user;
+  }
+
+  get userData(): UserData {
+    return this.user.userData;
+  }
+
+  get route(): Sell {
+    return this.sell;
+  }
+
+  get target(): { address: string; asset: Fiat; trimmedReturnAddress: string } {
+    return {
+      address: this.sell.iban,
+      asset: this.sell.fiat,
+      trimmedReturnAddress: this.user ? Util.blankStart(this.user.address) : null,
+    };
+  }
+
+  get noCommunication(): boolean {
+    return this.amlReason === AmlReason.NO_COMMUNICATION;
   }
 }
 

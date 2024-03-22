@@ -34,7 +34,7 @@ export class LimitRequest extends IEntity {
   @Column({ length: 256 })
   fundOrigin: FundOrigin;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 'MAX', nullable: true })
   fundOriginText: string;
 
   @Column({ length: 256, nullable: true })

@@ -10,3 +10,7 @@ export function isFiat(active: Active): active is Fiat {
 export function isAsset(active: Active): active is Asset {
   return active instanceof Asset;
 }
+
+export function activesEqual(a: Active, b: Active): boolean {
+  return a.constructor === b.constructor && a.id === b.id;
+}

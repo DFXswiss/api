@@ -5,11 +5,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import {
-  AmlReason,
-  AmlReasonWithoutReason,
-  KycAmlReasons,
-} from 'src/subdomains/core/buy-crypto/process/enums/aml-reason.enum';
+import { AmlReason, AmlReasonWithoutReason, KycAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import {
   MailFactory,
@@ -18,7 +14,7 @@ import {
 } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, IsNull, Not } from 'typeorm';
-import { CheckStatus } from '../../../buy-crypto/process/enums/check-status.enum';
+import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyFiatAmlReasonPendingStates } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 
@@ -54,7 +50,7 @@ export class BuyFiatNotificationService {
       try {
         const recipientMail = entity.sell.user.userData.mail;
 
-        if (recipientMail) {
+        if (recipientMail && !entity.noCommunication) {
           await this.notificationService.sendMail({
             type: MailType.USER,
             input: {
@@ -81,11 +77,9 @@ export class BuyFiatNotificationService {
               ],
             },
           });
-        } else {
-          this.logger.warn(`Failed to send buy-fiat mails ${entity.id}: user has no email`);
         }
 
-        await this.buyFiatRepo.update(...entity.offRampInitiated(recipientMail));
+        await this.buyFiatRepo.update(...entity.offRampInitiated());
       } catch (e) {
         this.logger.error(`Failed to send off-ramp initiated mail for buy-fiat ${entity.id}:`, e);
       }
@@ -107,7 +101,7 @@ export class BuyFiatNotificationService {
 
     for (const entity of entities) {
       try {
-        if (entity.sell.user.userData.mail) {
+        if (entity.sell.user.userData.mail && !entity.noCommunication) {
           const minFee = entity.minFeeAmountFiat
             ? ` (min. ${entity.minFeeAmountFiat} ${entity.outputReferenceAsset.name})`
             : '';
@@ -123,7 +117,7 @@ export class BuyFiatNotificationService {
                 [`${MailTranslationKey.PAYMENT}.blockchain`]: `${entity.cryptoInputBlockchain}`,
                 [`${MailTranslationKey.PAYMENT}.dfx_fee`]: `${entity.percentFeeString}` + minFee,
                 [`${MailTranslationKey.PAYMENT}.exchange_rate`]: `${entity.exchangeRateString}`,
-                [`${MailTranslationKey.BUY_FIAT}.output_amount`]: `${Util.round(entity.outputAmount, 2)} ${
+                [`${MailTranslationKey.BUY_FIAT}.output_amount`]: `${Util.roundReadable(entity.outputAmount, true)} ${
                   entity.outputAsset.name
                 }`,
               },
@@ -158,7 +152,7 @@ export class BuyFiatNotificationService {
 
     for (const entity of entities) {
       try {
-        if (entity.sell.user.userData.mail) {
+        if (entity.sell.user.userData.mail && !entity.noCommunication) {
           await this.notificationService.sendMail({
             type: MailType.USER,
             input: {
@@ -166,7 +160,7 @@ export class BuyFiatNotificationService {
               title: `${MailTranslationKey.BUY_FIAT}.processed.title`,
               salutation: { key: `${MailTranslationKey.BUY_FIAT}.processed.salutation` },
               table: {
-                [`${MailTranslationKey.BUY_FIAT}.output_amount`]: `${Util.round(entity.outputAmount, 2)} ${
+                [`${MailTranslationKey.BUY_FIAT}.output_amount`]: `${Util.roundReadable(entity.outputAmount, true)} ${
                   entity.outputAsset.name
                 }`,
                 [`${MailTranslationKey.PAYMENT}.bank_account`]: Util.blankStart(entity.sell.iban),
@@ -194,8 +188,8 @@ export class BuyFiatNotificationService {
         mail1SendDate: Not(IsNull()),
         cryptoReturnTxId: Not(IsNull()),
         cryptoReturnDate: Not(IsNull()),
-        amlReason: Not(IsNull()),
         amlCheck: CheckStatus.FAIL,
+        amlReason: Not(IsNull()),
         mailReturnSendDate: IsNull(),
       },
       relations: ['sell', 'sell.user', 'sell.user.userData', 'cryptoInput'],
@@ -207,7 +201,8 @@ export class BuyFiatNotificationService {
       try {
         if (
           entity.sell.user.userData.mail &&
-          (entity.sell.user.userData.verifiedName || entity.amlReason !== AmlReason.NAME_CHECK_WITHOUT_KYC)
+          (entity.sell.user.userData.verifiedName || entity.amlReason !== AmlReason.NAME_CHECK_WITHOUT_KYC) &&
+          !entity.noCommunication
         ) {
           await this.notificationService.sendMail({
             type: MailType.USER,

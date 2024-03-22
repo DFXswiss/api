@@ -1,9 +1,9 @@
 import { Config } from 'src/config/config';
 import { assetExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { Util } from 'src/shared/utils/util';
-import { TxMinSpec } from 'src/subdomains/supporting/payment/dto/tx-spec.dto';
 import { Asset } from '../asset.entity';
 import { AssetDetailDto, AssetDto, FeeTier } from './asset.dto';
+import { TxMinSpec } from 'src/subdomains/supporting/payment/dto/transaction-helper/tx-spec.dto';
 
 export class AssetDtoMapper {
   static toDto(asset: Asset): AssetDto {
@@ -37,8 +37,8 @@ export class AssetDtoMapper {
 
     return Object.assign(this.toDto(asset), {
       limits: {
-        minVolume: Util.roundByPrecision(spec.minVolume / price, 5),
-        maxVolume: Util.roundByPrecision(Config.tradingLimits.yearlyDefault / price, 5),
+        minVolume: Util.roundReadable(spec.minVolume / price, false),
+        maxVolume: Util.roundReadable(Config.tradingLimits.yearlyDefault / price, false),
       },
     });
   }

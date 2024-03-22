@@ -5,7 +5,7 @@ DFX is a crypto on- and off-ramp with an open API that can be integrated by anyo
 ## API Documentation
 
 - [Swagger](#swagger)
-- [Registration](#registration)
+- [Authentication](#authentication)
 - [KYC](#kyc-optional)
 - [Transactions](#transactions)
   - [Buy Crypto](#buy-crypto)
@@ -18,7 +18,7 @@ DFX is a crypto on- and off-ramp with an open API that can be integrated by anyo
 - [Swagger UI](https://api.dfx.swiss)
 - [Swagger JSON](https://api.dfx.swiss/swagger-json)
 
-### Registration
+### Authentication
 
 Each user who wants to use the service must be registered separately with their blockchain address and a signature to prove ownership.
 
@@ -26,13 +26,14 @@ Each user who wants to use the service must be registered separately with their 
 
 Contact [support](mailto:support@dfx.swiss) to register your wallet name. This is used to identify all users that signed up with your wallet. This step is optional.
 
-#### Sign Up
+#### Sign-Up / Sign-In
 
 1. Get the sign message from [sign-message endpoint](https://api.dfx.swiss/swagger/#/Auth/AuthController_getSignMessage) (with the user's address) and sign it with the corresponding private key
-1. Register the user with the [sign-up endpoint](https://api.dfx.swiss/swagger/#/Auth/AuthController_signUp). `wallet` and `usedRef` are optional:
+1. Sign the user up or in with the [auth endpoint](https://api.dfx.swiss/swagger/#/Auth/AuthController_authenticate). This call will register a new user, if the user does not exist yet. If there is already a user with the same address, the user will be signed in. The response contains a JWT access token, which can be used for further API calls. `usedRef`, `wallet` and `discountCode` parameters are optional. `usedRef` and `wallet` are only taken into account on user registration.
    - Use the wallet name (`wallet`) from step [initial setup](#initial-wallet-setup-optional)
    - See [below](#referral-program) for more information on the referral program (`usedRef`)
-1. Now you can get your JWT access token (with address & signature) with the [sign-in endpoint](https://api.dfx.swiss/swagger/#/Auth/AuthController_signIn)
+
+Alternatively the [sign-up](https://api.dfx.swiss/swagger/#/Auth/AuthController_signUp) and [sign-in](https://api.dfx.swiss/swagger/#/Auth/AuthController_signIn) endpoints can be used if only one functionality (sign-up or sign-in) is required.
 
 #### Notifications
 
@@ -41,7 +42,7 @@ If a user wants to get notified about ongoing transactions, he can register his 
 #### Referral Program
 
 - Basic information about the referral program can be found in our [FAQ](https://docs.dfx.swiss/en/faq)
-- A referral code can only be set once during [user registration](#registration) (`usedRef` parameter)
+- A referral code can only be set once during [user registration](#authentication) (`usedRef` parameter)
 - Every user will receive his own referral code after the first successful transaction. It can be get from the [user detail endpoint](https://api.dfx.swiss/swagger/#/User/UserController_getUserDetail).
 
 ### KYC (optional)

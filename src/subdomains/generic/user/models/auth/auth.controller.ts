@@ -25,6 +25,14 @@ export class AuthController {
     private readonly mergeService: AccountMergeService,
   ) {}
 
+  @Post()
+  @UseGuards(RateLimitGuard, IpCountryGuard)
+  @Throttle(20, 864000)
+  @ApiCreatedResponse({ type: AuthResponseDto })
+  authenticate(@Body() dto: CreateUserDto, @RealIP() ip: string): Promise<AuthResponseDto> {
+    return this.authService.authenticate(dto, ip);
+  }
+
   @Post('signUp')
   @UseGuards(RateLimitGuard, IpCountryGuard)
   @Throttle(20, 864000)

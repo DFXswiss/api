@@ -22,6 +22,7 @@ export class KrakenAdapter extends CcxtExchangeAdapter {
     Base: undefined,
     Haqq: undefined,
     Liquid: undefined,
+    Arweave: undefined,
   };
 
   constructor(

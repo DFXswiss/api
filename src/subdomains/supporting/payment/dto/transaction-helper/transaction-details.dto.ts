@@ -1,5 +1,5 @@
-import { FeeDto } from './fee.dto';
-import { TransactionError } from './transaction-error.enum';
+import { FeeDto } from '../fee.dto';
+import { QuoteError } from './quote-error.enum';
 
 export interface TargetEstimation {
   exchangeRate: number;
@@ -17,5 +17,5 @@ export interface TransactionDetails extends TargetEstimation {
   maxVolume: number;
   maxVolumeTarget: number;
   isValid: boolean;
-  error?: TransactionError;
+  error?: QuoteError;
 }
