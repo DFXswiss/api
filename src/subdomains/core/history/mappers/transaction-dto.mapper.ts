@@ -1,5 +1,6 @@
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
-import { Active } from 'src/shared/models/active';
+import { Active, isFiat } from 'src/shared/models/active';
+import { Util } from 'src/shared/utils/util';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import {
   KycRequiredReason,
@@ -44,7 +45,10 @@ export class TransactionDtoMapper {
       outputBlockchain: buyCrypto.target.asset.blockchain,
       outputPaymentMethod: CryptoPaymentMethod.CRYPTO,
       feeAmount: buyCrypto.totalFeeAmount
-        ? (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount
+        ? Util.roundReadable(
+            (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount,
+            isFiat(buyCrypto.inputAssetEntity),
+          )
         : null,
       feeAsset: buyCrypto.totalFeeAmount ? buyCrypto.inputAsset : null,
       inputTxId: buyCrypto.cryptoInput?.inTxId ?? null,
@@ -81,7 +85,10 @@ export class TransactionDtoMapper {
       outputBlockchain: null,
       outputPaymentMethod: FiatPaymentMethod.BANK,
       feeAmount: buyFiat.totalFeeAmount
-        ? (buyFiat.totalFeeAmount / buyFiat.inputReferenceAmount) * buyFiat.inputAmount
+        ? Util.roundReadable(
+            (buyFiat.totalFeeAmount / buyFiat.inputReferenceAmount) * buyFiat.inputAmount,
+            isFiat(buyFiat.inputAssetEntity),
+          )
         : null,
       feeAsset: buyFiat.totalFeeAmount ? buyFiat.inputAsset : null,
       inputTxId: buyFiat.cryptoInput?.inTxId ?? null,

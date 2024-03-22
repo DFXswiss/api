@@ -35,8 +35,8 @@ export class FiatDtoMapper {
     const price = fiat.approxPriceChf ?? 1;
 
     return {
-      minVolume: Util.round(min / price, 2),
-      maxVolume: Util.round(max / price, 2),
+      minVolume: Util.roundReadable(min / price, true),
+      maxVolume: Util.roundReadable(max / price, true),
     };
   }
 }

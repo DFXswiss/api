@@ -147,12 +147,12 @@ export class TransactionHelper implements OnModuleInit {
     const feeAmount = Math.max(percentFeeAmount + txSpecReferenceSource.fixedFee, txSpecReferenceSource.minFee);
 
     return {
-      minVolume: this.round(txSpecReferenceSource.minVolume, isFiat(from)),
+      minVolume: Util.roundReadable(txSpecReferenceSource.minVolume, isFiat(from)),
       fee: {
         ...fee,
-        fixed: this.round(txSpecReferenceSource.fixedFee, isFiat(from)),
-        min: this.round(txSpecReferenceSource.minFee, isFiat(from)),
-        total: this.round(feeAmount, isFiat(from)),
+        fixed: Util.roundReadable(txSpecReferenceSource.fixedFee, isFiat(from)),
+        min: Util.roundReadable(txSpecReferenceSource.minFee, isFiat(from)),
+        total: Util.roundReadable(feeAmount, isFiat(from)),
       },
     };
   }
@@ -317,11 +317,11 @@ export class TransactionHelper implements OnModuleInit {
     const sourceAmount = outputAmount != null ? price.invert().convert(outputAmount) + feeAmount : inputAmount;
 
     return {
-      exchangeRate: this.round(price.price, isFiat(from)),
-      rate: targetAmount ? this.round(sourceAmount / targetAmount, isFiat(from)) : Number.MAX_VALUE,
-      feeAmount: this.round(feeAmount, isFiat(from)),
-      estimatedAmount: this.round(targetAmount, isFiat(to)),
-      sourceAmount: this.round(sourceAmount, isFiat(from)),
+      exchangeRate: Util.roundReadable(price.price, isFiat(from)),
+      rate: targetAmount ? Util.roundReadable(sourceAmount / targetAmount, isFiat(from)) : Number.MAX_VALUE,
+      feeAmount: Util.roundReadable(feeAmount, isFiat(from)),
+      estimatedAmount: Util.roundReadable(targetAmount, isFiat(to)),
+      sourceAmount: Util.roundReadable(sourceAmount, isFiat(from)),
       exactPrice: price.isValid,
     };
   }
@@ -364,11 +364,7 @@ export class TransactionHelper implements OnModuleInit {
 
   private convert(amount: number, price: Price, isFiat: boolean): number {
     const targetAmount = price.convert(amount);
-    return this.round(targetAmount, isFiat);
-  }
-
-  private round(amount: number, isFiat: boolean): number {
-    return isFiat ? Util.round(amount, 2) : Util.roundByPrecision(amount, 5);
+    return Util.roundReadable(targetAmount, isFiat);
   }
 
   private roundMaxAmount(amount: number, isFiat: boolean): number {
