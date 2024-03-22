@@ -7,6 +7,7 @@ import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { TradingInfo } from '../dto/trading.dto';
 import { TradingRule } from '../entities/trading-rule.entity';
+import { PoolOutOfRangeException } from '../exceptions/pool-out-of-range.exception';
 
 const START_AMOUNT_IN = 10000; // CHF
 
@@ -87,13 +88,11 @@ export class TradingService {
     const sqrtPriceX96 = slot0.sqrtPriceX96;
     const fee = await poolContract.fee();
 
-    const poolBalance = await client.getTokenBalance(tradingInfo.assetIn, poolContract.address);
+    const poolBalance = await client.getTokenBalance(tradingInfo.assetOut, poolContract.address);
     const poolBalanceLimit = 0.99; // cannot swap 100% of the pool balance, therefore reduce by 1%
     const checkPoolBalance = poolBalance * poolBalanceLimit;
 
     let amountIn = START_AMOUNT_IN * tradingInfo.assetIn.minimalPriceReferenceAmount;
-    if (checkPoolBalance <= amountIn)
-      throw new Error(`Pool balance ${checkPoolBalance} is lower than start amount ${amountIn}`);
 
     const quoterV2Contract = client.getQuoteContract();
 
@@ -105,12 +104,17 @@ export class TradingService {
       sqrtPriceLimitX96: '0',
     };
 
-    let calcPriceImpact = await this.calculatePriceImpact(
+    let { calcPriceImpact, amountOut } = await this.calculatePriceImpact(
       quoterV2Contract,
       quoterV2Params,
       token0IsInToken,
       sqrtPriceX96,
     );
+
+    if (checkPoolBalance <= amountOut)
+      throw new PoolOutOfRangeException(
+        `Pool balance ${checkPoolBalance} is lower than required output amount ${amountOut}`,
+      );
 
     const maxAllowedLoopCounter = 10;
     let currentLoopCounter = 0;
@@ -119,16 +123,19 @@ export class TradingService {
       const ratio = usePriceImpact / calcPriceImpact;
       amountIn *= ratio;
 
-      if (checkPoolBalance <= amountIn)
-        throw new Error(`Pool balance ${checkPoolBalance} is lower than calculated amount ${amountIn}`);
+      if (checkPoolBalance <= amountOut)
+        throw new PoolOutOfRangeException(
+          `Pool balance ${checkPoolBalance} is lower than required output amount ${amountOut}`,
+        );
 
       quoterV2Params.amountIn = EvmUtil.toWeiAmount(amountIn, tokenIn.decimals);
-      calcPriceImpact = await this.calculatePriceImpact(
+
+      ({ calcPriceImpact, amountOut } = await this.calculatePriceImpact(
         quoterV2Contract,
         quoterV2Params,
         token0IsInToken,
         sqrtPriceX96,
-      );
+      ));
 
       if (++currentLoopCounter > maxAllowedLoopCounter)
         throw new Error(
@@ -139,6 +146,7 @@ export class TradingService {
     }
 
     tradingInfo.amountIn = amountIn;
+    tradingInfo.amountOut = amountOut;
 
     return tradingInfo;
   }
@@ -148,14 +156,14 @@ export class TradingService {
     quoterV2Params: any,
     token0IsInToken: boolean,
     sqrtPriceX96: number,
-  ): Promise<number> {
+  ): Promise<{ calcPriceImpact: number; amountOut: number }> {
     const quote = await quoterV2Contract.callStatic.quoteExactInputSingle(quoterV2Params);
     const sqrtPriceX96After = quote.sqrtPriceX96After;
 
     let sqrtPriceRatio = sqrtPriceX96After / sqrtPriceX96;
     if (!token0IsInToken) sqrtPriceRatio = 1 / sqrtPriceRatio;
 
-    return Math.abs(1 - sqrtPriceRatio) + 0.0001;
+    return { calcPriceImpact: Math.abs(1 - sqrtPriceRatio) + 0.0001, amountOut: +quote.amountOut };
   }
 
   private async getPoolContract(client: EvmClient, tradingInfo: TradingInfo): Promise<ethers.Contract> {
