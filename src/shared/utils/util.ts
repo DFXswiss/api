@@ -13,6 +13,10 @@ type CryptoAlgorithm = 'md5' | 'sha256' | 'sha512';
 
 export class Util {
   // --- MATH --- //
+  static roundReadable(amount: number, isFiat: boolean): number {
+    return isFiat ? this.round(amount, 2) : this.roundByPrecision(amount, 5);
+  }
+
   static round(amount: number, decimals: number): number {
     return this.roundToValue(amount, Math.pow(10, -decimals));
   }

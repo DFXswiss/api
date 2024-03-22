@@ -123,7 +123,7 @@ export class PricingService {
   }
 
   private async updatePriceForRule(rule: PriceRule, allowExpired: boolean, active?: Active): Promise<PriceRule> {
-    if (!rule.isPriceValid) {
+    if (rule.shouldUpdate) {
       const updateTask = this.updateCalls.get(`${rule.id}`, () => this.doUpdatePriceFor(rule, active));
 
       if (!allowExpired || rule.currentPrice == null || rule.isPriceObsolete) {

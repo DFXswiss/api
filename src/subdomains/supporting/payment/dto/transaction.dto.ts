@@ -49,7 +49,8 @@ export const KycRequiredReason = [
 export const TransactionReasonMapper: {
   [key in AmlReason]: TransactionReason;
 } = {
-  [AmlReason.NA]: TransactionReason.UNKNOWN,
+  [AmlReason.NA]: null,
+  [AmlReason.MANUAL_CHECK]: null,
   [AmlReason.NO_COMMUNICATION]: TransactionReason.UNKNOWN,
   [AmlReason.IBAN_CHECK]: TransactionReason.UNKNOWN,
   [AmlReason.DAILY_LIMIT]: TransactionReason.DAILY_LIMIT_EXCEEDED,
@@ -66,7 +67,6 @@ export const TransactionReasonMapper: {
   [AmlReason.BANK_NOT_ALLOWED]: TransactionReason.BANK_NOT_ALLOWED,
   [AmlReason.HIGH_RISK_BLOCKED]: TransactionReason.PAYMENT_ACCOUNT_NOT_ALLOWED,
   [AmlReason.COUNTRY_NOT_ALLOWED]: TransactionReason.COUNTRY_NOT_ALLOWED,
-  [AmlReason.MANUAL_CHECK]: null,
 };
 
 export class TransactionDto {

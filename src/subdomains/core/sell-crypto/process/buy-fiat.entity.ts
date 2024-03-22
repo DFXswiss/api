@@ -305,7 +305,7 @@ export class BuyFiat extends IEntity {
     const comment = amlErrors.join(';');
     const update: Partial<BuyFiat> =
       amlErrors.length === 0
-        ? { amlCheck: CheckStatus.PASS }
+        ? { amlCheck: CheckStatus.PASS, amlReason: AmlReason.NA }
         : amlErrors.every((e) => AmlPendingError.includes(e))
         ? { amlCheck: CheckStatus.PENDING, amlReason: AmlReason.MANUAL_CHECK }
         : Util.minutesDiff(this.created) >= 10
@@ -361,16 +361,18 @@ export class BuyFiat extends IEntity {
 
   get exchangeRate(): { exchangeRate: number; rate: number } {
     return {
-      exchangeRate: Util.roundByPrecision(
+      exchangeRate: Util.roundReadable(
         (this.inputAmount / this.inputReferenceAmount) * (this.inputReferenceAmountMinusFee / this.outputAmount),
-        5,
+        false,
       ),
-      rate: Util.roundByPrecision(this.inputAmount / this.outputAmount, 5),
+      rate: Util.roundReadable(this.inputAmount / this.outputAmount, false),
     };
   }
 
   get exchangeRateString(): string {
-    return `${Util.round(1 / this.exchangeRate.exchangeRate, 2)} ${this.outputAsset.name}/${this.inputAsset}`;
+    return `${Util.roundReadable(1 / this.exchangeRate.exchangeRate, true)} ${this.outputAsset.name}/${
+      this.inputAsset
+    }`;
   }
 
   get percentFeeString(): string {
