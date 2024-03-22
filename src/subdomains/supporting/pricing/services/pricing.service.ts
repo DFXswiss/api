@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { BinanceService } from 'src/integration/exchange/services/binance.service';
 import { KrakenService } from 'src/integration/exchange/services/kraken.service';
 import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
-import { Active, isFiat } from 'src/shared/models/active';
+import { Active, activesEqual, isFiat } from 'src/shared/models/active';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
@@ -25,7 +25,7 @@ export class PricingService {
   private readonly logger = new DfxLogger(PricingService);
 
   private readonly providerMap: { [s in PriceSource]: PricingProvider };
-  private readonly priceCache = new AsyncCache<Price>(60 * 60 * 6);
+  private readonly priceRuleCache = new AsyncCache<PriceRule[]>(60 * 60 * 6);
   private readonly providerPriceCache = new AsyncCache<Price>(10);
   private readonly updateCalls = new AsyncCache<PriceRule>(0);
 
@@ -57,14 +57,22 @@ export class PricingService {
 
   async getPrice(from: Active, to: Active, allowExpired: boolean): Promise<Price> {
     try {
-      if (this.areEqual(from, to)) return Price.create(from.name, to.name, 1);
+      if (activesEqual(from, to)) return Price.create(from.name, to.name, 1);
 
-      const [fromPrice, toPrice] = await Promise.all([
-        this.priceCache.get(this.itemString(from), () => this.getPriceForActive(from, allowExpired), !allowExpired),
-        this.priceCache.get(this.itemString(to), () => this.getPriceForActive(to, allowExpired), !allowExpired),
+      const [fromRules, toRules] = await Promise.all([
+        this.priceRuleCache.get(
+          this.itemString(from),
+          () => this.getPriceRules(from, allowExpired),
+          (rules) => !allowExpired && !this.joinRules(rules).isValid,
+        ),
+        this.priceRuleCache.get(
+          this.itemString(to),
+          () => this.getPriceRules(to, allowExpired),
+          (rules) => !allowExpired && !this.joinRules(rules).isValid,
+        ),
       ]);
 
-      const price = Price.join(fromPrice, toPrice.invert());
+      const price = Price.join(this.joinRules(fromRules), this.joinRules(toRules).invert());
 
       if (!price.isValid && !allowExpired) throw new Error('Price invalid');
 
@@ -83,7 +91,7 @@ export class PricingService {
   async updatePrices(): Promise<void> {
     const rules = await this.priceRuleRepo.find();
     for (const rule of rules) {
-      await this.updatePriceFor(rule);
+      await this.doUpdatePriceFor(rule);
     }
   }
 
@@ -92,10 +100,8 @@ export class PricingService {
   }
 
   // --- PRIVATE METHODS --- //
-  private async getPriceForActive(item: Active, allowExpired: boolean): Promise<Price> {
+  private async getPriceRules(item: Active, allowExpired: boolean): Promise<PriceRule[]> {
     const rules: { active: Active; rule: PriceRule }[] = [];
-
-    const times = [Date.now()];
 
     let rule: PriceRule;
     do {
@@ -104,43 +110,9 @@ export class PricingService {
       if (!rule) throw new Error(`No price rule found for ${this.itemString(active)}`);
 
       rules.push({ active, rule });
-
-      times.push(Date.now());
     } while (rule.reference);
 
-    const prices = await Promise.all(rules.map(({ active, rule }) => this.getPriceForRule(rule, allowExpired, active)));
-
-    times.push(Date.now());
-
-    if (Date.now() - times[0] > 300 && allowExpired) {
-      const timesString = times.map((t, i, a) => Util.round((t - (a[i - 1] ?? t)) / 1000, 3)).join(', ');
-      this.logger.verbose(
-        `Price request times for ${item.name} (total ${Util.round((Date.now() - times[0]) / 1000, 3)}): ${timesString}`,
-      );
-    }
-
-    return Price.join(...prices);
-  }
-
-  private async getPriceForRule(rule: PriceRule, allowExpired: boolean, active?: Active): Promise<Price> {
-    const start = Date.now();
-
-    if (!rule.isPriceValid) {
-      const updateTask = this.updateCalls.get(`${rule.id}`, () => this.updatePriceFor(rule, active));
-
-      if (!allowExpired || rule.currentPrice == null || rule.isPriceObsolete) {
-        rule = await updateTask;
-      } else {
-        updateTask.catch((e) => this.logger.error(`Failed to update price for rule ${rule.id} in background:`, e));
-      }
-    }
-
-    const timeDiff = Date.now() - start;
-    if (timeDiff > 300 && allowExpired) {
-      this.logger.verbose(`Rule request times for ${rule.id}: ${timeDiff / 1000}`);
-    }
-
-    return rule.price;
+    return Promise.all(rules.map(({ active, rule }) => this.updatePriceForRule(rule, allowExpired, active)));
   }
 
   private async getRuleFor(item: Active): Promise<PriceRule | undefined> {
@@ -150,7 +122,21 @@ export class PricingService {
     return query.leftJoinAndSelect('rule.reference', 'reference').where('item.id = :id', { id: item.id }).getOne();
   }
 
-  private async updatePriceFor(rule: PriceRule, from?: Active): Promise<PriceRule> {
+  private async updatePriceForRule(rule: PriceRule, allowExpired: boolean, active?: Active): Promise<PriceRule> {
+    if (!rule.isPriceValid) {
+      const updateTask = this.updateCalls.get(`${rule.id}`, () => this.doUpdatePriceFor(rule, active));
+
+      if (!allowExpired || rule.currentPrice == null || rule.isPriceObsolete) {
+        rule = await updateTask;
+      } else {
+        updateTask.catch((e) => this.logger.error(`Failed to update price for rule ${rule.id} in background:`, e));
+      }
+    }
+
+    return rule;
+  }
+
+  private async doUpdatePriceFor(rule: PriceRule, from?: Active): Promise<PriceRule> {
     const [price, check1Price, check2Price] = await Promise.all([
       this.getRulePrice(rule.rule),
       rule.check1 && this.getRulePrice(rule.check1),
@@ -212,8 +198,8 @@ export class PricingService {
     return `${isFiat(item) ? 'fiat' : 'asset'} ${item.id}`;
   }
 
-  private areEqual(a: Active, b: Active): boolean {
-    return a.constructor === b.constructor && a.id === b.id;
+  private joinRules(rules: PriceRule[]): Price {
+    return Price.join(...rules.map((r) => r.price));
   }
 
   private async getRulePrice(rule: Rule): Promise<Price> {

@@ -40,7 +40,7 @@ export class BuyFiatNotificationService {
 
   private async offRampInitiated(): Promise<void> {
     const entities = await this.buyFiatRepo.find({
-      where: { mail1SendDate: IsNull(), cryptoInput: Not(IsNull()), amlReason: Not(AmlReason.NO_COMMUNICATION) },
+      where: { mail1SendDate: IsNull(), cryptoInput: Not(IsNull()) },
       relations: ['cryptoInput', 'sell', 'sell.user', 'sell.user.userData'],
     });
 
@@ -50,7 +50,7 @@ export class BuyFiatNotificationService {
       try {
         const recipientMail = entity.sell.user.userData.mail;
 
-        if (recipientMail) {
+        if (recipientMail && !entity.noCommunication) {
           await this.notificationService.sendMail({
             type: MailType.USER,
             input: {
@@ -77,11 +77,9 @@ export class BuyFiatNotificationService {
               ],
             },
           });
-        } else {
-          this.logger.warn(`Failed to send buy-fiat mails ${entity.id}: user has no email`);
         }
 
-        await this.buyFiatRepo.update(...entity.offRampInitiated(recipientMail));
+        await this.buyFiatRepo.update(...entity.offRampInitiated());
       } catch (e) {
         this.logger.error(`Failed to send off-ramp initiated mail for buy-fiat ${entity.id}:`, e);
       }
@@ -95,7 +93,6 @@ export class BuyFiatNotificationService {
         mail2SendDate: IsNull(),
         outputAmount: Not(IsNull()),
         amlCheck: CheckStatus.PASS,
-        amlReason: Not(AmlReason.NO_COMMUNICATION),
       },
       relations: ['cryptoInput', 'sell', 'sell.user', 'sell.user.userData'],
     });
@@ -104,7 +101,7 @@ export class BuyFiatNotificationService {
 
     for (const entity of entities) {
       try {
-        if (entity.sell.user.userData.mail) {
+        if (entity.sell.user.userData.mail && !entity.noCommunication) {
           const minFee = entity.minFeeAmountFiat
             ? ` (min. ${entity.minFeeAmountFiat} ${entity.outputReferenceAsset.name})`
             : '';
@@ -147,7 +144,6 @@ export class BuyFiatNotificationService {
         mail3SendDate: IsNull(),
         fiatOutput: { bankTx: Not(IsNull()), remittanceInfo: Not(IsNull()) },
         amlCheck: CheckStatus.PASS,
-        amlReason: Not(AmlReason.NO_COMMUNICATION),
       },
       relations: ['sell', 'sell.user', 'sell.user.userData', 'fiatOutput', 'fiatOutput.bankTx'],
     });
@@ -156,7 +152,7 @@ export class BuyFiatNotificationService {
 
     for (const entity of entities) {
       try {
-        if (entity.sell.user.userData.mail) {
+        if (entity.sell.user.userData.mail && !entity.noCommunication) {
           await this.notificationService.sendMail({
             type: MailType.USER,
             input: {
@@ -203,10 +199,10 @@ export class BuyFiatNotificationService {
 
     for (const entity of entities) {
       try {
-        if (entity.amlReason === AmlReason.NO_COMMUNICATION) continue;
         if (
           entity.sell.user.userData.mail &&
-          (entity.sell.user.userData.verifiedName || entity.amlReason !== AmlReason.NAME_CHECK_WITHOUT_KYC)
+          (entity.sell.user.userData.verifiedName || entity.amlReason !== AmlReason.NAME_CHECK_WITHOUT_KYC) &&
+          !entity.noCommunication
         ) {
           await this.notificationService.sendMail({
             type: MailType.USER,
