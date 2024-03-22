@@ -123,11 +123,6 @@ export class TradingService {
       const ratio = usePriceImpact / calcPriceImpact;
       amountIn *= ratio;
 
-      if (checkPoolBalance <= amountOut)
-        throw new PoolOutOfRangeException(
-          `Pool balance ${checkPoolBalance} is lower than required output amount ${amountOut}`,
-        );
-
       quoterV2Params.amountIn = EvmUtil.toWeiAmount(amountIn, tokenIn.decimals);
 
       ({ calcPriceImpact, amountOut } = await this.calculatePriceImpact(
@@ -136,6 +131,11 @@ export class TradingService {
         token0IsInToken,
         sqrtPriceX96,
       ));
+
+      if (checkPoolBalance <= amountOut)
+        throw new PoolOutOfRangeException(
+          `Pool balance ${checkPoolBalance} is lower than required output amount ${amountOut}`,
+        );
 
       if (++currentLoopCounter > maxAllowedLoopCounter)
         throw new Error(
