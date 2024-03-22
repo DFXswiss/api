@@ -14,7 +14,7 @@ import { IdentStatus } from '../dto/ident.dto';
 import { IdentResultDto, IdentShortResult, getIdentResult } from '../dto/input/ident-result.dto';
 import { KycContactData, KycPersonalData } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
-import { KycContentType, KycFileType } from '../dto/kyc-file.dto';
+import { ContentType, FileType } from '../dto/kyc-file.dto';
 import { KycDataMapper } from '../dto/mapper/kyc-data.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
@@ -253,10 +253,10 @@ export class KycService {
 
     const url = await this.storageService.uploadFile(
       user.id,
-      KycFileType.USER_NOTES,
+      FileType.USER_NOTES,
       document.filename,
       document.buffer,
-      document.mimetype as KycContentType,
+      document.mimetype as ContentType,
       {
         document: document.mimetype.toString(),
         creationTime: new Date().toISOString(),
@@ -448,7 +448,7 @@ export class KycService {
     for (const { name, content, contentType } of documents) {
       await this.storageService.uploadFile(
         user.id,
-        KycFileType.IDENTIFICATION,
+        FileType.IDENTIFICATION,
         `${namePrefix}${name}`,
         content,
         contentType,

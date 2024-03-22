@@ -3,14 +3,7 @@ import { User } from '../../user/models/user/user.entity';
 import { UserService } from '../../user/models/user/user.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookDataMapper } from '../../user/services/webhook/mapper/webhook-data.mapper';
-import {
-  KycClientDataDto,
-  KycContentType,
-  KycFile,
-  KycFileType,
-  KycReportDto,
-  KycReportType,
-} from '../dto/kyc-file.dto';
+import { ContentType, File, FileType, KycClientDataDto, KycReportDto, KycReportType } from '../dto/kyc-file.dto';
 import { DocumentStorageService } from './integration/document-storage.service';
 
 @Injectable()
@@ -53,10 +46,10 @@ export class KycClientService {
   }
 
   // --- HELPER METHODS --- //
-  private getFileFor(type: KycReportType, documents: KycFile[]): KycFile | undefined {
+  private getFileFor(type: KycReportType, documents: File[]): File | undefined {
     switch (type) {
       case KycReportType.IDENTIFICATION:
-        return documents.find((d) => d.type === KycFileType.IDENTIFICATION && d.contentType === KycContentType.PDF);
+        return documents.find((d) => d.type === FileType.IDENTIFICATION && d.contentType === ContentType.PDF);
 
       default:
         throw new BadRequestException(`Document type ${type} is not supported`);
@@ -70,7 +63,7 @@ export class KycClientService {
     };
   }
 
-  private toKycFileDto(type: KycReportType, { contentType }: KycFile): KycReportDto {
+  private toKycFileDto(type: KycReportType, { contentType }: File): KycReportDto {
     return { type, contentType };
   }
 }

@@ -416,4 +416,9 @@ export class Util {
   static mapBooleanQuery({ value }: TransformFnParams): boolean | undefined {
     return Boolean(value || value === '');
   }
+
+  static fromBase64(file: string): { contentType: string; buffer: Buffer } {
+    const [contentType, content] = file.split(';base64,');
+    return { contentType: contentType.replace('data:', ''), buffer: Buffer.from(content, 'base64') };
+  }
 }
