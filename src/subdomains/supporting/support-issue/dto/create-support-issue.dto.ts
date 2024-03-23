@@ -1,8 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsEnum, IsNotEmpty, IsObject, IsOptional, IsString, ValidateIf, ValidateNested } from 'class-validator';
-import { EntityDto } from 'src/shared/dto/entity.dto';
-import { Transaction } from '../../payment/entities/transaction.entity';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
 import { SupportIssueReason } from '../support-issue.entity';
 
 export class CreateSupportIssueDto {
@@ -21,15 +18,9 @@ export class CreateSupportIssueDto {
   @IsString()
   file?: string;
 
-  @ApiPropertyOptional({ description: 'Name of the proof document' })
+  @ApiPropertyOptional({ description: 'Name of the file' })
   @ValidateIf((l: CreateSupportIssueDto) => l.file != null)
   @IsNotEmpty()
   @IsString()
   fileName?: string;
-
-  @IsNotEmpty()
-  @IsObject()
-  @ValidateNested()
-  @Type(() => EntityDto)
-  transaction: Transaction;
 }

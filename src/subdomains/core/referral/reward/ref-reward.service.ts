@@ -98,7 +98,7 @@ export class RefRewardService {
         });
 
         if (!DisabledProcess(Process.CREATE_TRANSACTION))
-          entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.REF });
+          entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.REF, user });
 
         await this.rewardRepo.save(entity);
       }

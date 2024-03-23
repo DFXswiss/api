@@ -25,6 +25,6 @@ export class TransactionService {
   }
 
   async getTransaction(id: number, relations: FindOptionsRelations<Transaction> = {}): Promise<Transaction> {
-    return await this.repo.findOne({ where: { id }, relations });
+    return this.repo.findOne({ where: { id }, relations });
   }
 }

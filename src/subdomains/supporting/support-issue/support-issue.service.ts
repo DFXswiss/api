@@ -1,11 +1,11 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Util } from 'src/shared/utils/util';
 import { ContentType, FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
 import { TransactionService } from '../payment/services/transaction.service';
 import { CreateSupportIssueDto } from './dto/create-support-issue.dto';
 import { UpdateSupportIssueDto } from './dto/update-support-issue.dto';
-import { SupportIssue } from './support-issue.entity';
+import { SupportIssue, SupportIssueType } from './support-issue.entity';
 import { SupportIssueRepository } from './support-issue.repository';
 
 @Injectable()
@@ -16,27 +16,30 @@ export class SupportIssueService {
     private readonly storageService: DocumentStorageService,
   ) {}
 
-  async createSupportIssue(dto: CreateSupportIssueDto): Promise<SupportIssue> {
+  async createTransactionIssue(
+    userId: number,
+    transactionId: number,
+    dto: CreateSupportIssueDto,
+  ): Promise<SupportIssue> {
     const existing = await this.supportIssueRepo.findOneBy({
-      transaction: { id: dto.transaction.id },
+      transaction: { id: transactionId },
       reason: dto.reason,
     });
-    if (existing) throw new BadRequestException('SupportIssue already exists');
+    if (existing) throw new ConflictException('There is already a support issue for this transaction');
 
-    const entity = this.supportIssueRepo.create(dto);
+    const entity = this.supportIssueRepo.create({ type: SupportIssueType.TRANSACTION_ISSUE, ...dto });
 
-    entity.transaction = await this.transactionService.getTransaction(dto.transaction.id, {
-      buyCrypto: { buy: { user: true }, cryptoRoute: { user: true } },
-      buyFiat: { sell: { user: true } },
-    });
+    entity.transaction = await this.transactionService.getTransaction(transactionId);
     if (!entity.transaction) throw new NotFoundException('Transaction not found');
+    if (!entity.transaction.user || entity.transaction.user.id !== userId)
+      throw new ConflictException('You can only create support issue for your own transaction');
 
     // upload document proof
     if (dto.file) {
       const { contentType, buffer } = Util.fromBase64(dto.file);
 
       entity.fileUrl = await this.storageService.uploadFile(
-        entity.transaction.user.id,
+        userId,
         FileType.SUPPORT_ISSUE,
         `${Util.isoDateTime(new Date())}_support-issue_user-upload_${dto.fileName}`,
         buffer,

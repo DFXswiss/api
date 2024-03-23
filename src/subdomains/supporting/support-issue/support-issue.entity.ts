@@ -8,6 +8,10 @@ export enum SupportIssueState {
   COMPLETED = 'Completed',
 }
 
+export enum SupportIssueType {
+  TRANSACTION_ISSUE = 'TransactionIssue',
+}
+
 export enum SupportIssueReason {
   FUNDS_NOT_RECEIVED = 'FundsNotReceived',
   OTHER = 'Other',
@@ -19,6 +23,9 @@ export class SupportIssue extends IEntity {
   state: SupportIssueState;
 
   @Column({ length: 256, nullable: false })
+  type: SupportIssueType;
+
+  @Column({ length: 256, nullable: false })
   reason: SupportIssueReason;
 
   @Column({ length: 'MAX' })
@@ -27,6 +34,6 @@ export class SupportIssue extends IEntity {
   @Column({ length: 256, nullable: true })
   fileUrl: string;
 
-  @ManyToOne(() => Transaction, (transaction) => transaction.supportIssues, { nullable: false, eager: true })
+  @ManyToOne(() => Transaction, (transaction) => transaction.supportIssues, { nullable: true, eager: true })
   transaction: Transaction;
 }
