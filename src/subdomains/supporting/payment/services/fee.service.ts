@@ -7,6 +7,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
@@ -15,7 +16,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
-import { In, IsNull, MoreThan } from 'typeorm';
+import { MoreThan } from 'typeorm';
 import { PayoutService } from '../../payout/services/payout.service';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { FeeDto } from '../dto/fee.dto';
@@ -55,6 +56,8 @@ const FeeValidityMinutes = 70;
 @Injectable()
 export class FeeService {
   private readonly logger = new DfxLogger(FeeService);
+  private readonly cache = new AsyncCache<Fee[]>(CacheItemResetPeriod.EVERY_5_MINUTE);
+  private fees: Fee[] = [];
 
   constructor(
     private readonly feeRepo: FeeRepository,
@@ -149,42 +152,53 @@ export class FeeService {
 
     for (const feeId of customSignUpFees) {
       try {
-        const fee = await this.feeRepo.findOneBy({ id: feeId });
+        const cachedFee = await this.getFee(feeId);
 
-        await this.feeRepo.update(...fee.increaseUsage(user.userData.accountType, user.wallet));
+        await this.feeRepo.update(...cachedFee.increaseUsage(user.userData.accountType, user.wallet));
 
-        await this.userDataService.addFee(user.userData, fee.id);
+        await this.userDataService.addFee(user.userData, cachedFee.id);
       } catch (e) {
         this.logger.warn(`Fee mapping error: ${e}; userId: ${user.id}; feeId: ${feeId}`);
         continue;
       }
     }
+
+    this.updateCache();
   }
 
   async addDiscountCodeUser(user: User, discountCode: string): Promise<void> {
-    const fee = await this.getFeeByDiscountCode(discountCode);
+    const cachedFee = await this.getFeeByDiscountCode(discountCode);
 
-    await this.feeRepo.update(...fee.increaseUsage(user.userData.accountType, user.wallet));
+    await this.feeRepo.update(...cachedFee.increaseUsage(user.userData.accountType, user.wallet));
 
-    await this.userDataService.addFee(user.userData, fee.id);
+    this.updateCache();
+
+    await this.userDataService.addFee(user.userData, cachedFee.id);
   }
 
   async addFeeInternal(userData: UserData, feeId: number): Promise<void> {
-    const fee = await this.feeRepo.findOneBy({ id: feeId });
+    const cachedFee = await this.getFee(feeId);
 
-    await this.feeRepo.update(...fee.increaseUsage(userData.accountType));
+    await this.feeRepo.update(...cachedFee.increaseUsage(userData.accountType));
 
-    await this.userDataService.addFee(userData, fee.id);
+    this.updateCache();
+
+    await this.userDataService.addFee(userData, cachedFee.id);
   }
 
   async increaseTxUsages(txVolume: number, fee: Fee, userData: UserData): Promise<void> {
-    await this.feeRepo.update(...fee.increaseTxUsage());
-    if (fee.maxUserTxUsages) await this.feeRepo.update(...fee.increaseUserTxUsage(userData.id));
-    if (fee.maxAnnualUserTxVolume) await this.feeRepo.update(...fee.increaseAnnualUserTxVolume(userData.id, txVolume));
+    const cachedFee = await this.getFee(fee.id);
+
+    await this.feeRepo.update(...cachedFee.increaseTxUsage());
+    if (cachedFee.maxUserTxUsages) await this.feeRepo.update(...cachedFee.increaseUserTxUsage(userData.id));
+    if (cachedFee.maxAnnualUserTxVolume)
+      await this.feeRepo.update(...cachedFee.increaseAnnualUserTxVolume(userData.id, txVolume));
+
+    this.updateCache();
   }
 
   async getFeeByDiscountCode(discountCode: string): Promise<Fee> {
-    const fee = await this.feeRepo.findOneBy({ discountCode });
+    const fee = await this.getAllFees().then((fees) => fees.find((f) => f.discountCode === discountCode));
     if (!fee) throw new NotFoundException(`Discount code ${discountCode} not found`);
     return fee;
   }
@@ -212,6 +226,18 @@ export class FeeService {
   }
 
   // --- HELPER METHODS --- //
+
+  private updateCache(): void {
+    this.cache.update('all', this.fees);
+  }
+
+  private async getFee(id: number): Promise<Fee> {
+    return this.getAllFees().then((fees) => fees.find((f) => f.id === id));
+  }
+
+  private async getAllFees(): Promise<Fee[]> {
+    return this.cache.get('all', () => this.feeRepo.find());
+  }
 
   private async calculateFee(fees: Fee[], blockchainFee: number, userDataId?: number): Promise<FeeDto> {
     // get min special fee
@@ -329,12 +355,15 @@ export class FeeService {
 
     const discountFeeIds = request.user?.userData?.individualFeeList ?? [];
 
-    const userFees = await this.feeRepo.findBy([
-      { type: In([FeeType.BASE, FeeType.SPECIAL]) },
-      { type: In([FeeType.DISCOUNT, FeeType.ADDITION]), discountCode: IsNull() },
-      { id: In(discountFeeIds) },
-      { discountCode: In(request.discountCodes) },
-    ]);
+    const userFees = await this.getAllFees().then((fees) =>
+      fees.filter(
+        (f) =>
+          [FeeType.BASE, FeeType.SPECIAL].includes(f.type) ||
+          ([FeeType.DISCOUNT, FeeType.ADDITION].includes(f.type) && !f.discountCode) ||
+          discountFeeIds.includes(f.id) ||
+          request.discountCodes.includes(f.discountCode),
+      ),
+    );
 
     // remove ExpiredFee
     userFees

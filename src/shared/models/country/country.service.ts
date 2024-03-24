@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { CountryRepository } from 'src/shared/models/country/country.repository';
-import { AsyncCache } from 'src/shared/utils/async-cache';
+import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { KycType } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Country } from './country.entity';
 
 @Injectable()
 export class CountryService {
-  private readonly cache = new AsyncCache<Country>(60);
+  private readonly cache = new AsyncCache<Country>(CacheItemResetPeriod.EVERY_5_MINUTE);
 
   constructor(private countryRepo: CountryRepository) {}
 

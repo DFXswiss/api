@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { FiatRepository } from 'src/shared/models/fiat/fiat.repository';
-import { AsyncCache } from 'src/shared/utils/async-cache';
+import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Fiat } from './fiat.entity';
 
 @Injectable()
 export class FiatService {
-  private readonly cache = new AsyncCache<Fiat>(60);
+  private readonly cache = new AsyncCache<Fiat>(CacheItemResetPeriod.EVERY_5_MINUTE);
 
   constructor(private fiatRepo: FiatRepository) {}
 

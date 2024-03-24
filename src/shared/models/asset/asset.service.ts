@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetRepository } from 'src/shared/models/asset/asset.repository';
-import { AsyncCache } from 'src/shared/utils/async-cache';
+import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { In } from 'typeorm';
 import { Asset, AssetType } from './asset.entity';
@@ -14,7 +14,7 @@ export interface AssetQuery {
 
 @Injectable()
 export class AssetService {
-  private readonly cache = new AsyncCache<Asset>(60);
+  private readonly cache = new AsyncCache<Asset>(CacheItemResetPeriod.EVERY_5_MINUTE);
 
   constructor(private assetRepo: AssetRepository) {}
 
@@ -46,11 +46,11 @@ export class AssetService {
   }
 
   async getAssetByQuery(query: AssetQuery): Promise<Asset> {
-    return this.assetRepo.findOneBy(query);
+    return this.cache.get(`${query.dexName}-${query.blockchain}-${query.type}`, () => this.assetRepo.findOneBy(query));
   }
 
   async getNativeAsset(blockchain: Blockchain): Promise<Asset> {
-    return this.assetRepo.findOneBy({ blockchain, type: AssetType.COIN });
+    return this.cache.get(`native-${blockchain}`, () => this.assetRepo.findOneBy({ blockchain, type: AssetType.COIN }));
   }
 
   async getSellableBlockchains(): Promise<Blockchain[]> {

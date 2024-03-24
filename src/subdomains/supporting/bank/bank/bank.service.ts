@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
 import { CountryService } from '../../../../shared/models/country/country.service';
@@ -16,18 +17,20 @@ export interface BankSelectorInput {
 
 @Injectable()
 export class BankService {
+  private readonly cache = new AsyncCache<Bank[]>(CacheItemResetPeriod.EVERY_5_MINUTE);
+
   constructor(private bankRepo: BankRepository, private countryService: CountryService) {}
 
   async getAllBanks(): Promise<Bank[]> {
-    return this.bankRepo.find();
+    return this.cache.get(`all`, () => this.bankRepo.find());
   }
 
   async getInstantBanks(): Promise<Bank[]> {
-    return this.bankRepo.findBy({ sctInst: true });
+    return this.cache.get(`instantBanks`, () => this.bankRepo.findBy({ sctInst: true }));
   }
 
   async getBankInternal(name: BankName, currency: string): Promise<Bank> {
-    return this.bankRepo.findOneBy({ name, currency });
+    return this.cache.get(`${name}-${currency}`, () => this.bankRepo.findBy({ name, currency }))?.[0];
   }
 
   // --- BankSelector --- //

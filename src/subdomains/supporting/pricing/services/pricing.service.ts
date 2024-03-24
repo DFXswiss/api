@@ -4,7 +4,7 @@ import { KrakenService } from 'src/integration/exchange/services/kraken.service'
 import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
 import { Active, activesEqual, isFiat } from 'src/shared/models/active';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { AsyncCache } from 'src/shared/utils/async-cache';
+import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from '../../notification/enums';
 import { NotificationService } from '../../notification/services/notification.service';
@@ -25,9 +25,9 @@ export class PricingService {
   private readonly logger = new DfxLogger(PricingService);
 
   private readonly providerMap: { [s in PriceSource]: PricingProvider };
-  private readonly priceRuleCache = new AsyncCache<PriceRule[]>(60 * 60 * 6);
-  private readonly providerPriceCache = new AsyncCache<Price>(10);
-  private readonly updateCalls = new AsyncCache<PriceRule>(0);
+  private readonly priceRuleCache = new AsyncCache<PriceRule[]>(CacheItemResetPeriod.EVERY_6_HOURS);
+  private readonly providerPriceCache = new AsyncCache<Price>(CacheItemResetPeriod.EVERY_10_SECONDS);
+  private readonly updateCalls = new AsyncCache<PriceRule>(CacheItemResetPeriod.EVERY_SECOND);
 
   constructor(
     private readonly priceRuleRepo: PriceRuleRepository,
