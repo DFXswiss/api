@@ -236,7 +236,8 @@ export class FeeService {
   }
 
   private async getAllFees(): Promise<Fee[]> {
-    return this.cache.get('all', () => this.feeRepo.find());
+    this.fees = await this.cache.get('all', () => this.feeRepo.find());
+    return this.fees;
   }
 
   private async calculateFee(fees: Fee[], blockchainFee: number, userDataId?: number): Promise<FeeDto> {
