@@ -50,6 +50,7 @@ export class BuyFiatService {
     const transaction = !DisabledProcess(Process.CREATE_TRANSACTION)
       ? await this.transactionService.update(cryptoInput.transaction.id, {
           type: TransactionTypeInternal.BUY_FIAT,
+          user: sell.user,
         })
       : null;
 

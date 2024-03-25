@@ -1,4 +1,4 @@
-import { KycContentType } from './kyc-file.dto';
+import { ContentType } from './kyc-file.dto';
 
 export interface IdentConfig {
   customer: string;
@@ -8,7 +8,7 @@ export interface IdentConfig {
 export interface IdentDocument {
   name: string;
   content: Buffer;
-  contentType: KycContentType;
+  contentType: ContentType;
 }
 
 export enum IdentStatus {

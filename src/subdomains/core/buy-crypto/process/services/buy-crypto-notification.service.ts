@@ -44,7 +44,6 @@ export class BuyCryptoNotificationService {
           mailSendDate: IsNull(),
           txId: Not(IsNull()),
           amlCheck: CheckStatus.PASS,
-          amlReason: Not(AmlReason.NO_COMMUNICATION),
         },
         relations: [
           'bankTx',
@@ -69,7 +68,7 @@ export class BuyCryptoNotificationService {
 
       for (const tx of txOutput) {
         try {
-          if (tx.user.userData.mail) {
+          if (tx.user.userData.mail && !tx.noCommunication) {
             const minFee = tx.minFeeAmountFiat
               ? ` (min. ${tx.minFeeAmountFiat} ${tx.cryptoInput ? 'EUR' : tx.inputReferenceAsset})`
               : '';
@@ -178,10 +177,10 @@ export class BuyCryptoNotificationService {
 
     for (const entity of entities) {
       try {
-        if (entity.amlReason === AmlReason.NO_COMMUNICATION) continue;
         if (
           entity.user.userData.mail &&
-          (entity.user.userData.verifiedName || entity.amlReason !== AmlReason.NAME_CHECK_WITHOUT_KYC)
+          (entity.user.userData.verifiedName || entity.amlReason !== AmlReason.NAME_CHECK_WITHOUT_KYC) &&
+          !entity.noCommunication
         ) {
           await this.notificationService.sendMail({
             type: MailType.USER,

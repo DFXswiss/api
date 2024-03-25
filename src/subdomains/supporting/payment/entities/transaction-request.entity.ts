@@ -1,7 +1,7 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity } from 'typeorm';
 import { PaymentMethod } from '../dto/payment-method.enum';
-import { TransactionError } from '../dto/transaction-error.enum';
+import { QuoteError } from '../dto/transaction-helper/quote-error.enum';
 
 export enum TransactionRequestType {
   Buy = 'Buy',
@@ -54,7 +54,7 @@ export class TransactionRequest extends IEntity {
   isValid: boolean;
 
   @Column({ nullable: true })
-  error: TransactionError;
+  error: QuoteError;
 
   @Column({ type: 'float' })
   fee: number;

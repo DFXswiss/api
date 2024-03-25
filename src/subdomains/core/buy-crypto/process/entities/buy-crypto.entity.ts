@@ -150,6 +150,9 @@ export class BuyCrypto extends IEntity {
   @Column({ type: 'float', nullable: true })
   inputReferenceAmountMinusFee: number;
 
+  @Column({ type: 'float', nullable: true })
+  blockchainFee: number;
+
   // Fail
   @Column({ type: 'datetime2', nullable: true })
   chargebackDate: Date;
@@ -383,7 +386,7 @@ export class BuyCrypto extends IEntity {
 
   confirmSentMail(): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
-      recipientMail: this.userData.mail,
+      recipientMail: this.noCommunication ? null : this.userData.mail,
       mailSendDate: new Date(),
     };
 
@@ -468,7 +471,7 @@ export class BuyCrypto extends IEntity {
     const comment = amlErrors.join(';');
     const update: Partial<BuyCrypto> =
       amlErrors.length === 0
-        ? { amlCheck: CheckStatus.PASS }
+        ? { amlCheck: CheckStatus.PASS, amlReason: AmlReason.NA }
         : amlErrors.every((e) => AmlPendingError.includes(e))
         ? { amlCheck: CheckStatus.PENDING, amlReason: AmlReason.MANUAL_CHECK }
         : Util.minutesDiff(this.created) >= 10
@@ -537,17 +540,13 @@ export class BuyCrypto extends IEntity {
     const rate = this.inputAmount / this.outputAmount;
 
     return {
-      exchangeRate: this.isCryptoCryptoTransaction
-        ? Util.roundByPrecision(exchangeRate, 5)
-        : Util.round(exchangeRate, 2),
-      rate: this.isCryptoCryptoTransaction ? Util.roundByPrecision(rate, 5) : Util.round(rate, 2),
+      exchangeRate: Util.roundReadable(exchangeRate, !this.isCryptoCryptoTransaction),
+      rate: Util.roundReadable(rate, !this.isCryptoCryptoTransaction),
     };
   }
 
   get exchangeRateString(): string {
-    const amount = this.isCryptoCryptoTransaction
-      ? Util.roundByPrecision(this.exchangeRate.exchangeRate, 5)
-      : Util.round(this.exchangeRate.exchangeRate, 2);
+    const amount = Util.roundReadable(this.exchangeRate.exchangeRate, !this.isCryptoCryptoTransaction);
     return `${amount} ${this.inputAsset}/${this.outputAsset.name}`;
   }
 
@@ -584,6 +583,10 @@ export class BuyCrypto extends IEntity {
           asset: this.cryptoRoute.asset,
           trimmedReturnAddress: this.cryptoRoute?.user?.address ? Util.blankStart(this.cryptoRoute.user.address) : null,
         };
+  }
+
+  get noCommunication(): boolean {
+    return this.amlReason === AmlReason.NO_COMMUNICATION;
   }
 
   // --- HELPER METHODS --- //

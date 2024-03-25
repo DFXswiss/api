@@ -8,6 +8,7 @@ import { StakingRefReward } from 'src/subdomains/core/staking/entities/staking-r
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
+import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 
 export enum UserStatus {
@@ -21,7 +22,7 @@ export class User extends IEntity {
   @Column({ length: 256, unique: true })
   address: string;
 
-  @Column({ length: 700, nullable: true })
+  @Column({ length: 'MAX', nullable: true })
   signature: string;
 
   @ManyToOne(() => Wallet)
@@ -110,6 +111,9 @@ export class User extends IEntity {
 
   @OneToMany(() => StakingRefReward, (reward) => reward.user)
   stakingRefRewards: StakingRefReward[];
+
+  @OneToMany(() => Transaction, (transaction) => transaction.user)
+  transactions: Transaction[];
 
   @Column({ length: 'MAX', nullable: true })
   comment: string;

@@ -31,6 +31,9 @@ export class TradingOrder extends IEntity {
   @Column({ type: 'float' })
   amountIn: number;
 
+  @Column({ type: 'float' })
+  amountOut: number;
+
   @Column({ nullable: true })
   txId: string;
 
@@ -50,6 +53,7 @@ export class TradingOrder extends IEntity {
     order.assetIn = tradingInfo.assetIn;
     order.assetOut = tradingInfo.assetOut;
     order.amountIn = tradingInfo.amountIn;
+    order.amountOut = tradingInfo.amountOut;
 
     return order;
   }

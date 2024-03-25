@@ -13,6 +13,10 @@ type CryptoAlgorithm = 'md5' | 'sha256' | 'sha512';
 
 export class Util {
   // --- MATH --- //
+  static roundReadable(amount: number, isFiat: boolean): number {
+    return isFiat ? this.round(amount, 2) : this.roundByPrecision(amount, 5);
+  }
+
   static round(amount: number, decimals: number): number {
     return this.roundToValue(amount, Math.pow(10, -decimals));
   }
@@ -415,5 +419,10 @@ export class Util {
 
   static mapBooleanQuery({ value }: TransformFnParams): boolean | undefined {
     return Boolean(value || value === '');
+  }
+
+  static fromBase64(file: string): { contentType: string; buffer: Buffer } {
+    const [contentType, content] = file.split(';base64,');
+    return { contentType: contentType.replace('data:', ''), buffer: Buffer.from(content, 'base64') };
   }
 }

@@ -11,9 +11,8 @@ export enum AssetType {
 }
 
 export enum AssetCategory {
-  POOL_PAIR = 'PoolPair',
-  STOCK = 'Stock',
-  CRYPTO = 'Crypto',
+  PUBLIC = 'Public',
+  PRIVATE = 'Private',
 }
 
 @Entity()
@@ -34,7 +33,7 @@ export class Asset extends IEntity {
   @Column({ length: 256 })
   type: AssetType;
 
-  @Column({ length: 256, nullable: false, default: AssetCategory.STOCK })
+  @Column({ length: 256, nullable: false, default: AssetCategory.PUBLIC })
   category: AssetCategory;
 
   @Column({ nullable: true, length: 256 })

@@ -5,6 +5,12 @@ import { Util } from 'src/shared/utils/util';
 @Injectable()
 export class ArweaveService {
   async verifySignature(message: string, signature: string, key: string): Promise<boolean> {
-    return Arweave.crypto.verify(key, Util.stringToUint8(message, 'hex'), Util.stringToUint8(signature, 'hex'));
+    const messageHash = Util.createHash(message);
+
+    return Arweave.crypto.verify(
+      key,
+      Util.stringToUint8(messageHash, 'hex'),
+      Util.stringToUint8(signature, 'base64url'),
+    );
   }
 }

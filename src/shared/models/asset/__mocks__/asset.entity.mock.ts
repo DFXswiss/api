@@ -5,7 +5,7 @@ const defaultAsset: Partial<Asset> = {
   name: 'dTSLA',
   dexName: 'dTSLA',
   blockchain: Blockchain.DEFICHAIN,
-  category: AssetCategory.CRYPTO,
+  category: AssetCategory.PUBLIC,
   type: AssetType.COIN,
 };
 
