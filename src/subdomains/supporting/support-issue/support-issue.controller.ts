@@ -5,7 +5,7 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { CreateSupportIssueDto } from './dto/create-support-issue.dto';
+import { CreateTransactionIssueDto } from './dto/create-support-issue.dto';
 import { UpdateSupportIssueDto } from './dto/update-support-issue.dto';
 import { SupportIssue } from './support-issue.entity';
 import { SupportIssueService } from './support-issue.service';
@@ -18,15 +18,15 @@ export class SupportIssueController {
   @Post('transaction')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async createSupportIssue(
+  async createTransactionIssue(
     @GetJwt() jwt: JwtPayload,
-    @Query('transactionId') transactionId: string,
-    @Body() dto: CreateSupportIssueDto,
+    @Query('id') transactionId: string,
+    @Body() dto: CreateTransactionIssueDto,
   ): Promise<SupportIssue> {
     return this.supportIssueService.createTransactionIssue(jwt.id, +transactionId, dto);
   }
 
-  @Put('transaction/:id')
+  @Put(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
   @ApiExcludeEndpoint()

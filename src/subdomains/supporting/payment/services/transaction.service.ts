@@ -28,7 +28,7 @@ export class TransactionService {
     return this.repo.findOne({ where: { id }, relations });
   }
 
-  async getTransactionWithoutUser(): Promise<Transaction[]> {
+  async getTransactionsWithoutUser(): Promise<Transaction[]> {
     return this.repo.find({
       where: { user: IsNull() },
       relations: {

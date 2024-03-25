@@ -1,9 +1,9 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Util } from 'src/shared/utils/util';
 import { ContentType, FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
 import { TransactionService } from '../payment/services/transaction.service';
-import { CreateSupportIssueDto } from './dto/create-support-issue.dto';
+import { CreateTransactionIssueDto } from './dto/create-support-issue.dto';
 import { UpdateSupportIssueDto } from './dto/update-support-issue.dto';
 import { SupportIssue, SupportIssueType } from './support-issue.entity';
 import { SupportIssueRepository } from './support-issue.repository';
@@ -19,7 +19,7 @@ export class SupportIssueService {
   async createTransactionIssue(
     userId: number,
     transactionId: number,
-    dto: CreateSupportIssueDto,
+    dto: CreateTransactionIssueDto,
   ): Promise<SupportIssue> {
     const existing = await this.supportIssueRepo.findOneBy({
       transaction: { id: transactionId },
@@ -32,7 +32,7 @@ export class SupportIssueService {
     entity.transaction = await this.transactionService.getTransaction(transactionId);
     if (!entity.transaction) throw new NotFoundException('Transaction not found');
     if (!entity.transaction.user || entity.transaction.user.id !== userId)
-      throw new ConflictException('You can only create support issue for your own transaction');
+      throw new ForbiddenException('You can only create support issue for your own transaction');
 
     // upload document proof
     if (dto.file) {

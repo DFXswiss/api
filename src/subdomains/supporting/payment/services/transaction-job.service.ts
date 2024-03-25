@@ -20,7 +20,7 @@ export class TransactionJobService {
     if (DisabledProcess(Process.SYNCHRONIZE_TRANSACTION)) return;
 
     try {
-      const transactions = await this.transactionService.getTransactionWithoutUser();
+      const transactions = await this.transactionService.getTransactionsWithoutUser();
 
       for (const tx of transactions) {
         const user = this.getTxUser(tx);

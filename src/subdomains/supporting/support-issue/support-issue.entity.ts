@@ -28,7 +28,7 @@ export class SupportIssue extends IEntity {
   @Column({ length: 256, nullable: false })
   reason: SupportIssueReason;
 
-  @Column({ length: 'MAX' })
+  @Column({ length: 'MAX', nullable: true })
   description: string;
 
   @Column({ length: 256, nullable: true })
