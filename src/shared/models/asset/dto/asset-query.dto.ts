@@ -6,4 +6,9 @@ export class AssetQueryDto {
   @IsOptional()
   @IsString()
   blockchains?: string;
+
+  // hidden flag
+  @IsOptional()
+  @IsString()
+  includePrivate: string;
 }
