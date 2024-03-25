@@ -22,6 +22,7 @@ import { PricingService } from '../../pricing/services/pricing.service';
 import { InternalFeeDto } from '../dto/fee.dto';
 import { CreateFeeDto } from '../dto/input/create-fee.dto';
 import { PaymentMethod } from '../dto/payment-method.enum';
+import { BlockchainFee } from '../entities/blockchain-fee.entity';
 import { Fee, FeeType } from '../entities/fee.entity';
 import { BlockchainFeeRepository } from '../repositories/blockchain-fee.repository';
 import { FeeRepository } from '../repositories/fee.repository';
@@ -56,7 +57,8 @@ const FeeValidityMinutes = 70;
 @Injectable()
 export class FeeService {
   private readonly logger = new DfxLogger(FeeService);
-  private readonly cache = new AsyncCache<Fee[]>(CacheItemResetPeriod.EVERY_5_MINUTES);
+  private readonly cache = new AsyncCache<BlockchainFee>(CacheItemResetPeriod.EVERY_5_MINUTES);
+  private readonly arrayCache = new AsyncCache<Fee[]>(CacheItemResetPeriod.EVERY_5_MINUTES);
 
   constructor(
     private readonly feeRepo: FeeRepository,
@@ -224,10 +226,12 @@ export class FeeService {
 
   async getBlockchainFee(active: Active, allowFallback: boolean): Promise<number> {
     if (isAsset(active)) {
-      const fee = await this.blockchainFeeRepo.findOneBy({
-        asset: { id: active.id },
-        updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)),
-      });
+      const fee = await this.cache.get(`${active.id}`, () =>
+        this.blockchainFeeRepo.findOneBy({
+          asset: { id: active.id },
+          updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)),
+        }),
+      );
       if (!fee && !allowFallback) throw new Error(`No blockchain fee found for asset ${active.id}`);
 
       return fee?.amount ?? this.getBlockchainMaxFee(active.blockchain);
@@ -243,7 +247,7 @@ export class FeeService {
   }
 
   private async getAllFees(): Promise<Fee[]> {
-    return await this.cache.get('all', () => this.feeRepo.find());
+    return await this.arrayCache.get('all', () => this.feeRepo.find());
   }
 
   private async calculateFee(
@@ -338,14 +342,17 @@ export class FeeService {
   }
 
   private async getBlockchainMaxFee(blockchain: Blockchain): Promise<number> {
-    const { maxFee } = await this.blockchainFeeRepo
-      .createQueryBuilder('fee')
-      .select('MAX(amount)', 'maxFee')
-      .innerJoin('fee.asset', 'asset')
-      .where({ asset: { blockchain } })
-      .andWhere({ updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)) })
-      .getRawOne<{ maxFee: number }>();
-    return maxFee ?? 0;
+    const maxFee = await this.cache.get(blockchain, () =>
+      this.blockchainFeeRepo
+        .createQueryBuilder('fee')
+        .select('fee', 'fee')
+        .innerJoin('fee.asset', 'asset')
+        .where({ asset: { blockchain } })
+        .andWhere({ updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)) })
+        .orderBy('fee.amount', 'DESC')
+        .getOne(),
+    );
+    return maxFee.amount ?? 0;
   }
 
   private async getValidFees(request: OptionalFeeRequest): Promise<Fee[]> {
