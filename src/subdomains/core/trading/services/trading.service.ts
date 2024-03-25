@@ -56,6 +56,7 @@ export class TradingService {
       price1: price1.price,
       price2: price2.price,
       priceImpact: 0,
+      feeAmount: tradingRule.feeAmount,
     };
 
     if (price1.isValid && price2.isValid) {
@@ -167,7 +168,7 @@ export class TradingService {
   }
 
   private async getPoolContract(client: EvmClient, tradingInfo: TradingInfo): Promise<ethers.Contract> {
-    const poolAddress = await client.getPoolAddress(tradingInfo.assetIn, tradingInfo.assetOut);
+    const poolAddress = await client.getPoolAddress(tradingInfo.assetIn, tradingInfo.assetOut, tradingInfo.feeAmount);
     return client.getPoolContract(poolAddress);
   }
 }
