@@ -86,7 +86,7 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
 
   // --- FEES --- //
   protected async getMinInputFee(asset: Asset): Promise<number> {
-    return this.transactionHelper.getInSpecs(asset, true).then((r) => r.minFee);
+    return this.transactionHelper.getBlockchainFee(asset, true);
   }
 
   protected async getEstimatedFee(asset: Asset, amount: number): Promise<{ nativeFee: number; targetFee: number }> {

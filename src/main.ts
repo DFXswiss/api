@@ -2,6 +2,7 @@ import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as AppInsights from 'applicationinsights';
+import { useContainer } from 'class-validator';
 import cors from 'cors';
 import { json, text } from 'express';
 import helmet from 'helmet';
@@ -38,6 +39,7 @@ async function bootstrap() {
   });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
   app.useGlobalFilters(new ApiExceptionFilter());
+  useContainer(app.select(AppModule), { fallbackOnErrors: true });
 
   const swaggerOptions = new DocumentBuilder()
     .setTitle('DFX API')

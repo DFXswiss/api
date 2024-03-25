@@ -428,7 +428,19 @@ export class KycService {
   }
 
   private async saveUser(user: UserData): Promise<UserData> {
-    return this.userDataService.save(user);
+    try {
+      return await this.userDataService.save(user);
+    } catch (e) {
+      if (['value NULL', 'userDataId', 'kyc_step'].every((i) => e.message?.includes(i))) {
+        // reload the KYC steps
+        const steps = await this.kycStepRepo.findBy({ userData: { id: user.id } });
+        user.kycSteps.push(...steps.filter((s1) => !user.kycSteps.find((s2) => s1.id === s2.id)));
+
+        return this.userDataService.save(user);
+      }
+
+      throw e;
+    }
   }
 
   private async verify2faIfRequired(user: UserData, ip: string): Promise<void> {

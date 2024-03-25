@@ -119,6 +119,9 @@ export class BuyFiat extends IEntity {
   @Column({ type: 'float', nullable: true })
   totalFeeAmountChf: number;
 
+  @Column({ type: 'float', nullable: true })
+  blockchainFee: number;
+
   // Fail
   @Column({ length: 256, nullable: true })
   cryptoReturnTxId: string;
@@ -192,8 +195,8 @@ export class BuyFiat extends IEntity {
     return this;
   }
 
-  offRampInitiated(recipientMail: string): UpdateResult<BuyFiat> {
-    this.recipientMail = recipientMail;
+  offRampInitiated(): UpdateResult<BuyFiat> {
+    this.recipientMail = this.noCommunication ? null : this.userData.mail;
     this.mail1SendDate = new Date();
 
     return [this.id, { recipientMail: this.recipientMail, mail1SendDate: this.mail1SendDate }];
@@ -208,7 +211,7 @@ export class BuyFiat extends IEntity {
 
   returnMail(): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
-      recipientMail: this.sell.user.userData.mail,
+      recipientMail: this.noCommunication ? null : this.sell.user.userData.mail,
       mailReturnSendDate: new Date(),
     };
 
@@ -305,7 +308,7 @@ export class BuyFiat extends IEntity {
     const comment = amlErrors.join(';');
     const update: Partial<BuyFiat> =
       amlErrors.length === 0
-        ? { amlCheck: CheckStatus.PASS }
+        ? { amlCheck: CheckStatus.PASS, amlReason: AmlReason.NA }
         : amlErrors.every((e) => AmlPendingError.includes(e))
         ? { amlCheck: CheckStatus.PENDING, amlReason: AmlReason.MANUAL_CHECK }
         : Util.minutesDiff(this.created) >= 10
@@ -361,16 +364,18 @@ export class BuyFiat extends IEntity {
 
   get exchangeRate(): { exchangeRate: number; rate: number } {
     return {
-      exchangeRate: Util.roundByPrecision(
+      exchangeRate: Util.roundReadable(
         (this.inputAmount / this.inputReferenceAmount) * (this.inputReferenceAmountMinusFee / this.outputAmount),
-        5,
+        false,
       ),
-      rate: Util.roundByPrecision(this.inputAmount / this.outputAmount, 5),
+      rate: Util.roundReadable(this.inputAmount / this.outputAmount, false),
     };
   }
 
   get exchangeRateString(): string {
-    return `${Util.round(1 / this.exchangeRate.exchangeRate, 2)} ${this.outputAsset.name}/${this.inputAsset}`;
+    return `${Util.roundReadable(1 / this.exchangeRate.exchangeRate, true)} ${this.outputAsset.name}/${
+      this.inputAsset
+    }`;
   }
 
   get percentFeeString(): string {
@@ -403,6 +408,10 @@ export class BuyFiat extends IEntity {
       asset: this.sell.fiat,
       trimmedReturnAddress: this.user ? Util.blankStart(this.user.address) : null,
     };
+  }
+
+  get noCommunication(): boolean {
+    return this.amlReason === AmlReason.NO_COMMUNICATION;
   }
 }
 

@@ -1,8 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TransactionError } from 'src/subdomains/supporting/payment/dto/transaction-error.enum';
+import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
+import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 
 export class SellQuoteDto {
-  @ApiProperty({ description: 'Fee amount in source asset' })
+  @ApiProperty({ description: 'Fee amount in source asset', deprecated: true })
   feeAmount: number;
 
   @ApiProperty({ description: 'Amount in source asset' })
@@ -16,6 +17,12 @@ export class SellQuoteDto {
 
   @ApiProperty({ description: 'Final rate (incl. fees) in source/target' })
   rate: number;
+
+  @ApiProperty({ type: FeeDto, description: 'Fee infos in source asset' })
+  fees: FeeDto;
+
+  @ApiProperty({ type: FeeDto, description: 'Fee infos in target currency' })
+  feesTarget: FeeDto;
 
   @ApiProperty({ description: 'Minimum volume in source asset' })
   minVolume: number;
@@ -32,6 +39,6 @@ export class SellQuoteDto {
   @ApiProperty()
   isValid: boolean;
 
-  @ApiPropertyOptional({ enum: TransactionError, description: 'Error message in case isValid is false' })
-  error?: TransactionError;
+  @ApiPropertyOptional({ enum: QuoteError, description: 'Error message in case isValid is false' })
+  error?: QuoteError;
 }

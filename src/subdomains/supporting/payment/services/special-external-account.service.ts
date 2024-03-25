@@ -11,13 +11,15 @@ export class SpecialExternalAccountService {
     return this.specialExternalAccountRepo.findBy({ type: SpecialExternalAccountType.MULTI_ACCOUNT_IBAN });
   }
 
-  async getBlacklist(): Promise<SpecialExternalAccount[]> {
+  async getBlacklist(type?: SpecialExternalAccountType): Promise<SpecialExternalAccount[]> {
     return this.specialExternalAccountRepo.findBy({
-      type: In([
-        SpecialExternalAccountType.BANNED_IBAN,
-        SpecialExternalAccountType.BANNED_BIC,
-        SpecialExternalAccountType.BANNED_MAIL,
-      ]),
+      type:
+        type ??
+        In([
+          SpecialExternalAccountType.BANNED_IBAN,
+          SpecialExternalAccountType.BANNED_BIC,
+          SpecialExternalAccountType.BANNED_MAIL,
+        ]),
     });
   }
 }

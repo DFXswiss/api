@@ -22,7 +22,7 @@ export class User extends IEntity {
   @Column({ length: 256, unique: true })
   address: string;
 
-  @Column({ length: 700, nullable: true })
+  @Column({ length: 'MAX', nullable: true })
   signature: string;
 
   @ManyToOne(() => Wallet)

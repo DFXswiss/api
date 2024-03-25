@@ -87,13 +87,14 @@ export class BuyController {
     const {
       rate,
       exchangeRate,
-      feeAmount,
       estimatedAmount,
       sourceAmount: amount,
       minVolume,
       minVolumeTarget,
       maxVolume,
       maxVolumeTarget,
+      feeSource,
+      feeTarget,
       isValid,
       error,
     } = await this.transactionHelper.getTxDetails(
@@ -109,7 +110,7 @@ export class BuyController {
     );
 
     return {
-      feeAmount,
+      feeAmount: feeSource.total,
       rate,
       exchangeRate,
       estimatedAmount,
@@ -118,6 +119,8 @@ export class BuyController {
       maxVolume,
       minVolumeTarget,
       maxVolumeTarget,
+      fees: feeSource,
+      feesTarget: feeTarget,
       isValid,
       error,
     };
@@ -164,7 +167,7 @@ export class BuyController {
   }
 
   private async toDto(userId: number, buy: Buy): Promise<BuyDto> {
-    const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
+    const { minDeposit } = this.transactionHelper.getDefaultSpecs(
       'Fiat',
       undefined,
       buy.asset.blockchain,
@@ -177,7 +180,6 @@ export class BuyController {
       CryptoPaymentMethod.CRYPTO,
       await this.fiatService.getFiatByName('EUR'),
       buy.asset,
-      minFee.amount,
     );
 
     return {
@@ -190,7 +192,7 @@ export class BuyController {
       asset: AssetDtoMapper.toDto(buy.asset),
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposits: [minDeposit],
-      minFee: { amount: fee.blockchain, asset: 'CHF' },
+      minFee: { amount: fee.network, asset: 'CHF' },
     };
   }
 
@@ -199,12 +201,9 @@ export class BuyController {
 
     const {
       minVolume,
-      minFee,
       minVolumeTarget,
-      minFeeTarget,
       maxVolume,
       maxVolumeTarget,
-      fee,
       exchangeRate,
       rate,
       estimatedAmount,
@@ -212,6 +211,8 @@ export class BuyController {
       isValid,
       error,
       exactPrice,
+      feeSource,
+      feeTarget,
     } = await this.transactionHelper.getTxDetails(
       dto.amount,
       dto.targetAmount,
@@ -226,12 +227,14 @@ export class BuyController {
 
     const buyDto: BuyPaymentInfoDto = {
       routeId: buy.id,
-      fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
+      fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
       minDeposit: { amount: minVolume, asset: dto.currency.name }, // TODO: remove
       minVolume,
-      minFee,
+      minFee: feeSource.min,
       minVolumeTarget,
-      minFeeTarget,
+      minFeeTarget: feeTarget.min,
+      fees: feeSource,
+      feesTarget: feeTarget,
       exchangeRate,
       rate,
       exactPrice,

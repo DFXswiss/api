@@ -437,7 +437,8 @@ export abstract class EvmClient {
 
   protected async getGasPrice(gasLimit: number, feeLimit?: number): Promise<number> {
     const currentGasPrice = +(await this.getRecommendedGasPrice());
-    const proposedGasPrice = feeLimit != null ? Util.round(+EvmUtil.toWeiAmount(feeLimit) / gasLimit, 0) : Infinity;
+    const proposedGasPrice =
+      feeLimit != null ? Util.round(+EvmUtil.toWeiAmount(feeLimit) / gasLimit, 0) : Number.MAX_VALUE;
 
     return Math.min(currentGasPrice, proposedGasPrice);
   }
