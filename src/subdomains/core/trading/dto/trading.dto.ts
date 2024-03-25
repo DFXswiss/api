@@ -5,7 +5,7 @@ export interface TradingInfo {
   price1: number;
   price2: number;
   priceImpact: number;
-  feeAmount: FeeAmount;
+  poolFee: FeeAmount;
   assetIn?: Asset;
   assetOut?: Asset;
   amountIn?: number;

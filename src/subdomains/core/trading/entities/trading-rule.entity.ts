@@ -42,7 +42,7 @@ export class TradingRule extends IEntity {
   upperLimit: number;
 
   @Column({ type: 'int', default: FeeAmount.LOWEST })
-  feeAmount: FeeAmount;
+  poolFee: FeeAmount;
 
   @Column({ type: 'int', nullable: true })
   reactivationTime: number;
