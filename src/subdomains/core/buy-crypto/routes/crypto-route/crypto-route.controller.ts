@@ -88,7 +88,6 @@ export class CryptoRouteController {
 
     const {
       exchangeRate,
-      feeAmount,
       estimatedAmount,
       sourceAmount: amount,
       minVolume,
@@ -97,6 +96,8 @@ export class CryptoRouteController {
       maxVolumeTarget,
       isValid,
       error,
+      feeSource,
+      feeTarget,
     } = await this.transactionHelper.getTxDetails(
       sourceAmount,
       targetAmount,
@@ -110,7 +111,7 @@ export class CryptoRouteController {
     );
 
     return {
-      feeAmount,
+      feeAmount: feeSource.total,
       exchangeRate,
       estimatedAmount,
       amount,
@@ -118,6 +119,8 @@ export class CryptoRouteController {
       minVolumeTarget,
       maxVolume,
       maxVolumeTarget,
+      fees: feeSource,
+      feesTarget: feeTarget,
       isValid,
       error,
     };
@@ -168,7 +171,7 @@ export class CryptoRouteController {
   }
 
   private async toDto(userId: number, crypto: CryptoRoute): Promise<CryptoRouteDto> {
-    const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
+    const { minDeposit } = this.transactionHelper.getDefaultSpecs(
       crypto.deposit.blockchain,
       undefined,
       crypto.asset.blockchain,
@@ -182,7 +185,6 @@ export class CryptoRouteController {
       CryptoPaymentMethod.CRYPTO,
       await this.assetService.getNativeAsset(defaultBlockchain),
       crypto.asset,
-      minFee.amount,
     );
 
     return {
@@ -195,7 +197,7 @@ export class CryptoRouteController {
       blockchain: crypto.deposit.blockchain,
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposits: [minDeposit],
-      minFee: { amount: fee.blockchain, asset: 'CHF' },
+      minFee: { amount: fee.network, asset: 'CHF' },
     };
   }
 
@@ -208,12 +210,9 @@ export class CryptoRouteController {
 
     const {
       minVolume,
-      minFee,
       minVolumeTarget,
-      minFeeTarget,
       maxVolume,
       maxVolumeTarget,
-      fee,
       exchangeRate,
       rate,
       estimatedAmount,
@@ -221,6 +220,8 @@ export class CryptoRouteController {
       isValid,
       error,
       exactPrice,
+      feeSource,
+      feeTarget,
     } = await this.transactionHelper.getTxDetails(
       dto.amount,
       dto.targetAmount,
@@ -234,14 +235,16 @@ export class CryptoRouteController {
 
     const cryptoDto: CryptoPaymentInfoDto = {
       routeId: cryptoRoute.id,
-      fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
+      fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
       depositAddress: cryptoRoute.deposit.address,
       blockchain: cryptoRoute.deposit.blockchain,
       minDeposit: { amount: minVolume, asset: dto.sourceAsset.dexName },
       minVolume,
-      minFee,
+      minFee: feeSource.min,
       minVolumeTarget,
-      minFeeTarget,
+      minFeeTarget: feeTarget.min,
+      fees: feeSource,
+      feesTarget: feeTarget,
       exchangeRate,
       rate,
       exactPrice,

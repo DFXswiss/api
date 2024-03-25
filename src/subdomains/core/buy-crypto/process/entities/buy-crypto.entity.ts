@@ -150,6 +150,9 @@ export class BuyCrypto extends IEntity {
   @Column({ type: 'float', nullable: true })
   inputReferenceAmountMinusFee: number;
 
+  @Column({ type: 'float', nullable: true })
+  blockchainFee: number;
+
   // Fail
   @Column({ type: 'datetime2', nullable: true })
   chargebackDate: Date;

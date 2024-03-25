@@ -119,6 +119,9 @@ export class BuyFiat extends IEntity {
   @Column({ type: 'float', nullable: true })
   totalFeeAmountChf: number;
 
+  @Column({ type: 'float', nullable: true })
+  blockchainFee: number;
+
   // Fail
   @Column({ length: 256, nullable: true })
   cryptoReturnTxId: string;
