@@ -119,6 +119,9 @@ export class BuyFiat extends IEntity {
   @Column({ type: 'float', nullable: true })
   totalFeeAmountChf: number;
 
+  @Column({ type: 'float', nullable: true })
+  blockchainFee: number;
+
   // Fail
   @Column({ length: 256, nullable: true })
   cryptoReturnTxId: string;
@@ -361,16 +364,18 @@ export class BuyFiat extends IEntity {
 
   get exchangeRate(): { exchangeRate: number; rate: number } {
     return {
-      exchangeRate: Util.roundByPrecision(
+      exchangeRate: Util.roundReadable(
         (this.inputAmount / this.inputReferenceAmount) * (this.inputReferenceAmountMinusFee / this.outputAmount),
-        5,
+        false,
       ),
-      rate: Util.roundByPrecision(this.inputAmount / this.outputAmount, 5),
+      rate: Util.roundReadable(this.inputAmount / this.outputAmount, false),
     };
   }
 
   get exchangeRateString(): string {
-    return `${Util.round(1 / this.exchangeRate.exchangeRate, 2)} ${this.outputAsset.name}/${this.inputAsset}`;
+    return `${Util.roundReadable(1 / this.exchangeRate.exchangeRate, true)} ${this.outputAsset.name}/${
+      this.inputAsset
+    }`;
   }
 
   get percentFeeString(): string {

@@ -74,7 +74,7 @@ export class PricingService {
 
       const price = Price.join(this.joinRules(fromRules), this.joinRules(toRules).invert());
 
-      if (!price.isValid && !allowExpired) throw new Error('Price invalid');
+      if (!price.isValid && !allowExpired) throw new Error(`Price invalid (fetched on ${price.timestamp})`);
 
       if (Math.abs(price.price - 1) < 0.001) price.price = 1;
       price.source = from.name;

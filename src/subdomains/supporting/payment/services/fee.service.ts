@@ -19,7 +19,7 @@ import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.
 import { MoreThan } from 'typeorm';
 import { PayoutService } from '../../payout/services/payout.service';
 import { PricingService } from '../../pricing/services/pricing.service';
-import { FeeDto } from '../dto/fee.dto';
+import { InternalFeeDto } from '../dto/fee.dto';
 import { CreateFeeDto } from '../dto/input/create-fee.dto';
 import { PaymentMethod } from '../dto/payment-method.enum';
 import { Fee, FeeType } from '../entities/fee.entity';
@@ -47,8 +47,8 @@ export interface FeeRequestBase {
   from: Active;
   to: Active;
   txVolume?: number;
-  blockchainFee: number;
   discountCodes: string[];
+  allowBlockchainFeeFallback: boolean;
 }
 
 const FeeValidityMinutes = 70;
@@ -194,25 +194,45 @@ export class FeeService {
     return fee;
   }
 
-  async getUserFee(request: UserFeeRequest): Promise<FeeDto> {
+  async getUserFee(request: UserFeeRequest): Promise<InternalFeeDto> {
     const userFees = await this.getValidFees(request);
 
     try {
-      return await this.calculateFee(userFees, request.blockchainFee, request.user.userData?.id);
+      return await this.calculateFee(
+        userFees,
+        request.from,
+        request.to,
+        request.allowBlockchainFeeFallback,
+        request.user.userData?.id,
+      );
     } catch (e) {
       this.logger.error(`Fee exception, request: ${JSON.stringify(request)}`);
       throw e;
     }
   }
 
-  async getDefaultFee(request: FeeRequestBase, accountType = AccountType.PERSONAL): Promise<FeeDto> {
+  async getDefaultFee(request: FeeRequestBase, accountType = AccountType.PERSONAL): Promise<InternalFeeDto> {
     const defaultFees = await this.getValidFees({ ...request, accountType });
 
     try {
-      return await this.calculateFee(defaultFees, request.blockchainFee);
+      return await this.calculateFee(defaultFees, request.from, request.to, request.allowBlockchainFeeFallback);
     } catch (e) {
       this.logger.error(`Fee exception, request: ${JSON.stringify(request)}`);
       throw e;
+    }
+  }
+
+  async getBlockchainFee(active: Active, allowFallback: boolean): Promise<number> {
+    if (isAsset(active)) {
+      const fee = await this.blockchainFeeRepo.findOneBy({
+        asset: { id: active.id },
+        updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)),
+      });
+      if (!fee && !allowFallback) throw new Error(`No blockchain fee found for asset ${active.id}`);
+
+      return fee?.amount ?? this.getBlockchainMaxFee(active.blockchain);
+    } else {
+      return 0;
     }
   }
 
@@ -226,7 +246,17 @@ export class FeeService {
     return await this.cache.get('all', () => this.feeRepo.find());
   }
 
-  private async calculateFee(fees: Fee[], blockchainFee: number, userDataId?: number): Promise<FeeDto> {
+  private async calculateFee(
+    fees: Fee[],
+    from: Active,
+    to: Active,
+    allowBlockchainFeeFallback: boolean,
+    userDataId?: number,
+  ): Promise<InternalFeeDto> {
+    const blockchainFee =
+      (await this.getBlockchainFee(from, allowBlockchainFeeFallback)) +
+      (await this.getBlockchainFee(to, allowBlockchainFeeFallback));
+
     // get min special fee
     const specialFee = Util.minObj(
       fees.filter((fee) => fee.type === FeeType.SPECIAL),
@@ -239,17 +269,13 @@ export class FeeService {
         rate: specialFee.rate,
         fixed: specialFee.fixed ?? 0,
         payoutRefBonus: specialFee.payoutRefBonus,
-        blockchain: Math.min(specialFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
+        network: Math.min(specialFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
-
     // get min custom fee
     const customFee = Util.minObj(
       fees.filter((fee) => fee.type === FeeType.CUSTOM),
       'rate',
     );
-
-    // TODO: reactivate
-    // const blockchainFee = (await this.getBlockchainFee(from)) + (await this.getBlockchainFee(to));
 
     if (customFee)
       return {
@@ -257,7 +283,7 @@ export class FeeService {
         rate: customFee.rate,
         fixed: customFee.fixed ?? 0,
         payoutRefBonus: customFee.payoutRefBonus,
-        blockchain: Math.min(customFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
+        network: Math.min(customFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
 
     // get min base fee
@@ -286,7 +312,7 @@ export class FeeService {
         rate: baseFee.rate,
         fixed: baseFee.fixed,
         payoutRefBonus: true,
-        blockchain: Math.min(baseFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
+        network: Math.min(baseFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
     }
 
@@ -298,7 +324,7 @@ export class FeeService {
         baseFee.payoutRefBonus &&
         (discountFee?.payoutRefBonus ?? true) &&
         additiveFees.every((fee) => fee.payoutRefBonus),
-      blockchain: Math.min(
+      network: Math.min(
         Math.max(
           blockchainFee *
             (baseFee.blockchainFactor -
@@ -311,25 +337,12 @@ export class FeeService {
     };
   }
 
-  private async getBlockchainFee(active: Active): Promise<number> {
-    if (isAsset(active)) {
-      const fee = await this.blockchainFeeRepo.findOneBy({
-        asset: { id: active.id },
-        updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)),
-      });
-
-      return fee ? fee.amount : this.getBlockchainMaxFee(active.blockchain);
-    } else {
-      return 0;
-    }
-  }
-
   private async getBlockchainMaxFee(blockchain: Blockchain): Promise<number> {
     const { maxFee } = await this.blockchainFeeRepo
       .createQueryBuilder('fee')
       .select('MAX(amount)', 'maxFee')
       .innerJoin('fee.asset', 'asset')
-      .where({ blockchain })
+      .where({ asset: { blockchain } })
       .andWhere({ updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)) })
       .getRawOne<{ maxFee: number }>();
     return maxFee ?? 0;

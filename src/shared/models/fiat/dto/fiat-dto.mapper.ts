@@ -1,7 +1,7 @@
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
-import { TxSpec } from 'src/subdomains/supporting/payment/dto/transaction-helper/tx-spec.dto';
+import { TxMinSpec } from 'src/subdomains/supporting/payment/dto/transaction-helper/tx-spec.dto';
 import { Fiat } from '../fiat.entity';
 import { FiatDetailDto, FiatDto, VolumeLimitDto } from './fiat.dto';
 
@@ -21,7 +21,7 @@ export class FiatDtoMapper {
     return Object.assign(new FiatDto(), dto);
   }
 
-  static toDetailDto(fiat: Fiat, spec: TxSpec): FiatDetailDto {
+  static toDetailDto(fiat: Fiat, spec: TxMinSpec): FiatDetailDto {
     return Object.assign(this.toDto(fiat), {
       limits: {
         [FiatPaymentMethod.BANK]: this.convert(spec.minVolume, Config.tradingLimits.yearlyDefault, fiat),
@@ -35,8 +35,8 @@ export class FiatDtoMapper {
     const price = fiat.approxPriceChf ?? 1;
 
     return {
-      minVolume: Util.round(min / price, 2),
-      maxVolume: Util.round(max / price, 2),
+      minVolume: Util.roundReadable(min / price, true),
+      maxVolume: Util.roundReadable(max / price, true),
     };
   }
 }

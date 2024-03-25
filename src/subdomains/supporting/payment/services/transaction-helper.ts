@@ -13,15 +13,15 @@ import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { AmlRule } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-helper/min-amount.dto';
-import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
+import { FeeService, UserFeeRequest } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PricingService } from '../../pricing/services/pricing.service';
-import { FeeDto } from '../dto/fee.dto';
+import { InternalFeeDto } from '../dto/fee.dto';
 import { FiatPaymentMethod, PaymentMethod } from '../dto/payment-method.enum';
 import { QuoteError } from '../dto/transaction-helper/quote-error.enum';
 import { TargetEstimation, TransactionDetails } from '../dto/transaction-helper/transaction-details.dto';
 import { TxFeeDetails } from '../dto/transaction-helper/tx-fee-details.dto';
-import { TxSpec, TxSpecExtended } from '../dto/transaction-helper/tx-spec.dto';
+import { TxMinSpec, TxSpec } from '../dto/transaction-helper/tx-spec.dto';
 import { TransactionDirection, TransactionSpecification } from '../entities/transaction-specification.entity';
 import { TransactionSpecificationRepository } from '../repositories/transaction-specification.repository';
 
@@ -51,7 +51,7 @@ export class TransactionHelper implements OnModuleInit {
     void this.updateCache();
   }
 
-  @Cron(CronExpression.EVERY_HOUR)
+  @Cron(CronExpression.EVERY_5_MINUTES)
   @Lock()
   async updateCache() {
     this.transactionSpecifications = await this.specRepo.find();
@@ -60,7 +60,7 @@ export class TransactionHelper implements OnModuleInit {
   // --- SPECIFICATIONS --- //
   async validateInput(from: Active, amount: number): Promise<true | ValidationError> {
     // check min. volume
-    const { minVolume } = await this.getInSpecs(from, true);
+    const minVolume = await this.getMinVolumeIn(from, true);
     if (amount < minVolume * 0.5) return ValidationError.PAY_IN_TOO_SMALL;
 
     // check sellable
@@ -69,19 +69,25 @@ export class TransactionHelper implements OnModuleInit {
     return true;
   }
 
-  async getInSpecs(from: Active, allowExpiredPrice: boolean): Promise<TxSpec> {
+  async getMinVolumeIn(from: Active, allowExpiredPrice: boolean): Promise<number> {
     const spec = this.specRepo.getSpecFor(this.transactionSpecifications, from, TransactionDirection.IN);
 
-    return this.convertToSource(from, spec, allowExpiredPrice);
+    const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice).then((p) => p.invert());
+    return this.convert(spec.minVolume, price, isFiat(from));
   }
 
-  async getOutSpecs(to: Active, allowExpiredPrice: boolean): Promise<TxSpec> {
+  async getMinVolumeOut(to: Active, allowExpiredPrice: boolean): Promise<number> {
     const spec = this.specRepo.getSpecFor(this.transactionSpecifications, to, TransactionDirection.OUT);
 
-    return this.convertToTarget(to, spec, allowExpiredPrice);
+    const price = await this.pricingService.getPrice(this.chf, to, allowExpiredPrice);
+    return this.convert(spec.minVolume, price, isFiat(to));
   }
 
-  getSpecs(from: Active, to: Active): TxSpec {
+  async getBlockchainFee(asset: Active, allowExpiredPrice: boolean): Promise<number> {
+    return this.feeService.getBlockchainFee(asset, allowExpiredPrice);
+  }
+
+  getMinSpecs(from: Active, to: Active): TxMinSpec {
     const { system: fromSystem, asset: fromAsset } = this.specRepo.getProps(from);
     const { system: toSystem, asset: toAsset } = this.specRepo.getProps(to);
 
@@ -124,7 +130,7 @@ export class TransactionHelper implements OnModuleInit {
     user: User,
   ): Promise<TxFeeDetails> {
     // get fee
-    const specs = this.getSpecs(from, to);
+    const minSpecs = this.getMinSpecs(from, to);
     const fee = await this.getTxFee(
       user,
       paymentMethodIn,
@@ -133,26 +139,26 @@ export class TransactionHelper implements OnModuleInit {
       to,
       inputReferenceAmount,
       fromReference,
-      specs.minFee,
       [],
-    );
-
-    const txSpecReferenceSource = await this.convertToSource(
-      fromReference,
-      { ...specs, fixedFee: fee.fixed, minFee: fee.blockchain },
       false,
     );
 
-    const percentFeeAmount = inputReferenceAmount * fee.rate;
-    const feeAmount = Math.max(percentFeeAmount + txSpecReferenceSource.fixedFee, txSpecReferenceSource.minFee);
+    const specs: TxSpec = {
+      fee: { min: minSpecs.minFee, fixed: fee.fixed, network: fee.network },
+      volume: { min: minSpecs.minVolume, max: Number.MAX_VALUE },
+    };
+
+    const sourceSpecs = await this.getSourceSpecs(fromReference, specs, false);
+
+    const { dfx, total } = this.calculateTotalFee(inputReferenceAmount, fromReference, fee.rate, sourceSpecs);
 
     return {
-      minVolume: this.round(txSpecReferenceSource.minVolume, isFiat(from)),
+      minVolume: sourceSpecs.volume.min,
       fee: {
         ...fee,
-        fixed: this.round(txSpecReferenceSource.fixedFee, isFiat(from)),
-        min: this.round(txSpecReferenceSource.minFee, isFiat(from)),
-        total: this.round(feeAmount, isFiat(from)),
+        ...sourceSpecs.fee,
+        total,
+        dfx,
       },
     };
   }
@@ -171,7 +177,7 @@ export class TransactionHelper implements OnModuleInit {
     const times = [Date.now()];
 
     // get fee
-    const specs = this.getSpecs(from, to);
+    const specs = this.getMinSpecs(from, to);
     const fee = await this.getTxFee(
       user,
       paymentMethodIn,
@@ -180,23 +186,24 @@ export class TransactionHelper implements OnModuleInit {
       to,
       targetAmount ?? sourceAmount,
       targetAmount ? to : from,
-      specs.minFee,
       discountCodes,
+      allowExpiredPrice,
     );
 
     times.push(Date.now());
 
-    const extendedSpecs = {
-      ...specs,
-      minFee: fee.blockchain,
-      maxVolume: [paymentMethodIn, paymentMethodOut].includes(FiatPaymentMethod.CARD)
-        ? Math.min(user?.userData.availableTradingLimit ?? Infinity, Config.tradingLimits.cardDefault)
-        : user?.userData.availableTradingLimit ?? Config.tradingLimits.yearlyDefault,
-      fixedFee: fee.fixed,
+    const extendedSpecs: TxSpec = {
+      fee: { network: fee.network, fixed: fee.fixed, min: specs.minFee },
+      volume: {
+        min: specs.minVolume,
+        max: [paymentMethodIn, paymentMethodOut].includes(FiatPaymentMethod.CARD)
+          ? Math.min(user?.userData.availableTradingLimit ?? Number.MAX_VALUE, Config.tradingLimits.cardDefault)
+          : user?.userData.availableTradingLimit ?? Config.tradingLimits.yearlyDefault,
+      },
     };
 
-    const txSpecSource = await this.convertToSource(from, extendedSpecs, allowExpiredPrice);
-    const txSpecTarget = await this.convertToTarget(to, extendedSpecs, allowExpiredPrice);
+    const sourceSpecs = await this.getSourceSpecs(from, extendedSpecs, allowExpiredPrice);
+    const targetSpecs = await this.getTargetSpecs(to, extendedSpecs, allowExpiredPrice);
 
     times.push(Date.now());
 
@@ -205,8 +212,8 @@ export class TransactionHelper implements OnModuleInit {
       sourceAmount,
       targetAmount,
       fee.rate,
-      txSpecSource.minFee,
-      txSpecSource.fixedFee,
+      sourceSpecs,
+      targetSpecs,
       from,
       to,
       allowExpiredPrice,
@@ -224,7 +231,16 @@ export class TransactionHelper implements OnModuleInit {
 
     times.push(Date.now());
 
-    const error = this.getTxError(from, to, paymentMethodIn, target, extendedSpecs, txSpecSource, txAmountChf, user);
+    const error = this.getTxError(
+      from,
+      to,
+      paymentMethodIn,
+      target.sourceAmount,
+      sourceSpecs.volume.min,
+      extendedSpecs.volume.max,
+      txAmountChf,
+      user,
+    );
 
     if (Date.now() - times[0] > 300) {
       const timesString = times.map((t, i, a) => Util.round((t - (a[i - 1] ?? t)) / 1000, 3)).join(', ');
@@ -233,12 +249,10 @@ export class TransactionHelper implements OnModuleInit {
 
     return {
       ...target,
-      ...txSpecSource,
-      maxVolume: txSpecSource.maxVolume ?? undefined,
-      minFeeTarget: txSpecTarget.minFee,
-      maxVolumeTarget: txSpecTarget.maxVolume ?? undefined,
-      minVolumeTarget: txSpecTarget.minVolume,
-      fee,
+      minVolume: sourceSpecs.volume.min,
+      minVolumeTarget: targetSpecs.volume.min,
+      maxVolume: sourceSpecs.volume.max ?? undefined,
+      maxVolumeTarget: targetSpecs.volume.max ?? undefined,
       isValid: error == null,
       error,
     };
@@ -274,22 +288,22 @@ export class TransactionHelper implements OnModuleInit {
     to: Active,
     txVolume: number,
     txAsset: Active,
-    minFeeChf: number,
     discountCodes: string[],
-  ): Promise<FeeDto> {
+    allowExpiredPrice: boolean,
+  ): Promise<InternalFeeDto> {
     const price = await this.pricingService.getPrice(txAsset, this.chf, true);
 
     const txVolumeInChf = price.convert(txVolume);
 
-    const feeRequest = {
+    const feeRequest: UserFeeRequest = {
       user,
       paymentMethodIn,
       paymentMethodOut,
       from,
       to,
       txVolume: txVolumeInChf,
-      blockchainFee: minFeeChf,
       discountCodes,
+      allowBlockchainFeeFallback: allowExpiredPrice,
     };
 
     return user ? this.feeService.getUserFee(feeRequest) : this.feeService.getDefaultFee(feeRequest);
@@ -299,76 +313,99 @@ export class TransactionHelper implements OnModuleInit {
     inputAmount: number | undefined,
     outputAmount: number | undefined,
     feeRate: number,
-    minFeeSource: number,
-    fixedFeeSource = 0,
+    sourceSpecs: TxSpec,
+    targetSpecs: TxSpec,
     from: Active,
     to: Active,
     allowExpiredPrice: boolean,
   ): Promise<TargetEstimation> {
     const price = await this.pricingService.getPrice(from, to, allowExpiredPrice);
+    const outputAmountSource = outputAmount && price.invert().convert(outputAmount);
 
-    const percentFeeAmount =
-      outputAmount != null
-        ? ((price.invert().convert(outputAmount) + fixedFeeSource) * feeRate) / (1 - feeRate)
-        : inputAmount * feeRate;
-    const feeAmount = Math.max(percentFeeAmount + fixedFeeSource, minFeeSource);
+    const sourceAmount = inputAmount ?? this.getInputAmount(outputAmountSource, feeRate, sourceSpecs);
+    const sourceFees = this.calculateTotalFee(sourceAmount, from, feeRate, sourceSpecs);
 
-    const targetAmount = outputAmount != null ? outputAmount : price.convert(Math.max(inputAmount - feeAmount, 0));
-    const sourceAmount = outputAmount != null ? price.invert().convert(outputAmount) + feeAmount : inputAmount;
+    const targetAmount = outputAmount ?? price.convert(inputAmount - sourceFees.total);
+    const targetFees = {
+      dfx: this.convert(sourceFees.dfx, price, isFiat(to)),
+      total: this.convert(sourceFees.total, price, isFiat(to)),
+    };
 
     return {
-      exchangeRate: this.round(price.price, isFiat(from)),
-      rate: targetAmount ? this.round(sourceAmount / targetAmount, isFiat(from)) : Number.MAX_VALUE,
-      feeAmount: this.round(feeAmount, isFiat(from)),
-      estimatedAmount: this.round(targetAmount, isFiat(to)),
-      sourceAmount: this.round(sourceAmount, isFiat(from)),
+      exchangeRate: Util.roundReadable(price.price, isFiat(from)),
+      rate: targetAmount ? Util.roundReadable(sourceAmount / targetAmount, isFiat(from)) : Number.MAX_VALUE,
+      sourceAmount: Util.roundReadable(sourceAmount, isFiat(from)),
+      estimatedAmount: Util.roundReadable(targetAmount, isFiat(to)),
       exactPrice: price.isValid,
+      feeSource: {
+        rate: feeRate,
+        ...sourceSpecs.fee,
+        ...sourceFees,
+      },
+      feeTarget: {
+        rate: feeRate,
+        ...targetSpecs.fee,
+        ...targetFees,
+      },
     };
+  }
+
+  private getInputAmount(outputAmount: number, rate: number, { fee: { min, fixed, network } }: TxSpec): number {
+    const inputAmountNormal = (outputAmount + fixed + network) / (1 - rate);
+    const inputAmountWithMinFee = outputAmount + network + min;
+
+    return Math.max(inputAmountNormal, inputAmountWithMinFee);
   }
 
   // --- HELPER METHODS --- //
 
-  private async convertToSource(
-    from: Active,
-    { minFee, minVolume, maxVolume, fixedFee }: TxSpecExtended,
-    allowExpiredPrice: boolean,
-  ): Promise<TxSpecExtended> {
+  private async getSourceSpecs(from: Active, { fee, volume }: TxSpec, allowExpiredPrice: boolean): Promise<TxSpec> {
     const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice).then((p) => p.invert());
 
-    const maxVolumeSource = maxVolume && (from.name === 'CHF' ? maxVolume : price.convert(maxVolume * 0.99)); // -1% for the conversion
-
     return {
-      minFee: this.convert(minFee, price, isFiat(from)),
-      minVolume: this.convert(minVolume, price, isFiat(from)),
-      maxVolume: maxVolumeSource && this.roundMaxAmount(maxVolumeSource, isFiat(from)),
-      fixedFee: fixedFee && this.convert(fixedFee, price, isFiat(from)),
+      fee: {
+        min: this.convert(fee.min, price, isFiat(from)),
+        fixed: this.convert(fee.fixed, price, isFiat(from)),
+        network: this.convert(fee.network, price, isFiat(from)),
+      },
+      volume: {
+        min: this.convert(volume.min, price, isFiat(from)),
+        max: this.roundMaxAmount(from.name === 'CHF' ? volume.max : price.convert(volume.max * 0.99), isFiat(from)), // -1% for the conversion
+      },
     };
   }
 
-  private async convertToTarget(
-    to: Active,
-    { minFee, minVolume, maxVolume, fixedFee }: TxSpecExtended,
-    allowExpiredPrice: boolean,
-  ): Promise<TxSpecExtended> {
+  private async getTargetSpecs(to: Active, { fee, volume }: TxSpec, allowExpiredPrice: boolean): Promise<TxSpec> {
     const price = await this.pricingService.getPrice(this.chf, to, allowExpiredPrice);
 
-    const maxVolumeTarget = maxVolume && (to.name === 'CHF' ? maxVolume : price.convert(maxVolume * 0.99)); // -1% for the conversion
-
     return {
-      minFee: this.convert(minFee, price, isFiat(to)),
-      minVolume: this.convert(minVolume, price, isFiat(to)),
-      maxVolume: maxVolumeTarget && this.roundMaxAmount(maxVolumeTarget, isFiat(to)),
-      fixedFee: fixedFee && this.convert(fixedFee, price, isFiat(to)),
+      fee: {
+        min: this.convert(fee.min, price, isFiat(to)),
+        fixed: this.convert(fee.fixed, price, isFiat(to)),
+        network: this.convert(fee.network, price, isFiat(to)),
+      },
+      volume: {
+        min: this.convert(volume.min, price, isFiat(to)),
+        max: this.roundMaxAmount(to.name === 'CHF' ? volume.max : price.convert(volume.max * 0.99), isFiat(to)), // -1% for the conversion
+      },
     };
+  }
+
+  private calculateTotalFee(
+    amount: number,
+    active: Active,
+    rate: number,
+    { fee: { fixed, min, network } }: TxSpec,
+  ): { dfx: number; total: number } {
+    const dfx = Math.max(amount * rate + fixed, min);
+    const total = dfx + network;
+
+    return { dfx: Util.roundReadable(dfx, isFiat(active)), total: Util.roundReadable(total, isFiat(active)) };
   }
 
   private convert(amount: number, price: Price, isFiat: boolean): number {
     const targetAmount = price.convert(amount);
-    return this.round(targetAmount, isFiat);
-  }
-
-  private round(amount: number, isFiat: boolean): number {
-    return isFiat ? Util.round(amount, 2) : Util.roundByPrecision(amount, 5);
+    return Util.roundReadable(targetAmount, isFiat);
   }
 
   private roundMaxAmount(amount: number, isFiat: boolean): number {
@@ -379,9 +416,9 @@ export class TransactionHelper implements OnModuleInit {
     from: Active,
     to: Active,
     paymentMethodIn: PaymentMethod,
-    target: TargetEstimation,
-    extendedSpecs: TxSpecExtended,
-    txSpecSource: TxSpecExtended,
+    sourceAmount: number,
+    txSourceMinVolume: number,
+    maxVolumeChf: number,
     txAmountChf: number,
     user?: User,
   ): QuoteError | undefined {
@@ -410,7 +447,7 @@ export class TransactionHelper implements OnModuleInit {
       return QuoteError.BANK_TRANSACTION_MISSING;
 
     // amount checks
-    if (target.sourceAmount < txSpecSource.minVolume) return QuoteError.AMOUNT_TOO_LOW;
-    if (txAmountChf > extendedSpecs.maxVolume) return QuoteError.AMOUNT_TOO_HIGH;
+    if (sourceAmount < txSourceMinVolume) return QuoteError.AMOUNT_TOO_LOW;
+    if (txAmountChf > maxVolumeChf) return QuoteError.AMOUNT_TOO_HIGH;
   }
 }

@@ -1,9 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { IsNull, Not } from 'typeorm';
 import { TradingOrder } from '../entities/trading-order.entity';
 import { TradingRule } from '../entities/trading-rule.entity';
 import { TradingRuleStatus } from '../enums';
+import { PoolOutOfRangeException } from '../exceptions/pool-out-of-range.exception';
 import { TradingOrderRepository } from '../repositories/trading-order.respository';
 import { TradingRuleRepository } from '../repositories/trading-rule.respository';
 import { TradingService } from './trading.service';
@@ -70,7 +71,8 @@ export class TradingRuleService {
         await this.orderRepo.save(order);
       }
     } catch (e) {
-      this.logger.error(`Error processing trading rule ${rule.id}:`, e);
+      const logLevel = e instanceof PoolOutOfRangeException ? LogLevel.WARN : LogLevel.ERROR;
+      this.logger.log(logLevel, `Error processing trading rule ${rule.id}:`, e);
     }
   }
 }

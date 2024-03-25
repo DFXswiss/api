@@ -1,9 +1,16 @@
-export interface TxSpec {
+export interface TxMinSpec {
   minVolume: number;
   minFee: number;
 }
 
-export interface TxSpecExtended extends TxSpec {
-  maxVolume?: number;
-  fixedFee?: number;
+export interface TxSpec {
+  volume: {
+    min: number;
+    max: number;
+  };
+  fee: {
+    min: number;
+    fixed: number;
+    network: number;
+  };
 }

@@ -1,8 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 
 export class SellQuoteDto {
-  @ApiProperty({ description: 'Fee amount in source asset' })
+  @ApiProperty({ description: 'Fee amount in source asset', deprecated: true })
   feeAmount: number;
 
   @ApiProperty({ description: 'Amount in source asset' })
@@ -16,6 +17,12 @@ export class SellQuoteDto {
 
   @ApiProperty({ description: 'Final rate (incl. fees) in source/target' })
   rate: number;
+
+  @ApiProperty({ type: FeeDto, description: 'Fee infos in source asset' })
+  fees: FeeDto;
+
+  @ApiProperty({ type: FeeDto, description: 'Fee infos in target currency' })
+  feesTarget: FeeDto;
 
   @ApiProperty({ description: 'Minimum volume in source asset' })
   minVolume: number;
