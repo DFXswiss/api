@@ -35,7 +35,7 @@ export class FiatService {
 
   async updatePrice(fiatId: number, chfPrice: number) {
     await this.fiatRepo.update(fiatId, { approxPriceChf: chfPrice });
-    this.cache.invalidate();
-    this.arrayCache.invalidate();
+    await this.cache.invalidate();
+    await this.arrayCache.invalidate();
   }
 }

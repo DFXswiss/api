@@ -71,8 +71,8 @@ export class AssetService {
 
   async updatePrice(assetId: number, usdPrice: number, chfPrice: number) {
     await this.assetRepo.update(assetId, { approxPriceUsd: usdPrice, approxPriceChf: chfPrice });
-    this.cache.invalidate();
-    this.arrayCache.invalidate();
+    await this.cache.invalidate();
+    await this.arrayCache.invalidate();
   }
 
   async getAssetsUsedOn(exchange: string): Promise<string[]> {
