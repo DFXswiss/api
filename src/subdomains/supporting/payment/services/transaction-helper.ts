@@ -197,7 +197,7 @@ export class TransactionHelper implements OnModuleInit {
       volume: {
         min: specs.minVolume,
         max: [paymentMethodIn, paymentMethodOut].includes(FiatPaymentMethod.CARD)
-          ? Math.min(user?.userData.availableTradingLimit ?? Infinity, Config.tradingLimits.cardDefault)
+          ? Math.min(user?.userData.availableTradingLimit ?? Number.MAX_VALUE, Config.tradingLimits.cardDefault)
           : user?.userData.availableTradingLimit ?? Config.tradingLimits.yearlyDefault,
       },
     };
@@ -320,12 +320,12 @@ export class TransactionHelper implements OnModuleInit {
     allowExpiredPrice: boolean,
   ): Promise<TargetEstimation> {
     const price = await this.pricingService.getPrice(from, to, allowExpiredPrice);
-    const outputAmountSource = price.invert().convert(outputAmount);
+    const outputAmountSource = outputAmount && price.invert().convert(outputAmount);
 
     const sourceAmount = inputAmount ?? this.getInputAmount(outputAmountSource, feeRate, sourceSpecs);
     const sourceFees = this.calculateTotalFee(sourceAmount, from, feeRate, sourceSpecs);
 
-    const targetAmount = outputAmount ?? price.convert(Math.max(inputAmount - sourceFees.total));
+    const targetAmount = outputAmount ?? price.convert(inputAmount - sourceFees.total);
     const targetFees = {
       dfx: this.convert(sourceFees.dfx, price, isFiat(to)),
       total: this.convert(sourceFees.total, price, isFiat(to)),
