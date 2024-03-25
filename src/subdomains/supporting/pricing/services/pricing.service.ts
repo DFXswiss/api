@@ -27,7 +27,7 @@ export class PricingService {
   private readonly providerMap: { [s in PriceSource]: PricingProvider };
   private readonly priceRuleCache = new AsyncCache<PriceRule[]>(CacheItemResetPeriod.EVERY_6_HOURS);
   private readonly providerPriceCache = new AsyncCache<Price>(CacheItemResetPeriod.EVERY_10_SECONDS);
-  private readonly updateCalls = new AsyncCache<PriceRule>(CacheItemResetPeriod.EVERY_SECOND);
+  private readonly updateCalls = new AsyncCache<PriceRule>(CacheItemResetPeriod.ALWAYS);
 
   constructor(
     private readonly priceRuleRepo: PriceRuleRepository,

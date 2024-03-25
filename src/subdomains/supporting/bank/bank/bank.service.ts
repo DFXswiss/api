@@ -17,20 +17,21 @@ export interface BankSelectorInput {
 
 @Injectable()
 export class BankService {
-  private readonly cache = new AsyncCache<Bank[]>(CacheItemResetPeriod.EVERY_5_MINUTE);
+  private readonly cache = new AsyncCache<Bank>(CacheItemResetPeriod.EVERY_5_MINUTES);
+  private readonly arrayCache = new AsyncCache<Bank[]>(CacheItemResetPeriod.EVERY_5_MINUTES);
 
   constructor(private bankRepo: BankRepository, private countryService: CountryService) {}
 
   async getAllBanks(): Promise<Bank[]> {
-    return this.cache.get(`all`, () => this.bankRepo.find());
+    return this.arrayCache.get(`all`, () => this.bankRepo.find());
   }
 
   async getInstantBanks(): Promise<Bank[]> {
-    return this.cache.get(`instantBanks`, () => this.bankRepo.findBy({ sctInst: true }));
+    return this.arrayCache.get(`instantBanks`, () => this.bankRepo.findBy({ sctInst: true }));
   }
 
   async getBankInternal(name: BankName, currency: string): Promise<Bank> {
-    return this.cache.get(`${name}-${currency}`, () => this.bankRepo.findBy({ name, currency }))?.[0];
+    return this.cache.get(`${name}-${currency}`, () => this.bankRepo.findOneBy({ name, currency }));
   }
 
   // --- BankSelector --- //
@@ -42,7 +43,7 @@ export class BankService {
       ? await this.countryService.getCountryWithSymbol(bankAccount.iban.substring(0, 2))
       : undefined;
 
-    const banks = await this.bankRepo.find();
+    const banks = await this.getAllBanks();
 
     // select the matching bank account
     let account: Bank;

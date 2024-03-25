@@ -1,11 +1,11 @@
 import { Util } from './util';
 
 export enum CacheItemResetPeriod {
-  EVERY_SECOND = 0,
+  ALWAYS = 0,
   EVERY_10_SECONDS = 10,
   EVERY_30_SECONDS = 30,
   EVERY_1_MINUTE = 60,
-  EVERY_5_MINUTE = 5 * 60,
+  EVERY_5_MINUTES = 5 * 60,
   EVERY_6_HOURS = 3600 * 6,
 }
 
@@ -30,13 +30,10 @@ export class AsyncCache<T> {
     return this.cache.get(id).data;
   }
 
-  update(id: string, update: T): void {
-    if (!id) throw new Error('Error in AsyncCache: id is null');
+  async invalidate(id?: string): Promise<void> {
+    if (!id) return this.cache.clear();
 
-    const entry = this.cache.get(id);
-    if (!entry) this.cache.set(id, { updated: new Date(), data: update });
-
-    this.cache.set(id, { updated: entry.updated, data: update, update: entry.update });
+    this.cache.get(id).updated = new Date(0);
   }
 
   private async updateInternal(id: string, update: () => Promise<T>, fallbackToCache: boolean) {

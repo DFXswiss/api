@@ -56,8 +56,7 @@ const FeeValidityMinutes = 70;
 @Injectable()
 export class FeeService {
   private readonly logger = new DfxLogger(FeeService);
-  private readonly cache = new AsyncCache<Fee[]>(CacheItemResetPeriod.EVERY_5_MINUTE);
-  private fees: Fee[] = [];
+  private readonly cache = new AsyncCache<Fee[]>(CacheItemResetPeriod.EVERY_5_MINUTES);
 
   constructor(
     private readonly feeRepo: FeeRepository,
@@ -162,16 +161,12 @@ export class FeeService {
         continue;
       }
     }
-
-    this.updateCache();
   }
 
   async addDiscountCodeUser(user: User, discountCode: string): Promise<void> {
     const cachedFee = await this.getFeeByDiscountCode(discountCode);
 
     await this.feeRepo.update(...cachedFee.increaseUsage(user.userData.accountType, user.wallet));
-
-    this.updateCache();
 
     await this.userDataService.addFee(user.userData, cachedFee.id);
   }
@@ -180,8 +175,6 @@ export class FeeService {
     const cachedFee = await this.getFee(feeId);
 
     await this.feeRepo.update(...cachedFee.increaseUsage(userData.accountType));
-
-    this.updateCache();
 
     await this.userDataService.addFee(userData, cachedFee.id);
   }
@@ -193,8 +186,6 @@ export class FeeService {
     if (cachedFee.maxUserTxUsages) await this.feeRepo.update(...cachedFee.increaseUserTxUsage(userData.id));
     if (cachedFee.maxAnnualUserTxVolume)
       await this.feeRepo.update(...cachedFee.increaseAnnualUserTxVolume(userData.id, txVolume));
-
-    this.updateCache();
   }
 
   async getFeeByDiscountCode(discountCode: string): Promise<Fee> {
@@ -227,17 +218,12 @@ export class FeeService {
 
   // --- HELPER METHODS --- //
 
-  private updateCache(): void {
-    this.cache.update('all', this.fees);
-  }
-
   private async getFee(id: number): Promise<Fee> {
     return this.getAllFees().then((fees) => fees.find((f) => f.id === id));
   }
 
   private async getAllFees(): Promise<Fee[]> {
-    this.fees = await this.cache.get('all', () => this.feeRepo.find());
-    return this.fees;
+    return await this.cache.get('all', () => this.feeRepo.find());
   }
 
   private async calculateFee(fees: Fee[], blockchainFee: number, userDataId?: number): Promise<FeeDto> {

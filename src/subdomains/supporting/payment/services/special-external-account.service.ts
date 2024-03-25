@@ -6,18 +6,18 @@ import { SpecialExternalAccountRepository } from '../repositories/special-extern
 
 @Injectable()
 export class SpecialExternalAccountService {
-  private readonly cache = new AsyncCache<SpecialExternalAccount[]>(CacheItemResetPeriod.EVERY_5_MINUTE);
+  private readonly arrayCache = new AsyncCache<SpecialExternalAccount[]>(CacheItemResetPeriod.EVERY_5_MINUTES);
 
   constructor(private readonly specialExternalAccountRepo: SpecialExternalAccountRepository) {}
 
   async getMultiAccountIbans(): Promise<SpecialExternalAccount[]> {
-    return this.cache.get(`MultiAccountIbans`, () =>
+    return this.arrayCache.get(`MultiAccountIbans`, () =>
       this.specialExternalAccountRepo.findBy({ type: SpecialExternalAccountType.MULTI_ACCOUNT_IBAN }),
     );
   }
 
   async getBlacklist(type?: SpecialExternalAccountType): Promise<SpecialExternalAccount[]> {
-    return this.cache.get(`Blacklist`, () =>
+    return this.arrayCache.get(`Blacklist`, () =>
       this.specialExternalAccountRepo.findBy({
         type:
           type ??

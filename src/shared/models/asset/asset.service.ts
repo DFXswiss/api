@@ -14,12 +14,15 @@ export interface AssetQuery {
 
 @Injectable()
 export class AssetService {
-  private readonly cache = new AsyncCache<Asset>(CacheItemResetPeriod.EVERY_5_MINUTE);
+  private readonly cache = new AsyncCache<Asset>(CacheItemResetPeriod.EVERY_5_MINUTES);
+  private readonly arrayCache = new AsyncCache<Asset[]>(CacheItemResetPeriod.EVERY_5_MINUTES);
 
   constructor(private assetRepo: AssetRepository) {}
 
   async getAllAsset(blockchains: Blockchain[]): Promise<Asset[]> {
-    return blockchains.length > 0 ? this.assetRepo.findBy({ blockchain: In(blockchains) }) : this.assetRepo.find();
+    return blockchains.length > 0
+      ? this.arrayCache.get(blockchains.join('-'), () => this.assetRepo.findBy({ blockchain: In(blockchains) }))
+      : this.arrayCache.get('all', () => this.assetRepo.find());
   }
 
   async getActiveAsset(): Promise<Asset[]> {
@@ -54,17 +57,22 @@ export class AssetService {
   }
 
   async getSellableBlockchains(): Promise<Blockchain[]> {
-    return this.assetRepo
-      .createQueryBuilder('asset')
-      .select('asset.blockchain', 'blockchain')
-      .where('asset.sellable = 1')
-      .distinct()
-      .getRawMany<{ blockchain: Blockchain }>()
-      .then((r) => r.map((a) => a.blockchain));
+    return this.arrayCache
+      .get('sellableBlockchains', () =>
+        this.assetRepo
+          .createQueryBuilder('asset')
+          .select('asset', 'asset')
+          .where('asset.sellable = 1')
+          .distinct()
+          .getMany(),
+      )
+      .then((assets) => assets.map((a) => a.blockchain));
   }
 
   async updatePrice(assetId: number, usdPrice: number, chfPrice: number) {
     await this.assetRepo.update(assetId, { approxPriceUsd: usdPrice, approxPriceChf: chfPrice });
+    this.cache.invalidate();
+    this.arrayCache.invalidate();
   }
 
   async getAssetsUsedOn(exchange: string): Promise<string[]> {

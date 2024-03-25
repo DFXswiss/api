@@ -6,7 +6,7 @@ import { Wallet } from './wallet.entity';
 
 @Injectable()
 export class WalletService {
-  private readonly cache = new AsyncCache<Wallet>(CacheItemResetPeriod.EVERY_5_MINUTE);
+  private readonly cache = new AsyncCache<Wallet>(CacheItemResetPeriod.EVERY_5_MINUTES);
 
   constructor(private readonly repo: WalletRepository) {}
 

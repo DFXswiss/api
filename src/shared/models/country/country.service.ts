@@ -6,12 +6,13 @@ import { Country } from './country.entity';
 
 @Injectable()
 export class CountryService {
-  private readonly cache = new AsyncCache<Country>(CacheItemResetPeriod.EVERY_5_MINUTE);
+  private readonly cache = new AsyncCache<Country>(CacheItemResetPeriod.EVERY_5_MINUTES);
+  private readonly arrayCache = new AsyncCache<Country[]>(CacheItemResetPeriod.EVERY_5_MINUTES);
 
   constructor(private countryRepo: CountryRepository) {}
 
   async getAllCountry(): Promise<Country[]> {
-    return this.countryRepo.find();
+    return this.arrayCache.get('all', () => this.countryRepo.find());
   }
 
   async getCountry(id: number): Promise<Country> {
@@ -25,10 +26,10 @@ export class CountryService {
   async getCountriesByKycType(kycType: KycType): Promise<Country[]> {
     switch (kycType) {
       case KycType.DFX:
-        return this.countryRepo.findBy({ dfxEnable: true });
+        return this.arrayCache.get(kycType, () => this.countryRepo.findBy({ dfxEnable: true }));
 
       case KycType.LOCK:
-        return this.countryRepo.findBy({ lockEnable: true });
+        return this.arrayCache.get(kycType, () => this.countryRepo.findBy({ lockEnable: true }));
     }
   }
 }

@@ -5,12 +5,13 @@ import { Fiat } from './fiat.entity';
 
 @Injectable()
 export class FiatService {
-  private readonly cache = new AsyncCache<Fiat>(CacheItemResetPeriod.EVERY_5_MINUTE);
+  private readonly cache = new AsyncCache<Fiat>(CacheItemResetPeriod.EVERY_5_MINUTES);
+  private readonly arrayCache = new AsyncCache<Fiat[]>(CacheItemResetPeriod.EVERY_5_MINUTES);
 
   constructor(private fiatRepo: FiatRepository) {}
 
   async getAllFiat(): Promise<Fiat[]> {
-    return this.fiatRepo.find();
+    return this.arrayCache.get('all', () => this.fiatRepo.find());
   }
 
   async getActiveFiat(): Promise<Fiat[]> {
@@ -34,5 +35,7 @@ export class FiatService {
 
   async updatePrice(fiatId: number, chfPrice: number) {
     await this.fiatRepo.update(fiatId, { approxPriceChf: chfPrice });
+    this.cache.invalidate();
+    this.arrayCache.invalidate();
   }
 }
