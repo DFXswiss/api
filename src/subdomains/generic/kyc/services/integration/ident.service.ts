@@ -7,7 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { IdentConfig, IdentDocument } from '../../dto/ident.dto';
 import { IdentResultDto } from '../../dto/input/ident-result.dto';
-import { KycContentType } from '../../dto/kyc-file.dto';
+import { ContentType } from '../../dto/kyc-file.dto';
 import { KycStep } from '../../entities/kyc-step.entity';
 import { KycStepType } from '../../enums/kyc.enum';
 
@@ -57,17 +57,17 @@ export class IdentService {
       pdf && {
         name: this.fileName(kycStep.transactionId, 'pdf'),
         content: pdf,
-        contentType: KycContentType.PDF,
+        contentType: ContentType.PDF,
       },
       zip && {
         name: this.fileName(kycStep.transactionId, 'zip'),
         content: zip,
-        contentType: KycContentType.ZIP,
+        contentType: ContentType.ZIP,
       },
       mp3 && {
         name: this.fileName(kycStep.transactionId, 'mp3'),
         content: mp3,
-        contentType: KycContentType.MP3,
+        contentType: ContentType.MP3,
       },
     ].filter((d) => d);
   }

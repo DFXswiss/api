@@ -10,6 +10,7 @@ import { NotificationModule } from './notification/notification.module';
 import { PayInModule } from './payin/payin.module';
 import { PayoutModule } from './payout/payout.module';
 import { PricingModule } from './pricing/pricing.module';
+import { SupportIssueModule } from './support-issue/support-issue.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { PricingModule } from './pricing/pricing.module';
     PricingModule,
     FiatPayInModule,
     FiatOutputModule,
+    SupportIssueModule,
   ],
   controllers: [],
   providers: [],

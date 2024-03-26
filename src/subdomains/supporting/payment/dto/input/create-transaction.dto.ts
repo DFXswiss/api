@@ -1,6 +1,7 @@
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTxRepeat } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
@@ -20,4 +21,5 @@ export class CreateTransactionDto {
   bankTx?: BankTx;
   checkoutTx?: CheckoutTx;
   cryptoInput?: CryptoInput;
+  user?: User;
 }
