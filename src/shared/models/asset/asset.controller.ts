@@ -20,14 +20,17 @@ export class AssetController {
   @ApiBearerAuth()
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOkResponse({ type: AssetDetailDto, isArray: true })
-  async getAllAsset(@Query() { blockchains }: AssetQueryDto, @GetJwt() jwt?: JwtPayload): Promise<AssetDetailDto[]> {
+  async getAllAsset(
+    @Query() { blockchains, includePrivate }: AssetQueryDto,
+    @GetJwt() jwt?: JwtPayload,
+  ): Promise<AssetDetailDto[]> {
     const queryBlockchains = blockchains?.split(',').map((value) => value as Blockchain);
 
     const specRepo = this.repoFactory.transactionSpecification;
     const specs = await specRepo.find();
 
     return this.assetService
-      .getAllAsset(queryBlockchains ?? jwt?.blockchains ?? [])
+      .getAllAsset(queryBlockchains ?? jwt?.blockchains ?? [], includePrivate === 'true')
       .then((list) =>
         list.map((a) => AssetDtoMapper.toDetailDto(a, specRepo.getSpecFor(specs, a, TransactionDirection.OUT))),
       );

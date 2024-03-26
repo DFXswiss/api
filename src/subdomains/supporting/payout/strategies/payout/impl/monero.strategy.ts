@@ -43,7 +43,7 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
   }
 
   protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
-    if (!(await this.checkUnlockedBalance(orders))) {
+    if (!(await this.hasEnoughUnlockedBalance(orders))) {
       this.logger.info(
         `Insufficient unlocked balance for paying out XMR orders(s). Order ID(s): ${orders.map((o) => o.id)}`,
       );
@@ -72,7 +72,7 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
     }
   }
 
-  private async checkUnlockedBalance(orders: PayoutOrder[]): Promise<boolean> {
+  private async hasEnoughUnlockedBalance(orders: PayoutOrder[]): Promise<boolean> {
     const totalOrderAmount = Util.sumObjValue<PayoutOrder>(orders, 'amount');
     const unlockedBalance = await this.payoutMoneroService.getUnlockedBalance();
 

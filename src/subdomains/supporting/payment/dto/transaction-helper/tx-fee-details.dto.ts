@@ -1,11 +1,6 @@
-import { FeeDto } from '../fee.dto';
-
-export interface ExtendedFeeDto extends FeeDto {
-  min: number;
-  total: number;
-}
+import { FeeDto, InternalFeeDto } from '../fee.dto';
 
 export interface TxFeeDetails {
   minVolume: number;
-  fee: ExtendedFeeDto;
+  fee: InternalFeeDto & FeeDto;
 }

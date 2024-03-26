@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AzureStorageService, BlobContent } from 'src/integration/infrastructure/azure-storage.service';
-import { KycContentType, KycFile, KycFileType } from '../../dto/kyc-file.dto';
+import { ContentType, File, FileType } from '../../dto/kyc-file.dto';
 
 @Injectable()
 export class DocumentStorageService {
@@ -10,15 +10,15 @@ export class DocumentStorageService {
     this.storageService = new AzureStorageService('kyc');
   }
 
-  async listUserFiles(userDataId: number): Promise<KycFile[]> {
+  async listUserFiles(userDataId: number): Promise<File[]> {
     return this.listFilesByPrefix(`user/${userDataId}/`);
   }
 
-  async listSpiderFiles(userDataId: number, isOrganization: boolean): Promise<KycFile[]> {
+  async listSpiderFiles(userDataId: number, isOrganization: boolean): Promise<File[]> {
     return this.listFilesByPrefix(`spider/${userDataId}${isOrganization ? '-organization' : ''}/`);
   }
 
-  async listFilesByPrefix(prefix: string): Promise<KycFile[]> {
+  async listFilesByPrefix(prefix: string): Promise<File[]> {
     const blobs = await this.storageService.listBlobs(prefix);
     return blobs.map((b) => {
       const [_, type, name] = this.fromFileId(b.name);
@@ -26,7 +26,7 @@ export class DocumentStorageService {
         type,
         name,
         url: b.url,
-        contentType: b.contentType as KycContentType,
+        contentType: b.contentType as ContentType,
         created: b.created,
         updated: b.updated,
         metadata: b.metadata,
@@ -36,26 +36,26 @@ export class DocumentStorageService {
 
   async uploadFile(
     userDataId: number,
-    type: KycFileType,
+    type: FileType,
     name: string,
     data: Buffer,
-    contentType: KycContentType,
+    contentType: ContentType,
     metadata?: Record<string, string>,
   ): Promise<string> {
     return this.storageService.uploadBlob(this.toFileId(userDataId, type, name), data, contentType, metadata);
   }
 
-  async downloadFile(userDataId: number, type: KycFileType, name: string): Promise<BlobContent> {
+  async downloadFile(userDataId: number, type: FileType, name: string): Promise<BlobContent> {
     return this.storageService.getBlob(this.toFileId(userDataId, type, name));
   }
 
   // --- HELPER METHODS --- //
-  private toFileId(userDataId: number, type: KycFileType, name: string): string {
+  private toFileId(userDataId: number, type: FileType, name: string): string {
     return `user/${userDataId}/${type}/${name}`;
   }
 
-  private fromFileId(fileId: string): [number, KycFileType, string] {
+  private fromFileId(fileId: string): [number, FileType, string] {
     const [_, userDataId, type, name] = fileId.split('/');
-    return [+userDataId, type as KycFileType, name];
+    return [+userDataId, type as FileType, name];
   }
 }

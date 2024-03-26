@@ -8,7 +8,7 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
-import { KycFileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
+import { FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { LimitRequestDto } from '../../../kyc/dto/input/limit-request.dto';
 import { LimitRequestService } from '../../../kyc/services/limit-request.service';
 import { KycDataTransferDto } from './dto/kyc-data-transfer.dto';
@@ -89,7 +89,7 @@ export class KycController {
     @GetJwt() jwt: JwtPayload,
     @UploadedFiles() files: Express.Multer.File[],
   ): Promise<boolean> {
-    return this.kycService.uploadDocument('', files[0], KycFileType.USER_NOTES, jwt.id);
+    return this.kycService.uploadDocument('', files[0], FileType.USER_NOTES, jwt.id);
   }
 
   // --- CODE CALLS --- //
@@ -136,7 +136,7 @@ export class KycController {
     @Param('code') code: string,
     @UploadedFiles() files: Express.Multer.File[],
   ): Promise<boolean> {
-    return this.kycService.uploadDocument(code, files[0], KycFileType.USER_NOTES);
+    return this.kycService.uploadDocument(code, files[0], FileType.USER_NOTES);
   }
 }
 

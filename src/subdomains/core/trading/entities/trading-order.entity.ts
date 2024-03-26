@@ -31,7 +31,7 @@ export class TradingOrder extends IEntity {
   @Column({ type: 'float' })
   amountIn: number;
 
-  @Column({ type: 'float', default: 0 })
+  @Column({ type: 'float' })
   amountOut: number;
 
   @Column({ nullable: true })

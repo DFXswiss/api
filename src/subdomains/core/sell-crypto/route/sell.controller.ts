@@ -86,7 +86,6 @@ export class SellController {
     const {
       rate,
       exchangeRate,
-      feeAmount,
       estimatedAmount,
       sourceAmount: amount,
       minVolume,
@@ -95,6 +94,8 @@ export class SellController {
       maxVolumeTarget,
       isValid,
       error,
+      feeSource,
+      feeTarget,
     } = await this.transactionHelper.getTxDetails(
       sourceAmount,
       targetAmount,
@@ -108,13 +109,15 @@ export class SellController {
     );
 
     return {
-      feeAmount,
+      feeAmount: feeSource.total,
       rate,
       exchangeRate,
       estimatedAmount,
       amount,
       minVolume,
       minVolumeTarget,
+      fees: feeSource,
+      feesTarget: feeTarget,
       maxVolume,
       maxVolumeTarget,
       isValid,
@@ -162,7 +165,7 @@ export class SellController {
   }
 
   private async toDto(sell: Sell): Promise<SellDto> {
-    const { minFee, minDeposit } = this.transactionHelper.getDefaultSpecs(
+    const { minDeposit } = this.transactionHelper.getDefaultSpecs(
       sell.deposit.blockchain,
       undefined,
       'Fiat',
@@ -176,7 +179,6 @@ export class SellController {
       FiatPaymentMethod.BANK,
       await this.assetService.getNativeAsset(defaultBlockchain),
       sell.fiat,
-      minFee.amount,
     );
 
     return {
@@ -190,7 +192,7 @@ export class SellController {
       deposit: DepositDtoMapper.entityToDto(sell.deposit),
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       blockchain: sell.deposit.blockchain,
-      minFee: { amount: fee.blockchain, asset: 'CHF' },
+      minFee: { amount: fee.network, asset: 'CHF' },
       minDeposits: [minDeposit],
     };
   }
@@ -200,12 +202,9 @@ export class SellController {
 
     const {
       minVolume,
-      minFee,
       minVolumeTarget,
-      minFeeTarget,
       maxVolume,
       maxVolumeTarget,
-      fee,
       exchangeRate,
       rate,
       estimatedAmount,
@@ -213,6 +212,8 @@ export class SellController {
       isValid,
       error,
       exactPrice,
+      feeSource,
+      feeTarget,
     } = await this.transactionHelper.getTxDetails(
       dto.amount,
       dto.targetAmount,
@@ -226,14 +227,15 @@ export class SellController {
 
     const sellDto: SellPaymentInfoDto = {
       routeId: sell.id,
-      fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
+      fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
       depositAddress: sell.deposit.address,
       blockchain: sell.deposit.blockchain,
       minDeposit: { amount: minVolume, asset: dto.asset.dexName },
       minVolume,
-      minFee,
+      minFee: feeSource.min,
       minVolumeTarget,
-      minFeeTarget,
+      minFeeTarget: feeTarget.min,
+      fees: feeSource,
       exchangeRate,
       rate,
       exactPrice,
@@ -243,6 +245,7 @@ export class SellController {
       asset: AssetDtoMapper.toDto(dto.asset),
       maxVolume,
       maxVolumeTarget,
+      feesTarget: feeTarget,
       paymentRequest: await this.cryptoService.getPaymentRequest(isValid, dto.asset, sell.deposit.address, amount),
       isValid,
       error,

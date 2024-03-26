@@ -1,15 +1,16 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { KycWebhookData } from '../../user/services/webhook/dto/kyc-webhook.dto';
 
-export enum KycFileType {
+export enum FileType {
   NAME_CHECK = 'NameCheck',
   USER_INFORMATION = 'UserInformation',
   IDENTIFICATION = 'Identification',
   USER_NOTES = 'UserNotes',
   TRANSACTION_NOTES = 'TransactionNotes',
+  SUPPORT_ISSUE = 'SupportIssue',
 }
 
-export enum KycContentType {
+export enum ContentType {
   PNG = 'image/png',
   JPEG = 'image/jpeg',
   JSON = 'application/json',
@@ -24,11 +25,11 @@ export enum KycReportType {
   IDENTIFICATION = 'Identification',
 }
 
-export interface KycFile {
-  type: KycFileType;
+export interface File {
+  type: FileType;
   name: string;
   url: string;
-  contentType: KycContentType;
+  contentType: ContentType;
   created: Date;
   updated: Date;
   metadata: Record<string, string>;

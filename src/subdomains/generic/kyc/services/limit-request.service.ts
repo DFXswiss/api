@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { KycContentType, KycFileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
+import { ContentType, FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -36,14 +36,14 @@ export class LimitRequestService {
 
     // upload document proof
     if (dto.documentProof) {
-      const { contentType, buffer } = this.fromBase64(dto.documentProof);
+      const { contentType, buffer } = Util.fromBase64(dto.documentProof);
 
       entity.documentProofUrl = await this.storageService.uploadFile(
         user.id,
-        KycFileType.USER_NOTES,
+        FileType.USER_NOTES,
         `${Util.isoDateTime(new Date())}_limit-request_user-upload_${dto.documentProofName}`,
         buffer,
-        contentType as KycContentType,
+        contentType as ContentType,
       );
     }
 
@@ -85,10 +85,5 @@ export class LimitRequestService {
     Util.removeNullFields(entity);
 
     return this.limitRequestRepo.save({ ...update, ...entity });
-  }
-
-  private fromBase64(file: string): { contentType: string; buffer: Buffer } {
-    const [contentType, content] = file.split(';base64,');
-    return { contentType: contentType.replace('data:', ''), buffer: Buffer.from(content, 'base64') };
   }
 }
