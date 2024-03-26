@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { FindOptionsRelations, IsNull } from 'typeorm';
+import { FindOptionsRelations, IsNull, LessThanOrEqual } from 'typeorm';
 import { CreateTransactionDto } from '../dto/input/create-transaction.dto';
 import { UpdateTransactionDto } from '../dto/input/update-transaction.dto';
 import { Transaction } from '../entities/transaction.entity';
@@ -28,9 +28,9 @@ export class TransactionService {
     return this.repo.findOne({ where: { id }, relations });
   }
 
-  async getTransactionsWithoutUser(): Promise<Transaction[]> {
+  async getTransactionsWithoutUser(filterDate: Date): Promise<Transaction[]> {
     return this.repo.find({
-      where: { user: IsNull() },
+      where: { user: IsNull(), created: LessThanOrEqual(filterDate) },
       relations: {
         user: true,
         buyCrypto: { buy: { user: true }, cryptoRoute: { user: true } },

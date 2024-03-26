@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
@@ -11,7 +12,10 @@ import { TransactionService } from './transaction.service';
 export class TransactionJobService {
   private readonly logger = new DfxLogger(TransactionJobService);
 
-  constructor(private readonly transactionService: TransactionService) {}
+  constructor(
+    private readonly transactionService: TransactionService,
+    private readonly settingService: SettingService,
+  ) {}
 
   // --- SYNCHRONIZE TRANSACTIONS --- //
   @Cron(CronExpression.EVERY_MINUTE)
@@ -20,7 +24,9 @@ export class TransactionJobService {
     if (DisabledProcess(Process.SYNCHRONIZE_TRANSACTION)) return;
 
     try {
-      const transactions = await this.transactionService.getTransactionsWithoutUser();
+      const date = await this.settingService.get('transactionFilterDate', '2022-07-31');
+
+      const transactions = await this.transactionService.getTransactionsWithoutUser(new Date(date));
 
       for (const tx of transactions) {
         const user = this.getTxUser(tx);
