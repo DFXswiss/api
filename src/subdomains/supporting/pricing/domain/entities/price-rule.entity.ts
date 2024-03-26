@@ -89,7 +89,7 @@ export class PriceRule extends IEntity {
     return (
       this.currentPrice != null &&
       this.priceTimestamp != null &&
-      Util.secondsDiff(this.priceTimestamp) <= this.priceValiditySeconds
+      Util.secondsDiff(this.priceTimestamp) <= this.priceValiditySeconds + 15
     );
   }
 
