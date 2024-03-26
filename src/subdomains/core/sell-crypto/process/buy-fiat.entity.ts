@@ -8,7 +8,7 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { Fee } from 'src/subdomains/supporting/payment/entities/fee.entity';
+import { FeeDto, InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
@@ -235,32 +235,28 @@ export class BuyFiat extends IEntity {
   setFeeAndFiatReference(
     amountInEur: number,
     amountInChf: number,
-    fees: Fee[],
-    feeRate: number,
-    fixedFee: number,
-    payoutRefBonus: boolean,
-    minFeeAmount: number,
+    fee: InternalFeeDto & FeeDto,
     minFeeAmountFiat: number,
-    totalFeeAmount: number,
     totalFeeAmountChf: number,
   ): UpdateResult<BuyFiat> {
     const { usedRef, refProvision } = this.user.specifiedRef;
 
     const update: Partial<BuyFiat> = {
-      absoluteFeeAmount: fixedFee,
-      percentFee: feeRate,
-      percentFeeAmount: feeRate * this.inputReferenceAmount,
-      minFeeAmount,
+      absoluteFeeAmount: fee.fixed,
+      percentFee: fee.rate,
+      percentFeeAmount: fee.rate * this.inputReferenceAmount,
+      minFeeAmount: fee.min,
       minFeeAmountFiat,
-      totalFeeAmount,
+      totalFeeAmount: fee.total,
       totalFeeAmountChf,
-      inputReferenceAmountMinusFee: this.inputReferenceAmount - totalFeeAmount,
+      blockchainFee: fee.network,
+      inputReferenceAmountMinusFee: this.inputReferenceAmount - fee.total,
       amountInEur,
       amountInChf,
       usedRef,
       refProvision,
-      refFactor: !payoutRefBonus || usedRef === '000-000' ? 0 : 1,
-      usedFees: fees?.map((fee) => fee.id).join(';'),
+      refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
+      usedFees: fee.fees?.map((fee) => fee.id).join(';'),
     };
 
     if (update.inputReferenceAmountMinusFee < 0) throw new ConflictException('InputReferenceAmountMinusFee smaller 0');

@@ -155,13 +155,8 @@ export class BuyFiatPreparationService {
           ...entity.setFeeAndFiatReference(
             eurPrice.convert(entity.inputAmount, 2),
             amountInChf,
-            fee.fees,
-            fee.rate,
-            fee.fixed,
-            fee.payoutRefBonus,
-            fee.min,
+            fee,
             eurPrice.convert(fee.min, 2),
-            fee.total,
             chfPrice.convert(fee.total, 2),
           ),
         );

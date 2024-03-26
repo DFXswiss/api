@@ -184,13 +184,8 @@ export class BuyCryptoPreparationService {
           ...entity.setFeeAndFiatReference(
             referenceEurPrice.convert(entity.inputReferenceAmount, 2),
             amountInChf,
-            fee.fees,
-            fee.rate,
-            fee.fixed,
-            fee.payoutRefBonus,
-            fee.min,
+            fee,
             isFiat(inputReferenceCurrency) ? fee.min : referenceEurPrice.convert(fee.min, 2),
-            fee.total,
             referenceChfPrice.convert(fee.total, 2),
           ),
         );
