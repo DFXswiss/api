@@ -34,7 +34,7 @@ export class TransactionService {
       relations: {
         user: true,
         buyCrypto: { buy: { user: true }, cryptoRoute: { user: true } },
-        buyFiat: { route: { user: true } },
+        buyFiat: { sell: { user: true } },
         refReward: { user: true },
       },
     });
