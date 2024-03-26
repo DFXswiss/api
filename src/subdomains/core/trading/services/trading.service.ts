@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { NativeCurrency } from '@uniswap/sdk-core';
+import { NativeCurrency, Token } from '@uniswap/sdk-core';
 import { ethers } from 'ethers';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
@@ -110,6 +110,7 @@ export class TradingService {
       quoterV2Params,
       token0IsInToken,
       sqrtPriceX96,
+      tokenOut,
     );
 
     if (checkPoolBalance <= amountOut)
@@ -131,6 +132,7 @@ export class TradingService {
         quoterV2Params,
         token0IsInToken,
         sqrtPriceX96,
+        tokenOut,
       ));
 
       if (checkPoolBalance <= amountOut)
@@ -157,6 +159,7 @@ export class TradingService {
     quoterV2Params: any,
     token0IsInToken: boolean,
     sqrtPriceX96: number,
+    tokenOut: Token,
   ): Promise<{ calcPriceImpact: number; amountOut: number }> {
     const quote = await quoterV2Contract.callStatic.quoteExactInputSingle(quoterV2Params);
     const sqrtPriceX96After = quote.sqrtPriceX96After;
@@ -164,7 +167,10 @@ export class TradingService {
     let sqrtPriceRatio = sqrtPriceX96After / sqrtPriceX96;
     if (!token0IsInToken) sqrtPriceRatio = 1 / sqrtPriceRatio;
 
-    return { calcPriceImpact: Math.abs(1 - sqrtPriceRatio) + 0.0001, amountOut: +quote.amountOut };
+    return {
+      calcPriceImpact: Math.abs(1 - sqrtPriceRatio) + 0.0001,
+      amountOut: EvmUtil.fromWeiAmount(quote.amountOut, tokenOut.decimals),
+    };
   }
 
   private async getPoolContract(client: EvmClient, tradingInfo: TradingInfo): Promise<ethers.Contract> {
