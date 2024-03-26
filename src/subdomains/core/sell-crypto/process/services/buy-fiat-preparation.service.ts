@@ -56,20 +56,11 @@ export class BuyFiatPreparationService {
       try {
         if (!entity.cryptoInput.isConfirmed || !entity.cryptoInput.amlCheck) continue;
 
-        const inputCurrency = entity.cryptoInput.asset;
         const inputReferenceCurrency = entity.cryptoInput.asset;
 
         const inputReferenceAssetChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
 
-        const { minVolume } = await this.transactionHelper.getTxFeeInfos(
-          entity.inputReferenceAmount,
-          inputCurrency,
-          inputReferenceCurrency,
-          entity.target.asset,
-          CryptoPaymentMethod.CRYPTO,
-          FiatPaymentMethod.BANK,
-          entity.user,
-        );
+        const minVolume = await this.transactionHelper.getMinVolumeIn(inputReferenceCurrency, false);
 
         const last24hVolume = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,
