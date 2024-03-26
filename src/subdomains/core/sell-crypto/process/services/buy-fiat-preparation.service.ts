@@ -3,6 +3,8 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { AmlService } from 'src/subdomains/core/aml/aml.service';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -24,6 +26,7 @@ export class BuyFiatPreparationService {
     private readonly feeService: FeeService,
     private readonly buyFiatService: BuyFiatService,
     private readonly amlService: AmlService,
+    private readonly userService: UserService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
@@ -105,6 +108,9 @@ export class BuyFiatPreparationService {
             blacklist,
           ),
         );
+
+        if (entity.amlCheck === CheckStatus.PASS && entity.user.status === UserStatus.NA)
+          await this.userService.activateUser(entity.user);
       } catch (e) {
         this.logger.error(`Error during buy-fiat ${entity.id} AML check:`, e);
       }
