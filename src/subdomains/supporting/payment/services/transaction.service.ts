@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { FindOptionsRelations, IsNull, LessThanOrEqual, Not } from 'typeorm';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { Between, FindOptionsRelations, In, IsNull, LessThanOrEqual, Not } from 'typeorm';
 import { CreateTransactionDto } from '../dto/input/create-transaction.dto';
 import { UpdateTransactionDto } from '../dto/input/update-transaction.dto';
 import { Transaction } from '../entities/transaction.entity';
@@ -39,6 +40,23 @@ export class TransactionService {
         user: true,
         buyCrypto: { buy: { user: true }, cryptoRoute: { user: true } },
         buyFiat: { sell: { user: true } },
+        refReward: { user: true },
+      },
+    });
+  }
+
+  async getTransactionsForUsers(users: User[], from = new Date(0), to = new Date()): Promise<Transaction[]> {
+    return this.repo.find({
+      where: { user: { id: In(users.map((u) => u.id)) }, type: Not(IsNull()), created: Between(from, to) },
+      relations: {
+        buyCrypto: {
+          buy: { user: true },
+          cryptoRoute: { user: true },
+          bankTx: true,
+          checkoutTx: true,
+          cryptoInput: true,
+        },
+        buyFiat: { sell: { user: true }, cryptoInput: true, bankTx: true },
         refReward: { user: true },
       },
     });
