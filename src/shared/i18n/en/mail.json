@@ -122,6 +122,15 @@
                 "line4": "Alternatively, you can also click on the menu item at the top right of the DFX-Services website <br> and then on \"KYC\" <br> and start the verification via the \"Continue\" button.",
                 "line5": "If you do not want to carry out the verification, the money will be returned fully automatically after 2 days."
             },
+            "name_check_despite_birthday": {
+                "title": "Checking Deposit",
+                "salutation": "Your deposit will be checked",
+                "line1": "Thank you for your trust in DFX.",
+                "line2": "Unfortunately, the transaction could not be released fully automatically and must now be checked manually by an employee.",
+                "line3": "This usually takes 24 hours, but a maximum of 7 days.",
+                "line4": "You will be notified as soon as the check has been completed and your payment has been processed.",
+                "line5": ""
+            },
             "high_risk_kyc_needed": {
                 "title": "Problem with your deposit",
                 "salutation": "Verification (KYC) is required to execute your pending transaction",

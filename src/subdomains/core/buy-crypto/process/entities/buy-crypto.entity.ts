@@ -3,7 +3,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
-import { AmlService } from 'src/subdomains/core/aml/aml.service';
+import { AmlHelperService } from 'src/subdomains/core/aml/aml-helper.service';
 import { AmlPendingError } from 'src/subdomains/core/aml/enums/aml-error.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
@@ -452,7 +452,7 @@ export class BuyCrypto extends IEntity {
   ): UpdateResult<BuyCrypto> {
     const amountInChf = chfReferencePrice.convert(this.inputReferenceAmount, 2);
 
-    const amlErrors = AmlService.getAmlErrors(
+    const amlErrors = AmlHelperService.getAmlErrors(
       this,
       minVolume,
       amountInChf,
@@ -608,6 +608,7 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.ANNUAL_LIMIT_WITHOUT_KYC,
   AmlReason.OLKY_NO_KYC,
   AmlReason.NAME_CHECK_WITHOUT_KYC,
+  AmlReason.NAME_CHECK_DESPITE_BIRTHDAY,
   AmlReason.HIGH_RISK_KYC_NEEDED,
   AmlReason.MANUAL_CHECK,
 ];

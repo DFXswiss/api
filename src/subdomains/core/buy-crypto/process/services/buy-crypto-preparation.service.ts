@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { isFiat } from 'src/shared/models/active';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -11,7 +12,7 @@ import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payme
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { IsNull, Not } from 'typeorm';
+import { IsNull, LessThan, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
@@ -35,6 +36,65 @@ export class BuyCryptoPreparationService {
     private readonly amlService: AmlService,
     private readonly userService: UserService,
   ) {}
+
+  async doNameCheck(): Promise<void> {
+    const entities = await this.buyCryptoRepo.find({
+      where: [
+        {
+          amlCheck: IsNull(),
+          amlReason: IsNull(),
+          inputAmount: Not(IsNull()),
+          inputAsset: Not(IsNull()),
+          status: IsNull(),
+          isComplete: false,
+          buy: { user: { userData: { lastNameCheckDate: IsNull() } } },
+        },
+        {
+          amlCheck: IsNull(),
+          amlReason: IsNull(),
+          inputAmount: Not(IsNull()),
+          inputAsset: Not(IsNull()),
+          status: IsNull(),
+          isComplete: false,
+          buy: {
+            user: { userData: { lastNameCheckDate: LessThan(Util.daysBefore(Config.amlCheckLastNameCheckValidity)) } },
+          },
+        },
+        {
+          amlCheck: IsNull(),
+          amlReason: IsNull(),
+          inputAmount: Not(IsNull()),
+          inputAsset: Not(IsNull()),
+          status: IsNull(),
+          isComplete: false,
+          cryptoRoute: { user: { userData: { lastNameCheckDate: IsNull() } } },
+        },
+        {
+          amlCheck: IsNull(),
+          amlReason: IsNull(),
+          inputAmount: Not(IsNull()),
+          inputAsset: Not(IsNull()),
+          status: IsNull(),
+          isComplete: false,
+          cryptoRoute: {
+            user: { userData: { lastNameCheckDate: LessThan(Util.daysBefore(Config.amlCheckLastNameCheckValidity)) } },
+          },
+        },
+      ],
+      relations: {
+        bankTx: true,
+        checkoutTx: true,
+        cryptoInput: true,
+        buy: { user: { wallet: true, userData: { users: true } } },
+        cryptoRoute: { user: { wallet: true, userData: { users: true } } },
+      },
+    });
+    if (entities.length === 0) return;
+
+    for (const entity of entities) {
+      await this.amlService.checkNameCheck(entity);
+    }
+  }
 
   async doAmlCheck(): Promise<void> {
     const entities = await this.buyCryptoRepo.find({

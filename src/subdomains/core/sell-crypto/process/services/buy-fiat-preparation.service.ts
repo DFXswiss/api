@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -9,7 +10,7 @@ import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supportin
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { IsNull, Not } from 'typeorm';
+import { IsNull, LessThan, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatService } from './buy-fiat.service';
@@ -28,6 +29,42 @@ export class BuyFiatPreparationService {
     private readonly amlService: AmlService,
     private readonly userService: UserService,
   ) {}
+
+  async doNameCheck(): Promise<void> {
+    const entities = await this.buyFiatRepo.find({
+      where: [
+        {
+          amlCheck: IsNull(),
+          amlReason: IsNull(),
+          inputAmount: Not(IsNull()),
+          inputAsset: Not(IsNull()),
+          isComplete: false,
+          sell: {
+            user: { userData: { amlListAddedDate: IsNull() } },
+          },
+        },
+        {
+          amlCheck: IsNull(),
+          amlReason: IsNull(),
+          inputAmount: Not(IsNull()),
+          inputAsset: Not(IsNull()),
+          isComplete: false,
+          sell: {
+            user: { userData: { amlListAddedDate: LessThan(Util.daysBefore(Config.amlCheckLastNameCheckValidity)) } },
+          },
+        },
+      ],
+      relations: {
+        cryptoInput: true,
+        sell: { user: { wallet: true, userData: { users: true } } },
+      },
+    });
+    if (entities.length === 0) return;
+
+    for (const entity of entities) {
+      await this.amlService.checkNameCheck(entity);
+    }
+  }
 
   async doAmlCheck(): Promise<void> {
     const entities = await this.buyFiatRepo.find({

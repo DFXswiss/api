@@ -60,6 +60,7 @@ export const TransactionReasonMapper: {
   [AmlReason.KYC_REJECTED]: TransactionReason.KYC_REJECTED,
   [AmlReason.OLKY_NO_KYC]: TransactionReason.INSTANT_PAYMENT,
   [AmlReason.NAME_CHECK_WITHOUT_KYC]: TransactionReason.SANCTION_SUSPICION,
+  [AmlReason.NAME_CHECK_DESPITE_BIRTHDAY]: TransactionReason.SANCTION_SUSPICION,
   [AmlReason.HIGH_RISK_KYC_NEEDED]: TransactionReason.FRAUD_SUSPICION,
   [AmlReason.MIN_DEPOSIT_NOT_REACHED]: TransactionReason.MIN_DEPOSIT_NOT_REACHED,
   [AmlReason.ASSET_CURRENTLY_NOT_AVAILABLE]: TransactionReason.ASSET_NOT_AVAILABLE,

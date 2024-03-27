@@ -15,7 +15,7 @@ import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { Transaction } from '../../../supporting/payment/entities/transaction.entity';
-import { AmlService } from '../../aml/aml.service';
+import { AmlHelperService } from '../../aml/aml-helper.service';
 import { AmlPendingError } from '../../aml/enums/aml-error.enum';
 import { AmlReason } from '../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
@@ -290,7 +290,7 @@ export class BuyFiat extends IEntity {
   ): UpdateResult<BuyFiat> {
     const amountInChf = chfReferencePrice.convert(this.inputReferenceAmount, 2);
 
-    const amlErrors = AmlService.getAmlErrors(
+    const amlErrors = AmlHelperService.getAmlErrors(
       this,
       minVolume,
       amountInChf,
@@ -416,6 +416,7 @@ export const BuyFiatAmlReasonPendingStates = [
   AmlReason.ANNUAL_LIMIT,
   AmlReason.ANNUAL_LIMIT_WITHOUT_KYC,
   AmlReason.NAME_CHECK_WITHOUT_KYC,
+  AmlReason.NAME_CHECK_DESPITE_BIRTHDAY,
   AmlReason.HIGH_RISK_KYC_NEEDED,
   AmlReason.MANUAL_CHECK,
 ];
