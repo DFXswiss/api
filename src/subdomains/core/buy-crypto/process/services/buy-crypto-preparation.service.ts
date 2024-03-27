@@ -67,12 +67,13 @@ export class BuyCryptoPreparationService {
       try {
         if (entity.cryptoInput && (!entity.cryptoInput.isConfirmed || !entity.cryptoInput.amlCheck)) continue;
 
+        const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
         const inputReferenceCurrency =
           entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputReferenceAsset));
 
         const inputReferenceAssetChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
 
-        const minVolume = await this.transactionHelper.getMinVolumeIn(inputReferenceCurrency, false);
+        const minVolume = await this.transactionHelper.getMinVolumeIn(inputCurrency, false);
 
         const last24hVolume = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,
