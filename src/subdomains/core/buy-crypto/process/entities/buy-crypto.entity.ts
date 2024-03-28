@@ -608,7 +608,7 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.ANNUAL_LIMIT_WITHOUT_KYC,
   AmlReason.OLKY_NO_KYC,
   AmlReason.NAME_CHECK_WITHOUT_KYC,
-  AmlReason.NAME_CHECK_DESPITE_BIRTHDAY,
+  AmlReason.NAME_CHECK_WITH_BIRTHDAY,
   AmlReason.HIGH_RISK_KYC_NEEDED,
   AmlReason.MANUAL_CHECK,
 ];

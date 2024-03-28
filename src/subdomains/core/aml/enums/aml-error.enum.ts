@@ -20,7 +20,7 @@ export enum AmlError {
   NO_AML_LIST = 'NoAmlList',
   NO_KYC_FILE_ID = 'NoKycFileId',
   NAME_CHECK_WITHOUT_KYC = 'NameCheckWithoutKYC',
-  NAME_CHECK_DESPITE_BIRTHDAY = 'NameCheckDespiteBirthday',
+  NAME_CHECK_WITH_BIRTHDAY = 'NameCheckWithBirthday',
   WEEKLY_LIMIT_REACHED = 'WeeklyLimitReached',
   MONTHLY_LIMIT_REACHED = 'MonthlyLimitReached',
   DEPOSIT_LIMIT_REACHED = 'DepositLimitReached',

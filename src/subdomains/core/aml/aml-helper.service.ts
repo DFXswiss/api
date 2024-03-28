@@ -1,4 +1,3 @@
-import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
@@ -15,7 +14,6 @@ import { BuyFiat } from '../sell-crypto/process/buy-fiat.entity';
 import { AmlError } from './enums/aml-error.enum';
 import { CheckStatus } from './enums/check-status.enum';
 
-@Injectable()
 export class AmlHelperService {
   static getAmlErrors(
     entity: BuyCrypto | BuyFiat,
@@ -41,7 +39,7 @@ export class AmlHelperService {
       !entity.userData.lastNameCheckDate ||
       Util.daysDiff(entity.userData.lastNameCheckDate) > Config.amlCheckLastNameCheckValidity
     )
-      errors.push(entity.userData.birthday ? AmlError.NAME_CHECK_DESPITE_BIRTHDAY : AmlError.NAME_CHECK_WITHOUT_KYC);
+      errors.push(entity.userData.birthday ? AmlError.NAME_CHECK_WITH_BIRTHDAY : AmlError.NAME_CHECK_WITHOUT_KYC);
     if (blacklist.some((b) => b.matches(SpecialExternalAccountType.BANNED_MAIL, entity.userData.mail)))
       errors.push(AmlError.SUSPICIOUS_MAIL);
     if (last30dVolume > Config.tradingLimits.monthlyDefault) errors.push(AmlError.MONTHLY_LIMIT_REACHED);

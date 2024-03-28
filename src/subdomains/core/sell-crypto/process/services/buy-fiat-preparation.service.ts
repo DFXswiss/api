@@ -10,8 +10,9 @@ import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supportin
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { IsNull, LessThan, Not } from 'typeorm';
+import { FindOptionsWhere, IsNull, LessThan, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
+import { BuyFiat } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatService } from './buy-fiat.service';
 
@@ -31,24 +32,19 @@ export class BuyFiatPreparationService {
   ) {}
 
   async doNameCheck(): Promise<void> {
+    const search: FindOptionsWhere<BuyFiat> = {
+      amlCheck: IsNull(),
+      amlReason: IsNull(),
+      inputAmount: Not(IsNull()),
+      inputAsset: Not(IsNull()),
+      isComplete: false,
+    };
+
     const entities = await this.buyFiatRepo.find({
       where: [
+        { ...search, sell: { user: { userData: { amlListAddedDate: IsNull() } } } },
         {
-          amlCheck: IsNull(),
-          amlReason: IsNull(),
-          inputAmount: Not(IsNull()),
-          inputAsset: Not(IsNull()),
-          isComplete: false,
-          sell: {
-            user: { userData: { amlListAddedDate: IsNull() } },
-          },
-        },
-        {
-          amlCheck: IsNull(),
-          amlReason: IsNull(),
-          inputAmount: Not(IsNull()),
-          inputAsset: Not(IsNull()),
-          isComplete: false,
+          ...search,
           sell: {
             user: { userData: { amlListAddedDate: LessThan(Util.daysBefore(Config.amlCheckLastNameCheckValidity)) } },
           },
@@ -62,7 +58,11 @@ export class BuyFiatPreparationService {
     if (entities.length === 0) return;
 
     for (const entity of entities) {
-      await this.amlService.checkNameCheck(entity);
+      try {
+        await this.amlService.checkNameCheck(entity);
+      } catch (e) {
+        this.logger.error(`Error during buy-fiat ${entity.id} name check:`, e);
+      }
     }
   }
 
