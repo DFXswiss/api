@@ -16,7 +16,7 @@ import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { Transaction } from '../../../supporting/payment/entities/transaction.entity';
 import { AmlHelperService } from '../../aml/aml-helper.service';
-import { AmlErrorReasons, AmlPendingError } from '../../aml/enums/aml-error.enum';
+import { AmlErrorReasons } from '../../aml/enums/aml-error.enum';
 import { AmlReason } from '../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { Sell } from '../route/sell.entity';
@@ -305,7 +305,7 @@ export class BuyFiat extends IEntity {
     const update: Partial<BuyFiat> =
       amlErrors.length === 0
         ? { amlCheck: CheckStatus.PASS, amlReason: AmlReason.NA }
-        : amlErrors.every((e) => AmlPendingError.includes(e))
+        : amlErrors.every((e) => AmlErrorReasons[e])
         ? { amlCheck: CheckStatus.PENDING, amlReason: AmlErrorReasons[amlErrors[0]] }
         : Util.minutesDiff(this.created) >= 10
         ? { amlCheck: CheckStatus.GSHEET, comment }
@@ -416,7 +416,6 @@ export const BuyFiatAmlReasonPendingStates = [
   AmlReason.ANNUAL_LIMIT,
   AmlReason.ANNUAL_LIMIT_WITHOUT_KYC,
   AmlReason.NAME_CHECK_WITHOUT_KYC,
-  AmlReason.NAME_CHECK_WITH_BIRTHDAY,
   AmlReason.HIGH_RISK_KYC_NEEDED,
   AmlReason.MANUAL_CHECK,
 ];

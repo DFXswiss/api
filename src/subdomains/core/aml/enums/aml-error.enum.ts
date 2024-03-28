@@ -38,14 +38,6 @@ export enum AmlError {
   SUSPICIOUS_MAIL = 'SuspiciousMail',
 }
 
-export const AmlPendingError = [
-  AmlError.IP_MISMATCH,
-  AmlError.SUSPICIOUS_MAIL,
-  AmlError.WEEKLY_LIMIT_REACHED,
-  AmlError.NAME_CHECK_WITHOUT_KYC,
-  AmlError.NAME_CHECK_WITH_BIRTHDAY,
-];
-
 export const AmlErrorReasons: { [b in AmlError]: AmlReason } = {
   [AmlError.ASSET_NOT_BUYABLE]: null,
   [AmlError.MIN_VOLUME_NOT_REACHED]: null,
@@ -68,7 +60,7 @@ export const AmlErrorReasons: { [b in AmlError]: AmlReason } = {
   [AmlError.NO_AML_LIST]: null,
   [AmlError.NO_KYC_FILE_ID]: null,
   [AmlError.NAME_CHECK_WITHOUT_KYC]: AmlReason.NAME_CHECK_WITHOUT_KYC,
-  [AmlError.NAME_CHECK_WITH_BIRTHDAY]: AmlReason.NAME_CHECK_WITH_BIRTHDAY,
+  [AmlError.NAME_CHECK_WITH_BIRTHDAY]: AmlReason.MANUAL_CHECK,
   [AmlError.WEEKLY_LIMIT_REACHED]: AmlReason.MANUAL_CHECK,
   [AmlError.MONTHLY_LIMIT_REACHED]: null,
   [AmlError.DEPOSIT_LIMIT_REACHED]: null,

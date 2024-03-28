@@ -4,7 +4,7 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { AmlHelperService } from 'src/subdomains/core/aml/aml-helper.service';
-import { AmlErrorReasons, AmlPendingError } from 'src/subdomains/core/aml/enums/aml-error.enum';
+import { AmlErrorReasons } from 'src/subdomains/core/aml/enums/aml-error.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -468,7 +468,7 @@ export class BuyCrypto extends IEntity {
     const update: Partial<BuyCrypto> =
       amlErrors.length === 0
         ? { amlCheck: CheckStatus.PASS, amlReason: AmlReason.NA }
-        : amlErrors.every((e) => AmlPendingError.includes(e))
+        : amlErrors.every((e) => AmlErrorReasons[e])
         ? { amlCheck: CheckStatus.PENDING, amlReason: AmlErrorReasons[amlErrors[0]] }
         : Util.minutesDiff(this.created) >= 10
         ? { amlCheck: CheckStatus.GSHEET, comment }
@@ -608,7 +608,6 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.ANNUAL_LIMIT_WITHOUT_KYC,
   AmlReason.OLKY_NO_KYC,
   AmlReason.NAME_CHECK_WITHOUT_KYC,
-  AmlReason.NAME_CHECK_WITH_BIRTHDAY,
   AmlReason.HIGH_RISK_KYC_NEEDED,
   AmlReason.MANUAL_CHECK,
 ];

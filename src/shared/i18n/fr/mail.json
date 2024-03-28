@@ -122,15 +122,6 @@
                 "line4": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
                 "line5": "Si vous ne souhaitez pas réaliser la vérification, les fonds seront intégralement retournés après 2 jours."
             },
-            "name_check_with_birthday": {
-                "title": "Dépôt de chèques",
-                "salutation": "Votre dépôt sera vérifié",
-                "line1": "Nous vous remercions de la confiance que vous accordez à DFX.",
-                "line2": "Malheureusement, la transaction n'a pas pu être validée de manière entièrement automatique et doit maintenant être vérifiée manuellement par un employé.",
-                "line3": "Ce délai est généralement de 24 heures, mais peut aller jusqu'à 7 jours.",
-                "line4": "Vous serez informé dès que le contrôle aura été effectué et que votre paiement aura été traité.",
-                "line5": ""
-            },
             "high_risk_kyc_needed": {
                 "title": "Problème avec votre dépôt",
                 "salutation": "La vérification (KYC) est nécessaire pour exécuter votre transaction en cours",

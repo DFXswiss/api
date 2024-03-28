@@ -8,7 +8,6 @@ export enum AmlReason {
   OLKY_NO_KYC = 'OlkyNoKyc',
   MIN_DEPOSIT_NOT_REACHED = 'MinDepositNotReached',
   NAME_CHECK_WITHOUT_KYC = 'NameCheckWithoutKyc',
-  NAME_CHECK_WITH_BIRTHDAY = 'NameCheckWithBirthday',
   ANNUAL_LIMIT_WITHOUT_KYC = 'AnnualLimitWithoutKyc',
   ASSET_CURRENTLY_NOT_AVAILABLE = 'AssetCurrentlyNotAvailable',
   STAKING_DISCONTINUED = 'StakingDiscontinued',
