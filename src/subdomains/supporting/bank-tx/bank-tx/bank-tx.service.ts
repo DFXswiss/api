@@ -253,7 +253,11 @@ export class BankTxService {
 
   getUnassignedBankTx(ibanList: string[]): Promise<BankTx[]> {
     return this.bankTxRepo.find({
-      where: { type: In([BankTxType.GSHEET, BankTxType.UNKNOWN]), iban: In(ibanList) },
+      where: {
+        type: In([BankTxType.GSHEET, BankTxType.UNKNOWN, BankTxType.PENDING]),
+        iban: In(ibanList),
+        creditDebitIndicator: 'CRDT',
+      },
       relations: { transaction: true },
     });
   }
