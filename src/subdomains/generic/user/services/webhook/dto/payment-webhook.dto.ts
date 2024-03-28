@@ -1,5 +1,5 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TransactionDto } from 'src/subdomains/supporting/payment/dto/transaction.dto';
+import { ApiProperty } from '@nestjs/swagger';
+import { TransactionDetailDto } from 'src/subdomains/supporting/payment/dto/transaction.dto';
 import { WebhookDto, WebhookType } from './webhook.dto';
 
 export enum PaymentWebhookType {
@@ -18,15 +18,9 @@ export enum PaymentWebhookState {
   RETURNED = 'Returned',
 }
 
-export class PaymentWebhookData extends TransactionDto {
+export class PaymentWebhookData extends TransactionDetailDto {
   @ApiProperty()
   dfxReference: number;
-
-  @ApiPropertyOptional()
-  sourceAccount: string;
-
-  @ApiPropertyOptional()
-  targetAccount: string;
 }
 
 export class PaymentWebhookDto extends WebhookDto<PaymentWebhookData> {
