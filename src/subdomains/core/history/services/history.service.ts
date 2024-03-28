@@ -54,7 +54,7 @@ export class HistoryService {
 
   async getHistory<T extends ExportType>(
     query: HistoryQueryUser,
-    exportFormat: T,
+    exportType: T,
   ): Promise<HistoryDto<T>[] | StreamableFile> {
     const user = await this.userService.getUserByAddress(query.userAddress);
     if (!user) throw new NotFoundException('User not found');
@@ -75,39 +75,24 @@ export class HistoryService {
       query.staking && (await this.stakingService.getUserStakingRefRewards([user.id], query.from, query.to));
 
     const txArray: HistoryDto<T>[] = [
-      ...(await this.getBuyCryptoTransactions(buyCryptos, exportFormat)),
-      ...(await this.getBuyFiatTransactions(buyFiats, exportFormat)),
-      ...this.getStakingInvests(stakingInvests?.deposits, stakingInvests?.withdrawals, exportFormat),
-      ...this.getStakingRewards(stakingRewards, refStakingReward, exportFormat),
-      ...(await this.getRefRewards(refRewards, exportFormat)),
+      ...(await this.getBuyCryptoTransactions(buyCryptos, exportType)),
+      ...(await this.getBuyFiatTransactions(buyFiats, exportType)),
+      ...this.getStakingInvests(stakingInvests?.deposits, stakingInvests?.withdrawals, exportType),
+      ...this.getStakingRewards(stakingRewards, refStakingReward, exportType),
+      ...(await this.getRefRewards(refRewards, exportType)),
     ].reduce((prev, curr) => prev.concat(curr), []);
 
-    return query.format === ExportFormat.CSV ? this.getHistoryCsv(txArray, exportFormat) : txArray;
+    return query.format === ExportFormat.CSV ? this.getCsv(txArray, exportType) : txArray;
+  }
+
+  getCsv(tx: any[], exportType: ExportType): StreamableFile {
+    if (tx.length === 0) throw new NotFoundException('No transactions found');
+    return new StreamableFile(
+      Readable.from([exportType === ExportType.CHAIN_REPORT ? Util.toCsv(tx, ';', true) : Util.toCsv(tx)]),
+    );
   }
 
   // --- HELPER METHODS --- //
-  private getHistoryCsv<T>(tx: HistoryDto<T>[], exportType: ExportType): StreamableFile {
-    if (tx.length === 0) throw new NotFoundException('No transactions found');
-    return new StreamableFile(
-      Readable.from([exportType === ExportType.CHAIN_REPORT ? this.toCsv(tx, ';', true) : this.toCsv(tx)]),
-    );
-  }
-
-  private toCsv(list: any[], separator = ',', toGermanLocalDateString = false): string {
-    const headers = Object.keys(list[0]).join(separator);
-    const values = list.map((t) =>
-      Object.values(t)
-        .map((v) =>
-          v instanceof Date
-            ? toGermanLocalDateString
-              ? v.toLocaleString('de-DE', { timeZone: 'CET' })
-              : v.toISOString()
-            : v,
-        )
-        .join(separator),
-    );
-    return [headers].concat(values).join('\n');
-  }
 
   private async getBuyCryptoTransactions<T>(buyCryptos: BuyCrypto[] = [], exportFormat: T): Promise<HistoryDto<T>[]> {
     switch (exportFormat) {

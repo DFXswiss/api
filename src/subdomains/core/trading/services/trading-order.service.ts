@@ -52,7 +52,7 @@ export class TradingOrderService {
 
       this.logger.verbose(`Trading order ${order.id} in progress`);
     } catch (e) {
-      const message = `Failed to execute trading order ${order.id}: ${e.message}`;
+      const message = `Failed to execute trading order ${order.id} (rule ${order.tradingRule.id}): ${e.message}`;
       await this.handleOrderFail(order, message);
       this.logger.error(message, e);
     }
@@ -107,7 +107,7 @@ export class TradingOrderService {
 
       if (isReady) await this.handleOrderCompletion(order, purchaseTxId);
     } catch (e) {
-      const message = `Failed to check trading order ${order.id}: ${e.message}`;
+      const message = `Failed to check trading order ${order.id} (rule ${order.tradingRule.id}): ${e.message}`;
       await this.handleOrderFail(order, message);
       this.logger.error(message, e);
     }
@@ -122,7 +122,7 @@ export class TradingOrderService {
     const rule = order.tradingRule.reactivate();
     await this.ruleRepo.save(rule);
 
-    const message = `Trading order ${order.id} complete: swapped ${order.amountIn} ${order.assetIn.uniqueName} to ${order.assetOut.uniqueName}`;
+    const message = `Trading order ${order.id} (rule ${order.tradingRule.id}) complete: swapped ${order.amountIn} ${order.assetIn.uniqueName} to ${order.assetOut.uniqueName}`;
     this.logger.verbose(message);
 
     // send mail

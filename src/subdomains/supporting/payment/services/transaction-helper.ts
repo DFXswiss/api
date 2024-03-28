@@ -60,7 +60,7 @@ export class TransactionHelper implements OnModuleInit {
   // --- SPECIFICATIONS --- //
   async validateInput(from: Active, amount: number): Promise<true | ValidationError> {
     // check min. volume
-    const minVolume = await this.getMinVolumeIn(from, true);
+    const minVolume = await this.getMinVolumeIn(from, from, true);
     if (amount < minVolume * 0.5) return ValidationError.PAY_IN_TOO_SMALL;
 
     // check sellable
@@ -69,17 +69,19 @@ export class TransactionHelper implements OnModuleInit {
     return true;
   }
 
-  async getMinVolumeIn(from: Active, allowExpiredPrice: boolean): Promise<number> {
+  async getMinVolumeIn(from: Active, fromReference: Active, allowExpiredPrice: boolean): Promise<number> {
     const spec = this.specRepo.getSpecFor(this.transactionSpecifications, from, TransactionDirection.IN);
 
-    const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice).then((p) => p.invert());
+    const price = await this.pricingService
+      .getPrice(fromReference, this.chf, allowExpiredPrice)
+      .then((p) => p.invert());
     return this.convert(spec.minVolume, price, isFiat(from));
   }
 
-  async getMinVolumeOut(to: Active, allowExpiredPrice: boolean): Promise<number> {
+  async getMinVolumeOut(to: Active, toReference: Active, allowExpiredPrice: boolean): Promise<number> {
     const spec = this.specRepo.getSpecFor(this.transactionSpecifications, to, TransactionDirection.OUT);
 
-    const price = await this.pricingService.getPrice(this.chf, to, allowExpiredPrice);
+    const price = await this.pricingService.getPrice(this.chf, toReference, allowExpiredPrice);
     return this.convert(spec.minVolume, price, isFiat(to));
   }
 

@@ -73,12 +73,12 @@ export class FeeService {
   @Lock(1800)
   async updateBlockchainFees() {
     const blockchainFees = await this.blockchainFeeRepo.find({ relations: ['asset'] });
-    const fiat = await this.fiatService.getFiatByName('CHF');
+    const chf = await this.fiatService.getFiatByName('CHF');
 
     for (const blockchainFee of blockchainFees) {
       try {
         const { asset, amount } = await this.payoutService.estimateBlockchainFee(blockchainFee.asset);
-        const price = await this.pricingService.getPrice(asset, fiat, true);
+        const price = await this.pricingService.getPrice(asset, chf, true);
 
         blockchainFee.amount = price.convert(amount);
         blockchainFee.updated = new Date();
