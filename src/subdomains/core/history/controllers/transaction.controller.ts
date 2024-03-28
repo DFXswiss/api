@@ -1,4 +1,16 @@
-import { Controller, Get, NotFoundException, Post, Query, Res, StreamableFile, UseGuards } from '@nestjs/common';
+import {
+  ConflictException,
+  Controller,
+  ForbiddenException,
+  Get,
+  NotFoundException,
+  Param,
+  Post as Put,
+  Query,
+  Res,
+  StreamableFile,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import {
   ApiBearerAuth,
@@ -13,18 +25,22 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { BankTxType, BankTxTypeUnassigned } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import {
   TransactionDetailDto,
   TransactionDto,
+  TransactionTarget,
   UnassignedTransactionDto,
 } from '../../../supporting/payment/dto/transaction.dto';
 import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-crypto-webhook.service';
+import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
 import { RefRewardService } from '../../referral/reward/ref-reward.service';
 import { BuyFiatService } from '../../sell-crypto/process/services/buy-fiat.service';
 import { ExportFormat, HistoryQueryExportType, HistoryQueryUser } from '../dto/history-query.dto';
@@ -50,8 +66,10 @@ export class TransactionController {
     private readonly bankDataService: BankDataService,
     private readonly bankTxService: BankTxService,
     private readonly fiatService: FiatService,
+    private readonly buyService: BuyService,
   ) {}
 
+  // --- OPEN ENDPOINTS --- //
   @Get()
   @ApiOkResponse({ type: TransactionDto, isArray: true })
   async getCsvCompact(
@@ -60,45 +78,6 @@ export class TransactionController {
   ): Promise<TransactionDto[] | StreamableFile> {
     if (!query.format) query.format = ExportFormat.JSON;
     return this.getHistoryData(query, ExportType.COMPACT, res);
-  }
-
-  @Get('detail')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiOkResponse({ type: TransactionDetailDto, isArray: true })
-  async getTransactionDetails(
-    @GetJwt() jwt: JwtPayload,
-    @Query() query: TransactionFilter,
-  ): Promise<TransactionDetailDto[]> {
-    return this.getAllTransactions(jwt.id, query);
-  }
-
-  @Post('detail/csv')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiCreatedResponse()
-  @ApiOperation({ description: 'Initiate CSV history export' })
-  async createDetailCsv(@GetJwt() jwt: JwtPayload, @Query() query: TransactionFilter): Promise<string> {
-    const transactions = await this.getAllTransactions(jwt.id, query);
-
-    const csvFile = this.historyService.getCsv(transactions, ExportType.COMPACT);
-
-    return this.cacheCsv(csvFile);
-  }
-
-  @Get('unassigned')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiOkResponse({ type: UnassignedTransactionDto, isArray: true })
-  async getUnassignedTransactions(@GetJwt() jwt: JwtPayload): Promise<UnassignedTransactionDto[]> {
-    const user = await this.userService.getUser(jwt.id, { userData: true });
-    const bankDatas = await this.bankDataService.getBankDatasForUser(user.userData.id);
-
-    const txList = await this.bankTxService.getUnassignedBankTx(bankDatas.map((bd) => bd.iban));
-    return Util.asyncMap(txList, async (tx) => {
-      const currency = await this.fiatService.getFiatByName(tx.txCurrency);
-      return TransactionDtoMapper.mapUnassignedTransaction(tx, currency);
-    });
   }
 
   @Get('CoinTracking')
@@ -123,7 +102,84 @@ export class TransactionController {
     return this.getHistoryData(query, ExportType.CHAIN_REPORT, res);
   }
 
-  @Post('csv')
+  // --- AUTHORIZED ENDPOINTS --- //
+  @Get('detail')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse({ type: TransactionDetailDto, isArray: true })
+  async getTransactionDetails(
+    @GetJwt() jwt: JwtPayload,
+    @Query() query: TransactionFilter,
+  ): Promise<TransactionDetailDto[]> {
+    return this.getAllTransactions(jwt.id, query);
+  }
+
+  @Put('detail/csv')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiCreatedResponse()
+  @ApiOperation({ description: 'Initiate CSV history export' })
+  async createDetailCsv(@GetJwt() jwt: JwtPayload, @Query() query: TransactionFilter): Promise<string> {
+    const transactions = await this.getAllTransactions(jwt.id, query);
+
+    const csvFile = this.historyService.getCsv(transactions, ExportType.COMPACT);
+
+    return this.cacheCsv(csvFile);
+  }
+
+  @Get('unassigned')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiExcludeEndpoint()
+  async getUnassignedTransactions(@GetJwt() jwt: JwtPayload): Promise<UnassignedTransactionDto[]> {
+    const user = await this.userService.getUser(jwt.id, { userData: true });
+    const bankDatas = await this.bankDataService.getBankDatasForUser(user.userData.id);
+
+    const txList = await this.bankTxService.getUnassignedBankTx(bankDatas.map((bd) => bd.iban));
+    return Util.asyncMap(txList, async (tx) => {
+      const currency = await this.fiatService.getFiatByName(tx.txCurrency);
+      return TransactionDtoMapper.mapUnassignedTransaction(tx, currency);
+    });
+  }
+
+  @Get('target')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiExcludeEndpoint()
+  async getTransactionTargets(@GetJwt() jwt: JwtPayload): Promise<TransactionTarget[]> {
+    const buys = await this.buyService.getUserDataBuys(jwt.id);
+
+    return buys.map((b) => ({
+      id: b.id,
+      address: b.user.address,
+      asset: AssetDtoMapper.toDto(b.asset),
+      bankUsage: b.bankUsage,
+    }));
+  }
+
+  @Put(':id/target')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiExcludeEndpoint()
+  async setTransactionTarget(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Query('buyId') buyId: string,
+  ): Promise<void> {
+    const transaction = await this.transactionService.getTransaction(+id, { bankTx: true });
+    if (!transaction.bankTx) throw new NotFoundException('Transaction not found');
+    if (!BankTxTypeUnassigned(transaction.bankTx.type)) throw new ConflictException('Transaction already assigned');
+
+    const user = await this.userService.getUser(jwt.id, { userData: true });
+    const bankDatas = await this.bankDataService.getBankDatasForUser(user.userData.id);
+    if (!bankDatas.some((b) => b.iban === transaction.bankTx.iban))
+      throw new ForbiddenException('You can only assign your own transaction');
+
+    await this.bankTxService.update(transaction.bankTx.id, { type: BankTxType.BUY_CRYPTO, buyId: +buyId });
+  }
+
+  // --- CSV ENDPOINTS --- //
+  @Put('csv')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiCreatedResponse()

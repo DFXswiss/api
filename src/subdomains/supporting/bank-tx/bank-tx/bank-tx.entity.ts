@@ -229,3 +229,9 @@ export const BankTxCompletedTypes = [BankTxType.BUY_CRYPTO, BankTxType.BANK_TX_R
 export function BankTxTypeCompleted(bankTxType?: BankTxType): boolean {
   return BankTxCompletedTypes.includes(bankTxType);
 }
+
+export const BankTxUnassignedTypes = [BankTxType.GSHEET, BankTxType.UNKNOWN, BankTxType.PENDING];
+
+export function BankTxTypeUnassigned(bankTxType?: BankTxType): boolean {
+  return BankTxUnassignedTypes.includes(bankTxType);
+}
