@@ -122,7 +122,7 @@
                 "line4": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
                 "line5": "Si vous ne souhaitez pas réaliser la vérification, les fonds seront intégralement retournés après 2 jours."
             },
-            "name_check_despite_birthday": {
+            "name_check_with_birthday": {
                 "title": "Dépôt de chèques",
                 "salutation": "Votre dépôt sera vérifié",
                 "line1": "Nous vous remercions de la confiance que vous accordez à DFX.",

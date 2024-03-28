@@ -122,7 +122,7 @@
                 "line4": "In alternativa, potete anche cliccare sulla voce di menu in alto a destra del sito DFX-Services <br>e poi su \"KYC\" <br>e avviare la verifica tramite il pulsante \"Continua\".",
                 "line5": "Se non vuoi eseguire la verifica, i tuoi soldi saranno rimborsati completamente in automatico dopo 2 giorni."
             },
-            "name_check_despite_birthday": {
+            "name_check_with_birthday": {
                 "title": "Deposito in conto corrente",
                 "salutation": "Il vostro deposito sarà controllato",
                 "line1": "Grazie per la vostra fiducia in DFX.",

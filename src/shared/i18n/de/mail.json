@@ -122,7 +122,7 @@
                 "line4": "Alternativ kannst du auch über die DFX-Services Webseite <br> oben rechts auf den Menüpunkt und dann auf \"KYC\" klicken <br> und die Verifizierung über den \"Weiter\" Button starten.",
                 "line5": "Solltest du die Verifizierung nicht vornehmen wollen, wird das Geld vollautomatisch nach 2 Tagen retourniert."
             },
-            "name_check_despite_birthday": {
+            "name_check_with_birthday": {
                 "title": "Einzahlung wird geprüft",
                 "salutation": "Dine Einzahlung wird geprüft",
                 "line1": "Vielen Dank für dein Vertrauen in DFX.",

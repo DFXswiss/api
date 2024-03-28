@@ -122,7 +122,7 @@
                 "line4": "Alternativamente, también puede hacer clic en el elemento de menú en la parte superior derecha de la página web de DFX-Services <br> y luego en \"KYC\" <br> e iniciar la verificación a través del botón \"Continuar\".",
                 "line5": "Si no quieres llevar a cabo la verificación, el dinero se devolverá después de 2 días."
             },
-            "name_check_despite_birthday": {
+            "name_check_with_birthday": {
                 "title": "Depósito en cuenta corriente",
                 "salutation": "Se comprobará su depósito",
                 "line1": "Gracias por confiar en DFX.",

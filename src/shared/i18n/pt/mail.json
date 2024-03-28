@@ -122,7 +122,7 @@
                 "line4": "Alternatively, you can also click on the menu item at the top right of the DFX-Services website <br> and then on \"KYC\" <br> and start the verification via the \"Continue\" button.",
                 "line5": "If you do not want to carry out the verification, the money will be returned fully automatically after 2 days."
             },
-            "name_check_despite_birthday": {
+            "name_check_with_birthday": {
                 "title": "Checking Deposit",
                 "salutation": "Your deposit will be checked",
                 "line1": "Thank you for your trust in DFX.",
