@@ -5,7 +5,7 @@ import {
   Get,
   NotFoundException,
   Param,
-  Post as Put,
+  Put,
   Query,
   Res,
   StreamableFile,
