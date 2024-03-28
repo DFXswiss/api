@@ -60,7 +60,11 @@ export class BuyFiatPreparationService {
 
         const inputReferenceAssetChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
 
-        const minVolume = await this.transactionHelper.getMinVolumeIn(entity.cryptoInput.asset, false);
+        const minVolume = await this.transactionHelper.getMinVolumeIn(
+          entity.cryptoInput.asset,
+          entity.cryptoInput.asset,
+          false,
+        );
 
         const last24hVolume = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,
