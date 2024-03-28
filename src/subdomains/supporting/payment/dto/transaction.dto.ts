@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { PaymentMethod, PaymentMethodSwagger } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 
@@ -147,8 +148,22 @@ export class TransactionDto extends UnassignedTransactionDto {
 
 export class TransactionDetailDto extends TransactionDto {
   @ApiPropertyOptional()
-  sourceAccount: string;
+  sourceAccount?: string;
 
   @ApiPropertyOptional()
-  targetAccount: string;
+  targetAccount?: string;
+}
+
+export class TransactionTarget {
+  @ApiProperty()
+  id: number;
+
+  @ApiProperty()
+  bankUsage: string;
+
+  @ApiProperty({ type: AssetDto })
+  asset: AssetDto;
+
+  @ApiProperty()
+  address: string;
 }

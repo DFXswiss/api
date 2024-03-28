@@ -20,7 +20,7 @@ import { BankTxRepeatService } from '../bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnService } from '../bank-tx-return/bank-tx-return.service';
 import { BankTxBatch } from './bank-tx-batch.entity';
 import { BankTxBatchRepository } from './bank-tx-batch.repository';
-import { BankTx, BankTxType, BankTxTypeCompleted } from './bank-tx.entity';
+import { BankTx, BankTxType, BankTxTypeCompleted, BankTxUnassignedTypes } from './bank-tx.entity';
 import { BankTxRepository } from './bank-tx.repository';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
 import { SepaParser } from './sepa-parser.service';
@@ -253,7 +253,11 @@ export class BankTxService {
 
   getUnassignedBankTx(ibanList: string[]): Promise<BankTx[]> {
     return this.bankTxRepo.find({
-      where: { type: In([BankTxType.GSHEET, BankTxType.UNKNOWN]), iban: In(ibanList) },
+      where: {
+        type: In(BankTxUnassignedTypes),
+        iban: In(ibanList),
+        creditDebitIndicator: 'CRDT',
+      },
       relations: { transaction: true },
     });
   }
