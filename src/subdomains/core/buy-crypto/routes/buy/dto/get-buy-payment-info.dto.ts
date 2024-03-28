@@ -17,14 +17,14 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
 import { XOR } from 'src/shared/validators/xor.validator';
-import { IsDfxIban } from 'src/subdomains/supporting/bank/bank-account/is-dfx-iban.validator';
+import { IbanType, IsDfxIban } from 'src/subdomains/supporting/bank/bank-account/is-dfx-iban.validator';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 
 export class GetBuyPaymentInfoDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @IsDfxIban()
+  @IsDfxIban(IbanType.BUY)
   @Transform(Util.trim)
   iban?: string;
 

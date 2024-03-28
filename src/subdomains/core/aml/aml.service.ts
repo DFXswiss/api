@@ -110,7 +110,13 @@ export class AmlService {
         // bank
         if (blacklist.some((b) => b.matches(SpecialExternalAccountType.BANNED_BIC, entity.bankTx.bic)))
           errors.push(AmlError.BIC_BLACKLISTED);
-        if (blacklist.some((b) => b.matches(SpecialExternalAccountType.BANNED_IBAN, entity.bankTx.iban)))
+        if (
+          blacklist.some(
+            (b) =>
+              b.matches(SpecialExternalAccountType.BANNED_IBAN, entity.bankTx.iban) ||
+              b.matches(SpecialExternalAccountType.BANNED_IBAN_BUY, entity.bankTx.iban),
+          )
+        )
           errors.push(AmlError.IBAN_BLACKLISTED);
         if (instantBanks?.some((b) => b.iban === entity.bankTx.accountIban)) {
           if (!entity.userData.olkypayAllowed) errors.push(AmlError.INSTANT_NOT_ALLOWED);
@@ -119,14 +125,26 @@ export class AmlService {
       } else if (entity.checkoutTx) {
         // checkout
         if (!entity.target.asset.cardBuyable) errors.push(AmlError.ASSET_NOT_CARD_BUYABLE);
-        if (blacklist.some((b) => b.matches(SpecialExternalAccountType.BANNED_IBAN, entity.checkoutTx.cardFingerPrint)))
+        if (
+          blacklist.some(
+            (b) =>
+              b.matches(SpecialExternalAccountType.BANNED_IBAN, entity.checkoutTx.cardFingerPrint) ||
+              b.matches(SpecialExternalAccountType.BANNED_IBAN_BUY, entity.checkoutTx.cardFingerPrint),
+          )
+        )
           errors.push(AmlError.CARD_BLACKLISTED);
         if (last7dVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
       }
     } else {
       // buyFiat
       if (!entity.target.asset.sellable) errors.push(AmlError.ASSET_NOT_SELLABLE);
-      if (blacklist.some((b) => b.matches(SpecialExternalAccountType.BANNED_IBAN, entity.sell.iban)))
+      if (
+        blacklist.some(
+          (b) =>
+            b.matches(SpecialExternalAccountType.BANNED_IBAN, entity.sell.iban) ||
+            b.matches(SpecialExternalAccountType.BANNED_IBAN_SELL, entity.sell.iban),
+        )
+      )
         errors.push(AmlError.IBAN_BLACKLISTED);
     }
 
