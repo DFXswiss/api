@@ -147,8 +147,8 @@ export class TransactionDto extends UnassignedTransactionDto {
 
 export class TransactionDetailDto extends TransactionDto {
   @ApiPropertyOptional()
-  sourceAccount: string;
+  sourceAccount?: string;
 
   @ApiPropertyOptional()
-  targetAccount: string;
+  targetAccount?: string;
 }

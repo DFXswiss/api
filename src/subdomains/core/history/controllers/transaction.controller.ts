@@ -69,33 +69,21 @@ export class TransactionController {
   async getTransactionDetails(
     @GetJwt() jwt: JwtPayload,
     @Query() query: TransactionFilter,
-    @Res({ passthrough: true }) res: Response,
-  ): Promise<TransactionDetailDto[] | StreamableFile> {
-    const user = await this.userService.getUser(jwt.id, { userData: { users: true } });
-    const txList = await this.transactionService.getTransactionsForUsers(user.userData.users, query.from, query.to);
+  ): Promise<TransactionDetailDto[]> {
+    return this.getAllTransactions(jwt.id, query);
+  }
 
-    // map to DTO
-    const dtoList = await Util.asyncMap(txList, async (tx) => {
-      if (tx.buyCrypto) {
-        const bc = await this.buyCryptoWebhookService.extendBuyCrypto(tx.buyCrypto);
-        return TransactionDtoMapper.mapBuyCryptoTransactionDetail(bc);
-      } else if (tx.buyFiat) {
-        const bf = await this.buyFiatService.extendBuyFiat(tx.buyFiat);
-        return TransactionDtoMapper.mapBuyFiatTransactionDetail(bf);
-      } else if (tx.refReward) {
-        const rr = await this.refRewardService.extendReward(tx.refReward);
-        return TransactionDtoMapper.mapReferralRewardDetail(rr);
-      }
+  @Post('detail/csv')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiCreatedResponse()
+  @ApiOperation({ description: 'Initiate CSV history export' })
+  async createDetailCsv(@GetJwt() jwt: JwtPayload, @Query() query: TransactionFilter): Promise<string> {
+    const transactions = await this.getAllTransactions(jwt.id, query);
 
-      return undefined;
-    }).then((list) => list.filter((dto) => dto));
+    const csvFile = this.historyService.getCsv(transactions, ExportType.COMPACT);
 
-    if (query.format === ExportFormat.CSV) {
-      this.setCsvResult(res, ExportType.COMPACT);
-      return this.historyService.getCsv(dtoList, ExportType.COMPACT);
-    }
-
-    return dtoList;
+    return this.cacheCsv(csvFile);
   }
 
   @Get('unassigned')
@@ -139,31 +127,27 @@ export class TransactionController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiCreatedResponse()
-  @ApiOperation({ description: 'Initiate csv history export' })
+  @ApiOperation({ description: 'Initiate CSV history export' })
   async createCsv(@GetJwt() jwt: JwtPayload, @Query() query: HistoryQueryExportType): Promise<string> {
     const csvFile = await this.historyService.getCsvHistory(
       { ...query, userAddress: jwt.address, format: ExportFormat.CSV },
       query.type,
     );
-    const fileKey = Util.randomId().toString();
-    this.files[fileKey] = csvFile;
 
-    return fileKey;
+    return this.cacheCsv(csvFile);
   }
 
   @Get('csv')
   @ApiBearerAuth()
   @ApiOkResponse({ type: StreamableFile })
-  @ApiOperation({ description: 'Get initiated csv history export' })
+  @ApiOperation({ description: 'Get initiated CSV history export' })
   async getCsv(@Query('key') key: string, @Res({ passthrough: true }) res: Response): Promise<StreamableFile> {
     const csvFile = this.files[key];
     if (!csvFile) throw new NotFoundException('File not found');
     delete this.files[key];
 
-    res.set({
-      'Content-Type': 'text/csv',
-      'Content-Disposition': `attachment; filename="DFX_history_${this.formatDate()}.csv"`,
-    });
+    this.setCsvResult(res, ExportType.COMPACT);
+
     return csvFile;
   }
 
@@ -183,10 +167,38 @@ export class TransactionController {
     return tx;
   }
 
+  private cacheCsv(csvFile: StreamableFile): string {
+    const fileKey = Util.randomId().toString();
+    this.files[fileKey] = csvFile;
+
+    return fileKey;
+  }
+
   private setCsvResult(res: Response, exportType: ExportType) {
     res.set({
       'Content-Type': 'text/csv',
       'Content-Disposition': `attachment; filename="DFX_${exportType}_history_${this.formatDate()}.csv"`,
     });
+  }
+
+  private async getAllTransactions(userId: number, query: TransactionFilter) {
+    const user = await this.userService.getUser(userId, { userData: { users: true } });
+    const txList = await this.transactionService.getTransactionsForUsers(user.userData.users, query.from, query.to);
+
+    // map to DTO
+    return Util.asyncMap(txList, async (tx) => {
+      if (tx.buyCrypto) {
+        const bc = await this.buyCryptoWebhookService.extendBuyCrypto(tx.buyCrypto);
+        return TransactionDtoMapper.mapBuyCryptoTransactionDetail(bc);
+      } else if (tx.buyFiat) {
+        const bf = await this.buyFiatService.extendBuyFiat(tx.buyFiat);
+        return TransactionDtoMapper.mapBuyFiatTransactionDetail(bf);
+      } else if (tx.refReward) {
+        const rr = await this.refRewardService.extendReward(tx.refReward);
+        return TransactionDtoMapper.mapReferralRewardDetail(rr);
+      }
+
+      return undefined;
+    }).then((list) => list.filter((dto) => dto));
   }
 }
