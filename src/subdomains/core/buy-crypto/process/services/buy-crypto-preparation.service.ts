@@ -120,15 +120,7 @@ export class BuyCryptoPreparationService {
 
         const inputReferenceAssetChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
 
-        const { minVolume } = await this.transactionHelper.getTxFeeInfos(
-          entity.inputReferenceAmount,
-          inputCurrency,
-          inputReferenceCurrency,
-          entity.target.asset,
-          entity.paymentMethodIn,
-          CryptoPaymentMethod.CRYPTO,
-          entity.user,
-        );
+        const minVolume = await this.transactionHelper.getMinVolumeIn(inputCurrency, inputReferenceCurrency, false);
 
         const last24hVolume = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,

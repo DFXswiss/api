@@ -10,11 +10,11 @@ import {
   MailTranslationKey,
 } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { In, IsNull, Not } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { AmlReason, AmlReasonWithoutReason, KycAmlReasons } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
-import { BuyCryptoAmlReasonPendingStates } from '../entities/buy-crypto.entity';
+import { BuyCrypto, BuyCryptoAmlReasonPendingStates } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 
 @Injectable()
@@ -152,14 +152,18 @@ export class BuyCryptoNotificationService {
   }
 
   async paybackToAddressInitiated(): Promise<void> {
+    const search: FindOptionsWhere<BuyCrypto> = {
+      mailSendDate: IsNull(),
+      outputAmount: IsNull(),
+      chargebackDate: Not(IsNull()),
+      amlReason: Not(IsNull()),
+      amlCheck: CheckStatus.FAIL,
+    };
     const entities = await this.buyCryptoRepo.find({
-      where: {
-        mailSendDate: IsNull(),
-        outputAmount: IsNull(),
-        chargebackDate: Not(IsNull()),
-        amlReason: Not(IsNull()),
-        amlCheck: CheckStatus.FAIL,
-      },
+      where: [
+        { ...search, chargebackBankTx: Not(IsNull()) },
+        { ...search, chargebackCryptoTxId: Not(IsNull()) },
+      ],
       relations: [
         'buy',
         'buy.user',
