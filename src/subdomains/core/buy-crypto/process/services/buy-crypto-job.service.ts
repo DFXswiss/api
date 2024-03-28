@@ -31,6 +31,7 @@ export class BuyCryptoJobService {
   @Lock(7200)
   async process() {
     if (DisabledProcess(Process.BUY_CRYPTO)) return;
+    if (!DisabledProcess(Process.AUTO_AML_CHECK)) await this.buyCryptoPreparationService.doNameCheck();
     if (!DisabledProcess(Process.AUTO_AML_CHECK)) await this.buyCryptoPreparationService.doAmlCheck();
     if (!DisabledProcess(Process.BUY_CRYPTO_SET_FEE)) await this.buyCryptoPreparationService.refreshFee();
     await this.buyCryptoPreparationService.prepareTransactions();

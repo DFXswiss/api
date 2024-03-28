@@ -55,6 +55,13 @@ export class NameCheckService implements OnModuleInit {
     return RiskStatus.SANCTIONED;
   }
 
+  async hasOpenNameChecks(userData: UserData): Promise<boolean> {
+    return this.nameCheckLogRepo.exist({
+      where: { userData: { id: userData.id }, riskEvaluation: IsNull(), riskStatus: RiskStatus.SANCTIONED },
+      relations: { userData: true },
+    });
+  }
+
   // --- HELPER METHODS --- //
 
   private async createNameCheckLog(bankData: BankData, result: string, riskRate: RiskStatus): Promise<void> {
@@ -78,13 +85,6 @@ export class NameCheckService implements OnModuleInit {
 
     !(await this.hasOpenNameChecks(entity.userData)) &&
       (await this.userDataService.refreshLastNameCheckDate(bankData.userData));
-  }
-
-  private async hasOpenNameChecks(userData: UserData): Promise<boolean> {
-    return this.nameCheckLogRepo.exist({
-      where: { userData: { id: userData.id }, riskEvaluation: IsNull(), riskStatus: RiskStatus.SANCTIONED },
-      relations: { userData: true },
-    });
   }
 
   // TODO Dilisense JSON solution

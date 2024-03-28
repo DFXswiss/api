@@ -1,3 +1,5 @@
+import { AmlReason } from './aml-reason.enum';
+
 export enum AmlError {
   MIN_VOLUME_NOT_REACHED = 'MinVolumeNotReached',
   KYC_LEVEL_30_NOT_REACHED = 'KycLevel30NotReached',
@@ -19,8 +21,8 @@ export enum AmlError {
   NO_LETTER = 'NoLetter',
   NO_AML_LIST = 'NoAmlList',
   NO_KYC_FILE_ID = 'NoKycFileId',
-  NO_NAME_CHECK = 'NoNameCheck',
-  OUTDATED_NAME_CHECK = 'OutdatedNameCheck',
+  NAME_CHECK_WITHOUT_KYC = 'NameCheckWithoutKYC',
+  NAME_CHECK_WITH_BIRTHDAY = 'NameCheckWithBirthday',
   WEEKLY_LIMIT_REACHED = 'WeeklyLimitReached',
   MONTHLY_LIMIT_REACHED = 'MonthlyLimitReached',
   DEPOSIT_LIMIT_REACHED = 'DepositLimitReached',
@@ -36,4 +38,40 @@ export enum AmlError {
   SUSPICIOUS_MAIL = 'SuspiciousMail',
 }
 
-export const AmlPendingError = [AmlError.IP_MISMATCH, AmlError.SUSPICIOUS_MAIL, AmlError.WEEKLY_LIMIT_REACHED];
+export const AmlErrorReasons: { [b in AmlError]: AmlReason } = {
+  [AmlError.ASSET_NOT_BUYABLE]: null,
+  [AmlError.MIN_VOLUME_NOT_REACHED]: null,
+  [AmlError.KYC_LEVEL_30_NOT_REACHED]: null,
+  [AmlError.KYC_LEVEL_50_NOT_REACHED]: null,
+  [AmlError.KYC_LEVEL_TOO_LOW]: null,
+  [AmlError.ASSET_NOT_SELLABLE]: null,
+  [AmlError.ASSET_NOT_INSTANT_BUYABLE]: null,
+  [AmlError.ASSET_NOT_CARD_BUYABLE]: null,
+  [AmlError.INSTANT_NOT_ALLOWED]: null,
+  [AmlError.CRYPTO_CRYPTO_NOT_ALLOWED]: null,
+  [AmlError.INVALID_USER_STATUS]: null,
+  [AmlError.INVALID_USER_DATA_STATUS]: null,
+  [AmlError.INVALID_KYC_STATUS]: null,
+  [AmlError.INVALID_KYC_TYPE]: null,
+  [AmlError.NO_VERIFIED_NAME]: null,
+  [AmlError.NO_VERIFIED_COUNTRY]: null,
+  [AmlError.NO_BANK_TX_VERIFICATION]: null,
+  [AmlError.NO_LETTER]: null,
+  [AmlError.NO_AML_LIST]: null,
+  [AmlError.NO_KYC_FILE_ID]: null,
+  [AmlError.NAME_CHECK_WITHOUT_KYC]: AmlReason.NAME_CHECK_WITHOUT_KYC,
+  [AmlError.NAME_CHECK_WITH_BIRTHDAY]: AmlReason.MANUAL_CHECK,
+  [AmlError.WEEKLY_LIMIT_REACHED]: AmlReason.MANUAL_CHECK,
+  [AmlError.MONTHLY_LIMIT_REACHED]: null,
+  [AmlError.DEPOSIT_LIMIT_REACHED]: null,
+  [AmlError.BANK_DATA_MISSING]: null,
+  [AmlError.BANK_DATA_NOT_ACTIVE]: null,
+  [AmlError.BANK_DATA_USER_MISMATCH]: null,
+  [AmlError.BIC_BLACKLISTED]: null,
+  [AmlError.IBAN_BLACKLISTED]: null,
+  [AmlError.CARD_BLACKLISTED]: null,
+  [AmlError.INPUT_AML_CHECK_FAILED]: null,
+  [AmlError.INPUT_NOT_CONFIRMED]: null,
+  [AmlError.IP_MISMATCH]: AmlReason.MANUAL_CHECK,
+  [AmlError.SUSPICIOUS_MAIL]: AmlReason.MANUAL_CHECK,
+};
