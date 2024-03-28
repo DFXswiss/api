@@ -92,7 +92,7 @@ export class TransactionController {
   }
 
   @Get('ChainReport')
-  @ApiOkResponse({ status: 200, type: ChainReportCsvHistoryDto, isArray: true })
+  @ApiOkResponse({ type: ChainReportCsvHistoryDto, isArray: true })
   @ApiExcludeEndpoint()
   async getCsvChainReport(
     @Query() query: HistoryQueryUser,
@@ -170,12 +170,15 @@ export class TransactionController {
     if (!transaction.bankTx) throw new NotFoundException('Transaction not found');
     if (!BankTxTypeUnassigned(transaction.bankTx.type)) throw new ConflictException('Transaction already assigned');
 
+    const buy = await this.buyService.get(jwt.id, +buyId);
+    if (!buy) throw new NotFoundException('Buy not found');
+
     const user = await this.userService.getUser(jwt.id, { userData: true });
     const bankDatas = await this.bankDataService.getBankDatasForUser(user.userData.id);
     if (!bankDatas.some((b) => b.iban === transaction.bankTx.iban))
       throw new ForbiddenException('You can only assign your own transaction');
 
-    await this.bankTxService.update(transaction.bankTx.id, { type: BankTxType.BUY_CRYPTO, buyId: +buyId });
+    await this.bankTxService.update(transaction.bankTx.id, { type: BankTxType.BUY_CRYPTO, buyId: buy.id });
   }
 
   // --- CSV ENDPOINTS --- //
