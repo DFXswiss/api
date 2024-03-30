@@ -16,7 +16,7 @@ import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { Transaction } from '../../../supporting/payment/entities/transaction.entity';
 import { AmlHelperService } from '../../aml/aml-helper.service';
-import { AmlErrorReasons } from '../../aml/enums/aml-error.enum';
+import { AmlErrorReasons, FailedAmlErrors, PendingAmlErrors } from '../../aml/enums/aml-error.enum';
 import { AmlReason } from '../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { Sell } from '../route/sell.entity';
@@ -305,8 +305,13 @@ export class BuyFiat extends IEntity {
     const update: Partial<BuyFiat> =
       amlErrors.length === 0
         ? { amlCheck: CheckStatus.PASS, amlReason: AmlReason.NA }
-        : amlErrors.every((e) => AmlErrorReasons[e])
-        ? { amlCheck: CheckStatus.PENDING, amlReason: AmlErrorReasons[amlErrors[0]] }
+        : amlErrors.every((e) => PendingAmlErrors.includes(e) && AmlErrorReasons[e])
+        ? {
+            amlCheck: CheckStatus.PENDING,
+            amlReason: AmlErrorReasons[amlErrors.find((e) => PendingAmlErrors.includes(e))],
+          }
+        : amlErrors.some((e) => FailedAmlErrors.includes(e) && AmlErrorReasons[e])
+        ? { amlCheck: CheckStatus.FAIL, amlReason: AmlErrorReasons[amlErrors.find((e) => FailedAmlErrors.includes(e))] }
         : Util.minutesDiff(this.created) >= 10
         ? { amlCheck: CheckStatus.GSHEET, comment }
         : { comment };
