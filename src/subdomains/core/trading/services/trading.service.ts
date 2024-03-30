@@ -118,7 +118,7 @@ export class TradingService {
         `Pool balance ${checkPoolBalance} is lower than required output amount ${amountOut}`,
       );
 
-    const maxAllowedLoopCounter = 10;
+    const maxAllowedLoopCounter = 100;
     let currentLoopCounter = 0;
 
     while (checkPriceImpact !== calcPriceImpact.toFixed(6)) {
