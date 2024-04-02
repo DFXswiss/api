@@ -306,7 +306,7 @@ export class BuyFiat extends IEntity {
       amlErrors.length === 0
         ? { amlCheck: CheckStatus.PASS, amlReason: AmlReason.NA }
         : amlErrors.every((e) => AmlErrorReasons[e])
-        ? { amlCheck: CheckStatus.PENDING, amlReason: AmlErrorReasons[amlErrors[0]] }
+        ? { amlCheck: CheckStatus.PENDING, amlReason: AmlErrorReasons[amlErrors[0]], comment }
         : Util.minutesDiff(this.created) >= 10
         ? { amlCheck: CheckStatus.GSHEET, comment }
         : { comment };

@@ -12,6 +12,10 @@ export class UpdateUserAdminDto {
   comment: string;
 
   @IsOptional()
+  @IsString()
+  usedRef: string;
+
+  @IsOptional()
   @IsEnum(UserRole)
   role: UserRole;
 
