@@ -1,6 +1,6 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Entity, Column } from 'typeorm';
-import { MailContext, NotificationType } from '../enums';
+import { Column, Entity } from 'typeorm';
+import { MailContext, MailType } from '../enums';
 import { NotificationSuppressedException } from '../exceptions/notification-suppressed.exception';
 
 export interface NotificationMetadata {
@@ -16,7 +16,7 @@ export interface NotificationOptions {
 @Entity()
 export class Notification extends IEntity {
   @Column({ length: 256, nullable: false })
-  type: NotificationType;
+  type: MailType;
 
   @Column({ length: 256, nullable: false })
   context: MailContext;
@@ -24,25 +24,23 @@ export class Notification extends IEntity {
   @Column({ length: 'MAX', nullable: false })
   correlationId: string;
 
+  @Column({ length: 'MAX', default: '-' })
+  data: string;
+
   @Column({ type: 'datetime2', nullable: false })
-  sendDate: Date;
+  lastTryDate: Date;
+
+  @Column({ default: false })
+  isComplete: boolean;
+
+  @Column({ length: 'MAX', nullable: true })
+  error: string;
 
   @Column({ nullable: false, default: false })
   suppressRecurring: boolean;
 
   @Column({ type: 'float', nullable: true })
   debounce: number;
-
-  protected create(type: NotificationType, metadata?: NotificationMetadata, options?: NotificationOptions) {
-    this.sendDate = new Date();
-    this.type = type;
-
-    this.context = metadata?.context;
-    this.correlationId = metadata?.correlationId;
-
-    this.suppressRecurring = options?.suppressRecurring;
-    this.debounce = options?.debounce;
-  }
 
   shouldAbortGiven(existingNotification: Notification): void {
     if (this.isSameNotification(existingNotification)) {
@@ -69,7 +67,7 @@ export class Notification extends IEntity {
   }
 
   private isDebounced(existingNotification: Notification): boolean {
-    return this.debounce && Date.now() < existingNotification.sendDate.getTime() + existingNotification.debounce;
+    return this.debounce && Date.now() < existingNotification.lastTryDate.getTime() + existingNotification.debounce;
   }
 
   private hasMandatoryParams(): boolean {

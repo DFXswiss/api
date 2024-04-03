@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { CreateMailInput } from '../dto/create-mail.dto';
 import { Notification, NotificationMetadata } from '../entities/notification.entity';
 import { NotificationSuppressedException } from '../exceptions/notification-suppressed.exception';
 import { MailFactory } from '../factories/mail.factory';
@@ -25,7 +26,7 @@ export class NotificationService {
       await this.persist(mail);
 
       await this.mailService.send(mail);
-      await this.mailService.createOrUpdate({
+      await this.createOrUpdate({
         type: request.type,
         context: request.context,
         data: JSON.stringify(request.input),
@@ -33,7 +34,7 @@ export class NotificationService {
         lastTryDate: new Date(),
       });
     } catch (e) {
-      await this.mailService.createOrUpdate({
+      await this.createOrUpdate({
         type: request.type,
         context: request.context,
         data: JSON.stringify(request.input),
@@ -46,6 +47,27 @@ export class NotificationService {
   }
 
   //*** HELPER METHODS ***//
+
+  private async createOrUpdate(dto: CreateMailInput): Promise<Notification> {
+    const existing = await this.notificationRepo.findOne({
+      where: {
+        type: dto.type,
+        context: dto.context,
+        data: dto.data,
+        isComplete: dto.isComplete,
+        error: dto.error,
+      },
+    });
+    if (existing) {
+      Object.assign(existing, dto);
+
+      return this.notificationRepo.save(existing);
+    }
+
+    const entity = this.notificationRepo.create(dto);
+
+    return this.notificationRepo.save(entity);
+  }
 
   private async verify(newNotification: Notification): Promise<void> {
     const { correlationId, context } = newNotification;

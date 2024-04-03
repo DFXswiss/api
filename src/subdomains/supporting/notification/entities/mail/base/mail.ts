@@ -1,5 +1,4 @@
 import { GetConfig } from 'src/config/config';
-import { NotificationType } from 'src/subdomains/supporting/notification/enums';
 import { Notification, NotificationMetadata, NotificationOptions } from '../../notification.entity';
 
 export interface MailParams {
@@ -51,7 +50,6 @@ export class MailBase extends Notification {
 
   constructor(params: MailParams | MailParamsNew) {
     super();
-    this.create(NotificationType.MAIL, params.metadata, params.options);
 
     this.#to = params.to;
     this.#subject = params.subject;

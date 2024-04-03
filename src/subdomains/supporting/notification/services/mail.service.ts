@@ -1,10 +1,7 @@
 import { MailerOptions, MailerService } from '@nestjs-modules/mailer';
 import { Injectable } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { CreateMailInput } from '../dto/create-mail.dto';
-import { Mail } from '../entities/mail.entity';
 import { MailBase } from '../entities/mail/base/mail';
-import { MailRepository } from '../repositories/mail.repository';
 
 export interface MailOptions {
   options: MailerOptions;
@@ -21,28 +18,7 @@ export interface MailOptions {
 export class MailService {
   private readonly logger = new DfxLogger(MailService);
 
-  constructor(private readonly mailerService: MailerService, private readonly mailRepo: MailRepository) {}
-
-  async createOrUpdate(dto: CreateMailInput): Promise<Mail> {
-    const existing = await this.mailRepo.findOne({
-      where: {
-        type: dto.type,
-        context: dto.context,
-        data: dto.data,
-        isComplete: dto.isComplete,
-        error: dto.error,
-      },
-    });
-    if (existing) {
-      Object.assign(existing, dto);
-
-      return this.mailRepo.save(existing);
-    }
-
-    const entity = this.mailRepo.create(dto);
-
-    return this.mailRepo.save(entity);
-  }
+  constructor(private readonly mailerService: MailerService) {}
 
   async send(mail: MailBase): Promise<void> {
     try {
