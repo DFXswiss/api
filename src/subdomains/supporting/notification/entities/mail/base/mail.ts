@@ -1,7 +1,7 @@
 import { GetConfig } from 'src/config/config';
 import { Notification, NotificationMetadata, NotificationOptions } from '../../notification.entity';
 
-export interface MailParams {
+export interface MailParamBase {
   to: string | string[];
   subject: string;
   from?: string;
@@ -9,6 +9,11 @@ export interface MailParams {
   cc?: string;
   bcc?: string;
   template?: string;
+  options?: NotificationOptions;
+  metadata?: NotificationMetadata;
+}
+
+export interface MailParams extends MailParamBase {
   templateParams?: {
     salutation: string;
     body: string;
@@ -19,21 +24,10 @@ export interface MailParams {
     linkedinUrl?: string;
     instagramUrl?: string;
   };
-  options?: NotificationOptions;
-  metadata?: NotificationMetadata;
 }
 
-export interface MailParamsNew {
-  to: string | string[];
-  subject: string;
-  from?: string;
-  displayName?: string;
-  cc?: string;
-  bcc?: string;
-  template?: string;
+export interface MailParamsNew extends MailParamBase {
   templateParams?: any;
-  options?: NotificationOptions;
-  metadata?: NotificationMetadata;
 }
 
 export class MailBase extends Notification {
