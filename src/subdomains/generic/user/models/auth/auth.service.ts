@@ -71,11 +71,19 @@ export class AuthService {
   }
 
   // --- AUTH METHODS --- //
+  async authenticate(dto: CreateUserDto, userIp: string): Promise<AuthResponseDto> {
+    const existingUser = await this.userRepo.getByAddress(dto.address, true);
+    return existingUser ? this.doSignIn(existingUser, dto, userIp, false) : this.doSignUp(dto, userIp, false);
+  }
 
   async signUp(dto: CreateUserDto, userIp: string, isCustodial = false): Promise<AuthResponseDto> {
     const existingUser = await this.userRepo.getByAddress(dto.address, true);
     if (existingUser) throw new ConflictException('User already exists');
 
+    return this.doSignUp(dto, userIp, isCustodial);
+  }
+
+  private async doSignUp(dto: CreateUserDto, userIp: string, isCustodial: boolean) {
     const keyWallet = await this.walletService.getWithMasterKey(dto.signature);
     if (keyWallet) {
       dto.signature = `${this.masterKeyPrefix}${keyWallet.id}`;
@@ -92,12 +100,17 @@ export class AuthService {
     return { accessToken: this.generateUserToken(user, userIp) };
   }
 
-  async signIn(dto: AuthCredentialsDto, ip: string, isCustodial = false): Promise<AuthResponseDto> {
+  async signIn(dto: AuthCredentialsDto, userIp: string, isCustodial = false): Promise<AuthResponseDto> {
     const isCompany = this.hasChallenge(dto.address);
-    if (isCompany) return this.companySignIn(dto, ip);
+    if (isCompany) return this.companySignIn(dto, userIp);
 
     const user = await this.userRepo.getByAddress(dto.address, true);
     if (!user) throw new NotFoundException('User not found');
+
+    return this.doSignIn(user, dto, userIp, isCustodial);
+  }
+
+  private async doSignIn(user: User, dto: AuthCredentialsDto, userIp: string, isCustodial: boolean) {
     if (user.status === UserStatus.BLOCKED) throw new ConflictException('User is blocked');
 
     const keyWalletId =
@@ -106,13 +119,11 @@ export class AuthService {
     if (keyWalletId) {
       const wallet = await this.walletService.getByIdOrName(keyWalletId);
       if (dto.signature !== wallet.masterKey) throw new UnauthorizedException('Invalid credentials');
-    } else {
-      if (!(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature))) {
-        throw new UnauthorizedException('Invalid credentials');
-      } else if (!user.signature) {
-        // TODO: temporary code to update empty signatures
-        await this.userRepo.update({ address: dto.address }, { signature: dto.signature });
-      }
+    } else if (!(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature))) {
+      throw new UnauthorizedException('Invalid credentials');
+    } else if (!user.signature) {
+      // TODO: temporary code to update empty signatures
+      await this.userRepo.update({ address: dto.address }, { signature: dto.signature });
     }
 
     try {
@@ -121,7 +132,7 @@ export class AuthService {
       this.logger.warn(`Error while adding discountCode in user signIn ${user.id}:`, e);
     }
 
-    return { accessToken: this.generateUserToken(user, ip) };
+    return { accessToken: this.generateUserToken(user, userIp) };
   }
 
   async signInByMail(dto: AuthMailDto): Promise<void> {

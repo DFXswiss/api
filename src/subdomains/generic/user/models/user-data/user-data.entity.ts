@@ -5,7 +5,7 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { KycStep, KycStepResult } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
@@ -470,6 +470,10 @@ export class UserData extends IEntity {
     if (kycStep.isFailed) this.failStep(kycStep);
 
     return this;
+  }
+
+  get hasSuspiciousMail(): boolean {
+    return (this.mail?.split('@')[0].match(/\d/g) ?? []).length > 2;
   }
 
   getStep(stepId: number): KycStep | undefined {

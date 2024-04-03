@@ -12,7 +12,7 @@ import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { DataSource } from 'typeorm';
-import { KycFile } from '../kyc/dto/kyc-file.dto';
+import { File } from '../kyc/dto/kyc-file.dto';
 import { DocumentStorageService } from '../kyc/services/integration/document-storage.service';
 import { AccountType } from '../user/models/user-data/account-type.enum';
 import { UserData } from '../user/models/user-data/user-data.entity';
@@ -109,7 +109,7 @@ export class GsService {
     }
   }
 
-  private async getAllUserDocuments(userDataId: number, accountType: AccountType): Promise<KycFile[]> {
+  private async getAllUserDocuments(userDataId: number, accountType: AccountType): Promise<File[]> {
     return [
       ...(await this.documentStorageService.listUserFiles(userDataId)),
       ...(await this.documentStorageService.listSpiderFiles(userDataId, false)),

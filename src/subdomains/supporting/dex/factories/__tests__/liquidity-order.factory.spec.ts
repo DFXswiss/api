@@ -1,9 +1,9 @@
 import { mock } from 'jest-mock-extended';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
-import { LiquidityOrder, LiquidityOrderContext, LiquidityOrderType } from '../../entities/liquidity-order.entity';
+import { AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { createDefaultLiquidityOrder } from '../../entities/__mocks__/liquidity-order.entity.mock';
+import { LiquidityOrder, LiquidityOrderContext, LiquidityOrderType } from '../../entities/liquidity-order.entity';
 import {
   createCustomGetLiquidityRequest,
   createDefaultGetLiquidityRequest,
@@ -36,17 +36,17 @@ describe('LiquidityOrderFactory', () => {
       const entity = factory.createPurchaseOrder(
         createDefaultGetLiquidityRequest(),
         Blockchain.DEFICHAIN,
-        AssetCategory.CRYPTO,
+        AssetCategory.PUBLIC,
       );
 
-      expect(entity.strategy).toBe(AssetCategory.CRYPTO);
+      expect(entity.strategy).toBe(AssetCategory.PUBLIC);
     });
 
     it('calls repo create(...) with correct parameters', () => {
       factory.createPurchaseOrder(
         createCustomGetLiquidityRequest({ targetAsset: createCustomAsset({ dexName: 'TSLA' }) }),
         Blockchain.DEFICHAIN,
-        AssetCategory.CRYPTO,
+        AssetCategory.PUBLIC,
       );
 
       expect(repositoryCreateSpy).toBeCalledTimes(1);
@@ -57,7 +57,7 @@ describe('LiquidityOrderFactory', () => {
         chain: Blockchain.DEFICHAIN,
         referenceAsset: {
           blockchain: 'DeFiChain',
-          category: 'Crypto',
+          category: 'Public',
           dexName: 'BTC',
           name: 'dTSLA',
           type: 'Coin',
@@ -83,7 +83,7 @@ describe('LiquidityOrderFactory', () => {
         chain: Blockchain.DEFICHAIN,
         referenceAsset: {
           blockchain: 'DeFiChain',
-          category: 'Crypto',
+          category: 'Public',
           dexName: 'BTC',
           name: 'dTSLA',
           type: 'Coin',

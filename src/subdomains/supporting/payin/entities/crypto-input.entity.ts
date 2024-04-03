@@ -1,16 +1,18 @@
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { isBtcChain } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
-import { AmlReason } from 'src/subdomains/core/buy-crypto/process/enums/aml-reason.enum';
-import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
+import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
+import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { DepositRoute, DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
-import { Column, Entity, Index, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
+import { Transaction } from '../../payment/entities/transaction.entity';
 
 export enum PayInPurpose {
   STAKING = 'Staking',
@@ -34,7 +36,6 @@ export enum PayInStatus {
   PREPARING = 'Preparing',
   PREPARED = 'Prepared',
   COMPLETED = 'Completed',
-  WAITING_FOR_PRICE_REFERENCE = 'WaitingForPriceReference',
 }
 
 @Entity()
@@ -100,11 +101,15 @@ export class CryptoInput extends IEntity {
   @ManyToOne(() => DepositRoute, { eager: true, nullable: true })
   route: DepositRouteType;
 
-  @Column({ type: 'float', nullable: true })
-  btcAmount?: number;
+  @OneToOne(() => Transaction, { nullable: true })
+  @JoinColumn()
+  transaction: Transaction;
 
-  @Column({ type: 'float', nullable: true })
-  usdtAmount?: number;
+  @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.cryptoInput, { nullable: true })
+  buyFiat: BuyFiat;
+
+  @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.cryptoInput, { nullable: true })
+  buyCrypto: BuyCrypto;
 
   //*** FACTORY METHODS ***//
 
@@ -116,8 +121,6 @@ export class CryptoInput extends IEntity {
     blockHeight: number,
     amount: number,
     asset: Asset,
-    btcAmount: number,
-    usdtAmount: number,
   ): CryptoInput {
     const payIn = new CryptoInput();
 
@@ -130,8 +133,6 @@ export class CryptoInput extends IEntity {
     payIn.asset = asset;
 
     payIn.status = PayInStatus.CREATED;
-
-    payIn.addReferenceAmounts(btcAmount, usdtAmount);
 
     if (!payIn.asset || !payIn.amount) payIn.status = PayInStatus.FAILED;
 
@@ -256,25 +257,6 @@ export class CryptoInput extends IEntity {
     Object.assign(this, update);
 
     return [this.id, update];
-  }
-
-  addReferenceAmounts(btcAmount: number, usdtAmount: number): this {
-    if (btcAmount == null || (usdtAmount == null && !isBtcChain(this.address.blockchain))) {
-      this.status = PayInStatus.WAITING_FOR_PRICE_REFERENCE;
-      return this;
-    }
-
-    this.btcAmount = btcAmount;
-    this.usdtAmount = usdtAmount;
-
-    /**
-     * @note
-     * setting status to Created when reference amounts are added
-     * done here in addition to factory method for a retry getting reference amounts case and changing WAITING_FOR_PRICE_REFERENCE status
-     */
-    this.status = PayInStatus.CREATED;
-
-    return this;
   }
 
   get isLightningInput(): boolean {

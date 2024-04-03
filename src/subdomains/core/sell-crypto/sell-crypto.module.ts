@@ -10,7 +10,9 @@ import { FiatOutputModule } from 'src/subdomains/supporting/fiat-output/fiat-out
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PayInModule } from 'src/subdomains/supporting/payin/payin.module';
 import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
+import { TransactionModule } from 'src/subdomains/supporting/payment/transaction.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
+import { AmlModule } from '../aml/aml.module';
 import { BuyCryptoModule } from '../buy-crypto/buy-crypto.module';
 import { BuyFiatController } from './process/buy-fiat.controller';
 import { BuyFiat } from './process/buy-fiat.entity';
@@ -40,6 +42,8 @@ import { SellService } from './route/sell.service';
     forwardRef(() => AddressPoolModule),
     FiatOutputModule,
     PricingModule,
+    TransactionModule,
+    AmlModule,
   ],
   controllers: [BuyFiatController, SellController],
   providers: [

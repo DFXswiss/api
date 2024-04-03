@@ -1,7 +1,8 @@
 import { CheckoutPaymentStatus, CheckoutPaymentType } from 'src/integration/checkout/dto/checkout.dto';
 import { IEntity } from 'src/shared/models/entity';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
-import { Column, Entity, OneToOne } from 'typeorm';
+import { Column, Entity, JoinColumn, OneToOne } from 'typeorm';
+import { Transaction } from '../../payment/entities/transaction.entity';
 
 @Entity()
 export class CheckoutTx extends IEntity {
@@ -23,7 +24,7 @@ export class CheckoutTx extends IEntity {
   @Column()
   status: CheckoutPaymentStatus;
 
-  @Column()
+  @Column({ nullable: true })
   approved: boolean;
 
   @Column({ nullable: true })
@@ -39,7 +40,19 @@ export class CheckoutTx extends IEntity {
   cardName?: string;
 
   @Column({ nullable: true })
+  cardBin?: string;
+
+  @Column({ nullable: true })
+  cardLast4?: string;
+
+  @Column({ nullable: true })
   cardFingerPrint?: string;
+
+  @Column({ nullable: true })
+  cardIssuer?: string;
+
+  @Column({ nullable: true })
+  cardIssuerCountry?: string;
 
   @Column({ nullable: true })
   ip?: string;
@@ -55,4 +68,8 @@ export class CheckoutTx extends IEntity {
 
   @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.checkoutTx, { nullable: true })
   buyCrypto?: BuyCrypto;
+
+  @OneToOne(() => Transaction, { nullable: true })
+  @JoinColumn()
+  transaction: Transaction;
 }

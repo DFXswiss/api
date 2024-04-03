@@ -1,6 +1,6 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
+import { AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { LiquidityOrder, LiquidityOrderContext, LiquidityOrderType } from '../liquidity-order.entity';
 
 export function createDefaultLiquidityOrder(): LiquidityOrder {
@@ -41,7 +41,7 @@ export function createCustomLiquidityOrder(customValues: Partial<LiquidityOrder>
   entity.isComplete = keys.includes('isComplete') ? isComplete : false;
   entity.swapAsset = keys.includes('swapAsset') ? swapAsset : createCustomAsset({ dexName: 'DFI' });
   entity.swapAmount = keys.includes('swapAmount') ? swapAmount : 1;
-  entity.strategy = keys.includes('strategy') ? strategy : AssetCategory.CRYPTO;
+  entity.strategy = keys.includes('strategy') ? strategy : AssetCategory.PUBLIC;
   entity.txId = keys.includes('txId') ? txId : 'PID_01';
   entity.purchasedAmount = keys.includes('purchasedAmount') ? purchasedAmount : 2;
 

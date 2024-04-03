@@ -1,11 +1,23 @@
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
-import { Active } from 'src/shared/models/active';
+import { Active, isFiat } from 'src/shared/models/active';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { Util } from 'src/shared/utils/util';
+import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import {
+  KycRequiredReason,
+  TransactionDetailDto,
+  TransactionDto,
+  TransactionReason,
+  TransactionReasonMapper,
+  TransactionState,
+  TransactionType,
+  UnassignedTransactionDto,
+} from '../../../supporting/payment/dto/transaction.dto';
+import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { BuyCrypto, BuyCryptoStatus } from '../../buy-crypto/process/entities/buy-crypto.entity';
-import { CheckStatus } from '../../buy-crypto/process/enums/check-status.enum';
 import { RefReward, RewardStatus } from '../../referral/reward/ref-reward.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
-import { TransactionDto, TransactionState, TransactionType } from '../dto/output/transaction.dto';
 
 export class BuyCryptoExtended extends BuyCrypto {
   inputAssetEntity: Active;
@@ -22,21 +34,25 @@ export class RefRewardExtended extends RefReward {
 export class TransactionDtoMapper {
   static mapBuyCryptoTransaction(buyCrypto: BuyCryptoExtended): TransactionDto {
     const dto: TransactionDto = {
+      id: buyCrypto.transaction?.id,
       type: buyCrypto.isCryptoCryptoTransaction ? TransactionType.CONVERT : TransactionType.BUY,
-      state: getTransactionState(buyCrypto),
-      inputAmount: buyCrypto.inputAmount,
+      ...getTransactionStateDetails(buyCrypto),
+      inputAmount: Util.roundReadable(buyCrypto.inputAmount, isFiat(buyCrypto.inputAssetEntity)),
       inputAsset: buyCrypto.inputAsset,
       inputAssetId: buyCrypto.inputAssetEntity.id,
       inputBlockchain: buyCrypto.cryptoInput?.asset.blockchain,
       inputPaymentMethod: buyCrypto.paymentMethodIn,
       ...(buyCrypto.outputAmount ? buyCrypto.exchangeRate : null),
-      outputAmount: buyCrypto.outputAmount,
+      outputAmount: Util.roundReadable(buyCrypto.outputAmount, false),
       outputAsset: buyCrypto.outputAsset?.name,
       outputAssetId: buyCrypto.outputAsset?.id,
       outputBlockchain: buyCrypto.target.asset.blockchain,
       outputPaymentMethod: CryptoPaymentMethod.CRYPTO,
       feeAmount: buyCrypto.totalFeeAmount
-        ? (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount
+        ? Util.roundReadable(
+            (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount,
+            isFiat(buyCrypto.inputAssetEntity),
+          )
         : null,
       feeAsset: buyCrypto.totalFeeAmount ? buyCrypto.inputAsset : null,
       inputTxId: buyCrypto.cryptoInput?.inTxId ?? null,
@@ -45,11 +61,19 @@ export class TransactionDtoMapper {
         : null,
       outputTxId: buyCrypto.txId,
       outputTxUrl: buyCrypto.txId ? txExplorerUrl(buyCrypto.target.asset.blockchain, buyCrypto.txId) : null,
-      date: buyCrypto.outputDate,
+      date: buyCrypto.outputDate ?? buyCrypto.chargebackDate ?? buyCrypto.updated,
       externalTransactionId: buyCrypto.externalTransactionId,
     };
 
     return Object.assign(new TransactionDto(), dto);
+  }
+
+  static mapBuyCryptoTransactionDetail(buyCrypto: BuyCryptoExtended): TransactionDetailDto {
+    return {
+      ...this.mapBuyCryptoTransaction(buyCrypto),
+      sourceAccount: buyCrypto.bankTx?.iban,
+      targetAccount: buyCrypto.user?.address,
+    };
   }
 
   static mapBuyCryptoTransactions(buyCryptos: BuyCryptoExtended[]): TransactionDto[] {
@@ -58,34 +82,46 @@ export class TransactionDtoMapper {
 
   static mapBuyFiatTransaction(buyFiat: BuyFiatExtended): TransactionDto {
     const dto: TransactionDto = {
+      id: buyFiat.transaction?.id,
       type: TransactionType.SELL,
-      state: getTransactionState(buyFiat),
-      inputAmount: buyFiat.inputAmount,
+      ...getTransactionStateDetails(buyFiat),
+      inputAmount: Util.roundReadable(buyFiat.inputAmount, isFiat(buyFiat.inputAssetEntity)),
       inputAsset: buyFiat.inputAsset,
       inputAssetId: buyFiat.inputAssetEntity.id,
       inputBlockchain: buyFiat.cryptoInput?.asset.blockchain,
       inputPaymentMethod: CryptoPaymentMethod.CRYPTO,
       ...(buyFiat.outputAmount ? buyFiat.exchangeRate : null),
-      outputAmount: buyFiat.outputAmount,
+      outputAmount: Util.roundReadable(buyFiat.outputAmount, true),
       outputAsset: buyFiat.outputAsset?.name,
       outputAssetId: buyFiat.outputAsset?.id,
       outputBlockchain: null,
       outputPaymentMethod: FiatPaymentMethod.BANK,
       feeAmount: buyFiat.totalFeeAmount
-        ? (buyFiat.totalFeeAmount / buyFiat.inputReferenceAmount) * buyFiat.inputAmount
+        ? Util.roundReadable(
+            (buyFiat.totalFeeAmount / buyFiat.inputReferenceAmount) * buyFiat.inputAmount,
+            isFiat(buyFiat.inputAssetEntity),
+          )
         : null,
       feeAsset: buyFiat.totalFeeAmount ? buyFiat.inputAsset : null,
       inputTxId: buyFiat.cryptoInput?.inTxId ?? null,
       inputTxUrl: buyFiat?.cryptoInput
         ? txExplorerUrl(buyFiat.cryptoInput.asset.blockchain, buyFiat.cryptoInput.inTxId)
         : null,
-      outputTxId: buyFiat.fiatOutput?.remittanceInfo ?? null,
+      outputTxId: buyFiat.bankTx?.remittanceInfo ?? null,
       outputTxUrl: null,
-      date: buyFiat.outputDate,
+      date: buyFiat.outputDate ?? buyFiat.cryptoReturnDate ?? buyFiat.updated,
       externalTransactionId: buyFiat.externalTransactionId,
     };
 
     return Object.assign(new TransactionDto(), dto);
+  }
+
+  static mapBuyFiatTransactionDetail(buyFiat: BuyFiatExtended): TransactionDetailDto {
+    return {
+      ...this.mapBuyFiatTransaction(buyFiat),
+      sourceAccount: null,
+      targetAccount: buyFiat.bankTx?.iban,
+    };
   }
 
   static mapBuyFiatTransactions(buyFiats: BuyFiatExtended[]): TransactionDto[] {
@@ -94,8 +130,9 @@ export class TransactionDtoMapper {
 
   static mapReferralReward(refReward: RefRewardExtended): TransactionDto {
     const dto: TransactionDto = {
+      id: refReward.transaction?.id,
       type: TransactionType.REFERRAL,
-      state: getTransactionState(refReward),
+      ...getTransactionStateDetails(refReward),
       inputAmount: null,
       inputAsset: null,
       inputAssetId: null,
@@ -103,7 +140,7 @@ export class TransactionDtoMapper {
       inputPaymentMethod: null,
       exchangeRate: null,
       rate: null,
-      outputAmount: refReward.outputAmount,
+      outputAmount: Util.roundReadable(refReward.outputAmount, isFiat(refReward.outputAssetEntity)),
       outputAsset: refReward.outputAsset,
       outputAssetId: refReward.outputAssetEntity?.id,
       outputBlockchain: refReward.targetBlockchain,
@@ -114,14 +151,37 @@ export class TransactionDtoMapper {
       inputTxUrl: null,
       outputTxId: refReward.txId,
       outputTxUrl: refReward.txId ? txExplorerUrl(refReward.targetBlockchain, refReward.txId) : null,
-      date: refReward.outputDate,
+      date: refReward.outputDate ?? refReward.updated,
     };
 
     return Object.assign(new TransactionDto(), dto);
   }
 
+  static mapReferralRewardDetail(refReward: RefRewardExtended): TransactionDetailDto {
+    return {
+      ...this.mapReferralReward(refReward),
+      sourceAccount: null,
+      targetAccount: refReward.user?.address,
+    };
+  }
+
   static mapReferralRewards(refRewards: RefRewardExtended[]): TransactionDto[] {
     return refRewards.map(TransactionDtoMapper.mapReferralReward);
+  }
+
+  static mapUnassignedTransaction(tx: BankTx, currency: Fiat): UnassignedTransactionDto {
+    return {
+      id: tx.transaction?.id,
+      type: TransactionType.BUY,
+      inputAmount: tx.txAmount,
+      inputAsset: tx.txCurrency,
+      inputAssetId: currency.id,
+      inputBlockchain: null,
+      inputPaymentMethod: FiatPaymentMethod.BANK,
+      inputTxId: null,
+      inputTxUrl: null,
+      date: tx.created,
+    };
   }
 }
 
@@ -136,45 +196,55 @@ export const RefRewardStatusMapper: {
   [RewardStatus.COMPLETE]: TransactionState.COMPLETED,
 };
 
-export function getTransactionState(entity: BuyFiat | BuyCrypto | RefReward): TransactionState {
+function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
+  state: TransactionState;
+  reason: TransactionReason;
+} {
   if (entity instanceof RefReward) {
-    return RefRewardStatusMapper[entity.status];
+    return { state: RefRewardStatusMapper[entity.status], reason: null };
   }
 
-  if (entity instanceof BuyCrypto) {
-    if (entity.chargebackDate) return TransactionState.RETURNED;
+  const reason = entity.amlReason ? TransactionReasonMapper[entity.amlReason] : null;
 
+  if (entity instanceof BuyCrypto) {
     switch (entity.amlCheck) {
+      case null:
       case CheckStatus.PENDING:
-        return TransactionState.AML_PENDING;
+      case CheckStatus.GSHEET:
+        if (KycRequiredReason.includes(reason)) return { state: TransactionState.KYC_REQUIRED, reason };
+        return { state: TransactionState.AML_PENDING, reason };
+
       case CheckStatus.FAIL:
-        return TransactionState.FAILED;
+        if (entity.chargebackDate) return { state: TransactionState.RETURNED, reason };
+        return { state: TransactionState.FAILED, reason };
+
       case CheckStatus.PASS:
-        if (entity.isComplete) return TransactionState.COMPLETED;
-        if (entity.status === BuyCryptoStatus.WAITING_FOR_LOWER_FEE) return TransactionState.FEE_TOO_HIGH;
+        if (entity.isComplete) return { state: TransactionState.COMPLETED, reason };
+        if (entity.status === BuyCryptoStatus.WAITING_FOR_LOWER_FEE)
+          return { state: TransactionState.FEE_TOO_HIGH, reason };
         break;
     }
 
-    if (entity.outputReferenceAsset) return TransactionState.PROCESSING;
-
-    return TransactionState.CREATED;
+    return { state: TransactionState.PROCESSING, reason };
   }
 
   if (entity instanceof BuyFiat) {
-    if (entity.cryptoReturnDate) return TransactionState.RETURNED;
-
     switch (entity.amlCheck) {
+      case null:
       case CheckStatus.PENDING:
-        return TransactionState.AML_PENDING;
+      case CheckStatus.GSHEET:
+        if (KycRequiredReason.includes(reason)) return { state: TransactionState.KYC_REQUIRED, reason };
+        return { state: TransactionState.AML_PENDING, reason };
+
       case CheckStatus.FAIL:
-        return TransactionState.FAILED;
+        if (entity.cryptoReturnDate) return { state: TransactionState.RETURNED, reason };
+        return { state: TransactionState.FAILED, reason };
+
       case CheckStatus.PASS:
-        if (entity.isComplete) return TransactionState.COMPLETED;
+        if (entity.isComplete) return { state: TransactionState.COMPLETED, reason };
         break;
     }
 
-    if (entity.outputReferenceAsset) return TransactionState.PROCESSING;
-
-    return TransactionState.CREATED;
+    return { state: TransactionState.PROCESSING, reason };
   }
 }

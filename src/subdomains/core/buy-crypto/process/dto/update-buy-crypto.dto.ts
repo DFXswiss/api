@@ -1,7 +1,7 @@
 import { Type } from 'class-transformer';
 import { IsBoolean, IsDate, IsEnum, IsInt, IsNumber, IsOptional, IsString } from 'class-validator';
-import { AmlReason } from '../enums/aml-reason.enum';
-import { CheckStatus } from '../enums/check-status.enum';
+import { AmlReason } from '../../../aml/enums/aml-reason.enum';
+import { CheckStatus } from '../../../aml/enums/check-status.enum';
 
 export class UpdateBuyCryptoDto {
   @IsOptional()
@@ -150,4 +150,8 @@ export class UpdateBuyCryptoDto {
   @IsOptional()
   @IsBoolean()
   highRisk: boolean;
+
+  @IsOptional()
+  @IsString()
+  comment: string;
 }

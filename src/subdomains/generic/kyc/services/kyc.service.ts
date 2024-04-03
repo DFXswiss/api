@@ -14,7 +14,7 @@ import { IdentStatus } from '../dto/ident.dto';
 import { IdentResultDto, IdentShortResult, getIdentResult } from '../dto/input/ident-result.dto';
 import { KycContactData, KycPersonalData } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
-import { KycContentType, KycFileType } from '../dto/kyc-file.dto';
+import { ContentType, FileType } from '../dto/kyc-file.dto';
 import { KycDataMapper } from '../dto/mapper/kyc-data.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
 import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
@@ -201,6 +201,11 @@ export class KycService {
     switch (getIdentResult(dto)) {
       case IdentShortResult.CANCEL:
         user = user.pauseStep(kycStep, dto);
+        await this.kycNotificationService.identFailed(user, reason);
+        break;
+
+      case IdentShortResult.ABORT:
+        user = user.pauseStep(kycStep, dto);
         break;
 
       case IdentShortResult.REVIEW:
@@ -215,7 +220,7 @@ export class KycService {
       case IdentShortResult.FAIL:
         user = user.failStep(kycStep, dto);
         await this.downloadIdentDocuments(user, kycStep, 'fail/');
-        await this.kycNotificationService.identFailed(kycStep, reason);
+        await this.kycNotificationService.identFailed(user, reason);
         break;
 
       default:
@@ -248,10 +253,10 @@ export class KycService {
 
     const url = await this.storageService.uploadFile(
       user.id,
-      KycFileType.USER_NOTES,
+      FileType.USER_NOTES,
       document.filename,
       document.buffer,
-      document.mimetype as KycContentType,
+      document.mimetype as ContentType,
       {
         document: document.mimetype.toString(),
         creationTime: new Date().toISOString(),
@@ -419,11 +424,23 @@ export class KycService {
       throw new NotFoundException();
     }
 
-    return { user: kycStep.userData, stepId: kycStep.id };
+    return { user: await this.getUser(kycStep.userData.kycHash), stepId: kycStep.id };
   }
 
   private async saveUser(user: UserData): Promise<UserData> {
-    return this.userDataService.save(user);
+    try {
+      return await this.userDataService.save(user);
+    } catch (e) {
+      if (['value NULL', 'userDataId', 'kyc_step'].every((i) => e.message?.includes(i))) {
+        // reload the KYC steps
+        const steps = await this.kycStepRepo.findBy({ userData: { id: user.id } });
+        user.kycSteps.push(...steps.filter((s1) => !user.kycSteps.find((s2) => s1.id === s2.id)));
+
+        return this.userDataService.save(user);
+      }
+
+      throw e;
+    }
   }
 
   private async verify2faIfRequired(user: UserData, ip: string): Promise<void> {
@@ -443,7 +460,7 @@ export class KycService {
     for (const { name, content, contentType } of documents) {
       await this.storageService.uploadFile(
         user.id,
-        KycFileType.IDENTIFICATION,
+        FileType.IDENTIFICATION,
         `${namePrefix}${name}`,
         content,
         contentType,

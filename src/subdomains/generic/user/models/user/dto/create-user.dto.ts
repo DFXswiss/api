@@ -42,6 +42,8 @@ export class CreateUserDto extends OptionalSignUpDto {
   @IsNotEmpty()
   @IsString()
   @Matches(GetConfig().formats.key)
-  @ValidateIf((dto: CreateUserDto) => CryptoService.isCardanoAddress(dto.address))
+  @ValidateIf(
+    (dto: CreateUserDto) => CryptoService.isArweaveAddress(dto.address) || CryptoService.isCardanoAddress(dto.address),
+  )
   key?: string;
 }

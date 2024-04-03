@@ -9,6 +9,8 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { TransactionSourceType } from 'src/subdomains/supporting/payment/entities/transaction.entity';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Between, In, IsNull, Not } from 'typeorm';
 import { RefRewardExtended } from '../../history/mappers/transaction-dto.mapper';
@@ -34,6 +36,7 @@ const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.BASE]: undefined,
   [Blockchain.HAQQ]: undefined,
   [Blockchain.LIQUID]: undefined,
+  [Blockchain.ARWEAVE]: undefined,
 };
 
 @Injectable()
@@ -48,6 +51,7 @@ export class RefRewardService {
     private readonly refRewardNotificationService: RefRewardNotificationService,
     private readonly refRewardDexService: RefRewardDexService,
     private readonly refRewardOutService: RefRewardOutService,
+    private readonly transactionService: TransactionService,
   ) {}
 
   //*** JOBS ***//
@@ -92,6 +96,9 @@ export class RefRewardService {
           amountInChf: eurChfPrice.convert(refCreditEur, 8),
           amountInEur: refCreditEur,
         });
+
+        if (!DisabledProcess(Process.CREATE_TRANSACTION))
+          entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.REF, user });
 
         await this.rewardRepo.save(entity);
       }

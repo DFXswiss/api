@@ -4,9 +4,8 @@ import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/_
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestUtil } from 'src/shared/utils/test.util';
-import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
-import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
-import { SpecialExternalBankAccountService } from 'src/subdomains/supporting/bank/special-external-bank-account/special-external-bank-account.service';
+import { AmlService } from 'src/subdomains/core/aml/aml.service';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
@@ -26,12 +25,11 @@ describe('BuyCryptoPreparationService', () => {
   let pricingService: PricingService;
   let assetService: AssetService;
   let fiatService: FiatService;
-  let bankDataService: BankDataService;
   let buyCryptoWebhookService: BuyCryptoWebhookService;
   let feeService: FeeService;
   let buyCryptoService: BuyCryptoService;
-  let specialExternalBankAccountService: SpecialExternalBankAccountService;
-  let bankService: BankService;
+  let amlService: AmlService;
+  let userService: UserService;
 
   /*** Spies ***/
 
@@ -75,12 +73,11 @@ describe('BuyCryptoPreparationService', () => {
     pricingService = mock<PricingService>();
     fiatService = mock<FiatService>();
     assetService = mock<AssetService>();
-    bankDataService = mock<BankDataService>();
     buyCryptoWebhookService = mock<BuyCryptoWebhookService>();
     feeService = mock<FeeService>();
     buyCryptoService = mock<BuyCryptoService>();
-    specialExternalBankAccountService = mock<SpecialExternalBankAccountService>();
-    bankService = mock<BankService>();
+    amlService = mock<AmlService>();
+    userService = mock<UserService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -90,12 +87,11 @@ describe('BuyCryptoPreparationService', () => {
         { provide: PricingService, useValue: pricingService },
         { provide: FiatService, useValue: fiatService },
         { provide: AssetService, useValue: assetService },
-        { provide: BankDataService, useValue: bankDataService },
         { provide: BuyCryptoWebhookService, useValue: buyCryptoWebhookService },
         { provide: FeeService, useValue: feeService },
         { provide: BuyCryptoService, useValue: buyCryptoService },
-        { provide: SpecialExternalBankAccountService, useValue: specialExternalBankAccountService },
-        { provide: BankService, useValue: bankService },
+        { provide: AmlService, useValue: amlService },
+        { provide: UserService, useValue: userService },
         TestUtil.provideConfig(),
       ],
     }).compile();

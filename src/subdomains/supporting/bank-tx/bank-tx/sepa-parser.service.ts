@@ -127,11 +127,20 @@ export class SepaParser {
         ? { party: parties?.Dbtr, account: parties?.DbtrAcct, ultimateParty: parties?.UltmtDbtr }
         : { party: parties?.Cdtr, account: parties?.CdtrAcct, ultimateParty: parties?.UltmtCdtr };
 
+    let name = this.toString(party?.Nm);
     const address = this.getAddress(party?.PstlAdr);
     const ultimateAddress = this.getAddress(ultimateParty?.PstlAdr);
+    let iban = this.toString(account?.Id?.IBAN ?? account?.Id?.Othr?.Id);
+
+    if (!iban && name?.startsWith('/C/')) {
+      iban = name?.replace('/C/', '');
+      name = address.line1;
+      address.line1 = address.line2;
+      address.line2 = undefined;
+    }
 
     return {
-      name: this.toString(party?.Nm),
+      name: name,
       addressLine1: address.line1,
       addressLine2: address.line2,
       country: address.country,
@@ -139,7 +148,7 @@ export class SepaParser {
       ultimateAddressLine1: ultimateAddress.line1,
       ultimateAddressLine2: ultimateAddress.line2,
       ultimateCountry: ultimateAddress.country,
-      iban: this.toString(account?.Id?.IBAN ?? account?.Id?.Othr?.Id),
+      iban: iban,
     };
   }
 

@@ -13,6 +13,8 @@ import { UpdateBuyDto } from './dto/update-buy.dto';
 
 @Injectable()
 export class BuyService {
+  private cache: { id: number; bankUsage: string }[] = undefined;
+
   constructor(
     private readonly buyRepo: BuyRepository,
     private readonly userService: UserService,
@@ -60,6 +62,18 @@ export class BuyService {
   }
 
   // --- BUYS --- //
+  async getAllBankUsages(): Promise<{ id: number; bankUsage: string }[]> {
+    if (!this.cache)
+      this.cache = await this.buyRepo.find().then((b) =>
+        b.map((b) => ({
+          id: b.id,
+          bankUsage: b.bankUsage,
+        })),
+      );
+
+    return this.cache;
+  }
+
   async get(userId: number, id: number): Promise<Buy> {
     return this.buyRepo.findOneBy({ id, user: { id: userId } });
   }
@@ -101,11 +115,23 @@ export class BuyService {
     buy.bankUsage = `${hash.slice(0, 4)}-${hash.slice(4, 8)}-${hash.slice(8, 12)}`;
 
     // save
-    return this.buyRepo.save(buy);
+    const entity = await this.buyRepo.save(buy);
+
+    this.cache && this.cache.push({ id: entity.id, bankUsage: entity.bankUsage });
+
+    return entity;
   }
 
   async getUserBuys(userId: number): Promise<Buy[]> {
     return this.buyRepo.findBy({ user: { id: userId }, asset: { buyable: true } });
+  }
+
+  async getUserDataBuys(userId: number): Promise<Buy[]> {
+    const user = await this.userService.getUser(userId, { userData: true });
+    return this.buyRepo.find({
+      where: { user: { userData: { id: user.userData.id } }, asset: { buyable: true } },
+      relations: { user: true },
+    });
   }
 
   async getByBankUsage(bankUsage: string): Promise<Buy> {

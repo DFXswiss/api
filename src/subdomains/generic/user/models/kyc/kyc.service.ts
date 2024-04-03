@@ -11,7 +11,7 @@ import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.m
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
-import { KycContentType, KycFile, KycFileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
+import { ContentType, File, FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
 import {
   Blank,
@@ -94,7 +94,7 @@ export class KycService {
   async uploadDocument(
     code: string,
     document: Express.Multer.File,
-    kycDocument: KycFileType,
+    kycDocument: FileType,
     userId?: number,
   ): Promise<boolean> {
     const userData = await this.getUser(code, userId);
@@ -104,7 +104,7 @@ export class KycService {
       kycDocument,
       `${Util.isoDate(new Date()).split('-').join('')}-incorporation-certificate-${document.filename}`,
       document.buffer,
-      document.mimetype as KycContentType,
+      document.mimetype as ContentType,
     );
     return upload != '';
   }
@@ -208,21 +208,21 @@ export class KycService {
     };
   }
 
-  private toKycFileDto(type: KycDocumentType, { contentType }: KycFile): KycFileDto {
+  private toKycFileDto(type: KycDocumentType, { contentType }: File): KycFileDto {
     return { type, contentType };
   }
 
-  private getFileFor(type: KycDocumentType, documents: KycFile[]): KycFile | undefined {
+  private getFileFor(type: KycDocumentType, documents: File[]): File | undefined {
     switch (type) {
       case KycDocumentType.IDENTIFICATION:
-        return documents.find((d) => d.type === KycFileType.IDENTIFICATION && d.contentType === KycContentType.PDF);
+        return documents.find((d) => d.type === FileType.IDENTIFICATION && d.contentType === ContentType.PDF);
 
       case KycDocumentType.CHATBOT:
         // TODO: find PDF result
         return undefined;
 
       case KycDocumentType.INCORPORATION_CERTIFICATE:
-        return documents.find((d) => d.type === KycFileType.USER_NOTES && d.name.includes('incorporation-certificate'));
+        return documents.find((d) => d.type === FileType.USER_NOTES && d.name.includes('incorporation-certificate'));
 
       default:
         throw new BadRequestException(`Document type ${type} is not supported`);

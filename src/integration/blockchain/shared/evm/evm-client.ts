@@ -1,14 +1,16 @@
 import { ChainId, Currency, CurrencyAmount, Ether, Percent, Token, TradeType } from '@uniswap/sdk-core';
 import { AlphaRouter, SwapRoute, SwapType } from '@uniswap/smart-order-router';
+import IUniswapV3PoolABI from '@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Pool.sol/IUniswapV3Pool.json';
+import QuoterV2ABI from '@uniswap/v3-periphery/artifacts/contracts/lens/QuoterV2.sol/QuoterV2.json';
+import { FeeAmount, Pool } from '@uniswap/v3-sdk';
 import { AssetTransfersCategory } from 'alchemy-sdk';
-import BigNumber from 'bignumber.js';
-import { BigNumberish, Contract, BigNumber as EthersNumber, ethers } from 'ethers';
+import { Contract, BigNumber as EthersNumber, ethers } from 'ethers';
 import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
+import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
-import ERC20_ABI from './abi/erc20.abi.json';
 import { WalletAccount } from './domain/wallet-account';
 import { EvmTokenBalance } from './dto/evm-token-balance.dto';
 import { EvmUtil } from './evm.util';
@@ -22,6 +24,7 @@ export interface EvmClientParams {
   walletPrivateKey: string;
   chainId: ChainId;
   swapContractAddress: string;
+  quoteContractAddress: string;
   scanApiUrl?: string;
   scanApiKey?: string;
 }
@@ -45,6 +48,7 @@ export abstract class EvmClient {
   private tokens = new AsyncCache<Token>();
   private router: AlphaRouter;
   private swapContractAddress: string;
+  private quoteContractAddress: string;
 
   constructor(params: EvmClientParams) {
     this.http = params.http;
@@ -61,6 +65,7 @@ export abstract class EvmClient {
       provider: this.provider,
     });
     this.swapContractAddress = params.swapContractAddress;
+    this.quoteContractAddress = params.quoteContractAddress;
   }
 
   // --- PUBLIC API - GETTERS --- //
@@ -80,23 +85,23 @@ export abstract class EvmClient {
   async getNativeCoinBalance(): Promise<number> {
     const balance = await this.alchemyService.getNativeCoinBalance(this.chainId, this.dfxAddress);
 
-    return this.fromWeiAmount(balance);
+    return EvmUtil.fromWeiAmount(balance);
   }
 
-  async getTokenBalance(asset: Asset): Promise<number> {
-    const evmTokenBalances = await this.getTokenBalances([asset]);
+  async getTokenBalance(asset: Asset, address?: string): Promise<number> {
+    const evmTokenBalances = await this.getTokenBalances([asset], address);
 
     return evmTokenBalances[0]?.balance ?? 0;
   }
 
-  async getTokenBalances(assets: Asset[]): Promise<EvmTokenBalance[]> {
+  async getTokenBalances(assets: Asset[], address?: string): Promise<EvmTokenBalance[]> {
     const evmTokenBalances: EvmTokenBalance[] = [];
 
-    const tokenBalances = await this.alchemyService.getTokenBalances(this.chainId, this.dfxAddress, assets);
+    const tokenBalances = await this.alchemyService.getTokenBalances(this.chainId, address ?? this.dfxAddress, assets);
 
     for (const tokenBalance of tokenBalances) {
       const token = await this.getTokenByAddress(tokenBalance.contractAddress);
-      const balance = this.fromWeiAmount(tokenBalance.tokenBalance ?? 0, token.decimals);
+      const balance = EvmUtil.fromWeiAmount(tokenBalance.tokenBalance ?? 0, token.decimals);
 
       evmTokenBalances.push({ contractAddress: tokenBalance.contractAddress, balance: balance });
     }
@@ -148,7 +153,7 @@ export abstract class EvmClient {
 
     nonce = nonce ?? (await this.getNonce(request.from));
     gasPrice = gasPrice ?? +(await this.getRecommendedGasPrice());
-    value = this.toWeiAmount(value as number);
+    value = EvmUtil.toWeiAmount(value as number);
 
     return wallet.sendTransaction({
       ...request,
@@ -223,7 +228,7 @@ export abstract class EvmClient {
     const { gasUsed, effectiveGasPrice } = await this.getTxReceipt(txHash);
     const actualFee = gasUsed.mul(effectiveGasPrice);
 
-    return this.fromWeiAmount(actualFee);
+    return EvmUtil.fromWeiAmount(actualFee);
   }
 
   async approveContract(asset: Asset, contractAddress: string): Promise<string> {
@@ -231,15 +236,29 @@ export abstract class EvmClient {
 
     const transaction = await contract.populateTransaction.approve(contractAddress, ethers.constants.MaxInt256);
 
+    const gasPrice = await this.getRecommendedGasPrice();
+
     const tx = await this.wallet.sendTransaction({
       ...transaction,
       from: this.dfxAddress,
+      gasPrice,
     });
 
     return tx.hash;
   }
 
   // --- PUBLIC API - SWAPS --- //
+  async getPoolAddress(asset1: Asset, asset2: Asset, poolFee: FeeAmount): Promise<string> {
+    const token1 = await this.getToken(asset1);
+    const token2 = await this.getToken(asset2);
+
+    if (token1 instanceof Token && token2 instanceof Token) {
+      return Pool.getAddress(token1, token2, poolFee);
+    } else {
+      throw new Error(`Only tokens can be in a pool`);
+    }
+  }
+
   async testSwap(
     source: Asset,
     sourceAmount: number,
@@ -252,18 +271,21 @@ export abstract class EvmClient {
 
     return {
       targetAmount: +route.quote.toExact(),
-      feeAmount: this.fromWeiAmount(route.estimatedGasUsed.mul(route.gasPriceWei)),
+      feeAmount: EvmUtil.fromWeiAmount(route.estimatedGasUsed.mul(route.gasPriceWei)),
     };
   }
 
   async swap(sourceToken: Asset, sourceAmount: number, targetToken: Asset, maxSlippage: number): Promise<string> {
     const route = await this.getRoute(sourceToken, targetToken, sourceAmount, maxSlippage);
 
+    const gasPrice = await this.getRecommendedGasPrice();
+
     const tx = await this.wallet.sendTransaction({
       data: route.methodParameters?.calldata,
       to: this.swapContractAddress,
       value: route.methodParameters?.value,
       from: this.dfxAddress,
+      gasPrice,
     });
 
     return tx.hash;
@@ -304,27 +326,22 @@ export abstract class EvmClient {
 
   // --- PUBLIC HELPER METHODS --- //
 
-  fromWeiAmount(amountWeiLike: BigNumberish, decimals?: number): number {
-    const amount =
-      decimals != null ? ethers.utils.formatUnits(amountWeiLike, decimals) : ethers.utils.formatEther(amountWeiLike);
-
-    return parseFloat(amount);
-  }
-
-  toWeiAmount(amountEthLike: number, decimals?: number): EthersNumber {
-    const amount = new BigNumber(amountEthLike).toFixed(decimals ?? 18);
-
-    return decimals ? ethers.utils.parseUnits(amount, decimals) : ethers.utils.parseEther(amount);
-  }
-
   async getToken(asset: Asset): Promise<Currency> {
     return asset.type === AssetType.COIN ? Ether.onChain(this.chainId) : this.getTokenByAddress(asset.chainId);
+  }
+
+  getPoolContract(poolAddress: string): Contract {
+    return new ethers.Contract(poolAddress, IUniswapV3PoolABI.abi, this.wallet);
+  }
+
+  getQuoteContract(): Contract {
+    return new ethers.Contract(this.quoteContractAddress, QuoterV2ABI.abi, this.wallet);
   }
 
   // --- PRIVATE HELPER METHODS --- //
 
   private toCurrencyAmount(amount: number, token: Currency): CurrencyAmount<Currency> {
-    const targetAmount = this.toWeiAmount(amount, token.decimals).toString();
+    const targetAmount = EvmUtil.toWeiAmount(amount, token.decimals).toString();
 
     return CurrencyAmount.fromRawAmount(token, targetAmount);
   }
@@ -349,14 +366,14 @@ export abstract class EvmClient {
     const totalGas = await this.getCurrentGasForCoinTransaction(this.dfxAddress, 1e-18);
     const gasPrice = await this.getRecommendedGasPrice();
 
-    return this.fromWeiAmount(totalGas.mul(gasPrice));
+    return EvmUtil.fromWeiAmount(totalGas.mul(gasPrice));
   }
 
   async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
     const totalGas = await this.getTokenGasLimitForAsset(token);
     const gasPrice = await this.getRecommendedGasPrice();
 
-    return this.fromWeiAmount(totalGas.mul(gasPrice));
+    return EvmUtil.fromWeiAmount(totalGas.mul(gasPrice));
   }
 
   protected async sendNativeCoin(
@@ -376,7 +393,7 @@ export abstract class EvmClient {
     const tx = await wallet.sendTransaction({
       from: fromAddress,
       to: toAddress,
-      value: this.toWeiAmount(amount),
+      value: EvmUtil.toWeiAmount(amount),
       nonce: txNonce,
       gasPrice,
       gasLimit,
@@ -391,7 +408,7 @@ export abstract class EvmClient {
     return this.provider.estimateGas({
       from: fromAddress,
       to: this.randomReceiverAddress,
-      value: this.toWeiAmount(amount),
+      value: EvmUtil.toWeiAmount(amount),
     });
   }
 
@@ -409,7 +426,7 @@ export abstract class EvmClient {
     const txNonce = nonce ?? currentNonce;
 
     const token = await this.getTokenByContract(contract);
-    const targetAmount = this.toWeiAmount(amount, token.decimals);
+    const targetAmount = EvmUtil.toWeiAmount(amount, token.decimals);
 
     const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit, nonce: txNonce });
 
@@ -420,7 +437,8 @@ export abstract class EvmClient {
 
   protected async getGasPrice(gasLimit: number, feeLimit?: number): Promise<number> {
     const currentGasPrice = +(await this.getRecommendedGasPrice());
-    const proposedGasPrice = feeLimit != null ? Util.round(+this.toWeiAmount(feeLimit) / gasLimit, 0) : Infinity;
+    const proposedGasPrice =
+      feeLimit != null ? Util.round(+EvmUtil.toWeiAmount(feeLimit) / gasLimit, 0) : Number.MAX_VALUE;
 
     return Math.min(currentGasPrice, proposedGasPrice);
   }

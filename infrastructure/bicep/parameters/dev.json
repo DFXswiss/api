@@ -107,6 +107,9 @@
     "ethSwapContractAddress": {
       "value": "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"
     },
+    "ethQuoteContractAddress": {
+      "value": "0x61fFE014bA17989E743c5F6cB21bF9697530B21e"
+    },
     "ethChainId": {
       "value": "5"
     },
@@ -121,6 +124,9 @@
     },
     "optimismSwapContractAddress": {
       "value": "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"
+    },
+    "optimismQuoteContractAddress": {
+      "value": "0x61fFE014bA17989E743c5F6cB21bF9697530B21e"
     },
     "optimismChainId": {
       "value": "420"
@@ -137,6 +143,9 @@
     "arbitrumSwapContractAddress": {
       "value": "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"
     },
+    "arbitrumQuoteContractAddress": {
+      "value": "0x61fFE014bA17989E743c5F6cB21bF9697530B21e"
+    },
     "arbitrumChainId": {
       "value": "421613"
     },
@@ -151,6 +160,9 @@
     },
     "polygonSwapContractAddress": {
       "value": "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"
+    },
+    "polygonQuoteContractAddress": {
+      "value": "0x61fFE014bA17989E743c5F6cB21bF9697530B21e"
     },
     "polygonChainId": {
       "value": "80001"
@@ -167,6 +179,9 @@
     "baseSwapContractAddress": {
       "value": "0x2626664c2603336E57B271c5C0b26F421741e481"
     },
+    "baseQuoteContractAddress": {
+      "value": "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a"
+    },
     "baseChainId": {
       "value": "84531"
     },
@@ -181,6 +196,9 @@
     },
     "bscSwapContractAddress": {
       "value": "0xD99D1c33F9fC3444f8101754aBC46c52416550D1"
+    },
+    "bscQuoteContractAddress": {
+      "value": "0x78D78E420Da98ad378D7799bE8f4AF69033EB077"
     },
     "bscChainId": {
       "value": "97"
@@ -223,6 +241,9 @@
     },
     "zchfXchfContractAddress": {
       "value": "0xb4272071ecadd69d933adcd19ca99fe80664fc08"
+    },
+    "ebel2XContractAddress": {
+      "value": ""
     },
     "buyCryptoFeeLimit": {
       "value": "0.001"

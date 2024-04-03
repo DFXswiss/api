@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { BigNumberish, ethers } from 'ethers';
 import { Config, GetConfig } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -8,6 +7,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { CreateLogDto } from 'src/subdomains/supporting/log/dto/create-log.dto';
 import { LogSeverity } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
+import { EvmUtil } from '../shared/evm/evm.util';
 import {
   FrankencoinChallengeGraphDto,
   FrankencoinDelegationGraphDto,
@@ -67,8 +67,8 @@ export class FrankencoinService {
     const stablecoinBridgeLimit = await stablecoinBridgeContract.limit();
 
     return {
-      xchfSwapLimit: this.fromWeiAmount(stablecoinBridgeLimit) - this.fromWeiAmount(stablecoinBridgeBalance),
-      zchfSwapLimit: this.fromWeiAmount(stablecoinBridgeBalance),
+      xchfSwapLimit: EvmUtil.fromWeiAmount(stablecoinBridgeLimit) - EvmUtil.fromWeiAmount(stablecoinBridgeBalance),
+      zchfSwapLimit: EvmUtil.fromWeiAmount(stablecoinBridgeBalance),
     };
   }
 
@@ -108,14 +108,14 @@ export class FrankencoinService {
           },
           collateral: {
             symbol: symbol,
-            amount: this.fromWeiAmount(positionBalance, decimals),
+            amount: EvmUtil.fromWeiAmount(positionBalance, decimals),
           },
           details: {
-            availableAmount: this.fromWeiAmount(limitForClones),
-            totalBorrowed: this.fromWeiAmount(minted),
-            liquidationPrice: this.fromWeiAmount(price, 36 - decimals),
-            retainedReserve: this.fromWeiAmount(calculateAssignedReserve),
-            limit: this.fromWeiAmount(limit),
+            availableAmount: EvmUtil.fromWeiAmount(limitForClones),
+            totalBorrowed: EvmUtil.fromWeiAmount(minted),
+            liquidationPrice: EvmUtil.fromWeiAmount(price, 36 - decimals),
+            retainedReserve: EvmUtil.fromWeiAmount(calculateAssignedReserve),
+            limit: EvmUtil.fromWeiAmount(limit),
             expirationDate: new Date(Number(expiration) * 1000),
           },
         });
@@ -147,14 +147,14 @@ export class FrankencoinService {
         const frankenEquity = await frankencoinContract.equity();
 
         fpssResult.push({
-          fpsPrice: this.fromWeiAmount(price),
-          supply: this.fromWeiAmount(totalSupply),
-          marketCap: this.fromWeiAmount(totalSupply) * this.fromWeiAmount(price),
-          totalReserve: this.fromWeiAmount(frankenMinterReserve) + this.fromWeiAmount(frankenEquity),
-          equityCapital: this.fromWeiAmount(frankenEquity),
-          minterReserve: this.fromWeiAmount(frankenMinterReserve),
-          totalIncome: this.fromWeiAmount(fps.profits),
-          totalLosses: this.fromWeiAmount(fps.loss),
+          fpsPrice: EvmUtil.fromWeiAmount(price),
+          supply: EvmUtil.fromWeiAmount(totalSupply),
+          marketCap: EvmUtil.fromWeiAmount(totalSupply) * EvmUtil.fromWeiAmount(price),
+          totalReserve: EvmUtil.fromWeiAmount(frankenMinterReserve) + EvmUtil.fromWeiAmount(frankenEquity),
+          equityCapital: EvmUtil.fromWeiAmount(frankenEquity),
+          minterReserve: EvmUtil.fromWeiAmount(frankenMinterReserve),
+          totalIncome: EvmUtil.fromWeiAmount(fps.profits),
+          totalLosses: EvmUtil.fromWeiAmount(fps.loss),
         });
       } catch (e) {
         this.logger.error(`Error while getting pool shares ${fps.id}`, e);
@@ -168,7 +168,7 @@ export class FrankencoinService {
     const equityContract = this.client.getEquityContract(Config.blockchain.frankencoin.contractAddress.equity);
     const price = await equityContract.price();
 
-    return this.fromWeiAmount(price);
+    return EvmUtil.fromWeiAmount(price);
   }
 
   async getMinters(): Promise<FrankencoinMinterGraphDto[]> {
@@ -181,14 +181,5 @@ export class FrankencoinService {
 
   async getTrades(): Promise<FrankencoinTradeGraphDto[]> {
     return this.client.getTrades();
-  }
-
-  // --- HELPER METHOD --- //
-
-  private fromWeiAmount(amountWeiLike: BigNumberish, decimals?: number): number {
-    const amount =
-      decimals != null ? ethers.utils.formatUnits(amountWeiLike, decimals) : ethers.utils.formatEther(amountWeiLike);
-
-    return parseFloat(amount);
   }
 }

@@ -6,12 +6,14 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { In, IsNull, Not } from 'typeorm';
+import { TransactionTypeInternal } from '../../payment/entities/transaction.entity';
+import { TransactionService } from '../../payment/services/transaction.service';
 import { CryptoInput, PayInPurpose, PayInSendType, PayInStatus } from '../entities/crypto-input.entity';
 import { PayInRepository } from '../repositories/payin.repository';
 import { RegisterStrategyRegistry } from '../strategies/register/impl/base/register.strategy-registry';
@@ -26,12 +28,13 @@ export class PayInService {
     private readonly payInRepository: PayInRepository,
     private readonly sendStrategyRegistry: SendStrategyRegistry,
     private readonly registerStrategyRegistry: RegisterStrategyRegistry,
+    private readonly transactionService: TransactionService,
   ) {}
 
   //*** PUBLIC API ***//
 
   async getNewPayIns(): Promise<CryptoInput[]> {
-    return this.payInRepository.findBy({ status: PayInStatus.CREATED });
+    return this.payInRepository.find({ where: { status: PayInStatus.CREATED }, relations: { transaction: true } });
   }
 
   async getNewPayInsForBlockchain(blockchain: Blockchain): Promise<CryptoInput[]> {
@@ -72,6 +75,9 @@ export class PayInService {
 
     payIn.triggerReturn(purpose, returnAddress, route, amlCheck);
 
+    if (payIn.transaction)
+      await this.transactionService.update(payIn.transaction.id, { type: TransactionTypeInternal.CRYPTO_INPUT_RETURN });
+
     await this.payInRepository.save(payIn);
   }
 
@@ -107,14 +113,6 @@ export class PayInService {
     if (DisabledProcess(Process.PAY_IN)) return;
 
     await this.returnPayIns();
-  }
-
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(7200)
-  async retryGettingReferencePrices(): Promise<void> {
-    if (DisabledProcess(Process.PAY_IN)) return;
-
-    await this.retryPayIns();
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -182,29 +180,6 @@ export class PayInService {
       try {
         const strategy = group[0];
         await strategy.doSend(group[1], SendType.RETURN);
-      } catch {
-        continue;
-      }
-    }
-  }
-
-  private async retryPayIns(): Promise<void> {
-    const payIns = await this.payInRepository.find({
-      where: {
-        status: PayInStatus.WAITING_FOR_PRICE_REFERENCE,
-        asset: Not(IsNull()),
-      },
-      relations: ['route', 'asset'],
-    });
-
-    if (payIns.length === 0) return;
-
-    const groups = this.groupByStrategies(payIns, (a) => this.registerStrategyRegistry.getRegisterStrategy(a));
-
-    for (const group of groups.entries()) {
-      try {
-        const strategy = group[0];
-        await strategy.addReferenceAmounts(group[1]);
       } catch {
         continue;
       }

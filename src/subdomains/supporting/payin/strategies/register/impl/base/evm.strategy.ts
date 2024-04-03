@@ -3,14 +3,13 @@ import { AssetTransfersWithMetadataResult } from 'alchemy-sdk';
 import { AlchemyWebhookActivityDto, AlchemyWebhookDto } from 'src/integration/alchemy/dto/alchemy-webhook.dto';
 import { AlchemyWebhookService } from 'src/integration/alchemy/services/alchemy-webhook.service';
 import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
-import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
-import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
-import { CheckStatus } from 'src/subdomains/core/buy-crypto/process/enums/check-status.enum';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
@@ -19,163 +18,28 @@ import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-inp
 import { PayInEntry } from '../../../../interfaces';
 import { PayInRepository } from '../../../../repositories/payin.repository';
 import { PayInEvmService } from '../../../../services/base/payin-evm.service';
-import { PayInInputLog, RegisterStrategy } from './register.strategy';
-
-export const SkipTestSwapAssets = ['ZCHF'];
+import { RegisterStrategy } from './register.strategy';
 
 export abstract class EvmStrategy extends RegisterStrategy {
   protected addressWebhookMessageQueue: QueueHandler;
   protected assetTransfersMessageQueue: QueueHandler;
 
-  @Inject()
-  protected readonly alchemyWebhookService: AlchemyWebhookService;
+  @Inject() protected readonly alchemyWebhookService: AlchemyWebhookService;
+  @Inject() protected readonly alchemyService: AlchemyService;
+  @Inject() protected readonly payInRepository: PayInRepository;
+  @Inject() private readonly repos: RepositoryFactory;
 
-  @Inject()
-  protected readonly alchemyService: AlchemyService;
-
-  constructor(
-    protected readonly nativeCoin: string,
-    protected readonly payInEvmService: PayInEvmService,
-    protected readonly payInRepository: PayInRepository,
-    protected readonly assetService: AssetService,
-    private readonly repos: RepositoryFactory,
-  ) {
-    super(payInRepository);
+  constructor(protected readonly payInEvmService: PayInEvmService) {
+    super();
   }
 
   protected abstract getOwnAddresses(): string[];
-  protected abstract getReferenceAssets(): Promise<{ btc: Asset; usdt: Asset }>;
-  protected abstract getSourceAssetRepresentation(asset: Asset): Promise<Asset>;
-
-  protected async processNewPayInEntries(): Promise<void> {
-    const addresses: string[] = await this.getPayInAddresses();
-    const lastCheckedBlockHeight = await this.getLastCheckedBlockHeight();
-
-    await this.getTransactionsAndCreatePayIns(addresses, lastCheckedBlockHeight);
-  }
 
   doAmlCheck(_: CryptoInput, route: Staking | Sell | CryptoRoute): CheckStatus {
     return route.user.userData.kycLevel === KycLevel.REJECTED ? CheckStatus.FAIL : CheckStatus.PASS;
   }
 
-  async addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void> {
-    const { btc, usdt } = await this.getReferenceAssets();
-
-    for (const entry of entries) {
-      try {
-        if (!entry.asset) {
-          this.logger.warn(
-            `No asset identified for ${entry.address.blockchain} pay-in ${'txId' in entry ? entry.txId : entry.inTxId}`,
-          );
-          continue;
-        }
-
-        const asset = await this.getSourceAssetRepresentation(entry.asset);
-
-        const btcAmount = await this.getReferenceAmount(asset, btc, entry);
-        const usdtAmount = await this.getReferenceAmount(asset, usdt, entry);
-
-        await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
-      } catch (e) {
-        this.logger.error(`Could not set reference amounts for ${entry.address.blockchain} pay-in:`, e);
-        continue;
-      }
-    }
-  }
-
-  //*** HELPER METHODS ***//
-
-  private async getPayInAddresses(): Promise<string[]> {
-    const routes = await this.repos.depositRoute.find({
-      where: { deposit: { blockchain: this.blockchain } },
-      relations: ['deposit'],
-    });
-
-    return routes.map((dr) => dr.deposit.address);
-  }
-
-  private async getLastCheckedBlockHeight(): Promise<number> {
-    return this.payInRepository
-      .findOne({
-        select: ['id', 'blockHeight'],
-        where: { address: { blockchain: this.blockchain } },
-        order: { blockHeight: 'DESC' },
-        loadEagerRelations: false,
-      })
-      .then((input) => input?.blockHeight ?? 0);
-  }
-
-  private async getTransactionsAndCreatePayIns(addresses: string[], lastCheckedBlockHeight: number): Promise<void> {
-    const log = this.createNewLogObject();
-    const supportedAssets = await this.assetService.getAllAsset([this.blockchain]);
-
-    for (const address of addresses) {
-      const [coinHistory, tokenHistory] = await this.payInEvmService.getHistory(address, lastCheckedBlockHeight + 1);
-
-      const entries = this.mapHistoryToPayInEntries(address, coinHistory, tokenHistory, supportedAssets);
-
-      await this.processNewEntries(entries, lastCheckedBlockHeight, log);
-    }
-
-    this.printInputLog(log, lastCheckedBlockHeight, this.blockchain);
-  }
-
-  private mapHistoryToPayInEntries(
-    toAddress: string,
-    coinHistory: EvmCoinHistoryEntry[],
-    tokenHistory: EvmTokenHistoryEntry[],
-    supportedAssets: Asset[],
-  ): PayInEntry[] {
-    const relevantCoinEntries = this.filterEntriesByRelevantAddresses(this.getOwnAddresses(), toAddress, coinHistory);
-    const relevantTokenEntries = this.filterEntriesByRelevantAddresses(this.getOwnAddresses(), toAddress, tokenHistory);
-
-    return [
-      ...this.mapCoinEntries(relevantCoinEntries, supportedAssets),
-      ...this.mapTokenEntries(relevantTokenEntries, supportedAssets),
-    ];
-  }
-
-  private filterEntriesByRelevantAddresses<T extends EvmCoinHistoryEntry | EvmTokenHistoryEntry>(
-    fromAddresses: string[],
-    toAddress: string,
-    transactions: T[],
-  ): T[] {
-    const notFromOwnAddresses = transactions.filter((tx) => !Util.includesIgnoreCase(fromAddresses, tx.from));
-
-    return notFromOwnAddresses.filter((tx) => Util.equalsIgnoreCase(tx.to, toAddress));
-  }
-
-  private mapCoinEntries(coinTransactions: EvmCoinHistoryEntry[], supportedAssets: Asset[]): PayInEntry[] {
-    return coinTransactions.map((tx) => ({
-      address: BlockchainAddress.create(tx.to, this.blockchain),
-      txId: tx.hash,
-      txType: null,
-      blockHeight: parseInt(tx.blockNumber),
-      amount: this.payInEvmService.fromWeiAmount(tx.value),
-      asset: this.getTransactionAsset(supportedAssets) ?? null,
-    }));
-  }
-
-  private mapTokenEntries(tokenTransactions: EvmTokenHistoryEntry[], supportedAssets: Asset[]): PayInEntry[] {
-    return tokenTransactions.map((tx) => ({
-      address: BlockchainAddress.create(tx.to, this.blockchain),
-      txId: tx.hash,
-      txType: null,
-      blockHeight: parseInt(tx.blockNumber),
-      amount: this.payInEvmService.fromWeiAmount(tx.value, parseInt(tx.tokenDecimal)),
-      asset: this.getTransactionAsset(supportedAssets, tx.contractAddress) ?? null,
-    }));
-  }
-
-  private async processNewEntries(allEntries: PayInEntry[], blockHeight: number, log: PayInInputLog) {
-    const newEntries = allEntries.filter((t) => t.blockHeight > blockHeight);
-
-    if (newEntries.length === 0) return;
-
-    await this.addReferenceAmounts(newEntries);
-
-    await this.createPayInsAndSave(newEntries, log);
-  }
+  // --- WEBHOOKS --- //
 
   protected processAddressWebhookMessageQueue(dto: AlchemyWebhookDto): void {
     this.addressWebhookMessageQueue
@@ -187,13 +51,11 @@ export abstract class EvmStrategy extends RegisterStrategy {
 
   private async processWebhookTransactions(dto: AlchemyWebhookDto): Promise<void> {
     const fromAddresses = this.getOwnAddresses();
-    const toAdresses = await this.getPayInAddresses();
+    const toAddresses = await this.getPayInAddresses();
 
-    const relevantTransactions = this.filterWebhookTransactionsByRelevantAddresses(fromAddresses, toAdresses, dto);
+    const relevantTransactions = this.filterWebhookTransactionsByRelevantAddresses(fromAddresses, toAddresses, dto);
 
     const payInEntries = await this.mapWebhookTransactions(relevantTransactions);
-
-    await this.addReferenceAmounts(payInEntries);
 
     const log = this.createNewLogObject();
     await this.createPayInsAndSave(payInEntries, log);
@@ -219,22 +81,12 @@ export abstract class EvmStrategy extends RegisterStrategy {
       txId: tx.hash,
       txType: null,
       blockHeight: Number(tx.blockNum),
-      amount: this.payInEvmService.fromWeiAmount(tx.rawContract.rawValue, tx.rawContract.decimals),
+      amount: EvmUtil.fromWeiAmount(tx.rawContract.rawValue, tx.rawContract.decimals),
       asset: this.getTransactionAsset(supportedAssets, tx.rawContract.address) ?? null,
     }));
   }
 
-  private getTransactionAsset(supportedAssets: Asset[], chainId?: string): Asset | undefined {
-    if (chainId) {
-      return this.assetService.getByChainIdSync(supportedAssets, this.blockchain, chainId);
-    }
-
-    return this.assetService.getByQuerySync(supportedAssets, {
-      dexName: this.nativeCoin,
-      blockchain: this.blockchain,
-      type: AssetType.COIN,
-    });
-  }
+  // --- ASSET TRANSFERS --- //
 
   protected processAssetTransfersMessageQueue(assetTransfers: AssetTransfersWithMetadataResult[]): void {
     this.assetTransfersMessageQueue
@@ -246,11 +98,11 @@ export abstract class EvmStrategy extends RegisterStrategy {
 
   private async processAssetTransfers(assetTransfers: AssetTransfersWithMetadataResult[]): Promise<void> {
     const fromAddresses = this.getOwnAddresses();
-    const toAdresses = await this.getPayInAddresses();
+    const toAddresses = await this.getPayInAddresses();
 
     const relevantAssetTransfers = this.filterAssetTransfersByRelevantAddresses(
       fromAddresses,
-      toAdresses,
+      toAddresses,
       assetTransfers,
     );
 
@@ -280,10 +132,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
             txId: txId,
             txType: null,
             blockHeight: Number(assetTransfer.blockNum),
-            amount: this.payInEvmService.fromWeiAmount(
-              assetTransfer.rawContract.value,
-              Number(assetTransfer.rawContract.decimal),
-            ),
+            amount: EvmUtil.fromWeiAmount(assetTransfer.rawContract.value, Number(assetTransfer.rawContract.decimal)),
             asset: asset,
           };
 
@@ -293,8 +142,6 @@ export abstract class EvmStrategy extends RegisterStrategy {
     }
 
     if (payInEntries.length) {
-      await this.addReferenceAmounts(payInEntries);
-
       const log = this.createNewLogObject();
       await this.createPayInsAndSave(payInEntries, log);
     }
@@ -308,5 +155,22 @@ export abstract class EvmStrategy extends RegisterStrategy {
     const notFromOwnAddresses = assetTransfers.filter((tx) => !Util.includesIgnoreCase(fromAddresses, tx.from));
 
     return notFromOwnAddresses.filter((tx) => Util.includesIgnoreCase(toAddresses, tx.to));
+  }
+
+  // --- HELPER METHODS --- //
+
+  protected async getPayInAddresses(): Promise<string[]> {
+    const routes = await this.repos.depositRoute.find({
+      where: { deposit: { blockchain: this.blockchain } },
+      relations: ['deposit'],
+    });
+
+    return routes.map((dr) => dr.deposit.address);
+  }
+
+  protected getTransactionAsset(supportedAssets: Asset[], chainId?: string): Asset | undefined {
+    return chainId
+      ? this.assetService.getByChainIdSync(supportedAssets, this.blockchain, chainId)
+      : supportedAssets.find((a) => a.type === AssetType.COIN);
   }
 }

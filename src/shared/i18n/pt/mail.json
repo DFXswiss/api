@@ -70,7 +70,9 @@
                 "asset_currently_not_available": "The asset is currently not available for trading with DFX",
                 "staking_discontinued": "Staking deposits are no longer possible",
                 "bank_not_allowed": "The sender bank you used is not allowed. Please use a different bank for your deposit.",
-                "country_not_allowed": "Unfortunately, your deposit cannot be processed <br>because the money comes from a country that we cannot support. More information:<br><a style='color:white' href='https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html'>https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html</a>"
+                "country_not_allowed": "Unfortunately, your deposit cannot be processed <br>because the money comes from a country that we cannot support. More information:<br><a style='color:white' href='https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html'>https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html</a>",
+                "high_risk_kyc_needed": "Without verification (KYC), we could not ensure that this transaction was not fraudulent and therefore unfortunately had to decline the transaction.<br>Payments by bank transaction are still available to you.",
+                "high_risk_blocked": "We cannot ensure that this transaction is not fraudulent and therefore unfortunately had to decline the transaction.<br>Payments by bank transaction are still available to you."
             },
             "kyc_start": "You can start the KYC process here:<br>[url:{urlText}]"
         },
@@ -119,6 +121,24 @@
                 "line3": "Therefore, click on the following link to verify yourself:<br>[url:{urlText}]",
                 "line4": "Alternatively, you can also click on the menu item at the top right of the DFX-Services website <br> and then on \"KYC\" <br> and start the verification via the \"Continue\" button.",
                 "line5": "If you do not want to carry out the verification, the money will be returned fully automatically after 2 days."
+            },
+            "high_risk_kyc_needed": {
+                "title": "Problem with your deposit",
+                "salutation": "Verification (KYC) is required to execute your pending transaction",
+                "line1": "Dear valued customer, many thanks for your trust in DFX.",
+                "line2": "Unfortunately, without full verification, we cannot ensure that this transaction is not fraudulent.",
+                "line3": "Therefore, click on the following link to verify yourself:<br>[url:{urlText}]",
+                "line4": "Alternatively, you can also click on the menu item at the top right of the DFX-Services website <br> and then on \"KYC\" <br> and start the verification via the \"Continue\" button.",
+                "line5": "If you do not want to carry out the verification, the money will be returned fully automatically after 2 days."
+            },
+            "manual_check": {
+                "title": "Checking Deposit",
+                "salutation": "Your deposit will be checked",
+                "line1": "Thank you for your trust in DFX.",
+                "line2": "Unfortunately, the transaction could not be released fully automatically and must now be checked manually by an employee.",
+                "line3": "This usually takes 24 hours, but a maximum of 7 days.",
+                "line4": "You will be notified as soon as the check has been completed and your payment has been processed.",
+                "line5": ""
             }
         },
         "blockchain": "Blockchain",
@@ -148,13 +168,14 @@
         "failed": {
             "title": "Identification failed",
             "salutation": "Your identification has failed",
-            "message": "We have noticed that your identification has failed. Please try it again with the following URL:<br>[url:{urlText}]"
+            "message": "Your identification failed for the following reason:<br>{reason}"
         },
         "reminder": {
             "title": "Complete verification",
             "salutation": "Complete your verification",
             "message": "We have noticed that you have not completed your verification."
         },
+        "retry": "Please try it again with the following URL:<br>[url:{urlText}]",
         "next_step": "To proceed with your verification, click on the menu item at the top right of the DFX-Services website<br> and then on \"KYC\"<br> and click the \"Continue\" button or use the following link:<br>[url:{urlText}]",
         "last_step": "Take the final step and start working on your financial freedom today"
     },

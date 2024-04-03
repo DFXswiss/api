@@ -1,8 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TransactionError } from 'src/subdomains/supporting/payment/dto/transaction-error.enum';
+import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
+import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 
 export class CryptoQuoteDto {
-  @ApiProperty({ description: 'Fee amount in source asset' })
+  @ApiProperty({ description: 'Fee amount in source asset', deprecated: true })
   feeAmount: number;
 
   @ApiProperty({ description: 'Amount in source asset' })
@@ -20,6 +21,12 @@ export class CryptoQuoteDto {
   @ApiProperty({ description: 'Maximum volume in source asset' })
   maxVolume: number;
 
+  @ApiProperty({ type: FeeDto, description: 'Fee infos in source asset' })
+  fees: FeeDto;
+
+  @ApiProperty({ type: FeeDto, description: 'Fee infos in target asset' })
+  feesTarget: FeeDto;
+
   @ApiProperty({ description: 'Minimum volume in target asset' })
   minVolumeTarget: number;
 
@@ -29,6 +36,6 @@ export class CryptoQuoteDto {
   @ApiProperty()
   isValid: boolean;
 
-  @ApiPropertyOptional({ enum: TransactionError, description: 'Error message in case isValid is false' })
-  error?: TransactionError;
+  @ApiPropertyOptional({ enum: QuoteError, description: 'Error message in case isValid is false' })
+  error?: QuoteError;
 }

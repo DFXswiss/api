@@ -1,10 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetRepository } from 'src/shared/models/asset/asset.repository';
 import { AsyncCache } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
-import { In } from 'typeorm';
-import { Asset, AssetType } from './asset.entity';
+import { FindOptionsWhere, In, Not } from 'typeorm';
+import { Asset, AssetCategory, AssetType } from './asset.entity';
 
 export interface AssetQuery {
   dexName: string;
@@ -12,21 +12,18 @@ export interface AssetQuery {
   type: AssetType;
 }
 
-const MainLayerBlockchain: { [name in string]: Blockchain } = {
-  BTC: Blockchain.BITCOIN,
-  XMR: Blockchain.MONERO,
-  ETH: Blockchain.ETHEREUM,
-  BNB: Blockchain.BINANCE_SMART_CHAIN,
-};
-
 @Injectable()
 export class AssetService {
   private readonly cache = new AsyncCache<Asset>(60);
 
   constructor(private assetRepo: AssetRepository) {}
 
-  async getAllAsset(blockchains: Blockchain[]): Promise<Asset[]> {
-    return blockchains.length > 0 ? this.assetRepo.findBy({ blockchain: In(blockchains) }) : this.assetRepo.find();
+  async getAllAsset(blockchains: Blockchain[], includePrivate = true): Promise<Asset[]> {
+    const search: FindOptionsWhere<Asset> = {};
+    blockchains.length > 0 && (search.blockchain = In(blockchains));
+    !includePrivate && (search.category = Not(AssetCategory.PRIVATE));
+
+    return this.assetRepo.findBy(search);
   }
 
   async getActiveAsset(): Promise<Asset[]> {
@@ -58,12 +55,6 @@ export class AssetService {
 
   async getNativeAsset(blockchain: Blockchain): Promise<Asset> {
     return this.assetRepo.findOneBy({ blockchain, type: AssetType.COIN });
-  }
-
-  async getNativeMainLayerAsset(dexName: string): Promise<Asset> {
-    const blockchain = MainLayerBlockchain[dexName];
-    if (!blockchain) throw new NotFoundException('Main layer blockchain not found');
-    return this.assetRepo.findOneBy({ dexName, blockchain, type: AssetType.COIN });
   }
 
   async getSellableBlockchains(): Promise<Blockchain[]> {

@@ -1,30 +1,33 @@
 import { ConflictException } from '@nestjs/common';
-import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
+import { AmlHelperService } from 'src/subdomains/core/aml/aml-helper.service';
+import { AmlErrorReasons } from 'src/subdomains/core/aml/enums/aml-error.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
-import { KycLevel, KycType, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
-import { SpecialExternalBankAccount } from 'src/subdomains/supporting/bank/special-external-bank-account/special-external-bank-account.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { FeeDto, InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import {
   CryptoPaymentMethod,
   FiatPaymentMethod,
   PaymentMethod,
 } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
-import { Fee } from 'src/subdomains/supporting/payment/entities/fee.entity';
+import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
+import { AmlReason } from '../../../aml/enums/aml-reason.enum';
+import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { Buy } from '../../routes/buy/buy.entity';
-import { AmlReason } from '../enums/aml-reason.enum';
-import { CheckStatus } from '../enums/check-status.enum';
 import { BuyCryptoBatch } from './buy-crypto-batch.entity';
 import { BuyCryptoFee } from './buy-crypto-fees.entity';
 
@@ -147,6 +150,9 @@ export class BuyCrypto extends IEntity {
   @Column({ type: 'float', nullable: true })
   inputReferenceAmountMinusFee: number;
 
+  @Column({ type: 'float', nullable: true })
+  blockchainFee: number;
+
   // Fail
   @Column({ type: 'datetime2', nullable: true })
   chargebackDate: Date;
@@ -183,9 +189,16 @@ export class BuyCrypto extends IEntity {
   @Column({ default: false })
   isComplete: boolean;
 
+  @Column({ length: 'MAX', nullable: true })
+  comment: string;
+
   @OneToOne(() => TransactionRequest, { nullable: true })
   @JoinColumn()
   transactionRequest: TransactionRequest;
+
+  @OneToOne(() => Transaction, { eager: true, nullable: true })
+  @JoinColumn()
+  transaction: Transaction;
 
   @Column({ length: 256, nullable: true })
   externalTransactionId: string;
@@ -373,7 +386,7 @@ export class BuyCrypto extends IEntity {
 
   confirmSentMail(): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
-      recipientMail: this.userData.mail,
+      recipientMail: this.noCommunication ? null : this.userData.mail,
       mailSendDate: new Date(),
     };
 
@@ -396,28 +409,28 @@ export class BuyCrypto extends IEntity {
   setFeeAndFiatReference(
     amountInEur: number,
     amountInChf: number,
-    fees: Fee[],
-    feeRate: number,
-    fixedFee: number,
-    payoutRefBonus: boolean,
-    minFeeAmount: number,
+    fee: InternalFeeDto & FeeDto,
     minFeeAmountFiat: number,
-    totalFeeAmount: number,
     totalFeeAmountChf: number,
   ): UpdateResult<BuyCrypto> {
+    const { usedRef, refProvision } = this.user.specifiedRef;
+
     const update: Partial<BuyCrypto> = {
-      absoluteFeeAmount: fixedFee,
-      percentFee: feeRate,
-      percentFeeAmount: feeRate * this.inputReferenceAmount,
-      minFeeAmount,
+      absoluteFeeAmount: fee.fixed,
+      percentFee: fee.rate,
+      percentFeeAmount: fee.rate * this.inputReferenceAmount,
+      minFeeAmount: fee.min,
       minFeeAmountFiat,
-      totalFeeAmount,
+      totalFeeAmount: fee.total,
       totalFeeAmountChf,
-      inputReferenceAmountMinusFee: this.inputReferenceAmount - totalFeeAmount,
+      blockchainFee: fee.network,
+      inputReferenceAmountMinusFee: this.inputReferenceAmount - fee.total,
       amountInEur,
       amountInChf,
-      refFactor: payoutRefBonus ? this.refFactor : 0,
-      usedFees: fees?.map((fee) => fee.id).join(';'),
+      usedRef,
+      refProvision,
+      refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
+      usedFees: fee.fees?.map((fee) => fee.id).join(';'),
     };
 
     if (update.inputReferenceAmountMinusFee < 0) throw new ConflictException('InputReferenceAmountMinusFee smaller 0');
@@ -431,75 +444,39 @@ export class BuyCrypto extends IEntity {
     chfReferencePrice: Price,
     minVolume: number,
     last24hVolume: number,
+    last7dVolume: number,
     last30dVolume: number,
-    bankDataUserData: UserData,
-    blacklist: SpecialExternalBankAccount[],
+    bankData: BankData,
+    blacklist: SpecialExternalAccount[],
     instantBanks: Bank[],
   ): UpdateResult<BuyCrypto> {
-    const { usedRef, refProvision } = this.user.specifiedRef;
     const amountInChf = chfReferencePrice.convert(this.inputReferenceAmount, 2);
 
-    const update: Partial<BuyCrypto> = this.isAmlPass(
+    const amlErrors = AmlHelperService.getAmlErrors(
+      this,
       minVolume,
       amountInChf,
       last24hVolume,
+      last7dVolume,
       last30dVolume,
-      bankDataUserData?.id,
+      bankData,
       blacklist,
       instantBanks,
-    )
-      ? {
-          usedRef,
-          refProvision,
-          refFactor: usedRef === '000-000' ? 0 : 1,
-          amlCheck: CheckStatus.PASS,
-        }
-      : Util.minutesDiff(this.created) > 10
-      ? { amlCheck: CheckStatus.GSHEET }
-      : {};
+    );
+
+    const comment = amlErrors.join(';');
+    const update: Partial<BuyCrypto> =
+      amlErrors.length === 0
+        ? { amlCheck: CheckStatus.PASS, amlReason: AmlReason.NA }
+        : amlErrors.every((e) => AmlErrorReasons[e])
+        ? { amlCheck: CheckStatus.PENDING, amlReason: AmlErrorReasons[amlErrors[0]], comment }
+        : Util.minutesDiff(this.created) >= 10
+        ? { amlCheck: CheckStatus.GSHEET, comment }
+        : { comment };
 
     Object.assign(this, update);
 
     return [this.id, update];
-  }
-
-  isAmlPass(
-    minVolume: number,
-    amountInChf: number,
-    last24hVolume: number,
-    last30dVolume: number,
-    bankDataUserDataId: number,
-    blacklist: SpecialExternalBankAccount[],
-    instantBanks: Bank[],
-  ): boolean {
-    return (
-      this.inputReferenceAmount >= minVolume * 0.9 && // factor 0.9 puffer
-      this.target.asset.buyable &&
-      this.user.isPaymentStatusEnabled &&
-      this.userData.isPaymentStatusEnabled &&
-      this.userData.kycType === KycType.DFX &&
-      this.userData.id === bankDataUserDataId &&
-      this.userData.isPaymentKycStatusEnabled && //
-      this.userData.verifiedName &&
-      this.userData.verifiedCountry &&
-      this.userData.lastNameCheckDate &&
-      Util.daysDiff(this.userData.lastNameCheckDate) <= Config.amlCheckLastNameCheckValidity &&
-      last30dVolume <= Config.tradingLimits.monthlyDefault &&
-      !blacklist.some((b) => (b.bic && b.bic === this.bankTx.bic) || (b.iban && b.iban === this.bankTx.iban)) &&
-      (!instantBanks.some((b) => b.iban === this.bankTx.accountIban) || this.userData.olkypayAllowed) &&
-      (last24hVolume <= Config.tradingLimits.dailyDefault || this.isKycAmlPass(amountInChf))
-    );
-  }
-
-  isKycAmlPass(amountInChf: number): boolean {
-    return (
-      this.userData.kycLevel >= KycLevel.LEVEL_50 &&
-      this.userData.hasBankTxVerification &&
-      this.userData.letterSentDate &&
-      this.userData.amlListAddedDate &&
-      this.userData.kycFileId > 0 &&
-      this.userData.annualBuyVolume + amountInChf < this.userData.depositLimit
-    );
   }
 
   resetAmlCheck(): UpdateResult<BuyCrypto> {
@@ -507,10 +484,6 @@ export class BuyCrypto extends IEntity {
       amlCheck: null,
       amlReason: null,
       mailSendDate: null,
-      inputAmount: null,
-      inputAsset: null,
-      inputReferenceAmount: null,
-      inputReferenceAsset: null,
       amountInChf: null,
       amountInEur: null,
       absoluteFeeAmount: null,
@@ -563,17 +536,13 @@ export class BuyCrypto extends IEntity {
     const rate = this.inputAmount / this.outputAmount;
 
     return {
-      exchangeRate: this.isCryptoCryptoTransaction
-        ? Util.roundByPrecision(exchangeRate, 5)
-        : Util.round(exchangeRate, 2),
-      rate: this.isCryptoCryptoTransaction ? Util.roundByPrecision(rate, 5) : Util.round(rate, 2),
+      exchangeRate: Util.roundReadable(exchangeRate, !this.isCryptoCryptoTransaction),
+      rate: Util.roundReadable(rate, !this.isCryptoCryptoTransaction),
     };
   }
 
   get exchangeRateString(): string {
-    const amount = this.isCryptoCryptoTransaction
-      ? Util.roundByPrecision(this.exchangeRate.exchangeRate, 5)
-      : Util.round(this.exchangeRate.exchangeRate, 2);
+    const amount = Util.roundReadable(this.exchangeRate.exchangeRate, !this.isCryptoCryptoTransaction);
     return `${amount} ${this.inputAsset}/${this.outputAsset.name}`;
   }
 
@@ -612,6 +581,10 @@ export class BuyCrypto extends IEntity {
         };
   }
 
+  get noCommunication(): boolean {
+    return this.amlReason === AmlReason.NO_COMMUNICATION;
+  }
+
   // --- HELPER METHODS --- //
 
   private resetTransaction(): Partial<BuyCrypto> {
@@ -635,6 +608,8 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.ANNUAL_LIMIT_WITHOUT_KYC,
   AmlReason.OLKY_NO_KYC,
   AmlReason.NAME_CHECK_WITHOUT_KYC,
+  AmlReason.HIGH_RISK_KYC_NEEDED,
+  AmlReason.MANUAL_CHECK,
 ];
 
 export const BuyCryptoEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET];

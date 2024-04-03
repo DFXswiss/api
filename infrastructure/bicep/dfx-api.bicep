@@ -59,6 +59,7 @@ param ethWalletAddress string
 param ethWalletPrivateKey string
 param ethGatewayUrl string
 param ethSwapContractAddress string
+param ethQuoteContractAddress string
 param ethChainId string
 
 param optimismWalletAddress string
@@ -66,6 +67,7 @@ param optimismWalletAddress string
 param optimismWalletPrivateKey string
 param optimismGatewayUrl string
 param optimismSwapContractAddress string
+param optimismQuoteContractAddress string
 param optimismChainId string
 
 param arbitrumWalletAddress string
@@ -73,6 +75,7 @@ param arbitrumWalletAddress string
 param arbitrumWalletPrivateKey string
 param arbitrumGatewayUrl string
 param arbitrumSwapContractAddress string
+param arbitrumQuoteContractAddress string
 param arbitrumChainId string
 
 param polygonWalletAddress string
@@ -80,6 +83,7 @@ param polygonWalletAddress string
 param polygonWalletPrivateKey string
 param polygonGatewayUrl string
 param polygonSwapContractAddress string
+param polygonQuoteContractAddress string
 param polygonChainId string
 
 param baseWalletAddress string
@@ -87,6 +91,7 @@ param baseWalletAddress string
 param baseWalletPrivateKey string
 param baseGatewayUrl string
 param baseSwapContractAddress string
+param baseQuoteContractAddress string
 param baseChainId string
 
 param bscWalletAddress string
@@ -94,6 +99,7 @@ param bscWalletAddress string
 param bscWalletPrivateKey string
 param bscGatewayUrl string
 param bscSwapContractAddress string
+param bscQuoteContractAddress string
 param bscChainId string
 param bscScanApiUrl string
 @secure()
@@ -116,6 +122,8 @@ param zchfContractAddress string
 param zchfEquityContractAddress string
 param zchfStablecoinBridgeContractAddress string
 param zchfXchfContractAddress string
+
+param ebel2XContractAddress string
 
 param buyCryptoFeeLimit string
 
@@ -377,14 +385,15 @@ resource sqlVNetRule 'Microsoft.Sql/servers/virtualNetworkRules@2021-02-01-previ
   }
 }
 
-resource sqlAllRule 'Microsoft.Sql/servers/firewallRules@2021-02-01-preview' = if (dbAllowAllIps) {
-  parent: sqlServer
-  name: 'all'
-  properties: {
-    startIpAddress: '0.0.0.0'
-    endIpAddress: '255.255.255.255'
+resource sqlAllRule 'Microsoft.Sql/servers/firewallRules@2021-02-01-preview' =
+  if (dbAllowAllIps) {
+    parent: sqlServer
+    name: 'all'
+    properties: {
+      startIpAddress: '0.0.0.0'
+      endIpAddress: '255.255.255.255'
+    }
   }
-}
 
 resource sqlDb 'Microsoft.Sql/servers/databases@2021-02-01-preview' = {
   parent: sqlServer
@@ -628,6 +637,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: ethSwapContractAddress
         }
         {
+          name: 'ETH_QUOTE_CONTRACT_ADDRESS'
+          value: ethQuoteContractAddress
+        }
+        {
           name: 'ETH_CHAIN_ID'
           value: ethChainId
         }
@@ -646,6 +659,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'OPTIMISM_SWAP_CONTRACT_ADDRESS'
           value: optimismSwapContractAddress
+        }
+        {
+          name: 'OPTIMISM_QUOTE_CONTRACT_ADDRESS'
+          value: optimismQuoteContractAddress
         }
         {
           name: 'OPTIMISM_CHAIN_ID'
@@ -668,6 +685,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: arbitrumSwapContractAddress
         }
         {
+          name: 'ARBITRUM_QUOTE_CONTRACT_ADDRESS'
+          value: arbitrumQuoteContractAddress
+        }
+        {
           name: 'ARBITRUM_CHAIN_ID'
           value: arbitrumChainId
         }
@@ -686,6 +707,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'POLYGON_SWAP_CONTRACT_ADDRESS'
           value: polygonSwapContractAddress
+        }
+        {
+          name: 'POLYGON_QUOTE_CONTRACT_ADDRESS'
+          value: polygonQuoteContractAddress
         }
         {
           name: 'POLYGON_CHAIN_ID'
@@ -708,6 +733,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: baseSwapContractAddress
         }
         {
+          name: 'BASE_QUOTE_CONTRACT_ADDRESS'
+          value: baseQuoteContractAddress
+        }
+        {
           name: 'BASE_CHAIN_ID'
           value: baseChainId
         }
@@ -726,6 +755,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'BSC_SWAP_CONTRACT_ADDRESS'
           value: bscSwapContractAddress
+        }
+        {
+          name: 'BSC_QUOTE_CONTRACT_ADDRESS'
+          value: bscQuoteContractAddress
         }
         {
           name: 'BSC_SCAN_API_URL'
@@ -806,6 +839,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'ZCHF_XCHF_CONTRACT_ADDRESS'
           value: zchfXchfContractAddress
+        }
+        {
+          name: 'EBEL2X_CONTRACT_ADDRESS'
+          value: ebel2XContractAddress
         }
         {
           name: 'BUY_CRYPTO_FEE_LIMIT'
@@ -1037,23 +1074,25 @@ resource appInsights 'microsoft.insights/components@2020-02-02-preview' = {
 }
 
 // DeFi Nodes
-module nodes 'defi-node.bicep' = [for node in nodeProps: {
-  name: node.name
-  params: {
-    location: location
-    servicePlanName: node.servicePlanName
-    servicePlanSkuName: nodeServicePlanSkuName
-    servicePlanSkuTier: nodeServicePlanSkuTier
-    appName: node.appName
-    subnetId: virtualNet.properties.subnets[0].id
-    storageAccountName: storageAccountName
-    storageAccountId: storageAccount.id
-    fileShareNameA: node.fileShareNameA
-    fileShareNameB: node.fileShareNameB
-    allowAllIps: nodeAllowAllIps
-    hasBackup: hasBackupNodes
+module nodes 'defi-node.bicep' = [
+  for node in nodeProps: {
+    name: node.name
+    params: {
+      location: location
+      servicePlanName: node.servicePlanName
+      servicePlanSkuName: nodeServicePlanSkuName
+      servicePlanSkuTier: nodeServicePlanSkuTier
+      appName: node.appName
+      subnetId: virtualNet.properties.subnets[0].id
+      storageAccountName: storageAccountName
+      storageAccountId: storageAccount.id
+      fileShareNameA: node.fileShareNameA
+      fileShareNameB: node.fileShareNameB
+      allowAllIps: nodeAllowAllIps
+      hasBackup: hasBackupNodes
+    }
   }
-}]
+]
 
 // BTC Node
 resource vmNsg 'Microsoft.Network/networkSecurityGroups@2020-11-01' = {
@@ -1104,31 +1143,34 @@ resource vmNsg 'Microsoft.Network/networkSecurityGroups@2020-11-01' = {
   }
 }
 
-resource rpcRule 'Microsoft.Network/networkSecurityGroups/securityRules@2020-11-01' = if (nodeAllowAllIps) {
-  parent: vmNsg
-  name: 'RPC'
-  properties: {
-    protocol: 'TCP'
-    sourcePortRange: '*'
-    destinationPortRange: btcNodePort
-    sourceAddressPrefix: allowedIpRange
-    destinationAddressPrefix: '*'
-    access: 'Allow'
-    priority: 350
-    direction: 'Inbound'
+resource rpcRule 'Microsoft.Network/networkSecurityGroups/securityRules@2020-11-01' =
+  if (nodeAllowAllIps) {
+    parent: vmNsg
+    name: 'RPC'
+    properties: {
+      protocol: 'TCP'
+      sourcePortRange: '*'
+      destinationPortRange: btcNodePort
+      sourceAddressPrefix: allowedIpRange
+      destinationAddressPrefix: '*'
+      access: 'Allow'
+      priority: 350
+      direction: 'Inbound'
+    }
   }
-}
 
-module btcNodes 'btc-node.bicep' = [for node in btcNodeProps: {
-  name: node.name
-  params: {
-    location: location
-    pipName: node.pipName
-    vmName: node.vmName
-    vmDiskName: node.vmDiskName
-    nicName: node.nicName
-    vmUser: btcVmUser
-    vmPassword: btcVmPassword
-    subnetId: virtualNet.properties.subnets[1].id
+module btcNodes 'btc-node.bicep' = [
+  for node in btcNodeProps: {
+    name: node.name
+    params: {
+      location: location
+      pipName: node.pipName
+      vmName: node.vmName
+      vmDiskName: node.vmDiskName
+      nicName: node.nicName
+      vmUser: btcVmUser
+      vmPassword: btcVmPassword
+      subnetId: virtualNet.properties.subnets[1].id
+    }
   }
-}]
+]

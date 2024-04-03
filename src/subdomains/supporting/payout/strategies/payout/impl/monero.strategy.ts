@@ -3,6 +3,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { PayoutOrder, PayoutOrderContext } from '../../../entities/payout-order.entity';
 import { FeeResult } from '../../../interfaces';
@@ -42,6 +43,13 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
   }
 
   protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
+    if (!(await this.hasEnoughUnlockedBalance(orders))) {
+      this.logger.info(
+        `Insufficient unlocked balance for paying out XMR orders(s). Order ID(s): ${orders.map((o) => o.id)}`,
+      );
+      return;
+    }
+
     const payoutGroups = this.createPayoutGroups(orders, 15);
 
     for (const group of payoutGroups) {
@@ -62,6 +70,13 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
         continue;
       }
     }
+  }
+
+  private async hasEnoughUnlockedBalance(orders: PayoutOrder[]): Promise<boolean> {
+    const totalOrderAmount = Util.sumObjValue<PayoutOrder>(orders, 'amount');
+    const unlockedBalance = await this.payoutMoneroService.getUnlockedBalance();
+
+    return totalOrderAmount <= unlockedBalance;
   }
 
   protected dispatchPayout(context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {

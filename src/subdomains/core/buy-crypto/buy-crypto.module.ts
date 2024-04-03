@@ -11,8 +11,10 @@ import { DexModule } from 'src/subdomains/supporting/dex/dex.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PayInModule } from 'src/subdomains/supporting/payin/payin.module';
 import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
+import { TransactionModule } from 'src/subdomains/supporting/payment/transaction.module';
 import { PayoutModule } from 'src/subdomains/supporting/payout/payout.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
+import { AmlModule } from '../aml/aml.module';
 import { LiquidityManagementModule } from '../liquidity-management/liquidity-management.module';
 import { SellCryptoModule } from '../sell-crypto/sell-crypto.module';
 import { BuyCryptoController } from './process/buy-crypto.controller';
@@ -56,6 +58,8 @@ import { CryptoRouteService } from './routes/crypto-route/crypto-route.service';
     forwardRef(() => AddressPoolModule),
     LiquidityManagementModule,
     IntegrationModule,
+    TransactionModule,
+    AmlModule,
   ],
   controllers: [BuyCryptoController, BuyController, CryptoRouteController],
   providers: [

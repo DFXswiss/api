@@ -70,7 +70,9 @@
                 "asset_currently_not_available": "Cet actif n'est actuellement pas disponible à l'échange avec DFX",
                 "staking_discontinued": "Les nouveaux dépôts en staking ne sont plus possible",
                 "bank_not_allowed": "La banque expéditrice que vous avez utilisée n'est pas autorisée. Veuillez utiliser une autre banque pour votre dépôt.",
-                "country_not_allowed": "Malheureusement, votre dépôt ne peut pas être traité <br>car l'argent provient d'un pays que nous ne pouvons pas prendre en charge. Pour plus d'informations:<br><a style='color:white' href='https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html'>https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html</a>"
+                "country_not_allowed": "Malheureusement, votre dépôt ne peut pas être traité <br>car l'argent provient d'un pays que nous ne pouvons pas prendre en charge. Pour plus d'informations:<br><a style='color:white' href='https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html'>https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html</a>",
+                "high_risk_kyc_needed": "Sans vérification (KYC), nous n'avons pas pu nous assurer que cette transaction n'était pas frauduleuse et nous avons donc malheureusement dû la refuser.<br>Les paiements par transaction bancaire sont toujours disponibles.",
+                "high_risk_blocked": "Nous ne pouvons pas nous assurer que cette transaction n'est pas frauduleuse et nous avons donc malheureusement dû la refuser.<br>Les paiements par transaction bancaire sont toujours disponibles."
             },
             "kyc_start": "Vous pouvez commencer le processus KYC ici:<br>[url:{urlText}]"
         },
@@ -119,6 +121,24 @@
                 "line3": "Par conséquent, cliquez sur le lien suivant pour vérifier votre identité:<br>[url:{urlText}]",
                 "line4": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
                 "line5": "Si vous ne souhaitez pas réaliser la vérification, les fonds seront intégralement retournés après 2 jours."
+            },
+            "high_risk_kyc_needed": {
+                "title": "Problème avec votre dépôt",
+                "salutation": "La vérification (KYC) est nécessaire pour exécuter votre transaction en cours",
+                "line1": "Cher client, merci beaucoup pour votre confiance en DFX.",
+                "line2": "Malheureusement, sans vérification complète, nous ne pouvons pas garantir que cette transaction n'est pas frauduleuse.",
+                "line3": "Par conséquent, cliquez sur le lien suivant pour vérifier votre identité:<br>[url:{urlText}]",
+                "line4": "Vous pouvez également cliquer sur l'élément de menu en haut à droite du site web de DFX-Services <br> puis sur \"KYC\" <br> et lancer la vérification en cliquant sur le bouton \"Continuer\".",
+                "line5": "Si vous ne souhaitez pas réaliser la vérification, les fonds seront intégralement retournés après 2 jours."
+            },
+            "manual_check": {
+                "title": "Dépôt de chèques",
+                "salutation": "Votre dépôt sera vérifié",
+                "line1": "Nous vous remercions de la confiance que vous accordez à DFX.",
+                "line2": "Malheureusement, la transaction n'a pas pu être validée de manière entièrement automatique et doit maintenant être vérifiée manuellement par un employé.",
+                "line3": "Ce délai est généralement de 24 heures, mais peut aller jusqu'à 7 jours.",
+                "line4": "Vous serez informé dès que le contrôle aura été effectué et que votre paiement aura été traité.",
+                "line5": ""
             }
         },
         "blockchain": "Blockchain",
@@ -148,13 +168,14 @@
         "failed": {
             "title": "Votre identification a échoué",
             "salutation": "Votre identification a échoué",
-            "message": "Nous avons remarqué que votre identification a échoué. Veuillez réessayer avec l'URL suivante:<br>[url:{urlText}]"
+            "message": "Votre identification a échoué pour la raison suivante:<br>{reason}"
         },
         "reminder": {
             "title": "Terminez votre vérification",
             "salutation": "Terminez votre vérification",
             "message": "Nous avons remarqué que vous n'avez pas terminé votre vérification."
         },
+        "retry": "Veuillez réessayer avec l'URL suivante:<br>[url:{urlText}]",
         "next_step": "Pour procéder à votre vérification, cliquez sur l'élément de menu en haut à droite du site Web de DFX-Services<br>, puis sur \"KYC\"<br> et cliquez sur le bouton \"Continuer\" ou utilisez le lien suivant :<br>[url:{urlText}]",
         "last_step": "Franchissez le dernier pas et développez votre liberté financière dès aujourd'hui"
     },

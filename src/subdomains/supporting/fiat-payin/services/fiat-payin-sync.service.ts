@@ -5,7 +5,8 @@ import { CheckoutService } from 'src/integration/checkout/services/checkout.serv
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { Util } from 'src/shared/utils/util';
+import { TransactionSourceType } from '../../payment/entities/transaction.entity';
+import { TransactionService } from '../../payment/services/transaction.service';
 import { CheckoutTx } from '../entities/checkout-tx.entity';
 import { CheckoutTxRepository } from '../repositories/checkout-tx.repository';
 import { CheckoutTxService } from './checkout-tx.service';
@@ -18,6 +19,7 @@ export class FiatPayInSyncService {
     private readonly checkoutService: CheckoutService,
     private readonly checkoutTxRepo: CheckoutTxRepository,
     private readonly checkoutTxService: CheckoutTxService,
+    private readonly transactionService: TransactionService,
   ) {}
 
   // --- JOBS --- //
@@ -27,7 +29,8 @@ export class FiatPayInSyncService {
   async syncCheckout() {
     if (DisabledProcess(Process.FIAT_PAY_IN)) return;
 
-    const payments = await this.checkoutService.getPayments(Util.minutesBefore(10));
+    const syncDate = await this.checkoutTxService.getSyncDate();
+    const payments = await this.checkoutService.getPayments(syncDate);
 
     for (const payment of payments) {
       try {
@@ -46,13 +49,19 @@ export class FiatPayInSyncService {
 
     let entity = await this.checkoutTxRepo.findOne({
       where: { paymentId: tx.paymentId },
-      relations: { buyCrypto: true },
+      relations: { buyCrypto: true, transaction: true },
     });
     if (entity) {
       Object.assign(entity, tx);
     } else {
       entity = tx;
     }
+
+    if (!entity.transaction)
+      if (!DisabledProcess(Process.CREATE_TRANSACTION))
+        entity.transaction = await this.transactionService.create({
+          sourceType: TransactionSourceType.CHECKOUT_TX,
+        });
 
     return this.checkoutTxRepo.save(entity);
   }
@@ -70,7 +79,11 @@ export class FiatPayInSyncService {
       description: payment.description,
       type: payment.payment_type,
       cardName: payment.source?.name,
+      cardBin: payment.source?.bin,
+      cardLast4: payment.source?.last4,
       cardFingerPrint: payment.source?.fingerprint,
+      cardIssuer: payment.source?.issuer,
+      cardIssuerCountry: payment.source?.issuer_country,
       ip: payment.payment_ip,
       risk: payment.risk?.flagged,
       riskScore: payment.risk?.score,

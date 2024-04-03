@@ -13,11 +13,15 @@ import { TransactionRequest } from './entities/transaction-request.entity';
 import { TransactionSpecification } from './entities/transaction-specification.entity';
 import { BlockchainFeeRepository } from './repositories/blockchain-fee.repository';
 import { FeeRepository } from './repositories/fee.repository';
+import { SpecialExternalAccountRepository } from './repositories/special-external-account.repository';
 import { TransactionRequestRepository } from './repositories/transaction-request.repository';
 import { TransactionSpecificationRepository } from './repositories/transaction-specification.repository';
 import { FeeService } from './services/fee.service';
+import { SpecialExternalAccountService } from './services/special-external-account.service';
 import { TransactionHelper } from './services/transaction-helper';
 import { TransactionRequestService } from './services/transaction-request.service';
+import { TransactionJobModule } from './transaction-job.module';
+import { TransactionModule } from './transaction.module';
 
 @Module({
   imports: [
@@ -28,6 +32,8 @@ import { TransactionRequestService } from './services/transaction-request.servic
     forwardRef(() => UserModule),
     forwardRef(() => SellCryptoModule),
     forwardRef(() => BuyCryptoModule),
+    TransactionJobModule,
+    TransactionModule,
   ],
   controllers: [FeeController],
   providers: [
@@ -38,7 +44,9 @@ import { TransactionRequestService } from './services/transaction-request.servic
     TransactionRequestRepository,
     BlockchainFeeRepository,
     TransactionRequestService,
+    SpecialExternalAccountService,
+    SpecialExternalAccountRepository,
   ],
-  exports: [TransactionHelper, FeeService, TransactionRequestService],
+  exports: [TransactionHelper, FeeService, TransactionRequestService, SpecialExternalAccountService],
 })
 export class PaymentModule {}

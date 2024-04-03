@@ -2,12 +2,8 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-mapper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
-import { AssetService } from 'src/shared/models/asset/asset.service';
-import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
-import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInArbitrumService } from '../../../services/payin-arbitrum.service';
 import { EvmStrategy } from './base/evm.strategy';
 
@@ -15,13 +11,8 @@ import { EvmStrategy } from './base/evm.strategy';
 export class ArbitrumStrategy extends EvmStrategy implements OnModuleInit {
   protected readonly logger = new DfxLogger(ArbitrumStrategy);
 
-  constructor(
-    arbitrumService: PayInArbitrumService,
-    payInRepository: PayInRepository,
-    assetService: AssetService,
-    repos: RepositoryFactory,
-  ) {
-    super('ETH', arbitrumService, payInRepository, assetService, repos);
+  constructor(arbitrumService: PayInArbitrumService) {
+    super(arbitrumService);
   }
 
   onModuleInit() {
@@ -41,31 +32,6 @@ export class ArbitrumStrategy extends EvmStrategy implements OnModuleInit {
 
   get blockchain(): Blockchain {
     return Blockchain.ARBITRUM;
-  }
-
-  //*** PUBLIC API ***//
-
-  async getReferenceAssets(): Promise<{ btc: Asset; usdt: Asset }> {
-    return Promise.all([
-      this.assetService.getAssetByQuery({
-        dexName: 'WBTC',
-        blockchain: Blockchain.ETHEREUM,
-        type: AssetType.TOKEN,
-      }),
-      this.assetService.getAssetByQuery({
-        dexName: 'USDT',
-        blockchain: Blockchain.ETHEREUM,
-        type: AssetType.TOKEN,
-      }),
-    ]).then(([btc, usdt]) => ({ btc, usdt }));
-  }
-
-  async getSourceAssetRepresentation(asset: Asset): Promise<Asset> {
-    return this.assetService.getAssetByQuery({
-      dexName: asset.dexName.split('.')[0], // workaround for bridged USDC (USDC.e)
-      blockchain: Blockchain.ETHEREUM,
-      type: asset.type,
-    });
   }
 
   //*** HELPER METHODS ***//

@@ -54,11 +54,17 @@ export class BankDataService {
     return this.bankDataRepo.findOne({ where: { id }, relations: { userData: true } });
   }
 
-  async getBankDataWithIban(iban: string, userDataId?: number, active?: boolean): Promise<BankData> {
+  async getBankDatasForUser(userDataId: number): Promise<BankData[]> {
+    return this.bankDataRepo.findBy({ userData: { id: userDataId }, active: true });
+  }
+
+  async getBankDataWithIban(iban: string, userDataId?: number): Promise<BankData> {
     if (!iban) return undefined;
-    return this.bankDataRepo.findOne({
-      where: { iban, active, userData: { id: userDataId } },
-      relations: ['userData'],
-    });
+    return this.bankDataRepo
+      .find({
+        where: { iban, userData: { id: userDataId } },
+        relations: ['userData'],
+      })
+      .then((b) => b.filter((b) => b.active)[0] ?? b[0]);
   }
 }

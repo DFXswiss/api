@@ -1,6 +1,6 @@
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { createDefaultBuy } from 'src/subdomains/core/buy-crypto/routes/buy/__mocks__/buy.entity.mock';
-import { CheckStatus } from '../../enums/check-status.enum';
+import { CheckStatus } from '../../../../aml/enums/check-status.enum';
 import { BuyCrypto, BuyCryptoStatus } from '../buy-crypto.entity';
 import { createCustomBuyCryptoBatch } from './buy-crypto-batch.entity.mock';
 import { createDefaultBuyCryptoFee } from './buy-crypto-fee.entity.mock';

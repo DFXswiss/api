@@ -1,7 +1,9 @@
 import { IEntity } from 'src/shared/models/entity';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
-import { Column, Entity, ManyToOne, OneToOne } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
+import { Transaction } from '../../payment/entities/transaction.entity';
+import { BankTxRepeat } from '../bank-tx-repeat/bank-tx-repeat.entity';
 import { BankTxReturn } from '../bank-tx-return/bank-tx-return.entity';
 import { BankTxBatch } from './bank-tx-batch.entity';
 
@@ -185,30 +187,40 @@ export class BankTx extends IEntity {
   @OneToOne(() => BankTxReturn, (bankTxReturn) => bankTxReturn.bankTx, { nullable: true })
   bankTxReturn?: BankTxReturn;
 
+  @OneToOne(() => BankTxRepeat, (bankTxRepeat) => bankTxRepeat.bankTx, { nullable: true })
+  bankTxRepeat?: BankTxRepeat;
+
   @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.bankTx, { nullable: true })
   buyCrypto?: BuyCrypto;
 
   @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.bankTx, { nullable: true })
   buyFiat?: BuyFiat;
 
+  @OneToOne(() => Transaction, { nullable: true })
+  @JoinColumn()
+  transaction: Transaction;
+
   //*** GETTER METHODS ***//
 
   get completeName(): string {
-    return `${this.name} ${this.ultimateName}`;
+    return [this.name, this.ultimateName]
+      .filter((n) => n)
+      .map((n) => n.replace(/[,]/g, '').trim())
+      .join(' ');
   }
 
   senderAccount(externalManagedIban: string[]): string | undefined {
     if (externalManagedIban.includes(this.iban)) return `${this.iban};${this.completeName.split(' ').join('')}`;
+
     if (this.iban) {
       if (!isNaN(+this.iban)) return `NOIBAN${this.iban}`;
       return this.iban;
-    }
-    if (!this.iban) {
+    } else {
       if (this.name.startsWith('/C/')) return this.name.split('/C/')[1];
       if (this.name === 'Schaltereinzahlung') return this.name;
-      return `${this.name ?? ''}:${this.ultimateName ?? ''}`.trim().split(' ').join(':');
+
+      return this.completeName.split(' ').join(':');
     }
-    return undefined;
   }
 }
 
@@ -216,4 +228,10 @@ export const BankTxCompletedTypes = [BankTxType.BUY_CRYPTO, BankTxType.BANK_TX_R
 
 export function BankTxTypeCompleted(bankTxType?: BankTxType): boolean {
   return BankTxCompletedTypes.includes(bankTxType);
+}
+
+export const BankTxUnassignedTypes = [BankTxType.GSHEET, BankTxType.UNKNOWN, BankTxType.PENDING];
+
+export function BankTxTypeUnassigned(bankTxType?: BankTxType): boolean {
+  return BankTxUnassignedTypes.includes(bankTxType);
 }

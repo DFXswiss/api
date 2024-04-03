@@ -43,10 +43,12 @@ export class Configuration {
   azureIpSubstring = '169.254';
 
   amlCheckLastNameCheckValidity = 90; // days
+  maxBlockchainFee = 50; // CHF
 
   tradingLimits = {
     dailyDefault: 1000, // CHF
-    monthlyDefault: 50000, // CHF
+    weeklyAmlRule: 5000, // CHF
+    monthlyDefault: 500000, // CHF
     yearlyDefault: 1000000000, // CHF
     cardDefault: 4000, // CHF
   };
@@ -63,11 +65,12 @@ export class Configuration {
   moneroAddressFormat = '[48][0-9AB][1-9A-HJ-NP-Za-km-z]{93}';
   ethereumAddressFormat = '0x\\w{40}';
   liquidAddressFormat = '(VTp|VJL)[a-zA-HJ-NP-Z0-9]{77}';
+  arweaveAddressFormat = '[\\w\\-]{43}';
   cardanoAddressFormat = 'stake[a-z0-9]{54}';
   defichainAddressFormat =
     this.environment === Environment.PRD ? '8\\w{33}|d\\w{33}|d\\w{41}' : '[78]\\w{33}|[td]\\w{33}|[td]\\w{41}';
 
-  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}`;
+  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}`;
 
   masterKeySignatureFormat = '[0-9a-fA-F]{8}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{12}';
   hashSignatureFormat = '[A-Fa-f0-9]{64}';
@@ -76,14 +79,20 @@ export class Configuration {
   lightningCustodialSignatureFormat = '[a-z0-9]{140,146}';
   moneroSignatureFormat = 'SigV\\d[0-9a-zA-Z]{88}';
   ethereumSignatureFormat = '(0x)?[a-f0-9]{130}';
+  arweaveSignatureFormat = '[\\w\\-]{683}';
   cardanoSignatureFormat = '[a-f0-9]{582}';
 
-  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.cardanoSignatureFormat}`;
+  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}`;
+
+  arweaveKeyFormat = '[\\w\\-]{683}';
+  cardanoKeyFormat = '[a-f0-9]{84}';
+
+  allKeyFormat = `${this.arweaveKeyFormat}|${this.cardanoKeyFormat}`;
 
   formats = {
     address: new RegExp(`^(${this.allAddressFormat})$`),
     signature: new RegExp(`^(${this.allSignatureFormat})$`),
-    key: /^[a-f0-9]{84}$/,
+    key: new RegExp(`^(${this.allKeyFormat})$`),
     ref: /^(\w{1,3}-\w{1,3})$/,
     bankUsage: /[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}/,
   };
@@ -251,6 +260,7 @@ export class Configuration {
       ethApiKey: process.env.ALCHEMY_API_KEY,
       ethChainId: +process.env.ETH_CHAIN_ID,
       swapContractAddress: process.env.ETH_SWAP_CONTRACT_ADDRESS,
+      quoteContractAddress: process.env.ETH_QUOTE_CONTRACT_ADDRESS,
     },
     optimism: {
       optimismWalletAddress: process.env.OPTIMISM_WALLET_ADDRESS,
@@ -259,6 +269,7 @@ export class Configuration {
       optimismApiKey: process.env.ALCHEMY_API_KEY,
       optimismChainId: +process.env.OPTIMISM_CHAIN_ID,
       swapContractAddress: process.env.OPTIMISM_SWAP_CONTRACT_ADDRESS,
+      quoteContractAddress: process.env.OPTIMISM_QUOTE_CONTRACT_ADDRESS,
     },
     arbitrum: {
       arbitrumWalletAddress: process.env.ARBITRUM_WALLET_ADDRESS,
@@ -267,6 +278,7 @@ export class Configuration {
       arbitrumApiKey: process.env.ALCHEMY_API_KEY,
       arbitrumChainId: +process.env.ARBITRUM_CHAIN_ID,
       swapContractAddress: process.env.ARBITRUM_SWAP_CONTRACT_ADDRESS,
+      quoteContractAddress: process.env.ARBITRUM_QUOTE_CONTRACT_ADDRESS,
     },
     polygon: {
       polygonWalletAddress: process.env.POLYGON_WALLET_ADDRESS,
@@ -275,6 +287,7 @@ export class Configuration {
       polygonApiKey: process.env.ALCHEMY_API_KEY,
       polygonChainId: +process.env.POLYGON_CHAIN_ID,
       swapContractAddress: process.env.POLYGON_SWAP_CONTRACT_ADDRESS,
+      quoteContractAddress: process.env.POLYGON_QUOTE_CONTRACT_ADDRESS,
     },
     base: {
       baseWalletAddress: process.env.BASE_WALLET_ADDRESS,
@@ -283,6 +296,7 @@ export class Configuration {
       baseApiKey: process.env.ALCHEMY_API_KEY,
       baseChainId: +process.env.BASE_CHAIN_ID,
       swapContractAddress: process.env.BASE_SWAP_CONTRACT_ADDRESS,
+      quoteContractAddress: process.env.BASE_QUOTE_CONTRACT_ADDRESS,
     },
     bsc: {
       bscScanApiUrl: process.env.BSC_SCAN_API_URL,
@@ -292,6 +306,7 @@ export class Configuration {
       bscGatewayUrl: process.env.BSC_GATEWAY_URL,
       bscChainId: +process.env.BSC_CHAIN_ID,
       swapContractAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
+      quoteContractAddress: process.env.BSC_QUOTE_CONTRACT_ADDRESS,
     },
     lightning: {
       lnbits: {
@@ -327,6 +342,9 @@ export class Configuration {
         stablecoinBridge: process.env.ZCHF_STABLECOIN_BRIDGE_CONTRACT_ADDRESS,
         xchf: process.env.ZCHF_XCHF_CONTRACT_ADDRESS,
       },
+    },
+    ebel2x: {
+      contractAddress: process.env.EBEL2X_CONTRACT_ADDRESS,
     },
   };
 

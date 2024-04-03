@@ -3,7 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeController, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { CreateFeeDto } from '../dto/create-fee.dto';
+import { CreateFeeDto } from '../dto/input/create-fee.dto';
 import { Fee } from '../entities/fee.entity';
 import { FeeService } from '../services/fee.service';
 

@@ -27,37 +27,29 @@ export class WebhookDataMapper {
 
   static mapCryptoFiatData(payment: BuyFiatExtended): PaymentWebhookData {
     return {
-      ...TransactionDtoMapper.mapBuyFiatTransaction(payment),
+      ...TransactionDtoMapper.mapBuyFiatTransactionDetail(payment),
       dfxReference: payment.id,
-      sourceAccount: null,
-      targetAccount: payment.bankTx?.iban,
     };
   }
 
   static mapFiatFiatData(payment: BuyFiatExtended): PaymentWebhookData {
     return {
-      ...TransactionDtoMapper.mapBuyFiatTransaction(payment),
+      ...TransactionDtoMapper.mapBuyFiatTransactionDetail(payment),
       dfxReference: payment.id,
-      sourceAccount: null,
-      targetAccount: payment.bankTx?.iban,
     };
   }
 
   static mapCryptoCryptoData(payment: BuyCryptoExtended): PaymentWebhookData {
     return {
-      ...TransactionDtoMapper.mapBuyCryptoTransaction(payment),
+      ...TransactionDtoMapper.mapBuyCryptoTransactionDetail(payment),
       dfxReference: payment.id,
-      sourceAccount: null,
-      targetAccount: payment.user?.address,
     };
   }
 
   static mapFiatCryptoData(payment: BuyCryptoExtended): PaymentWebhookData {
     return {
-      ...TransactionDtoMapper.mapBuyCryptoTransaction(payment),
+      ...TransactionDtoMapper.mapBuyCryptoTransactionDetail(payment),
       dfxReference: payment.id,
-      sourceAccount: payment.bankTx?.iban,
-      targetAccount: payment.user?.address,
     };
   }
 }

@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Active } from 'src/shared/models/active';
+import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Active, isAsset } from 'src/shared/models/active';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -13,11 +15,11 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
-import { In, IsNull } from 'typeorm';
+import { In, IsNull, MoreThan } from 'typeorm';
 import { PayoutService } from '../../payout/services/payout.service';
 import { PricingService } from '../../pricing/services/pricing.service';
-import { CreateFeeDto } from '../dto/create-fee.dto';
-import { FeeDto } from '../dto/fee.dto';
+import { InternalFeeDto } from '../dto/fee.dto';
+import { CreateFeeDto } from '../dto/input/create-fee.dto';
 import { PaymentMethod } from '../dto/payment-method.enum';
 import { Fee, FeeType } from '../entities/fee.entity';
 import { BlockchainFeeRepository } from '../repositories/blockchain-fee.repository';
@@ -44,9 +46,11 @@ export interface FeeRequestBase {
   from: Active;
   to: Active;
   txVolume?: number;
-  blockchainFee: number;
   discountCodes: string[];
+  allowBlockchainFeeFallback: boolean;
 }
+
+const FeeValidityMinutes = 70;
 
 @Injectable()
 export class FeeService {
@@ -65,17 +69,19 @@ export class FeeService {
   ) {}
 
   // --- JOBS --- //
-  @Cron(CronExpression.EVERY_MINUTE) //TODO: change to EVERY_30_MINUTES
+  @Cron(CronExpression.EVERY_30_MINUTES)
   @Lock(1800)
   async updateBlockchainFees() {
     const blockchainFees = await this.blockchainFeeRepo.find({ relations: ['asset'] });
-    const fiat = await this.fiatService.getFiatByName('CHF');
+    const chf = await this.fiatService.getFiatByName('CHF');
 
     for (const blockchainFee of blockchainFees) {
       try {
         const { asset, amount } = await this.payoutService.estimateBlockchainFee(blockchainFee.asset);
-        const price = await this.pricingService.getPrice(asset, fiat, true);
+        const price = await this.pricingService.getPrice(asset, chf, true);
+
         blockchainFee.amount = price.convert(amount);
+        blockchainFee.updated = new Date();
         await this.blockchainFeeRepo.save(blockchainFee);
       } catch (e) {
         this.logger.error(`Failed to get fee of asset id ${blockchainFee.asset.id}:`, e);
@@ -183,43 +189,88 @@ export class FeeService {
     return fee;
   }
 
-  async getUserFee(request: UserFeeRequest): Promise<FeeDto> {
+  async getUserFee(request: UserFeeRequest): Promise<InternalFeeDto> {
     const userFees = await this.getValidFees(request);
 
     try {
-      return this.calculateFee(userFees, request.blockchainFee, request.user.userData?.id);
+      return await this.calculateFee(
+        userFees,
+        request.from,
+        request.to,
+        request.allowBlockchainFeeFallback,
+        request.user.userData?.id,
+      );
     } catch (e) {
       this.logger.error(`Fee exception, request: ${JSON.stringify(request)}`);
       throw e;
     }
   }
 
-  async getDefaultFee(request: FeeRequestBase, accountType = AccountType.PERSONAL): Promise<FeeDto> {
+  async getDefaultFee(request: FeeRequestBase, accountType = AccountType.PERSONAL): Promise<InternalFeeDto> {
     const defaultFees = await this.getValidFees({ ...request, accountType });
 
     try {
-      return this.calculateFee(defaultFees, request.blockchainFee);
+      return await this.calculateFee(defaultFees, request.from, request.to, request.allowBlockchainFeeFallback);
     } catch (e) {
       this.logger.error(`Fee exception, request: ${JSON.stringify(request)}`);
       throw e;
+    }
+  }
+
+  async getBlockchainFee(active: Active, allowFallback: boolean): Promise<number> {
+    if (isAsset(active)) {
+      const fee = await this.blockchainFeeRepo.findOneBy({
+        asset: { id: active.id },
+        updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)),
+      });
+      if (!fee && !allowFallback) throw new Error(`No blockchain fee found for asset ${active.id}`);
+
+      return fee?.amount ?? this.getBlockchainMaxFee(active.blockchain);
+    } else {
+      return 0;
     }
   }
 
   // --- HELPER METHODS --- //
 
-  private calculateFee(fees: Fee[], blockchainFee: number, userDataId?: number): FeeDto {
+  private async calculateFee(
+    fees: Fee[],
+    from: Active,
+    to: Active,
+    allowBlockchainFeeFallback: boolean,
+    userDataId?: number,
+  ): Promise<InternalFeeDto> {
+    const blockchainFee =
+      (await this.getBlockchainFee(from, allowBlockchainFeeFallback)) +
+      (await this.getBlockchainFee(to, allowBlockchainFeeFallback));
+
+    // get min special fee
+    const specialFee = Util.minObj(
+      fees.filter((fee) => fee.type === FeeType.SPECIAL),
+      'rate',
+    );
+
+    if (specialFee)
+      return {
+        fees: [specialFee],
+        rate: specialFee.rate,
+        fixed: specialFee.fixed ?? 0,
+        payoutRefBonus: specialFee.payoutRefBonus,
+        network: Math.min(specialFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
+      };
     // get min custom fee
     const customFee = Util.minObj(
       fees.filter((fee) => fee.type === FeeType.CUSTOM),
       'rate',
     );
+
     if (customFee)
       return {
         fees: [customFee],
         rate: customFee.rate,
         fixed: customFee.fixed ?? 0,
         payoutRefBonus: customFee.payoutRefBonus,
-        blockchain: customFee.blockchainFactor * blockchainFee,
+        network: Math.min(customFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
 
     // get min base fee
@@ -248,7 +299,7 @@ export class FeeService {
         rate: baseFee.rate,
         fixed: baseFee.fixed,
         payoutRefBonus: true,
-        blockchain: blockchainFee * baseFee.blockchainFactor,
+        network: Math.min(baseFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
     }
 
@@ -260,14 +311,28 @@ export class FeeService {
         baseFee.payoutRefBonus &&
         (discountFee?.payoutRefBonus ?? true) &&
         additiveFees.every((fee) => fee.payoutRefBonus),
-      blockchain: Math.max(
-        blockchainFee *
-          (baseFee.blockchainFactor -
-            (discountFee?.blockchainFactor ?? 0) +
-            Util.sumObjValue(additiveFees, 'blockchainFactor')),
-        0,
+      network: Math.min(
+        Math.max(
+          blockchainFee *
+            (baseFee.blockchainFactor -
+              (discountFee?.blockchainFactor ?? 0) +
+              Util.sumObjValue(additiveFees, 'blockchainFactor')),
+          0,
+        ),
+        Config.maxBlockchainFee,
       ),
     };
+  }
+
+  private async getBlockchainMaxFee(blockchain: Blockchain): Promise<number> {
+    const { maxFee } = await this.blockchainFeeRepo
+      .createQueryBuilder('fee')
+      .select('MAX(amount)', 'maxFee')
+      .innerJoin('fee.asset', 'asset')
+      .where({ asset: { blockchain } })
+      .andWhere({ updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)) })
+      .getRawOne<{ maxFee: number }>();
+    return maxFee ?? 0;
   }
 
   private async getValidFees(request: OptionalFeeRequest): Promise<Fee[]> {
@@ -278,9 +343,8 @@ export class FeeService {
     const discountFeeIds = request.user?.userData?.individualFeeList ?? [];
 
     const userFees = await this.feeRepo.findBy([
-      { type: FeeType.BASE },
-      { type: FeeType.DISCOUNT, discountCode: IsNull() },
-      { type: FeeType.ADDITION, discountCode: IsNull() },
+      { type: In([FeeType.BASE, FeeType.SPECIAL]) },
+      { type: In([FeeType.DISCOUNT, FeeType.ADDITION]), discountCode: IsNull() },
       { id: In(discountFeeIds) },
       { discountCode: In(request.discountCodes) },
     ]);

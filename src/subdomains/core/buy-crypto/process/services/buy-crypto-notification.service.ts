@@ -10,11 +10,11 @@ import {
   MailTranslationKey,
 } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { In, IsNull, Not } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
+import { AmlReason, AmlReasonWithoutReason, KycAmlReasons } from '../../../aml/enums/aml-reason.enum';
+import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
-import { BuyCryptoAmlReasonPendingStates } from '../entities/buy-crypto.entity';
-import { AmlReason, KycAmlReasons } from '../enums/aml-reason.enum';
-import { CheckStatus } from '../enums/check-status.enum';
+import { BuyCrypto, BuyCryptoAmlReasonPendingStates } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 
 @Injectable()
@@ -68,7 +68,7 @@ export class BuyCryptoNotificationService {
 
       for (const tx of txOutput) {
         try {
-          if (tx.user.userData.mail) {
+          if (tx.user.userData.mail && !tx.noCommunication) {
             const minFee = tx.minFeeAmountFiat
               ? ` (min. ${tx.minFeeAmountFiat} ${tx.cryptoInput ? 'EUR' : tx.inputReferenceAsset})`
               : '';
@@ -136,7 +136,7 @@ export class BuyCryptoNotificationService {
       type: MailType.ERROR_MONITORING,
       context: MailContext.BUY_CRYPTO,
       input: { subject: 'Buy Crypto Error - missing liquidity.', errors: messages },
-      options: { debounce: 1800000 },
+      options: { debounce: 3600000 },
       metadata: { context: MailContext.BUY_CRYPTO, correlationId },
     });
   }
@@ -155,14 +155,18 @@ export class BuyCryptoNotificationService {
   }
 
   async paybackToAddressInitiated(): Promise<void> {
+    const search: FindOptionsWhere<BuyCrypto> = {
+      mailSendDate: IsNull(),
+      outputAmount: IsNull(),
+      chargebackDate: Not(IsNull()),
+      amlReason: Not(IsNull()),
+      amlCheck: CheckStatus.FAIL,
+    };
     const entities = await this.buyCryptoRepo.find({
-      where: {
-        mailSendDate: IsNull(),
-        outputAmount: IsNull(),
-        chargebackDate: Not(IsNull()),
-        amlReason: Not(IsNull()),
-        amlCheck: CheckStatus.FAIL,
-      },
+      where: [
+        { ...search, chargebackBankTx: Not(IsNull()) },
+        { ...search, chargebackCryptoTxId: Not(IsNull()) },
+      ],
       relations: [
         'buy',
         'buy.user',
@@ -182,7 +186,8 @@ export class BuyCryptoNotificationService {
       try {
         if (
           entity.user.userData.mail &&
-          (entity.user.userData.verifiedName || entity.amlReason !== AmlReason.NAME_CHECK_WITHOUT_KYC)
+          (entity.user.userData.verifiedName || entity.amlReason !== AmlReason.NAME_CHECK_WITHOUT_KYC) &&
+          !entity.noCommunication
         ) {
           await this.notificationService.sendMail({
             type: MailType.USER,
@@ -212,10 +217,12 @@ export class BuyCryptoNotificationService {
                 !entity.isLightningInput && entity.isCryptoCryptoTransaction
                   ? {
                       key: `${entity.translationReturnMailKey}.payment_link`,
-                      params: { url: txExplorerUrl(entity.cryptoInput.asset.blockchain, entity.chargebackCryptoTxId) },
+                      params: {
+                        url: txExplorerUrl(entity.cryptoInput.asset.blockchain, entity.chargebackCryptoTxId),
+                      },
                     }
                   : null,
-                entity.amlReason !== AmlReason.NA
+                !AmlReasonWithoutReason.includes(entity.amlReason)
                   ? {
                       key: `${MailTranslationKey.RETURN}.introduction`,
                       params: {
