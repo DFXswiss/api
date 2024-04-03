@@ -11,10 +11,10 @@ export class SpecialExternalAccountService {
     return this.specialExternalAccountRepo.findBy({ type: SpecialExternalAccountType.MULTI_ACCOUNT_IBAN });
   }
 
-  async getBlacklist(type?: SpecialExternalAccountType[]): Promise<SpecialExternalAccount[]> {
+  async getBlacklist(types?: SpecialExternalAccountType[]): Promise<SpecialExternalAccount[]> {
     return this.specialExternalAccountRepo.findBy({
       type: In(
-        type ?? [
+        types ?? [
           SpecialExternalAccountType.BANNED_IBAN,
           SpecialExternalAccountType.BANNED_IBAN_BUY,
           SpecialExternalAccountType.BANNED_IBAN_SELL,

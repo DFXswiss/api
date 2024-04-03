@@ -26,7 +26,7 @@ export class SpecialExternalAccount extends IEntity {
 
   // --- ENTITY METHODS --- //
 
-  matches(type: SpecialExternalAccountType, value: string): boolean {
-    return this.type === type && new RegExp(this.value).test(value);
+  matches(types: SpecialExternalAccountType[], value: string): boolean {
+    return types.some((t) => this.type === t) && new RegExp(this.value).test(value);
   }
 }

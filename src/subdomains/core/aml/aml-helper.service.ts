@@ -40,7 +40,7 @@ export class AmlHelperService {
       Util.daysDiff(entity.userData.lastNameCheckDate) > Config.amlCheckLastNameCheckValidity
     )
       errors.push(entity.userData.birthday ? AmlError.NAME_CHECK_WITH_BIRTHDAY : AmlError.NAME_CHECK_WITHOUT_KYC);
-    if (blacklist.some((b) => b.matches(SpecialExternalAccountType.BANNED_MAIL, entity.userData.mail)))
+    if (blacklist.some((b) => b.matches([SpecialExternalAccountType.BANNED_MAIL], entity.userData.mail)))
       errors.push(AmlError.SUSPICIOUS_MAIL);
     if (last30dVolume > Config.tradingLimits.monthlyDefault) errors.push(AmlError.MONTHLY_LIMIT_REACHED);
     if (last24hVolume > Config.tradingLimits.dailyDefault) {
@@ -99,13 +99,14 @@ export class AmlHelperService {
 
       if (entity.bankTx) {
         // bank
-        if (blacklist.some((b) => b.matches(SpecialExternalAccountType.BANNED_BIC, entity.bankTx.bic)))
+        if (blacklist.some((b) => b.matches([SpecialExternalAccountType.BANNED_BIC], entity.bankTx.bic)))
           errors.push(AmlError.BIC_BLACKLISTED);
         if (
-          blacklist.some(
-            (b) =>
-              b.matches(SpecialExternalAccountType.BANNED_IBAN, entity.bankTx.iban) ||
-              b.matches(SpecialExternalAccountType.BANNED_IBAN_BUY, entity.bankTx.iban),
+          blacklist.some((b) =>
+            b.matches(
+              [SpecialExternalAccountType.BANNED_IBAN, SpecialExternalAccountType.BANNED_IBAN_BUY],
+              entity.bankTx.iban,
+            ),
           )
         )
           errors.push(AmlError.IBAN_BLACKLISTED);
@@ -117,10 +118,11 @@ export class AmlHelperService {
         // checkout
         if (!entity.target.asset.cardBuyable) errors.push(AmlError.ASSET_NOT_CARD_BUYABLE);
         if (
-          blacklist.some(
-            (b) =>
-              b.matches(SpecialExternalAccountType.BANNED_IBAN, entity.checkoutTx.cardFingerPrint) ||
-              b.matches(SpecialExternalAccountType.BANNED_IBAN_BUY, entity.checkoutTx.cardFingerPrint),
+          blacklist.some((b) =>
+            b.matches(
+              [SpecialExternalAccountType.BANNED_IBAN, SpecialExternalAccountType.BANNED_IBAN_BUY],
+              entity.checkoutTx.cardFingerPrint,
+            ),
           )
         )
           errors.push(AmlError.CARD_BLACKLISTED);
@@ -130,10 +132,11 @@ export class AmlHelperService {
       // buyFiat
       if (!entity.target.asset.sellable) errors.push(AmlError.ASSET_NOT_SELLABLE);
       if (
-        blacklist.some(
-          (b) =>
-            b.matches(SpecialExternalAccountType.BANNED_IBAN, entity.sell.iban) ||
-            b.matches(SpecialExternalAccountType.BANNED_IBAN_SELL, entity.sell.iban),
+        blacklist.some((b) =>
+          b.matches(
+            [SpecialExternalAccountType.BANNED_IBAN, SpecialExternalAccountType.BANNED_IBAN_SELL],
+            entity.sell.iban,
+          ),
         )
       )
         errors.push(AmlError.IBAN_BLACKLISTED);
