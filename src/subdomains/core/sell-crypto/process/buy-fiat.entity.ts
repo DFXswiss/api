@@ -16,7 +16,6 @@ import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { Transaction } from '../../../supporting/payment/entities/transaction.entity';
 import { AmlHelperService } from '../../aml/aml-helper.service';
-import { AmlErrorReasons } from '../../aml/enums/aml-error.enum';
 import { AmlReason } from '../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { Sell } from '../route/sell.entity';
@@ -290,7 +289,7 @@ export class BuyFiat extends IEntity {
   ): UpdateResult<BuyFiat> {
     const amountInChf = chfReferencePrice.convert(this.inputReferenceAmount, 2);
 
-    const amlErrors = AmlHelperService.getAmlErrors(
+    const update: Partial<BuyFiat> = AmlHelperService.getAmlResult(
       this,
       minVolume,
       amountInChf,
@@ -300,16 +299,6 @@ export class BuyFiat extends IEntity {
       bankData,
       blacklist,
     );
-
-    const comment = amlErrors.join(';');
-    const update: Partial<BuyFiat> =
-      amlErrors.length === 0
-        ? { amlCheck: CheckStatus.PASS, amlReason: AmlReason.NA }
-        : amlErrors.every((e) => AmlErrorReasons[e])
-        ? { amlCheck: CheckStatus.PENDING, amlReason: AmlErrorReasons[amlErrors[0]], comment }
-        : Util.minutesDiff(this.created) >= 10
-        ? { amlCheck: CheckStatus.GSHEET, comment }
-        : { comment };
 
     Object.assign(this, update);
 

@@ -4,7 +4,6 @@ import { Util } from 'src/shared/utils/util';
 import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
-import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
@@ -19,7 +18,6 @@ export class AmlService {
     private readonly bankDataService: BankDataService,
     private readonly bankService: BankService,
     private readonly nameCheckService: NameCheckService,
-    private readonly userDataService: UserDataService,
   ) {}
 
   async getAmlCheckInput(
