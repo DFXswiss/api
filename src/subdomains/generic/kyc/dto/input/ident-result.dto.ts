@@ -10,14 +10,6 @@ export enum IdentResult {
 }
 
 export enum IdentReason {
-  TECH_HOLOGRAM = 'TECH_HOLOGRAM',
-  TECH_PHOTO = 'TECH_PHOTO',
-  BAD_PHOTO_QUALITY = 'BAD_PHOTO_QUALITY',
-  USER_ID = 'USER_ID',
-  USER_WRONG_PERSON = 'USER_WRONG_PERSON',
-  PHOTO_OTHER = 'PHOTO_OTHER',
-  OTHER_ERROR = 'OTHER_ERROR',
-  //New Reasons
   ID_OTHER = 'ID_OTHER',
   ID_DAMAGED = 'ID_DAMAGED',
   ID_NOT_SUPPORTED = 'ID_NOT_SUPPORTED',
@@ -144,19 +136,7 @@ const IdentResultMap: Record<IdentResult, IdentShortResult> = {
 };
 
 const IdentReasonMap: Record<IdentReason, string> = {
-  [IdentReason.TECH_HOLOGRAM]: 'Security features on the ID document are not clearly visible',
-  [IdentReason.TECH_PHOTO]: 'Photo of the ID document is not clearly captured',
-  [IdentReason.BAD_PHOTO_QUALITY]:
-    'Photo of the person during selfie or liveness process and or the document is not clearly visible',
-  [IdentReason.USER_ID]:
-    'ID document has issues like front side of the document scanned in the back side section, wrong page of passport scanned and other miscellaneous reasons',
-  [IdentReason.USER_WRONG_PERSON]: 'You are not the person who should have performed the identification',
-  [IdentReason.PHOTO_OTHER]:
-    'Miscellaneous reason related to the photo quality of the document or of the person which do not fit in any of the categories',
-  [IdentReason.OTHER_ERROR]: 'Other miscellaneous reason which cannot be categorized',
-  // new reasons
-  [IdentReason.ID_OTHER]:
-    "Miscellaneous reason related to the ID document used during the identification like 'Expired document'", // TODO change with new System to 'Other issues with the document used in the identification process'
+  [IdentReason.ID_OTHER]: 'Other issues with the document used in the identification process',
   [IdentReason.ID_DAMAGED]: 'Document used during identification is a damaged document',
   [IdentReason.ID_NOT_SUPPORTED]: 'Document used during the identification is not supported for the customers use case',
   [IdentReason.ID_BLURRY]: 'Document is blurry and mandatory data cannot be read',
