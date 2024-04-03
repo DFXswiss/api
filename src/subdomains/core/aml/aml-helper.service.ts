@@ -159,8 +159,8 @@ export class AmlHelperService {
       };
 
     // Fail
-    const failedError = amlErrors.find((e) => FailedAmlErrors.includes(e));
-    if (failedError && AmlErrorReasons[failedError])
+    const failedError = amlErrors.find((e) => FailedAmlErrors.includes(e) && AmlErrorReasons[e]);
+    if (failedError)
       return {
         amlCheck: CheckStatus.FAIL,
         amlReason: AmlErrorReasons[failedError],
