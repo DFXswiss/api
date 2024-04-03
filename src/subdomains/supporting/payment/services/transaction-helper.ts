@@ -440,8 +440,7 @@ export class TransactionHelper implements OnModuleInit {
     if (paymentMethodIn === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed)
       return QuoteError.KYC_REQUIRED_INSTANT;
     if (
-      isFiat(to) &&
-      to.name !== 'CHF' &&
+      ((isFiat(to) && to.name !== 'CHF') || paymentMethodIn === FiatPaymentMethod.CARD) &&
       user &&
       !user.userData.hasBankTxVerification &&
       txAmountChf > Config.tradingLimits.dailyDefault

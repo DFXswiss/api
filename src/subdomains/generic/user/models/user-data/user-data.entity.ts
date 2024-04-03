@@ -5,6 +5,7 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { KycStep, KycStepResult } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName, KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
@@ -356,6 +357,10 @@ export class UserData extends IEntity {
     Object.assign(this, update);
 
     return [this.id, update];
+  }
+
+  get hasValidNameCheckDate(): boolean {
+    return this.lastNameCheckDate && Util.daysDiff(this.lastNameCheckDate) <= Config.amlCheckLastNameCheckValidity;
   }
 
   get kycUrl(): string {
