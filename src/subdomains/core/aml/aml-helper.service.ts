@@ -1,5 +1,4 @@
 import { Config } from 'src/config/config';
-import { Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { KycLevel, KycType } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -35,10 +34,7 @@ export class AmlHelperService {
     if (entity.userData.kycType !== KycType.DFX) errors.push(AmlError.INVALID_KYC_TYPE);
     if (!entity.userData.verifiedName) errors.push(AmlError.NO_VERIFIED_NAME);
     if (!entity.userData.verifiedCountry) errors.push(AmlError.NO_VERIFIED_COUNTRY);
-    if (
-      !entity.userData.lastNameCheckDate ||
-      Util.daysDiff(entity.userData.lastNameCheckDate) > Config.amlCheckLastNameCheckValidity
-    )
+    if (!entity.userData.hasValidNameCheckDate)
       errors.push(entity.userData.birthday ? AmlError.NAME_CHECK_WITH_BIRTHDAY : AmlError.NAME_CHECK_WITHOUT_KYC);
     if (blacklist.some((b) => b.matches(SpecialExternalAccountType.BANNED_MAIL, entity.userData.mail)))
       errors.push(AmlError.SUSPICIOUS_MAIL);

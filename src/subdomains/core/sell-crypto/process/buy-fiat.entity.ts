@@ -309,9 +309,14 @@ export class BuyFiat extends IEntity {
         ? {
             amlCheck: CheckStatus.PENDING,
             amlReason: AmlErrorReasons[amlErrors.find((e) => PendingAmlErrors.includes(e))],
+            comment,
           }
         : amlErrors.some((e) => FailedAmlErrors.includes(e) && AmlErrorReasons[e])
-        ? { amlCheck: CheckStatus.FAIL, amlReason: AmlErrorReasons[amlErrors.find((e) => FailedAmlErrors.includes(e))] }
+        ? {
+            amlCheck: CheckStatus.FAIL,
+            amlReason: AmlErrorReasons[amlErrors.find((e) => FailedAmlErrors.includes(e))],
+            comment,
+          }
         : Util.minutesDiff(this.created) >= 10
         ? { amlCheck: CheckStatus.GSHEET, comment }
         : { comment };
