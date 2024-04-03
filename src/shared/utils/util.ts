@@ -116,6 +116,7 @@ export class Util {
       .replace(/oe/g, 'o')
       .replace(/[ñ]/g, 'n')
       .replace(/[ç]/g, 'c')
+      .replace(/[ß]/g, 's')
       .replace(/[\.]/g, '');
   }
 
