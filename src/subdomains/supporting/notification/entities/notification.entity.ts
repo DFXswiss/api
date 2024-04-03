@@ -14,10 +14,10 @@ export interface NotificationOptions {
 
 @Entity()
 export class Notification extends IEntity {
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   type: MailType;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   context: MailContext;
 
   @Column({ length: 'MAX', nullable: true })
@@ -26,7 +26,7 @@ export class Notification extends IEntity {
   @Column({ length: 'MAX', default: '-' }) // TODO: replace default with nullable: false
   data: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'datetime2' })
   lastTryDate: Date;
 
   @Column({ default: true }) // TODO: remove default
@@ -35,7 +35,7 @@ export class Notification extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   error: string;
 
-  @Column({ nullable: false, default: false })
+  @Column({ default: false })
   suppressRecurring: boolean;
 
   @Column({ type: 'float', nullable: true })
