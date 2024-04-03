@@ -10,6 +10,11 @@ import * as ibantools from 'ibantools';
 import { SpecialExternalAccountType } from '../../payment/entities/special-external-account.entity';
 import { SpecialExternalAccountService } from '../../payment/services/special-external-account.service';
 
+export enum IbanType {
+  BUY = 'Buy',
+  SELL = 'Sell',
+}
+
 @ValidatorConstraint({ name: 'IsDfxIban', async: true })
 @Injectable()
 export class IsDfxIbanValidator implements ValidatorConstraintInterface {
@@ -19,7 +24,12 @@ export class IsDfxIbanValidator implements ValidatorConstraintInterface {
 
   async validate(_: string, args: ValidationArguments) {
     this.blockedIbans = await this.specialExternalAccountService
-      .getBlacklist(SpecialExternalAccountType.BANNED_IBAN)
+      .getBlacklist([
+        SpecialExternalAccountType.BANNED_IBAN,
+        args.property === IbanType.BUY
+          ? SpecialExternalAccountType.BANNED_IBAN_BUY
+          : SpecialExternalAccountType.BANNED_IBAN_SELL,
+      ])
       .then((s) => s.map((b) => b.value));
     return this.defaultMessage(args) == null;
   }
@@ -35,12 +45,12 @@ export class IsDfxIbanValidator implements ValidatorConstraintInterface {
   }
 }
 
-export function IsDfxIban(validationOptions?: ValidationOptions) {
-  return function (object: any, propertyName: string) {
+export function IsDfxIban(type: IbanType, validationOptions?: ValidationOptions) {
+  return function (object: any, _: string) {
     registerDecorator({
       name: 'IsDfxIban',
       target: object.constructor,
-      propertyName: propertyName,
+      propertyName: type,
       options: validationOptions,
       validator: IsDfxIbanValidator,
     });

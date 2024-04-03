@@ -1,5 +1,4 @@
 import { Config } from 'src/config/config';
-import { Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { KycLevel, KycType } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -35,12 +34,9 @@ export class AmlHelperService {
     if (entity.userData.kycType !== KycType.DFX) errors.push(AmlError.INVALID_KYC_TYPE);
     if (!entity.userData.verifiedName) errors.push(AmlError.NO_VERIFIED_NAME);
     if (!entity.userData.verifiedCountry) errors.push(AmlError.NO_VERIFIED_COUNTRY);
-    if (
-      !entity.userData.lastNameCheckDate ||
-      Util.daysDiff(entity.userData.lastNameCheckDate) > Config.amlCheckLastNameCheckValidity
-    )
+    if (!entity.userData.hasValidNameCheckDate)
       errors.push(entity.userData.birthday ? AmlError.NAME_CHECK_WITH_BIRTHDAY : AmlError.NAME_CHECK_WITHOUT_KYC);
-    if (blacklist.some((b) => b.matches(SpecialExternalAccountType.BANNED_MAIL, entity.userData.mail)))
+    if (blacklist.some((b) => b.matches([SpecialExternalAccountType.BANNED_MAIL], entity.userData.mail)))
       errors.push(AmlError.SUSPICIOUS_MAIL);
     if (last30dVolume > Config.tradingLimits.monthlyDefault) errors.push(AmlError.MONTHLY_LIMIT_REACHED);
     if (last24hVolume > Config.tradingLimits.dailyDefault) {
@@ -99,9 +95,16 @@ export class AmlHelperService {
 
       if (entity.bankTx) {
         // bank
-        if (blacklist.some((b) => b.matches(SpecialExternalAccountType.BANNED_BIC, entity.bankTx.bic)))
+        if (blacklist.some((b) => b.matches([SpecialExternalAccountType.BANNED_BIC], entity.bankTx.bic)))
           errors.push(AmlError.BIC_BLACKLISTED);
-        if (blacklist.some((b) => b.matches(SpecialExternalAccountType.BANNED_IBAN, entity.bankTx.iban)))
+        if (
+          blacklist.some((b) =>
+            b.matches(
+              [SpecialExternalAccountType.BANNED_IBAN, SpecialExternalAccountType.BANNED_IBAN_BUY],
+              entity.bankTx.iban,
+            ),
+          )
+        )
           errors.push(AmlError.IBAN_BLACKLISTED);
         if (instantBanks?.some((b) => b.iban === entity.bankTx.accountIban)) {
           if (!entity.userData.olkypayAllowed) errors.push(AmlError.INSTANT_NOT_ALLOWED);
@@ -110,14 +113,28 @@ export class AmlHelperService {
       } else if (entity.checkoutTx) {
         // checkout
         if (!entity.target.asset.cardBuyable) errors.push(AmlError.ASSET_NOT_CARD_BUYABLE);
-        if (blacklist.some((b) => b.matches(SpecialExternalAccountType.BANNED_IBAN, entity.checkoutTx.cardFingerPrint)))
+        if (
+          blacklist.some((b) =>
+            b.matches(
+              [SpecialExternalAccountType.BANNED_IBAN, SpecialExternalAccountType.BANNED_IBAN_BUY],
+              entity.checkoutTx.cardFingerPrint,
+            ),
+          )
+        )
           errors.push(AmlError.CARD_BLACKLISTED);
         if (last7dVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
       }
     } else {
       // buyFiat
       if (!entity.target.asset.sellable) errors.push(AmlError.ASSET_NOT_SELLABLE);
-      if (blacklist.some((b) => b.matches(SpecialExternalAccountType.BANNED_IBAN, entity.sell.iban)))
+      if (
+        blacklist.some((b) =>
+          b.matches(
+            [SpecialExternalAccountType.BANNED_IBAN, SpecialExternalAccountType.BANNED_IBAN_SELL],
+            entity.sell.iban,
+          ),
+        )
+      )
         errors.push(AmlError.IBAN_BLACKLISTED);
     }
 

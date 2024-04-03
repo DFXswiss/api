@@ -13,13 +13,13 @@ import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
-import { IsDfxIban } from 'src/subdomains/supporting/bank/bank-account/is-dfx-iban.validator';
+import { IbanType, IsDfxIban } from 'src/subdomains/supporting/bank/bank-account/is-dfx-iban.validator';
 
 export class GetSellPaymentInfoDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @IsDfxIban()
+  @IsDfxIban(IbanType.SELL)
   @Transform(Util.trim)
   iban: string;
 

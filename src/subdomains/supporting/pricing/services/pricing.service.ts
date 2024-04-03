@@ -55,7 +55,7 @@ export class PricingService {
     };
   }
 
-  async getPrice(from: Active, to: Active, allowExpired: boolean): Promise<Price> {
+  async getPrice(from: Active, to: Active, allowExpired: boolean, tryCount = 2): Promise<Price> {
     try {
       if (activesEqual(from, to)) return Price.create(from.name, to.name, 1);
 
@@ -74,9 +74,12 @@ export class PricingService {
 
       const price = Price.join(this.joinRules(fromRules), this.joinRules(toRules).invert());
 
-      if (!price.isValid && !allowExpired) throw new Error(`Price invalid (fetched on ${price.timestamp})`);
+      if (!price.isValid && !allowExpired) {
+        if (tryCount > 1) return await this.getPrice(from, to, allowExpired, tryCount - 1);
+        throw new Error(`Price invalid (fetched on ${price.timestamp})`);
+      }
 
-      if (Math.abs(price.price - 1) < 0.001) price.price = 1;
+      if (Math.abs(price.price - 1) < 0.01) price.price = 1;
       price.source = from.name;
       price.target = to.name;
 
