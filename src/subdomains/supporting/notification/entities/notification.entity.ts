@@ -20,16 +20,16 @@ export class Notification extends IEntity {
   @Column({ length: 256, nullable: false })
   context: MailContext;
 
-  @Column({ length: 'MAX', nullable: false })
+  @Column({ length: 'MAX', nullable: true })
   correlationId: string;
 
-  @Column({ length: 'MAX', default: '-' })
+  @Column({ length: 'MAX', default: '-' }) // TODO: replace default with nullable: false
   data: string;
 
   @Column({ type: 'datetime2', nullable: true })
   lastTryDate: Date;
 
-  @Column({ default: true })
+  @Column({ default: true }) // TODO: remove default
   isComplete: boolean;
 
   @Column({ length: 'MAX', nullable: true })
@@ -42,10 +42,10 @@ export class Notification extends IEntity {
   debounce: number;
 
   isSuppressed(existingNotification: Notification): boolean {
-    if (this.isSameNotification(existingNotification)) {
-      if (this.suppressRecurring) return true;
-      if (this.isDebounced(existingNotification)) return true;
-    }
+    return (
+      this.isSameNotification(existingNotification) &&
+      (this.suppressRecurring || this.isDebounced(existingNotification))
+    );
   }
 
   //*** HELPER METHODS ***//

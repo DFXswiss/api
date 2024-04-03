@@ -15,6 +15,6 @@ import { NotificationService } from './services/notification.service';
   imports: [TypeOrmModule.forFeature([Notification]), MailerModule.forRoot(GetConfig().mail.options), SharedModule],
   providers: [NotificationRepository, MailService, NotificationService, MailFactory, NotificationJobService],
   controllers: [NotificationController],
-  exports: [NotificationService, MailService],
+  exports: [NotificationService],
 })
 export class NotificationModule {}

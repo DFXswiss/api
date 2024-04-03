@@ -56,7 +56,7 @@ export class NotificationJobService {
 
         await this.notificationService.updateNotification(notification, { isComplete: true });
       } catch (e) {
-        this.logger.error('Error in sendMail', e);
+        this.logger.error('Error during mail send retry:', e);
 
         await this.notificationService.updateNotification(mail, { isComplete: false, error: e });
       }
