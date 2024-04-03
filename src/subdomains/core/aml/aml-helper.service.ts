@@ -1,4 +1,5 @@
 import { Config } from 'src/config/config';
+import { Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { KycLevel, KycType } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -10,7 +11,8 @@ import {
 } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { BuyCrypto } from '../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../sell-crypto/process/buy-fiat.entity';
-import { AmlError } from './enums/aml-error.enum';
+import { AmlError, AmlErrorReasons, FailedAmlErrors, PendingAmlErrors } from './enums/aml-error.enum';
+import { AmlReason } from './enums/aml-reason.enum';
 import { CheckStatus } from './enums/check-status.enum';
 
 export class AmlHelperService {
@@ -118,5 +120,57 @@ export class AmlHelperService {
     }
 
     return errors;
+  }
+
+  static getAmlResult(
+    entity: BuyCrypto | BuyFiat,
+    minVolume: number,
+    amountInChf: number,
+    last24hVolume: number,
+    last7dVolume: number,
+    last30dVolume: number,
+    bankData: BankData,
+    blacklist: SpecialExternalAccount[],
+    instantBanks?: Bank[],
+  ): { amlCheck?: CheckStatus; amlReason?: AmlReason; comment?: string } {
+    const amlErrors = this.getAmlErrors(
+      entity,
+      minVolume,
+      amountInChf,
+      last24hVolume,
+      last7dVolume,
+      last30dVolume,
+      bankData,
+      blacklist,
+      instantBanks,
+    );
+
+    const comment = amlErrors.join(';');
+
+    // Pass
+    if (amlErrors.length === 0) return { amlCheck: CheckStatus.PASS, amlReason: AmlReason.NA };
+
+    // Pending
+    if (amlErrors.every((e) => PendingAmlErrors.includes(e) && AmlErrorReasons[e]))
+      return {
+        amlCheck: CheckStatus.PENDING,
+        amlReason: AmlErrorReasons[amlErrors.find((e) => PendingAmlErrors.includes(e))],
+        comment,
+      };
+
+    // Fail
+    const failedError = amlErrors.find((e) => FailedAmlErrors.includes(e));
+    if (failedError && AmlErrorReasons[failedError])
+      return {
+        amlCheck: CheckStatus.FAIL,
+        amlReason: AmlErrorReasons[failedError],
+        comment,
+      };
+
+    // GSheet
+    if (Util.minutesDiff(entity.created) >= 10) return { amlCheck: CheckStatus.GSHEET, comment };
+
+    // No Result - only comment
+    return { comment };
   }
 }
