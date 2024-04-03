@@ -73,6 +73,7 @@ export class KycService {
 
   async getInfo(kycHash: string): Promise<KycLevelDto> {
     const user = await this.getUser(kycHash);
+    await this.verifyUserDuplication(user);
 
     return KycInfoMapper.toDto(user, false);
   }
@@ -89,18 +90,20 @@ export class KycService {
 
   private async tryContinue(kycHash: string, ip: string, autoStep: boolean): Promise<KycSessionDto> {
     let user = await this.getUser(kycHash);
-
-    const verifyDuplicate = user.hasCompletedStep(KycStepName.CONTACT_DATA);
-    if (verifyDuplicate) {
-      const isKnownUser = await this.userDataService.isKnownKycUser(user);
-      if (isKnownUser) throw new ConflictException('Account already exists');
-    }
+    await this.verifyUserDuplication(user);
 
     user = await this.updateProgress(user, true, autoStep);
 
     await this.verify2faIfRequired(user, ip);
 
     return KycInfoMapper.toDto(user, true);
+  }
+
+  private async verifyUserDuplication(user: UserData) {
+    if (user.hasCompletedStep(KycStepName.CONTACT_DATA) && user.kycLevel < KycLevel.LEVEL_50) {
+      const isKnownUser = await this.userDataService.isKnownKycUser(user);
+      if (isKnownUser) throw new ConflictException('Account already exists');
+    }
   }
 
   async getCountries(kycHash: string): Promise<Country[]> {
