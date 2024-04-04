@@ -30,7 +30,7 @@ export interface MailParamsNew extends MailParamBase {
   templateParams?: any;
 }
 
-export class MailBase extends Notification {
+export class Mail extends Notification {
   readonly #from: { name: string; address: string } = {
     name: 'DFX.swiss',
     address: GetConfig().mail.contact.noReplyMail,

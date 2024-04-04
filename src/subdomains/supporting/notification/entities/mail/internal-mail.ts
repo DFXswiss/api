@@ -1,6 +1,6 @@
 import { MailAffix, MailRequestGenericBase, TranslationItem } from '../../interfaces';
 import { NotificationOptions } from '../notification.entity';
-import { MailBase } from './base/mail';
+import { Mail } from './base/mail';
 
 export interface MailRequestInternalInput extends MailRequestGenericBase {
   title: string;
@@ -16,7 +16,7 @@ export interface InternalMailParams extends MailRequestGenericBase {
   options?: NotificationOptions;
 }
 
-export class InternalMail extends MailBase {
+export class InternalMail extends Mail {
   constructor(params: InternalMailParams) {
     super({ ...params, template: 'internal', templateParams: params });
   }

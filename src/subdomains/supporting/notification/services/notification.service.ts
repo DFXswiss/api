@@ -48,6 +48,7 @@ export class NotificationService {
       isComplete: false,
       lastTryDate: new Date(),
       debounce: request.options?.debounce,
+      suppressRecurring: request.options?.suppressRecurring,
       correlationId: request.correlationId,
     };
   }

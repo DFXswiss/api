@@ -3,7 +3,7 @@ import { I18nService } from 'nestjs-i18n';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
-import { MailBase, MailParams } from '../entities/mail/base/mail';
+import { Mail, MailParams } from '../entities/mail/base/mail';
 import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
 import { InternalMail, MailRequestInternalInput } from '../entities/mail/internal-mail';
 import { MailRequestPersonalInput, PersonalMail } from '../entities/mail/personal-mail';
@@ -53,7 +53,7 @@ const DefaultEmptyLine = { text: '', style: `${UserMailDefaultStyle};padding:1px
 export class MailFactory {
   constructor(private readonly i18n: I18nService) {}
 
-  createMail(request: MailRequest): MailBase {
+  createMail(request: MailRequest): Mail {
     switch (request.type) {
       case MailType.INTERNAL: {
         return this.createInternalMail(request);
@@ -98,7 +98,7 @@ export class MailFactory {
     });
   }
 
-  private createGenericMail(request: MailRequest): MailBase {
+  private createGenericMail(request: MailRequest): Mail {
     const input = request.input as MailRequestGenericInput;
     const { correlationId, options } = request;
 
@@ -117,7 +117,7 @@ export class MailFactory {
       options,
     };
 
-    return new MailBase(mailParams);
+    return new Mail(mailParams);
   }
 
   private createErrorMonitoringMail(request: MailRequest): ErrorMonitoringMail {
