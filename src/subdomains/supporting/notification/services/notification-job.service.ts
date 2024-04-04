@@ -36,7 +36,7 @@ export class NotificationJobService {
   @Cron(CronExpression.EVERY_10_MINUTES)
   @Lock(7200)
   async resendUncompletedMails(): Promise<void> {
-    if (DisabledProcess(Process.RESEND_UNCOMPLETED_MAILS)) return;
+    if (DisabledProcess(Process.MAIL_RETRY)) return;
     const uncompletedMails = await this.notificationRepo.find({
       where: { isComplete: false, created: LessThanOrEqual(Util.minutesBefore(1)) },
     });
