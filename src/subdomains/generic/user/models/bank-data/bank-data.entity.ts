@@ -7,6 +7,7 @@ export enum BankDataType {
   BANK_IN = 'BankIn',
   BANK_OUT = 'BankOut',
   CARD_IN = 'CardIn',
+  USER = 'User',
 }
 
 @Entity()
