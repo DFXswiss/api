@@ -180,14 +180,10 @@ export class PricingService {
       this.logger.warn(message);
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,
-        input: { subject: 'Price Mismatch', errors: [message] },
-        metadata: {
-          context: MailContext.PRICING,
-          correlationId: `PriceMismatch&${rule.asset}&${rule.reference}`,
-        },
-        options: {
-          debounce: 1800000,
-        },
+        context: MailContext.PRICING,
+        input: { subject: 'Price Mismatch', errors: [message], isLiqMail: true },
+        correlationId: `PriceMismatch&${rule.asset}&${rule.reference}`,
+        options: { debounce: 1800000 },
       });
 
       return false;

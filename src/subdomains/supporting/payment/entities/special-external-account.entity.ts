@@ -4,6 +4,8 @@ import { Column, Entity } from 'typeorm';
 export enum SpecialExternalAccountType {
   MULTI_ACCOUNT_IBAN = 'MultiAccountIban',
   BANNED_IBAN = 'BannedIban',
+  BANNED_IBAN_BUY = 'BannedIbanBuy',
+  BANNED_IBAN_SELL = 'BannedIbanSell',
   BANNED_BIC = 'BannedBic',
   BANNED_MAIL = 'BannedMail',
 }
@@ -24,7 +26,7 @@ export class SpecialExternalAccount extends IEntity {
 
   // --- ENTITY METHODS --- //
 
-  matches(type: SpecialExternalAccountType, value: string): boolean {
-    return this.type === type && new RegExp(this.value).test(value);
+  matches(types: SpecialExternalAccountType[], value: string): boolean {
+    return types.some((t) => this.type === t) && new RegExp(this.value).test(value);
   }
 }

@@ -3,7 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In } from 'typeorm';
@@ -11,6 +11,7 @@ import { LiquidityManagementOrder } from '../entities/liquidity-management-order
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
 import { LiquidityManagementOrderStatus, LiquidityManagementPipelineStatus } from '../enums';
 import { OrderFailedException } from '../exceptions/order-failed.exception';
+import { OrderNotNecessaryException } from '../exceptions/order-not-necessary.exception';
 import { OrderNotProcessableException } from '../exceptions/order-not-processable.exception';
 import { LiquidityActionIntegrationFactory } from '../factories/liquidity-action-integration.factory';
 import { LiquidityManagementOrderRepository } from '../repositories/liquidity-management-order.repository';
@@ -164,6 +165,10 @@ export class LiquidityManagementPipelineService {
       try {
         await this.executeOrder(order);
       } catch (e) {
+        if (e instanceof OrderNotNecessaryException) {
+          order.complete();
+          await this.orderRepo.save(order);
+        }
         if (e instanceof OrderNotProcessableException) {
           order.notProcessable(e);
           await this.orderRepo.save(order);
@@ -255,6 +260,7 @@ export class LiquidityManagementPipelineService {
 
     const mailRequest: MailRequest = {
       type: MailType.ERROR_MONITORING,
+      context: MailContext.LIQUIDITY_MANAGEMENT,
       input: {
         subject: 'Liquidity management pipeline SUCCESS',
         errors: [successMessage],
@@ -273,6 +279,7 @@ export class LiquidityManagementPipelineService {
 
     const mailRequest: MailRequest = {
       type: MailType.ERROR_MONITORING,
+      context: MailContext.LIQUIDITY_MANAGEMENT,
       input: {
         subject: 'Liquidity management pipeline FAIL',
         errors: [errorMessage, `Error: ${order.errorMessage}`],

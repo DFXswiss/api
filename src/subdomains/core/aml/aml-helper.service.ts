@@ -1,4 +1,5 @@
 import { Config } from 'src/config/config';
+import { Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { KycLevel, KycType } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -10,7 +11,8 @@ import {
 } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { BuyCrypto } from '../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../sell-crypto/process/buy-fiat.entity';
-import { AmlError } from './enums/aml-error.enum';
+import { AmlError, AmlErrorReasons, FailedAmlErrors, PendingAmlErrors } from './enums/aml-error.enum';
+import { AmlReason } from './enums/aml-reason.enum';
 import { CheckStatus } from './enums/check-status.enum';
 
 export class AmlHelperService {
@@ -36,7 +38,7 @@ export class AmlHelperService {
     if (!entity.userData.verifiedCountry) errors.push(AmlError.NO_VERIFIED_COUNTRY);
     if (!entity.userData.hasValidNameCheckDate)
       errors.push(entity.userData.birthday ? AmlError.NAME_CHECK_WITH_BIRTHDAY : AmlError.NAME_CHECK_WITHOUT_KYC);
-    if (blacklist.some((b) => b.matches(SpecialExternalAccountType.BANNED_MAIL, entity.userData.mail)))
+    if (blacklist.some((b) => b.matches([SpecialExternalAccountType.BANNED_MAIL], entity.userData.mail)))
       errors.push(AmlError.SUSPICIOUS_MAIL);
     if (last30dVolume > Config.tradingLimits.monthlyDefault) errors.push(AmlError.MONTHLY_LIMIT_REACHED);
     if (last24hVolume > Config.tradingLimits.dailyDefault) {
@@ -95,9 +97,16 @@ export class AmlHelperService {
 
       if (entity.bankTx) {
         // bank
-        if (blacklist.some((b) => b.matches(SpecialExternalAccountType.BANNED_BIC, entity.bankTx.bic)))
+        if (blacklist.some((b) => b.matches([SpecialExternalAccountType.BANNED_BIC], entity.bankTx.bic)))
           errors.push(AmlError.BIC_BLACKLISTED);
-        if (blacklist.some((b) => b.matches(SpecialExternalAccountType.BANNED_IBAN, entity.bankTx.iban)))
+        if (
+          blacklist.some((b) =>
+            b.matches(
+              [SpecialExternalAccountType.BANNED_IBAN, SpecialExternalAccountType.BANNED_IBAN_BUY],
+              entity.bankTx.iban,
+            ),
+          )
+        )
           errors.push(AmlError.IBAN_BLACKLISTED);
         if (instantBanks?.some((b) => b.iban === entity.bankTx.accountIban)) {
           if (!entity.userData.olkypayAllowed) errors.push(AmlError.INSTANT_NOT_ALLOWED);
@@ -106,17 +115,83 @@ export class AmlHelperService {
       } else if (entity.checkoutTx) {
         // checkout
         if (!entity.target.asset.cardBuyable) errors.push(AmlError.ASSET_NOT_CARD_BUYABLE);
-        if (blacklist.some((b) => b.matches(SpecialExternalAccountType.BANNED_IBAN, entity.checkoutTx.cardFingerPrint)))
+        if (
+          blacklist.some((b) =>
+            b.matches(
+              [SpecialExternalAccountType.BANNED_IBAN, SpecialExternalAccountType.BANNED_IBAN_BUY],
+              entity.checkoutTx.cardFingerPrint,
+            ),
+          )
+        )
           errors.push(AmlError.CARD_BLACKLISTED);
         if (last7dVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
       }
     } else {
       // buyFiat
       if (!entity.target.asset.sellable) errors.push(AmlError.ASSET_NOT_SELLABLE);
-      if (blacklist.some((b) => b.matches(SpecialExternalAccountType.BANNED_IBAN, entity.sell.iban)))
+      if (
+        blacklist.some((b) =>
+          b.matches(
+            [SpecialExternalAccountType.BANNED_IBAN, SpecialExternalAccountType.BANNED_IBAN_SELL],
+            entity.sell.iban,
+          ),
+        )
+      )
         errors.push(AmlError.IBAN_BLACKLISTED);
     }
 
     return errors;
+  }
+
+  static getAmlResult(
+    entity: BuyCrypto | BuyFiat,
+    minVolume: number,
+    amountInChf: number,
+    last24hVolume: number,
+    last7dVolume: number,
+    last30dVolume: number,
+    bankData: BankData,
+    blacklist: SpecialExternalAccount[],
+    instantBanks?: Bank[],
+  ): { amlCheck?: CheckStatus; amlReason?: AmlReason; comment?: string } {
+    const amlErrors = this.getAmlErrors(
+      entity,
+      minVolume,
+      amountInChf,
+      last24hVolume,
+      last7dVolume,
+      last30dVolume,
+      bankData,
+      blacklist,
+      instantBanks,
+    );
+
+    const comment = amlErrors.join(';');
+
+    // Pass
+    if (amlErrors.length === 0) return { amlCheck: CheckStatus.PASS, amlReason: AmlReason.NA };
+
+    // Pending
+    if (amlErrors.every((e) => PendingAmlErrors.includes(e) && AmlErrorReasons[e]))
+      return {
+        amlCheck: CheckStatus.PENDING,
+        amlReason: AmlErrorReasons[amlErrors.find((e) => PendingAmlErrors.includes(e))],
+        comment,
+      };
+
+    // Fail
+    const failedError = amlErrors.find((e) => FailedAmlErrors.includes(e) && AmlErrorReasons[e]);
+    if (failedError)
+      return {
+        amlCheck: CheckStatus.FAIL,
+        amlReason: AmlErrorReasons[failedError],
+        comment,
+      };
+
+    // GSheet
+    if (Util.minutesDiff(entity.created) >= 10) return { amlCheck: CheckStatus.GSHEET, comment };
+
+    // No Result - only comment
+    return { comment };
   }
 }

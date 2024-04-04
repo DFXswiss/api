@@ -5,7 +5,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { UserData } from './user-data.entity';
@@ -33,6 +33,7 @@ export class UserDataNotificationService {
         for (const user of slave.users) {
           await this.notificationService.sendMail({
             type: MailType.USER,
+            context: MailContext.ADDED_ADDRESS,
             input: {
               userData: master,
               title: `${MailTranslationKey.ACCOUNT_MERGE_ADDED_ADDRESS}.title`,
@@ -70,6 +71,7 @@ export class UserDataNotificationService {
       if (master.mail) {
         await this.notificationService.sendMail({
           type: MailType.USER,
+          context: MailContext.CHANGED_MAIL,
           input: {
             userData: master,
             title: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.title`,
@@ -118,6 +120,7 @@ export class UserDataNotificationService {
         if (recipientMail) {
           await this.notificationService.sendMail({
             type: MailType.PERSONAL,
+            context: MailContext.BLACK_SQUAD,
             input: {
               userData: entity,
               title: `${MailTranslationKey.BLACK_SQUAD}.title`,

@@ -3,7 +3,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { PurchaseLiquidityRequest, ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { TradingOrder } from '../entities/trading-order.entity';
@@ -128,9 +128,11 @@ export class TradingOrderService {
     // send mail
     const mailRequest: MailRequest = {
       type: MailType.ERROR_MONITORING,
+      context: MailContext.DEX,
       input: {
         subject: 'Trading order SUCCESS',
         errors: [message],
+        isLiqMail: true,
       },
     };
 
@@ -149,9 +151,11 @@ export class TradingOrderService {
     // send mail
     const mailRequest: MailRequest = {
       type: MailType.ERROR_MONITORING,
+      context: MailContext.DEX,
       input: {
         subject: 'Trading order FAIL',
         errors: [message],
+        isLiqMail: true,
       },
     };
 

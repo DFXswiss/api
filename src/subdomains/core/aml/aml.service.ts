@@ -1,10 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { Config } from 'src/config/config';
-import { Util } from 'src/shared/utils/util';
 import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
-import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
@@ -19,7 +16,6 @@ export class AmlService {
     private readonly bankDataService: BankDataService,
     private readonly bankService: BankService,
     private readonly nameCheckService: NameCheckService,
-    private readonly userDataService: UserDataService,
   ) {}
 
   async getAmlCheckInput(
@@ -28,6 +24,8 @@ export class AmlService {
     const blacklist = await this.specialExternalBankAccountService.getBlacklist();
     const bankData = await this.getBankData(entity);
 
+    if (bankData && !entity.userData.hasValidNameCheckDate) await this.checkNameCheck(entity, bankData);
+
     if (entity instanceof BuyFiat) return { bankData, blacklist };
     if (entity.cryptoInput) return { bankData: undefined, blacklist, instantBanks: undefined };
 
@@ -35,23 +33,16 @@ export class AmlService {
     return { bankData, blacklist, instantBanks };
   }
 
-  async checkNameCheck(entity: BuyFiat | BuyCrypto): Promise<void> {
-    if (
-      (entity.userData.lastNameCheckDate &&
-        Util.daysDiff(entity.userData.lastNameCheckDate) <= Config.amlCheckLastNameCheckValidity) ||
-      this.nameCheckService.hasOpenNameChecks(entity.userData)
-    )
-      return;
+  //*** HELPER METHODS ***//
 
-    const bankData = await this.getBankData(entity);
-    if (!bankData) return;
+  private async checkNameCheck(entity: BuyFiat | BuyCrypto, bankData: BankData): Promise<void> {
+    const hasOpenNameChecks = await this.nameCheckService.hasOpenNameChecks(entity.userData);
+    if (hasOpenNameChecks) return;
 
     await this.nameCheckService.refreshRiskStatus(bankData);
 
     entity.userData.lastNameCheckDate = bankData.userData.lastNameCheckDate;
   }
-
-  //*** HELPER METHODS ***//
 
   private async getBankData(entity: BuyFiat | BuyCrypto): Promise<BankData | undefined> {
     if (entity instanceof BuyFiat) return this.bankDataService.getBankDataWithIban(entity.sell.iban);

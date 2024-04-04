@@ -82,11 +82,9 @@ export abstract class PurchaseLiquidityStrategy implements OnModuleInit, OnModul
 
     return {
       type: MailType.ERROR_MONITORING,
-      input: { subject: 'Purchase Liquidity Error', errors: [errorMessage] },
-      metadata: {
-        context: MailContext.DEX,
-        correlationId,
-      },
+      context: MailContext.DEX,
+      input: { subject: 'Purchase Liquidity Error', errors: [errorMessage], isLiqMail: true },
+      correlationId,
       options: { suppressRecurring: true },
     };
   }
