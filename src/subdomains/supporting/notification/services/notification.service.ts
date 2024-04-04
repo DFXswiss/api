@@ -47,6 +47,8 @@ export class NotificationService {
       data: JSON.stringify(request.input),
       isComplete: false,
       lastTryDate: new Date(),
+      debounce: request.options?.debounce,
+      correlationId: request.correlationId,
     };
   }
 
