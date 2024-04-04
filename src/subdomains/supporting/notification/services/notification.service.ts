@@ -20,7 +20,7 @@ export class NotificationService {
   async sendMail(request: MailRequest): Promise<void> {
     const mail = this.mailFactory.createMail(request);
 
-    Object.assign(mail, NotificationService.parseDefaultMailParams(request));
+    Object.assign(mail, NotificationService.fromRequest(request));
 
     const isSuppressed = await this.isSuppressed(mail);
     if (isSuppressed) return;
@@ -40,7 +40,7 @@ export class NotificationService {
 
   //*** HELPER METHODS ***//
 
-  static parseDefaultMailParams(request: MailRequest): Partial<Notification> {
+  static fromRequest(request: MailRequest): Partial<Notification> {
     return {
       type: request.type,
       context: request.context,
@@ -50,6 +50,19 @@ export class NotificationService {
       debounce: request.options?.debounce,
       suppressRecurring: request.options?.suppressRecurring,
       correlationId: request.correlationId,
+    };
+  }
+
+  static toRequest(notification: Notification): MailRequest {
+    return {
+      type: notification.type,
+      context: notification.context,
+      input: JSON.parse(notification.data),
+      correlationId: notification.correlationId,
+      options: {
+        suppressRecurring: notification.suppressRecurring,
+        debounce: notification.debounce,
+      },
     };
   }
 

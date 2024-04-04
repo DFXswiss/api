@@ -7,7 +7,6 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { LessThanOrEqual } from 'typeorm';
 import { MailFactory } from '../factories/mail.factory';
-import { MailRequest } from '../interfaces';
 import { NotificationRepository } from '../repositories/notification.repository';
 import { MailService } from './mail.service';
 import { NotificationService } from './notification.service';
@@ -44,20 +43,10 @@ export class NotificationJobService {
     });
 
     for (const notification of uncompletedMails) {
-      const request: MailRequest = {
-        type: notification.type,
-        context: notification.context,
-        input: JSON.parse(notification.data),
-        correlationId: notification.correlationId,
-        options: {
-          suppressRecurring: notification.suppressRecurring,
-          debounce: notification.debounce,
-        },
-      };
-
+      const request = NotificationService.toRequest(notification);
       const mail = this.mailFactory.createMail(request);
 
-      Object.assign(mail, NotificationService.parseDefaultMailParams(request));
+      Object.assign(mail, notification);
 
       const isSuppressed = await this.notificationService.isSuppressed(mail);
       if (isSuppressed) return;
