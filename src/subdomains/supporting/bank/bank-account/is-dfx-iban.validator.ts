@@ -26,7 +26,7 @@ export class IsDfxIbanValidator implements ValidatorConstraintInterface {
     this.blockedIbans = await this.specialExternalAccountService
       .getBlacklist([
         SpecialExternalAccountType.BANNED_IBAN,
-        args.property === IbanType.BUY
+        args.constraints[0] === IbanType.BUY
           ? SpecialExternalAccountType.BANNED_IBAN_BUY
           : SpecialExternalAccountType.BANNED_IBAN_SELL,
       ])
@@ -46,13 +46,14 @@ export class IsDfxIbanValidator implements ValidatorConstraintInterface {
 }
 
 export function IsDfxIban(type: IbanType, validationOptions?: ValidationOptions) {
-  return function (object: any, _: string) {
+  return function (object: any, propertyName: string) {
     registerDecorator({
       name: 'IsDfxIban',
       target: object.constructor,
-      propertyName: type,
+      propertyName: propertyName,
       options: validationOptions,
       validator: IsDfxIbanValidator,
+      constraints: [type],
     });
   };
 }
