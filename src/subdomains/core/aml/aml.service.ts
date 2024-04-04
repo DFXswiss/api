@@ -37,7 +37,7 @@ export class AmlService {
     if (
       (entity.userData.lastNameCheckDate &&
         Util.daysDiff(entity.userData.lastNameCheckDate) <= Config.amlCheckLastNameCheckValidity) ||
-      this.nameCheckService.hasOpenNameChecks(entity.userData)
+      (await this.nameCheckService.hasOpenNameChecks(entity.userData))
     )
       return;
 
