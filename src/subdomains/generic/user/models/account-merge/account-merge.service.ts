@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MoreThan } from 'typeorm';
@@ -38,6 +38,7 @@ export class AccountMergeService {
     const url = this.buildConfirmationUrl(request.code);
     await this.notificationService.sendMail({
       type: MailType.USER,
+      context: MailContext.ACCOUNT_MERGE_REQUEST,
       input: {
         userData: request.slave,
         title: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.title`,
@@ -57,6 +58,8 @@ export class AccountMergeService {
         ],
         suffix: [{ key: MailKey.SPACE, params: { value: '4' } }, { key: MailKey.DFX_TEAM_CLOSING }],
       },
+      options: { debounce: 60000 },
+      correlationId: `${request.id}`,
     });
   }
 

@@ -5,7 +5,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { IsNull, LessThan, MoreThanOrEqual, Not } from 'typeorm';
@@ -52,6 +52,7 @@ export class KycNotificationService {
         if (recipientMail) {
           await this.notificationService.sendMail({
             type: MailType.USER,
+            context: MailContext.KYC_REMINDER,
             input: {
               userData: entity.userData,
               title: `${MailTranslationKey.KYC_REMINDER}.title`,
@@ -95,6 +96,7 @@ export class KycNotificationService {
       if ((userData.mail, !DisabledProcess(Process.KYC_MAIL))) {
         await this.notificationService.sendMail({
           type: MailType.USER,
+          context: MailContext.KYC_FAILED,
           input: {
             userData: userData,
             title: `${MailTranslationKey.KYC_FAILED}.title`,
@@ -145,6 +147,7 @@ export class KycNotificationService {
         if (userData.mail) {
           await this.notificationService.sendMail({
             type: MailType.USER,
+            context: MailContext.KYC_CHANGED,
             input: {
               userData,
               title: `${MailTranslationKey.KYC_SUCCESS}.title`,

@@ -75,6 +75,7 @@ export class BuyCryptoNotificationService {
 
             await this.notificationService.sendMail({
               type: MailType.USER,
+              context: MailContext.BUY_CRYPTO,
               input: {
                 userData: tx.user.userData,
                 title: `${MailTranslationKey.BUY_CRYPTO}.confirmed.title`,
@@ -133,9 +134,10 @@ export class BuyCryptoNotificationService {
 
     await this.notificationService.sendMail({
       type: MailType.ERROR_MONITORING,
-      input: { subject: 'Buy Crypto Error - missing liquidity.', errors: messages },
+      context: MailContext.BUY_CRYPTO,
+      input: { subject: 'Buy Crypto Error - missing liquidity.', errors: messages, isLiqMail: true },
       options: { debounce: 3600000 },
-      metadata: { context: MailContext.BUY_CRYPTO, correlationId },
+      correlationId,
     });
   }
 
@@ -145,9 +147,10 @@ export class BuyCryptoNotificationService {
 
     await this.notificationService.sendMail({
       type: MailType.ERROR_MONITORING,
-      input: { subject: 'Buy Crypto Error', errors },
+      context: MailContext.BUY_CRYPTO,
+      input: { subject: 'Buy Crypto Error', errors, isLiqMail: true },
       options: { suppressRecurring: true },
-      metadata: { context: MailContext.BUY_CRYPTO, correlationId },
+      correlationId,
     });
   }
 
@@ -188,6 +191,7 @@ export class BuyCryptoNotificationService {
         ) {
           await this.notificationService.sendMail({
             type: MailType.USER,
+            context: MailContext.BUY_CRYPTO_RETURN,
             input: {
               userData: entity.user.userData,
               title: `${entity.translationReturnMailKey}.title`,
@@ -282,6 +286,7 @@ export class BuyCryptoNotificationService {
         if (entity.user.userData.mail) {
           await this.notificationService.sendMail({
             type: MailType.USER,
+            context: MailContext.BUY_CRYPTO_PENDING,
             input: {
               userData: entity.user.userData,
               title: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.title`,

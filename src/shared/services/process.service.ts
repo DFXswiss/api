@@ -36,6 +36,7 @@ export enum Process {
   WEBHOOK = 'Webhook',
   AUTO_CREATE_BANK_DATA = 'AutoCreateBankData',
   TX_SPEEDUP = 'TxSpeedup',
+  RESEND_UNCOMPLETED_MAILS = 'ResendUncompletedMails',
   CREATE_TRANSACTION = 'CreateTransaction',
   SYNCHRONIZE_TRANSACTION = 'SynchronizeTransaction',
   TRADING = 'Trading',

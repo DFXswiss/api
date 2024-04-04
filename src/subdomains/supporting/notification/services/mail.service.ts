@@ -1,7 +1,7 @@
 import { MailerOptions, MailerService } from '@nestjs-modules/mailer';
 import { Injectable } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Mail } from '../entities/mail/base/mail';
+import { MailBase } from '../entities/mail/base/mail';
 
 export interface MailOptions {
   options: MailerOptions;
@@ -20,7 +20,7 @@ export class MailService {
 
   constructor(private readonly mailerService: MailerService) {}
 
-  async send(mail: Mail): Promise<void> {
+  async send(mail: MailBase): Promise<void> {
     try {
       await this.mailerService.sendMail({
         from: mail.from,

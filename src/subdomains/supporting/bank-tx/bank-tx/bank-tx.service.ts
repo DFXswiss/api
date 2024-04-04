@@ -8,7 +8,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, IsNull } from 'typeorm';
 import { OlkypayService } from '../../../../integration/bank/services/olkypay.service';
@@ -211,6 +211,7 @@ export class BankTxService {
 
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,
+        context: MailContext.SEPA,
         input: { subject: 'SEPA Error', errors: [message] },
       });
     }

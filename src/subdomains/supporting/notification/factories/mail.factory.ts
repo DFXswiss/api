@@ -3,7 +3,7 @@ import { I18nService } from 'nestjs-i18n';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
-import { Mail, MailParams } from '../entities/mail/base/mail';
+import { MailBase, MailParams } from '../entities/mail/base/mail';
 import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
 import { InternalMail, MailRequestInternalInput } from '../entities/mail/internal-mail';
 import { MailRequestPersonalInput, PersonalMail } from '../entities/mail/personal-mail';
@@ -53,7 +53,7 @@ const DefaultEmptyLine = { text: '', style: `${UserMailDefaultStyle};padding:1px
 export class MailFactory {
   constructor(private readonly i18n: I18nService) {}
 
-  createMail(request: MailRequest): Mail {
+  createMail(request: MailRequest): MailBase {
     switch (request.type) {
       case MailType.INTERNAL: {
         return this.createInternalMail(request);
@@ -86,21 +86,21 @@ export class MailFactory {
   private createInternalMail(request: MailRequest): InternalMail {
     const input = request.input as MailRequestInternalInput;
     const { title, salutation, prefix } = request.input as MailRequestInternalInput;
-    const { metadata, options } = request;
+    const { correlationId, options } = request;
 
     return new InternalMail({
       ...{ date: new Date().getFullYear(), ...input },
       subject: title,
       salutation: salutation?.key,
       prefix: prefix && this.getMailAffix(prefix),
-      metadata,
+      correlationId,
       options,
     });
   }
 
-  private createGenericMail(request: MailRequest): Mail {
+  private createGenericMail(request: MailRequest): MailBase {
     const input = request.input as MailRequestGenericInput;
-    const { metadata, options } = request;
+    const { correlationId, options } = request;
 
     const defaultParams: Partial<MailRequestGenericInput> = {
       twitterUrl: Config.social.twitter,
@@ -113,22 +113,22 @@ export class MailFactory {
     const mailParams: MailParams = {
       ...input,
       templateParams: { ...defaultParams, ...input },
-      metadata,
+      correlationId,
       options,
     };
 
-    return new Mail(mailParams);
+    return new MailBase(mailParams);
   }
 
   private createErrorMonitoringMail(request: MailRequest): ErrorMonitoringMail {
     const { subject, errors } = request.input as ErrorMonitoringMailInput;
-    const { metadata, options } = request;
+    const { correlationId, options } = request;
 
-    return new ErrorMonitoringMail({ subject, errors, metadata, options });
+    return new ErrorMonitoringMail({ subject, errors, correlationId, options });
   }
 
   private createUserMail(request: MailRequest): UserMail {
-    const { metadata, options } = request;
+    const { correlationId, options } = request;
     const { userData, title, salutation, prefix, suffix, table } = request.input as MailRequestUserInput;
 
     const lang = userData.language.symbol.toLowerCase();
@@ -140,14 +140,14 @@ export class MailFactory {
       prefix: prefix && this.getMailAffix(prefix, lang),
       table: table && this.getTable(table, lang),
       suffix: suffix && this.getMailAffix(suffix, lang),
-      metadata,
+      correlationId,
       options,
     });
   }
 
   private createPersonalMail(request: MailRequest): PersonalMail {
     const { userData, title, prefix, banner, from, displayName } = request.input as MailRequestPersonalInput;
-    const { metadata, options } = request;
+    const { correlationId, options } = request;
 
     const lang = userData.language.symbol.toLowerCase();
 
@@ -158,7 +158,7 @@ export class MailFactory {
       banner,
       from,
       displayName,
-      metadata,
+      correlationId,
       options,
     });
   }

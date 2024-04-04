@@ -1,8 +1,7 @@
 import { GetConfig } from 'src/config/config';
-import { NotificationType } from 'src/subdomains/supporting/notification/enums';
-import { Notification, NotificationMetadata, NotificationOptions } from '../../notification.entity';
+import { Notification, NotificationOptions } from '../../notification.entity';
 
-export interface MailParams {
+export interface MailParamBase {
   to: string | string[];
   subject: string;
   from?: string;
@@ -10,6 +9,11 @@ export interface MailParams {
   cc?: string;
   bcc?: string;
   template?: string;
+  options?: NotificationOptions;
+  correlationId?: string;
+}
+
+export interface MailParams extends MailParamBase {
   templateParams?: {
     salutation: string;
     body: string;
@@ -20,24 +24,13 @@ export interface MailParams {
     linkedinUrl?: string;
     instagramUrl?: string;
   };
-  options?: NotificationOptions;
-  metadata?: NotificationMetadata;
 }
 
-export interface MailParamsNew {
-  to: string | string[];
-  subject: string;
-  from?: string;
-  displayName?: string;
-  cc?: string;
-  bcc?: string;
-  template?: string;
+export interface MailParamsNew extends MailParamBase {
   templateParams?: any;
-  options?: NotificationOptions;
-  metadata?: NotificationMetadata;
 }
 
-export class Mail extends Notification {
+export class MailBase extends Notification {
   readonly #from: { name: string; address: string } = {
     name: 'DFX.swiss',
     address: GetConfig().mail.contact.noReplyMail,
@@ -51,7 +44,6 @@ export class Mail extends Notification {
 
   constructor(params: MailParams | MailParamsNew) {
     super();
-    this.create(NotificationType.MAIL, params.metadata, params.options);
 
     this.#to = params.to;
     this.#subject = params.subject;

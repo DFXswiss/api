@@ -6,7 +6,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { AmlReason, AmlReasonWithoutReason, KycAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import {
   MailFactory,
   MailKey,
@@ -53,6 +53,7 @@ export class BuyFiatNotificationService {
         if (recipientMail && !entity.noCommunication) {
           await this.notificationService.sendMail({
             type: MailType.USER,
+            context: MailContext.BUY_FIAT,
             input: {
               userData: entity.sell.user.userData,
               title: `${MailTranslationKey.BUY_FIAT}.initiated.title`,
@@ -108,6 +109,7 @@ export class BuyFiatNotificationService {
 
           await this.notificationService.sendMail({
             type: MailType.USER,
+            context: MailContext.BUY_FIAT,
             input: {
               userData: entity.sell.user.userData,
               title: `${MailTranslationKey.BUY_FIAT}.exchanged.title`,
@@ -155,6 +157,7 @@ export class BuyFiatNotificationService {
         if (entity.sell.user.userData.mail && !entity.noCommunication) {
           await this.notificationService.sendMail({
             type: MailType.USER,
+            context: MailContext.BUY_FIAT,
             input: {
               userData: entity.sell.user.userData,
               title: `${MailTranslationKey.BUY_FIAT}.processed.title`,
@@ -206,6 +209,7 @@ export class BuyFiatNotificationService {
         ) {
           await this.notificationService.sendMail({
             type: MailType.USER,
+            context: MailContext.BUY_FIAT_RETURN,
             input: {
               userData: entity.sell.user.userData,
               title: `${MailTranslationKey.CRYPTO_RETURN}.title`,
@@ -279,6 +283,7 @@ export class BuyFiatNotificationService {
         if (entity.sell.user.userData.mail) {
           await this.notificationService.sendMail({
             type: MailType.USER,
+            context: MailContext.BUY_FIAT_PENDING,
             input: {
               userData: entity.sell.user.userData,
               title: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.title`,

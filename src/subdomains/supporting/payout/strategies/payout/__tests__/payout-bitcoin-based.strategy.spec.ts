@@ -210,12 +210,10 @@ describe('PayoutBitcoinBasedStrategy', () => {
 
       expect(sendErrorMailSpy).toBeCalledTimes(1);
       expect(sendErrorMailSpy).toBeCalledWith({
-        input: { errors: ['Test message', 'Another message'], subject: 'Payout Error' },
+        input: { errors: ['Test message', 'Another message'], subject: 'Payout Error', isLiqMail: true },
         type: 'ErrorMonitoring',
-        metadata: {
-          context: 'Payout',
-          correlationId: 'PayoutOrder&BuyCrypto&1',
-        },
+        context: 'Payout',
+        correlationId: 'PayoutOrder&BuyCrypto&1',
         options: {
           suppressRecurring: true,
         },
@@ -227,12 +225,10 @@ describe('PayoutBitcoinBasedStrategy', () => {
 
       expect(sendErrorMailSpy).toBeCalledTimes(1);
       expect(sendErrorMailSpy).toBeCalledWith({
-        input: { errors: [''], subject: 'Payout Error' },
+        input: { errors: [''], subject: 'Payout Error', isLiqMail: true },
         type: 'ErrorMonitoring',
-        metadata: {
-          context: 'Payout',
-          correlationId: 'PayoutOrder&BuyCrypto&1',
-        },
+        context: 'Payout',
+        correlationId: 'PayoutOrder&BuyCrypto&1',
         options: {
           suppressRecurring: true,
         },

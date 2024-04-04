@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Notification, NotificationMetadata } from '../entities/notification.entity';
-import { NotificationSuppressedException } from '../exceptions/notification-suppressed.exception';
+import { UpdateNotificationDto } from '../dto/update-notification.dto';
+import { Notification } from '../entities/notification.entity';
 import { MailFactory } from '../factories/mail.factory';
 import { MailRequest } from '../interfaces';
 import { NotificationRepository } from '../repositories/notification.repository';
@@ -18,47 +18,53 @@ export class NotificationService {
   ) {}
 
   async sendMail(request: MailRequest): Promise<void> {
+    const mail = this.mailFactory.createMail(request);
+
+    Object.assign(mail, this.parseDefaultMailParams(request));
+
+    const isSuppressed = await this.isSuppressed(mail);
+    if (isSuppressed) return;
+
+    await this.notificationRepo.save(mail);
+
     try {
-      const mail = this.mailFactory.createMail(request);
-
-      await this.verify(mail);
-      await this.persist(mail);
-
       await this.mailService.send(mail);
+
+      await this.updateNotification(mail, { isComplete: true });
     } catch (e) {
-      this.handleNotificationError(e, request.metadata);
+      this.logger.error('Error in sendMail', e);
+
+      await this.updateNotification(mail, { isComplete: false, error: e });
     }
   }
 
   //*** HELPER METHODS ***//
 
-  private async verify(newNotification: Notification): Promise<void> {
+  private parseDefaultMailParams(request: MailRequest): Partial<Notification> {
+    return {
+      type: request.type,
+      context: request.context,
+      data: JSON.stringify(request.input),
+      isComplete: false,
+      lastTryDate: new Date(),
+      debounce: request.options?.debounce,
+      correlationId: request.correlationId,
+    };
+  }
+
+  public async updateNotification(entity: Notification, dto: UpdateNotificationDto): Promise<Notification> {
+    Object.assign(entity, dto);
+
+    return this.notificationRepo.save(entity);
+  }
+
+  public async isSuppressed(newNotification: Notification): Promise<boolean> {
     const { correlationId, context } = newNotification;
 
     const existingNotification = await this.notificationRepo.findOne({
       where: { correlationId, context },
       order: { id: 'DESC' },
     });
-
-    if (existingNotification) newNotification.shouldAbortGiven(existingNotification);
-  }
-
-  private async persist(notification: Notification): Promise<void> {
-    if (notification.shouldBePersisted()) {
-      await this.notificationRepo.save(notification);
-    }
-  }
-
-  //*** ERROR HANDLING ***//
-
-  private handleNotificationError(e: Error, metadata: NotificationMetadata): void {
-    if (e instanceof NotificationSuppressedException) {
-      this.logger.verbose(
-        `Suppressed mail request. Context: ${metadata?.context}. CorrelationId: ${metadata?.correlationId}`,
-      );
-      return;
-    }
-
-    throw e;
+    if (existingNotification) return newNotification.isSuppressed(existingNotification);
   }
 }

@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { cloneDeep, isEqual } from 'lodash';
 import { BehaviorSubject, debounceTime, pairwise } from 'rxjs';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MetricObserver } from './metric.observer';
 import { Metric, MetricName, SubsystemName, SubsystemState, SystemState } from './system-state-snapshot.entity';
@@ -57,6 +57,7 @@ export class MonitoringService implements OnModuleInit {
 
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,
+        context: MailContext.MONITORING,
         input: { subject: 'Monitoring Error. Failed to parse loaded system state.', errors: [e] },
       });
 
@@ -127,6 +128,7 @@ export class MonitoringService implements OnModuleInit {
 
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,
+        context: MailContext.MONITORING,
         input: { subject: 'Monitoring Error. Error persisting the state.', errors: [e] },
       });
     }
@@ -209,6 +211,7 @@ export class MonitoringService implements OnModuleInit {
 
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,
+        context: MailContext.MONITORING,
         input: { subject: 'Monitoring Error. Updating monitoring state.', errors: [e] },
       });
     }
