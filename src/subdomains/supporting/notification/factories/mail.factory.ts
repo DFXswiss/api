@@ -8,7 +8,6 @@ import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/
 import { InternalMail, MailRequestInternalInput } from '../entities/mail/internal-mail';
 import { MailRequestPersonalInput, PersonalMail } from '../entities/mail/personal-mail';
 import { MailRequestUserInput, UserMail, UserMailTable } from '../entities/mail/user-mail';
-import { Notification } from '../entities/notification.entity';
 import { MailType } from '../enums';
 import { MailAffix, MailRequest, MailRequestGenericInput, TranslationItem, TranslationParams } from '../interfaces';
 
@@ -90,7 +89,6 @@ export class MailFactory {
     const { correlationId, options } = request;
 
     return new InternalMail({
-      ...this.parseDefaultMailParams(request),
       ...{ date: new Date().getFullYear(), ...input },
       subject: title,
       salutation: salutation?.key,
@@ -113,7 +111,6 @@ export class MailFactory {
     };
 
     const mailParams: MailParams = {
-      ...this.parseDefaultMailParams(request),
       ...input,
       templateParams: { ...defaultParams, ...input },
       correlationId,
@@ -137,7 +134,6 @@ export class MailFactory {
     const lang = userData.language.symbol.toLowerCase();
 
     return new UserMail({
-      ...this.parseDefaultMailParams(request),
       to: userData.mail,
       subject: this.translate(title, lang),
       salutation: salutation && this.translate(salutation.key, lang, salutation.params),
@@ -156,7 +152,6 @@ export class MailFactory {
     const lang = userData.language.symbol.toLowerCase();
 
     return new PersonalMail({
-      ...this.parseDefaultMailParams(request),
       to: userData.mail,
       subject: this.translate(title, lang),
       prefix: prefix && this.getMailAffix(prefix, lang),
@@ -175,16 +170,6 @@ export class MailFactory {
   }
 
   //*** MAIL BUILDING METHODS ***//
-
-  private parseDefaultMailParams(request: MailRequest): Partial<Notification> {
-    return {
-      type: request.type,
-      context: request.context,
-      data: JSON.stringify(request.input),
-      isComplete: false,
-      lastTryDate: new Date(),
-    };
-  }
 
   private getTable(table: Record<string, string>, lang: string): UserMailTable[] {
     Util.removeNullFields(table);
