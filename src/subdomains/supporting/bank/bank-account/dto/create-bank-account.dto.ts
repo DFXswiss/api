@@ -9,7 +9,7 @@ export class CreateBankAccountDto extends UpdateBankAccountDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @IsDfxIban(IbanType.SELL)
+  @IsDfxIban(IbanType.BOTH)
   @Transform(Util.trim)
   iban: string;
 }
