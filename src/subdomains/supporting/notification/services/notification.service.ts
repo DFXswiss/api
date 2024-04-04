@@ -20,7 +20,7 @@ export class NotificationService {
   async sendMail(request: MailRequest): Promise<void> {
     const mail = this.mailFactory.createMail(request);
 
-    Object.assign(mail, this.parseDefaultMailParams(request));
+    Object.assign(mail, NotificationService.parseDefaultMailParams(request));
 
     const isSuppressed = await this.isSuppressed(mail);
     if (isSuppressed) return;
@@ -40,7 +40,7 @@ export class NotificationService {
 
   //*** HELPER METHODS ***//
 
-  private parseDefaultMailParams(request: MailRequest): Partial<Notification> {
+  static parseDefaultMailParams(request: MailRequest): Partial<Notification> {
     return {
       type: request.type,
       context: request.context,
