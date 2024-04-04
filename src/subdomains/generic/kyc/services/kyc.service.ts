@@ -11,7 +11,7 @@ import { LessThan } from 'typeorm';
 import { KycLevel, UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { IdentStatus } from '../dto/ident.dto';
-import { IdentResultDto, IdentShortResult, getIdentResult } from '../dto/input/ident-result.dto';
+import { IdentResultDto, IdentShortResult, getIdentReason, getIdentResult } from '../dto/input/ident-result.dto';
 import { KycContactData, KycPersonalData } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { ContentType, FileType } from '../dto/kyc-file.dto';
@@ -204,7 +204,7 @@ export class KycService {
     switch (getIdentResult(dto)) {
       case IdentShortResult.CANCEL:
         user = user.pauseStep(kycStep, dto);
-        await this.kycNotificationService.identFailed(user, reason);
+        await this.kycNotificationService.identFailed(user, getIdentReason(reason));
         break;
 
       case IdentShortResult.ABORT:
@@ -223,7 +223,7 @@ export class KycService {
       case IdentShortResult.FAIL:
         user = user.failStep(kycStep, dto);
         await this.downloadIdentDocuments(user, kycStep, 'fail/');
-        await this.kycNotificationService.identFailed(user, reason);
+        await this.kycNotificationService.identFailed(user, getIdentReason(reason));
         break;
 
       default:
