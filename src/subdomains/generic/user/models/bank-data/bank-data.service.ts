@@ -1,10 +1,11 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import * as IbanTools from 'ibantools';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
-import { Not } from 'typeorm';
-import { BankData } from './bank-data.entity';
+import { IsNull, Not } from 'typeorm';
+import { BankData, BankDataType } from './bank-data.entity';
 import { UpdateBankDataDto } from './dto/update-bank-data.dto';
 
 @Injectable()
@@ -54,10 +55,6 @@ export class BankDataService {
     return this.bankDataRepo.findOne({ where: { id }, relations: { userData: true } });
   }
 
-  async getBankDatasForUser(userDataId: number): Promise<BankData[]> {
-    return this.bankDataRepo.findBy({ userData: { id: userDataId }, active: true });
-  }
-
   async getBankDataWithIban(iban: string, userDataId?: number): Promise<BankData> {
     if (!iban) return undefined;
     return this.bankDataRepo
@@ -66,5 +63,32 @@ export class BankDataService {
         relations: ['userData'],
       })
       .then((b) => b.filter((b) => b.active)[0] ?? b[0]);
+  }
+
+  async getIbansForUser(userDataId: number): Promise<string[]> {
+    const bankDatas = await this.bankDataRepo.findBy([
+      { userData: { id: userDataId }, active: true },
+      { userData: { id: userDataId }, active: IsNull() },
+    ]);
+
+    return Array.from(new Set(bankDatas.map((b) => b.iban).filter((b) => IbanTools.validateIBAN(b).valid)));
+  }
+
+  async createIbanForUser(userDataId: number, iban: string): Promise<void> {
+    const existing = await this.bankDataRepo.exist({
+      where: [
+        { iban, active: true },
+        { iban, active: IsNull() },
+      ],
+    });
+    if (existing) throw new ConflictException('IBAN already exists');
+
+    const bankData = this.bankDataRepo.create({
+      userData: { id: userDataId },
+      iban,
+      active: null,
+      type: BankDataType.USER,
+    });
+    await this.bankDataRepo.save(bankData);
   }
 }

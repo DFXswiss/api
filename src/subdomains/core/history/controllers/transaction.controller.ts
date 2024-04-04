@@ -133,9 +133,9 @@ export class TransactionController {
   @ApiExcludeEndpoint()
   async getUnassignedTransactions(@GetJwt() jwt: JwtPayload): Promise<UnassignedTransactionDto[]> {
     const user = await this.userService.getUser(jwt.id, { userData: true });
-    const bankDatas = await this.bankDataService.getBankDatasForUser(user.userData.id);
+    const ibans = await this.bankDataService.getIbansForUser(user.userData.id);
 
-    const txList = await this.bankTxService.getUnassignedBankTx(bankDatas.map((bd) => bd.iban));
+    const txList = await this.bankTxService.getUnassignedBankTx(ibans);
     return Util.asyncMap(txList, async (tx) => {
       const currency = await this.fiatService.getFiatByName(tx.txCurrency);
       return TransactionDtoMapper.mapUnassignedTransaction(tx, currency);
@@ -174,8 +174,8 @@ export class TransactionController {
     if (!buy) throw new NotFoundException('Buy not found');
 
     const user = await this.userService.getUser(jwt.id, { userData: true });
-    const bankDatas = await this.bankDataService.getBankDatasForUser(user.userData.id);
-    if (!bankDatas.some((b) => b.iban === transaction.bankTx.iban))
+    const ibans = await this.bankDataService.getIbansForUser(user.userData.id);
+    if (!ibans.includes(transaction.bankTx.iban))
       throw new ForbiddenException('You can only assign your own transaction');
 
     await this.bankTxService.update(transaction.bankTx.id, { type: BankTxType.BUY_CRYPTO, buyId: buy.id });

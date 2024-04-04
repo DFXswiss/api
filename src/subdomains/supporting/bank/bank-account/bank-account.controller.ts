@@ -1,20 +1,27 @@
 import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiCreatedResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankAccount } from './bank-account.entity';
 import { BankAccountService } from './bank-account.service';
 import { BankAccountDto } from './dto/bank-account.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
+import { CreateIbanDto, IbanDto } from './dto/iban.dto';
 import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
 
 @ApiTags('BankAccount')
 @Controller('bankAccount')
 export class BankAccountController {
-  constructor(private readonly bankAccountService: BankAccountService) {}
+  constructor(
+    private readonly bankAccountService: BankAccountService,
+    private readonly userService: UserService,
+    private readonly bankDataService: BankDataService,
+  ) {}
 
   @Get()
   @ApiBearerAuth()
@@ -45,6 +52,28 @@ export class BankAccountController {
     @Body() updateBankAccountDto: UpdateBankAccountDto,
   ): Promise<BankAccountDto> {
     return this.bankAccountService.updateBankAccount(+id, jwt.id, updateBankAccountDto).then((b) => this.toDto(b));
+  }
+
+  // --- IBAN --- //
+
+  @Get('iban')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiExcludeEndpoint()
+  async getAllUserIban(@GetJwt() jwt: JwtPayload): Promise<IbanDto[]> {
+    const user = await this.userService.getUser(jwt.id, { userData: true });
+    const ibans = await this.bankDataService.getIbansForUser(user.userData.id);
+
+    return ibans.map((iban) => ({ iban }));
+  }
+
+  @Post('iban')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiExcludeEndpoint()
+  async addUserIban(@GetJwt() jwt: JwtPayload, @Body() dto: CreateIbanDto): Promise<void> {
+    const user = await this.userService.getUser(jwt.id, { userData: true });
+    return this.bankDataService.createIbanForUser(user.userData.id, dto.iban);
   }
 
   // --- DTO --- //
