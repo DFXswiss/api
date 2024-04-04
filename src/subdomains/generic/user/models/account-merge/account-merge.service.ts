@@ -59,7 +59,7 @@ export class AccountMergeService {
         suffix: [{ key: MailKey.SPACE, params: { value: '4' } }, { key: MailKey.DFX_TEAM_CLOSING }],
       },
       options: { debounce: 60000 },
-      correlationId: `AccountMerge&${request.id}`,
+      correlationId: `${request.id}`,
     });
   }
 
