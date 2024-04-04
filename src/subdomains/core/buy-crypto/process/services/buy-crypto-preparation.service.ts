@@ -67,8 +67,6 @@ export class BuyCryptoPreparationService {
       try {
         if (entity.cryptoInput && (!entity.cryptoInput.isConfirmed || !entity.cryptoInput.amlCheck)) continue;
 
-        if (!entity.userData.hasValidNameCheckDate) await this.amlService.checkNameCheck(entity);
-
         const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
         const inputReferenceCurrency =
           entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputReferenceAsset));
