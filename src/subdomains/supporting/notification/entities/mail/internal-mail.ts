@@ -1,5 +1,5 @@
 import { MailAffix, MailRequestGenericBase, TranslationItem } from '../../interfaces';
-import { NotificationMetadata, NotificationOptions } from '../notification.entity';
+import { NotificationOptions } from '../notification.entity';
 import { MailBase } from './base/mail';
 
 export interface MailRequestInternalInput extends MailRequestGenericBase {
@@ -12,7 +12,7 @@ export interface InternalMailParams extends MailRequestGenericBase {
   subject: string;
   salutation: string;
   prefix: MailAffix[];
-  metadata?: NotificationMetadata;
+  correlationId?: string;
   options?: NotificationOptions;
 }
 

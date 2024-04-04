@@ -2,7 +2,7 @@ import { ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail
 import { MailRequestInternalInput } from '../entities/mail/internal-mail';
 import { MailRequestPersonalInput } from '../entities/mail/personal-mail';
 import { MailRequestUserInput } from '../entities/mail/user-mail';
-import { NotificationMetadata, NotificationOptions } from '../entities/notification.entity';
+import { NotificationOptions } from '../entities/notification.entity';
 import { MailContext, MailType } from '../enums';
 
 export interface MailRequest {
@@ -14,7 +14,7 @@ export interface MailRequest {
     | MailRequestUserInput
     | MailRequestPersonalInput
     | MailRequestInternalInput;
-  metadata?: NotificationMetadata;
+  correlationId?: string;
   options?: NotificationOptions;
 }
 

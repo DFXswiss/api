@@ -1,5 +1,5 @@
 import { GetConfig } from 'src/config/config';
-import { Notification, NotificationMetadata, NotificationOptions } from '../../notification.entity';
+import { Notification, NotificationOptions } from '../../notification.entity';
 
 export interface MailParamBase {
   to: string | string[];
@@ -10,7 +10,7 @@ export interface MailParamBase {
   bcc?: string;
   template?: string;
   options?: NotificationOptions;
-  metadata?: NotificationMetadata;
+  correlationId?: string;
 }
 
 export interface MailParams extends MailParamBase {

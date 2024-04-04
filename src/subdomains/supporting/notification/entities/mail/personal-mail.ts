@@ -1,6 +1,6 @@
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { MailAffix, TranslationItem } from '../../interfaces';
-import { NotificationMetadata, NotificationOptions } from '../notification.entity';
+import { NotificationOptions } from '../notification.entity';
 import { MailBase } from './base/mail';
 
 export interface MailRequestPersonalInput {
@@ -20,7 +20,7 @@ export interface PersonalMailParams {
   banner: string;
   from?: string;
   displayName?: string;
-  metadata?: NotificationMetadata;
+  correlationId?: string;
   options?: NotificationOptions;
 }
 

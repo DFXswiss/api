@@ -197,9 +197,9 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
     await this.notificationService.sendMail({
       type: MailType.ERROR_MONITORING,
       context: MailContext.PAYOUT,
-      input: { subject: 'Payout Error', errors },
+      input: { subject: 'Payout Error', errors, isLiqMail: true },
       options: { suppressRecurring: true },
-      metadata: { context: MailContext.PAYOUT, correlationId },
+      correlationId,
     });
   }
 

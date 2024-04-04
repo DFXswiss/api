@@ -2,11 +2,6 @@ import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity } from 'typeorm';
 import { MailContext, MailType } from '../enums';
 
-export interface NotificationMetadata {
-  context: MailContext;
-  correlationId: string;
-}
-
 export interface NotificationOptions {
   suppressRecurring?: boolean;
   debounce?: number; // debounce time in milliseconds

@@ -132,6 +132,7 @@ export class TradingOrderService {
       input: {
         subject: 'Trading order SUCCESS',
         errors: [message],
+        isLiqMail: true,
       },
     };
 
@@ -154,6 +155,7 @@ export class TradingOrderService {
       input: {
         subject: 'Trading order FAIL',
         errors: [message],
+        isLiqMail: true,
       },
     };
 

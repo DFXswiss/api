@@ -135,9 +135,9 @@ export class BuyCryptoNotificationService {
     await this.notificationService.sendMail({
       type: MailType.ERROR_MONITORING,
       context: MailContext.BUY_CRYPTO,
-      input: { subject: 'Buy Crypto Error - missing liquidity.', errors: messages },
+      input: { subject: 'Buy Crypto Error - missing liquidity.', errors: messages, isLiqMail: true },
       options: { debounce: 3600000 },
-      metadata: { context: MailContext.BUY_CRYPTO, correlationId },
+      correlationId,
     });
   }
 
@@ -148,9 +148,9 @@ export class BuyCryptoNotificationService {
     await this.notificationService.sendMail({
       type: MailType.ERROR_MONITORING,
       context: MailContext.BUY_CRYPTO,
-      input: { subject: 'Buy Crypto Error', errors },
+      input: { subject: 'Buy Crypto Error', errors, isLiqMail: true },
       options: { suppressRecurring: true },
-      metadata: { context: MailContext.BUY_CRYPTO, correlationId },
+      correlationId,
     });
   }
 
