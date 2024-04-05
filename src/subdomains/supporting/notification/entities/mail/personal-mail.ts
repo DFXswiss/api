@@ -1,10 +1,10 @@
-import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { Language } from 'src/shared/models/language/language.entity';
 import { MailAffix, TranslationItem } from '../../interfaces';
 import { NotificationOptions } from '../notification.entity';
 import { Mail } from './base/mail';
 
 export interface MailRequestPersonalInput {
-  userData: UserData;
+  userData: { id: number; mail: string; language: Language };
   title: string;
   salutation?: TranslationItem;
   prefix?: TranslationItem[];

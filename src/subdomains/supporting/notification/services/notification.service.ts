@@ -41,11 +41,17 @@ export class NotificationService {
   //*** HELPER METHODS ***//
 
   static fromRequest(request: MailRequest): Partial<Notification> {
+    if ('userData' in request.input)
+      request.input.userData = {
+        id: request.input.userData.id,
+        mail: request.input.userData.mail,
+        language: request.input.userData.language,
+      };
+
     return {
       type: request.type,
       context: request.context,
       data: JSON.stringify(request.input),
-      isComplete: false,
       lastTryDate: new Date(),
       debounce: request.options?.debounce,
       suppressRecurring: request.options?.suppressRecurring,
