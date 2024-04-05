@@ -18,13 +18,13 @@ export class Notification extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   correlationId: string;
 
-  @Column({ length: 'MAX', default: '-' }) // TODO: replace default with nullable: false
+  @Column({ length: 'MAX' })
   data: string;
 
   @Column({ type: 'datetime2' })
   lastTryDate: Date;
 
-  @Column({ default: true }) // TODO: remove default
+  @Column({ default: false })
   isComplete: boolean;
 
   @Column({ length: 'MAX', nullable: true })
