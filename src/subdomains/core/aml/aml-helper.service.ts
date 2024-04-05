@@ -11,7 +11,7 @@ import {
 } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { BuyCrypto } from '../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../sell-crypto/process/buy-fiat.entity';
-import { AmlError, AmlErrorReasons, FailedAmlErrors, PendingAmlErrors } from './enums/aml-error.enum';
+import { AmlError, AmlErrorProperty, AmlErrorResult } from './enums/aml-error.enum';
 import { AmlReason } from './enums/aml-reason.enum';
 import { CheckStatus } from './enums/check-status.enum';
 
@@ -171,22 +171,23 @@ export class AmlHelperService {
     // Pass
     if (amlErrors.length === 0) return { amlCheck: CheckStatus.PASS, amlReason: AmlReason.NA };
 
-    // Pending
-    if (amlErrors.every((e) => PendingAmlErrors.includes(e) && AmlErrorReasons[e]))
-      return {
-        amlCheck: CheckStatus.PENDING,
-        amlReason: AmlErrorReasons[amlErrors.find((e) => PendingAmlErrors.includes(e))],
-        comment,
-      };
+    const amlResults = amlErrors.map((amlError) => ({ amlError, ...AmlErrorResult[amlError] }));
 
-    // Fail
-    const failedError = amlErrors.find((e) => FailedAmlErrors.includes(e) && AmlErrorReasons[e]);
-    if (failedError)
-      return {
-        amlCheck: CheckStatus.FAIL,
-        amlReason: AmlErrorReasons[failedError],
-        comment,
-      };
+    // Crucial error aml
+    const crucialErrorResult = amlResults.find((r) => r?.errorProperty === AmlErrorProperty.CRUCIAL_ERROR);
+    if (crucialErrorResult) return { ...crucialErrorResult, comment };
+
+    // Only error aml
+    const onlyErrorResult = amlResults.find((r) => r?.errorProperty === AmlErrorProperty.ONLY_ERROR);
+    if (onlyErrorResult && amlErrors.length === 1) return { ...onlyErrorResult, comment };
+
+    // Same error aml
+    if (
+      amlResults.every((r) => r?.errorProperty === AmlErrorProperty.SAME_CHECK) &&
+      (amlResults.every((r) => r?.amlCheck === CheckStatus.PENDING) ||
+        amlResults.every((r) => r?.amlCheck === CheckStatus.FAIL))
+    )
+      return { ...amlResults[0], comment };
 
     // GSheet
     if (Util.minutesDiff(entity.created) >= 10) return { amlCheck: CheckStatus.GSHEET, comment };

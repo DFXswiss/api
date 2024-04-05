@@ -1,4 +1,5 @@
 import { AmlReason } from './aml-reason.enum';
+import { CheckStatus } from './check-status.enum';
 
 export enum AmlError {
   MIN_VOLUME_NOT_REACHED = 'MinVolumeNotReached',
@@ -38,16 +39,15 @@ export enum AmlError {
   SUSPICIOUS_MAIL = 'SuspiciousMail',
 }
 
-export const PendingAmlErrors = [
-  AmlError.NAME_CHECK_WITHOUT_KYC,
-  AmlError.NAME_CHECK_WITH_BIRTHDAY,
-  AmlError.WEEKLY_LIMIT_REACHED,
-  AmlError.IP_MISMATCH,
-  AmlError.SUSPICIOUS_MAIL,
-];
-export const FailedAmlErrors = [AmlError.BANK_DATA_NOT_ACTIVE];
+export enum AmlErrorProperty {
+  ONLY_ERROR = 'OnlyError', // Only one error may occur
+  SAME_CHECK = 'SameCheck', // All errors must have the same amlCheck
+  CRUCIAL_ERROR = 'CrucialError', // Prioritized error
+}
 
-export const AmlErrorReasons: { [b in AmlError]: AmlReason } = {
+export const AmlErrorResult: {
+  [b in AmlError]: { errorProperty: AmlErrorProperty; amlCheck: CheckStatus; amlReason: AmlReason };
+} = {
   [AmlError.ASSET_NOT_BUYABLE]: null,
   [AmlError.MIN_VOLUME_NOT_REACHED]: null,
   [AmlError.KYC_LEVEL_30_NOT_REACHED]: null,
@@ -68,19 +68,47 @@ export const AmlErrorReasons: { [b in AmlError]: AmlReason } = {
   [AmlError.NO_LETTER]: null,
   [AmlError.NO_AML_LIST]: null,
   [AmlError.NO_KYC_FILE_ID]: null,
-  [AmlError.NAME_CHECK_WITHOUT_KYC]: AmlReason.NAME_CHECK_WITHOUT_KYC,
-  [AmlError.NAME_CHECK_WITH_BIRTHDAY]: AmlReason.MANUAL_CHECK,
-  [AmlError.WEEKLY_LIMIT_REACHED]: AmlReason.MANUAL_CHECK,
+  [AmlError.NAME_CHECK_WITHOUT_KYC]: {
+    errorProperty: AmlErrorProperty.SAME_CHECK,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.NAME_CHECK_WITHOUT_KYC,
+  },
+  [AmlError.NAME_CHECK_WITH_BIRTHDAY]: {
+    errorProperty: AmlErrorProperty.SAME_CHECK,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MANUAL_CHECK,
+  },
+  [AmlError.WEEKLY_LIMIT_REACHED]: {
+    errorProperty: AmlErrorProperty.SAME_CHECK,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MANUAL_CHECK,
+  },
   [AmlError.MONTHLY_LIMIT_REACHED]: null,
-  [AmlError.DEPOSIT_LIMIT_REACHED]: null,
+  [AmlError.DEPOSIT_LIMIT_REACHED]: {
+    errorProperty: AmlErrorProperty.ONLY_ERROR,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.ANNUAL_LIMIT,
+  },
   [AmlError.BANK_DATA_MISSING]: null,
-  [AmlError.BANK_DATA_NOT_ACTIVE]: AmlReason.IBAN_CHECK,
+  [AmlError.BANK_DATA_NOT_ACTIVE]: {
+    errorProperty: AmlErrorProperty.CRUCIAL_ERROR,
+    amlCheck: CheckStatus.FAIL,
+    amlReason: AmlReason.IBAN_CHECK,
+  },
   [AmlError.BANK_DATA_USER_MISMATCH]: null,
   [AmlError.BIC_BLACKLISTED]: null,
   [AmlError.IBAN_BLACKLISTED]: null,
   [AmlError.CARD_BLACKLISTED]: null,
   [AmlError.INPUT_AML_CHECK_FAILED]: null,
   [AmlError.INPUT_NOT_CONFIRMED]: null,
-  [AmlError.IP_MISMATCH]: AmlReason.MANUAL_CHECK,
-  [AmlError.SUSPICIOUS_MAIL]: AmlReason.MANUAL_CHECK,
+  [AmlError.IP_MISMATCH]: {
+    errorProperty: AmlErrorProperty.SAME_CHECK,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MANUAL_CHECK,
+  },
+  [AmlError.SUSPICIOUS_MAIL]: {
+    errorProperty: AmlErrorProperty.SAME_CHECK,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MANUAL_CHECK,
+  },
 };
