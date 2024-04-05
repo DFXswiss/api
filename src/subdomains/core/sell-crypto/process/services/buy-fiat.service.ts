@@ -131,7 +131,8 @@ export class BuyFiatService {
     Util.removeNullFields(entity);
 
     const forceUpdate: Partial<BuyFiat> = {
-      ...(BuyFiatEditableAmlCheck.includes(entity.amlCheck) && update?.amlCheck !== entity.amlCheck
+      ...(BuyFiatEditableAmlCheck.includes(entity.amlCheck) &&
+      (update?.amlCheck !== entity.amlCheck || update.amlReason !== entity.amlReason)
         ? { amlCheck: update.amlCheck, mailSendDate: null, amlReason: update.amlReason }
         : undefined),
       isComplete: dto.isComplete,
