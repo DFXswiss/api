@@ -56,11 +56,14 @@ export class TransactionRequest extends IEntity {
   @Column({ nullable: true })
   error: QuoteError;
 
-  @Column({ type: 'float' })
-  fee: number;
+  @Column({ type: 'float', nullable: true })
+  dfxFee: number;
 
-  @Column({ type: 'float' })
-  minFee: number;
+  @Column({ type: 'float', nullable: true })
+  networkFee: number;
+
+  @Column({ type: 'float', nullable: true })
+  totalFee: number;
 
   @Column({ default: false })
   exactPrice: boolean;

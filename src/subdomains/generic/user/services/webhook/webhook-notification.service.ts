@@ -4,7 +4,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { IsNull } from 'typeorm';
 import { KycWebhookData } from './dto/kyc-webhook.dto';
@@ -76,6 +76,7 @@ export class WebhookNotificationService {
 
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,
+        context: MailContext.WEBHOOK,
         input: {
           subject: `Webhook ${webhook.id} failed`,
           errors: [errMessage, error],

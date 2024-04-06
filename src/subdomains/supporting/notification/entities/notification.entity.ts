@@ -1,12 +1,6 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Entity, Column } from 'typeorm';
-import { MailContext, NotificationType } from '../enums';
-import { NotificationSuppressedException } from '../exceptions/notification-suppressed.exception';
-
-export interface NotificationMetadata {
-  context: MailContext;
-  correlationId: string;
-}
+import { Column, Entity } from 'typeorm';
+import { MailContext, MailType } from '../enums';
 
 export interface NotificationOptions {
   suppressRecurring?: boolean;
@@ -15,51 +9,38 @@ export interface NotificationOptions {
 
 @Entity()
 export class Notification extends IEntity {
-  @Column({ length: 256, nullable: false })
-  type: NotificationType;
+  @Column({ length: 256 })
+  type: MailType;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256 })
   context: MailContext;
 
-  @Column({ length: 'MAX', nullable: false })
+  @Column({ length: 'MAX', nullable: true })
   correlationId: string;
 
-  @Column({ type: 'datetime2', nullable: false })
-  sendDate: Date;
+  @Column({ length: 'MAX' })
+  data: string;
 
-  @Column({ nullable: false, default: false })
+  @Column({ type: 'datetime2' })
+  lastTryDate: Date;
+
+  @Column({ default: false })
+  isComplete: boolean;
+
+  @Column({ length: 'MAX', nullable: true })
+  error: string;
+
+  @Column({ default: false })
   suppressRecurring: boolean;
 
   @Column({ type: 'float', nullable: true })
   debounce: number;
 
-  protected create(type: NotificationType, metadata?: NotificationMetadata, options?: NotificationOptions) {
-    this.sendDate = new Date();
-    this.type = type;
-
-    this.context = metadata?.context;
-    this.correlationId = metadata?.correlationId;
-
-    this.suppressRecurring = options?.suppressRecurring;
-    this.debounce = options?.debounce;
-  }
-
-  shouldAbortGiven(existingNotification: Notification): void {
-    if (this.isSameNotification(existingNotification)) {
-      if (this.suppressRecurring) {
-        throw new NotificationSuppressedException();
-      }
-
-      if (this.isDebounced(existingNotification)) {
-        throw new NotificationSuppressedException();
-      }
-    }
-  }
-
-  shouldBePersisted(): boolean {
-    if (!this.hasMandatoryParams()) return false;
-
-    return !!(this.suppressRecurring || this.debounce);
+  isSuppressed(existingNotification: Notification): boolean {
+    return (
+      this.isSameNotification(existingNotification) &&
+      (this.suppressRecurring || this.isDebounced(existingNotification))
+    );
   }
 
   //*** HELPER METHODS ***//
@@ -69,10 +50,6 @@ export class Notification extends IEntity {
   }
 
   private isDebounced(existingNotification: Notification): boolean {
-    return this.debounce && Date.now() < existingNotification.sendDate.getTime() + existingNotification.debounce;
-  }
-
-  private hasMandatoryParams(): boolean {
-    return !!(this.type && this.context && this.correlationId);
+    return this.debounce && Date.now() < existingNotification.lastTryDate.getTime() + existingNotification.debounce;
   }
 }

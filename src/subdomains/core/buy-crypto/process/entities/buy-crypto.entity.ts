@@ -3,8 +3,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
-import { AmlService } from 'src/subdomains/core/aml/aml.service';
-import { AmlPendingError } from 'src/subdomains/core/aml/enums/aml-error.enum';
+import { AmlHelperService } from 'src/subdomains/core/aml/aml-helper.service';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -14,12 +13,12 @@ import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { FeeDto, InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import {
   CryptoPaymentMethod,
   FiatPaymentMethod,
   PaymentMethod,
 } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
-import { Fee } from 'src/subdomains/supporting/payment/entities/fee.entity';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
@@ -409,32 +408,28 @@ export class BuyCrypto extends IEntity {
   setFeeAndFiatReference(
     amountInEur: number,
     amountInChf: number,
-    fees: Fee[],
-    feeRate: number,
-    fixedFee: number,
-    payoutRefBonus: boolean,
-    minFeeAmount: number,
+    fee: InternalFeeDto & FeeDto,
     minFeeAmountFiat: number,
-    totalFeeAmount: number,
     totalFeeAmountChf: number,
   ): UpdateResult<BuyCrypto> {
     const { usedRef, refProvision } = this.user.specifiedRef;
 
     const update: Partial<BuyCrypto> = {
-      absoluteFeeAmount: fixedFee,
-      percentFee: feeRate,
-      percentFeeAmount: feeRate * this.inputReferenceAmount,
-      minFeeAmount,
+      absoluteFeeAmount: fee.fixed,
+      percentFee: fee.rate,
+      percentFeeAmount: fee.rate * this.inputReferenceAmount,
+      minFeeAmount: fee.min,
       minFeeAmountFiat,
-      totalFeeAmount,
+      totalFeeAmount: fee.total,
       totalFeeAmountChf,
-      inputReferenceAmountMinusFee: this.inputReferenceAmount - totalFeeAmount,
+      blockchainFee: fee.network,
+      inputReferenceAmountMinusFee: this.inputReferenceAmount - fee.total,
       amountInEur,
       amountInChf,
       usedRef,
       refProvision,
-      refFactor: !payoutRefBonus || usedRef === '000-000' ? 0 : 1,
-      usedFees: fees?.map((fee) => fee.id).join(';'),
+      refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
+      usedFees: fee.fees?.map((fee) => fee.id).join(';'),
     };
 
     if (update.inputReferenceAmountMinusFee < 0) throw new ConflictException('InputReferenceAmountMinusFee smaller 0');
@@ -456,7 +451,7 @@ export class BuyCrypto extends IEntity {
   ): UpdateResult<BuyCrypto> {
     const amountInChf = chfReferencePrice.convert(this.inputReferenceAmount, 2);
 
-    const amlErrors = AmlService.getAmlErrors(
+    const update: Partial<BuyCrypto> = AmlHelperService.getAmlResult(
       this,
       minVolume,
       amountInChf,
@@ -467,16 +462,6 @@ export class BuyCrypto extends IEntity {
       blacklist,
       instantBanks,
     );
-
-    const comment = amlErrors.join(';');
-    const update: Partial<BuyCrypto> =
-      amlErrors.length === 0
-        ? { amlCheck: CheckStatus.PASS, amlReason: AmlReason.NA }
-        : amlErrors.every((e) => AmlPendingError.includes(e))
-        ? { amlCheck: CheckStatus.PENDING, amlReason: AmlReason.MANUAL_CHECK }
-        : Util.minutesDiff(this.created) >= 10
-        ? { amlCheck: CheckStatus.GSHEET, comment }
-        : { comment };
 
     Object.assign(this, update);
 

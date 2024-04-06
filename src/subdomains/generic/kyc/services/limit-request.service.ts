@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { ContentType, FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { KycLevel } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { LimitRequestDto } from '../dto/input/limit-request.dto';
@@ -30,6 +31,8 @@ export class LimitRequestService {
       ? await this.userDataService.getUserDataByUser(userId)
       : await this.userDataService.getByKycHashOrThrow(kycHash);
 
+    if (user.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing KYC');
+
     // create entity
     let entity = this.limitRequestRepo.create(dto);
     entity.userData = user;
@@ -53,6 +56,7 @@ export class LimitRequestService {
     await this.notificationService
       .sendMail({
         type: MailType.INTERNAL,
+        context: MailContext.LIMIT_REQUEST,
         input: {
           to: 'liq@dfx.swiss',
           title: 'LimitRequest',

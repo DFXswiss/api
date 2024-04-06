@@ -10,11 +10,11 @@ import {
   MailTranslationKey,
 } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { In, IsNull, Not } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { AmlReason, AmlReasonWithoutReason, KycAmlReasons } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
-import { BuyCryptoAmlReasonPendingStates } from '../entities/buy-crypto.entity';
+import { BuyCrypto, BuyCryptoAmlReasonPendingStates } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 
 @Injectable()
@@ -75,6 +75,7 @@ export class BuyCryptoNotificationService {
 
             await this.notificationService.sendMail({
               type: MailType.USER,
+              context: MailContext.BUY_CRYPTO,
               input: {
                 userData: tx.user.userData,
                 title: `${MailTranslationKey.BUY_CRYPTO}.confirmed.title`,
@@ -133,9 +134,10 @@ export class BuyCryptoNotificationService {
 
     await this.notificationService.sendMail({
       type: MailType.ERROR_MONITORING,
-      input: { subject: 'Buy Crypto Error - missing liquidity.', errors: messages },
+      context: MailContext.BUY_CRYPTO,
+      input: { subject: 'Buy Crypto Error - missing liquidity.', errors: messages, isLiqMail: true },
       options: { debounce: 3600000 },
-      metadata: { context: MailContext.BUY_CRYPTO, correlationId },
+      correlationId,
     });
   }
 
@@ -145,21 +147,26 @@ export class BuyCryptoNotificationService {
 
     await this.notificationService.sendMail({
       type: MailType.ERROR_MONITORING,
-      input: { subject: 'Buy Crypto Error', errors },
+      context: MailContext.BUY_CRYPTO,
+      input: { subject: 'Buy Crypto Error', errors, isLiqMail: true },
       options: { suppressRecurring: true },
-      metadata: { context: MailContext.BUY_CRYPTO, correlationId },
+      correlationId,
     });
   }
 
   async paybackToAddressInitiated(): Promise<void> {
+    const search: FindOptionsWhere<BuyCrypto> = {
+      mailSendDate: IsNull(),
+      outputAmount: IsNull(),
+      chargebackDate: Not(IsNull()),
+      amlReason: Not(IsNull()),
+      amlCheck: CheckStatus.FAIL,
+    };
     const entities = await this.buyCryptoRepo.find({
-      where: {
-        mailSendDate: IsNull(),
-        outputAmount: IsNull(),
-        chargebackDate: Not(IsNull()),
-        amlReason: Not(IsNull()),
-        amlCheck: CheckStatus.FAIL,
-      },
+      where: [
+        { ...search, chargebackBankTx: Not(IsNull()) },
+        { ...search, chargebackCryptoTxId: Not(IsNull()) },
+      ],
       relations: [
         'buy',
         'buy.user',
@@ -184,6 +191,7 @@ export class BuyCryptoNotificationService {
         ) {
           await this.notificationService.sendMail({
             type: MailType.USER,
+            context: MailContext.BUY_CRYPTO_RETURN,
             input: {
               userData: entity.user.userData,
               title: `${entity.translationReturnMailKey}.title`,
@@ -278,6 +286,7 @@ export class BuyCryptoNotificationService {
         if (entity.user.userData.mail) {
           await this.notificationService.sendMail({
             type: MailType.USER,
+            context: MailContext.BUY_CRYPTO_PENDING,
             input: {
               userData: entity.user.userData,
               title: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.title`,

@@ -11,7 +11,7 @@ import { LessThan } from 'typeorm';
 import { KycLevel, UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { IdentStatus } from '../dto/ident.dto';
-import { IdentResultDto, IdentShortResult, getIdentResult } from '../dto/input/ident-result.dto';
+import { IdentResultDto, IdentShortResult, getIdentReason, getIdentResult } from '../dto/input/ident-result.dto';
 import { KycContactData, KycPersonalData } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { ContentType, FileType } from '../dto/kyc-file.dto';
@@ -73,6 +73,7 @@ export class KycService {
 
   async getInfo(kycHash: string): Promise<KycLevelDto> {
     const user = await this.getUser(kycHash);
+    await this.verifyUserDuplication(user);
 
     return KycInfoMapper.toDto(user, false);
   }
@@ -89,18 +90,20 @@ export class KycService {
 
   private async tryContinue(kycHash: string, ip: string, autoStep: boolean): Promise<KycSessionDto> {
     let user = await this.getUser(kycHash);
-
-    const verifyDuplicate = user.hasCompletedStep(KycStepName.CONTACT_DATA);
-    if (verifyDuplicate) {
-      const isKnownUser = await this.userDataService.isKnownKycUser(user);
-      if (isKnownUser) throw new ConflictException('Account already exists');
-    }
+    await this.verifyUserDuplication(user);
 
     user = await this.updateProgress(user, true, autoStep);
 
     await this.verify2faIfRequired(user, ip);
 
     return KycInfoMapper.toDto(user, true);
+  }
+
+  private async verifyUserDuplication(user: UserData) {
+    if (user.hasCompletedStep(KycStepName.CONTACT_DATA) && user.kycLevel < KycLevel.LEVEL_50) {
+      const isKnownUser = await this.userDataService.isKnownKycUser(user);
+      if (isKnownUser) throw new ConflictException('Account already exists');
+    }
   }
 
   async getCountries(kycHash: string): Promise<Country[]> {
@@ -201,7 +204,7 @@ export class KycService {
     switch (getIdentResult(dto)) {
       case IdentShortResult.CANCEL:
         user = user.pauseStep(kycStep, dto);
-        await this.kycNotificationService.identFailed(user, reason);
+        await this.kycNotificationService.identFailed(user, getIdentReason(reason));
         break;
 
       case IdentShortResult.ABORT:
@@ -220,7 +223,7 @@ export class KycService {
       case IdentShortResult.FAIL:
         user = user.failStep(kycStep, dto);
         await this.downloadIdentDocuments(user, kycStep, 'fail/');
-        await this.kycNotificationService.identFailed(user, reason);
+        await this.kycNotificationService.identFailed(user, getIdentReason(reason));
         break;
 
       default:

@@ -12,6 +12,8 @@ import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { In, IsNull, Not } from 'typeorm';
+import { TransactionTypeInternal } from '../../payment/entities/transaction.entity';
+import { TransactionService } from '../../payment/services/transaction.service';
 import { CryptoInput, PayInPurpose, PayInSendType, PayInStatus } from '../entities/crypto-input.entity';
 import { PayInRepository } from '../repositories/payin.repository';
 import { RegisterStrategyRegistry } from '../strategies/register/impl/base/register.strategy-registry';
@@ -26,6 +28,7 @@ export class PayInService {
     private readonly payInRepository: PayInRepository,
     private readonly sendStrategyRegistry: SendStrategyRegistry,
     private readonly registerStrategyRegistry: RegisterStrategyRegistry,
+    private readonly transactionService: TransactionService,
   ) {}
 
   //*** PUBLIC API ***//
@@ -71,6 +74,9 @@ export class PayInService {
     const amlCheck = await this.doAmlCheck(payIn, route);
 
     payIn.triggerReturn(purpose, returnAddress, route, amlCheck);
+
+    if (payIn.transaction)
+      await this.transactionService.update(payIn.transaction.id, { type: TransactionTypeInternal.CRYPTO_INPUT_RETURN });
 
     await this.payInRepository.save(payIn);
   }

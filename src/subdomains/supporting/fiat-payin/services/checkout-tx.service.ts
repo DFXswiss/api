@@ -5,7 +5,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
-import { MailType } from '../../notification/enums';
+import { MailContext, MailType } from '../../notification/enums';
 import { NotificationService } from '../../notification/services/notification.service';
 import { CheckoutTx } from '../entities/checkout-tx.entity';
 import { CheckoutTxRepository } from '../repositories/checkout-tx.repository';
@@ -40,6 +40,7 @@ export class CheckoutTxService {
     // send error mail
     await this.notificationService.sendMail({
       type: MailType.ERROR_MONITORING,
+      context: MailContext.CHECKOUT_TX,
       input: {
         subject: 'Invalid Checkout Tx',
         errors: [`No buy route found for CheckoutTx with ID ${tx.id} and bankUsage ${tx.description}`],

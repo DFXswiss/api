@@ -16,16 +16,18 @@ export class SpecialExternalAccountService {
     );
   }
 
-  async getBlacklist(type?: SpecialExternalAccountType): Promise<SpecialExternalAccount[]> {
-    return this.arrayCache.get(`Blacklist-${type}`, () =>
+  async getBlacklist(types?: SpecialExternalAccountType[]): Promise<SpecialExternalAccount[]> {
+    return this.arrayCache.get(`Blacklist-${types?.toString()}`, () =>
       this.specialExternalAccountRepo.findBy({
-        type:
-          type ??
-          In([
+        type: In(
+          types ?? [
             SpecialExternalAccountType.BANNED_IBAN,
+            SpecialExternalAccountType.BANNED_IBAN_BUY,
+            SpecialExternalAccountType.BANNED_IBAN_SELL,
             SpecialExternalAccountType.BANNED_BIC,
             SpecialExternalAccountType.BANNED_MAIL,
-          ]),
+          ],
+        ),
       }),
     );
   }
