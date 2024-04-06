@@ -1,4 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Util } from 'src/shared/utils/util';
+import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoWebhookService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto-webhook.service';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
@@ -32,13 +34,9 @@ export class KycClientService {
     const wallet = await this.walletService.getByIdOrName(walletId, undefined, { users: { userData: true } });
     if (!wallet) throw new NotFoundException('Wallet not found');
 
-    const payments: PaymentWebhookData[] = [];
-
-    for (const user of wallet.users) {
-      payments.push(...(await this.getWebhookData(user.id, dateFrom, dateTo)));
-    }
-
-    return payments;
+    return Util.asyncMap(wallet.users, async (user) => {
+      return await this.getWebhookData(user.id, dateFrom, dateTo);
+    }).then((dto) => dto.flat());
   }
 
   async getAllUserPayments(
@@ -82,29 +80,24 @@ export class KycClientService {
 
   // --- HELPER METHODS --- //
   private async getWebhookData(userId: number, dateFrom: Date, dateTo: Date): Promise<PaymentWebhookData[]> {
-    const payments: PaymentWebhookData[] = [];
+    const txList = [
+      ...(await this.buyCryptoService.getUserTransactions(userId, dateFrom, dateTo)),
+      ...(await this.buyFiatService.getUserTransactions(userId, dateFrom, dateTo)),
+    ];
 
-    const buyCryptos = await this.buyCryptoService.getUserTransactions(userId, dateFrom, dateTo);
-    for (const buyCrypto of buyCryptos) {
-      payments.push(
-        await this.buyCryptoWebhookService
-          .extendBuyCrypto(buyCrypto)
-          .then((b) =>
-            b.isCryptoCryptoTransaction
-              ? WebhookDataMapper.mapCryptoCryptoData(b)
-              : WebhookDataMapper.mapFiatCryptoData(b),
-          ),
-      );
-    }
-
-    const buyFiats = await this.buyFiatService.getUserTransactions(userId, dateFrom, dateTo);
-    for (const buyFiat of buyFiats) {
-      payments.push(
-        await this.buyFiatService.extendBuyFiat(buyFiat).then((b) => WebhookDataMapper.mapCryptoFiatData(b)),
-      );
-    }
-
-    return payments;
+    return Util.asyncMap(txList, async (tx) => {
+      if (tx instanceof BuyCrypto) {
+        return await this.buyCryptoWebhookService
+          .extendBuyCrypto(tx)
+          .then((bc) =>
+            bc.isCryptoCryptoTransaction
+              ? WebhookDataMapper.mapCryptoCryptoData(bc)
+              : WebhookDataMapper.mapFiatCryptoData(bc),
+          );
+      } else {
+        return await this.buyFiatService.extendBuyFiat(tx).then((bf) => WebhookDataMapper.mapCryptoFiatData(bf));
+      }
+    });
   }
 
   private getFileFor(type: KycReportType, documents: File[]): File | undefined {
