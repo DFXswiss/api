@@ -55,7 +55,7 @@ export class PricingService {
     };
   }
 
-  async getPrice(from: Active, to: Active, allowExpired: boolean): Promise<Price> {
+  async getPrice(from: Active, to: Active, allowExpired: boolean, tryCount = 2): Promise<Price> {
     try {
       if (activesEqual(from, to)) return Price.create(from.name, to.name, 1);
 
@@ -74,9 +74,12 @@ export class PricingService {
 
       const price = Price.join(this.joinRules(fromRules), this.joinRules(toRules).invert());
 
-      if (!price.isValid && !allowExpired) throw new Error(`Price invalid (fetched on ${price.timestamp})`);
+      if (!price.isValid && !allowExpired) {
+        if (tryCount > 1) return await this.getPrice(from, to, allowExpired, tryCount - 1);
+        throw new Error(`Price invalid (fetched on ${price.timestamp})`);
+      }
 
-      if (Math.abs(price.price - 1) < 0.001) price.price = 1;
+      if (Math.abs(price.price - 1) < 0.01) price.price = 1;
       price.source = from.name;
       price.target = to.name;
 
@@ -177,14 +180,10 @@ export class PricingService {
       this.logger.warn(message);
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,
-        input: { subject: 'Price Mismatch', errors: [message] },
-        metadata: {
-          context: MailContext.PRICING,
-          correlationId: `PriceMismatch&${rule.asset}&${rule.reference}`,
-        },
-        options: {
-          debounce: 1800000,
-        },
+        context: MailContext.PRICING,
+        input: { subject: 'Price Mismatch', errors: [message], isLiqMail: true },
+        correlationId: `PriceMismatch&${rule.asset}&${rule.reference}`,
+        options: { debounce: 1800000 },
       });
 
       return false;

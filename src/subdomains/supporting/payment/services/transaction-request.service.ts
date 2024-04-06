@@ -36,9 +36,10 @@ export class TransactionRequestService {
         paymentRequest: response.paymentRequest,
         isValid: response.isValid,
         error: response.error,
-        fee: response.fee,
         exactPrice: response.exactPrice,
-        minFee: response.minFee,
+        dfxFee: response.fees.dfx,
+        networkFee: response.fees.network,
+        totalFee: response.fees.total,
       });
 
       switch (type) {

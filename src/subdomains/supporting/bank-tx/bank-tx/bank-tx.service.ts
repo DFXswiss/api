@@ -8,7 +8,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, IsNull } from 'typeorm';
 import { OlkypayService } from '../../../../integration/bank/services/olkypay.service';
@@ -20,7 +20,7 @@ import { BankTxRepeatService } from '../bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnService } from '../bank-tx-return/bank-tx-return.service';
 import { BankTxBatch } from './bank-tx-batch.entity';
 import { BankTxBatchRepository } from './bank-tx-batch.repository';
-import { BankTx, BankTxType, BankTxTypeCompleted } from './bank-tx.entity';
+import { BankTx, BankTxType, BankTxTypeCompleted, BankTxUnassignedTypes } from './bank-tx.entity';
 import { BankTxRepository } from './bank-tx.repository';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
 import { SepaParser } from './sepa-parser.service';
@@ -211,6 +211,7 @@ export class BankTxService {
 
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,
+        context: MailContext.SEPA,
         input: { subject: 'SEPA Error', errors: [message] },
       });
     }
@@ -249,6 +250,17 @@ export class BankTxService {
     }
 
     return null;
+  }
+
+  getUnassignedBankTx(ibanList: string[]): Promise<BankTx[]> {
+    return this.bankTxRepo.find({
+      where: {
+        type: In(BankTxUnassignedTypes),
+        iban: In(ibanList),
+        creditDebitIndicator: 'CRDT',
+      },
+      relations: { transaction: true },
+    });
   }
 
   //*** GETTERS ***//

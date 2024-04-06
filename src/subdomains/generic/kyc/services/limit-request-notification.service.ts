@@ -4,7 +4,7 @@ import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { IsNull, Not } from 'typeorm';
@@ -45,6 +45,7 @@ export class LimitRequestNotificationService {
         if (entity.userData.mail) {
           await this.notificationService.sendMail({
             type: MailType.PERSONAL,
+            context: MailContext.LIMIT_REQUEST,
             input: {
               userData: entity.userData,
               title: `${MailTranslationKey.LIMIT_REQUEST}.title`,

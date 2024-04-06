@@ -248,12 +248,12 @@ export abstract class EvmClient {
   }
 
   // --- PUBLIC API - SWAPS --- //
-  async getPoolAddress(asset1: Asset, asset2: Asset): Promise<string> {
+  async getPoolAddress(asset1: Asset, asset2: Asset, poolFee: FeeAmount): Promise<string> {
     const token1 = await this.getToken(asset1);
     const token2 = await this.getToken(asset2);
 
     if (token1 instanceof Token && token2 instanceof Token) {
-      return Pool.getAddress(token1, token2, FeeAmount.LOWEST);
+      return Pool.getAddress(token1, token2, poolFee);
     } else {
       throw new Error(`Only tokens can be in a pool`);
     }

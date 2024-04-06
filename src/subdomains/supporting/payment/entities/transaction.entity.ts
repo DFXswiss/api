@@ -18,6 +18,7 @@ export enum TransactionTypeInternal {
   INTERNAL = 'Internal',
   BANK_TX_RETURN = 'BankTxReturn',
   BANK_TX_REPEAT = 'BankTxRepeat',
+  CRYPTO_INPUT_RETURN = 'CryptoInputReturn',
   BUY_CRYPTO_RETURN = 'BuyCryptoReturn',
   REF_REWARD = 'RefReward',
 }

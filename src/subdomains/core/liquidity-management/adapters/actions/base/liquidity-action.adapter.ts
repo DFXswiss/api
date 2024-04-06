@@ -2,6 +2,7 @@ import { isAsset, isFiat } from 'src/shared/models/active';
 import { LiquidityManagementOrder } from '../../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../../enums';
 import { OrderFailedException } from '../../../exceptions/order-failed.exception';
+import { OrderNotNecessaryException } from '../../../exceptions/order-not-necessary.exception';
 import { OrderNotProcessableException } from '../../../exceptions/order-not-processable.exception';
 import { Command, CorrelationId, LiquidityActionIntegration } from '../../../interfaces';
 
@@ -29,7 +30,7 @@ export abstract class LiquidityActionAdapter implements LiquidityActionIntegrati
     try {
       return await this.commands.get(command)(order);
     } catch (e) {
-      if (e instanceof OrderNotProcessableException) throw e;
+      if (e instanceof OrderNotProcessableException || e instanceof OrderNotNecessaryException) throw e;
 
       throw new OrderFailedException(e.message);
     }

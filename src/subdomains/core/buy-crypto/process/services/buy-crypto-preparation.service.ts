@@ -5,6 +5,8 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { AmlService } from 'src/subdomains/core/aml/aml.service';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -31,6 +33,7 @@ export class BuyCryptoPreparationService {
     private readonly feeService: FeeService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly amlService: AmlService,
+    private readonly userService: UserService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
@@ -70,15 +73,7 @@ export class BuyCryptoPreparationService {
 
         const inputReferenceAssetChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
 
-        const { minVolume } = await this.transactionHelper.getTxFeeInfos(
-          entity.inputReferenceAmount,
-          inputCurrency,
-          inputReferenceCurrency,
-          entity.target.asset,
-          entity.paymentMethodIn,
-          CryptoPaymentMethod.CRYPTO,
-          entity.user,
-        );
+        const minVolume = await this.transactionHelper.getMinVolumeIn(inputCurrency, inputReferenceCurrency, false);
 
         const last24hVolume = await this.transactionHelper.getVolumeChfSince(
           entity.inputReferenceAmount,
@@ -118,6 +113,9 @@ export class BuyCryptoPreparationService {
             instantBanks,
           ),
         );
+
+        if (entity.amlCheck === CheckStatus.PASS && entity.user.status === UserStatus.NA)
+          await this.userService.activateUser(entity.user);
       } catch (e) {
         this.logger.error(`Error during buy-crypto ${entity.id} AML check:`, e);
       }
@@ -178,13 +176,8 @@ export class BuyCryptoPreparationService {
           ...entity.setFeeAndFiatReference(
             referenceEurPrice.convert(entity.inputReferenceAmount, 2),
             amountInChf,
-            fee.fees,
-            fee.rate,
-            fee.fixed,
-            fee.payoutRefBonus,
-            fee.min,
+            fee,
             isFiat(inputReferenceCurrency) ? fee.min : referenceEurPrice.convert(fee.min, 2),
-            fee.total,
             referenceChfPrice.convert(fee.total, 2),
           ),
         );

@@ -3,7 +3,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { PurchaseLiquidityRequest, ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
-import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { TradingOrder } from '../entities/trading-order.entity';
@@ -52,7 +52,7 @@ export class TradingOrderService {
 
       this.logger.verbose(`Trading order ${order.id} in progress`);
     } catch (e) {
-      const message = `Failed to execute trading order ${order.id}: ${e.message}`;
+      const message = `Failed to execute trading order ${order.id} (rule ${order.tradingRule.id}): ${e.message}`;
       await this.handleOrderFail(order, message);
       this.logger.error(message, e);
     }
@@ -107,7 +107,7 @@ export class TradingOrderService {
 
       if (isReady) await this.handleOrderCompletion(order, purchaseTxId);
     } catch (e) {
-      const message = `Failed to check trading order ${order.id}: ${e.message}`;
+      const message = `Failed to check trading order ${order.id} (rule ${order.tradingRule.id}): ${e.message}`;
       await this.handleOrderFail(order, message);
       this.logger.error(message, e);
     }
@@ -122,15 +122,17 @@ export class TradingOrderService {
     const rule = order.tradingRule.reactivate();
     await this.ruleRepo.save(rule);
 
-    const message = `Trading order ${order.id} complete: swapped ${order.amountIn} ${order.assetIn.uniqueName} to ${order.assetOut.uniqueName}`;
+    const message = `Trading order ${order.id} (rule ${order.tradingRule.id}) complete: swapped ${order.amountIn} ${order.assetIn.uniqueName} to ${order.assetOut.uniqueName}`;
     this.logger.verbose(message);
 
     // send mail
     const mailRequest: MailRequest = {
       type: MailType.ERROR_MONITORING,
+      context: MailContext.DEX,
       input: {
         subject: 'Trading order SUCCESS',
         errors: [message],
+        isLiqMail: true,
       },
     };
 
@@ -149,9 +151,11 @@ export class TradingOrderService {
     // send mail
     const mailRequest: MailRequest = {
       type: MailType.ERROR_MONITORING,
+      context: MailContext.DEX,
       input: {
         subject: 'Trading order FAIL',
         errors: [message],
+        isLiqMail: true,
       },
     };
 

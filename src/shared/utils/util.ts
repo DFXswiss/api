@@ -116,6 +116,7 @@ export class Util {
       .replace(/oe/g, 'o')
       .replace(/[ñ]/g, 'n')
       .replace(/[ç]/g, 'c')
+      .replace(/[ß]/g, 's')
       .replace(/[\.]/g, '');
   }
 
@@ -424,5 +425,21 @@ export class Util {
   static fromBase64(file: string): { contentType: string; buffer: Buffer } {
     const [contentType, content] = file.split(';base64,');
     return { contentType: contentType.replace('data:', ''), buffer: Buffer.from(content, 'base64') };
+  }
+
+  static toCsv(list: any[], separator = ',', toGermanLocalDateString = false): string {
+    const headers = Object.keys(list[0]).join(separator);
+    const values = list.map((t) =>
+      Object.values(t)
+        .map((v) =>
+          v instanceof Date
+            ? toGermanLocalDateString
+              ? v.toLocaleString('de-DE', { timeZone: 'CET' })
+              : v.toISOString()
+            : v,
+        )
+        .join(separator),
+    );
+    return [headers].concat(values).join('\n');
   }
 }

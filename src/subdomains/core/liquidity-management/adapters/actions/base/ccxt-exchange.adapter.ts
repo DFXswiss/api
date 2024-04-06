@@ -6,6 +6,7 @@ import { Util } from 'src/shared/utils/util';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { LiquidityManagementOrder } from '../../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../../enums';
+import { OrderNotNecessaryException } from '../../../exceptions/order-not-necessary.exception';
 import { OrderNotProcessableException } from '../../../exceptions/order-not-processable.exception';
 import { Command, CorrelationId } from '../../../interfaces';
 import { LiquidityManagementOrderRepository } from '../../../repositories/liquidity-management-order.repository';
@@ -96,6 +97,12 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     const balance = await this.exchangeService.getBalance(asset);
     const amount = Util.round(order.amount * 1.01 - balance, 8); // small cap for price changes
+    if (amount <= 0) {
+      // trade not necessary
+      throw new OrderNotNecessaryException(
+        `${asset} balance higher than required amount (${balance} > ${order.amount})`,
+      );
+    }
 
     try {
       return await this.exchangeService.buy(tradeAsset, asset, amount);
@@ -105,7 +112,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
       }
 
       if (e.message?.includes('Illegal characters found')) {
-        throw new Error(`Invalid trade request, ${amount} ${tradeAsset} to ${asset}: ${e.message}`);
+        throw new Error(`Invalid trade request, tried to sell ${tradeAsset} for ${amount} ${asset}: ${e.message}`);
       }
 
       throw e;

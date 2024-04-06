@@ -1,11 +1,11 @@
 import { Config } from 'src/config/config';
-import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { Language } from 'src/shared/models/language/language.entity';
 import { MailAffix, TranslationItem } from '../../interfaces';
-import { NotificationMetadata, NotificationOptions } from '../notification.entity';
+import { NotificationOptions } from '../notification.entity';
 import { Mail } from './base/mail';
 
 export interface MailRequestUserInput {
-  userData: UserData;
+  userData: { id: number; mail: string; language: Language };
   title: string;
   salutation?: TranslationItem;
   prefix?: TranslationItem[];
@@ -29,7 +29,7 @@ export interface UserMailParams {
   twitterUrl?: string;
   linkedinUrl?: string;
   instagramUrl?: string;
-  metadata?: NotificationMetadata;
+  correlationId?: string;
   options?: NotificationOptions;
 }
 

@@ -1,3 +1,4 @@
+import { FeeAmount } from '@uniswap/v3-sdk';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
@@ -39,6 +40,9 @@ export class TradingRule extends IEntity {
 
   @Column({ type: 'float' })
   upperLimit: number;
+
+  @Column({ type: 'int', default: FeeAmount.LOWEST })
+  poolFee: FeeAmount;
 
   @Column({ type: 'int', nullable: true })
   reactivationTime: number;
