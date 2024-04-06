@@ -24,11 +24,7 @@ export class AssetService {
     blockchains.length > 0 && (search.blockchain = In(blockchains));
     !includePrivate && (search.category = Not(AssetCategory.PRIVATE));
 
-    return blockchains.length > 0
-      ? this.arrayCache.get(`${blockchains.join('-')}-${includePrivate}`, () =>
-          this.assetRepo.findBy({ blockchain: In(blockchains) }),
-        )
-      : this.arrayCache.get(`all-${includePrivate}`, () => this.assetRepo.findBy(search));
+    return this.arrayCache.get(JSON.stringify(search), () => this.assetRepo.findBy(search));
   }
 
   async getActiveAsset(): Promise<Asset[]> {

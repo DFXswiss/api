@@ -17,7 +17,7 @@ export class SpecialExternalAccountService {
   }
 
   async getBlacklist(type?: SpecialExternalAccountType): Promise<SpecialExternalAccount[]> {
-    return this.arrayCache.get(`Blacklist`, () =>
+    return this.arrayCache.get(`Blacklist-${type}`, () =>
       this.specialExternalAccountRepo.findBy({
         type:
           type ??

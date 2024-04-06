@@ -33,7 +33,7 @@ export class AsyncCache<T> {
   async invalidate(id?: string): Promise<void> {
     if (!id) return this.cache.clear();
 
-    this.cache.get(id).updated = new Date(0);
+    this.cache.delete(id);
   }
 
   private async updateInternal(id: string, update: () => Promise<T>, fallbackToCache: boolean) {

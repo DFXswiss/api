@@ -57,8 +57,8 @@ const FeeValidityMinutes = 70;
 @Injectable()
 export class FeeService {
   private readonly logger = new DfxLogger(FeeService);
-  private readonly cache = new AsyncCache<BlockchainFee>(CacheItemResetPeriod.EVERY_5_MINUTES);
-  private readonly arrayCache = new AsyncCache<Fee[]>(CacheItemResetPeriod.EVERY_5_MINUTES);
+  private readonly blockchainFeeCache = new AsyncCache<BlockchainFee>(CacheItemResetPeriod.EVERY_5_MINUTES);
+  private readonly feeCache = new AsyncCache<Fee[]>(CacheItemResetPeriod.EVERY_5_MINUTES);
 
   constructor(
     private readonly feeRepo: FeeRepository,
@@ -226,7 +226,7 @@ export class FeeService {
 
   async getBlockchainFee(active: Active, allowFallback: boolean): Promise<number> {
     if (isAsset(active)) {
-      const fee = await this.cache.get(`${active.id}`, () =>
+      const fee = await this.blockchainFeeCache.get(`${active.id}`, () =>
         this.blockchainFeeRepo.findOneBy({
           asset: { id: active.id },
           updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)),
@@ -247,7 +247,7 @@ export class FeeService {
   }
 
   private async getAllFees(): Promise<Fee[]> {
-    return this.arrayCache.get('all', () => this.feeRepo.find());
+    return this.feeCache.get('all', () => this.feeRepo.find());
   }
 
   private async calculateFee(
@@ -342,15 +342,12 @@ export class FeeService {
   }
 
   private async getBlockchainMaxFee(blockchain: Blockchain): Promise<number> {
-    const maxFee = await this.cache.get(blockchain, () =>
-      this.blockchainFeeRepo
-        .createQueryBuilder('fee')
-        .select('fee', 'fee')
-        .innerJoin('fee.asset', 'asset')
-        .where({ asset: { blockchain } })
-        .andWhere({ updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)) })
-        .orderBy('fee.amount', 'DESC')
-        .getOne(),
+    const maxFee = await this.blockchainFeeCache.get(blockchain, () =>
+      this.blockchainFeeRepo.findOne({
+        where: { asset: { blockchain }, updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)) },
+        relations: { asset: true },
+        order: { amount: 'DESC' },
+      }),
     );
     return maxFee.amount ?? 0;
   }
