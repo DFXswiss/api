@@ -39,14 +39,14 @@ export enum AmlError {
   SUSPICIOUS_MAIL = 'SuspiciousMail',
 }
 
-export enum AmlErrorProperty {
-  ONLY_ERROR = 'OnlyError', // Only one error may occur
-  SAME_CHECK = 'SameCheck', // All errors must have the same amlCheck
-  CRUCIAL_ERROR = 'CrucialError', // Prioritized error
+export enum AmlErrorType {
+  SINGLE = 'Single', // Only one error may occur
+  MULTI = 'Multi', // All errors must have the same amlCheck
+  CRUCIAL = 'Crucial', // Prioritized error
 }
 
 export const AmlErrorResult: {
-  [b in AmlError]: { errorProperty: AmlErrorProperty; amlCheck: CheckStatus; amlReason: AmlReason };
+  [b in AmlError]: { errorProperty: AmlErrorType; amlCheck: CheckStatus; amlReason: AmlReason };
 } = {
   [AmlError.ASSET_NOT_BUYABLE]: null,
   [AmlError.MIN_VOLUME_NOT_REACHED]: null,
@@ -69,29 +69,29 @@ export const AmlErrorResult: {
   [AmlError.NO_AML_LIST]: null,
   [AmlError.NO_KYC_FILE_ID]: null,
   [AmlError.NAME_CHECK_WITHOUT_KYC]: {
-    errorProperty: AmlErrorProperty.SAME_CHECK,
+    errorProperty: AmlErrorType.MULTI,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.NAME_CHECK_WITHOUT_KYC,
   },
   [AmlError.NAME_CHECK_WITH_BIRTHDAY]: {
-    errorProperty: AmlErrorProperty.SAME_CHECK,
+    errorProperty: AmlErrorType.MULTI,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MANUAL_CHECK,
   },
   [AmlError.WEEKLY_LIMIT_REACHED]: {
-    errorProperty: AmlErrorProperty.SAME_CHECK,
+    errorProperty: AmlErrorType.MULTI,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MANUAL_CHECK,
   },
   [AmlError.MONTHLY_LIMIT_REACHED]: null,
   [AmlError.DEPOSIT_LIMIT_REACHED]: {
-    errorProperty: AmlErrorProperty.ONLY_ERROR,
+    errorProperty: AmlErrorType.SINGLE,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.ANNUAL_LIMIT,
   },
   [AmlError.BANK_DATA_MISSING]: null,
   [AmlError.BANK_DATA_NOT_ACTIVE]: {
-    errorProperty: AmlErrorProperty.CRUCIAL_ERROR,
+    errorProperty: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.FAIL,
     amlReason: AmlReason.IBAN_CHECK,
   },
@@ -102,12 +102,12 @@ export const AmlErrorResult: {
   [AmlError.INPUT_AML_CHECK_FAILED]: null,
   [AmlError.INPUT_NOT_CONFIRMED]: null,
   [AmlError.IP_MISMATCH]: {
-    errorProperty: AmlErrorProperty.SAME_CHECK,
+    errorProperty: AmlErrorType.MULTI,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MANUAL_CHECK,
   },
   [AmlError.SUSPICIOUS_MAIL]: {
-    errorProperty: AmlErrorProperty.SAME_CHECK,
+    errorProperty: AmlErrorType.MULTI,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MANUAL_CHECK,
   },

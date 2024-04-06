@@ -11,7 +11,7 @@ import {
 } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { BuyCrypto } from '../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../sell-crypto/process/buy-fiat.entity';
-import { AmlError, AmlErrorProperty, AmlErrorResult } from './enums/aml-error.enum';
+import { AmlError, AmlErrorResult, AmlErrorType } from './enums/aml-error.enum';
 import { AmlReason } from './enums/aml-reason.enum';
 import { CheckStatus } from './enums/check-status.enum';
 
@@ -174,16 +174,16 @@ export class AmlHelperService {
     const amlResults = amlErrors.map((amlError) => ({ amlError, ...AmlErrorResult[amlError] }));
 
     // Crucial error aml
-    const crucialErrorResult = amlResults.find((r) => r?.errorProperty === AmlErrorProperty.CRUCIAL_ERROR);
+    const crucialErrorResult = amlResults.find((r) => r?.errorProperty === AmlErrorType.CRUCIAL);
     if (crucialErrorResult) return { ...crucialErrorResult, comment };
 
     // Only error aml
-    const onlyErrorResult = amlResults.find((r) => r?.errorProperty === AmlErrorProperty.ONLY_ERROR);
+    const onlyErrorResult = amlResults.find((r) => r?.errorProperty === AmlErrorType.SINGLE);
     if (onlyErrorResult && amlErrors.length === 1) return { ...onlyErrorResult, comment };
 
     // Same error aml
     if (
-      amlResults.every((r) => r?.errorProperty === AmlErrorProperty.SAME_CHECK) &&
+      amlResults.every((r) => r?.errorProperty === AmlErrorType.MULTI) &&
       (amlResults.every((r) => r?.amlCheck === CheckStatus.PENDING) ||
         amlResults.every((r) => r?.amlCheck === CheckStatus.FAIL))
     )
