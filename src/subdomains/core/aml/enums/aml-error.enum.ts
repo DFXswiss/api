@@ -46,7 +46,7 @@ export enum AmlErrorType {
 }
 
 export const AmlErrorResult: {
-  [b in AmlError]: { errorProperty: AmlErrorType; amlCheck: CheckStatus; amlReason: AmlReason };
+  [b in AmlError]: { type: AmlErrorType; amlCheck: CheckStatus; amlReason: AmlReason };
 } = {
   [AmlError.ASSET_NOT_BUYABLE]: null,
   [AmlError.MIN_VOLUME_NOT_REACHED]: null,
@@ -69,29 +69,29 @@ export const AmlErrorResult: {
   [AmlError.NO_AML_LIST]: null,
   [AmlError.NO_KYC_FILE_ID]: null,
   [AmlError.NAME_CHECK_WITHOUT_KYC]: {
-    errorProperty: AmlErrorType.MULTI,
+    type: AmlErrorType.MULTI,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.NAME_CHECK_WITHOUT_KYC,
   },
   [AmlError.NAME_CHECK_WITH_BIRTHDAY]: {
-    errorProperty: AmlErrorType.MULTI,
+    type: AmlErrorType.MULTI,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MANUAL_CHECK,
   },
   [AmlError.WEEKLY_LIMIT_REACHED]: {
-    errorProperty: AmlErrorType.MULTI,
+    type: AmlErrorType.MULTI,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MANUAL_CHECK,
   },
   [AmlError.MONTHLY_LIMIT_REACHED]: null,
   [AmlError.DEPOSIT_LIMIT_REACHED]: {
-    errorProperty: AmlErrorType.SINGLE,
+    type: AmlErrorType.SINGLE,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.ANNUAL_LIMIT,
   },
   [AmlError.BANK_DATA_MISSING]: null,
   [AmlError.BANK_DATA_NOT_ACTIVE]: {
-    errorProperty: AmlErrorType.CRUCIAL,
+    type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.FAIL,
     amlReason: AmlReason.IBAN_CHECK,
   },
@@ -102,12 +102,12 @@ export const AmlErrorResult: {
   [AmlError.INPUT_AML_CHECK_FAILED]: null,
   [AmlError.INPUT_NOT_CONFIRMED]: null,
   [AmlError.IP_MISMATCH]: {
-    errorProperty: AmlErrorType.MULTI,
+    type: AmlErrorType.MULTI,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MANUAL_CHECK,
   },
   [AmlError.SUSPICIOUS_MAIL]: {
-    errorProperty: AmlErrorType.MULTI,
+    type: AmlErrorType.MULTI,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MANUAL_CHECK,
   },

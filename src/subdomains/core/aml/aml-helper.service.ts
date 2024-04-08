@@ -174,20 +174,22 @@ export class AmlHelperService {
     const amlResults = amlErrors.map((amlError) => ({ amlError, ...AmlErrorResult[amlError] }));
 
     // Crucial error aml
-    const crucialErrorResult = amlResults.find((r) => r?.errorProperty === AmlErrorType.CRUCIAL);
-    if (crucialErrorResult) return { ...crucialErrorResult, comment };
+    const crucialErrorResult = amlResults.find((r) => r.type === AmlErrorType.CRUCIAL);
+    if (crucialErrorResult)
+      return { amlCheck: crucialErrorResult.amlCheck, amlReason: crucialErrorResult.amlReason, comment };
 
     // Only error aml
-    const onlyErrorResult = amlResults.find((r) => r?.errorProperty === AmlErrorType.SINGLE);
-    if (onlyErrorResult && amlErrors.length === 1) return { ...onlyErrorResult, comment };
+    const onlyErrorResult = amlResults.find((r) => r.type === AmlErrorType.SINGLE);
+    if (onlyErrorResult && amlErrors.length === 1)
+      return { amlCheck: onlyErrorResult.amlCheck, amlReason: onlyErrorResult.amlReason, comment };
 
     // Same error aml
     if (
-      amlResults.every((r) => r?.errorProperty === AmlErrorType.MULTI) &&
-      (amlResults.every((r) => r?.amlCheck === CheckStatus.PENDING) ||
-        amlResults.every((r) => r?.amlCheck === CheckStatus.FAIL))
+      amlResults.every((r) => r.type === AmlErrorType.MULTI) &&
+      (amlResults.every((r) => r.amlCheck === CheckStatus.PENDING) ||
+        amlResults.every((r) => r.amlCheck === CheckStatus.FAIL))
     )
-      return { ...amlResults[0], comment };
+      return { amlCheck: amlResults[0].amlCheck, amlReason: amlResults[0].amlReason, comment };
 
     // GSheet
     if (Util.minutesDiff(entity.created) >= 10) return { amlCheck: CheckStatus.GSHEET, comment };
