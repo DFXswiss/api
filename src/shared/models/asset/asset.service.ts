@@ -68,7 +68,7 @@ export class AssetService {
           .distinct()
           .getMany(),
       )
-      .then((assets) => assets.map((a) => a.blockchain));
+      .then((assets) => Array.from(new Set(assets.map((a) => a.blockchain))));
   }
 
   async updatePrice(assetId: number, usdPrice: number, chfPrice: number) {
