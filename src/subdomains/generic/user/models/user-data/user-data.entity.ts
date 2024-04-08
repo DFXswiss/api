@@ -38,6 +38,7 @@ export enum KycLevel {
   LEVEL_30 = 30, // auto ident
   LEVEL_40 = 40, // financial data
   LEVEL_50 = 50, // bank transaction or video ident
+  LEVEL_51 = 51, // (swap allowed)
 
   TERMINATED = -10,
   REJECTED = -20,
