@@ -10,12 +10,12 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { CryptoRouteController } from '../crypto-route.controller';
-import { CryptoRouteService } from '../crypto-route.service';
+import { SwapService } from '../swap.service';
 
 describe('CryptoRouteController', () => {
   let controller: CryptoRouteController;
 
-  let cryptoRouteService: CryptoRouteService;
+  let cryptoRouteService: SwapService;
   let userService: UserService;
   let buyCryptoService: BuyCryptoService;
   let paymentInfoService: PaymentInfoService;
@@ -25,7 +25,7 @@ describe('CryptoRouteController', () => {
   let assetService: AssetService;
 
   beforeEach(async () => {
-    cryptoRouteService = createMock<CryptoRouteService>();
+    cryptoRouteService = createMock<SwapService>();
     userService = createMock<UserService>();
     buyCryptoService = createMock<BuyCryptoService>();
     paymentInfoService = createMock<PaymentInfoService>();
@@ -38,7 +38,7 @@ describe('CryptoRouteController', () => {
       imports: [TestSharedModule],
       providers: [
         CryptoRouteController,
-        { provide: CryptoRouteService, useValue: cryptoRouteService },
+        { provide: SwapService, useValue: cryptoRouteService },
         { provide: UserService, useValue: userService },
         { provide: BuyCryptoService, useValue: buyCryptoService },
         { provide: PaymentInfoService, useValue: paymentInfoService },

@@ -7,7 +7,7 @@ import { PaymentMethod, PaymentMethodSwagger } from 'src/subdomains/supporting/p
 export enum TransactionType {
   BUY = 'Buy',
   SELL = 'Sell',
-  CONVERT = 'Convert',
+  SWAP = 'Swap',
   REFERRAL = 'Referral',
 }
 

@@ -10,20 +10,20 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { IsNull, Not } from 'typeorm';
 import { DepositService } from '../../../../supporting/address-pool/deposit/deposit.service';
-import { CryptoRoute } from './crypto-route.entity';
-import { CryptoRouteRepository } from './crypto-route.repository';
-import { UpdateCryptoRouteDto } from './dto/update-crypto-route.dto';
+import { UpdateSwapDto } from './dto/update-swap.dto';
+import { Swap } from './swap.entity';
+import { SwapRepository } from './swap.repository';
 
 @Injectable()
-export class CryptoRouteService {
+export class SwapService {
   constructor(
-    private readonly cryptoRepo: CryptoRouteRepository,
+    private readonly cryptoRepo: SwapRepository,
     private readonly userService: UserService,
     private readonly depositService: DepositService,
     private readonly userDataService: UserDataService,
   ) {}
 
-  async getCryptoRouteByAddress(depositAddress: string): Promise<CryptoRoute> {
+  async getCryptoRouteByAddress(depositAddress: string): Promise<Swap> {
     // does not work with find options
     return this.cryptoRepo
       .createQueryBuilder('crypto')
@@ -75,16 +75,11 @@ export class CryptoRouteService {
   }
 
   // --- CRYPTOS --- //
-  async get(userId: number, id: number): Promise<CryptoRoute> {
+  async get(userId: number, id: number): Promise<Swap> {
     return this.cryptoRepo.findOne({ where: { id, user: { id: userId } }, relations: { user: true } });
   }
 
-  async createCrypto(
-    userId: number,
-    blockchain: Blockchain,
-    asset: Asset,
-    ignoreExisting = false,
-  ): Promise<CryptoRoute> {
+  async createCrypto(userId: number, blockchain: Blockchain, asset: Asset, ignoreExisting = false): Promise<Swap> {
     // KYC check
     const userData = await this.userDataService.getUserDataByUser(userId);
     if (userData.kycLevel < KycLevel.LEVEL_0) throw new BadRequestException('Missing KYC');
@@ -123,7 +118,7 @@ export class CryptoRouteService {
     return this.cryptoRepo.save(crypto);
   }
 
-  async getUserCryptos(userId: number): Promise<CryptoRoute[]> {
+  async getUserCryptos(userId: number): Promise<Swap[]> {
     const userData = await this.userDataService.getUserDataByUser(userId);
     if (!userData.hasBankTxVerification) return [];
 
@@ -133,7 +128,7 @@ export class CryptoRouteService {
     });
   }
 
-  async updateCrypto(userId: number, cryptoId: number, dto: UpdateCryptoRouteDto): Promise<CryptoRoute> {
+  async updateCrypto(userId: number, cryptoId: number, dto: UpdateSwapDto): Promise<Swap> {
     const crypto = await this.cryptoRepo.findOneBy({ id: cryptoId, user: { id: userId } });
     if (!crypto) throw new NotFoundException('Crypto route not found');
 
@@ -142,7 +137,7 @@ export class CryptoRouteService {
 
   //*** GETTERS ***//
 
-  getCryptoRouteRepo(): CryptoRouteRepository {
+  getCryptoRouteRepo(): SwapRepository {
     return this.cryptoRepo;
   }
 }

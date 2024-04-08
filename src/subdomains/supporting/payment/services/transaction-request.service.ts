@@ -3,8 +3,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { BuyPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
 import { GetBuyPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/get-buy-payment-info.dto';
-import { CryptoPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/crypto-route/dto/crypto-payment-info.dto';
-import { GetCryptoPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/crypto-route/dto/get-crypto-payment-info.dto';
+import { GetCryptoPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/swap/dto/get-crypto-payment-info.dto';
+import { SwapPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/swap/dto/swap-payment-info.dto';
 import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/sell-payment-info.dto';
 import { MoreThan } from 'typeorm';
@@ -21,7 +21,7 @@ export class TransactionRequestService {
   async createTransactionRequest(
     type: TransactionRequestType,
     request: GetBuyPaymentInfoDto | GetSellPaymentInfoDto | GetCryptoPaymentInfoDto,
-    response: BuyPaymentInfoDto | SellPaymentInfoDto | CryptoPaymentInfoDto,
+    response: BuyPaymentInfoDto | SellPaymentInfoDto | SwapPaymentInfoDto,
   ): Promise<void> {
     try {
       // create the entity
@@ -64,7 +64,7 @@ export class TransactionRequestService {
           break;
 
         case TransactionRequestType.Convert:
-          const convertResponse = response as CryptoPaymentInfoDto;
+          const convertResponse = response as SwapPaymentInfoDto;
 
           transactionRequest.sourcePaymentMethod = CryptoPaymentMethod.CRYPTO;
           transactionRequest.targetPaymentMethod = CryptoPaymentMethod.CRYPTO;

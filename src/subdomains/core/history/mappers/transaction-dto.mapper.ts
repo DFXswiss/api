@@ -35,7 +35,7 @@ export class TransactionDtoMapper {
   static mapBuyCryptoTransaction(buyCrypto: BuyCryptoExtended): TransactionDto {
     const dto: TransactionDto = {
       id: buyCrypto.transaction?.id,
-      type: buyCrypto.isCryptoCryptoTransaction ? TransactionType.CONVERT : TransactionType.BUY,
+      type: buyCrypto.isCryptoCryptoTransaction ? TransactionType.SWAP : TransactionType.BUY,
       ...getTransactionStateDetails(buyCrypto),
       inputAmount: Util.roundReadable(buyCrypto.inputAmount, isFiat(buyCrypto.inputAssetEntity)),
       inputAsset: buyCrypto.inputAsset,

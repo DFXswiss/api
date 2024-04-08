@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
 import { EntityManager } from 'typeorm';
-import { CryptoRoute } from './crypto-route.entity';
+import { Swap } from './swap.entity';
 
 @Injectable()
-export class CryptoRouteRepository extends BaseRepository<CryptoRoute> {
+export class SwapRepository extends BaseRepository<Swap> {
   constructor(manager: EntityManager) {
-    super(CryptoRoute, manager);
+    super(Swap, manager);
   }
 }

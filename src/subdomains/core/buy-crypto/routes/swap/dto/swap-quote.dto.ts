@@ -2,7 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 
-export class CryptoQuoteDto {
+export class SwapQuoteDto {
   @ApiProperty({ description: 'Fee amount in source asset', deprecated: true })
   feeAmount: number;
 

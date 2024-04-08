@@ -10,7 +10,7 @@ import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
+import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -35,7 +35,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
 
   protected abstract getOwnAddresses(): string[];
 
-  doAmlCheck(_: CryptoInput, route: Staking | Sell | CryptoRoute): CheckStatus {
+  doAmlCheck(_: CryptoInput, route: Staking | Sell | Swap): CheckStatus {
     return route.user.userData.kycLevel === KycLevel.REJECTED ? CheckStatus.FAIL : CheckStatus.PASS;
   }
 
