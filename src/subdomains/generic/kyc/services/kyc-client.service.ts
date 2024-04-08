@@ -35,7 +35,7 @@ export class KycClientService {
     if (!wallet) throw new NotFoundException('Wallet not found');
 
     return Util.asyncMap(wallet.users, async (user) => {
-      return await this.getWebhookData(user.id, dateFrom, dateTo);
+      return this.toPaymentDto(user.id, dateFrom, dateTo);
     }).then((dto) => dto.flat());
   }
 
@@ -51,7 +51,7 @@ export class KycClientService {
     const user = wallet.users.find((u) => u.address === userAddress);
     if (!user) throw new NotFoundException('User not found');
 
-    return this.getWebhookData(user.id, dateFrom, dateTo);
+    return this.toPaymentDto(user.id, dateFrom, dateTo);
   }
 
   async getKycFiles(userAddress: string, walletId: number): Promise<KycReportDto[]> {
@@ -79,7 +79,7 @@ export class KycClientService {
   }
 
   // --- HELPER METHODS --- //
-  private async getWebhookData(userId: number, dateFrom: Date, dateTo: Date): Promise<PaymentWebhookData[]> {
+  private async toPaymentDto(userId: number, dateFrom: Date, dateTo: Date): Promise<PaymentWebhookData[]> {
     const txList = [
       ...(await this.buyCryptoService.getUserTransactions(userId, dateFrom, dateTo)),
       ...(await this.buyFiatService.getUserTransactions(userId, dateFrom, dateTo)),
@@ -87,7 +87,7 @@ export class KycClientService {
 
     return Util.asyncMap(txList, async (tx) => {
       if (tx instanceof BuyCrypto) {
-        return await this.buyCryptoWebhookService
+        return this.buyCryptoWebhookService
           .extendBuyCrypto(tx)
           .then((bc) =>
             bc.isCryptoCryptoTransaction
@@ -95,7 +95,7 @@ export class KycClientService {
               : WebhookDataMapper.mapFiatCryptoData(bc),
           );
       } else {
-        return await this.buyFiatService.extendBuyFiat(tx).then((bf) => WebhookDataMapper.mapCryptoFiatData(bf));
+        return this.buyFiatService.extendBuyFiat(tx).then((bf) => WebhookDataMapper.mapCryptoFiatData(bf));
       }
     });
   }
