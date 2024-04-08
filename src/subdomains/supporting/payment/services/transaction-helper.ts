@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
-import { Active, isFiat } from 'src/shared/models/active';
+import { Active, isAsset, isFiat } from 'src/shared/models/active';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -435,6 +435,14 @@ export class TransactionHelper implements OnModuleInit {
           user?.userData.kycLevel < KycLevel.LEVEL_50)
       )
         return QuoteError.KYC_REQUIRED;
+    } else if (isAsset(to)) {
+      // Swap
+      if (user?.userData.kycLevel < KycLevel.LEVEL_50) {
+        if (user?.status === UserStatus.NA) return QuoteError.BANK_TRANSACTION_MISSING_OR_KYC_REQUIRED;
+        if (txAmountChf > Config.tradingLimits.dailyDefault) return QuoteError.KYC_REQUIRED;
+      } else {
+        if (txAmountChf > user?.userData.tradingLimit.remaining) return QuoteError.DEPOSIT_LIMIT_REACHED;
+      }
     }
 
     if (paymentMethodIn === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed)
