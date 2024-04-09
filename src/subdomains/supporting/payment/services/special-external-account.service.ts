@@ -10,10 +10,14 @@ export class SpecialExternalAccountService {
 
   constructor(private readonly specialExternalAccountRepo: SpecialExternalAccountRepository) {}
 
-  async getMultiAccountIbans(): Promise<SpecialExternalAccount[]> {
+  async getMultiAccounts(): Promise<SpecialExternalAccount[]> {
     return this.arrayCache.get(`MultiAccountIbans`, () =>
       this.specialExternalAccountRepo.findBy({ type: SpecialExternalAccountType.MULTI_ACCOUNT_IBAN }),
     );
+  }
+
+  async getMultiAccountIbans(): Promise<string[]> {
+    return this.getMultiAccounts().then((list) => list.map((a) => a.value));
   }
 
   async getBlacklist(types?: SpecialExternalAccountType[]): Promise<SpecialExternalAccount[]> {
