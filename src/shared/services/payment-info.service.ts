@@ -3,8 +3,8 @@ import { CreateBuyDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/crea
 import { GetBuyPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/get-buy-payment-info.dto';
 import { GetBuyQuoteDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/get-buy-quote.dto';
 import { CreateSwapDto } from 'src/subdomains/core/buy-crypto/routes/swap/dto/create-swap.dto';
-import { GetCryptoPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/swap/dto/get-crypto-payment-info.dto';
-import { GetCryptoQuoteDto } from 'src/subdomains/core/buy-crypto/routes/swap/dto/get-crypto-quote.dto';
+import { GetSwapPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/swap/dto/get-swap-payment-info.dto';
+import { GetSwapQuoteDto } from 'src/subdomains/core/buy-crypto/routes/swap/dto/get-swap-quote.dto';
 import { CreateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/create-sell.dto';
 import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-payment-info.dto';
 import { GetSellQuoteDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-quote.dto';
@@ -71,7 +71,7 @@ export class PaymentInfoService {
     return dto;
   }
 
-  async swapCheck<T extends GetCryptoPaymentInfoDto | GetCryptoQuoteDto | CreateSwapDto>(
+  async swapCheck<T extends GetSwapPaymentInfoDto | GetSwapQuoteDto | CreateSwapDto>(
     dto: T,
     jwt?: JwtPayload,
   ): Promise<T> {

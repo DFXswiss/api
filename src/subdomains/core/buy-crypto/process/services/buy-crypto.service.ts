@@ -462,7 +462,7 @@ export class BuyCryptoService {
   private async getCryptoRoute(cryptoRouteId: number): Promise<Swap> {
     // cryptoRoute
     const cryptoRoute = await this.cryptoRouteService
-      .getCryptoRouteRepo()
+      .getSwapRepo()
       .findOne({ where: { id: cryptoRouteId }, relations: ['user', 'user.wallet'] });
     if (!cryptoRoute) throw new BadRequestException('Crypto route not found');
 
