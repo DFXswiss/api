@@ -60,14 +60,7 @@ export class AssetService {
 
   async getSellableBlockchains(): Promise<Blockchain[]> {
     return this.arrayCache
-      .get('sellableBlockchains', () =>
-        this.assetRepo
-          .createQueryBuilder('asset')
-          .select('asset', 'asset')
-          .where('asset.sellable = 1')
-          .distinct()
-          .getMany(),
-      )
+      .get('sellableBlockchains', () => this.assetRepo.findBy({ sellable: true }))
       .then((assets) => Array.from(new Set(assets.map((a) => a.blockchain))));
   }
 
