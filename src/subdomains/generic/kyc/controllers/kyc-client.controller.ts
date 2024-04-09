@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { GetConfig } from 'src/config/config';
@@ -6,6 +6,7 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { PaymentWebhookData } from '../../user/services/webhook/dto/payment-webhook.dto';
 import { KycClientDataDto, KycReportDto, KycReportType } from '../dto/kyc-file.dto';
 import { KycClientService } from '../services/kyc-client.service';
 
@@ -20,6 +21,22 @@ export class KycClientController {
   @ApiOkResponse({ type: KycClientDataDto, isArray: true })
   async getAllKycData(@GetJwt() jwt: JwtPayload): Promise<KycClientDataDto[]> {
     return this.kycClientService.getAllKycData(jwt.id);
+  }
+
+  @Get('payments')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
+  @ApiOkResponse({ type: PaymentWebhookData, isArray: true })
+  async getAllPayments(
+    @GetJwt() jwt: JwtPayload,
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ): Promise<PaymentWebhookData[]> {
+    return this.kycClientService.getAllPayments(
+      jwt.id,
+      from ? new Date(from) : undefined,
+      to ? new Date(to) : undefined,
+    );
   }
 
   @Get('users/:id/documents')
@@ -40,5 +57,23 @@ export class KycClientController {
     @Param('type') type: KycReportType,
   ): Promise<Buffer> {
     return this.kycClientService.getKycFile(id, jwt.id, type);
+  }
+
+  @Get('users/:id/payments')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
+  @ApiOkResponse({ type: PaymentWebhookData, isArray: true })
+  async getUserPayments(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') userId: string,
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ): Promise<PaymentWebhookData[]> {
+    return this.kycClientService.getAllUserPayments(
+      jwt.id,
+      userId,
+      from ? new Date(from) : undefined,
+      to ? new Date(to) : undefined,
+    );
   }
 }
