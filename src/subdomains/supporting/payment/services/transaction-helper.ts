@@ -327,7 +327,7 @@ export class TransactionHelper implements OnModuleInit {
     const sourceAmount = inputAmount ?? this.getInputAmount(outputAmountSource, feeRate, sourceSpecs);
     const sourceFees = this.calculateTotalFee(sourceAmount, from, feeRate, sourceSpecs);
 
-    const targetAmount = outputAmount ?? price.convert(inputAmount - sourceFees.total);
+    const targetAmount = outputAmount ?? price.convert(Math.max(inputAmount - sourceFees.total, 0));
     const targetFees = {
       dfx: this.convert(sourceFees.dfx, price, isFiat(to)),
       total: this.convert(sourceFees.total, price, isFiat(to)),
