@@ -9,7 +9,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
-import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { AmlRule } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-helper/min-amount.dto';
@@ -435,20 +435,23 @@ export class TransactionHelper implements OnModuleInit {
           user?.userData.kycLevel < KycLevel.LEVEL_50)
       )
         return QuoteError.KYC_REQUIRED;
-    } else if (isAsset(to)) {
-      // Swap
-      if (user?.userData.kycLevel < KycLevel.LEVEL_50) {
-        if (user?.status === UserStatus.NA) return QuoteError.BANK_TRANSACTION_MISSING_OR_KYC_REQUIRED;
-        if (txAmountChf > Config.tradingLimits.dailyDefault) return QuoteError.KYC_REQUIRED;
-      } else {
-        if (txAmountChf > user?.userData.tradingLimit.remaining) return QuoteError.DEPOSIT_LIMIT_REACHED;
-      }
+    }
+
+    const isSwapTx = isAsset(from) && isAsset(to);
+    if (isSwapTx) {
+      if (
+        (user?.userData.kycLevel < KycLevel.LEVEL_30 && user?.userData.status !== UserDataStatus.ACTIVE) ||
+        (txAmountChf > Config.tradingLimits.dailyDefault && user?.userData.kycLevel < KycLevel.LEVEL_50)
+      )
+        return QuoteError.KYC_REQUIRED;
+
+      if (txAmountChf > user?.userData.tradingLimit.remaining) return QuoteError.DEPOSIT_LIMIT_REACHED;
     }
 
     if (paymentMethodIn === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed)
       return QuoteError.KYC_REQUIRED_INSTANT;
     if (
-      ((isFiat(to) && to.name !== 'CHF') || paymentMethodIn === FiatPaymentMethod.CARD) &&
+      ((isFiat(to) && to.name !== 'CHF') || paymentMethodIn === FiatPaymentMethod.CARD || isSwapTx) &&
       user &&
       !user.userData.hasBankTxVerification &&
       txAmountChf > Config.tradingLimits.dailyDefault
