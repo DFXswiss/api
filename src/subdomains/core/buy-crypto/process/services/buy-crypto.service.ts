@@ -89,7 +89,7 @@ export class BuyCryptoService {
     entity = await this.setTxRequest(entity);
 
     const multiAccountIbans = await this.specialExternalBankAccountService.getMultiAccountIbans();
-    const senderAccount = bankTx.senderAccount(multiAccountIbans.map((m) => m.value));
+    const senderAccount = bankTx.senderAccount(multiAccountIbans);
     if (senderAccount && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
       const bankData = await this.bankDataService.getBankDataWithIban(senderAccount, entity.buy.user.userData.id);
 

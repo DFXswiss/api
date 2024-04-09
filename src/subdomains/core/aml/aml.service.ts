@@ -50,9 +50,7 @@ export class AmlService {
 
     const multiAccountIbans = await this.specialExternalBankAccountService.getMultiAccountIbans();
     return this.bankDataService.getBankDataWithIban(
-      entity.bankTx
-        ? entity.bankTx.senderAccount(multiAccountIbans.map((m) => m.value))
-        : entity.checkoutTx.cardFingerPrint,
+      entity.bankTx ? entity.bankTx.senderAccount(multiAccountIbans) : entity.checkoutTx.cardFingerPrint,
     );
   }
 }
