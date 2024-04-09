@@ -437,10 +437,6 @@ export class TransactionHelper implements OnModuleInit {
         return QuoteError.KYC_REQUIRED;
     }
 
-    // amount checks
-    if (sourceAmount < txSourceMinVolume) return QuoteError.AMOUNT_TOO_LOW;
-    if (txAmountChf > maxVolumeChf) return QuoteError.AMOUNT_TOO_HIGH;
-
     const isSwapTx = isAsset(from) && isAsset(to);
 
     if (isSwapTx && user?.userData.kycLevel < KycLevel.LEVEL_30 && user?.userData.status !== UserDataStatus.ACTIVE)
@@ -448,6 +444,10 @@ export class TransactionHelper implements OnModuleInit {
 
     if (paymentMethodIn === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed)
       return QuoteError.KYC_REQUIRED_INSTANT;
+
+    // amount checks
+    if (sourceAmount < txSourceMinVolume) return QuoteError.AMOUNT_TOO_LOW;
+    if (txAmountChf > maxVolumeChf) return QuoteError.AMOUNT_TOO_HIGH;
 
     if (
       ((isFiat(to) && to.name !== 'CHF') || paymentMethodIn === FiatPaymentMethod.CARD || isSwapTx) &&
