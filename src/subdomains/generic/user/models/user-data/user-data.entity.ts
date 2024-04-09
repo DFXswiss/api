@@ -387,7 +387,7 @@ export class UserData extends IEntity {
     if (this.kycLevel >= KycLevel.LEVEL_50) {
       return {
         limit: this.depositLimit,
-        remaining: this.availableTradingLimit,
+        remaining: this.getRemainingYearlyLimit(this.depositLimit),
         period: LimitPeriod.YEAR,
       };
     } else if (this.isKycTerminated) {
@@ -399,8 +399,12 @@ export class UserData extends IEntity {
 
   get availableTradingLimit(): number {
     return this.tradingLimit.period === LimitPeriod.YEAR
-      ? Math.max(this.tradingLimit.limit - this.annualBuyVolume - this.annualSellVolume - this.annualCryptoVolume)
+      ? this.getRemainingYearlyLimit(this.tradingLimit.limit)
       : this.tradingLimit.limit;
+  }
+
+  private getRemainingYearlyLimit(limit: number): number {
+    return Math.max(limit - this.annualBuyVolume - this.annualSellVolume - this.annualCryptoVolume, 0);
   }
 
   get isKycTerminated(): boolean {
