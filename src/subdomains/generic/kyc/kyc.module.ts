@@ -40,7 +40,7 @@ import { TfaService } from './services/tfa.service';
     NotificationModule,
     forwardRef(() => UserModule),
     forwardRef(() => BuyCryptoModule),
-    SellCryptoModule,
+    forwardRef(() => SellCryptoModule),
   ],
   controllers: [KycController, KycAdminController, KycClientController, LimitRequestController],
   providers: [
