@@ -349,7 +349,7 @@ export class FeeService {
         order: { amount: 'DESC' },
       }),
     );
-    return maxFee.amount ?? 0;
+    return maxFee?.amount ?? 0;
   }
 
   private async getValidFees(request: OptionalFeeRequest): Promise<Fee[]> {
