@@ -7,7 +7,7 @@ import { Deposit } from '../../../../supporting/address-pool/deposit/deposit.ent
 import { DepositRoute } from '../../../../supporting/address-pool/route/deposit-route.entity';
 
 @ChildEntity('Crypto')
-export class CryptoRoute extends DepositRoute {
+export class Swap extends DepositRoute {
   @Column({ type: 'float', default: 0 })
   annualVolume: number; // CHF
 

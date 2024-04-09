@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
-import { CryptoRouteRepository } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.repository';
+import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
+import { SwapRepository } from 'src/subdomains/core/buy-crypto/routes/swap/swap.repository';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionHelper, ValidationError } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -17,7 +17,7 @@ export class BuyCryptoRegistrationService {
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoService: BuyCryptoService,
-    private readonly cryptoRouteRepository: CryptoRouteRepository,
+    private readonly cryptoRouteRepository: SwapRepository,
     private readonly payInService: PayInService,
     private readonly transactionHelper: TransactionHelper,
   ) {}
@@ -41,7 +41,7 @@ export class BuyCryptoRegistrationService {
 
   //*** HELPER METHODS ***//
 
-  private async filterBuyCryptoPayIns(allPayIns: CryptoInput[]): Promise<[CryptoInput, CryptoRoute][]> {
+  private async filterBuyCryptoPayIns(allPayIns: CryptoInput[]): Promise<[CryptoInput, Swap][]> {
     const routes = await this.cryptoRouteRepository.find({
       where: { deposit: Not(IsNull()) },
       relations: ['deposit', 'user', 'user.userData'],
@@ -50,7 +50,7 @@ export class BuyCryptoRegistrationService {
     return this.pairRoutesWithPayIns(routes, allPayIns);
   }
 
-  private pairRoutesWithPayIns(routes: CryptoRoute[], allPayIns: CryptoInput[]): [CryptoInput, CryptoRoute][] {
+  private pairRoutesWithPayIns(routes: Swap[], allPayIns: CryptoInput[]): [CryptoInput, Swap][] {
     const result = [];
 
     for (const payIn of allPayIns) {
@@ -66,7 +66,7 @@ export class BuyCryptoRegistrationService {
     return result;
   }
 
-  private async createBuyCryptosAndAckPayIns(payInsPairs: [CryptoInput, CryptoRoute][]): Promise<void> {
+  private async createBuyCryptosAndAckPayIns(payInsPairs: [CryptoInput, Swap][]): Promise<void> {
     for (const [payIn, cryptoRoute] of payInsPairs) {
       try {
         const existingBuyCrypto = await this.buyCryptoRepo.findOneBy({ cryptoInput: { id: payIn.id } });

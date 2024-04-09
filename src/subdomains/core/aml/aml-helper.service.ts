@@ -1,7 +1,7 @@
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
-import { KycLevel, KycType } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycLevel, KycType, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { AmlRule } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
@@ -66,8 +66,6 @@ export class AmlHelperService {
       // crypto input
       if (entity.cryptoInput.amlCheck !== CheckStatus.PASS) errors.push(AmlError.INPUT_AML_CHECK_FAILED);
       if (!entity.cryptoInput.isConfirmed) errors.push(AmlError.INPUT_NOT_CONFIRMED);
-      if (entity instanceof BuyCrypto && !entity.userData.cryptoCryptoAllowed)
-        errors.push(AmlError.CRYPTO_CRYPTO_NOT_ALLOWED);
     } else if (entity.user.status === UserStatus.NA && entity.userData.hasSuspiciousMail)
       errors.push(AmlError.SUSPICIOUS_MAIL);
 
@@ -125,6 +123,16 @@ export class AmlHelperService {
         )
           errors.push(AmlError.CARD_BLACKLISTED);
         if (last7dVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
+      } else {
+        // swap
+        if (
+          last24hVolume > Config.tradingLimits.dailyDefault &&
+          (entity.userData.kycLevel < KycLevel.LEVEL_50 || !entity.userData.hasBankTxVerification)
+        ) {
+          errors.push([AmlError.DEPOSIT_LIMIT_REACHED, AmlError.KYC_LEVEL_TOO_LOW]);
+        } else if (entity.userData.status !== UserDataStatus.ACTIVE && entity.userData.kycLevel < KycLevel.LEVEL_30) {
+          errors.push(AmlError.KYC_LEVEL_TOO_LOW);
+        }
       }
     } else {
       // buyFiat

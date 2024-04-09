@@ -5,27 +5,27 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
-import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { IsNull, Not } from 'typeorm';
 import { DepositService } from '../../../../supporting/address-pool/deposit/deposit.service';
-import { CryptoRoute } from './crypto-route.entity';
-import { CryptoRouteRepository } from './crypto-route.repository';
-import { UpdateCryptoRouteDto } from './dto/update-crypto-route.dto';
+import { UpdateSwapDto } from './dto/update-swap.dto';
+import { Swap } from './swap.entity';
+import { SwapRepository } from './swap.repository';
 
 @Injectable()
-export class CryptoRouteService {
+export class SwapService {
   constructor(
-    private readonly cryptoRepo: CryptoRouteRepository,
+    private readonly swapRepo: SwapRepository,
     private readonly userService: UserService,
     private readonly depositService: DepositService,
     private readonly userDataService: UserDataService,
   ) {}
 
-  async getCryptoRouteByAddress(depositAddress: string): Promise<CryptoRoute> {
+  async getSwapRouteByAddress(depositAddress: string): Promise<Swap> {
     // does not work with find options
-    return this.cryptoRepo
+    return this.swapRepo
       .createQueryBuilder('crypto')
       .leftJoinAndSelect('crypto.deposit', 'deposit')
       .leftJoinAndSelect('crypto.user', 'user')
@@ -38,18 +38,18 @@ export class CryptoRouteService {
   @Cron(CronExpression.EVERY_YEAR)
   @Lock()
   async resetAnnualVolumes(): Promise<void> {
-    await this.cryptoRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
+    await this.swapRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
   }
 
-  async updateVolume(cryptoId: number, volume: number, annualVolume: number): Promise<void> {
-    await this.cryptoRepo.update(cryptoId, {
+  async updateVolume(swapId: number, volume: number, annualVolume: number): Promise<void> {
+    await this.swapRepo.update(swapId, {
       volume: Util.round(volume, Config.defaultVolumeDecimal),
       annualVolume: Util.round(annualVolume, Config.defaultVolumeDecimal),
     });
 
     // update user volume
-    const { user } = await this.cryptoRepo.findOne({
-      where: { id: cryptoId },
+    const { user } = await this.swapRepo.findOne({
+      where: { id: swapId },
       relations: ['user'],
       select: ['id', 'user'],
     });
@@ -58,7 +58,7 @@ export class CryptoRouteService {
   }
 
   async getUserVolume(userId: number): Promise<{ volume: number; annualVolume: number }> {
-    return this.cryptoRepo
+    return this.swapRepo
       .createQueryBuilder('crypto')
       .select('SUM(volume)', 'volume')
       .addSelect('SUM(annualVolume)', 'annualVolume')
@@ -67,32 +67,26 @@ export class CryptoRouteService {
   }
 
   async getTotalVolume(): Promise<number> {
-    return this.cryptoRepo
+    return this.swapRepo
       .createQueryBuilder('crypto')
       .select('SUM(volume)', 'volume')
       .getRawOne<{ volume: number }>()
       .then((r) => r.volume);
   }
 
-  // --- CRYPTOS --- //
-  async get(userId: number, id: number): Promise<CryptoRoute> {
-    return this.cryptoRepo.findOne({ where: { id, user: { id: userId } }, relations: { user: true } });
+  // --- SWAPS --- //
+  async get(userId: number, id: number): Promise<Swap> {
+    return this.swapRepo.findOne({ where: { id, user: { id: userId } }, relations: { user: true } });
   }
 
-  async createCrypto(
-    userId: number,
-    blockchain: Blockchain,
-    asset: Asset,
-    ignoreExisting = false,
-  ): Promise<CryptoRoute> {
+  async createSwap(userId: number, blockchain: Blockchain, asset: Asset, ignoreExisting = false): Promise<Swap> {
     // KYC check
     const userData = await this.userDataService.getUserDataByUser(userId);
-    if (userData.kycLevel < KycLevel.LEVEL_0) throw new BadRequestException('Missing KYC');
-    if (!userData.cryptoCryptoAllowed) throw new BadRequestException('User not allowed for crypto-crypto trading');
-    if (!userData.hasBankTxVerification) throw new BadRequestException('Missing bank transaction');
+    if (userData.status !== UserDataStatus.ACTIVE && userData.kycLevel < KycLevel.LEVEL_30)
+      throw new BadRequestException('User not allowed for swap trading');
 
     // check if exists
-    const existing = await this.cryptoRepo.findOne({
+    const existing = await this.swapRepo.findOne({
       where: {
         asset: { id: asset.id },
         targetDeposit: IsNull(),
@@ -103,46 +97,46 @@ export class CryptoRouteService {
     });
 
     if (existing) {
-      if (existing.active && !ignoreExisting) throw new ConflictException('Crypto route already exists');
+      if (existing.active && !ignoreExisting) throw new ConflictException('Swap route already exists');
 
       if (!existing.active) {
         // reactivate deleted route
         existing.active = true;
-        await this.cryptoRepo.save(existing);
+        await this.swapRepo.save(existing);
       }
 
       return existing;
     }
 
     // create the entity
-    const crypto = this.cryptoRepo.create({ asset });
-    crypto.user = await this.userService.getUser(userId);
-    crypto.deposit = await this.depositService.getNextDeposit(blockchain);
+    const swap = this.swapRepo.create({ asset });
+    swap.user = await this.userService.getUser(userId);
+    swap.deposit = await this.depositService.getNextDeposit(blockchain);
 
     // save
-    return this.cryptoRepo.save(crypto);
+    return this.swapRepo.save(swap);
   }
 
-  async getUserCryptos(userId: number): Promise<CryptoRoute[]> {
+  async getUserSwaps(userId: number): Promise<Swap[]> {
     const userData = await this.userDataService.getUserDataByUser(userId);
     if (!userData.hasBankTxVerification) return [];
 
-    return this.cryptoRepo.find({
+    return this.swapRepo.find({
       where: { user: { id: userId }, asset: { buyable: true } },
       relations: { user: true },
     });
   }
 
-  async updateCrypto(userId: number, cryptoId: number, dto: UpdateCryptoRouteDto): Promise<CryptoRoute> {
-    const crypto = await this.cryptoRepo.findOneBy({ id: cryptoId, user: { id: userId } });
-    if (!crypto) throw new NotFoundException('Crypto route not found');
+  async updateSwap(userId: number, swapId: number, dto: UpdateSwapDto): Promise<Swap> {
+    const swap = await this.swapRepo.findOneBy({ id: swapId, user: { id: userId } });
+    if (!swap) throw new NotFoundException('Swap route not found');
 
-    return this.cryptoRepo.save({ ...crypto, ...dto });
+    return this.swapRepo.save({ ...swap, ...dto });
   }
 
   //*** GETTERS ***//
 
-  getCryptoRouteRepo(): CryptoRouteRepository {
-    return this.cryptoRepo;
+  getSwapRepo(): SwapRepository {
+    return this.swapRepo;
   }
 }

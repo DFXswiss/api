@@ -4,7 +4,7 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { AmlHelperService } from 'src/subdomains/core/aml/aml-helper.service';
-import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
+import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -62,8 +62,8 @@ export class BuyCrypto extends IEntity {
   @JoinColumn()
   cryptoInput: CryptoInput;
 
-  @ManyToOne(() => CryptoRoute, (cryptoRoute) => cryptoRoute.buyCryptos, { nullable: true })
-  cryptoRoute: CryptoRoute;
+  @ManyToOne(() => Swap, (cryptoRoute) => cryptoRoute.buyCryptos, { nullable: true })
+  cryptoRoute: Swap;
 
   @ManyToOne(() => BuyCryptoBatch, (batch) => batch.transactions, { eager: true, nullable: true })
   batch: BuyCryptoBatch;
@@ -548,7 +548,7 @@ export class BuyCrypto extends IEntity {
     return this.user.userData;
   }
 
-  get route(): Buy | CryptoRoute {
+  get route(): Buy | Swap {
     return this.buy ?? this.cryptoRoute;
   }
 

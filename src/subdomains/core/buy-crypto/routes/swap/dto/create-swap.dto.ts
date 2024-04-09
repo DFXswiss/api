@@ -5,7 +5,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 
-export class CreateCryptoRouteDto {
+export class CreateSwapDto {
   @ApiProperty({ enum: Blockchain })
   @IsNotEmpty()
   @IsEnum(Blockchain)
@@ -19,7 +19,7 @@ export class CreateCryptoRouteDto {
 
   @ApiProperty({ type: EntityDto })
   @IsNotEmptyObject()
-  @ValidateIf((dto: CreateCryptoRouteDto) => Boolean(dto.targetAsset || !dto.asset))
+  @ValidateIf((dto: CreateSwapDto) => Boolean(dto.targetAsset || !dto.asset))
   @ValidateNested()
   @Type(() => EntityDto)
   targetAsset: Asset;

@@ -1,11 +1,11 @@
 import { IEntity } from 'src/shared/models/entity';
-import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
+import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { Column, Entity, JoinColumn, OneToOne, TableInheritance } from 'typeorm';
 import { Deposit } from '../deposit/deposit.entity';
 
-export type DepositRouteType = Sell | Staking | CryptoRoute;
+export type DepositRouteType = Sell | Staking | Swap;
 
 export enum RouteType {
   SELL = 'Sell',

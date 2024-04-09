@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsNotEmpty,
   IsNotEmptyObject,
   IsNumber,
@@ -14,7 +15,7 @@ import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { XOR } from 'src/shared/validators/xor.validator';
 
-export class GetCryptoQuoteDto {
+export class GetSwapPaymentInfoDto {
   @ApiProperty({ type: EntityDto, description: 'Source asset' })
   @IsNotEmptyObject()
   @ValidateNested()
@@ -23,7 +24,7 @@ export class GetCryptoQuoteDto {
 
   @ApiPropertyOptional({ description: 'Amount in source asset' })
   @IsNotEmpty()
-  @ValidateIf((b: GetCryptoQuoteDto) => Boolean(b.amount || !b.targetAmount))
+  @ValidateIf((b: GetSwapPaymentInfoDto) => Boolean(b.amount || !b.targetAmount))
   @Validate(XOR, ['targetAmount'])
   @IsNumber()
   amount: number;
@@ -36,13 +37,19 @@ export class GetCryptoQuoteDto {
 
   @ApiPropertyOptional({ description: 'Amount in target asset' })
   @IsNotEmpty()
-  @ValidateIf((b: GetCryptoQuoteDto) => Boolean(b.targetAmount || !b.amount))
+  @ValidateIf((b: GetSwapPaymentInfoDto) => Boolean(b.targetAmount || !b.amount))
   @Validate(XOR, ['amount'])
   @IsNumber()
   targetAmount: number;
 
-  @ApiPropertyOptional({ description: 'Discount code' })
+  @ApiPropertyOptional({ description: 'Custom transaction id' })
   @IsOptional()
   @IsString()
-  discountCode: string;
+  externalTransactionId?: string;
+
+  //eslint-disable-next-line @typescript-eslint/no-inferrable-types
+  @ApiPropertyOptional({ description: 'Require an exact price (may take longer)' })
+  @IsNotEmpty()
+  @IsBoolean()
+  exactPrice: boolean = false;
 }

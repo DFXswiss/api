@@ -7,7 +7,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
+import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
@@ -49,11 +49,7 @@ export class PayInService {
     });
   }
 
-  async acknowledgePayIn(
-    payInId: number,
-    purpose: PayInPurpose,
-    route: Staking | Sell | CryptoRoute,
-  ): Promise<CheckStatus> {
+  async acknowledgePayIn(payInId: number, purpose: PayInPurpose, route: Staking | Sell | Swap): Promise<CheckStatus> {
     const payIn = await this.payInRepository.findOneBy({ id: payInId });
 
     const amlCheck = await this.doAmlCheck(payIn, route);
@@ -69,7 +65,7 @@ export class PayInService {
     payIn: CryptoInput,
     purpose: PayInPurpose,
     returnAddress: BlockchainAddress,
-    route: Staking | Sell | CryptoRoute,
+    route: Staking | Sell | Swap,
   ): Promise<void> {
     const amlCheck = await this.doAmlCheck(payIn, route);
 
@@ -125,7 +121,7 @@ export class PayInService {
 
   //*** HELPER METHODS ***//
 
-  async doAmlCheck(payIn: CryptoInput, route: Staking | Sell | CryptoRoute): Promise<CheckStatus> {
+  async doAmlCheck(payIn: CryptoInput, route: Staking | Sell | Swap): Promise<CheckStatus> {
     try {
       const strategy = this.registerStrategyRegistry.getRegisterStrategy(payIn.asset);
       return await strategy.doAmlCheck(payIn, route);
