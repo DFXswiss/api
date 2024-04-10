@@ -30,7 +30,7 @@ export class AsyncCache<T> {
     return this.cache.get(id).data;
   }
 
-  async invalidate(id?: string): Promise<void> {
+  invalidate(id?: string): void {
     if (!id) return this.cache.clear();
 
     this.cache.delete(id);
