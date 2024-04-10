@@ -7,7 +7,6 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
@@ -22,7 +21,6 @@ import { PricingService } from '../../pricing/services/pricing.service';
 import { InternalFeeDto } from '../dto/fee.dto';
 import { CreateFeeDto } from '../dto/input/create-fee.dto';
 import { PaymentMethod } from '../dto/payment-method.enum';
-import { BlockchainFee } from '../entities/blockchain-fee.entity';
 import { Fee, FeeType } from '../entities/fee.entity';
 import { BlockchainFeeRepository } from '../repositories/blockchain-fee.repository';
 import { FeeRepository } from '../repositories/fee.repository';
@@ -57,8 +55,6 @@ const FeeValidityMinutes = 70;
 @Injectable()
 export class FeeService {
   private readonly logger = new DfxLogger(FeeService);
-  private readonly blockchainFeeCache = new AsyncCache<BlockchainFee>(CacheItemResetPeriod.EVERY_5_MINUTES);
-  private readonly feeCache = new AsyncCache<Fee[]>(CacheItemResetPeriod.EVERY_5_MINUTES);
 
   constructor(
     private readonly feeRepo: FeeRepository,
@@ -226,12 +222,10 @@ export class FeeService {
 
   async getBlockchainFee(active: Active, allowFallback: boolean): Promise<number> {
     if (isAsset(active)) {
-      const fee = await this.blockchainFeeCache.get(`${active.id}`, () =>
-        this.blockchainFeeRepo.findOneBy({
-          asset: { id: active.id },
-          updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)),
-        }),
-      );
+      const fee = await this.blockchainFeeRepo.findOneCachedBy(`${active.id}`, {
+        asset: { id: active.id },
+        updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)),
+      });
       if (!fee && !allowFallback) throw new Error(`No blockchain fee found for asset ${active.id}`);
 
       return fee?.amount ?? this.getBlockchainMaxFee(active.blockchain);
@@ -247,7 +241,7 @@ export class FeeService {
   }
 
   private async getAllFees(): Promise<Fee[]> {
-    return this.feeCache.get('all', () => this.feeRepo.find());
+    return this.feeRepo.findCached('all');
   }
 
   private async calculateFee(
@@ -342,13 +336,11 @@ export class FeeService {
   }
 
   private async getBlockchainMaxFee(blockchain: Blockchain): Promise<number> {
-    const maxFee = await this.blockchainFeeCache.get(blockchain, () =>
-      this.blockchainFeeRepo.findOne({
-        where: { asset: { blockchain }, updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)) },
-        relations: { asset: true },
-        order: { amount: 'DESC' },
-      }),
-    );
+    const maxFee = await this.blockchainFeeRepo.findOneCached(blockchain, {
+      where: { asset: { blockchain }, updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)) },
+      relations: { asset: true },
+      order: { amount: 'DESC' },
+    });
     return maxFee?.amount ?? 0;
   }
 

@@ -125,12 +125,7 @@ export class AmlHelperService {
         if (last7dVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
       } else {
         // swap
-        if (
-          last24hVolume > Config.tradingLimits.dailyDefault &&
-          (entity.userData.kycLevel < KycLevel.LEVEL_50 || !entity.userData.hasBankTxVerification)
-        ) {
-          errors.push([AmlError.DEPOSIT_LIMIT_REACHED, AmlError.KYC_LEVEL_TOO_LOW]);
-        } else if (entity.userData.status !== UserDataStatus.ACTIVE && entity.userData.kycLevel < KycLevel.LEVEL_30) {
+        if (entity.userData.status !== UserDataStatus.ACTIVE && entity.userData.kycLevel < KycLevel.LEVEL_30) {
           errors.push(AmlError.KYC_LEVEL_TOO_LOW);
         }
       }

@@ -1,21 +1,18 @@
 import { Injectable } from '@nestjs/common';
-import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { WalletRepository } from 'src/subdomains/generic/user/models/wallet/wallet.repository';
 import { FindOptionsRelations } from 'typeorm';
 import { Wallet } from './wallet.entity';
 
 @Injectable()
 export class WalletService {
-  private readonly cache = new AsyncCache<Wallet>(CacheItemResetPeriod.EVERY_5_MINUTES);
-
   constructor(private readonly repo: WalletRepository) {}
 
   async getWithMasterKey(masterKey: string): Promise<Wallet | undefined> {
-    return masterKey && this.cache.get(masterKey, () => this.repo.findOneBy({ masterKey }));
+    return masterKey && this.repo.findOneCachedBy(masterKey, { masterKey });
   }
 
   async getByAddress(address: string): Promise<Wallet | undefined> {
-    return this.cache.get(address, () => this.repo.findOneBy({ address }));
+    return this.repo.findOneCachedBy(address, { address });
   }
 
   async getByIdOrName(
@@ -23,12 +20,10 @@ export class WalletService {
     name?: string,
     relations: FindOptionsRelations<Wallet> = {},
   ): Promise<Wallet | undefined> {
-    return id || name
-      ? this.cache.get(`${id}${name}`, () => this.repo.findOne({ where: [{ id }, { name }], relations }))
-      : undefined;
+    return id || name ? this.repo.findOneCached(`${id}${name}`, { where: [{ id }, { name }], relations }) : undefined;
   }
 
   async getDefault(): Promise<Wallet> {
-    return this.cache.get('default', () => this.repo.findOneBy({ id: 1 }));
+    return this.repo.findOneCachedBy('default', { id: 1 });
   }
 }

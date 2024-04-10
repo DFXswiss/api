@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetRepository } from 'src/shared/models/asset/asset.repository';
-import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { FindOptionsWhere, In, Not } from 'typeorm';
 import { Asset, AssetCategory, AssetType } from './asset.entity';
@@ -14,9 +13,6 @@ export interface AssetQuery {
 
 @Injectable()
 export class AssetService {
-  private readonly cache = new AsyncCache<Asset>(CacheItemResetPeriod.EVERY_5_MINUTES);
-  private readonly arrayCache = new AsyncCache<Asset[]>(CacheItemResetPeriod.EVERY_5_MINUTES);
-
   constructor(private assetRepo: AssetRepository) {}
 
   async getAllAsset(blockchains: Blockchain[], includePrivate = true): Promise<Asset[]> {
@@ -24,7 +20,7 @@ export class AssetService {
     blockchains.length > 0 && (search.blockchain = In(blockchains));
     !includePrivate && (search.category = Not(AssetCategory.PRIVATE));
 
-    return this.arrayCache.get(JSON.stringify(search), () => this.assetRepo.findBy(search));
+    return this.assetRepo.findCachedBy(JSON.stringify(search), search);
   }
 
   async getActiveAsset(): Promise<Asset[]> {
@@ -39,35 +35,34 @@ export class AssetService {
   }
 
   async getAssetById(id: number): Promise<Asset> {
-    return this.cache.get(`${id}`, () => this.assetRepo.findOneBy({ id }));
+    return this.assetRepo.findOneCachedBy(`${id}`, { id });
   }
 
   async getAssetByChainId(blockchain: Blockchain, chainId: string): Promise<Asset> {
-    return this.cache.get(`${blockchain}-${chainId}`, () => this.assetRepo.findOneBy({ blockchain, chainId }));
+    return this.assetRepo.findOneCachedBy(`${blockchain}-${chainId}`, { blockchain, chainId });
   }
 
   async getAssetByUniqueName(uniqueName: string): Promise<Asset> {
-    return this.cache.get(uniqueName, () => this.assetRepo.findOneBy({ uniqueName }));
+    return this.assetRepo.findOneCachedBy(uniqueName, { uniqueName });
   }
 
   async getAssetByQuery(query: AssetQuery): Promise<Asset> {
-    return this.cache.get(`${query.dexName}-${query.blockchain}-${query.type}`, () => this.assetRepo.findOneBy(query));
+    return this.assetRepo.findOneCachedBy(`${query.dexName}-${query.blockchain}-${query.type}`, query);
   }
 
   async getNativeAsset(blockchain: Blockchain): Promise<Asset> {
-    return this.cache.get(`native-${blockchain}`, () => this.assetRepo.findOneBy({ blockchain, type: AssetType.COIN }));
+    return this.assetRepo.findOneCachedBy(`native-${blockchain}`, { blockchain, type: AssetType.COIN });
   }
 
   async getSellableBlockchains(): Promise<Blockchain[]> {
-    return this.arrayCache
-      .get('sellableBlockchains', () => this.assetRepo.findBy({ sellable: true }))
+    return this.assetRepo
+      .findCachedBy('sellableBlockchains', { sellable: true })
       .then((assets) => Array.from(new Set(assets.map((a) => a.blockchain))));
   }
 
   async updatePrice(assetId: number, usdPrice: number, chfPrice: number) {
     await this.assetRepo.update(assetId, { approxPriceUsd: usdPrice, approxPriceChf: chfPrice });
-    await this.cache.invalidate();
-    await this.arrayCache.invalidate();
+    this.assetRepo.invalidateCache();
   }
 
   async getAssetsUsedOn(exchange: string): Promise<string[]> {
