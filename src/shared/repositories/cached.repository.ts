@@ -6,24 +6,28 @@ export abstract class CachedRepository<T> extends BaseRepository<T> {
   private readonly cache = new AsyncCache<T>(CacheItemResetPeriod.EVERY_5_MINUTES);
   private readonly listCache = new AsyncCache<T[]>(CacheItemResetPeriod.EVERY_5_MINUTES);
 
-  async findOneCached(id: string, options: FindOneOptions<T>): Promise<T> {
-    return this.cache.get(id, () => this.findOne(options));
+  async findOneCached(id: number | string, options: FindOneOptions<T>): Promise<T> {
+    return this.cache.get(this.toStringId(id), () => this.findOne(options));
   }
 
-  async findOneCachedBy(id: string, where: FindOptionsWhere<T> | FindOptionsWhere<T>[]): Promise<T> {
-    return this.cache.get(id, () => this.findOneBy(where));
+  async findOneCachedBy(id: number | string, where: FindOptionsWhere<T> | FindOptionsWhere<T>[]): Promise<T> {
+    return this.cache.get(this.toStringId(id), () => this.findOneBy(where));
   }
 
-  async findCached(id: string, options?: FindOneOptions<T>): Promise<T[]> {
-    return this.listCache.get(id, () => this.find(options));
+  async findCached(id: number | string, options?: FindOneOptions<T>): Promise<T[]> {
+    return this.listCache.get(this.toStringId(id), () => this.find(options));
   }
 
-  async findCachedBy(id: string, where: FindOptionsWhere<T> | FindOptionsWhere<T>[]): Promise<T[]> {
-    return this.listCache.get(id, () => this.findBy(where));
+  async findCachedBy(id: number | string, where: FindOptionsWhere<T> | FindOptionsWhere<T>[]): Promise<T[]> {
+    return this.listCache.get(this.toStringId(id), () => this.findBy(where));
   }
 
   invalidateCache(): void {
     this.cache.invalidate();
     this.listCache.invalidate();
+  }
+
+  private toStringId(id: number | string): string {
+    return typeof id === 'string' ? id : `${id}`;
   }
 }

@@ -22,7 +22,7 @@ export class FiatService {
   }
 
   async getFiat(id: number): Promise<Fiat> {
-    return this.fiatRepo.findOneCachedBy(`${id}`, { id });
+    return this.fiatRepo.findOneCachedBy(id, { id });
   }
 
   async getFiatByName(name: string): Promise<Fiat> {
