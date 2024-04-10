@@ -17,7 +17,7 @@ export class BuyCryptoRegistrationService {
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoService: BuyCryptoService,
-    private readonly cryptoRouteRepository: SwapRepository,
+    private readonly swapRepository: SwapRepository,
     private readonly payInService: PayInService,
     private readonly transactionHelper: TransactionHelper,
   ) {}
@@ -42,7 +42,7 @@ export class BuyCryptoRegistrationService {
   //*** HELPER METHODS ***//
 
   private async filterBuyCryptoPayIns(allPayIns: CryptoInput[]): Promise<[CryptoInput, Swap][]> {
-    const routes = await this.cryptoRouteRepository.find({
+    const routes = await this.swapRepository.find({
       where: { deposit: Not(IsNull()) },
       relations: ['deposit', 'user', 'user.userData'],
     });

@@ -49,7 +49,7 @@ export class BuyCryptoService {
     @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
     private readonly buyService: BuyService,
-    private readonly cryptoRouteService: SwapService,
+    private readonly swapService: SwapService,
     private readonly userService: UserService,
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
@@ -148,17 +148,17 @@ export class BuyCryptoService {
     await this.buyCryptoWebhookService.triggerWebhook(entity);
   }
 
-  async createFromCryptoInput(cryptoInput: CryptoInput, cryptoRoute: Swap): Promise<void> {
+  async createFromCryptoInput(cryptoInput: CryptoInput, swap: Swap): Promise<void> {
     const transaction = !DisabledProcess(Process.CREATE_TRANSACTION)
       ? await this.transactionService.update(cryptoInput.transaction.id, {
           type: TransactionTypeInternal.CRYPTO_CRYPTO,
-          user: cryptoRoute.user,
+          user: swap.user,
         })
       : null;
 
     let entity = this.buyCryptoRepo.create({
       cryptoInput,
-      cryptoRoute,
+      cryptoRoute: swap,
       inputAmount: cryptoInput.amount,
       inputAsset: cryptoInput.asset.name,
       inputReferenceAmount: cryptoInput.amount,
@@ -461,7 +461,7 @@ export class BuyCryptoService {
 
   private async getCryptoRoute(cryptoRouteId: number): Promise<Swap> {
     // cryptoRoute
-    const cryptoRoute = await this.cryptoRouteService
+    const cryptoRoute = await this.swapService
       .getSwapRepo()
       .findOne({ where: { id: cryptoRouteId }, relations: ['user', 'user.wallet'] });
     if (!cryptoRoute) throw new BadRequestException('Crypto route not found');
@@ -515,7 +515,7 @@ export class BuyCryptoService {
         .andWhere('cryptoInput.created >= :year', { year: newYear })
         .getRawOne<{ annualVolume: number }>();
 
-      await this.cryptoRouteService.updateVolume(id, volume ?? 0, annualVolume ?? 0);
+      await this.swapService.updateVolume(id, volume ?? 0, annualVolume ?? 0);
     }
   }
 

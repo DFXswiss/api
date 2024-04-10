@@ -23,7 +23,7 @@ export class SwapService {
     private readonly userDataService: UserDataService,
   ) {}
 
-  async getSwapRouteByAddress(depositAddress: string): Promise<Swap> {
+  async getSwapByAddress(depositAddress: string): Promise<Swap> {
     // does not work with find options
     return this.swapRepo
       .createQueryBuilder('crypto')

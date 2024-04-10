@@ -11,7 +11,7 @@ export class Swap extends DepositRoute {
   @Column({ type: 'float', default: 0 })
   annualVolume: number; // CHF
 
-  @ManyToOne(() => User, (user) => user.cryptoRoutes, { nullable: false })
+  @ManyToOne(() => User, (user) => user.swaps, { nullable: false })
   user: User;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })

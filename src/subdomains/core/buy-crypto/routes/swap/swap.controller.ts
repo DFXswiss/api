@@ -34,7 +34,7 @@ import { SwapService } from './swap.service';
 @Controller('swap')
 export class SwapController {
   constructor(
-    private readonly cryptoRouteService: SwapService,
+    private readonly swapService: SwapService,
     private readonly userService: UserService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly paymentInfoService: PaymentInfoService,
@@ -49,7 +49,7 @@ export class SwapController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
   async getAllCrypto(@GetJwt() jwt: JwtPayload): Promise<SwapDto[]> {
-    return this.cryptoRouteService.getUserSwaps(jwt.id).then((l) => this.toDtoList(jwt.id, l));
+    return this.swapService.getUserSwaps(jwt.id).then((l) => this.toDtoList(jwt.id, l));
   }
 
   @Get(':id')
@@ -57,7 +57,7 @@ export class SwapController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: SwapDto })
   async getCrypto(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<SwapDto> {
-    return this.cryptoRouteService.get(jwt.id, +id).then((l) => this.toDto(jwt.id, l));
+    return this.swapService.get(jwt.id, +id).then((l) => this.toDto(jwt.id, l));
   }
 
   @Post()
@@ -68,9 +68,7 @@ export class SwapController {
     dto.targetAsset ??= dto.asset;
 
     dto = await this.paymentInfoService.swapCheck(dto, jwt);
-    return this.cryptoRouteService
-      .createSwap(jwt.id, dto.blockchain, dto.targetAsset)
-      .then((b) => this.toDto(jwt.id, b));
+    return this.swapService.createSwap(jwt.id, dto.blockchain, dto.targetAsset).then((b) => this.toDto(jwt.id, b));
   }
 
   @Put('/quote')
@@ -134,7 +132,7 @@ export class SwapController {
   ): Promise<SwapPaymentInfoDto> {
     dto = await this.paymentInfoService.swapCheck(dto, jwt);
     return Util.retry(
-      () => this.cryptoRouteService.createSwap(jwt.id, dto.sourceAsset.blockchain, dto.targetAsset, true),
+      () => this.swapService.createSwap(jwt.id, dto.sourceAsset.blockchain, dto.targetAsset, true),
       2,
       0,
       undefined,
@@ -151,7 +149,7 @@ export class SwapController {
     @Param('id') id: string,
     @Body() updateCryptoDto: UpdateSwapDto,
   ): Promise<SwapDto> {
-    return this.cryptoRouteService.updateSwap(jwt.id, +id, updateCryptoDto).then((b) => this.toDto(jwt.id, b));
+    return this.swapService.updateSwap(jwt.id, +id, updateCryptoDto).then((b) => this.toDto(jwt.id, b));
   }
 
   @Get(':id/history')
@@ -167,42 +165,38 @@ export class SwapController {
     return Promise.all(cryptos.map((b) => this.toDto(userId, b)));
   }
 
-  private async toDto(userId: number, crypto: Swap): Promise<SwapDto> {
+  private async toDto(userId: number, swap: Swap): Promise<SwapDto> {
     const { minDeposit } = this.transactionHelper.getDefaultSpecs(
-      crypto.deposit.blockchain,
+      swap.deposit.blockchain,
       undefined,
-      crypto.asset.blockchain,
-      crypto.asset.dexName,
+      swap.asset.blockchain,
+      swap.asset.dexName,
     );
 
-    const defaultBlockchain = this.cryptoService.getDefaultBlockchainBasedOn(crypto.user.address);
+    const defaultBlockchain = this.cryptoService.getDefaultBlockchainBasedOn(swap.user.address);
     const fee = await this.userService.getUserFee(
       userId,
       CryptoPaymentMethod.CRYPTO,
       CryptoPaymentMethod.CRYPTO,
       await this.assetService.getNativeAsset(defaultBlockchain),
-      crypto.asset,
+      swap.asset,
     );
 
     return {
-      id: crypto.id,
-      volume: crypto.volume,
-      annualVolume: crypto.annualVolume,
-      active: crypto.active,
-      deposit: DepositDtoMapper.entityToDto(crypto.deposit),
-      asset: AssetDtoMapper.toDto(crypto.asset),
-      blockchain: crypto.deposit.blockchain,
+      id: swap.id,
+      volume: swap.volume,
+      annualVolume: swap.annualVolume,
+      active: swap.active,
+      deposit: DepositDtoMapper.entityToDto(swap.deposit),
+      asset: AssetDtoMapper.toDto(swap.asset),
+      blockchain: swap.deposit.blockchain,
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposits: [minDeposit],
       minFee: { amount: fee.network, asset: 'CHF' },
     };
   }
 
-  private async toPaymentInfoDto(
-    userId: number,
-    cryptoRoute: Swap,
-    dto: GetSwapPaymentInfoDto,
-  ): Promise<SwapPaymentInfoDto> {
+  private async toPaymentInfoDto(userId: number, swap: Swap, dto: GetSwapPaymentInfoDto): Promise<SwapPaymentInfoDto> {
     const user = await this.userService.getUser(userId, { userData: { users: true }, wallet: true });
 
     const {
@@ -230,11 +224,11 @@ export class SwapController {
       user,
     );
 
-    const cryptoDto: SwapPaymentInfoDto = {
-      routeId: cryptoRoute.id,
+    const swapDto: SwapPaymentInfoDto = {
+      routeId: swap.id,
       fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
-      depositAddress: cryptoRoute.deposit.address,
-      blockchain: cryptoRoute.deposit.blockchain,
+      depositAddress: swap.deposit.address,
+      blockchain: swap.deposit.blockchain,
       minDeposit: { amount: minVolume, asset: dto.sourceAsset.dexName },
       minVolume,
       minFee: feeSource.min,
@@ -254,15 +248,15 @@ export class SwapController {
       paymentRequest: await this.cryptoService.getPaymentRequest(
         isValid,
         dto.sourceAsset,
-        cryptoRoute.deposit.address,
+        swap.deposit.address,
         amount,
       ),
       isValid,
       error,
     };
 
-    void this.transactionRequestService.createTransactionRequest(TransactionRequestType.Convert, dto, cryptoDto);
+    void this.transactionRequestService.createTransactionRequest(TransactionRequestType.Convert, dto, swapDto);
 
-    return cryptoDto;
+    return swapDto;
   }
 }

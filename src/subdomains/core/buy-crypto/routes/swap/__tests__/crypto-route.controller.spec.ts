@@ -15,7 +15,7 @@ import { SwapService } from '../swap.service';
 describe('CryptoRouteController', () => {
   let controller: CryptoRouteController;
 
-  let cryptoRouteService: SwapService;
+  let swapService: SwapService;
   let userService: UserService;
   let buyCryptoService: BuyCryptoService;
   let paymentInfoService: PaymentInfoService;
@@ -25,7 +25,7 @@ describe('CryptoRouteController', () => {
   let assetService: AssetService;
 
   beforeEach(async () => {
-    cryptoRouteService = createMock<SwapService>();
+    swapService = createMock<SwapService>();
     userService = createMock<UserService>();
     buyCryptoService = createMock<BuyCryptoService>();
     paymentInfoService = createMock<PaymentInfoService>();
@@ -38,7 +38,7 @@ describe('CryptoRouteController', () => {
       imports: [TestSharedModule],
       providers: [
         CryptoRouteController,
-        { provide: SwapService, useValue: cryptoRouteService },
+        { provide: SwapService, useValue: swapService },
         { provide: UserService, useValue: userService },
         { provide: BuyCryptoService, useValue: buyCryptoService },
         { provide: PaymentInfoService, useValue: paymentInfoService },

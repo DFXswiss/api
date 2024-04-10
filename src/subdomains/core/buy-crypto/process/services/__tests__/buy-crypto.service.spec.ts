@@ -39,7 +39,7 @@ describe('BuyCryptoService', () => {
   let bankTxService: BankTxService;
   let buyRepo: BuyRepository;
   let buyService: BuyService;
-  let cryptoRouteService: SwapService;
+  let swapService: SwapService;
   let userService: UserService;
   let buyFiatService: BuyFiatService;
   let buyCryptoWebhookService: BuyCryptoWebhookService;
@@ -55,7 +55,7 @@ describe('BuyCryptoService', () => {
     bankTxService = createMock<BankTxService>();
     buyRepo = createMock<BuyRepository>();
     buyService = createMock<BuyService>();
-    cryptoRouteService = createMock<SwapService>();
+    swapService = createMock<SwapService>();
     userService = createMock<UserService>();
     buyFiatService = createMock<BuyFiatService>();
     buyCryptoWebhookService = createMock<BuyCryptoWebhookService>();
@@ -74,7 +74,7 @@ describe('BuyCryptoService', () => {
         { provide: BankTxService, useValue: bankTxService },
         { provide: BuyRepository, useValue: buyRepo },
         { provide: BuyService, useValue: buyService },
-        { provide: SwapService, useValue: cryptoRouteService },
+        { provide: SwapService, useValue: swapService },
         { provide: UserService, useValue: userService },
         { provide: BuyFiatService, useValue: buyFiatService },
         { provide: BuyCryptoWebhookService, useValue: buyCryptoWebhookService },
