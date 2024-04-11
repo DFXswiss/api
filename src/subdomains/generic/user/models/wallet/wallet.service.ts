@@ -8,11 +8,11 @@ export class WalletService {
   constructor(private readonly repo: WalletRepository) {}
 
   async getWithMasterKey(masterKey: string): Promise<Wallet | undefined> {
-    return masterKey && this.repo.findOneBy({ masterKey });
+    return masterKey && this.repo.findOneCachedBy(masterKey, { masterKey });
   }
 
   async getByAddress(address: string): Promise<Wallet | undefined> {
-    return this.repo.findOneBy({ address });
+    return this.repo.findOneCachedBy(address, { address });
   }
 
   async getByIdOrName(
@@ -20,14 +20,10 @@ export class WalletService {
     name?: string,
     relations: FindOptionsRelations<Wallet> = {},
   ): Promise<Wallet | undefined> {
-    return id || name ? this.repo.findOne({ where: [{ id }, { name }], relations }) : undefined;
+    return id || name ? this.repo.findOneCached(`${id}${name}`, { where: [{ id }, { name }], relations }) : undefined;
   }
 
   async getDefault(): Promise<Wallet> {
-    return this.repo.findOneBy({ id: 1 });
-  }
-
-  async getAllExternalServices(): Promise<Wallet[]> {
-    return this.repo.findBy({ isKycClient: true });
+    return this.repo.findOneCachedBy('default', { id: 1 });
   }
 }

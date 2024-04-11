@@ -4,7 +4,7 @@ import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entit
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
-import { CryptoRouteService } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.service';
+import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { createCustomHistory } from 'src/subdomains/core/history/dto/__mocks__/history.dto.mock';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
@@ -39,7 +39,7 @@ describe('BuyCryptoService', () => {
   let bankTxService: BankTxService;
   let buyRepo: BuyRepository;
   let buyService: BuyService;
-  let cryptoRouteService: CryptoRouteService;
+  let swapService: SwapService;
   let userService: UserService;
   let buyFiatService: BuyFiatService;
   let buyCryptoWebhookService: BuyCryptoWebhookService;
@@ -55,7 +55,7 @@ describe('BuyCryptoService', () => {
     bankTxService = createMock<BankTxService>();
     buyRepo = createMock<BuyRepository>();
     buyService = createMock<BuyService>();
-    cryptoRouteService = createMock<CryptoRouteService>();
+    swapService = createMock<SwapService>();
     userService = createMock<UserService>();
     buyFiatService = createMock<BuyFiatService>();
     buyCryptoWebhookService = createMock<BuyCryptoWebhookService>();
@@ -74,7 +74,7 @@ describe('BuyCryptoService', () => {
         { provide: BankTxService, useValue: bankTxService },
         { provide: BuyRepository, useValue: buyRepo },
         { provide: BuyService, useValue: buyService },
-        { provide: CryptoRouteService, useValue: cryptoRouteService },
+        { provide: SwapService, useValue: swapService },
         { provide: UserService, useValue: userService },
         { provide: BuyFiatService, useValue: buyFiatService },
         { provide: BuyCryptoWebhookService, useValue: buyCryptoWebhookService },

@@ -10,7 +10,7 @@ import { UpdateSupportIssueDto } from './dto/update-support-issue.dto';
 import { SupportIssue } from './support-issue.entity';
 import { SupportIssueService } from './support-issue.service';
 
-@ApiTags('SupportIssue')
+@ApiTags('Support')
 @Controller('support/issue')
 export class SupportIssueController {
   constructor(private readonly supportIssueService: SupportIssueService) {}

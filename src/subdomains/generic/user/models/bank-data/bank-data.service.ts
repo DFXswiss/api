@@ -4,13 +4,18 @@ import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
 import { UserData, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';
+import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { IsNull, Not } from 'typeorm';
 import { BankData, BankDataType } from './bank-data.entity';
 import { UpdateBankDataDto } from './dto/update-bank-data.dto';
 
 @Injectable()
 export class BankDataService {
-  constructor(private readonly userDataRepo: UserDataRepository, private readonly bankDataRepo: BankDataRepository) {}
+  constructor(
+    private readonly userDataRepo: UserDataRepository,
+    private readonly bankDataRepo: BankDataRepository,
+    private readonly specialAccountService: SpecialExternalAccountService,
+  ) {}
 
   async addBankData(userDataId: number, dto: CreateBankDataDto): Promise<UserData> {
     const userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['bankDatas'] });
@@ -75,6 +80,9 @@ export class BankDataService {
   }
 
   async createIbanForUser(userDataId: number, iban: string): Promise<void> {
+    const multiIbans = await this.specialAccountService.getMultiAccountIbans();
+    if (multiIbans.includes(iban)) throw new BadRequestException('Multi-account IBANs not allowed');
+
     const existing = await this.bankDataRepo.exist({
       where: [
         { iban, active: true },

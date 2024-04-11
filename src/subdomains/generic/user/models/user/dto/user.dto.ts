@@ -16,8 +16,11 @@ export class VolumeInformation {
 }
 
 export class TradingLimit {
-  @ApiProperty()
+  @ApiProperty({ description: 'Trading limit in CHF' })
   limit: number;
+
+  @ApiPropertyOptional({ description: 'Remaining limit (only available for yearly limits)' })
+  remaining?: number;
 
   @ApiProperty({ enum: LimitPeriod })
   period: LimitPeriod;

@@ -7,7 +7,7 @@ import { BankAccount } from './bank-account.entity';
 import { BankAccountService } from './bank-account.service';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 
-@ApiTags('BankAccount')
+@ApiTags('Bank Account')
 @Controller('bankAccount/admin')
 @ApiExcludeController()
 export class BankAccountAdminController {

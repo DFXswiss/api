@@ -19,15 +19,15 @@ export class BankService {
   constructor(private bankRepo: BankRepository, private countryService: CountryService) {}
 
   async getAllBanks(): Promise<Bank[]> {
-    return this.bankRepo.find();
+    return this.bankRepo.findCached(`all`);
   }
 
   async getInstantBanks(): Promise<Bank[]> {
-    return this.bankRepo.findBy({ sctInst: true });
+    return this.bankRepo.findCachedBy(`instantBanks`, { sctInst: true });
   }
 
   async getBankInternal(name: BankName, currency: string): Promise<Bank> {
-    return this.bankRepo.findOneBy({ name, currency });
+    return this.bankRepo.findOneCachedBy(`${name}-${currency}`, { name, currency });
   }
 
   // --- BankSelector --- //
@@ -39,7 +39,7 @@ export class BankService {
       ? await this.countryService.getCountryWithSymbol(bankAccount.iban.substring(0, 2))
       : undefined;
 
-    const banks = await this.bankRepo.find();
+    const banks = await this.getAllBanks();
 
     // select the matching bank account
     let account: Bank;

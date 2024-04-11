@@ -15,7 +15,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
-import { In, IsNull, MoreThan } from 'typeorm';
+import { MoreThan } from 'typeorm';
 import { PayoutService } from '../../payout/services/payout.service';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { InternalFeeDto } from '../dto/fee.dto';
@@ -149,11 +149,11 @@ export class FeeService {
 
     for (const feeId of customSignUpFees) {
       try {
-        const fee = await this.feeRepo.findOneBy({ id: feeId });
+        const cachedFee = await this.getFee(feeId);
 
-        await this.feeRepo.update(...fee.increaseUsage(user.userData.accountType, user.wallet));
+        await this.feeRepo.update(...cachedFee.increaseUsage(user.userData.accountType, user.wallet));
 
-        await this.userDataService.addFee(user.userData, fee.id);
+        await this.userDataService.addFee(user.userData, cachedFee.id);
       } catch (e) {
         this.logger.warn(`Fee mapping error: ${e}; userId: ${user.id}; feeId: ${feeId}`);
         continue;
@@ -162,29 +162,32 @@ export class FeeService {
   }
 
   async addDiscountCodeUser(user: User, discountCode: string): Promise<void> {
-    const fee = await this.getFeeByDiscountCode(discountCode);
+    const cachedFee = await this.getFeeByDiscountCode(discountCode);
 
-    await this.feeRepo.update(...fee.increaseUsage(user.userData.accountType, user.wallet));
+    await this.feeRepo.update(...cachedFee.increaseUsage(user.userData.accountType, user.wallet));
 
-    await this.userDataService.addFee(user.userData, fee.id);
+    await this.userDataService.addFee(user.userData, cachedFee.id);
   }
 
   async addFeeInternal(userData: UserData, feeId: number): Promise<void> {
-    const fee = await this.feeRepo.findOneBy({ id: feeId });
+    const cachedFee = await this.getFee(feeId);
 
-    await this.feeRepo.update(...fee.increaseUsage(userData.accountType));
+    await this.feeRepo.update(...cachedFee.increaseUsage(userData.accountType));
 
-    await this.userDataService.addFee(userData, fee.id);
+    await this.userDataService.addFee(userData, cachedFee.id);
   }
 
   async increaseTxUsages(txVolume: number, fee: Fee, userData: UserData): Promise<void> {
-    await this.feeRepo.update(...fee.increaseTxUsage());
-    if (fee.maxUserTxUsages) await this.feeRepo.update(...fee.increaseUserTxUsage(userData.id));
-    if (fee.maxAnnualUserTxVolume) await this.feeRepo.update(...fee.increaseAnnualUserTxVolume(userData.id, txVolume));
+    const cachedFee = await this.getFee(fee.id);
+
+    await this.feeRepo.update(...cachedFee.increaseTxUsage());
+    if (cachedFee.maxUserTxUsages) await this.feeRepo.update(...cachedFee.increaseUserTxUsage(userData.id));
+    if (cachedFee.maxAnnualUserTxVolume)
+      await this.feeRepo.update(...cachedFee.increaseAnnualUserTxVolume(userData.id, txVolume));
   }
 
   async getFeeByDiscountCode(discountCode: string): Promise<Fee> {
-    const fee = await this.feeRepo.findOneBy({ discountCode });
+    const fee = await this.getAllFees().then((fees) => fees.find((f) => f.discountCode === discountCode));
     if (!fee) throw new NotFoundException(`Discount code ${discountCode} not found`);
     return fee;
   }
@@ -219,7 +222,7 @@ export class FeeService {
 
   async getBlockchainFee(active: Active, allowFallback: boolean): Promise<number> {
     if (isAsset(active)) {
-      const fee = await this.blockchainFeeRepo.findOneBy({
+      const fee = await this.blockchainFeeRepo.findOneCachedBy(`${active.id}`, {
         asset: { id: active.id },
         updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)),
       });
@@ -232,6 +235,14 @@ export class FeeService {
   }
 
   // --- HELPER METHODS --- //
+
+  private async getFee(id: number): Promise<Fee> {
+    return this.getAllFees().then((fees) => fees.find((f) => f.id === id));
+  }
+
+  private async getAllFees(): Promise<Fee[]> {
+    return this.feeRepo.findCached('all');
+  }
 
   private async calculateFee(
     fees: Fee[],
@@ -325,14 +336,12 @@ export class FeeService {
   }
 
   private async getBlockchainMaxFee(blockchain: Blockchain): Promise<number> {
-    const { maxFee } = await this.blockchainFeeRepo
-      .createQueryBuilder('fee')
-      .select('MAX(amount)', 'maxFee')
-      .innerJoin('fee.asset', 'asset')
-      .where({ asset: { blockchain } })
-      .andWhere({ updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)) })
-      .getRawOne<{ maxFee: number }>();
-    return maxFee ?? 0;
+    const maxFee = await this.blockchainFeeRepo.findOneCached(blockchain, {
+      where: { asset: { blockchain }, updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)) },
+      relations: { asset: true },
+      order: { amount: 'DESC' },
+    });
+    return maxFee?.amount ?? 0;
   }
 
   private async getValidFees(request: OptionalFeeRequest): Promise<Fee[]> {
@@ -342,12 +351,15 @@ export class FeeService {
 
     const discountFeeIds = request.user?.userData?.individualFeeList ?? [];
 
-    const userFees = await this.feeRepo.findBy([
-      { type: In([FeeType.BASE, FeeType.SPECIAL]) },
-      { type: In([FeeType.DISCOUNT, FeeType.ADDITION]), discountCode: IsNull() },
-      { id: In(discountFeeIds) },
-      { discountCode: In(request.discountCodes) },
-    ]);
+    const userFees = await this.getAllFees().then((fees) =>
+      fees.filter(
+        (f) =>
+          [FeeType.BASE, FeeType.SPECIAL].includes(f.type) ||
+          ([FeeType.DISCOUNT, FeeType.ADDITION].includes(f.type) && !f.discountCode) ||
+          discountFeeIds.includes(f.id) ||
+          request.discountCodes.includes(f.discountCode),
+      ),
+    );
 
     // remove ExpiredFee
     userFees

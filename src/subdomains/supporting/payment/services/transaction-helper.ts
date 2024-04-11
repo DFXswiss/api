@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
-import { Active, isFiat } from 'src/shared/models/active';
+import { Active, isAsset, isFiat } from 'src/shared/models/active';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -9,7 +9,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
-import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { AmlRule } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-helper/min-amount.dto';
@@ -327,7 +327,7 @@ export class TransactionHelper implements OnModuleInit {
     const sourceAmount = inputAmount ?? this.getInputAmount(outputAmountSource, feeRate, sourceSpecs);
     const sourceFees = this.calculateTotalFee(sourceAmount, from, feeRate, sourceSpecs);
 
-    const targetAmount = outputAmount ?? price.convert(inputAmount - sourceFees.total);
+    const targetAmount = outputAmount ?? price.convert(Math.max(inputAmount - sourceFees.total, 0));
     const targetFees = {
       dfx: this.convert(sourceFees.dfx, price, isFiat(to)),
       total: this.convert(sourceFees.total, price, isFiat(to)),
@@ -437,18 +437,24 @@ export class TransactionHelper implements OnModuleInit {
         return QuoteError.KYC_REQUIRED;
     }
 
+    const isSwapTx = isAsset(from) && isAsset(to);
+
+    if (isSwapTx && user?.userData.kycLevel < KycLevel.LEVEL_30 && user?.userData.status !== UserDataStatus.ACTIVE)
+      return QuoteError.KYC_REQUIRED;
+
     if (paymentMethodIn === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed)
       return QuoteError.KYC_REQUIRED_INSTANT;
+
+    // amount checks
+    if (sourceAmount < txSourceMinVolume) return QuoteError.AMOUNT_TOO_LOW;
+    if (txAmountChf > maxVolumeChf) return QuoteError.AMOUNT_TOO_HIGH;
+
     if (
-      ((isFiat(to) && to.name !== 'CHF') || paymentMethodIn === FiatPaymentMethod.CARD) &&
+      ((isFiat(to) && to.name !== 'CHF') || paymentMethodIn === FiatPaymentMethod.CARD || isSwapTx) &&
       user &&
       !user.userData.hasBankTxVerification &&
       txAmountChf > Config.tradingLimits.dailyDefault
     )
       return QuoteError.BANK_TRANSACTION_MISSING;
-
-    // amount checks
-    if (sourceAmount < txSourceMinVolume) return QuoteError.AMOUNT_TOO_LOW;
-    if (txAmountChf > maxVolumeChf) return QuoteError.AMOUNT_TOO_HIGH;
   }
 }

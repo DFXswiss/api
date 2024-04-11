@@ -1,5 +1,5 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiExcludeController, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler/dist/throttler.decorator';
 import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
 import { Util } from 'src/shared/utils/util';
@@ -11,6 +11,7 @@ import { StatisticService } from './statistic.service';
 
 @ApiTags('Statistic')
 @Controller('statistic')
+@ApiExcludeController()
 export class StatisticController {
   constructor(
     private readonly statisticService: StatisticService,

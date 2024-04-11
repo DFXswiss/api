@@ -7,11 +7,11 @@ import { Deposit } from '../../../../supporting/address-pool/deposit/deposit.ent
 import { DepositRoute } from '../../../../supporting/address-pool/route/deposit-route.entity';
 
 @ChildEntity('Crypto')
-export class CryptoRoute extends DepositRoute {
+export class Swap extends DepositRoute {
   @Column({ type: 'float', default: 0 })
   annualVolume: number; // CHF
 
-  @ManyToOne(() => User, (user) => user.cryptoRoutes, { nullable: false })
+  @ManyToOne(() => User, (user) => user.swaps, { nullable: false })
   user: User;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })

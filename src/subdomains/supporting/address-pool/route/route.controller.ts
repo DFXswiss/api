@@ -7,7 +7,7 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RouteDto } from 'src/shared/dto/route.dto';
 import { BuyController } from 'src/subdomains/core/buy-crypto/routes/buy/buy.controller';
-import { CryptoRouteController } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.controller';
+import { SwapController } from 'src/subdomains/core/buy-crypto/routes/swap/swap.controller';
 import { SellController } from 'src/subdomains/core/sell-crypto/route/sell.controller';
 
 @ApiTags('Route')
@@ -16,7 +16,7 @@ export class RouteController {
   constructor(
     private readonly buyController: BuyController,
     private readonly sellController: SellController,
-    private readonly cryptoRouteController: CryptoRouteController,
+    private readonly swapController: SwapController,
   ) {}
 
   @Get()
@@ -28,7 +28,7 @@ export class RouteController {
     return Promise.all([
       this.buyController.getAllBuy(jwt),
       this.sellController.getAllSell(jwt),
-      this.cryptoRouteController.getAllCrypto(jwt),
+      this.swapController.getAllCrypto(jwt),
     ]).then(([buy, sell, crypto]) => ({ buy, sell, crypto }));
   }
 }

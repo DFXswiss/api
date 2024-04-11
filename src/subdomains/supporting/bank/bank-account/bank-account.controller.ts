@@ -14,7 +14,7 @@ import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { CreateIbanDto, IbanDto } from './dto/iban.dto';
 import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
 
-@ApiTags('BankAccount')
+@ApiTags('Bank Account')
 @Controller('bankAccount')
 export class BankAccountController {
   constructor(

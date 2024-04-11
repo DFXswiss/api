@@ -80,7 +80,9 @@ describe('BankService', () => {
     jest
       .spyOn(countryService, 'getCountryWithSymbol')
       .mockResolvedValue(createCustomCountry({ maerkiBaumannEnable: maerkiBaumannEnable }));
-    jest.spyOn(bankRepo, 'find').mockResolvedValue(disabledBank ? createDefaultDisabledBanks() : createDefaultBanks());
+    jest
+      .spyOn(bankRepo, 'findCached')
+      .mockResolvedValue(disabledBank ? createDefaultDisabledBanks() : createDefaultBanks());
   }
 
   it('should be defined', () => {

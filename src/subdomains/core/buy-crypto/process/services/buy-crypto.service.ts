@@ -11,8 +11,8 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
-import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
-import { CryptoRouteService } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.service';
+import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
+import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { HistoryDtoDeprecated, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
@@ -49,7 +49,7 @@ export class BuyCryptoService {
     @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
     private readonly buyService: BuyService,
-    private readonly cryptoRouteService: CryptoRouteService,
+    private readonly swapService: SwapService,
     private readonly userService: UserService,
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
@@ -89,7 +89,7 @@ export class BuyCryptoService {
     entity = await this.setTxRequest(entity);
 
     const multiAccountIbans = await this.specialExternalBankAccountService.getMultiAccountIbans();
-    const senderAccount = bankTx.senderAccount(multiAccountIbans.map((m) => m.value));
+    const senderAccount = bankTx.senderAccount(multiAccountIbans);
     if (senderAccount && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
       const bankData = await this.bankDataService.getBankDataWithIban(senderAccount, entity.buy.user.userData.id);
 
@@ -148,17 +148,17 @@ export class BuyCryptoService {
     await this.buyCryptoWebhookService.triggerWebhook(entity);
   }
 
-  async createFromCryptoInput(cryptoInput: CryptoInput, cryptoRoute: CryptoRoute): Promise<void> {
+  async createFromCryptoInput(cryptoInput: CryptoInput, swap: Swap): Promise<void> {
     const transaction = !DisabledProcess(Process.CREATE_TRANSACTION)
       ? await this.transactionService.update(cryptoInput.transaction.id, {
           type: TransactionTypeInternal.CRYPTO_CRYPTO,
-          user: cryptoRoute.user,
+          user: swap.user,
         })
       : null;
 
     let entity = this.buyCryptoRepo.create({
       cryptoInput,
-      cryptoRoute,
+      cryptoRoute: swap,
       inputAmount: cryptoInput.amount,
       inputAsset: cryptoInput.asset.name,
       inputReferenceAmount: cryptoInput.amount,
@@ -459,10 +459,10 @@ export class BuyCryptoService {
     return buy;
   }
 
-  private async getCryptoRoute(cryptoRouteId: number): Promise<CryptoRoute> {
+  private async getCryptoRoute(cryptoRouteId: number): Promise<Swap> {
     // cryptoRoute
-    const cryptoRoute = await this.cryptoRouteService
-      .getCryptoRouteRepo()
+    const cryptoRoute = await this.swapService
+      .getSwapRepo()
       .findOne({ where: { id: cryptoRouteId }, relations: ['user', 'user.wallet'] });
     if (!cryptoRoute) throw new BadRequestException('Crypto route not found');
 
@@ -515,7 +515,7 @@ export class BuyCryptoService {
         .andWhere('cryptoInput.created >= :year', { year: newYear })
         .getRawOne<{ annualVolume: number }>();
 
-      await this.cryptoRouteService.updateVolume(id, volume ?? 0, annualVolume ?? 0);
+      await this.swapService.updateVolume(id, volume ?? 0, annualVolume ?? 0);
     }
   }
 

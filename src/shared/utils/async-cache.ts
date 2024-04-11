@@ -1,9 +1,18 @@
 import { Util } from './util';
 
+export enum CacheItemResetPeriod {
+  ALWAYS = 0,
+  EVERY_10_SECONDS = 10,
+  EVERY_30_SECONDS = 30,
+  EVERY_1_MINUTE = 60,
+  EVERY_5_MINUTES = 5 * 60,
+  EVERY_6_HOURS = 3600 * 6,
+}
+
 export class AsyncCache<T> {
   private readonly cache = new Map<string, { updated: Date; data: T; update?: Promise<void> }>();
 
-  constructor(private readonly itemValiditySeconds?: number) {}
+  constructor(private readonly itemValiditySeconds?: CacheItemResetPeriod) {}
 
   async get(
     id: string,
@@ -15,13 +24,19 @@ export class AsyncCache<T> {
 
     const entry = this.cache.get(id);
     if (!entry || forceUpdate?.(entry.data) || !(entry.updated > this.expiration)) {
-      await this.update(id, update, fallbackToCache);
+      await this.updateInternal(id, update, fallbackToCache);
     }
 
     return this.cache.get(id).data;
   }
 
-  private async update(id: string, update: () => Promise<T>, fallbackToCache: boolean) {
+  invalidate(id?: string): void {
+    if (!id) return this.cache.clear();
+
+    this.cache.delete(id);
+  }
+
+  private async updateInternal(id: string, update: () => Promise<T>, fallbackToCache: boolean) {
     try {
       // wait for an existing update
       const entry = this.cache.get(id);

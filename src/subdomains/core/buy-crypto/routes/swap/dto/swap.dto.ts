@@ -4,7 +4,7 @@ import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 import { DepositDto } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit.dto';
 import { MinAmount } from '../../../../../supporting/payment/dto/transaction-helper/min-amount.dto';
 
-export class CryptoRouteDto {
+export class SwapDto {
   @ApiProperty()
   id: number;
 

@@ -48,6 +48,11 @@ export class NameCheckService implements OnModuleInit {
       return RiskStatus.NOT_SANCTIONED;
     }
 
+    if (sanctionData.found_records.every((s) => !s.date_of_birth?.length)) {
+      await this.createNameCheckLog(bankData, JSON.stringify(sanctionData), RiskStatus.MATCH_WITHOUT_BIRTHDAY);
+      return RiskStatus.MATCH_WITHOUT_BIRTHDAY;
+    }
+
     for (const sanction of sanctionData.found_records) {
       await this.createNameCheckLog(bankData, JSON.stringify(sanction), RiskStatus.SANCTIONED);
     }
