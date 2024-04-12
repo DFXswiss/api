@@ -4,4 +4,5 @@ export enum QuoteError {
   BANK_TRANSACTION_MISSING = 'BankTransactionMissing',
   KYC_REQUIRED_INSTANT = 'KycRequiredInstant',
   KYC_REQUIRED = 'KycRequired',
+  LIMIT_EXCEEDED = 'LimitExceeded',
 }

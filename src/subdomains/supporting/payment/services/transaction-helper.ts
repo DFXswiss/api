@@ -445,9 +445,7 @@ export class TransactionHelper implements OnModuleInit {
     if (paymentMethodIn === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed)
       return QuoteError.KYC_REQUIRED_INSTANT;
 
-    // amount checks
-    if (sourceAmount < txSourceMinVolume) return QuoteError.AMOUNT_TOO_LOW;
-    if (txAmountChf > maxVolumeChf) return QuoteError.AMOUNT_TOO_HIGH;
+    if (user && txAmountChf > user.userData.availableTradingLimit) return QuoteError.LIMIT_EXCEEDED;
 
     if (
       ((isFiat(to) && to.name !== 'CHF') || paymentMethodIn === FiatPaymentMethod.CARD || isSwapTx) &&
@@ -456,5 +454,9 @@ export class TransactionHelper implements OnModuleInit {
       txAmountChf > Config.tradingLimits.dailyDefault
     )
       return QuoteError.BANK_TRANSACTION_MISSING;
+
+    // amount checks
+    if (sourceAmount < txSourceMinVolume) return QuoteError.AMOUNT_TOO_LOW;
+    if (txAmountChf > maxVolumeChf) return QuoteError.AMOUNT_TOO_HIGH;
   }
 }
