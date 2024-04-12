@@ -10,11 +10,12 @@ import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/service
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { In, IsNull } from 'typeorm';
+import { DeepPartial, In, IsNull } from 'typeorm';
 import { OlkypayService } from '../../../../integration/bank/services/olkypay.service';
 import { BankName } from '../../bank/bank/bank.entity';
 import { BankService } from '../../bank/bank/bank.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
+import { SpecialExternalAccountService } from '../../payment/services/special-external-account.service';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { BankTxRepeatService } from '../bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnService } from '../bank-tx-return/bank-tx-return.service';
@@ -66,6 +67,7 @@ export class BankTxService {
     private readonly bankService: BankService,
     private readonly revolutService: RevolutService,
     private readonly transactionService: TransactionService,
+    private readonly specialAccountService: SpecialExternalAccountService,
   ) {}
 
   // --- TRANSACTION HANDLING --- //
@@ -76,6 +78,23 @@ export class BankTxService {
     await this.assignTransactions();
   }
 
+  @Cron(CronExpression.EVERY_MINUTE)
+  @Lock(3600)
+  async setSenderAccounts(): Promise<void> {
+    const multiAccountIbans = await this.specialAccountService.getMultiAccountIbans();
+
+    const transactionsWithoutSenderAccount = await this.bankTxRepo.find({
+      where: { senderAccount: IsNull() },
+      take: 1000,
+    });
+    for (const tx of transactionsWithoutSenderAccount) {
+      try {
+        await this.bankTxRepo.update(tx.id, { senderAccount: tx.getSenderAccount(multiAccountIbans) });
+      } catch (e) {
+        this.logger.error(`Failed to set sender account of bank TX ${tx.id}:`, e);
+      }
+    }
+  }
   async checkTransactions(): Promise<void> {
     if (DisabledProcess(Process.BANK_TX)) return;
 
@@ -98,9 +117,10 @@ export class BankTxService {
     );
     const allTransactions = olkyTransactions.concat(revolutTransactions);
 
+    const multiAccountIbans = await this.specialAccountService.getMultiAccountIbans();
     for (const transaction of allTransactions) {
       try {
-        await this.create(transaction);
+        await this.create(transaction, multiAccountIbans);
       } catch (e) {
         if (!(e instanceof ConflictException)) this.logger.error(`Failed to import transaction:`, e);
       }
@@ -126,12 +146,12 @@ export class BankTxService {
     }
   }
 
-  async create(bankTx: Partial<BankTx>): Promise<Partial<BankTx>> {
+  async create(bankTx: Partial<BankTx>, multiAccountIbans: string[]): Promise<Partial<BankTx>> {
     let entity = await this.bankTxRepo.findOneBy({ accountServiceRef: bankTx.accountServiceRef });
     if (entity)
       throw new ConflictException(`There is already a bank tx with the accountServiceRef: ${bankTx.accountServiceRef}`);
 
-    entity = this.bankTxRepo.create(bankTx);
+    entity = this.createTx(bankTx, multiAccountIbans);
 
     if (!DisabledProcess(Process.CREATE_TRANSACTION))
       entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.BANK_TX });
@@ -197,9 +217,11 @@ export class BankTxService {
   async storeSepaFile(xmlFile: string): Promise<BankTxBatch> {
     const sepaFile = SepaParser.parseSepaFile(xmlFile);
 
+    const multiAccountIbans = await this.specialAccountService.getMultiAccountIbans();
+
     // parse the file
     let batch = this.bankTxBatchRepo.create(SepaParser.parseBatch(sepaFile));
-    const txList = this.bankTxRepo.create(SepaParser.parseEntries(sepaFile, batch.iban));
+    const txList = SepaParser.parseEntries(sepaFile, batch.iban).map((e) => this.createTx(e, multiAccountIbans));
 
     // find duplicate entries
     const duplicates = await this.bankTxRepo
@@ -252,15 +274,21 @@ export class BankTxService {
     return null;
   }
 
-  getUnassignedBankTx(ibanList: string[]): Promise<BankTx[]> {
+  getUnassignedBankTx(accounts: string[]): Promise<BankTx[]> {
     return this.bankTxRepo.find({
       where: {
         type: In(BankTxUnassignedTypes),
-        iban: In(ibanList),
+        senderAccount: In(accounts),
         creditDebitIndicator: 'CRDT',
       },
       relations: { transaction: true },
     });
+  }
+
+  private createTx(entity: DeepPartial<BankTx>, multiAccountIbans: string[]): BankTx {
+    const tx = this.bankTxRepo.create(entity);
+    tx.senderAccount = tx.getSenderAccount(multiAccountIbans);
+    return tx;
   }
 
   //*** GETTERS ***//
