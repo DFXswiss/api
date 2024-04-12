@@ -24,7 +24,6 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
-import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Between, Brackets, In, IsNull, Not } from 'typeorm';
@@ -56,7 +55,6 @@ export class BuyCryptoService {
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly bankDataService: BankDataService,
     private readonly transactionRequestService: TransactionRequestService,
-    private readonly specialAccountService: SpecialExternalAccountService,
     private readonly transactionService: TransactionService,
   ) {}
 
@@ -88,14 +86,15 @@ export class BuyCryptoService {
     // transaction request
     entity = await this.setTxRequest(entity);
 
-    const multiAccountIbans = await this.specialAccountService.getMultiAccountIbans();
-    const senderAccount = bankTx.getSenderAccount(multiAccountIbans);
-    if (senderAccount && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
-      const bankData = await this.bankDataService.getBankDataWithIban(senderAccount, entity.buy.user.userData.id);
+    if (bankTx.senderAccount && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
+      const bankData = await this.bankDataService.getBankDataWithIban(
+        bankTx.senderAccount,
+        entity.buy.user.userData.id,
+      );
 
       if (!bankData)
         await this.bankDataService.createBankData(entity.buy.user.userData, {
-          iban: senderAccount,
+          iban: bankTx.senderAccount,
           type: BankDataType.BANK_IN,
         });
     }

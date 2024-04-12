@@ -48,9 +48,6 @@ export class AmlService {
     if (entity instanceof BuyFiat) return this.bankDataService.getBankDataWithIban(entity.sell.iban);
     if (entity.cryptoInput) return undefined;
 
-    const multiAccountIbans = await this.specialExternalBankAccountService.getMultiAccountIbans();
-    return this.bankDataService.getBankDataWithIban(
-      entity.bankTx ? entity.bankTx.getSenderAccount(multiAccountIbans) : entity.checkoutTx.cardFingerPrint,
-    );
+    return this.bankDataService.getBankDataWithIban(entity.bankTx?.senderAccount ?? entity.checkoutTx?.cardFingerPrint);
   }
 }

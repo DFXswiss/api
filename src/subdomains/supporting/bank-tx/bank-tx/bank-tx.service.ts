@@ -78,23 +78,6 @@ export class BankTxService {
     await this.assignTransactions();
   }
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(3600)
-  async setSenderAccounts(): Promise<void> {
-    const multiAccountIbans = await this.specialAccountService.getMultiAccountIbans();
-
-    const transactionsWithoutSenderAccount = await this.bankTxRepo.find({
-      where: { senderAccount: IsNull() },
-      take: 1000,
-    });
-    for (const tx of transactionsWithoutSenderAccount) {
-      try {
-        await this.bankTxRepo.update(tx.id, { senderAccount: tx.getSenderAccount(multiAccountIbans) });
-      } catch (e) {
-        this.logger.error(`Failed to set sender account of bank TX ${tx.id}:`, e);
-      }
-    }
-  }
   async checkTransactions(): Promise<void> {
     if (DisabledProcess(Process.BANK_TX)) return;
 
