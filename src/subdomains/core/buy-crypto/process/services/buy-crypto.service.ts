@@ -56,7 +56,7 @@ export class BuyCryptoService {
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly bankDataService: BankDataService,
     private readonly transactionRequestService: TransactionRequestService,
-    private readonly specialExternalBankAccountService: SpecialExternalAccountService,
+    private readonly specialAccountService: SpecialExternalAccountService,
     private readonly transactionService: TransactionService,
   ) {}
 
@@ -88,8 +88,8 @@ export class BuyCryptoService {
     // transaction request
     entity = await this.setTxRequest(entity);
 
-    const multiAccountIbans = await this.specialExternalBankAccountService.getMultiAccountIbans();
-    const senderAccount = bankTx.senderAccount(multiAccountIbans);
+    const multiAccountIbans = await this.specialAccountService.getMultiAccountIbans();
+    const senderAccount = bankTx.getSenderAccount(multiAccountIbans);
     if (senderAccount && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
       const bankData = await this.bankDataService.getBankDataWithIban(senderAccount, entity.buy.user.userData.id);
 

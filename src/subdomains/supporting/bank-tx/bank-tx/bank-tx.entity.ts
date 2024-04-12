@@ -145,6 +145,9 @@ export class BankTx extends IEntity {
   @Column({ length: 256, nullable: true })
   accountIban?: string;
 
+  @Column({ length: 256, nullable: true })
+  senderAccount: string;
+
   // related bank info
   @Column({ length: 256, nullable: true })
   bic?: string;
@@ -209,8 +212,8 @@ export class BankTx extends IEntity {
       .join(' ');
   }
 
-  senderAccount(externalManagedIban: string[]): string | undefined {
-    if (externalManagedIban.includes(this.iban)) return `${this.iban};${this.completeName.split(' ').join('')}`;
+  getSenderAccount(multiAccountIbans: string[]): string | undefined {
+    if (multiAccountIbans.includes(this.iban)) return `${this.iban};${this.completeName.split(' ').join('')}`;
 
     if (this.iban) {
       if (!isNaN(+this.iban)) return `NOIBAN${this.iban}`;
