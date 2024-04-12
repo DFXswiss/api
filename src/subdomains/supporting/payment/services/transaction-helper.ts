@@ -194,13 +194,15 @@ export class TransactionHelper implements OnModuleInit {
 
     times.push(Date.now());
 
+    const defaultLimit = [paymentMethodIn, paymentMethodOut].includes(FiatPaymentMethod.CARD)
+      ? Config.tradingLimits.cardDefault
+      : Config.tradingLimits.yearlyDefault;
+
     const extendedSpecs: TxSpec = {
       fee: { network: fee.network, fixed: fee.fixed, min: specs.minFee },
       volume: {
         min: specs.minVolume,
-        max: [paymentMethodIn, paymentMethodOut].includes(FiatPaymentMethod.CARD)
-          ? Math.min(user?.userData.availableTradingLimit ?? Number.MAX_VALUE, Config.tradingLimits.cardDefault)
-          : user?.userData.availableTradingLimit ?? Config.tradingLimits.yearlyDefault,
+        max: Math.min(user?.userData.availableTradingLimit ?? Number.MAX_VALUE, defaultLimit),
       },
     };
 
