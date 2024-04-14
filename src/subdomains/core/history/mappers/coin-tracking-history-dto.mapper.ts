@@ -122,7 +122,7 @@ export class CoinTrackingHistoryDtoMapper {
           fee: buyCrypto.totalFeeAmount
             ? (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount
             : null,
-          feeAsset: buyCrypto.totalFeeAmount ? this.getAssetSymbol(buyCrypto.inputAsset) : null,
+          feeAsset: buyCrypto.totalFeeAmount ? buyCrypto.inputAsset : null,
           exchange: 'DFX',
           tradeGroup: null,
           comment: 'DFX Purchase',
