@@ -67,5 +67,13 @@ describe('BankTx', () => {
 
       expect(sender).toBe('John:Doe:Doe');
     });
+
+    it('should return undefined if no IBAN and name', () => {
+      const entity = Object.assign(new BankTx(), { name: null, ultimateName: null });
+
+      const sender = entity.getSenderAccount([multiAccountIban]);
+
+      expect(sender).toBe(undefined);
+    });
   });
 });

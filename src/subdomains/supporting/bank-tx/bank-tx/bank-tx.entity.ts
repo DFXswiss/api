@@ -213,15 +213,18 @@ export class BankTx extends IEntity {
   }
 
   getSenderAccount(multiAccountIbans: string[]): string | undefined {
-    if (multiAccountIbans.includes(this.iban)) return `${this.iban};${this.completeName.split(' ').join('')}`;
-
     if (this.iban) {
+      if (multiAccountIbans.includes(this.iban)) return `${this.iban};${this.completeName.split(' ').join('')}`;
       if (!isNaN(+this.iban)) return `NOIBAN${this.iban}`;
       return this.iban;
-    } else {
+    }
+
+    if (this.name) {
       if (this.name.startsWith('/C/')) return this.name.split('/C/')[1];
       if (this.name === 'Schaltereinzahlung') return this.name;
+    }
 
+    if (this.completeName) {
       return this.completeName.split(' ').join(':');
     }
   }
