@@ -1,3 +1,4 @@
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
@@ -46,7 +47,10 @@ export class CoinTrackingHistoryDtoMapper {
                 buyAmount: null,
                 buyAsset: null,
                 sellAmount: buyCrypto.percentFee * buyCrypto.inputAmount,
-                sellAsset: this.getAssetSymbol(buyCrypto.inputAsset),
+                sellAsset: this.getAssetSymbol(
+                  buyCrypto.cryptoInput.asset.dexName,
+                  buyCrypto.cryptoInput.asset.blockchain,
+                ),
                 fee: null,
                 feeAsset: null,
                 exchange: 'DFX',
@@ -63,13 +67,18 @@ export class CoinTrackingHistoryDtoMapper {
               buyAmount: buyCrypto.outputAmount,
               buyAsset: buyCrypto.cryptoRoute?.deposit
                 ? 'DFI'
-                : this.getAssetSymbol(buyCrypto.cryptoRoute?.asset?.dexName),
+                : this.getAssetSymbol(buyCrypto.cryptoRoute?.asset?.dexName, buyCrypto.cryptoRoute?.asset?.blockchain),
               sellAmount: buyCrypto.inputAmount,
-              sellAsset: this.getAssetSymbol(buyCrypto.inputAsset),
+              sellAsset: this.getAssetSymbol(
+                buyCrypto.cryptoInput.asset.dexName,
+                buyCrypto.cryptoInput.asset.blockchain,
+              ),
               fee: buyCrypto.totalFeeAmount
                 ? (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount
                 : null,
-              feeAsset: buyCrypto.totalFeeAmount ? this.getAssetSymbol(buyCrypto.inputAsset) : null,
+              feeAsset: buyCrypto.totalFeeAmount
+                ? this.getAssetSymbol(buyCrypto.cryptoInput.asset.dexName, buyCrypto.cryptoInput.asset.blockchain)
+                : null,
               exchange: 'DFX',
               tradeGroup: null,
               comment: 'DFX Purchase',
@@ -116,7 +125,9 @@ export class CoinTrackingHistoryDtoMapper {
         {
           type: CoinTrackingTransactionType.TRADE,
           buyAmount: buyCrypto.outputAmount,
-          buyAsset: buyCrypto.buy?.deposit ? 'DFI' : this.getAssetSymbol(buyCrypto.buy?.asset?.dexName),
+          buyAsset: buyCrypto.buy?.deposit
+            ? 'DFI'
+            : this.getAssetSymbol(buyCrypto.buy.asset.dexName, buyCrypto.buy.asset.blockchain),
           sellAmount: buyCrypto.inputAmount,
           sellAsset: buyCrypto.inputAsset,
           fee: buyCrypto.totalFeeAmount
@@ -154,11 +165,13 @@ export class CoinTrackingHistoryDtoMapper {
           buyAmount: buyFiat.outputAmount,
           buyAsset: buyFiat.outputAsset.name,
           sellAmount: buyFiat.inputAmount,
-          sellAsset: this.getAssetSymbol(buyFiat.cryptoInput.asset?.dexName),
+          sellAsset: this.getAssetSymbol(buyFiat.cryptoInput.asset.dexName, buyFiat.cryptoInput.asset.blockchain),
           fee: buyFiat.totalFeeAmount
             ? (buyFiat.totalFeeAmount / buyFiat.inputReferenceAmount) * buyFiat.inputAmount
             : null,
-          feeAsset: buyFiat.totalFeeAmount ? this.getAssetSymbol(buyFiat.inputAsset) : null,
+          feeAsset: buyFiat.totalFeeAmount
+            ? this.getAssetSymbol(buyFiat.cryptoInput.asset.dexName, buyFiat.cryptoInput.asset.blockchain)
+            : null,
           exchange: 'DFX',
           tradeGroup: null,
           comment: 'DFX Sale',
@@ -193,14 +206,17 @@ export class CoinTrackingHistoryDtoMapper {
         {
           type: CoinTrackingTransactionType.STAKING,
           buyAmount: stakingReward.outputAmount,
-          buyAsset: this.getAssetSymbol(stakingReward.outputAsset),
+          buyAsset: this.getAssetSymbol(stakingReward.outputAsset, Blockchain.DEFICHAIN),
           sellAmount: null,
           sellAsset: null,
           fee:
             stakingReward.fee && stakingReward.fee != 0
               ? (stakingReward.outputAmount * stakingReward.fee) / (1 - stakingReward.fee)
               : null,
-          feeAsset: stakingReward.fee && stakingReward.fee != 0 ? this.getAssetSymbol(stakingReward.outputAsset) : null,
+          feeAsset:
+            stakingReward.fee && stakingReward.fee != 0
+              ? this.getAssetSymbol(stakingReward.outputAsset, Blockchain.DEFICHAIN)
+              : null,
           exchange: stakingReward.payoutType === PayoutType.REINVEST ? 'DFX Staking' : 'DFX',
           tradeGroup: stakingReward.payoutType === PayoutType.REINVEST ? 'Staking' : null,
           comment: 'DFX Staking Reward',
@@ -219,7 +235,7 @@ export class CoinTrackingHistoryDtoMapper {
         {
           type: CoinTrackingTransactionType.DEPOSIT,
           buyAmount: deposit.inputAmount,
-          buyAsset: this.getAssetSymbol(deposit.inputAsset),
+          buyAsset: this.getAssetSymbol(deposit.inputAsset, Blockchain.DEFICHAIN),
           sellAmount: null,
           sellAsset: null,
           fee: null,
@@ -237,7 +253,7 @@ export class CoinTrackingHistoryDtoMapper {
           buyAmount: null,
           buyAsset: null,
           sellAmount: deposit.inputAmount,
-          sellAsset: this.getAssetSymbol(deposit.inputAsset),
+          sellAsset: this.getAssetSymbol(deposit.inputAsset, Blockchain.DEFICHAIN),
           fee: null,
           feeAsset: null,
           exchange: 'DFX',
@@ -260,7 +276,7 @@ export class CoinTrackingHistoryDtoMapper {
           buyAmount: null,
           buyAsset: null,
           sellAmount: withdrawal.outputAmount,
-          sellAsset: this.getAssetSymbol(withdrawal.outputAsset),
+          sellAsset: this.getAssetSymbol(withdrawal.outputAsset, Blockchain.DEFICHAIN),
           fee: null,
           feeAsset: null,
           exchange: 'DFX Staking',
@@ -274,7 +290,7 @@ export class CoinTrackingHistoryDtoMapper {
         {
           type: CoinTrackingTransactionType.DEPOSIT,
           buyAmount: withdrawal.outputAmount,
-          buyAsset: this.getAssetSymbol(withdrawal.outputAsset),
+          buyAsset: this.getAssetSymbol(withdrawal.outputAsset, Blockchain.DEFICHAIN),
           sellAmount: null,
           sellAsset: null,
           fee: null,
@@ -291,9 +307,9 @@ export class CoinTrackingHistoryDtoMapper {
           ? {
               type: CoinTrackingTransactionType.TRADE,
               buyAmount: withdrawal.outputAmount,
-              buyAsset: this.getAssetSymbol(withdrawal.outputAsset),
+              buyAsset: this.getAssetSymbol(withdrawal.outputAsset, Blockchain.DEFICHAIN),
               sellAmount: withdrawal.inputAmount,
-              sellAsset: this.getAssetSymbol(withdrawal.inputAsset),
+              sellAsset: this.getAssetSymbol(withdrawal.inputAsset, Blockchain.DEFICHAIN),
               fee: null,
               feeAsset: null,
               exchange: 'DFX Staking',
@@ -358,13 +374,18 @@ export class CoinTrackingHistoryDtoMapper {
       .reduce((prev, curr) => prev.concat(curr), []);
   }
 
-  private static getAssetSymbol(dexName: string): string {
-    // TODO: use col from asset table to differentiate stocks and crypto token?
-    return dexName === 'DUSD'
-      ? 'DUSD4'
-      : ['DFI', 'BTC', 'ETH', 'BCH', 'DOGE', 'LTC', 'USDC', 'USDT'].includes(dexName)
-      ? dexName
-      : `d${dexName}`;
+  private static getAssetSymbol(assetName: string, blockchain: Blockchain): string {
+    switch (blockchain) {
+      case Blockchain.DEFICHAIN:
+        return assetName === 'DUSD'
+          ? 'DUSD4'
+          : ['DFI', 'BTC', 'ETH', 'BCH', 'DOGE', 'LTC', 'USDC', 'USDT'].includes(assetName)
+          ? assetName
+          : `d${assetName}`;
+
+      default:
+        return assetName;
+    }
   }
 
   private static createRandomDate(outputDate: Date, offset: number, amount: number): Date {
