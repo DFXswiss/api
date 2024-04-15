@@ -194,13 +194,15 @@ export class TransactionHelper implements OnModuleInit {
 
     times.push(Date.now());
 
+    const defaultLimit = [paymentMethodIn, paymentMethodOut].includes(FiatPaymentMethod.CARD)
+      ? Config.tradingLimits.cardDefault
+      : Config.tradingLimits.yearlyDefault;
+
     const extendedSpecs: TxSpec = {
       fee: { network: fee.network, fixed: fee.fixed, min: specs.minFee },
       volume: {
         min: specs.minVolume,
-        max: [paymentMethodIn, paymentMethodOut].includes(FiatPaymentMethod.CARD)
-          ? Math.min(user?.userData.availableTradingLimit ?? Number.MAX_VALUE, Config.tradingLimits.cardDefault)
-          : user?.userData.availableTradingLimit ?? Config.tradingLimits.yearlyDefault,
+        max: Math.min(user?.userData.availableTradingLimit ?? Number.MAX_VALUE, defaultLimit),
       },
     };
 
@@ -445,9 +447,7 @@ export class TransactionHelper implements OnModuleInit {
     if (paymentMethodIn === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed)
       return QuoteError.KYC_REQUIRED_INSTANT;
 
-    // amount checks
-    if (sourceAmount < txSourceMinVolume) return QuoteError.AMOUNT_TOO_LOW;
-    if (txAmountChf > maxVolumeChf) return QuoteError.AMOUNT_TOO_HIGH;
+    if (user && txAmountChf > user.userData.availableTradingLimit) return QuoteError.LIMIT_EXCEEDED;
 
     if (
       ((isFiat(to) && to.name !== 'CHF') || paymentMethodIn === FiatPaymentMethod.CARD || isSwapTx) &&
@@ -456,5 +456,9 @@ export class TransactionHelper implements OnModuleInit {
       txAmountChf > Config.tradingLimits.dailyDefault
     )
       return QuoteError.BANK_TRANSACTION_MISSING;
+
+    // amount checks
+    if (sourceAmount < txSourceMinVolume) return QuoteError.AMOUNT_TOO_LOW;
+    if (txAmountChf > maxVolumeChf) return QuoteError.AMOUNT_TOO_HIGH;
   }
 }
