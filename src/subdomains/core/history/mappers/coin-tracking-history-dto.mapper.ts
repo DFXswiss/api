@@ -65,9 +65,10 @@ export class CoinTrackingHistoryDtoMapper {
           : {
               type: CoinTrackingTransactionType.TRADE,
               buyAmount: buyCrypto.outputAmount,
-              buyAsset: buyCrypto.cryptoRoute?.deposit
-                ? 'DFI'
-                : this.getAssetSymbol(buyCrypto.cryptoRoute?.asset?.dexName, buyCrypto.cryptoRoute?.asset?.blockchain),
+              buyAsset: this.getAssetSymbol(
+                buyCrypto.cryptoRoute?.asset?.dexName,
+                buyCrypto.cryptoRoute?.asset?.blockchain,
+              ),
               sellAmount: buyCrypto.inputAmount,
               sellAsset: this.getAssetSymbol(
                 buyCrypto.cryptoInput.asset.dexName,
@@ -125,9 +126,7 @@ export class CoinTrackingHistoryDtoMapper {
         {
           type: CoinTrackingTransactionType.TRADE,
           buyAmount: buyCrypto.outputAmount,
-          buyAsset: buyCrypto.buy?.deposit
-            ? 'DFI'
-            : this.getAssetSymbol(buyCrypto.buy.asset.dexName, buyCrypto.buy.asset.blockchain),
+          buyAsset: this.getAssetSymbol(buyCrypto.buy.asset.dexName, buyCrypto.buy.asset.blockchain),
           sellAmount: buyCrypto.inputAmount,
           sellAsset: buyCrypto.inputAsset,
           fee: buyCrypto.totalFeeAmount
