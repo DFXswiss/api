@@ -61,15 +61,15 @@ export class ChainReportHistoryDtoMapper {
           : {
               timestamp: buyCrypto.outputDate ? buyCrypto.outputDate : null,
               transactionType: ChainReportTransactionType.TRADE,
-              inputAmount: buyCrypto.inputAmount,
+              inputAmount: buyCrypto.outputAmount,
               inputAsset: this.getAssetSymbol(
-                buyCrypto.cryptoInput.asset.dexName,
-                buyCrypto.cryptoInput.asset.blockchain,
-              ),
-              outputAmount: buyCrypto.outputAmount,
-              outputAsset: this.getAssetSymbol(
                 buyCrypto.cryptoRoute.asset?.dexName,
                 buyCrypto.cryptoRoute.asset?.blockchain,
+              ),
+              outputAmount: buyCrypto.inputAmount,
+              outputAsset: this.getAssetSymbol(
+                buyCrypto.cryptoInput.asset.dexName,
+                buyCrypto.cryptoInput.asset.blockchain,
               ),
               feeAmount: buyCrypto.totalFeeAmount
                 ? (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount
@@ -116,10 +116,10 @@ export class ChainReportHistoryDtoMapper {
         {
           timestamp: buyCrypto.outputDate ? buyCrypto.outputDate : null,
           transactionType: ChainReportTransactionType.TRADE,
-          inputAmount: buyCrypto.inputAmount,
-          inputAsset: buyCrypto.inputAsset,
-          outputAmount: buyCrypto.outputAmount,
-          outputAsset: this.getAssetSymbol(buyCrypto.buy.asset.dexName, buyCrypto.buy.asset.blockchain),
+          inputAmount: buyCrypto.outputAmount,
+          inputAsset: this.getAssetSymbol(buyCrypto.buy.asset.dexName, buyCrypto.buy.asset.blockchain),
+          outputAmount: buyCrypto.inputAmount,
+          outputAsset: buyCrypto.inputAsset,
           feeAmount: buyCrypto.totalFeeAmount
             ? (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount
             : null,
@@ -148,10 +148,10 @@ export class ChainReportHistoryDtoMapper {
         {
           timestamp: buyFiat.cryptoInput.created,
           transactionType: ChainReportTransactionType.TRADE,
-          inputAmount: buyFiat.inputAmount,
-          inputAsset: this.getAssetSymbol(buyFiat.cryptoInput.asset?.dexName, buyFiat.cryptoInput.asset?.blockchain),
-          outputAmount: buyFiat.outputAmount,
-          outputAsset: buyFiat.outputAsset.name,
+          inputAmount: buyFiat.outputAmount,
+          inputAsset: buyFiat.outputAsset.name,
+          outputAmount: buyFiat.inputAmount,
+          outputAsset: this.getAssetSymbol(buyFiat.cryptoInput.asset?.dexName, buyFiat.cryptoInput.asset?.blockchain),
           feeAmount: buyFiat.totalFeeAmount
             ? (buyFiat.totalFeeAmount / buyFiat.inputReferenceAmount) * buyFiat.inputAmount
             : null,
