@@ -26,7 +26,7 @@ export class AuthController {
   ) {}
 
   @Post()
-  @UseGuards(RateLimitGuard, IpCountryGuard)
+  @UseGuards(IpCountryGuard)
   @ApiCreatedResponse({ type: AuthResponseDto })
   authenticate(@Body() dto: CreateUserDto, @RealIP() ip: string): Promise<AuthResponseDto> {
     return this.authService.authenticate(dto, ip);

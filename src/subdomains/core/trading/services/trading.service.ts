@@ -4,6 +4,8 @@ import { ethers } from 'ethers';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Util } from 'src/shared/utils/util';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { TradingInfo } from '../dto/trading.dto';
 import { TradingRule } from '../entities/trading-rule.entity';
@@ -16,6 +18,7 @@ export class TradingService {
   constructor(
     private readonly evmRegistryService: EvmRegistryService,
     private readonly pricingService: PricingService,
+    private readonly assetService: AssetService,
   ) {}
 
   async createTradingInfo(tradingRule: TradingRule): Promise<TradingInfo> {
@@ -84,6 +87,9 @@ export class TradingService {
     const priceImpact = tradingInfo.priceImpact;
     const usePriceImpact = Math.abs(priceImpact) / 2;
     const checkPriceImpact = usePriceImpact.toFixed(6);
+    const estimatedProfitPercent = usePriceImpact - tradingInfo.poolFee / 1000000;
+
+    const coin = await this.assetService.getNativeAsset(tradingInfo.assetIn.blockchain);
 
     const slot0 = await poolContract.slot0();
     const sqrtPriceX96 = slot0.sqrtPriceX96;
@@ -95,8 +101,6 @@ export class TradingService {
 
     let amountIn = START_AMOUNT_IN * tradingInfo.assetIn.minimalPriceReferenceAmount;
 
-    const quoterV2Contract = client.getQuoteContract();
-
     const quoterV2Params = {
       tokenIn: tokenIn.address,
       tokenOut: tokenOut.address,
@@ -105,8 +109,8 @@ export class TradingService {
       sqrtPriceLimitX96: '0',
     };
 
-    let { calcPriceImpact, amountOut } = await this.calculatePriceImpact(
-      quoterV2Contract,
+    let { calcPriceImpact, amountOut, swapFee } = await this.calculatePriceImpact(
+      client,
       quoterV2Params,
       token0IsInToken,
       sqrtPriceX96,
@@ -127,8 +131,8 @@ export class TradingService {
 
       quoterV2Params.amountIn = EvmUtil.toWeiAmount(amountIn, tokenIn.decimals);
 
-      ({ calcPriceImpact, amountOut } = await this.calculatePriceImpact(
-        quoterV2Contract,
+      ({ calcPriceImpact, amountOut, swapFee } = await this.calculatePriceImpact(
+        client,
         quoterV2Params,
         token0IsInToken,
         sqrtPriceX96,
@@ -148,6 +152,11 @@ export class TradingService {
         );
     }
 
+    const estimatedProfitChf = Util.round(amountIn * tradingInfo.assetIn.approxPriceChf * estimatedProfitPercent, 2);
+    const swapFeeChf = Util.round(swapFee * coin.approxPriceChf, 2);
+    if (swapFeeChf > estimatedProfitChf)
+      throw new Error(`Swap fee (${swapFeeChf} CHF) ist larger than estimated profit (${estimatedProfitChf} CHF)`);
+
     tradingInfo.amountIn = amountIn;
     tradingInfo.amountOut = amountOut;
 
@@ -155,21 +164,25 @@ export class TradingService {
   }
 
   private async calculatePriceImpact(
-    quoterV2Contract: ethers.Contract,
+    client: EvmClient,
     quoterV2Params: any,
     token0IsInToken: boolean,
     sqrtPriceX96: number,
     tokenOut: Token,
-  ): Promise<{ calcPriceImpact: number; amountOut: number }> {
+  ): Promise<{ calcPriceImpact: number; amountOut: number; swapFee: number }> {
+    const quoterV2Contract = client.getQuoteContract();
     const quote = await quoterV2Contract.callStatic.quoteExactInputSingle(quoterV2Params);
     const sqrtPriceX96After = quote.sqrtPriceX96After;
 
     let sqrtPriceRatio = sqrtPriceX96After / sqrtPriceX96;
     if (!token0IsInToken) sqrtPriceRatio = 1 / sqrtPriceRatio;
 
+    const gasPrice = await client.getRecommendedGasPrice();
+
     return {
       calcPriceImpact: Math.abs(1 - sqrtPriceRatio) + 0.0001,
       amountOut: EvmUtil.fromWeiAmount(quote.amountOut, tokenOut.decimals),
+      swapFee: EvmUtil.fromWeiAmount(quote.gasEstimate.mul(gasPrice)),
     };
   }
 
