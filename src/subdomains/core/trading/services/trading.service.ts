@@ -6,6 +6,7 @@ import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-re
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Util } from 'src/shared/utils/util';
+import { PriceSource } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { TradingInfo } from '../dto/trading.dto';
 import { TradingRule } from '../entities/trading-rule.entity';
@@ -54,6 +55,8 @@ export class TradingService {
       tradingRule.leftAsset2,
       tradingRule.rightAsset2,
     );
+    if (tradingRule.source2 === PriceSource.DEX)
+      price2.price = price2.price / (1 + EvmUtil.poolFeeFactor(tradingRule.poolFee));
 
     const tradingInfo: TradingInfo = {
       price1: price1.price,
@@ -87,7 +90,7 @@ export class TradingService {
     const priceImpact = tradingInfo.priceImpact;
     const usePriceImpact = Math.abs(priceImpact) / 2;
     const checkPriceImpact = usePriceImpact.toFixed(6);
-    const estimatedProfitPercent = usePriceImpact - tradingInfo.poolFee / 1000000;
+    const estimatedProfitPercent = usePriceImpact - EvmUtil.poolFeeFactor(tradingInfo.poolFee);
 
     const coin = await this.assetService.getNativeAsset(tradingInfo.assetIn.blockchain);
 
