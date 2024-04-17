@@ -29,95 +29,10 @@ export class BuyCryptoNotificationService {
   async sendNotificationMails(): Promise<void> {
     try {
       if (DisabledProcess(Process.BUY_CRYPTO_MAIL)) return;
-      await this.buyCryptoConfirmed();
       await this.paybackToAddressInitiated();
       await this.pendingBuyCrypto();
     } catch (e) {
       this.logger.error('Error during buy-crypto notification:', e);
-    }
-  }
-
-  async buyCryptoConfirmed(): Promise<void> {
-    try {
-      const txOutput = await this.buyCryptoRepo.find({
-        where: {
-          mailSendDate: IsNull(),
-          txId: Not(IsNull()),
-          amlCheck: CheckStatus.PASS,
-        },
-        relations: [
-          'bankTx',
-          'checkoutTx',
-          'buy',
-          'buy.user',
-          'buy.user.userData',
-          'batch',
-          'cryptoRoute',
-          'cryptoRoute.user',
-          'cryptoRoute.user.userData',
-          'cryptoInput',
-        ],
-      });
-
-      txOutput.length &&
-        this.logger.verbose(
-          `Sending notifications for ${txOutput.length} buy-crypto transaction(s). Transaction ID(s): ${txOutput.map(
-            (t) => t.id,
-          )}`,
-        );
-
-      for (const tx of txOutput) {
-        try {
-          if (tx.user.userData.mail && !tx.noCommunication) {
-            const minFee = tx.minFeeAmountFiat
-              ? ` (min. ${tx.minFeeAmountFiat} ${tx.cryptoInput ? 'EUR' : tx.inputReferenceAsset})`
-              : '';
-
-            await this.notificationService.sendMail({
-              type: MailType.USER,
-              context: MailContext.BUY_CRYPTO,
-              input: {
-                userData: tx.user.userData,
-                title: `${MailTranslationKey.BUY_CRYPTO}.confirmed.title`,
-                salutation: { key: `${MailTranslationKey.BUY_CRYPTO}.confirmed.salutation` },
-                table: {
-                  [`${MailTranslationKey.BUY_CRYPTO}.input_amount`]: `${tx.inputAmount} ${tx.inputAsset}`,
-                  [`${MailTranslationKey.PAYMENT}.input_blockchain`]: tx.cryptoInput
-                    ? `${tx.cryptoInput.asset.blockchain}`
-                    : null,
-                  [`${MailTranslationKey.BUY_CRYPTO}.output_amount`]: `${tx.outputAmount} ${tx.outputAsset.name}`,
-                  [`${MailTranslationKey.PAYMENT}.blockchain`]: tx.cryptoInput ? null : `${tx.outputAsset.blockchain}`,
-                  [`${MailTranslationKey.PAYMENT}.output_blockchain`]: tx.cryptoInput
-                    ? `${tx.outputAsset.blockchain}`
-                    : null,
-                  [`${MailTranslationKey.PAYMENT}.dfx_fee`]: Util.toPercent(tx.percentFee) + minFee,
-                  [`${MailTranslationKey.PAYMENT}.exchange_rate`]: `${tx.exchangeRateString}`,
-                  [`${MailTranslationKey.PAYMENT}.wallet_address`]: Util.blankStart(tx.target.address),
-                  [`${MailTranslationKey.PAYMENT}.transaction_id`]: tx.isLightningOutput
-                    ? Util.blankStart(tx.txId)
-                    : null,
-                },
-                suffix: [
-                  tx.isLightningOutput
-                    ? null
-                    : {
-                        key: `${MailTranslationKey.BUY_CRYPTO}.payment_link`,
-                        params: { url: txExplorerUrl(tx.target.asset.blockchain, tx.txId) },
-                      },
-                  { key: MailKey.SPACE, params: { value: '4' } },
-                  { key: MailKey.DFX_TEAM_CLOSING },
-                ],
-              },
-            });
-          }
-
-          await this.buyCryptoRepo.update(...tx.confirmSentMail());
-        } catch (e) {
-          this.logger.error(`Failed to send buy-crypto confirmed mail ${tx.id}:`, e);
-        }
-      }
-    } catch (e) {
-      this.logger.error(`Failed to send buy-crypto confirmed mails:`, e);
     }
   }
 
@@ -154,7 +69,7 @@ export class BuyCryptoNotificationService {
     });
   }
 
-  async paybackToAddressInitiated(): Promise<void> {
+  private async paybackToAddressInitiated(): Promise<void> {
     const search: FindOptionsWhere<BuyCrypto> = {
       mailSendDate: IsNull(),
       outputAmount: IsNull(),
@@ -258,7 +173,7 @@ export class BuyCryptoNotificationService {
     }
   }
 
-  async pendingBuyCrypto(): Promise<void> {
+  private async pendingBuyCrypto(): Promise<void> {
     const entities = await this.buyCryptoRepo.find({
       where: {
         mailSendDate: IsNull(),
