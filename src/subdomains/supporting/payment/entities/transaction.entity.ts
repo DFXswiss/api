@@ -38,6 +38,9 @@ export class Transaction extends IEntity {
   @Column({ length: 256, nullable: true })
   type: TransactionTypeInternal;
 
+  @Column({ length: 256, nullable: true })
+  uid: string;
+
   @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.transaction, { nullable: true })
   buyCrypto: BuyCrypto;
 
@@ -67,4 +70,24 @@ export class Transaction extends IEntity {
 
   @ManyToOne(() => User, (user) => user.transactions, { nullable: true, eager: true })
   user: User;
+
+  get sourceEntity(): BankTx | CryptoInput | CheckoutTx | RefReward {
+    switch (this.sourceType) {
+      case TransactionSourceType.BANK_TX:
+        return this.bankTx;
+
+      case TransactionSourceType.CHECKOUT_TX:
+        return this.checkoutTx;
+
+      case TransactionSourceType.CRYPTO_INPUT:
+        return this.cryptoInput;
+
+      case TransactionSourceType.REF:
+        return this.refReward;
+    }
+  }
+
+  get txTarget(): BuyCrypto | BuyFiat | undefined {
+    return this.buyCrypto ?? this.buyFiat ?? undefined;
+  }
 }

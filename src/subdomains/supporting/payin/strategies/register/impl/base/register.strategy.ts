@@ -46,9 +46,10 @@ export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy 
 
     for (const payIn of payIns) {
       if (!DisabledProcess(Process.CREATE_TRANSACTION))
-        payIn.transaction = await this.transactionService.create({
-          sourceType: TransactionSourceType.CRYPTO_INPUT,
-        });
+        payIn.transaction = await this.transactionService.create(
+          { sourceType: TransactionSourceType.CRYPTO_INPUT },
+          payIn,
+        );
 
       await this.payInRepository.save(payIn);
     }

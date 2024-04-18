@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Controller,
   ForbiddenException,
@@ -39,9 +40,11 @@ import {
   TransactionTarget,
   UnassignedTransactionDto,
 } from '../../../supporting/payment/dto/transaction.dto';
+import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-crypto-webhook.service';
 import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
 import { RefRewardService } from '../../referral/reward/ref-reward.service';
+import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from '../../sell-crypto/process/services/buy-fiat.service';
 import { ExportFormat, HistoryQueryExportType, HistoryQueryUser } from '../dto/history-query.dto';
 import { HistoryDto } from '../dto/history.dto';
@@ -78,6 +81,27 @@ export class TransactionController {
   ): Promise<TransactionDto[] | StreamableFile> {
     if (!query.format) query.format = ExportFormat.JSON;
     return this.getHistoryData(query, ExportType.COMPACT, res);
+  }
+
+  @Get('uid/:uid')
+  @ApiOkResponse({ type: TransactionDto })
+  async getSingleTransaction(@Param('uid') uid: string): Promise<TransactionDto> {
+    const transaction = await this.transactionService.getTransactionByUid(uid, { buyCrypto: true, buyFiat: true });
+    if (!transaction) throw new NotFoundException('Transaction not found');
+    if (!transaction.txTarget) throw new BadRequestException('Unsupported transaction type');
+
+    switch (transaction.txTarget.constructor) {
+      case BuyCrypto:
+        const buyCryptoExtended = await this.buyCryptoWebhookService.extendBuyCrypto(transaction.buyCrypto);
+        return TransactionDtoMapper.mapBuyCryptoTransaction(buyCryptoExtended);
+
+      case BuyFiat:
+        const buyFiatExtended = await this.buyFiatService.extendBuyFiat(transaction.buyFiat);
+        return TransactionDtoMapper.mapBuyFiatTransaction(buyFiatExtended);
+
+      default:
+        throw new BadRequestException('Unsupported transaction type');
+    }
   }
 
   @Get('CoinTracking')
@@ -166,7 +190,7 @@ export class TransactionController {
     @Param('id') id: string,
     @Query('buyId') buyId: string,
   ): Promise<void> {
-    const transaction = await this.transactionService.getTransaction(+id, { bankTx: true });
+    const transaction = await this.transactionService.getTransactionById(+id, { bankTx: true });
     if (!transaction.bankTx) throw new NotFoundException('Transaction not found');
     if (!BankTxTypeUnassigned(transaction.bankTx.type)) throw new ConflictException('Transaction already assigned');
 
@@ -212,10 +236,6 @@ export class TransactionController {
 
   // --- HELPER METHODS --- //
 
-  private formatDate(date: Date = new Date()): string {
-    return Util.isoDateTime(date).split('-').join('');
-  }
-
   public async getHistoryData<T extends ExportType>(
     query: HistoryQueryUser,
     exportType: T,
@@ -224,6 +244,10 @@ export class TransactionController {
     const tx = await this.historyService.getHistory(query, exportType);
     if (query.format === ExportFormat.CSV) this.setCsvResult(res, exportType);
     return tx;
+  }
+
+  private formatDate(date: Date = new Date()): string {
+    return Util.isoDateTime(date).split('-').join('');
   }
 
   private cacheCsv(csvFile: StreamableFile): string {
