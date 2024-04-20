@@ -1,11 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Util } from 'src/shared/utils/util';
-import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Between, FindOptionsRelations, In, IsNull, LessThanOrEqual, Not } from 'typeorm';
-import { BankTx } from '../../bank-tx/bank-tx/bank-tx.entity';
-import { CheckoutTx } from '../../fiat-payin/entities/checkout-tx.entity';
-import { CryptoInput } from '../../payin/entities/crypto-input.entity';
 import { CreateTransactionDto } from '../dto/input/create-transaction.dto';
 import { UpdateTransactionDto } from '../dto/input/update-transaction.dto';
 import { Transaction } from '../entities/transaction.entity';
@@ -15,16 +11,11 @@ import { TransactionRepository } from '../repositories/transaction.repository';
 export class TransactionService {
   constructor(private readonly repo: TransactionRepository) {}
 
-  async create(
-    dto: CreateTransactionDto,
-    sourceEntity: BankTx | CryptoInput | CheckoutTx | RefReward,
-  ): Promise<Transaction | undefined> {
+  async create(dto: CreateTransactionDto): Promise<Transaction | undefined> {
     const entity = this.repo.create(dto);
 
-    const hash = Util.createHash(
-      `${sourceEntity.id}` + entity.created + entity.sourceType + sourceEntity.created,
-    ).toUpperCase();
-    entity.uid = `${hash.slice(0, 8)}-${hash.slice(8, 16)}-${hash.slice(16, 24)}`;
+    const hash = Util.createHash(entity.sourceType + new Date() + Util.randomId()).toUpperCase();
+    entity.uid = `T${hash.slice(0, 16)}`;
 
     return this.repo.save(entity);
   }

@@ -59,10 +59,7 @@ export class FiatPayInSyncService {
 
     if (!entity.transaction)
       if (!DisabledProcess(Process.CREATE_TRANSACTION))
-        entity.transaction = await this.transactionService.create(
-          { sourceType: TransactionSourceType.CHECKOUT_TX },
-          entity,
-        );
+        entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.CHECKOUT_TX });
 
     return this.checkoutTxRepo.save(entity);
   }

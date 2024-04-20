@@ -137,7 +137,7 @@ export class BankTxService {
     entity = this.createTx(bankTx, multiAccountIbans);
 
     if (!DisabledProcess(Process.CREATE_TRANSACTION))
-      entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.BANK_TX }, entity);
+      entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.BANK_TX });
 
     return this.bankTxRepo.save(entity);
   }
@@ -231,7 +231,7 @@ export class BankTxService {
       });
 
     for (const tx of newTxs) {
-      tx.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.BANK_TX }, tx);
+      tx.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.BANK_TX });
     }
 
     // store batch and entries in one transaction

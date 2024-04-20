@@ -33,6 +33,7 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTxType, BankTxTypeUnassigned } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
+import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import {
   TransactionDetailDto,
@@ -43,6 +44,7 @@ import {
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-crypto-webhook.service';
 import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
+import { RefReward } from '../../referral/reward/ref-reward.entity';
 import { RefRewardService } from '../../referral/reward/ref-reward.service';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from '../../sell-crypto/process/services/buy-fiat.service';
@@ -86,22 +88,14 @@ export class TransactionController {
   @Get('uid/:uid')
   @ApiOkResponse({ type: TransactionDto })
   async getSingleTransaction(@Param('uid') uid: string): Promise<TransactionDto> {
-    const transaction = await this.transactionService.getTransactionByUid(uid, { buyCrypto: true, buyFiat: true });
+    const transaction = await this.transactionService.getTransactionByUid(uid, {
+      buyCrypto: true,
+      buyFiat: true,
+      refReward: true,
+    });
     if (!transaction) throw new NotFoundException('Transaction not found');
-    if (!transaction.txTarget) throw new BadRequestException('Unsupported transaction type');
 
-    switch (transaction.txTarget.constructor) {
-      case BuyCrypto:
-        const buyCryptoExtended = await this.buyCryptoWebhookService.extendBuyCrypto(transaction.buyCrypto);
-        return TransactionDtoMapper.mapBuyCryptoTransaction(buyCryptoExtended);
-
-      case BuyFiat:
-        const buyFiatExtended = await this.buyFiatService.extendBuyFiat(transaction.buyFiat);
-        return TransactionDtoMapper.mapBuyFiatTransaction(buyFiatExtended);
-
-      default:
-        throw new BadRequestException('Unsupported transaction type');
-    }
+    return this.txToTransactionDto(transaction);
   }
 
   @Get('CoinTracking')
@@ -270,18 +264,27 @@ export class TransactionController {
 
     // map to DTO
     return Util.asyncMap(txList, async (tx) => {
-      if (tx.buyCrypto) {
-        const bc = await this.buyCryptoWebhookService.extendBuyCrypto(tx.buyCrypto);
-        return TransactionDtoMapper.mapBuyCryptoTransactionDetail(bc);
-      } else if (tx.buyFiat) {
-        const bf = await this.buyFiatService.extendBuyFiat(tx.buyFiat);
-        return TransactionDtoMapper.mapBuyFiatTransactionDetail(bf);
-      } else if (tx.refReward) {
-        const rr = await this.refRewardService.extendReward(tx.refReward);
-        return TransactionDtoMapper.mapReferralRewardDetail(rr);
-      }
-
-      return undefined;
+      if (!tx.txTarget) return undefined;
+      return this.txToTransactionDto(tx);
     }).then((list) => list.filter((dto) => dto));
+  }
+
+  private async txToTransactionDto(transaction: Transaction) {
+    switch (transaction.txTarget?.constructor) {
+      case BuyCrypto:
+        const buyCryptoExtended = await this.buyCryptoWebhookService.extendBuyCrypto(transaction.buyCrypto);
+        return TransactionDtoMapper.mapBuyCryptoTransaction(buyCryptoExtended);
+
+      case BuyFiat:
+        const buyFiatExtended = await this.buyFiatService.extendBuyFiat(transaction.buyFiat);
+        return TransactionDtoMapper.mapBuyFiatTransaction(buyFiatExtended);
+
+      case RefReward:
+        const refRewardExtended = await this.refRewardService.extendReward(transaction.refReward);
+        return TransactionDtoMapper.mapReferralReward(refRewardExtended);
+
+      default:
+        throw new BadRequestException('Unsupported transaction type');
+    }
   }
 }
