@@ -4,7 +4,12 @@ import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
+import { Util } from 'src/shared/utils/util';
 import { CheckoutHostedPayment, CheckoutLanguages, CheckoutPagedResponse, CheckoutPayment } from '../dto/checkout.dto';
+
+interface Balance {
+  balance: number;
+}
 
 @Injectable()
 export class CheckoutService {
@@ -70,5 +75,12 @@ export class CheckoutService {
     payments.reverse();
 
     return payments.filter((p) => !(new Date(p.requested_on) < since));
+  }
+
+  async getBalance(): Promise<Balance> {
+    const balance = await this.checkout.balances.retrieve('ent_hd7mszkohikuziapak4igmw5ua');
+    return {
+      balance: Util.round(balance / 100, 2),
+    };
   }
 }

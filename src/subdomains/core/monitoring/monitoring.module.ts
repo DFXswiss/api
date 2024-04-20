@@ -13,6 +13,7 @@ import { MonitoringController } from './monitoring.controller';
 import { MonitoringService } from './monitoring.service';
 import { BankObserver } from './observers/bank.observer';
 import { BankingBotObserver } from './observers/banking-bot.observer';
+import { CheckoutObserver } from './observers/checkout.observer';
 import { ExternalServicesObserver } from './observers/external-services.observer';
 import { NodeBalanceObserver } from './observers/node-balance.observer';
 import { NodeHealthObserver } from './observers/node-health.observer';
@@ -44,6 +45,7 @@ import { SystemStateSnapshotRepository } from './system-state-snapshot.repositor
     BankingBotObserver,
     BankObserver,
     ExternalServicesObserver,
+    CheckoutObserver,
   ],
   controllers: [MonitoringController],
   exports: [MonitoringService],
