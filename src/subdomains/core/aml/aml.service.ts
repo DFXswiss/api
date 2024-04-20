@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
@@ -11,11 +13,14 @@ import { BuyFiat } from '../sell-crypto/process/buy-fiat.entity';
 
 @Injectable()
 export class AmlService {
+  private readonly logger = new DfxLogger(AmlService);
+
   constructor(
     private readonly specialExternalBankAccountService: SpecialExternalAccountService,
     private readonly bankDataService: BankDataService,
     private readonly bankService: BankService,
     private readonly nameCheckService: NameCheckService,
+    private readonly userDataService: UserDataService,
   ) {}
 
   async getAmlCheckInput(
@@ -24,7 +29,16 @@ export class AmlService {
     const blacklist = await this.specialExternalBankAccountService.getBlacklist();
     const bankData = await this.getBankData(entity);
 
-    if (bankData && !entity.userData.hasValidNameCheckDate) await this.checkNameCheck(entity, bankData);
+    if (bankData) {
+      if (!entity.userData.hasValidNameCheckDate) await this.checkNameCheck(entity, bankData);
+      if (bankData.userData.id !== entity.userData.id) {
+        try {
+          await this.userDataService.mergeUserData(bankData.userData.id, entity.userData.id);
+        } catch (e) {
+          this.logger.error(`Error during userData merge in amlCheck for ${entity.id}:`, e);
+        }
+      }
+    }
 
     if (entity instanceof BuyFiat) return { bankData, blacklist };
     if (entity.cryptoInput) return { bankData: undefined, blacklist, instantBanks: undefined };
