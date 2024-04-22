@@ -5,7 +5,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { In, IsNull } from 'typeorm';
-import { BankTx, BankTxUnassignedTypes } from '../../bank-tx/bank-tx/bank-tx.entity';
+import { BankTxUnassignedTypes } from '../../bank-tx/bank-tx/bank-tx.entity';
 import { MailContext, MailType } from '../../notification/enums';
 import { MailKey, MailTranslationKey } from '../../notification/factories/mail.factory';
 import { NotificationService } from '../../notification/services/notification.service';
@@ -70,12 +70,9 @@ export class TransactionNotificationService {
     });
     if (entities.length === 0) return;
 
-    const multiAccountIbans = await this.specialExternalAccountService.getMultiAccountIbans();
-
     for (const entity of entities) {
       try {
-        if (!(entity.bankTx instanceof BankTx)) continue;
-        const bankData = await this.bankDataService.getBankDataWithIban(entity.bankTx.senderAccount(multiAccountIbans));
+        const bankData = await this.bankDataService.getBankDataWithIban(entity.bankTx.senderAccount);
         if (!bankData) continue;
 
         if (bankData.userData.mail) {
