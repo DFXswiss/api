@@ -180,7 +180,7 @@ export class BankTxService {
   }
 
   async reset(id: number): Promise<void> {
-    const bankTx = await this.bankTxRepo.findOne({ where: { id }, relations: { buyCrypto: true, buyFiat: true } });
+    const bankTx = await this.bankTxRepo.findOne({ where: { id }, relations: { buyCrypto: true } });
     if (!bankTx) throw new NotFoundException('BankTx not found');
     if (!bankTx.buyCrypto) throw new BadRequestException('Only buyCrypto bankTx can be reset');
     if (bankTx.buyCrypto.isComplete) throw new BadRequestException('BuyCrypto already completed');

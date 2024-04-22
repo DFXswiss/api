@@ -56,7 +56,7 @@ export class BankTxController {
     return this.bankTxService.update(+id, dto);
   }
 
-  @Delete('reset/:id')
+  @Delete(':id/buyCrypto')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
