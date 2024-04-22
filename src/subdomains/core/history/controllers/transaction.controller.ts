@@ -264,13 +264,13 @@ export class TransactionController {
 
     // map to DTO
     return Util.asyncMap(txList, async (tx) => {
-      if (!tx.txTarget) return undefined;
+      if (!tx.targetEntity) return undefined;
       return this.txToTransactionDto(tx);
     }).then((list) => list.filter((dto) => dto));
   }
 
   private async txToTransactionDto(transaction: Transaction) {
-    switch (transaction.txTarget?.constructor) {
+    switch (transaction.targetEntity?.constructor) {
       case BuyCrypto:
         const buyCryptoExtended = await this.buyCryptoWebhookService.extendBuyCrypto(transaction.buyCrypto);
         return TransactionDtoMapper.mapBuyCryptoTransaction(buyCryptoExtended);

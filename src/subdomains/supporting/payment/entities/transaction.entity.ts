@@ -87,7 +87,7 @@ export class Transaction extends IEntity {
     }
   }
 
-  get txTarget(): BuyCrypto | BuyFiat | RefReward | undefined {
+  get targetEntity(): BuyCrypto | BuyFiat | RefReward | undefined {
     return this.buyCrypto ?? this.buyFiat ?? this.refReward ?? undefined;
   }
 }
