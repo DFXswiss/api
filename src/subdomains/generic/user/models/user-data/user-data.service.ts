@@ -461,7 +461,7 @@ export class UserDataService {
       .filter((i) => i)
       .join(' and ');
 
-    const log = `Merging user ${master.id} (master) and ${slave.id} (slave): reassigning ${mergedEntitiesString}`;
+    const log = `Merging user ${master.id} (master with mail ${master.mail}) and ${slave.id} (slave with firstname ${slave.firstname}): reassigning ${mergedEntitiesString}`;
     this.logger.info(log);
 
     await this.updateBankTxTime(slave.id);
