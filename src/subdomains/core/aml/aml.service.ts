@@ -31,7 +31,7 @@ export class AmlService {
 
     if (bankData) {
       if (!entity.userData.hasValidNameCheckDate) await this.checkNameCheck(entity, bankData);
-      if (bankData.userData.id !== entity.userData.id) {
+      if (bankData.active && bankData.userData.id !== entity.userData.id) {
         try {
           bankData.userData.kycLevel < entity.userData.kycLevel
             ? await this.userDataService.mergeUserData(entity.userData.id, bankData.userData.id, true)
