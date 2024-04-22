@@ -358,7 +358,7 @@ export class FeeService {
           ([FeeType.DISCOUNT, FeeType.ADDITION].includes(f.type) && !f.discountCode) ||
           discountFeeIds.includes(f.id) ||
           request.discountCodes.includes(f.discountCode) ||
-          f.wallet?.id === wallet?.id,
+          (f.wallet && f.wallet.id === wallet?.id),
       ),
     );
 

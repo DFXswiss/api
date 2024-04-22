@@ -40,6 +40,9 @@ export class Transaction extends IEntity {
   @Column({ length: 256, nullable: true })
   type: TransactionTypeInternal;
 
+  @Column({ length: 256, nullable: true })
+  uid: string;
+
   // Mail
   @Column({ length: 256, nullable: true })
   recipientMail: string;
@@ -48,7 +51,6 @@ export class Transaction extends IEntity {
   mailSendDate: Date;
 
   // References
-
   @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.transaction, { nullable: true })
   buyCrypto: BuyCrypto;
 
@@ -102,5 +104,25 @@ export class Transaction extends IEntity {
 
   get mailContext(): MailContext | undefined {
     return this.buyCrypto ? MailContext.BUY_CRYPTO : this.buyFiat ? MailContext.BUY_FIAT : undefined;
+  }
+
+  get sourceEntity(): BankTx | CryptoInput | CheckoutTx | RefReward {
+    switch (this.sourceType) {
+      case TransactionSourceType.BANK_TX:
+        return this.bankTx;
+
+      case TransactionSourceType.CHECKOUT_TX:
+        return this.checkoutTx;
+
+      case TransactionSourceType.CRYPTO_INPUT:
+        return this.cryptoInput;
+
+      case TransactionSourceType.REF:
+        return this.refReward;
+    }
+  }
+
+  get targetEntity(): BuyCrypto | BuyFiat | RefReward | undefined {
+    return this.buyCrypto ?? this.buyFiat ?? this.refReward ?? undefined;
   }
 }

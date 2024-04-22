@@ -29,7 +29,7 @@ export class SupportIssueService {
 
     const entity = this.supportIssueRepo.create({ type: SupportIssueType.TRANSACTION_ISSUE, ...dto });
 
-    entity.transaction = await this.transactionService.getTransaction(transactionId);
+    entity.transaction = await this.transactionService.getTransactionById(transactionId);
     if (!entity.transaction) throw new NotFoundException('Transaction not found');
     if (!entity.transaction.user || entity.transaction.user.id !== userId)
       throw new ForbiddenException('You can only create support issue for your own transaction');
