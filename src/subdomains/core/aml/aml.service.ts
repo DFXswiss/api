@@ -33,11 +33,10 @@ export class AmlService {
       if (!entity.userData.hasValidNameCheckDate) await this.checkNameCheck(entity, bankData);
       if (bankData.active && bankData.userData.id !== entity.userData.id) {
         try {
-          const master =
-            bankData.userData.kycLevel < entity.userData.kycLevel ? entity.userData.id : bankData.userData.id;
-
-          const slave =
-            bankData.userData.kycLevel < entity.userData.kycLevel ? bankData.userData.id : entity.userData.id;
+          const [master, slave] =
+            bankData.userData.kycLevel < entity.userData.kycLevel
+              ? [entity.userData.id, bankData.userData.id]
+              : [bankData.userData.id, entity.userData.id];
 
           await this.userDataService.mergeUserData(master, slave, true);
 
