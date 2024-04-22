@@ -136,13 +136,13 @@ export class ChainReportHistoryDtoMapper {
       .filter(
         (buyFiat) =>
           buyFiat.amlCheck === CheckStatus.PASS &&
-          buyFiat.fiatOutput.bankTx &&
+          buyFiat.fiatOutput?.bankTx &&
           buyFiat.cryptoInput &&
           buyFiat.outputAmount &&
           buyFiat.outputAsset &&
           buyFiat.inputAmount &&
-          buyFiat.fiatOutput.remittanceInfo &&
-          buyFiat.fiatOutput.outputDate,
+          buyFiat.fiatOutput?.remittanceInfo &&
+          buyFiat.fiatOutput?.outputDate,
       )
       .map((buyFiat) => [
         {
