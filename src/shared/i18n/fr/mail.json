@@ -23,7 +23,12 @@
         },
         "fiat_input": {
             "title": "Dépôt reçu",
-            "salutation": "Nous avons reçu votre dépôt"
+            "salutation": "Nous avons reçu votre dépôt",
+            "unverified": {
+                "title": "Attribuer un dépôt",
+                "salutation": "Votre dépôt ne peut pas être attribué automatiquement",
+                "transaction_button": "Veuillez affecter votre dépôt à votre commande:<br>[url:cliquez ici]"
+            }
         },
         "return": {
             "fiat": {

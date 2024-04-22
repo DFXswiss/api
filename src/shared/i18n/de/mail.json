@@ -23,7 +23,12 @@
         },
         "fiat_input": {
             "title": "Einzahlung eingetroffen",
-            "salutation": "Deine Einzahlung ist bei DFX eingetroffen und ist in Bearbeitung"
+            "salutation": "Deine Einzahlung ist bei DFX eingetroffen und ist in Bearbeitung",
+            "unverified": {
+                "title": "Einzahlung zuordnen",
+                "salutation": "Deine Einzahlung kann nicht automatisch zugeordnet werden",
+                "transaction_button": "Bitte ordne deinen Zahlungseingang deiner Bestellung zu:<br>[url:Klick hier]"
+            }
         },
         "return": {
             "fiat": {
