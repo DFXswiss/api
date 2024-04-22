@@ -1,10 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { Util } from 'src/shared/utils/util';
 import { AmlReason, AmlReasonWithoutReason, KycAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import {
@@ -38,14 +36,13 @@ export class BuyFiatNotificationService {
   private async paybackToAddressInitiated(): Promise<void> {
     const entities = await this.buyFiatRepo.find({
       where: {
-        mail1SendDate: Not(IsNull()),
         cryptoReturnTxId: Not(IsNull()),
         cryptoReturnDate: Not(IsNull()),
         amlCheck: CheckStatus.FAIL,
         amlReason: Not(IsNull()),
         mailReturnSendDate: IsNull(),
       },
-      relations: ['sell', 'sell.user', 'sell.user.userData', 'cryptoInput'],
+      relations: ['sell', 'sell.user', 'sell.user.userData', 'cryptoInput', 'transaction'],
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'payback to address' email(s)`);
@@ -64,21 +61,16 @@ export class BuyFiatNotificationService {
               userData: entity.sell.user.userData,
               title: `${MailTranslationKey.CRYPTO_RETURN}.title`,
               salutation: { key: `${MailTranslationKey.CRYPTO_RETURN}.salutation` },
-              table: {
-                [`${MailTranslationKey.PAYMENT}.reimbursed`]: `${entity.inputAmount} ${entity.inputAsset}`,
-                [`${MailTranslationKey.PAYMENT}.blockchain`]: entity.cryptoInputBlockchain,
-                [`${MailTranslationKey.PAYMENT}.wallet_address`]: Util.blankStart(entity.sell.user.address),
-                [`${MailTranslationKey.PAYMENT}.transaction_id`]: entity.isLightningTransaction
-                  ? Util.blankStart(entity.cryptoReturnTxId)
-                  : null,
-              },
               suffix: [
-                entity.isLightningTransaction
-                  ? null
-                  : {
-                      key: `${MailTranslationKey.CRYPTO_RETURN}.payment_link`,
-                      params: { url: txExplorerUrl(entity.cryptoInputBlockchain, entity.cryptoReturnTxId) },
-                    },
+                {
+                  key: `${MailTranslationKey.PAYMENT}.transaction_button`,
+                  params: { url: entity.transaction.url },
+                },
+                {
+                  key: `${MailTranslationKey.GENERAL}.link`,
+                  params: { url: entity.transaction.url },
+                },
+                ,
                 !AmlReasonWithoutReason.includes(entity.amlReason)
                   ? {
                       key: `${MailTranslationKey.RETURN}.introduction`,
@@ -118,7 +110,6 @@ export class BuyFiatNotificationService {
   private async pendingBuyFiat(): Promise<void> {
     const entities = await this.buyFiatRepo.find({
       where: {
-        mail2SendDate: IsNull(),
         outputAmount: IsNull(),
         amlReason: In(BuyFiatAmlReasonPendingStates),
         amlCheck: CheckStatus.PENDING,

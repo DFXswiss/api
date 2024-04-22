@@ -1,8 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import {
   MailFactory,
@@ -71,7 +69,6 @@ export class BuyCryptoNotificationService {
 
   private async paybackToAddressInitiated(): Promise<void> {
     const search: FindOptionsWhere<BuyCrypto> = {
-      mailSendDate: IsNull(),
       outputAmount: IsNull(),
       chargebackDate: Not(IsNull()),
       amlReason: Not(IsNull()),
@@ -92,6 +89,7 @@ export class BuyCryptoNotificationService {
         'cryptoRoute.user.userData',
         'bankTx',
         'checkoutTx',
+        'transaction',
       ],
     });
 
@@ -111,32 +109,15 @@ export class BuyCryptoNotificationService {
               userData: entity.user.userData,
               title: `${entity.translationReturnMailKey}.title`,
               salutation: { key: `${entity.translationReturnMailKey}.salutation` },
-              table: {
-                [`${MailTranslationKey.PAYMENT}.reimbursed`]: `${entity.inputAmount} ${entity.inputAsset}`,
-                [`${MailTranslationKey.PAYMENT}.bank_account`]:
-                  entity.isBankInput && entity.bankTx.iban ? Util.blankStart(entity.bankTx.iban) : null,
-                [`${MailTranslationKey.PAYMENT}.remittance_info`]: !entity.isCryptoCryptoTransaction
-                  ? entity.chargebackRemittanceInfo?.split(' Zahlung')[0]
-                  : null,
-                [`${MailTranslationKey.PAYMENT}.blockchain`]: entity.isCryptoCryptoTransaction
-                  ? entity.cryptoInput.asset.blockchain
-                  : null,
-                [`${MailTranslationKey.PAYMENT}.wallet_address`]: entity.isCryptoCryptoTransaction
-                  ? Util.blankStart(entity.cryptoRoute.user.address)
-                  : null,
-                [`${MailTranslationKey.PAYMENT}.transaction_id`]: entity.isLightningInput
-                  ? Util.blankStart(entity.chargebackCryptoTxId)
-                  : null,
-              },
               suffix: [
-                !entity.isLightningInput && entity.isCryptoCryptoTransaction
-                  ? {
-                      key: `${entity.translationReturnMailKey}.payment_link`,
-                      params: {
-                        url: txExplorerUrl(entity.cryptoInput.asset.blockchain, entity.chargebackCryptoTxId),
-                      },
-                    }
-                  : null,
+                {
+                  key: `${MailTranslationKey.PAYMENT}.transaction_button`,
+                  params: { url: entity.transaction.url },
+                },
+                {
+                  key: `${MailTranslationKey.GENERAL}.link`,
+                  params: { url: entity.transaction.url },
+                },
                 !AmlReasonWithoutReason.includes(entity.amlReason)
                   ? {
                       key: `${MailTranslationKey.RETURN}.introduction`,
@@ -176,7 +157,6 @@ export class BuyCryptoNotificationService {
   private async pendingBuyCrypto(): Promise<void> {
     const entities = await this.buyCryptoRepo.find({
       where: {
-        mailSendDate: IsNull(),
         outputAmount: IsNull(),
         chargebackDate: IsNull(),
         chargebackBankTx: IsNull(),
