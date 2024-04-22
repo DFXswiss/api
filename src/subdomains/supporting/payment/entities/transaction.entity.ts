@@ -81,7 +81,7 @@ export class Transaction extends IEntity {
 
   // --- ENTITY METHODS --- //
 
-  confirmSentMail(): UpdateResult<Transaction> {
+  mailSent(): UpdateResult<Transaction> {
     const update: Partial<BuyCrypto> = {
       recipientMail: this.mailTarget?.userData.mail,
       mailSendDate: new Date(),
