@@ -1,4 +1,11 @@
-import { ConflictException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  forwardRef,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { RevolutService } from 'src/integration/bank/services/revolut.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -21,7 +28,7 @@ import { BankTxRepeatService } from '../bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnService } from '../bank-tx-return/bank-tx-return.service';
 import { BankTxBatch } from './bank-tx-batch.entity';
 import { BankTxBatchRepository } from './bank-tx-batch.repository';
-import { BankTx, BankTxType, BankTxTypeCompleted, BankTxUnassignedTypes } from './bank-tx.entity';
+import { BankTx, BankTxIndicator, BankTxType, BankTxTypeCompleted, BankTxUnassignedTypes } from './bank-tx.entity';
 import { BankTxRepository } from './bank-tx.repository';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
 import { SepaParser } from './sepa-parser.service';
@@ -150,6 +157,8 @@ export class BankTxService {
 
       switch (dto.type) {
         case BankTxType.BUY_CRYPTO:
+          if (bankTx.creditDebitIndicator === BankTxIndicator.DEBIT)
+            throw new BadRequestException('DBIT BankTx cannot set to buyCrypto type');
           await this.buyCryptoService.createFromBankTx(bankTx, dto.buyId);
           break;
         case BankTxType.BANK_TX_RETURN:
