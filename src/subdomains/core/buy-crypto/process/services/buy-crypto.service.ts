@@ -288,6 +288,10 @@ export class BuyCryptoService {
     return entity;
   }
 
+  async delete(id: number): Promise<void> {
+    await this.buyCryptoRepo.delete(id);
+  }
+
   async getBuyCryptoByKey(key: string, value: any): Promise<BuyCrypto> {
     return this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')

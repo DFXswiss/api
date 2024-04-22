@@ -1,4 +1,11 @@
-import { ConflictException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  forwardRef,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { RevolutService } from 'src/integration/bank/services/revolut.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -170,6 +177,16 @@ export class BankTxService {
     Util.removeNullFields(dto);
 
     return this.bankTxRepo.save({ ...bankTx, ...dto });
+  }
+
+  async reset(id: number): Promise<void> {
+    const bankTx = await this.bankTxRepo.findOne({ where: { id }, relations: { buyCrypto: true, buyFiat: true } });
+    if (!bankTx) throw new NotFoundException('BankTx not found');
+    if (!bankTx.buyCrypto) throw new BadRequestException('Only buyCrypto bankTx can be reset');
+    if (bankTx.buyCrypto.isComplete) throw new BadRequestException('BuyCrypto already completed');
+
+    await this.buyCryptoService.delete(bankTx.buyCrypto.id);
+    await this.bankTxRepo.update(...bankTx.reset());
   }
 
   async getBankTxByKey(key: string, value: any): Promise<BankTx> {
