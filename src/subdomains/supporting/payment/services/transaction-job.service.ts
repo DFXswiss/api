@@ -28,11 +28,13 @@ export class TransactionJobService {
       const transactions = await this.transactionService.getTransactionsWithoutUid(new Date(date));
 
       for (const tx of transactions) {
-        const hash = Util.createHash(
-          `${tx.sourceEntity.id}` + tx.created + tx.sourceType + tx.sourceEntity.created,
-        ).toUpperCase();
-        const uid = `${hash.slice(0, 8)}-${hash.slice(8, 16)}-${hash.slice(16, 24)}`;
-        await this.transactionService.update(tx.id, { uid });
+        try {
+          const hash = Util.createHash(tx.sourceType + new Date() + Util.randomId()).toUpperCase();
+          const uid = `T${hash.slice(0, 16)}`;
+          await this.transactionService.update(tx.id, { uid });
+        } catch (e) {
+          this.logger.error(`Error during synchronize transaction uid ${tx.id}:`, e);
+        }
       }
     } catch (e) {
       this.logger.error(`Error during synchronize transaction uid:`, e);

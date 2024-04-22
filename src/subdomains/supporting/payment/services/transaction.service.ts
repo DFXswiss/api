@@ -38,15 +38,7 @@ export class TransactionService {
   }
 
   async getTransactionsWithoutUid(filterDate: Date): Promise<Transaction[]> {
-    return this.repo.find({
-      where: { uid: IsNull(), created: LessThanOrEqual(filterDate) },
-      relations: {
-        refReward: true,
-        bankTx: true,
-        cryptoInput: true,
-        checkoutTx: true,
-      },
-    });
+    return this.repo.findBy({ uid: IsNull(), created: LessThanOrEqual(filterDate) });
   }
 
   async getTransactionsForUsers(users: User[], from = new Date(0), to = new Date()): Promise<Transaction[]> {
