@@ -145,6 +145,9 @@ export class BankTx extends IEntity {
   @Column({ length: 256, nullable: true })
   accountIban?: string;
 
+  @Column({ length: 256, nullable: true })
+  senderAccount: string;
+
   // related bank info
   @Column({ length: 256, nullable: true })
   bic?: string;
@@ -209,16 +212,19 @@ export class BankTx extends IEntity {
       .join(' ');
   }
 
-  senderAccount(externalManagedIban: string[]): string | undefined {
-    if (externalManagedIban.includes(this.iban)) return `${this.iban};${this.completeName.split(' ').join('')}`;
-
+  getSenderAccount(multiAccountIbans: string[]): string | undefined {
     if (this.iban) {
+      if (multiAccountIbans.includes(this.iban)) return `${this.iban};${this.completeName.split(' ').join('')}`;
       if (!isNaN(+this.iban)) return `NOIBAN${this.iban}`;
       return this.iban;
-    } else {
+    }
+
+    if (this.name) {
       if (this.name.startsWith('/C/')) return this.name.split('/C/')[1];
       if (this.name === 'Schaltereinzahlung') return this.name;
+    }
 
+    if (this.completeName) {
       return this.completeName.split(' ').join(':');
     }
   }

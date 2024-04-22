@@ -1,3 +1,4 @@
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
@@ -47,7 +48,10 @@ export class ChainReportHistoryDtoMapper {
                 inputAmount: null,
                 inputAsset: null,
                 outputAmount: buyCrypto.percentFee * buyCrypto.inputAmount,
-                outputAsset: this.getAssetSymbol(buyCrypto.inputAsset),
+                outputAsset: this.getAssetSymbol(
+                  buyCrypto.cryptoInput.asset.dexName,
+                  buyCrypto.cryptoInput.asset.blockchain,
+                ),
                 feeAmount: null,
                 feeAsset: null,
                 txid: buyCrypto.txId,
@@ -58,15 +62,21 @@ export class ChainReportHistoryDtoMapper {
               timestamp: buyCrypto.outputDate ? buyCrypto.outputDate : null,
               transactionType: ChainReportTransactionType.TRADE,
               inputAmount: buyCrypto.outputAmount,
-              inputAsset: buyCrypto.cryptoRoute?.deposit
-                ? 'DFI'
-                : this.getAssetSymbol(buyCrypto.cryptoRoute?.asset?.dexName),
+              inputAsset: this.getAssetSymbol(
+                buyCrypto.cryptoRoute.asset?.dexName,
+                buyCrypto.cryptoRoute.asset?.blockchain,
+              ),
               outputAmount: buyCrypto.inputAmount,
-              outputAsset: this.getAssetSymbol(buyCrypto.inputAsset),
+              outputAsset: this.getAssetSymbol(
+                buyCrypto.cryptoInput.asset.dexName,
+                buyCrypto.cryptoInput.asset.blockchain,
+              ),
               feeAmount: buyCrypto.totalFeeAmount
                 ? (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount
                 : null,
-              feeAsset: buyCrypto.totalFeeAmount ? this.getAssetSymbol(buyCrypto.inputAsset) : null,
+              feeAsset: buyCrypto.totalFeeAmount
+                ? this.getAssetSymbol(buyCrypto.cryptoInput.asset.dexName, buyCrypto.cryptoInput.asset.blockchain)
+                : null,
               txid: buyCrypto.txId,
               description: 'DFX Purchase',
             },
@@ -107,7 +117,7 @@ export class ChainReportHistoryDtoMapper {
           timestamp: buyCrypto.outputDate ? buyCrypto.outputDate : null,
           transactionType: ChainReportTransactionType.TRADE,
           inputAmount: buyCrypto.outputAmount,
-          inputAsset: buyCrypto.buy?.deposit ? 'DFI' : this.getAssetSymbol(buyCrypto.buy?.asset?.dexName),
+          inputAsset: this.getAssetSymbol(buyCrypto.buy.asset.dexName, buyCrypto.buy.asset.blockchain),
           outputAmount: buyCrypto.inputAmount,
           outputAsset: buyCrypto.inputAsset,
           feeAmount: buyCrypto.totalFeeAmount
@@ -126,13 +136,13 @@ export class ChainReportHistoryDtoMapper {
       .filter(
         (buyFiat) =>
           buyFiat.amlCheck === CheckStatus.PASS &&
-          buyFiat.fiatOutput.bankTx &&
+          buyFiat.fiatOutput?.bankTx &&
           buyFiat.cryptoInput &&
           buyFiat.outputAmount &&
           buyFiat.outputAsset &&
           buyFiat.inputAmount &&
-          buyFiat.fiatOutput.remittanceInfo &&
-          buyFiat.fiatOutput.outputDate,
+          buyFiat.fiatOutput?.remittanceInfo &&
+          buyFiat.fiatOutput?.outputDate,
       )
       .map((buyFiat) => [
         {
@@ -141,11 +151,13 @@ export class ChainReportHistoryDtoMapper {
           inputAmount: buyFiat.outputAmount,
           inputAsset: buyFiat.outputAsset.name,
           outputAmount: buyFiat.inputAmount,
-          outputAsset: this.getAssetSymbol(buyFiat.cryptoInput.asset?.dexName),
+          outputAsset: this.getAssetSymbol(buyFiat.cryptoInput.asset?.dexName, buyFiat.cryptoInput.asset?.blockchain),
           feeAmount: buyFiat.totalFeeAmount
             ? (buyFiat.totalFeeAmount / buyFiat.inputReferenceAmount) * buyFiat.inputAmount
             : null,
-          feeAsset: buyFiat.totalFeeAmount ? this.getAssetSymbol(buyFiat.inputAsset) : null,
+          feeAsset: buyFiat.totalFeeAmount
+            ? this.getAssetSymbol(buyFiat.cryptoInput.asset?.dexName, buyFiat.cryptoInput.asset?.blockchain)
+            : null,
           txid: buyFiat.cryptoInput.inTxId,
           description: 'DFX Sale',
         },
@@ -155,7 +167,7 @@ export class ChainReportHistoryDtoMapper {
           inputAmount: null,
           inputAsset: null,
           outputAmount: buyFiat.outputAmount,
-          outputAsset: this.getAssetSymbol(buyFiat.outputAsset.name),
+          outputAsset: buyFiat.outputAsset.name,
           feeAmount: null,
           feeAsset: null,
           txid: buyFiat.fiatOutput.remittanceInfo,
@@ -172,14 +184,17 @@ export class ChainReportHistoryDtoMapper {
           timestamp: stakingReward.outputDate,
           transactionType: ChainReportTransactionType.STAKING,
           inputAmount: stakingReward.outputAmount,
-          inputAsset: this.getAssetSymbol(stakingReward.outputAsset),
+          inputAsset: this.getAssetSymbol(stakingReward.outputAsset, Blockchain.DEFICHAIN),
           outputAmount: null,
           outputAsset: null,
           feeAmount:
             stakingReward.fee && stakingReward.fee != 0
               ? (stakingReward.outputAmount * stakingReward.fee) / (1 - stakingReward.fee)
               : null,
-          feeAsset: stakingReward.fee && stakingReward.fee != 0 ? this.getAssetSymbol(stakingReward.outputAsset) : null,
+          feeAsset:
+            stakingReward.fee && stakingReward.fee != 0
+              ? this.getAssetSymbol(stakingReward.outputAsset, Blockchain.DEFICHAIN)
+              : null,
           txid: stakingReward.txId,
           description: 'DFX Staking Reward',
           isReinvest: stakingReward.payoutType === PayoutType.REINVEST,
@@ -197,7 +212,7 @@ export class ChainReportHistoryDtoMapper {
           timestamp: deposit.inputDate,
           transactionType: ChainReportTransactionType.DEPOSIT,
           inputAmount: deposit.inputAmount,
-          inputAsset: this.getAssetSymbol(deposit.inputAsset),
+          inputAsset: this.getAssetSymbol(deposit.inputAsset, Blockchain.DEFICHAIN),
           outputAmount: null,
           outputAsset: null,
           feeAmount: null,
@@ -211,7 +226,7 @@ export class ChainReportHistoryDtoMapper {
           inputAmount: null,
           inputAsset: null,
           outputAmount: deposit.inputAmount,
-          outputAsset: this.getAssetSymbol(deposit.inputAsset),
+          outputAsset: this.getAssetSymbol(deposit.inputAsset, Blockchain.DEFICHAIN),
           feeAmount: null,
           feeAsset: null,
           txid: deposit.inTxId + '-2',
@@ -230,7 +245,7 @@ export class ChainReportHistoryDtoMapper {
           inputAmount: null,
           inputAsset: null,
           outputAmount: withdrawal.outputAmount,
-          outputAsset: this.getAssetSymbol(withdrawal.outputAsset),
+          outputAsset: this.getAssetSymbol(withdrawal.outputAsset, Blockchain.DEFICHAIN),
           feeAmount: null,
           feeAsset: null,
           txid: withdrawal.outTxId + '-1',
@@ -240,7 +255,7 @@ export class ChainReportHistoryDtoMapper {
           timestamp: this.createRandomDate(withdrawal.outputDate, 10, withdrawal.outputAmount),
           transactionType: ChainReportTransactionType.DEPOSIT,
           inputAmount: withdrawal.outputAmount,
-          inputAsset: this.getAssetSymbol(withdrawal.outputAsset),
+          inputAsset: this.getAssetSymbol(withdrawal.outputAsset, Blockchain.DEFICHAIN),
           outputAmount: null,
           outputAsset: null,
           feeAmount: null,
@@ -253,9 +268,9 @@ export class ChainReportHistoryDtoMapper {
               timestamp: this.createRandomDate(withdrawal.outputDate, -10, withdrawal.inputAmount),
               transactionType: ChainReportTransactionType.TRADE,
               inputAmount: withdrawal.outputAmount,
-              inputAsset: this.getAssetSymbol(withdrawal.outputAsset),
+              inputAsset: this.getAssetSymbol(withdrawal.outputAsset, Blockchain.DEFICHAIN),
               outputAmount: withdrawal.inputAmount,
-              outputAsset: this.getAssetSymbol(withdrawal.inputAsset),
+              outputAsset: this.getAssetSymbol(withdrawal.inputAsset, Blockchain.DEFICHAIN),
               feeAmount: null,
               feeAsset: null,
               txid: Util.createHash(
@@ -295,7 +310,7 @@ export class ChainReportHistoryDtoMapper {
           timestamp: stakingRefReward.outputDate,
           transactionType: ChainReportTransactionType.REFERRAL_REWARD,
           inputAmount: stakingRefReward.outputAmount,
-          inputAsset: this.getAssetSymbol(stakingRefReward.outputAsset),
+          inputAsset: stakingRefReward.outputAsset,
           outputAmount: null,
           outputAsset: null,
           feeAmount: null,
@@ -307,13 +322,18 @@ export class ChainReportHistoryDtoMapper {
       .reduce((prev, curr) => prev.concat(curr), []);
   }
 
-  private static getAssetSymbol(dexName: string): string {
-    // TODO: use col from asset table to differentiate stocks and crypto token?
-    return dexName === 'DUSD'
-      ? 'DUSD4'
-      : ['DFI', 'BTC', 'ETH', 'BCH', 'DOGE', 'LTC', 'USDC', 'USDT'].includes(dexName)
-      ? dexName
-      : `d${dexName}`;
+  private static getAssetSymbol(assetName: string, blockchain: Blockchain): string {
+    switch (blockchain) {
+      case Blockchain.DEFICHAIN:
+        return assetName === 'DUSD'
+          ? 'DUSD4'
+          : ['DFI', 'BTC', 'ETH', 'BCH', 'DOGE', 'LTC', 'USDC', 'USDT'].includes(assetName)
+          ? assetName
+          : `d${assetName}`;
+
+      default:
+        return assetName;
+    }
   }
 
   private static createRandomDate(outputDate: Date, offset: number, amount: number): Date {

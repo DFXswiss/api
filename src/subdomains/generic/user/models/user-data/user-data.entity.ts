@@ -191,9 +191,6 @@ export class UserData extends IEntity {
   olkypayAllowed: boolean;
 
   @Column({ nullable: true })
-  cryptoCryptoAllowed: boolean;
-
-  @Column({ nullable: true })
   complexOrgStructure: boolean;
 
   @Column({ length: 256, default: KycStatus.NA })

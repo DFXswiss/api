@@ -82,9 +82,8 @@ export class TradingOrder extends IEntity {
     return this;
   }
 
-  complete(txId: string): this {
+  complete(): this {
     this.status = TradingOrderStatus.COMPLETE;
-    this.txId = txId;
 
     return this;
   }

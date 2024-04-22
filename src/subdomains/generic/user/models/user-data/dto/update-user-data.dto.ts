@@ -221,8 +221,4 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsBoolean()
   olkypayAllowed?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  cryptoCryptoAllowed?: boolean;
 }

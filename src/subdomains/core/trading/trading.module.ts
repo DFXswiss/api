@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
+import { SharedModule } from 'src/shared/shared.module';
 import { DexModule } from 'src/subdomains/supporting/dex/dex.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
@@ -16,6 +17,7 @@ import { TradingService } from './services/trading.service';
 @Module({
   imports: [
     TypeOrmModule.forFeature([TradingRule, TradingOrder]),
+    SharedModule,
     BlockchainModule,
     PricingModule,
     DexModule,

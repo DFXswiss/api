@@ -1,3 +1,4 @@
+import { FeeAmount } from '@uniswap/v3-sdk';
 import BigNumber from 'bignumber.js';
 import { BigNumberish, ethers, BigNumber as EthersNumber } from 'ethers';
 import { defaultPath } from 'ethers/lib/utils';
@@ -26,5 +27,9 @@ export class EvmUtil {
     const amount = new BigNumber(amountEthLike).toFixed(decimals ?? 18);
 
     return decimals ? ethers.utils.parseUnits(amount, decimals) : ethers.utils.parseEther(amount);
+  }
+
+  static poolFeeFactor(amount: FeeAmount): number {
+    return amount / 1000000;
   }
 }

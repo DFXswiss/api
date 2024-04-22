@@ -70,13 +70,19 @@ export class BankDataService {
       .then((b) => b.filter((b) => b.active)[0] ?? b[0]);
   }
 
-  async getIbansForUser(userDataId: number): Promise<string[]> {
-    const bankDatas = await this.bankDataRepo.findBy([
+  async getBankDatasForUser(userDataId: number): Promise<BankData[]> {
+    return this.bankDataRepo.findBy([
       { userData: { id: userDataId }, active: true },
       { userData: { id: userDataId }, active: IsNull() },
     ]);
+  }
 
-    return Array.from(new Set(bankDatas.map((b) => b.iban).filter((b) => IbanTools.validateIBAN(b).valid)));
+  async getIbansForUser(userDataId: number): Promise<string[]> {
+    const bankDatas = await this.getBankDatasForUser(userDataId);
+
+    return Array.from(
+      new Set(bankDatas.map((b) => b.iban.split(';')[0]).filter((b) => IbanTools.validateIBAN(b).valid)),
+    );
   }
 
   async createIbanForUser(userDataId: number, iban: string): Promise<void> {
