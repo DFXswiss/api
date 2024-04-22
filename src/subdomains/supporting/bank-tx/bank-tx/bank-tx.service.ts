@@ -128,7 +128,10 @@ export class BankTxService {
 
     for (const tx of unassignedBankTx) {
       const remittanceInfo = tx.remittanceInfo?.replace(/[ -]/g, '');
-      const buy = remittanceInfo && buys.find((b) => remittanceInfo.includes(b.bankUsage.replace(/-/g, '')));
+      const buy =
+        remittanceInfo &&
+        tx.creditDebitIndicator === BankTxIndicator.CREDIT &&
+        buys.find((b) => remittanceInfo.includes(b.bankUsage.replace(/-/g, '')));
 
       const update = buy ? { type: BankTxType.BUY_CRYPTO, buyId: buy.id } : { type: BankTxType.GSHEET };
 
