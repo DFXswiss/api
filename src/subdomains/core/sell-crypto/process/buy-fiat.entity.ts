@@ -383,6 +383,10 @@ export class BuyFiat extends IEntity {
     return this.user.userData;
   }
 
+  set userData(userData: UserData) {
+    this.user.userData = userData;
+  }
+
   get route(): Sell {
     return this.sell;
   }
