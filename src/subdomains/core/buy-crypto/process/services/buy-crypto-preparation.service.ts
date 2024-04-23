@@ -184,6 +184,8 @@ export class BuyCryptoPreparationService {
           ),
         );
 
+        if (entity.amlCheck === CheckStatus.FAIL) return;
+
         for (const feeId of fee.fees) {
           await this.feeService.increaseTxUsages(amountInChf, feeId, entity.user.userData);
         }
