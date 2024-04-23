@@ -64,7 +64,6 @@ export const PaymentStatusMapper: {
   [BuyCryptoStatus.MISSING_LIQUIDITY]: PaymentStatus.PENDING,
   [BuyCryptoStatus.PAYING_OUT]: PaymentStatus.PENDING,
   [BuyCryptoStatus.PENDING_LIQUIDITY]: PaymentStatus.PENDING,
-  [BuyCryptoStatus.PREPARED]: PaymentStatus.PENDING,
   [BuyCryptoStatus.PRICE_INVALID]: PaymentStatus.PENDING,
   [BuyCryptoStatus.PRICE_SLIPPAGE]: PaymentStatus.PENDING,
   [BuyCryptoStatus.READY_FOR_PAYOUT]: PaymentStatus.PENDING,

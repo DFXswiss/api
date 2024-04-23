@@ -209,6 +209,8 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
   if (entity instanceof BuyCrypto) {
     switch (entity.amlCheck) {
       case null:
+        return { state: TransactionState.CREATED, reason };
+
       case CheckStatus.PENDING:
       case CheckStatus.GSHEET:
         if (KycRequiredReason.includes(reason)) return { state: TransactionState.KYC_REQUIRED, reason };
@@ -231,6 +233,8 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward): {
   if (entity instanceof BuyFiat) {
     switch (entity.amlCheck) {
       case null:
+        return { state: TransactionState.CREATED, reason };
+
       case CheckStatus.PENDING:
       case CheckStatus.GSHEET:
         if (KycRequiredReason.includes(reason)) return { state: TransactionState.KYC_REQUIRED, reason };

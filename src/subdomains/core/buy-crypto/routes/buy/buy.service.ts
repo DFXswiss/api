@@ -5,7 +5,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
-import { IsNull, Not, Repository } from 'typeorm';
+import { In, IsNull, Not, Repository } from 'typeorm';
 import { Buy } from './buy.entity';
 import { BuyRepository } from './buy.repository';
 import { CreateBuyDto } from './dto/create-buy.dto';
@@ -74,8 +74,8 @@ export class BuyService {
     return this.cache;
   }
 
-  async get(userId: number, id: number): Promise<Buy> {
-    return this.buyRepo.findOneBy({ id, user: { id: userId } });
+  async get(userIds: number[], id: number): Promise<Buy> {
+    return this.buyRepo.findOneBy({ id, user: { id: In(userIds) } });
   }
 
   async createBuy(userId: number, userAddress: string, dto: CreateBuyDto, ignoreExisting = false): Promise<Buy> {
