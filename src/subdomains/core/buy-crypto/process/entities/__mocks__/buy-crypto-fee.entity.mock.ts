@@ -19,7 +19,7 @@ export function createCustomBuyCryptoFee(customValues: Partial<BuyCryptoFee>): B
     actualPurchaseFeePercent,
     actualPayoutFeeAmount,
     actualPayoutFeePercent,
-    allowedTotalFeePercent,
+    allowedTotalFeeAmount: allowedTotalFeePercent,
   } = customValues;
   const keys = Object.keys(customValues);
 
@@ -39,7 +39,7 @@ export function createCustomBuyCryptoFee(customValues: Partial<BuyCryptoFee>): B
   entity.actualPurchaseFeePercent = keys.includes('actualPurchaseFeePercent') ? actualPurchaseFeePercent : 0.001;
   entity.actualPayoutFeeAmount = keys.includes('actualPayoutFeeAmount') ? actualPayoutFeeAmount : 1;
   entity.actualPayoutFeePercent = keys.includes('actualPayoutFeePercent') ? actualPayoutFeePercent : 0.001;
-  entity.allowedTotalFeePercent = keys.includes('allowedTotalFeePercent') ? allowedTotalFeePercent : 0.01;
+  entity.allowedTotalFeeAmount = keys.includes('allowedTotalFeePercent') ? allowedTotalFeePercent : 0.01;
 
   return entity;
 }
