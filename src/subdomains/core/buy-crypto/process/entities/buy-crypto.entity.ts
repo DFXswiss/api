@@ -1,4 +1,3 @@
-import { ConflictException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
@@ -413,26 +412,28 @@ export class BuyCrypto extends IEntity {
     totalFeeAmountChf: number,
   ): UpdateResult<BuyCrypto> {
     const { usedRef, refProvision } = this.user.specifiedRef;
+    const inputReferenceAmountMinusFee = this.inputReferenceAmount - fee.total;
 
-    const update: Partial<BuyCrypto> = {
-      absoluteFeeAmount: fee.fixed,
-      percentFee: fee.rate,
-      percentFeeAmount: fee.rate * this.inputReferenceAmount,
-      minFeeAmount: fee.min,
-      minFeeAmountFiat,
-      totalFeeAmount: fee.total,
-      totalFeeAmountChf,
-      blockchainFee: fee.network,
-      inputReferenceAmountMinusFee: this.inputReferenceAmount - fee.total,
-      amountInEur,
-      amountInChf,
-      usedRef,
-      refProvision,
-      refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
-      usedFees: fee.fees?.map((fee) => fee.id).join(';'),
-    };
-
-    if (update.inputReferenceAmountMinusFee < 0) throw new ConflictException('InputReferenceAmountMinusFee smaller 0');
+    const update: Partial<BuyCrypto> =
+      inputReferenceAmountMinusFee < 0
+        ? { amlCheck: CheckStatus.FAIL, amlReason: AmlReason.FEE_TOO_HIGH, mailSendDate: null }
+        : {
+            absoluteFeeAmount: fee.fixed,
+            percentFee: fee.rate,
+            percentFeeAmount: fee.rate * this.inputReferenceAmount,
+            minFeeAmount: fee.min,
+            minFeeAmountFiat,
+            totalFeeAmount: fee.total,
+            totalFeeAmountChf,
+            blockchainFee: fee.network,
+            inputReferenceAmountMinusFee,
+            amountInEur,
+            amountInChf,
+            usedRef,
+            refProvision,
+            refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
+            usedFees: fee.fees?.map((fee) => fee.id).join(';'),
+          };
 
     Object.assign(this, update);
 
