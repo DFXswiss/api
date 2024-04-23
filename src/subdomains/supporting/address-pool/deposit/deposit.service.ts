@@ -19,7 +19,6 @@ import { CreateDepositDto } from './dto/create-deposit.dto';
 
 @Injectable()
 export class DepositService {
-  private inpClient: NodeClient;
   private btcInpClient: NodeClient;
   private readonly lightningClient: LightningClient;
 

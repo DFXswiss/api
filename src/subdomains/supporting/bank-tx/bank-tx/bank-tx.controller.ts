@@ -1,24 +1,25 @@
 import {
-  Controller,
-  UseGuards,
-  Post,
-  UseInterceptors,
-  UploadedFiles,
   BadRequestException,
-  Put,
-  Param,
   Body,
+  Controller,
+  Delete,
+  Param,
+  Post,
+  Put,
+  UploadedFiles,
+  UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { BankTxBatch } from './bank-tx-batch.entity';
 import { BankTx } from './bank-tx.entity';
 import { BankTxService } from './bank-tx.service';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @ApiTags('bankTx')
 @Controller('bankTx')
@@ -53,5 +54,13 @@ export class BankTxController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async update(@Param('id') id: string, @Body() dto: UpdateBankTxDto): Promise<BankTx> {
     return this.bankTxService.update(+id, dto);
+  }
+
+  @Delete(':id/buyCrypto')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async reset(@Param('id') id: string): Promise<void> {
+    return this.bankTxService.reset(+id);
   }
 }

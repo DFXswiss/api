@@ -49,7 +49,7 @@ export class BuyCryptoBatchService {
           outputReferenceAmount: IsNull(),
           batch: IsNull(),
           status: In([
-            BuyCryptoStatus.PREPARED,
+            BuyCryptoStatus.CREATED,
             BuyCryptoStatus.WAITING_FOR_LOWER_FEE,
             BuyCryptoStatus.PRICE_INVALID,
             BuyCryptoStatus.MISSING_LIQUIDITY,
