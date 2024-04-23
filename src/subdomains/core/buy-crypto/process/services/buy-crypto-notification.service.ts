@@ -69,6 +69,7 @@ export class BuyCryptoNotificationService {
 
   private async paybackToAddressInitiated(): Promise<void> {
     const search: FindOptionsWhere<BuyCrypto> = {
+      mailSendDate: IsNull(),
       outputAmount: IsNull(),
       chargebackDate: Not(IsNull()),
       amlReason: Not(IsNull()),
@@ -116,7 +117,7 @@ export class BuyCryptoNotificationService {
                 },
                 {
                   key: `${MailTranslationKey.GENERAL}.link`,
-                  params: { url: entity.transaction.url },
+                  params: { url: entity.transaction.url, urlText: entity.transaction.url },
                 },
                 !AmlReasonWithoutReason.includes(entity.amlReason)
                   ? {
@@ -157,6 +158,7 @@ export class BuyCryptoNotificationService {
   private async pendingBuyCrypto(): Promise<void> {
     const entities = await this.buyCryptoRepo.find({
       where: {
+        mailSendDate: IsNull(),
         outputAmount: IsNull(),
         chargebackDate: IsNull(),
         chargebackBankTx: IsNull(),

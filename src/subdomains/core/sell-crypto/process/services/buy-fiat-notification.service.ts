@@ -68,7 +68,7 @@ export class BuyFiatNotificationService {
                 },
                 {
                   key: `${MailTranslationKey.GENERAL}.link`,
-                  params: { url: entity.transaction.url },
+                  params: { url: entity.transaction.url, urlText: entity.transaction.url },
                 },
                 ,
                 !AmlReasonWithoutReason.includes(entity.amlReason)
@@ -110,6 +110,7 @@ export class BuyFiatNotificationService {
   private async pendingBuyFiat(): Promise<void> {
     const entities = await this.buyFiatRepo.find({
       where: {
+        mail2SendDate: IsNull(),
         outputAmount: IsNull(),
         amlReason: In(BuyFiatAmlReasonPendingStates),
         amlCheck: CheckStatus.PENDING,
