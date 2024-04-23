@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { isFiat } from 'src/shared/models/active';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -168,10 +169,18 @@ export class BuyCryptoPreparationService {
 
         const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatEur, false);
         const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
+        const referenceOutputPrice = await this.pricingService.getPrice(
+          inputReferenceCurrency,
+          entity.target.asset,
+          false,
+        );
 
         const amountInChf = referenceChfPrice.convert(entity.inputReferenceAmount, 2);
+        const networkFee = !fee.network
+          ? referenceOutputPrice.convert(referenceChfPrice.invert().convert(Config.maxBlockchainFee))
+          : referenceOutputPrice.convert(fee.network);
 
-        const feeConstraints = BuyCryptoFee.create(entity);
+        const feeConstraints = BuyCryptoFee.create(entity, networkFee);
 
         await this.buyCryptoRepo.update(
           ...entity.setFeeAndFiatReference(
