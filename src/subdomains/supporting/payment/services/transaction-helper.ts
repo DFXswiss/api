@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Active, isAsset, isFiat } from 'src/shared/models/active';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -427,14 +428,15 @@ export class TransactionHelper implements OnModuleInit {
     user?: User,
   ): QuoteError | undefined {
     // KYC checks
-    if (isFiat(from)) {
+    if (isFiat(from) && isAsset(to)) {
       if (
-        (user?.status === UserStatus.NA &&
+        ((user?.status === UserStatus.NA &&
           user?.wallet.amlRule === AmlRule.RULE_2 &&
           user?.userData.kycLevel < KycLevel.LEVEL_30) ||
-        (user?.status === UserStatus.NA &&
-          user?.wallet.amlRule === AmlRule.RULE_3 &&
-          user?.userData.kycLevel < KycLevel.LEVEL_50)
+          (user?.status === UserStatus.NA &&
+            user?.wallet.amlRule === AmlRule.RULE_3 &&
+            user?.userData.kycLevel < KycLevel.LEVEL_50)) &&
+        to.blockchain !== Blockchain.LIGHTNING
       )
         return QuoteError.KYC_REQUIRED;
     }

@@ -58,6 +58,7 @@ export class Configuration {
     linkedin: 'https://www.linkedin.com/company/dfxswiss/',
     instagram: 'https://www.instagram.com/dfx.swiss/',
     twitter: 'https://twitter.com/DFX_Swiss',
+    github: 'https://github.com/DFXswiss/api#dfx-api',
   };
 
   bitcoinAddressFormat = '([13]|bc1)[a-zA-HJ-NP-Z0-9]{25,62}';

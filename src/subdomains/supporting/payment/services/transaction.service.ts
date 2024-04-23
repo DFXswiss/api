@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Util } from 'src/shared/utils/util';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Between, FindOptionsRelations, In, IsNull, LessThanOrEqual, Not } from 'typeorm';
 import { CreateTransactionDto } from '../dto/input/create-transaction.dto';
@@ -13,11 +14,14 @@ export class TransactionService {
   async create(dto: CreateTransactionDto): Promise<Transaction | undefined> {
     const entity = this.repo.create(dto);
 
+    const hash = Util.createHash(entity.sourceType + new Date() + Util.randomId()).toUpperCase();
+    entity.uid = `T${hash.slice(0, 16)}`;
+
     return this.repo.save(entity);
   }
 
   async update(id: number, dto: UpdateTransactionDto): Promise<Transaction> {
-    const entity = await this.getTransaction(id);
+    const entity = await this.getTransactionById(id);
     if (!entity) throw new Error('Transaction not found');
 
     Object.assign(entity, dto);
@@ -25,24 +29,16 @@ export class TransactionService {
     return this.repo.save(entity);
   }
 
-  async getTransaction(id: number, relations: FindOptionsRelations<Transaction> = {}): Promise<Transaction> {
+  async getTransactionById(id: number, relations: FindOptionsRelations<Transaction> = {}): Promise<Transaction> {
     return this.repo.findOne({ where: { id }, relations });
   }
 
-  async getTransactionsWithoutUser(filterDate: Date): Promise<Transaction[]> {
-    return this.repo.find({
-      where: [
-        { user: IsNull(), created: LessThanOrEqual(filterDate), buyCrypto: { id: Not(IsNull()) } },
-        { user: IsNull(), created: LessThanOrEqual(filterDate), buyFiat: { id: Not(IsNull()) } },
-        { user: IsNull(), created: LessThanOrEqual(filterDate), refReward: { id: Not(IsNull()) } },
-      ],
-      relations: {
-        user: true,
-        buyCrypto: { buy: { user: true }, cryptoRoute: { user: true } },
-        buyFiat: { sell: { user: true } },
-        refReward: { user: true },
-      },
-    });
+  async getTransactionByUid(uid: string, relations: FindOptionsRelations<Transaction> = {}): Promise<Transaction> {
+    return this.repo.findOne({ where: { uid }, relations });
+  }
+
+  async getTransactionsWithoutUid(filterDate: Date): Promise<Transaction[]> {
+    return this.repo.findBy({ uid: IsNull(), created: LessThanOrEqual(filterDate) });
   }
 
   async getTransactionsForUsers(users: User[], from = new Date(0), to = new Date()): Promise<Transaction[]> {

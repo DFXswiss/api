@@ -548,6 +548,10 @@ export class BuyCrypto extends IEntity {
     return this.user.userData;
   }
 
+  set userData(userData: UserData) {
+    this.user.userData = userData;
+  }
+
   get route(): Buy | Swap {
     return this.buy ?? this.cryptoRoute;
   }

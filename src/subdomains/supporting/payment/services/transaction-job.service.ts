@@ -4,8 +4,7 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
-import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { Transaction } from '../entities/transaction.entity';
+import { Util } from 'src/shared/utils/util';
 import { TransactionService } from './transaction.service';
 
 @Injectable()
@@ -26,20 +25,19 @@ export class TransactionJobService {
     try {
       const date = await this.settingService.get('transactionFilterDate', '2022-07-31');
 
-      const transactions = await this.transactionService.getTransactionsWithoutUser(new Date(date));
+      const transactions = await this.transactionService.getTransactionsWithoutUid(new Date(date));
 
       for (const tx of transactions) {
-        const user = this.getTxUser(tx);
-        await this.transactionService.update(tx.id, { user });
+        try {
+          const hash = Util.createHash(tx.sourceType + new Date() + Util.randomId()).toUpperCase();
+          const uid = `T${hash.slice(0, 16)}`;
+          await this.transactionService.update(tx.id, { uid });
+        } catch (e) {
+          this.logger.error(`Error during synchronize transaction uid ${tx.id}:`, e);
+        }
       }
     } catch (e) {
-      this.logger.error(`Error during synchronize transaction user:`, e);
+      this.logger.error(`Error during synchronize transaction uid:`, e);
     }
-  }
-
-  private getTxUser(tx: Transaction): User | undefined {
-    if (tx.buyCrypto) return tx.buyCrypto.user;
-    if (tx.buyFiat) return tx.buyFiat.user;
-    if (tx.refReward) return tx.refReward.user;
   }
 }

@@ -28,7 +28,7 @@ import { BankTxRepeatService } from '../bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnService } from '../bank-tx-return/bank-tx-return.service';
 import { BankTxBatch } from './bank-tx-batch.entity';
 import { BankTxBatchRepository } from './bank-tx-batch.repository';
-import { BankTx, BankTxType, BankTxTypeCompleted, BankTxUnassignedTypes } from './bank-tx.entity';
+import { BankTx, BankTxIndicator, BankTxType, BankTxTypeCompleted, BankTxUnassignedTypes } from './bank-tx.entity';
 import { BankTxRepository } from './bank-tx.repository';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
 import { SepaParser } from './sepa-parser.service';
@@ -128,7 +128,10 @@ export class BankTxService {
 
     for (const tx of unassignedBankTx) {
       const remittanceInfo = tx.remittanceInfo?.replace(/[ -]/g, '');
-      const buy = remittanceInfo && buys.find((b) => remittanceInfo.includes(b.bankUsage.replace(/-/g, '')));
+      const buy =
+        remittanceInfo &&
+        tx.creditDebitIndicator === BankTxIndicator.CREDIT &&
+        buys.find((b) => remittanceInfo.includes(b.bankUsage.replace(/-/g, '')));
 
       const update = buy ? { type: BankTxType.BUY_CRYPTO, buyId: buy.id } : { type: BankTxType.GSHEET };
 
@@ -157,6 +160,8 @@ export class BankTxService {
 
       switch (dto.type) {
         case BankTxType.BUY_CRYPTO:
+          if (bankTx.creditDebitIndicator === BankTxIndicator.DEBIT)
+            throw new BadRequestException('DBIT BankTx cannot set to buyCrypto type');
           await this.buyCryptoService.createFromBankTx(bankTx, dto.buyId);
           break;
         case BankTxType.BANK_TX_RETURN:
