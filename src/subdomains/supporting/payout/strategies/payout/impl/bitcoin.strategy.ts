@@ -16,7 +16,7 @@ import { BitcoinBasedStrategy } from './base/bitcoin-based.strategy';
 export class BitcoinStrategy extends BitcoinBasedStrategy {
   protected readonly logger = new DfxLogger(BitcoinStrategy);
 
-  private readonly averageTransactionSize = 180; // vBytes
+  private readonly averageTransactionSize = 140; // vBytes
 
   constructor(
     notificationService: NotificationService,
