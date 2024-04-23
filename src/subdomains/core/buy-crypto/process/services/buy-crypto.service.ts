@@ -65,13 +65,10 @@ export class BuyCryptoService {
 
     const buy = await this.getBuy(buyId);
 
-    // update transaction
-    const transaction = !DisabledProcess(Process.CREATE_TRANSACTION)
-      ? await this.transactionService.update(bankTx.transaction.id, {
-          type: TransactionTypeInternal.BUY_CRYPTO,
-          user: buy.user,
-        })
-      : null;
+    const transaction = await this.transactionService.update(bankTx.transaction.id, {
+      type: TransactionTypeInternal.BUY_CRYPTO,
+      user: buy.user,
+    });
 
     const forexFee = bankTx.txCurrency === bankTx.currency ? 0 : 0.02;
 
@@ -104,13 +101,10 @@ export class BuyCryptoService {
     let entity = await this.buyCryptoRepo.findOneBy({ checkoutTx: { id: checkoutTx.id } });
     if (entity) throw new ConflictException('There is already a buy-crypto for the specified checkout TX');
 
-    // update transaction
-    const transaction = !DisabledProcess(Process.CREATE_TRANSACTION)
-      ? await this.transactionService.update(checkoutTx.transaction.id, {
-          type: TransactionTypeInternal.BUY_CRYPTO,
-          user: buy.user,
-        })
-      : null;
+    const transaction = await this.transactionService.update(checkoutTx.transaction.id, {
+      type: TransactionTypeInternal.BUY_CRYPTO,
+      user: buy.user,
+    });
 
     // create bank data
     if (checkoutTx.cardFingerPrint && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
@@ -141,13 +135,10 @@ export class BuyCryptoService {
   }
 
   async createFromCryptoInput(cryptoInput: CryptoInput, swap: Swap): Promise<void> {
-    // update transaction
-    const transaction = !DisabledProcess(Process.CREATE_TRANSACTION)
-      ? await this.transactionService.update(cryptoInput.transaction.id, {
-          type: TransactionTypeInternal.CRYPTO_CRYPTO,
-          user: swap.user,
-        })
-      : null;
+    const transaction = await this.transactionService.update(cryptoInput.transaction.id, {
+      type: TransactionTypeInternal.CRYPTO_CRYPTO,
+      user: swap.user,
+    });
 
     // create entity
     const entity = this.buyCryptoRepo.create({
