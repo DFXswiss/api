@@ -103,12 +103,10 @@ export class BuyCryptoService {
     let entity = await this.buyCryptoRepo.findOneBy({ checkoutTx: { id: checkoutTx.id } });
     if (entity) throw new ConflictException('There is already a buy-crypto for the specified checkout TX');
 
-    const transaction = !DisabledProcess(Process.CREATE_TRANSACTION)
-      ? await this.transactionService.update(checkoutTx.transaction.id, {
-          type: TransactionTypeInternal.BUY_CRYPTO,
-          user: buy.user,
-        })
-      : null;
+    const transaction = await this.transactionService.update(checkoutTx.transaction.id, {
+      type: TransactionTypeInternal.BUY_CRYPTO,
+      user: buy.user,
+    });
 
     // create bank data
     if (checkoutTx.cardFingerPrint && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
