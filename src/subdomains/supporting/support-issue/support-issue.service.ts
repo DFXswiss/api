@@ -16,11 +16,7 @@ export class SupportIssueService {
     private readonly storageService: DocumentStorageService,
   ) {}
 
-  async createTransactionIssue(
-    userId: number,
-    transactionId: number,
-    dto: CreateTransactionIssueDto,
-  ): Promise<SupportIssue> {
+  async createTransactionIssue(userId: number, transactionId: number, dto: CreateTransactionIssueDto): Promise<void> {
     const existing = await this.supportIssueRepo.findOneBy({
       transaction: { id: transactionId },
       reason: dto.reason,
@@ -47,7 +43,7 @@ export class SupportIssueService {
       );
     }
 
-    return this.supportIssueRepo.save(entity);
+    await this.supportIssueRepo.save(entity);
   }
 
   async updateSupportIssue(id: number, dto: UpdateSupportIssueDto): Promise<SupportIssue> {

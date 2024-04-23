@@ -46,7 +46,6 @@ export class BuyCryptoFee extends IEntity {
   static create(transaction: BuyCrypto): BuyCryptoFee {
     const entity = new BuyCryptoFee();
 
-    entity.buyCrypto = transaction;
     entity.feeReferenceAsset = transaction.outputReferenceAsset;
 
     entity.allowedTotalFeePercent = Config.buy.fee.limit;
