@@ -89,8 +89,8 @@ export class TransactionController {
   @ApiOkResponse({ type: TransactionDto })
   async getSingleTransaction(@Param('uid') uid: string): Promise<TransactionDto> {
     const transaction = await this.transactionService.getTransactionByUid(uid, {
-      buyCrypto: true,
-      buyFiat: true,
+      buyCrypto: { buy: { user: true }, cryptoRoute: { user: true }, cryptoInput: true, bankTx: true },
+      buyFiat: { sell: { user: true }, cryptoInput: true, bankTx: true },
       refReward: true,
     });
     if (!transaction) throw new NotFoundException('Transaction not found');
