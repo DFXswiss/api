@@ -184,6 +184,16 @@ export class BankTxService {
     return this.bankTxRepo.save({ ...bankTx, ...dto });
   }
 
+  async reset(id: number): Promise<void> {
+    const bankTx = await this.bankTxRepo.findOne({ where: { id }, relations: { buyCrypto: true } });
+    if (!bankTx) throw new NotFoundException('BankTx not found');
+    if (!bankTx.buyCrypto) throw new BadRequestException('Only buyCrypto bankTx can be reset');
+    if (bankTx.buyCrypto.isComplete) throw new BadRequestException('BuyCrypto already completed');
+
+    await this.buyCryptoService.delete(bankTx.buyCrypto);
+    await this.bankTxRepo.update(...bankTx.reset());
+  }
+
   async getBankTxByKey(key: string, value: any): Promise<BankTx> {
     return this.bankTxRepo
       .createQueryBuilder('bankTx')

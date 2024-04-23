@@ -1,4 +1,4 @@
-import { IEntity } from 'src/shared/models/entity';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
@@ -227,6 +227,17 @@ export class BankTx extends IEntity {
     if (this.completeName) {
       return this.completeName.split(' ').join(':');
     }
+  }
+
+  reset(): UpdateResult<BankTx> {
+    const update: Partial<BankTx> = {
+      remittanceInfo: null,
+      type: BankTxType.GSHEET,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 }
 
