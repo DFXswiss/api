@@ -11,7 +11,6 @@ import { MailKey, MailTranslationKey } from '../../notification/factories/mail.f
 import { NotificationService } from '../../notification/services/notification.service';
 import { Transaction } from '../entities/transaction.entity';
 import { TransactionRepository } from '../repositories/transaction.repository';
-import { SpecialExternalAccountService } from './special-external-account.service';
 
 @Injectable()
 export class TransactionNotificationService {
@@ -21,7 +20,6 @@ export class TransactionNotificationService {
     private readonly repo: TransactionRepository,
     private readonly notificationService: NotificationService,
     private readonly bankDataService: BankDataService,
-    private readonly specialExternalAccountService: SpecialExternalAccountService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
