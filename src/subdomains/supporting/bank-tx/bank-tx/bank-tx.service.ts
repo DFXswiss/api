@@ -190,7 +190,7 @@ export class BankTxService {
     if (!bankTx.buyCrypto) throw new BadRequestException('Only buyCrypto bankTx can be reset');
     if (bankTx.buyCrypto.isComplete) throw new BadRequestException('BuyCrypto already completed');
 
-    await this.buyCryptoService.delete(bankTx.buyCrypto.id);
+    await this.buyCryptoService.delete(bankTx.buyCrypto);
     await this.bankTxRepo.update(...bankTx.reset());
   }
 
