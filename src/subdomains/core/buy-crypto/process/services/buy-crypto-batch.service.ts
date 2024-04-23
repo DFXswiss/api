@@ -9,7 +9,6 @@ import { LiquidityManagementService } from 'src/subdomains/core/liquidity-manage
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { CheckLiquidityRequest, CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
-import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { PriceInvalidException } from 'src/subdomains/supporting/pricing/domain/exceptions/price-invalid.exception';
@@ -235,10 +234,6 @@ export class BuyCryptoBatchService {
       batch.removeInvalidTransactions(invalidTransactions);
       await this.resetTransactionButKeepState(invalidTransactions);
     }
-
-    // optimize
-    const filteredOutTransactions = batch.optimizeByPayoutFeeEstimation();
-    await this.setWaitingForLowerFeeStatus(filteredOutTransactions);
   }
 
   private async getPayoutFee(tx: BuyCrypto): Promise<number> {
@@ -369,22 +364,12 @@ export class BuyCryptoBatchService {
 
       batch.checkByPurchaseFeeEstimation(purchaseFee);
     } catch (e) {
-      if (e instanceof FeeLimitExceededException) {
-        await this.setWaitingForLowerFeeStatus(batch.transactions);
-      }
-
       // re-throw by default to abort proceeding with batch
       throw e;
     }
   }
 
   // --- HELPER METHODS --- //
-  private async setWaitingForLowerFeeStatus(transactions: BuyCrypto[]): Promise<void> {
-    for (const tx of transactions) {
-      await this.buyCryptoRepo.update(...tx.waitingForLowerFee());
-    }
-  }
-
   private async setPriceInvalidStatus(transactions: BuyCrypto[]): Promise<void> {
     for (const tx of transactions) {
       await this.buyCryptoRepo.update(...tx.setPriceInvalidStatus());

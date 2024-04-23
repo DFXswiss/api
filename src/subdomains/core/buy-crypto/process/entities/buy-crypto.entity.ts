@@ -300,17 +300,6 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
-  waitingForLowerFee(): UpdateResult<BuyCrypto> {
-    const update: Partial<BuyCrypto> = {
-      status: BuyCryptoStatus.WAITING_FOR_LOWER_FEE,
-      ...this.resetTransaction(),
-    };
-
-    Object.assign(this, update);
-
-    return [this.id, update];
-  }
-
   resetTransactionButKeepState(): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       ...this.resetTransaction(),
