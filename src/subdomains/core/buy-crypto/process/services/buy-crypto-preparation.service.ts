@@ -173,16 +173,16 @@ export class BuyCryptoPreparationService {
 
         const feeConstraints = BuyCryptoFee.create(entity);
 
-        await this.buyCryptoRepo.update(
-          ...entity.setFeeAndFiatReference(
-            referenceEurPrice.convert(entity.inputReferenceAmount, 2),
-            amountInChf,
-            fee,
-            isFiat(inputReferenceCurrency) ? fee.min : referenceEurPrice.convert(fee.min, 2),
-            referenceChfPrice.convert(fee.total, 2),
-            feeConstraints,
-          ),
+        entity.setFeeAndFiatReference(
+          referenceEurPrice.convert(entity.inputReferenceAmount, 2),
+          amountInChf,
+          fee,
+          isFiat(inputReferenceCurrency) ? fee.min : referenceEurPrice.convert(fee.min, 2),
+          referenceChfPrice.convert(fee.total, 2),
+          feeConstraints,
         );
+
+        await this.buyCryptoRepo.save(entity);
 
         if (entity.amlCheck === CheckStatus.FAIL) return;
 
