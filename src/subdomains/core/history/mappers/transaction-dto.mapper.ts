@@ -33,6 +33,7 @@ export class RefRewardExtended extends RefReward {
 
 export class TransactionDtoMapper {
   static mapBuyCryptoTransaction(buyCrypto: BuyCryptoExtended): TransactionDto {
+    const referencePrice = buyCrypto.inputAmount / buyCrypto.inputReferenceAmount;
     const dto: TransactionDto = {
       id: buyCrypto.transaction?.id,
       type: buyCrypto.isCryptoCryptoTransaction ? TransactionType.SWAP : TransactionType.BUY,
@@ -49,12 +50,31 @@ export class TransactionDtoMapper {
       outputBlockchain: buyCrypto.target.asset.blockchain,
       outputPaymentMethod: CryptoPaymentMethod.CRYPTO,
       feeAmount: buyCrypto.totalFeeAmount
-        ? Util.roundReadable(
-            (buyCrypto.totalFeeAmount / buyCrypto.inputReferenceAmount) * buyCrypto.inputAmount,
-            isFiat(buyCrypto.inputAssetEntity),
-          )
+        ? Util.roundReadable(buyCrypto.totalFeeAmount * referencePrice, isFiat(buyCrypto.inputAssetEntity))
         : null,
       feeAsset: buyCrypto.totalFeeAmount ? buyCrypto.inputAsset : null,
+      fees: {
+        rate: buyCrypto.percentFee,
+        fixed:
+          buyCrypto.absoluteFeeAmount &&
+          Util.roundReadable(buyCrypto.absoluteFeeAmount * referencePrice, isFiat(buyCrypto.inputAssetEntity)),
+        min:
+          buyCrypto.minFeeAmount &&
+          Util.roundReadable(buyCrypto.minFeeAmount * referencePrice, isFiat(buyCrypto.inputAssetEntity)),
+        network:
+          buyCrypto.blockchainFee &&
+          Util.roundReadable(buyCrypto.blockchainFee * referencePrice, isFiat(buyCrypto.inputAssetEntity)),
+        dfx:
+          buyCrypto.totalFeeAmount &&
+          buyCrypto.blockchainFee &&
+          Util.roundReadable(
+            (buyCrypto.totalFeeAmount - buyCrypto.blockchainFee) * referencePrice,
+            isFiat(buyCrypto.inputAssetEntity),
+          ),
+        total:
+          buyCrypto.totalFeeAmount &&
+          Util.roundReadable(buyCrypto.totalFeeAmount * referencePrice, isFiat(buyCrypto.inputAssetEntity)),
+      },
       inputTxId: buyCrypto.cryptoInput?.inTxId ?? null,
       inputTxUrl: buyCrypto?.cryptoInput
         ? txExplorerUrl(buyCrypto.cryptoInput.asset.blockchain, buyCrypto.cryptoInput.inTxId)
@@ -81,6 +101,7 @@ export class TransactionDtoMapper {
   }
 
   static mapBuyFiatTransaction(buyFiat: BuyFiatExtended): TransactionDto {
+    const referencePrice = buyFiat.inputAmount / buyFiat.inputReferenceAmount;
     const dto: TransactionDto = {
       id: buyFiat.transaction?.id,
       type: TransactionType.SELL,
@@ -97,12 +118,31 @@ export class TransactionDtoMapper {
       outputBlockchain: null,
       outputPaymentMethod: FiatPaymentMethod.BANK,
       feeAmount: buyFiat.totalFeeAmount
-        ? Util.roundReadable(
-            (buyFiat.totalFeeAmount / buyFiat.inputReferenceAmount) * buyFiat.inputAmount,
-            isFiat(buyFiat.inputAssetEntity),
-          )
+        ? Util.roundReadable(buyFiat.totalFeeAmount * referencePrice, isFiat(buyFiat.inputAssetEntity))
         : null,
       feeAsset: buyFiat.totalFeeAmount ? buyFiat.inputAsset : null,
+      fees: {
+        rate: buyFiat.percentFee,
+        fixed:
+          buyFiat.absoluteFeeAmount &&
+          Util.roundReadable(buyFiat.absoluteFeeAmount * referencePrice, isFiat(buyFiat.inputAssetEntity)),
+        min:
+          buyFiat.minFeeAmount &&
+          Util.roundReadable(buyFiat.minFeeAmount * referencePrice, isFiat(buyFiat.inputAssetEntity)),
+        network:
+          buyFiat.blockchainFee &&
+          Util.roundReadable(buyFiat.blockchainFee * referencePrice, isFiat(buyFiat.inputAssetEntity)),
+        dfx:
+          buyFiat.totalFeeAmount &&
+          buyFiat.blockchainFee &&
+          Util.roundReadable(
+            (buyFiat.totalFeeAmount - buyFiat.blockchainFee) * referencePrice,
+            isFiat(buyFiat.inputAssetEntity),
+          ),
+        total:
+          buyFiat.totalFeeAmount &&
+          Util.roundReadable(buyFiat.totalFeeAmount * referencePrice, isFiat(buyFiat.inputAssetEntity)),
+      },
       inputTxId: buyFiat.cryptoInput?.inTxId ?? null,
       inputTxUrl: buyFiat?.cryptoInput
         ? txExplorerUrl(buyFiat.cryptoInput.asset.blockchain, buyFiat.cryptoInput.inTxId)
@@ -147,6 +187,7 @@ export class TransactionDtoMapper {
       outputPaymentMethod: CryptoPaymentMethod.CRYPTO,
       feeAmount: null,
       feeAsset: null,
+      fees: null,
       inputTxId: null,
       inputTxUrl: null,
       outputTxId: refReward.txId,
