@@ -88,7 +88,7 @@ export class BuyCryptoBatch extends IEntity {
     const filteredOutTransactions: BuyCrypto[] = [];
 
     for (const tx of this.transactions) {
-      if (tx.fee.estimatePayoutFeeAmount > tx.fee.allowedTotalFeeAmount) {
+      if (tx.fee.estimatePayoutFeeAmount > tx.fee.allowedTotalFeeAmount * 1.01) {
         filteredOutTransactions.push(tx);
 
         continue;
