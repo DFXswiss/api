@@ -81,11 +81,12 @@ export class PaymentInfoService {
       if (!dto.sourceAsset) throw new NotFoundException('Source asset not found');
       if (!dto.sourceAsset.sellable) throw new BadRequestException('Source asset not sellable');
       if (!SwapInputBlockchains.includes(dto.sourceAsset.blockchain))
-        throw new BadRequestException('Source asset blockchain is not swappable');
+        throw new BadRequestException('Assets on this blockchain are not swappable');
     }
 
     if ('blockchain' in dto) {
-      if (!SwapInputBlockchains.includes(dto.blockchain)) throw new BadRequestException('Blockchain is not swappable');
+      if (!SwapInputBlockchains.includes(dto.blockchain))
+        throw new BadRequestException('Assets on this blockchain are not swappable');
     }
 
     dto.targetAsset = await this.assetService.getAssetById(dto.targetAsset.id);
