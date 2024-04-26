@@ -238,7 +238,6 @@ export class BuyCryptoService {
 
     Util.removeNullFields(entity);
     const fee = entity.fee;
-    if (dto.allowedTotalFeePercent && entity.fee) fee.allowedTotalFeePercent = dto.allowedTotalFeePercent;
 
     update.amlReason = update.amlCheck === CheckStatus.PASS ? AmlReason.NA : update.amlReason;
 

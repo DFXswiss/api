@@ -144,10 +144,6 @@ export class UpdateBuyCryptoDto {
   isComplete: boolean;
 
   @IsOptional()
-  @IsNumber()
-  allowedTotalFeePercent: number;
-
-  @IsOptional()
   @IsBoolean()
   highRisk: boolean;
 
