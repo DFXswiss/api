@@ -1,6 +1,7 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { IsNull, Not } from 'typeorm';
+import { UpdateTradingRuleDto } from '../dto/update-trading-rule.dto';
 import { TradingOrder } from '../entities/trading-order.entity';
 import { TradingRule } from '../entities/trading-rule.entity';
 import { TradingRuleStatus } from '../enums';
@@ -19,6 +20,13 @@ export class TradingRuleService {
   constructor(private readonly tradingService: TradingService) {}
 
   // --- PUBLIC API --- //
+
+  async updateTradingRule(id: number, dto: UpdateTradingRuleDto): Promise<TradingRule> {
+    const tradingRule = await this.ruleRepo.findOneBy({ id });
+    if (!tradingRule) throw new NotFoundException('Trading rule not found');
+
+    return this.ruleRepo.save({ ...tradingRule, ...dto });
+  }
 
   async processRules() {
     const rules = await this.ruleRepo.findBy({
