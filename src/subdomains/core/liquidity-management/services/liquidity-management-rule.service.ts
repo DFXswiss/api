@@ -52,7 +52,7 @@ export class LiquidityManagementRuleService {
     return LiquidityManagementRuleOutputDtoMapper.entityToDto(await this.ruleRepo.save(rule));
   }
 
-  async updateRule(id: number, dto: LiquidityManagementRuleUpdateDto): Promise<LiquidityManagementRuleOutputDto> {
+  async updateRule(id: number, dto: LiquidityManagementRuleUpdateDto): Promise<void> {
     const existingRule = await this.ruleRepo.findOneBy({ id });
 
     if (!existingRule) throw new NotFoundException(`Rule ${id} was not found.`);
@@ -60,9 +60,7 @@ export class LiquidityManagementRuleService {
       throw new BadRequestException('Rule is currently processing and cannot be updated');
     }
 
-    const updatedRule = await this.ruleRepo.save({ ...existingRule, ...dto });
-
-    return LiquidityManagementRuleOutputDtoMapper.entityToDto(updatedRule);
+    await this.ruleRepo.update(existingRule.id, { ...existingRule, ...dto });
   }
 
   async getRule(id: number): Promise<LiquidityManagementRuleOutputDto> {

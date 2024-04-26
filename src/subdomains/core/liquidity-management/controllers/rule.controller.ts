@@ -26,10 +26,7 @@ export class LiquidityManagementRuleController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateRule(
-    @Param('id') id: number,
-    @Body() dto: LiquidityManagementRuleUpdateDto,
-  ): Promise<LiquidityManagementRuleOutputDto> {
+  async updateRule(@Param('id') id: number, @Body() dto: LiquidityManagementRuleUpdateDto): Promise<void> {
     return this.service.updateRule(id, dto);
   }
 
