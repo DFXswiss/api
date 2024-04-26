@@ -83,7 +83,6 @@ export class TransactionDtoMapper {
   }
 
   static mapBuyFiatTransaction(buyFiat: BuyFiatExtended): TransactionDto {
-    const referencePrice = buyFiat.inputAmount / buyFiat.inputReferenceAmount;
     const dto: TransactionDto = {
       id: buyFiat.transaction?.id,
       type: TransactionType.SELL,
@@ -100,7 +99,10 @@ export class TransactionDtoMapper {
       outputBlockchain: null,
       outputPaymentMethod: FiatPaymentMethod.BANK,
       feeAmount: buyFiat.totalFeeAmount
-        ? Util.roundReadable(buyFiat.totalFeeAmount * referencePrice, isFiat(buyFiat.inputAssetEntity))
+        ? Util.roundReadable(
+            buyFiat.totalFeeAmount * (buyFiat.inputAmount / buyFiat.inputReferenceAmount),
+            isFiat(buyFiat.inputAssetEntity),
+          )
         : null,
       feeAsset: buyFiat.totalFeeAmount ? buyFiat.inputAsset : null,
       fees: this.mapFees(buyFiat),
@@ -192,23 +194,23 @@ export class TransactionDtoMapper {
     return {
       rate: entity.percentFee,
       fixed:
-        entity.absoluteFeeAmount &&
+        entity.absoluteFeeAmount != null &&
         Util.roundReadable(entity.absoluteFeeAmount * referencePrice, isFiat(entity.inputAssetEntity)),
       min:
-        entity.minFeeAmount &&
+        entity.minFeeAmount != null &&
         Util.roundReadable(entity.minFeeAmount * referencePrice, isFiat(entity.inputAssetEntity)),
       network:
-        entity.blockchainFee &&
+        entity.blockchainFee != null &&
         Util.roundReadable(entity.blockchainFee * referencePrice, isFiat(entity.inputAssetEntity)),
       dfx:
-        entity.totalFeeAmount &&
-        entity.blockchainFee &&
+        entity.totalFeeAmount != null &&
+        entity.blockchainFee != null &&
         Util.roundReadable(
           (entity.totalFeeAmount - entity.blockchainFee) * referencePrice,
           isFiat(entity.inputAssetEntity),
         ),
       total:
-        entity.totalFeeAmount &&
+        entity.totalFeeAmount != null &&
         Util.roundReadable(entity.totalFeeAmount * referencePrice, isFiat(entity.inputAssetEntity)),
     };
   }
