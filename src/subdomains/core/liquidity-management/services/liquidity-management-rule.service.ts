@@ -60,7 +60,7 @@ export class LiquidityManagementRuleService {
       throw new BadRequestException('Rule is currently processing and cannot be updated');
     }
 
-    await this.ruleRepo.update(existingRule.id, { ...existingRule, ...dto });
+    await this.ruleRepo.update(existingRule.id, { ...dto });
   }
 
   async getRule(id: number): Promise<LiquidityManagementRuleOutputDto> {
