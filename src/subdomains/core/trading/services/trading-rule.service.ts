@@ -25,7 +25,7 @@ export class TradingRuleService {
     const tradingRule = await this.ruleRepo.findOneBy({ id });
     if (!tradingRule) throw new NotFoundException('Trading rule not found');
 
-    await this.ruleRepo.update(tradingRule.id, { ...dto });
+    await this.ruleRepo.update(tradingRule.id, dto);
   }
 
   async processRules() {

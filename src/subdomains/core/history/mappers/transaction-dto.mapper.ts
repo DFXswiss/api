@@ -56,7 +56,7 @@ export class TransactionDtoMapper {
           )
         : null,
       feeAsset: buyCrypto.totalFeeAmount ? buyCrypto.inputAsset : null,
-      fees: this.mapFees(buyCrypto),
+      fees: TransactionDtoMapper.mapFees(buyCrypto),
       inputTxId: buyCrypto.cryptoInput?.inTxId ?? null,
       inputTxUrl: buyCrypto?.cryptoInput
         ? txExplorerUrl(buyCrypto.cryptoInput.asset.blockchain, buyCrypto.cryptoInput.inTxId)
@@ -105,7 +105,7 @@ export class TransactionDtoMapper {
           )
         : null,
       feeAsset: buyFiat.totalFeeAmount ? buyFiat.inputAsset : null,
-      fees: this.mapFees(buyFiat),
+      fees: TransactionDtoMapper.mapFees(buyFiat),
       inputTxId: buyFiat.cryptoInput?.inTxId ?? null,
       inputTxUrl: buyFiat?.cryptoInput
         ? txExplorerUrl(buyFiat.cryptoInput.asset.blockchain, buyFiat.cryptoInput.inTxId)
@@ -191,27 +191,33 @@ export class TransactionDtoMapper {
   private static mapFees(entity: BuyCryptoExtended | BuyFiatExtended): FeeDto {
     const referencePrice = entity.inputAmount / entity.inputReferenceAmount;
 
+    if (entity.percentFee == null) return null;
+
     return {
       rate: entity.percentFee,
       fixed:
-        entity.absoluteFeeAmount != null &&
-        Util.roundReadable(entity.absoluteFeeAmount * referencePrice, isFiat(entity.inputAssetEntity)),
+        entity.absoluteFeeAmount != null
+          ? Util.roundReadable(entity.absoluteFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
+          : null,
       min:
-        entity.minFeeAmount != null &&
-        Util.roundReadable(entity.minFeeAmount * referencePrice, isFiat(entity.inputAssetEntity)),
+        entity.minFeeAmount != null
+          ? Util.roundReadable(entity.minFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
+          : null,
       network:
-        entity.blockchainFee != null &&
-        Util.roundReadable(entity.blockchainFee * referencePrice, isFiat(entity.inputAssetEntity)),
+        entity.blockchainFee != null
+          ? Util.roundReadable(entity.blockchainFee * referencePrice, isFiat(entity.inputAssetEntity))
+          : null,
       dfx:
-        entity.totalFeeAmount != null &&
-        entity.blockchainFee != null &&
-        Util.roundReadable(
-          (entity.totalFeeAmount - entity.blockchainFee) * referencePrice,
-          isFiat(entity.inputAssetEntity),
-        ),
+        entity.totalFeeAmount != null && entity.blockchainFee != null
+          ? Util.roundReadable(
+              (entity.totalFeeAmount - entity.blockchainFee) * referencePrice,
+              isFiat(entity.inputAssetEntity),
+            )
+          : null,
       total:
-        entity.totalFeeAmount != null &&
-        Util.roundReadable(entity.totalFeeAmount * referencePrice, isFiat(entity.inputAssetEntity)),
+        entity.totalFeeAmount != null
+          ? Util.roundReadable(entity.totalFeeAmount * referencePrice, isFiat(entity.inputAssetEntity))
+          : null,
     };
   }
 }
