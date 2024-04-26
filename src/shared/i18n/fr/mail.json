@@ -73,7 +73,8 @@
                 "country_not_allowed": "Malheureusement, votre dépôt ne peut pas être traité <br>car l'argent provient d'un pays que nous ne pouvons pas prendre en charge. Pour plus d'informations:<br><a style='color:white' href='https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html'>https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html</a>",
                 "high_risk_kyc_needed": "Sans vérification (KYC), nous n'avons pas pu nous assurer que cette transaction n'était pas frauduleuse et nous avons donc malheureusement dû la refuser.<br>Les paiements par transaction bancaire sont toujours disponibles.",
                 "high_risk_blocked": "Nous ne pouvons pas nous assurer que cette transaction n'est pas frauduleuse et nous avons donc malheureusement dû la refuser.<br>Les paiements par transaction bancaire sont toujours disponibles.",
-                "fee_too_high": "Les frais de réseau sont actuellement trop élevés pour le montant que vous avez envoyé"
+                "fee_too_high": "Les frais de réseau sont actuellement trop élevés pour le montant que vous avez envoyé",
+                "receiver_rejected_tx": "Le noeud récepteur a rejeté la transaction"
             },
             "kyc_start": "Vous pouvez commencer le processus KYC ici:<br>[url:{urlText}]"
         },
