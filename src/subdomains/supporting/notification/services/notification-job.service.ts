@@ -50,7 +50,7 @@ export class NotificationJobService {
       for (const notification of uncompletedMails) {
         const request = NotificationService.toRequest(notification);
 
-        if (!('userData' in request.input)) continue;
+        if (!request.input || !('userData' in request.input)) continue;
 
         await this.notificationRepo.update(notification.id, { userData: request.input.userData });
       }

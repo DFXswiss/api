@@ -73,7 +73,7 @@ export class NotificationService {
     return {
       type: notification.type,
       context: notification.context,
-      input: JSON.parse(notification.data),
+      input: notification.data === '-' ? null : JSON.parse(notification.data),
       correlationId: notification.correlationId,
       options: {
         suppressRecurring: notification.suppressRecurring,
