@@ -5,6 +5,7 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { LiquidityManagementRuleCreationDto } from '../dto/input/liquidity-management-rule-creation.dto';
 import { LiquidityManagementRuleSettingsDto } from '../dto/input/liquidity-management-settings.dto';
+import { LiquidityManagementRuleUpdateDto } from '../dto/input/liquidity-management-update.dto';
 import { LiquidityManagementRuleOutputDto } from '../dto/output/liquidity-management-rule-output.dto';
 import { LiquidityManagementRuleService } from '../services/liquidity-management-rule.service';
 
@@ -27,7 +28,7 @@ export class LiquidityManagementRuleController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async updateRule(
     @Param('id') id: number,
-    @Body() dto: LiquidityManagementRuleCreationDto,
+    @Body() dto: LiquidityManagementRuleUpdateDto,
   ): Promise<LiquidityManagementRuleOutputDto> {
     return this.service.updateRule(id, dto);
   }
