@@ -1,5 +1,4 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { In } from 'typeorm';
 import { TransactionTypeInternal } from '../../payment/entities/transaction.entity';
@@ -22,11 +21,9 @@ export class BankTxRepeatService {
     let entity = await this.bankTxRepeatRepo.findOneBy({ bankTx: { id: bankTx.id } });
     if (entity) throw new BadRequestException('BankTx already used');
 
-    const transaction = !DisabledProcess(Process.CREATE_TRANSACTION)
-      ? await this.transactionService.update(bankTx.transaction.id, {
-          type: TransactionTypeInternal.BANK_TX_REPEAT,
-        })
-      : null;
+    const transaction = await this.transactionService.update(bankTx.transaction.id, {
+      type: TransactionTypeInternal.BANK_TX_REPEAT,
+    });
 
     entity = this.bankTxRepeatRepo.create({ bankTx, transaction });
 

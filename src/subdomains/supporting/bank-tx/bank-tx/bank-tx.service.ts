@@ -146,8 +146,7 @@ export class BankTxService {
 
     entity = this.createTx(bankTx, multiAccountIbans);
 
-    if (!DisabledProcess(Process.CREATE_TRANSACTION))
-      entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.BANK_TX });
+    entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.BANK_TX });
 
     return this.bankTxRepo.save(entity);
   }
@@ -171,7 +170,7 @@ export class BankTxService {
           await this.bankTxRepeatService.create(bankTx);
           break;
         default:
-          if (!DisabledProcess(Process.CREATE_TRANSACTION) && dto.type)
+          if (dto.type)
             await this.transactionService.update(bankTx.transaction.id, {
               type: TransactionBankTxTypeMapper[dto.type],
             });

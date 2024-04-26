@@ -188,10 +188,13 @@ export class TransactionController {
     if (!transaction.bankTx) throw new NotFoundException('Transaction not found');
     if (!BankTxTypeUnassigned(transaction.bankTx.type)) throw new ConflictException('Transaction already assigned');
 
-    const buy = await this.buyService.get(jwt.id, +buyId);
+    const user = await this.userService.getUser(jwt.id, { userData: { users: true } });
+    const buy = await this.buyService.get(
+      user.userData.users.map((u) => u.id),
+      +buyId,
+    );
     if (!buy) throw new NotFoundException('Buy not found');
 
-    const user = await this.userService.getUser(jwt.id, { userData: true });
     const bankDatas = await this.bankDataService.getBankDatasForUser(user.userData.id);
     if (!bankDatas.map((b) => b.iban).includes(transaction.bankTx.senderAccount))
       throw new ForbiddenException('You can only assign your own transaction');
