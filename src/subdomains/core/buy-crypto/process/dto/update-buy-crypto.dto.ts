@@ -154,4 +154,8 @@ export class UpdateBuyCryptoDto {
   @IsOptional()
   @IsString()
   comment: string;
+
+  @IsOptional()
+  @IsNumber()
+  blockchainFee: number;
 }
