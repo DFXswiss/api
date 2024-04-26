@@ -21,11 +21,11 @@ export class TradingRuleService {
 
   // --- PUBLIC API --- //
 
-  async updateTradingRule(id: number, dto: UpdateTradingRuleDto): Promise<TradingRule> {
+  async updateTradingRule(id: number, dto: UpdateTradingRuleDto): Promise<void> {
     const tradingRule = await this.ruleRepo.findOneBy({ id });
     if (!tradingRule) throw new NotFoundException('Trading rule not found');
 
-    return this.ruleRepo.save({ ...tradingRule, ...dto });
+    await this.ruleRepo.update(tradingRule.id, { ...tradingRule, ...dto });
   }
 
   async processRules() {

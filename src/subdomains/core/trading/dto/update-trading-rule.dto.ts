@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional } from 'class-validator';
+import { IsInt, IsNumber, IsOptional } from 'class-validator';
 
 export class UpdateTradingRuleDto {
   @IsOptional()
@@ -10,6 +10,6 @@ export class UpdateTradingRuleDto {
   upperLimit: number;
 
   @IsOptional()
-  @IsNumber()
+  @IsInt()
   reactivationTime: number;
 }
