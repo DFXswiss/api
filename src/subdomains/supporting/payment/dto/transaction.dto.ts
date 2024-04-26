@@ -145,7 +145,7 @@ export class TransactionDto extends UnassignedTransactionDto {
   @ApiPropertyOptional({ deprecated: true })
   feeAsset?: string;
 
-  @ApiPropertyOptional({ type: FeeDto, description: 'Fee infos in source currency' })
+  @ApiPropertyOptional({ type: FeeDto, description: 'Fee infos in input asset' })
   fees?: FeeDto;
 
   @ApiPropertyOptional()
