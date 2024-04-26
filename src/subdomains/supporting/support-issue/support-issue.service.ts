@@ -2,6 +2,7 @@ import { ConflictException, ForbiddenException, Injectable, NotFoundException } 
 import { Util } from 'src/shared/utils/util';
 import { ContentType, FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { TransactionService } from '../payment/services/transaction.service';
 import { CreateTransactionIssueDto } from './dto/create-support-issue.dto';
 import { UpdateSupportIssueDto } from './dto/update-support-issue.dto';
@@ -14,6 +15,7 @@ export class SupportIssueService {
     private readonly supportIssueRepo: SupportIssueRepository,
     private readonly transactionService: TransactionService,
     private readonly storageService: DocumentStorageService,
+    private readonly userService: UserService,
   ) {}
 
   async createTransactionIssue(userId: number, transactionId: number, dto: CreateTransactionIssueDto): Promise<void> {
@@ -23,11 +25,13 @@ export class SupportIssueService {
     });
     if (existing) throw new ConflictException('There is already a support issue for this transaction');
 
+    const user = await this.userService.getUser(userId, { userData: true });
+
     const entity = this.supportIssueRepo.create({ type: SupportIssueType.TRANSACTION_ISSUE, ...dto });
 
-    entity.transaction = await this.transactionService.getTransactionById(transactionId);
+    entity.transaction = await this.transactionService.getTransactionById(transactionId, { user: { userData: true } });
     if (!entity.transaction) throw new NotFoundException('Transaction not found');
-    if (!entity.transaction.user || entity.transaction.user.id !== userId)
+    if (!entity.transaction.user || entity.transaction.user.userData.id !== user.userData.id)
       throw new ForbiddenException('You can only create support issue for your own transaction');
 
     // upload document proof

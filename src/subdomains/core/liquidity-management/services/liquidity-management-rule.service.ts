@@ -14,6 +14,7 @@ import { IsNull, Not } from 'typeorm';
 import { LiquidityManagementActionDto } from '../dto/input/liquidity-management-action.dto';
 import { LiquidityManagementRuleCreationDto } from '../dto/input/liquidity-management-rule-creation.dto';
 import { LiquidityManagementRuleSettingsDto } from '../dto/input/liquidity-management-settings.dto';
+import { LiquidityManagementRuleUpdateDto } from '../dto/input/liquidity-management-update.dto';
 import { LiquidityManagementRuleOutputDto } from '../dto/output/liquidity-management-rule-output.dto';
 import { LiquidityManagementRuleOutputDtoMapper } from '../dto/output/mappers/liquidity-management-rule-output-dto.mapper';
 import { LiquidityManagementAction } from '../entities/liquidity-management-action.entity';
@@ -51,7 +52,7 @@ export class LiquidityManagementRuleService {
     return LiquidityManagementRuleOutputDtoMapper.entityToDto(await this.ruleRepo.save(rule));
   }
 
-  async updateRule(id: number, dto: LiquidityManagementRuleCreationDto): Promise<LiquidityManagementRuleOutputDto> {
+  async updateRule(id: number, dto: LiquidityManagementRuleUpdateDto): Promise<void> {
     const existingRule = await this.ruleRepo.findOneBy({ id });
 
     if (!existingRule) throw new NotFoundException(`Rule ${id} was not found.`);
@@ -59,10 +60,7 @@ export class LiquidityManagementRuleService {
       throw new BadRequestException('Rule is currently processing and cannot be updated');
     }
 
-    const rule = await this.checkAndCreateInstance(dto);
-    const updatedRule = await this.ruleRepo.save({ ...existingRule, ...rule });
-
-    return LiquidityManagementRuleOutputDtoMapper.entityToDto(updatedRule);
+    await this.ruleRepo.update(existingRule.id, dto);
   }
 
   async getRule(id: number): Promise<LiquidityManagementRuleOutputDto> {

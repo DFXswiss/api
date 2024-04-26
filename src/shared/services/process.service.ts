@@ -38,6 +38,7 @@ export enum Process {
   TX_SPEEDUP = 'TxSpeedup',
   MAIL_RETRY = 'MailRetry',
   TRADING = 'Trading',
+  SYNCHRONIZE_MAIL_DATA = 'SynchronizeMailData',
 }
 
 type ProcessMap = { [p in Process]?: boolean };

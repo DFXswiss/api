@@ -1,3 +1,4 @@
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
@@ -5,6 +6,15 @@ import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-inp
 import { ChildEntity, Column, ManyToOne, OneToMany } from 'typeorm';
 import { Deposit } from '../../../../supporting/address-pool/deposit/deposit.entity';
 import { DepositRoute } from '../../../../supporting/address-pool/route/deposit-route.entity';
+
+export const SwapInputBlockchains: Blockchain[] = [
+  Blockchain.BITCOIN,
+  Blockchain.LIGHTNING,
+  Blockchain.ETHEREUM,
+  Blockchain.ARBITRUM,
+  Blockchain.OPTIMISM,
+  Blockchain.POLYGON,
+];
 
 @ChildEntity('Crypto')
 export class Swap extends DepositRoute {
