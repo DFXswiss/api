@@ -41,12 +41,21 @@ export class NotificationService {
   //*** HELPER METHODS ***//
 
   static fromRequest(request: MailRequest): Partial<Notification> {
-    if ('userData' in request.input)
-      request.input.userData = {
-        id: request.input.userData.id,
-        mail: request.input.userData.mail,
-        language: request.input.userData.language,
+    let update: Partial<Notification> = {};
+
+    if ('userData' in request.input) {
+      update = {
+        data: JSON.stringify({
+          ...request.input,
+          userData: {
+            id: request.input.userData.id,
+            mail: request.input.userData.mail,
+            language: { id: request.input.userData.language.id, symbol: request.input.userData.language.symbol },
+          },
+        }),
+        userData: request.input.userData,
       };
+    }
 
     return {
       type: request.type,
@@ -56,6 +65,7 @@ export class NotificationService {
       debounce: request.options?.debounce,
       suppressRecurring: request.options?.suppressRecurring,
       correlationId: request.correlationId,
+      ...update,
     };
   }
 
