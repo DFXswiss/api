@@ -206,11 +206,11 @@ export class TransactionDtoMapper {
       network:
         entity.blockchainFee != null
           ? Util.roundReadable(entity.blockchainFee * referencePrice, isFiat(entity.inputAssetEntity))
-          : null,
+          : 0,
       dfx:
-        entity.totalFeeAmount != null && entity.blockchainFee != null
+        entity.totalFeeAmount != null
           ? Util.roundReadable(
-              (entity.totalFeeAmount - entity.blockchainFee) * referencePrice,
+              (entity.totalFeeAmount - (entity.blockchainFee ?? 0)) * referencePrice,
               isFiat(entity.inputAssetEntity),
             )
           : null,
