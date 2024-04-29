@@ -8,8 +8,8 @@ import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { IsNull, LessThan, MoreThanOrEqual, Not } from 'typeorm';
-import { KycLevel, UserData } from '../../user/models/user-data/user-data.entity';
+import { In, IsNull, LessThan, MoreThanOrEqual, Not } from 'typeorm';
+import { KycLevel, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { KycStepName, KycStepStatus } from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
@@ -38,7 +38,10 @@ export class KycNotificationService {
         name: Not(KycStepName.CONTACT_DATA),
         status: KycStepStatus.IN_PROGRESS,
         updated: LessThan(Util.daysBefore(Config.kyc.reminderAfterDays)),
-        userData: { kycLevel: MoreThanOrEqual(0) },
+        userData: {
+          kycLevel: MoreThanOrEqual(0),
+          status: In([UserDataStatus.NA, UserDataStatus.ACTIVE, UserDataStatus.KYC_ONLY]),
+        },
       },
       relations: ['userData'],
     });

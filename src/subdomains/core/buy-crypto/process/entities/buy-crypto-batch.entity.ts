@@ -1,3 +1,4 @@
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
@@ -88,7 +89,7 @@ export class BuyCryptoBatch extends IEntity {
     const filteredOutTransactions: BuyCrypto[] = [];
 
     for (const tx of this.transactions) {
-      if (tx.fee.estimatePayoutFeeAmount > tx.fee.allowedTotalFeeAmount * 1.01) {
+      if (tx.fee.estimatePayoutFeeAmount > tx.fee.allowedTotalFeeAmount * Config.blockchainFeeBuffer) {
         filteredOutTransactions.push(tx);
 
         continue;
