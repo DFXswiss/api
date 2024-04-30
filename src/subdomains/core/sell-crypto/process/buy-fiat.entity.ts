@@ -1,4 +1,3 @@
-import { ConflictException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -240,26 +239,28 @@ export class BuyFiat extends IEntity {
     totalFeeAmountChf: number,
   ): UpdateResult<BuyFiat> {
     const { usedRef, refProvision } = this.user.specifiedRef;
+    const inputReferenceAmountMinusFee = this.inputReferenceAmount - fee.total;
 
-    const update: Partial<BuyFiat> = {
-      absoluteFeeAmount: fee.fixed,
-      percentFee: fee.rate,
-      percentFeeAmount: fee.rate * this.inputReferenceAmount,
-      minFeeAmount: fee.min,
-      minFeeAmountFiat,
-      totalFeeAmount: fee.total,
-      totalFeeAmountChf,
-      blockchainFee: fee.network,
-      inputReferenceAmountMinusFee: this.inputReferenceAmount - fee.total,
-      amountInEur,
-      amountInChf,
-      usedRef,
-      refProvision,
-      refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
-      usedFees: fee.fees?.map((fee) => fee.id).join(';'),
-    };
-
-    if (update.inputReferenceAmountMinusFee < 0) throw new ConflictException('InputReferenceAmountMinusFee smaller 0');
+    const update: Partial<BuyFiat> =
+      inputReferenceAmountMinusFee < 0
+        ? { amlCheck: CheckStatus.FAIL, amlReason: AmlReason.FEE_TOO_HIGH }
+        : {
+            absoluteFeeAmount: fee.fixed,
+            percentFee: fee.rate,
+            percentFeeAmount: fee.rate * this.inputReferenceAmount,
+            minFeeAmount: fee.min,
+            minFeeAmountFiat,
+            totalFeeAmount: fee.total,
+            totalFeeAmountChf,
+            blockchainFee: fee.network,
+            inputReferenceAmountMinusFee,
+            amountInEur,
+            amountInChf,
+            usedRef,
+            refProvision,
+            refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
+            usedFees: fee.fees?.map((fee) => fee.id).join(';'),
+          };
 
     Object.assign(this, update);
 
@@ -319,9 +320,7 @@ export class BuyFiat extends IEntity {
       amountInChf: null,
       amountInEur: null,
       outputReferenceAmount: null,
-      outputReferenceAsset: null,
       outputAmount: null,
-      outputAsset: null,
       minFeeAmount: null,
       minFeeAmountFiat: null,
       totalFeeAmount: null,

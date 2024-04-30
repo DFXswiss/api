@@ -57,7 +57,9 @@
                 "bank_not_allowed": "The sender bank you used is not allowed. Please use a different bank for your deposit.",
                 "country_not_allowed": "Unfortunately, your deposit cannot be processed <br>because the money comes from a country that we cannot support. More information:<br><a style='color:white' href='https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html'>https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html</a>",
                 "high_risk_kyc_needed": "Without verification (KYC), we could not ensure that this transaction was not fraudulent and therefore unfortunately had to decline the transaction.<br>Payments by bank transaction are still available to you.",
-                "high_risk_blocked": "We cannot ensure that this transaction is not fraudulent and therefore unfortunately had to decline the transaction.<br>Payments by bank transaction are still available to you."
+                "high_risk_blocked": "We cannot ensure that this transaction is not fraudulent and therefore unfortunately had to decline the transaction.<br>Payments by bank transaction are still available to you.",
+                "fee_too_high": "The network fees are currently too high for the amount you have sent",
+                "receiver_rejected_tx": "The receiver node rejected the transaction"
             },
             "kyc_start": "You can start the KYC process here:<br>[url:{urlText}]"
         },

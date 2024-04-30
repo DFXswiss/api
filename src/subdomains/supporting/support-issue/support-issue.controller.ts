@@ -22,7 +22,7 @@ export class SupportIssueController {
     @GetJwt() jwt: JwtPayload,
     @Query('id') transactionId: string,
     @Body() dto: CreateTransactionIssueDto,
-  ): Promise<SupportIssue> {
+  ): Promise<void> {
     return this.supportIssueService.createTransactionIssue(jwt.id, +transactionId, dto);
   }
 

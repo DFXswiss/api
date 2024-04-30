@@ -108,19 +108,19 @@ describe('BuyCryptoBatchService', () => {
           buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'dGOOGL' }) }),
           outputAsset: createCustomAsset({ dexName: 'dGOOGL' }),
           outputReferenceAsset: createCustomAsset({ dexName: 'BTC' }),
-          fee: createCustomBuyCryptoFee({ allowedTotalFeePercent: 0.5 }),
+          fee: createCustomBuyCryptoFee({ allowedTotalFeeAmount: 0.5 }),
         }),
         createCustomBuyCrypto({
           buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'dTSLA' }) }),
           outputAsset: createCustomAsset({ dexName: 'dTSLA' }),
           outputReferenceAsset: createCustomAsset({ dexName: 'BTC' }),
-          fee: createCustomBuyCryptoFee({ allowedTotalFeePercent: 0.5 }),
+          fee: createCustomBuyCryptoFee({ allowedTotalFeeAmount: 0.5 }),
         }),
         createCustomBuyCrypto({
           buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'USDT' }) }),
           outputAsset: createCustomAsset({ dexName: 'USDT' }),
           outputReferenceAsset: createCustomAsset({ dexName: 'USDT' }),
-          fee: createCustomBuyCryptoFee({ allowedTotalFeePercent: 0.5 }),
+          fee: createCustomBuyCryptoFee({ allowedTotalFeeAmount: 0.5 }),
         }),
       ];
 
@@ -161,19 +161,19 @@ describe('BuyCryptoBatchService', () => {
           buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'dTSLA' }) }),
           outputAsset: createCustomAsset({ dexName: 'dTSLA' }),
           outputReferenceAsset: createCustomAsset({ dexName: 'BTC' }),
-          fee: createCustomBuyCryptoFee({ allowedTotalFeePercent: 0.5 }),
+          fee: createCustomBuyCryptoFee({ allowedTotalFeeAmount: 0.5 }),
         }),
         createCustomBuyCrypto({
           buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'dTSLA' }) }),
           outputAsset: createCustomAsset({ dexName: 'dTSLA' }),
           outputReferenceAsset: createCustomAsset({ dexName: 'BTC' }),
-          fee: createCustomBuyCryptoFee({ allowedTotalFeePercent: 0.5 }),
+          fee: createCustomBuyCryptoFee({ allowedTotalFeeAmount: 0.5 }),
         }),
         createCustomBuyCrypto({
           buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'USDT' }) }),
           outputAsset: createCustomAsset({ dexName: 'USDT' }),
           outputReferenceAsset: createCustomAsset({ dexName: 'BTC' }),
-          fee: createCustomBuyCryptoFee({ allowedTotalFeePercent: 0.5 }),
+          fee: createCustomBuyCryptoFee({ allowedTotalFeeAmount: 0.5 }),
         }),
       ];
 

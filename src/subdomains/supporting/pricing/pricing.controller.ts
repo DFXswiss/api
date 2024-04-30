@@ -37,7 +37,7 @@ export class PricingController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getRawPrice(@Query() dto: PriceRequestRaw): Promise<Price> {
-    return this.pricingService.getPriceFrom(dto.source, dto.from, dto.to);
+    return this.pricingService.getPriceFrom(dto.source, dto.from, dto.to, dto.param);
   }
 
   @Put()

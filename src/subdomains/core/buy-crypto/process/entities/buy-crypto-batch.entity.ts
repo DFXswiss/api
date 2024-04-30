@@ -3,7 +3,6 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
-import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { MissingBuyCryptoLiquidityException } from '../exceptions/abort-batch-creation.exception';
 import { BuyCrypto } from './buy-crypto.entity';
@@ -90,7 +89,7 @@ export class BuyCryptoBatch extends IEntity {
     const filteredOutTransactions: BuyCrypto[] = [];
 
     for (const tx of this.transactions) {
-      if (tx.fee.estimatePayoutFeePercent > tx.fee.allowedTotalFeePercent) {
+      if (tx.fee.estimatePayoutFeeAmount > tx.fee.allowedTotalFeeAmount * Config.blockchainFeeBuffer) {
         filteredOutTransactions.push(tx);
 
         continue;
@@ -111,7 +110,6 @@ export class BuyCryptoBatch extends IEntity {
   }
 
   checkByPurchaseFeeEstimation(estimatePurchaseFeeAmount: number): this {
-    this.checkPurchaseFees(estimatePurchaseFeeAmount);
     this.recordPurchaseFees(estimatePurchaseFeeAmount);
 
     return this;
@@ -225,19 +223,6 @@ export class BuyCryptoBatch extends IEntity {
 
     this.transactions = [];
     this.outputReferenceAmount = 0;
-  }
-
-  private checkPurchaseFees(purchaseFeeAmount: number): void {
-    const feeRatio = purchaseFeeAmount / this.outputReferenceAmount;
-
-    if (feeRatio > Config.buy.fee.limit) {
-      throw new FeeLimitExceededException(
-        `BuyCryptoBatch purchase fee limit exceeded. Output Asset: ${this.outputAsset.dexName}. Fee ratio: ${Util.round(
-          feeRatio * 100,
-          5,
-        )}%`,
-      );
-    }
   }
 
   private recordPurchaseFees(estimatePurchaseFeeAmount: number): void {

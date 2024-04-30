@@ -3,6 +3,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { PaymentMethod, PaymentMethodSwagger } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { FeeDto } from './fee.dto';
 
 export enum TransactionType {
   BUY = 'Buy',
@@ -37,6 +38,8 @@ export enum TransactionReason {
   PAYMENT_ACCOUNT_NOT_ALLOWED = 'PaymentAccountNotAllowed',
   COUNTRY_NOT_ALLOWED = 'CountryNotAllowed',
   INSTANT_PAYMENT = 'InstantPayment',
+  FEE_TOO_HIGH = 'FeeTooHigh',
+  RECEIVER_REJECTED = 'ReceiverRejected',
 }
 
 export const KycRequiredReason = [
@@ -68,6 +71,8 @@ export const TransactionReasonMapper: {
   [AmlReason.BANK_NOT_ALLOWED]: TransactionReason.BANK_NOT_ALLOWED,
   [AmlReason.HIGH_RISK_BLOCKED]: TransactionReason.PAYMENT_ACCOUNT_NOT_ALLOWED,
   [AmlReason.COUNTRY_NOT_ALLOWED]: TransactionReason.COUNTRY_NOT_ALLOWED,
+  [AmlReason.FEE_TOO_HIGH]: TransactionReason.FEE_TOO_HIGH,
+  [AmlReason.RECEIVER_REJECTED_TX]: TransactionReason.RECEIVER_REJECTED,
 };
 
 export class UnassignedTransactionDto {
@@ -136,11 +141,14 @@ export class TransactionDto extends UnassignedTransactionDto {
   @ApiPropertyOptional()
   outputTxUrl?: string;
 
-  @ApiPropertyOptional({ description: 'Fee amount in input asset' })
+  @ApiPropertyOptional({ description: 'Fee amount in input asset', deprecated: true })
   feeAmount?: number;
 
   @ApiPropertyOptional({ deprecated: true })
   feeAsset?: string;
+
+  @ApiPropertyOptional({ type: FeeDto, description: 'Fee infos in input asset' })
+  fees?: FeeDto;
 
   @ApiPropertyOptional()
   externalTransactionId?: string;

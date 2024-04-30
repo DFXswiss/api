@@ -1,6 +1,5 @@
-import { ConflictException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { AmlHelperService } from 'src/subdomains/core/aml/aml-helper.service';
@@ -32,7 +31,6 @@ import { BuyCryptoFee } from './buy-crypto-fees.entity';
 
 export enum BuyCryptoStatus {
   CREATED = 'Created',
-  PREPARED = 'Prepared',
   PRICE_INVALID = 'PriceInvalid',
   MISSING_LIQUIDITY = 'MissingLiquidity',
   WAITING_FOR_LOWER_FEE = 'WaitingForLowerFee',
@@ -204,49 +202,6 @@ export class BuyCrypto extends IEntity {
 
   // --- ENTITY METHODS --- //
 
-  defineAssetExchangePair(): { outputReferenceAssetName: string; type: AssetType } | null {
-    this.outputAsset = this.target?.asset;
-
-    if (this.outputAsset?.type === AssetType.CUSTOM) return null;
-
-    if (this.outputAsset.dexName === this.inputReferenceAsset) {
-      this.setOutputReferenceAsset(this.outputAsset);
-
-      return null;
-    }
-
-    switch (this.target.asset.blockchain) {
-      case Blockchain.ETHEREUM:
-      case Blockchain.ARBITRUM:
-      case Blockchain.OPTIMISM:
-      case Blockchain.POLYGON:
-      case Blockchain.BASE:
-      case Blockchain.BINANCE_SMART_CHAIN:
-      case Blockchain.MONERO:
-        this.setOutputReferenceAsset(this.outputAsset);
-        return null;
-
-      default:
-        return {
-          outputReferenceAssetName: 'BTC',
-          type: [Blockchain.BITCOIN, Blockchain.LIGHTNING].includes(this.target.asset.blockchain)
-            ? AssetType.COIN
-            : AssetType.TOKEN,
-        };
-    }
-  }
-
-  setOutputReferenceAsset(asset: Asset): UpdateResult<BuyCrypto> {
-    const update: Partial<BuyCrypto> = {
-      outputReferenceAsset: asset,
-      status: BuyCryptoStatus.PREPARED,
-    };
-
-    Object.assign(this, update);
-
-    return [this.id, update];
-  }
-
   calculateOutputReferenceAmount(price: Price): this {
     this.outputReferenceAmount = price.convert(this.inputReferenceAmountMinusFee, 8);
     return this;
@@ -256,16 +211,6 @@ export class BuyCrypto extends IEntity {
     this.batch = batch;
 
     return this;
-  }
-
-  setFeeConstraints(fee: BuyCryptoFee): UpdateResult<BuyCrypto> {
-    const update: Partial<BuyCrypto> = {
-      fee,
-    };
-
-    Object.assign(this, update);
-
-    return [this.id, update];
   }
 
   setPriceInvalidStatus(): UpdateResult<BuyCrypto> {
@@ -411,28 +356,33 @@ export class BuyCrypto extends IEntity {
     fee: InternalFeeDto & FeeDto,
     minFeeAmountFiat: number,
     totalFeeAmountChf: number,
+    feeConstraints: BuyCryptoFee,
   ): UpdateResult<BuyCrypto> {
     const { usedRef, refProvision } = this.user.specifiedRef;
+    const inputReferenceAmountMinusFee = this.inputReferenceAmount - fee.total;
 
-    const update: Partial<BuyCrypto> = {
-      absoluteFeeAmount: fee.fixed,
-      percentFee: fee.rate,
-      percentFeeAmount: fee.rate * this.inputReferenceAmount,
-      minFeeAmount: fee.min,
-      minFeeAmountFiat,
-      totalFeeAmount: fee.total,
-      totalFeeAmountChf,
-      blockchainFee: fee.network,
-      inputReferenceAmountMinusFee: this.inputReferenceAmount - fee.total,
-      amountInEur,
-      amountInChf,
-      usedRef,
-      refProvision,
-      refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
-      usedFees: fee.fees?.map((fee) => fee.id).join(';'),
-    };
-
-    if (update.inputReferenceAmountMinusFee < 0) throw new ConflictException('InputReferenceAmountMinusFee smaller 0');
+    const update: Partial<BuyCrypto> =
+      inputReferenceAmountMinusFee < 0
+        ? { amlCheck: CheckStatus.FAIL, amlReason: AmlReason.FEE_TOO_HIGH, mailSendDate: null }
+        : {
+            status: BuyCryptoStatus.CREATED,
+            absoluteFeeAmount: fee.fixed,
+            percentFee: fee.rate,
+            percentFeeAmount: fee.rate * this.inputReferenceAmount,
+            minFeeAmount: fee.min,
+            minFeeAmountFiat,
+            totalFeeAmount: fee.total,
+            totalFeeAmountChf,
+            blockchainFee: fee.network,
+            inputReferenceAmountMinusFee,
+            amountInEur,
+            amountInChf,
+            usedRef,
+            refProvision,
+            refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
+            usedFees: fee.fees?.map((fee) => fee.id).join(';'),
+            fee: feeConstraints,
+          };
 
     Object.assign(this, update);
 
@@ -489,9 +439,7 @@ export class BuyCrypto extends IEntity {
       chargebackDate: null,
       chargebackRemittanceInfo: null,
       outputReferenceAmount: null,
-      outputReferenceAsset: null,
       outputAmount: null,
-      outputAsset: null,
       txId: null,
       outputDate: null,
       recipientMail: null,

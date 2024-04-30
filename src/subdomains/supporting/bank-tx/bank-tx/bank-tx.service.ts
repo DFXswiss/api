@@ -146,8 +146,7 @@ export class BankTxService {
 
     entity = this.createTx(bankTx, multiAccountIbans);
 
-    if (!DisabledProcess(Process.CREATE_TRANSACTION))
-      entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.BANK_TX });
+    entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.BANK_TX });
 
     return this.bankTxRepo.save(entity);
   }
@@ -171,7 +170,7 @@ export class BankTxService {
           await this.bankTxRepeatService.create(bankTx);
           break;
         default:
-          if (!DisabledProcess(Process.CREATE_TRANSACTION) && dto.type)
+          if (dto.type)
             await this.transactionService.update(bankTx.transaction.id, {
               type: TransactionBankTxTypeMapper[dto.type],
             });
@@ -182,6 +181,16 @@ export class BankTxService {
     Util.removeNullFields(dto);
 
     return this.bankTxRepo.save({ ...bankTx, ...dto });
+  }
+
+  async reset(id: number): Promise<void> {
+    const bankTx = await this.bankTxRepo.findOne({ where: { id }, relations: { buyCrypto: true } });
+    if (!bankTx) throw new NotFoundException('BankTx not found');
+    if (!bankTx.buyCrypto) throw new BadRequestException('Only buyCrypto bankTx can be reset');
+    if (bankTx.buyCrypto.isComplete) throw new BadRequestException('BuyCrypto already completed');
+
+    await this.buyCryptoService.delete(bankTx.buyCrypto);
+    await this.bankTxRepo.update(...bankTx.reset());
   }
 
   async getBankTxByKey(key: string, value: any): Promise<BankTx> {

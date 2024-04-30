@@ -57,7 +57,9 @@
                 "bank_not_allowed": "Die von dir verwendete Absenderbank ist nicht erlaubt. Bitte nutze eine andere Bank für deine Einzahlung.",
                 "country_not_allowed": "Deine Einzahlung kann leider nicht bearbeitet werden,<br>weil das Geld aus einem Land stammt welches wir nicht unterstützen können. Mehr Informationen:<br><a style='color:white' href='https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html'>https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html</a>",
                 "high_risk_kyc_needed": "Wir konnten ohne Verifizierung (KYC) nicht sicherstellen, dass es sich bei dieser Transaktion nicht um einen Betrug handelt und mussten daher die Transaktion leider ablehnen.<br>Einzahlungen per Banktransaktion stehen dir weiterhin zur Verfügung.",
-                "high_risk_blocked": "Wir können nicht sicherstellen, dass es sich bei dieser Transaktion nicht um einen Betrug handelt und mussten daher die Transaktion leider ablehnen.<br>Einzahlungen per Banktransaktion stehen dir weiterhin zur Verfügung."
+                "high_risk_blocked": "Wir können nicht sicherstellen, dass es sich bei dieser Transaktion nicht um einen Betrug handelt und mussten daher die Transaktion leider ablehnen.<br>Einzahlungen per Banktransaktion stehen dir weiterhin zur Verfügung.",
+                "fee_too_high": "Die Netzwerk Gebühren sind derzeit zu hoch für den Betrag, den du geschickt hast",
+                "receiver_rejected_tx": "Die Empfänger-Node hat die Transaktion abgelehnt"
             },
             "kyc_start": "Du kannst den KYC Prozess hier starten:<br>[url:{urlText}]"           
         },

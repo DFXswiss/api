@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { isFiat } from 'src/shared/models/active';
-import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -14,7 +14,6 @@ import { PricingService } from 'src/subdomains/supporting/pricing/services/prici
 import { IsNull, Not } from 'typeorm';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoFee } from '../entities/buy-crypto-fees.entity';
-import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 import { BuyCryptoService } from './buy-crypto.service';
@@ -28,12 +27,11 @@ export class BuyCryptoPreparationService {
     private readonly transactionHelper: TransactionHelper,
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
-    private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
-    private readonly assetService: AssetService,
     private readonly feeService: FeeService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly amlService: AmlService,
     private readonly userService: UserService,
+    private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
@@ -114,6 +112,8 @@ export class BuyCryptoPreparationService {
           ),
         );
 
+        await this.buyCryptoWebhookService.triggerWebhook(entity);
+
         if (entity.amlCheck === CheckStatus.PASS && entity.user.status === UserStatus.NA)
           await this.userService.activateUser(entity.user);
       } catch (e) {
@@ -122,7 +122,7 @@ export class BuyCryptoPreparationService {
     }
   }
 
-  async refreshFee(): Promise<void> {
+  async setFee(): Promise<void> {
     const entities = await this.buyCryptoRepo.find({
       where: {
         amlCheck: CheckStatus.PASS,
@@ -169,18 +169,31 @@ export class BuyCryptoPreparationService {
 
         const referenceEurPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatEur, false);
         const referenceChfPrice = await this.pricingService.getPrice(inputReferenceCurrency, fiatChf, false);
+        const referenceOutputPrice = await this.pricingService.getPrice(
+          inputReferenceCurrency,
+          entity.target.asset,
+          false,
+        );
 
         const amountInChf = referenceChfPrice.convert(entity.inputReferenceAmount, 2);
+        const networkFee = !fee.network
+          ? referenceOutputPrice.convert(referenceChfPrice.invert().convert(Config.maxBlockchainFee))
+          : referenceOutputPrice.convert(fee.network);
 
-        await this.buyCryptoRepo.update(
-          ...entity.setFeeAndFiatReference(
-            referenceEurPrice.convert(entity.inputReferenceAmount, 2),
-            amountInChf,
-            fee,
-            isFiat(inputReferenceCurrency) ? fee.min : referenceEurPrice.convert(fee.min, 2),
-            referenceChfPrice.convert(fee.total, 2),
-          ),
+        const feeConstraints = BuyCryptoFee.create(entity, networkFee);
+
+        entity.setFeeAndFiatReference(
+          referenceEurPrice.convert(entity.inputReferenceAmount, 2),
+          amountInChf,
+          fee,
+          isFiat(inputReferenceCurrency) ? fee.min : referenceEurPrice.convert(fee.min, 2),
+          referenceChfPrice.convert(fee.total, 2),
+          feeConstraints,
         );
+
+        await this.buyCryptoRepo.save(entity);
+
+        if (entity.amlCheck === CheckStatus.FAIL) return;
 
         for (const feeId of fee.fees) {
           await this.feeService.increaseTxUsages(amountInChf, feeId, entity.user.userData);
@@ -193,92 +206,5 @@ export class BuyCryptoPreparationService {
         this.logger.error(`Error during buy-crypto ${entity.id} fee and fiat reference refresh:`, e);
       }
     }
-  }
-
-  async prepareTransactions(): Promise<void> {
-    try {
-      const txInput = await this.buyCryptoRepo.find({
-        where: {
-          inputReferenceAmountMinusFee: Not(IsNull()),
-          percentFee: Not(IsNull()),
-          outputReferenceAsset: IsNull(),
-          outputAsset: IsNull(),
-          batch: IsNull(),
-        },
-        relations: [
-          'bankTx',
-          'checkoutTx',
-          'buy',
-          'buy.user',
-          'buy.user.wallet',
-          'buy.asset',
-          'batch',
-          'cryptoRoute',
-          'cryptoRoute.user',
-          'cryptoRoute.user.wallet',
-          'cryptoRoute.asset',
-          'cryptoInput',
-        ],
-      });
-
-      if (txInput.length === 0) return;
-
-      this.logger.verbose(
-        `Buy-crypto transaction input. Processing ${txInput.length} transaction(s). Transaction ID(s): ${txInput.map(
-          (t) => t.id,
-        )}`,
-      );
-
-      const txWithAssets = await this.defineAssetPair(txInput);
-      const txWithFeeConstraints = this.setFeeConstraints(txWithAssets);
-
-      for (const tx of txWithFeeConstraints) {
-        await this.buyCryptoRepo.save(tx);
-        await this.buyCryptoWebhookService.triggerWebhook(tx);
-      }
-    } catch (e) {
-      this.logger.error('Error during buy-crypto preparation:', e);
-    }
-  }
-
-  // --- HELPER METHODS --- //
-
-  private async defineAssetPair(transactions: BuyCrypto[]): Promise<BuyCrypto[]> {
-    for (const tx of transactions) {
-      try {
-        const outputReferenceAssetToFetch = tx.defineAssetExchangePair();
-
-        if (outputReferenceAssetToFetch) {
-          const { outputReferenceAssetName, type } = outputReferenceAssetToFetch;
-
-          const outputReferenceAsset = await this.assetService.getAssetByQuery({
-            dexName: outputReferenceAssetName,
-            blockchain: tx.outputAsset.blockchain,
-            type,
-          });
-
-          if (!outputReferenceAsset) {
-            throw new Error(
-              `Asset with name ${outputReferenceAssetName}, type: ${type}, blockchain: ${tx.outputAsset.blockchain} not found by asset service.`,
-            );
-          }
-
-          tx.setOutputReferenceAsset(outputReferenceAsset);
-        }
-      } catch (e) {
-        this.logger.error('Error while defining buy-crypto asset pair:', e);
-      }
-    }
-
-    return transactions.filter((tx) => tx.outputReferenceAsset && tx.outputAsset);
-  }
-
-  private setFeeConstraints(transactions: BuyCrypto[]): BuyCrypto[] {
-    for (const tx of transactions) {
-      const fee = BuyCryptoFee.create(tx);
-      tx.setFeeConstraints(fee);
-    }
-
-    return transactions;
   }
 }

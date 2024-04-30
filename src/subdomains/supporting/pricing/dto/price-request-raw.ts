@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { PriceSource } from '../domain/entities/price-rule.entity';
 
 export class PriceRequestRaw {
@@ -13,4 +13,8 @@ export class PriceRequestRaw {
   @IsNotEmpty()
   @IsString()
   to: string;
+
+  @IsOptional()
+  @IsString()
+  param: string;
 }

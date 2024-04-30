@@ -5,6 +5,7 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { LiquidityManagementRuleCreationDto } from '../dto/input/liquidity-management-rule-creation.dto';
 import { LiquidityManagementRuleSettingsDto } from '../dto/input/liquidity-management-settings.dto';
+import { LiquidityManagementRuleUpdateDto } from '../dto/input/liquidity-management-update.dto';
 import { LiquidityManagementRuleOutputDto } from '../dto/output/liquidity-management-rule-output.dto';
 import { LiquidityManagementRuleService } from '../services/liquidity-management-rule.service';
 
@@ -25,10 +26,7 @@ export class LiquidityManagementRuleController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateRule(
-    @Param('id') id: number,
-    @Body() dto: LiquidityManagementRuleCreationDto,
-  ): Promise<LiquidityManagementRuleOutputDto> {
+  async updateRule(@Param('id') id: number, @Body() dto: LiquidityManagementRuleUpdateDto): Promise<void> {
     return this.service.updateRule(id, dto);
   }
 
