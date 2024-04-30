@@ -19,6 +19,7 @@ export enum PriceSource {
 
 export interface Rule {
   source: PriceSource;
+  param?: string;
   asset: string;
   reference: string;
   limit?: number;
@@ -36,7 +37,7 @@ export class PriceRule extends IEntity {
   reference?: Asset;
 
   @Column()
-  priceSource: PriceSource;
+  priceSource: string; // {src}:{param}
 
   @Column()
   priceAsset: string;
@@ -46,7 +47,7 @@ export class PriceRule extends IEntity {
 
   // check 1
   @Column({ nullable: true })
-  check1Source: PriceSource;
+  check1Source: string; // {src}:{param}
 
   @Column({ nullable: true })
   check1Asset: string;
@@ -59,7 +60,7 @@ export class PriceRule extends IEntity {
 
   // check 2
   @Column({ nullable: true })
-  check2Source: PriceSource;
+  check2Source: string; // {src}:{param}
 
   @Column({ nullable: true })
   check2Asset: string;
@@ -111,7 +112,7 @@ export class PriceRule extends IEntity {
 
   get rule(): Rule {
     return {
-      source: this.priceSource,
+      ...this.parseSource(this.priceSource),
       asset: this.priceAsset,
       reference: this.priceReference,
     };
@@ -120,7 +121,7 @@ export class PriceRule extends IEntity {
   get check1(): Rule {
     return this.check1Source
       ? {
-          source: this.check1Source,
+          ...this.parseSource(this.check1Source),
           asset: this.check1Asset ?? this.priceAsset,
           reference: this.check1Reference ?? this.priceReference,
           limit: this.check1Limit,
@@ -131,11 +132,20 @@ export class PriceRule extends IEntity {
   get check2(): Rule | undefined {
     return this.check2Source
       ? {
-          source: this.check2Source,
+          ...this.parseSource(this.check2Source),
           asset: this.check2Asset ?? this.priceAsset,
           reference: this.check2Reference ?? this.priceReference,
           limit: this.check2Limit,
         }
       : undefined;
+  }
+
+  private parseSource(priceSource: string): { source: PriceSource; param?: string } {
+    const [source, param] = priceSource.split(':');
+
+    return {
+      source: source as PriceSource,
+      param,
+    };
   }
 }

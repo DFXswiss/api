@@ -1,4 +1,5 @@
 import { Inject, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { FeeAmount } from '@uniswap/v3-sdk';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/utils/util';
@@ -22,12 +23,12 @@ export abstract class SupplementaryStrategy implements OnModuleInit, OnModuleDes
   abstract transferMinimalCoin(address: string): Promise<string>;
   abstract checkTransferCompletion(transferTxId: string): Promise<boolean>;
   abstract findTransaction(query: TransactionQuery): Promise<TransactionResult>;
-  abstract getTargetAmount(amount: number, from: Asset, to: Asset): Promise<number>;
+  abstract getTargetAmount(amount: number, from: Asset, to: Asset, poolFee?: FeeAmount): Promise<number>;
 
-  async calculatePrice(from: Asset, to: Asset): Promise<number> {
+  async calculatePrice(from: Asset, to: Asset, poolFee?: FeeAmount): Promise<number> {
     const amount = from.minimalPriceReferenceAmount;
 
-    const targetAmount = await this.getTargetAmount(amount, from, to);
+    const targetAmount = await this.getTargetAmount(amount, from, to, poolFee);
 
     return Util.round(amount / targetAmount, 8);
   }

@@ -276,6 +276,46 @@ export abstract class EvmClient {
     };
   }
 
+  async testSwapPool(
+    source: Asset,
+    sourceAmount: number,
+    target: Asset,
+    poolFee: FeeAmount,
+  ): Promise<{ targetAmount: number; feeAmount: number; priceImpact: number }> {
+    if (source.id === target.id) return { targetAmount: sourceAmount, feeAmount: 0, priceImpact: 0 };
+
+    const sourceToken = await this.getToken(source);
+    const targetToken = await this.getToken(target);
+    if (sourceToken instanceof NativeCurrency || targetToken instanceof NativeCurrency)
+      throw new Error(`Only tokens can be in a pool`);
+
+    const poolContract = this.getPoolContract(Pool.getAddress(sourceToken, targetToken, poolFee));
+
+    const token0IsInToken = sourceToken.address === (await poolContract.token0());
+    const slot0 = await poolContract.slot0();
+    const sqrtPriceX96 = slot0.sqrtPriceX96;
+
+    const quote = await this.getQuoteContract().callStatic.quoteExactInputSingle({
+      tokenIn: sourceToken.address,
+      tokenOut: targetToken.address,
+      fee: poolFee,
+      amountIn: EvmUtil.toWeiAmount(sourceAmount, sourceToken.decimals),
+      sqrtPriceLimitX96: '0',
+    });
+
+    const sqrtPriceX96After = quote.sqrtPriceX96After;
+    let sqrtPriceRatio = sqrtPriceX96After / sqrtPriceX96;
+    if (!token0IsInToken) sqrtPriceRatio = 1 / sqrtPriceRatio;
+
+    const gasPrice = await this.getRecommendedGasPrice();
+
+    return {
+      targetAmount: EvmUtil.fromWeiAmount(quote.amountOut, targetToken.decimals),
+      feeAmount: EvmUtil.fromWeiAmount(quote.gasEstimate.mul(gasPrice)),
+      priceImpact: Math.abs(1 - sqrtPriceRatio),
+    };
+  }
+
   async swap(sourceToken: Asset, sourceAmount: number, targetToken: Asset, maxSlippage: number): Promise<string> {
     const route = await this.getRoute(sourceToken, targetToken, sourceAmount, maxSlippage);
 

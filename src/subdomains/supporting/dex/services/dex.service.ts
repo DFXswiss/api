@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { FeeAmount } from '@uniswap/v3-sdk';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
@@ -295,7 +296,7 @@ export class DexService {
     }
   }
 
-  async calculatePrice(from: Asset, to: Asset): Promise<number> {
+  async calculatePrice(from: Asset, to: Asset, poolFee?: FeeAmount): Promise<number> {
     if (from.blockchain !== to.blockchain) throw new Error('Swapping between chains is not possible');
 
     const strategy = this.supplementaryStrategyRegistry.getSupplementaryStrategyByAsset(from);
@@ -304,7 +305,7 @@ export class DexService {
       throw new Error(`No supplementary strategy found for asset ${from.uniqueName} during #calculatePrice(...)`);
     }
     try {
-      return await strategy.calculatePrice(from, to);
+      return await strategy.calculatePrice(from, to, poolFee);
     } catch (e) {
       this.logger.error('Error while getting target amount:', e);
 
