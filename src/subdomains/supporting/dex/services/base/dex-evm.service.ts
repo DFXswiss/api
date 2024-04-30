@@ -1,3 +1,4 @@
+import { FeeAmount } from '@uniswap/v3-sdk';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmService } from 'src/integration/blockchain/shared/evm/evm.service';
@@ -66,11 +67,14 @@ export abstract class DexEvmService implements PurchaseDexService {
     sourceAsset: Asset,
     sourceAmount: number,
     targetAsset: Asset,
+    poolFee?: FeeAmount,
     maxSlippage = 0.2,
   ): Promise<number> {
     if (sourceAsset.id === targetAsset.id) return sourceAmount;
 
-    return this.#client.testSwap(sourceAsset, sourceAmount, targetAsset, maxSlippage).then((r) => r.targetAmount);
+    return poolFee != null
+      ? this.#client.testSwapPool(sourceAsset, sourceAmount, targetAsset, poolFee).then((r) => r.targetAmount)
+      : this.#client.testSwap(sourceAsset, sourceAmount, targetAsset, maxSlippage).then((r) => r.targetAmount);
   }
 
   async swap(swapAsset: Asset, swapAmount: number, targetAsset: Asset, maxSlippage: number): Promise<string> {

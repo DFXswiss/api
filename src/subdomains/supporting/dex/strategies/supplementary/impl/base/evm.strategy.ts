@@ -1,3 +1,4 @@
+import { FeeAmount } from '@uniswap/v3-sdk';
 import { Config } from 'src/config/config';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
@@ -40,8 +41,8 @@ export abstract class EvmStrategy extends SupplementaryStrategy {
     return { isComplete: true, txId: targetEntry.hash };
   }
 
-  async getTargetAmount(amount: number, from: Asset, to: Asset): Promise<number> {
-    return this.dexEvmService.getTargetAmount(from, amount, to);
+  async getTargetAmount(amount: number, from: Asset, to: Asset, poolFee?: FeeAmount): Promise<number> {
+    return this.dexEvmService.getTargetAmount(from, amount, to, poolFee);
   }
 
   // --- HELPER METHODS --- //
