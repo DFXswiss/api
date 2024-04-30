@@ -32,7 +32,7 @@ export enum MailTranslationKey {
   ACCOUNT_MERGE_CHANGED_MAIL = 'mail.account_merge.changed_mail',
   LIMIT_REQUEST = 'mail.limit_request',
   BLACK_SQUAD = 'mail.black_squad',
-  UNVERIFIED_FIAT_INPUT = 'mail.payment.fiat_input.unverified',
+  UNASSIGNED_FIAT_INPUT = 'mail.payment.fiat_input.unassigned',
 }
 
 export enum MailKey {

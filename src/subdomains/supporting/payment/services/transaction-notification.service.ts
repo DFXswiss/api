@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
+import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { In, IsNull } from 'typeorm';
 import { BankTxUnassignedTypes } from '../../bank-tx/bank-tx/bank-tx.entity';
@@ -31,14 +32,18 @@ export class TransactionNotificationService {
 
   async sendTxAssignedMail(entity: Transaction): Promise<void> {
     try {
-      if (entity.mailTarget?.userData.mail && !DisabledProcess(Process.TX_MAIL)) {
+      if (
+        entity.targetEntity?.userData.mail &&
+        !(entity.targetEntity instanceof RefReward) &&
+        !DisabledProcess(Process.TX_MAIL)
+      ) {
         await this.notificationService.sendMail({
           type: MailType.USER,
           context: entity.mailContext,
           input: {
-            userData: entity.mailTarget.userData,
-            title: `${entity.mailTarget.inputMailTranslationKey}.title`,
-            salutation: { key: `${entity.mailTarget.inputMailTranslationKey}.salutation` },
+            userData: entity.targetEntity.userData,
+            title: `${entity.targetEntity.inputMailTranslationKey}.title`,
+            salutation: { key: `${entity.targetEntity.inputMailTranslationKey}.salutation` },
             suffix: [
               {
                 key: `${MailTranslationKey.PAYMENT}.transaction_button`,
@@ -79,11 +84,11 @@ export class TransactionNotificationService {
             context: MailContext.UNASSIGNED_TX,
             input: {
               userData: bankData.userData,
-              title: `${MailTranslationKey.UNVERIFIED_FIAT_INPUT}.title`,
-              salutation: { key: `${MailTranslationKey.UNVERIFIED_FIAT_INPUT}.salutation` },
+              title: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.title`,
+              salutation: { key: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.salutation` },
               suffix: [
                 {
-                  key: `${MailTranslationKey.UNVERIFIED_FIAT_INPUT}.transaction_button`,
+                  key: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.transaction_button`,
                   params: { url: entity.url },
                 },
                 {

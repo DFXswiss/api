@@ -24,7 +24,7 @@
         "fiat_input": {
             "title": "Deposito ricevuto",
             "salutation": "Abbiamo ricevuto il vostro deposito",
-            "unverified": {
+            "unassigned": {
                 "title": "Assegnazione del deposito",
                 "salutation": "Il vostro deposito non può essere assegnato automaticamente",
                 "transaction_button": "Si prega di assegnare il deposito all'ordine:<br>[url:clicca qui]"

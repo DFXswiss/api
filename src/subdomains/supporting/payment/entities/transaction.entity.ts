@@ -85,7 +85,7 @@ export class Transaction extends IEntity {
 
   mailSent(): UpdateResult<Transaction> {
     const update: Partial<BuyCrypto> = {
-      recipientMail: this.mailTarget?.userData.mail,
+      recipientMail: this.targetEntity?.userData.mail,
       mailSendDate: new Date(),
     };
 
@@ -95,11 +95,7 @@ export class Transaction extends IEntity {
   }
 
   get url(): string {
-    return `${Config.frontend.services}/tx/${this.id}`;
-  }
-
-  get mailTarget(): BuyCrypto | BuyFiat | undefined {
-    return this.buyCrypto ?? this.buyFiat ?? undefined;
+    return `${Config.frontend.services}/tx/${this.uid}`;
   }
 
   get mailContext(): MailContext | undefined {

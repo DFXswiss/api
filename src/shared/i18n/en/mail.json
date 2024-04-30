@@ -24,7 +24,7 @@
         "fiat_input": {
             "title": "Deposit received",
             "salutation": "We have received your deposit",
-            "unverified": {
+            "unassigned": {
                 "title": "Assign deposit",
                 "salutation": "Your deposit cannot be allocated automatically",
                 "transaction_button": "Please assign your deposit to your order:<br>[url:click here]"

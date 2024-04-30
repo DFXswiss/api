@@ -24,7 +24,7 @@
         "fiat_input": {
             "title": "Depósito recibido",
             "salutation": "Hemos recibido su depósito",
-            "unverified": {
+            "unassigned": {
                 "title": "Asignar depósito",
                 "salutation": "Su depósito no puede asignarse automáticamente",
                 "transaction_button": "Por favor, asigne su depósito a su pedido:<br>[url:haga clic aquí]"
