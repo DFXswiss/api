@@ -302,8 +302,8 @@ export abstract class EvmClient {
       amountIn: EvmUtil.toWeiAmount(sourceAmount, sourceToken.decimals),
       sqrtPriceLimitX96: '0',
     });
-    const sqrtPriceX96After = quote.sqrtPriceX96After;
 
+    const sqrtPriceX96After = quote.sqrtPriceX96After;
     let sqrtPriceRatio = sqrtPriceX96After / sqrtPriceX96;
     if (!token0IsInToken) sqrtPriceRatio = 1 / sqrtPriceRatio;
 
@@ -312,7 +312,7 @@ export abstract class EvmClient {
     return {
       targetAmount: EvmUtil.fromWeiAmount(quote.amountOut, targetToken.decimals),
       feeAmount: EvmUtil.fromWeiAmount(quote.gasEstimate.mul(gasPrice)),
-      priceImpact: Math.abs(1 - sqrtPriceRatio) + 0.0001,
+      priceImpact: Math.abs(1 - sqrtPriceRatio),
     };
   }
 
