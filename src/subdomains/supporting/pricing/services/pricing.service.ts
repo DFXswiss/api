@@ -98,8 +98,8 @@ export class PricingService {
     }
   }
 
-  async getPriceFrom(source: PriceSource, from: string, to: string): Promise<Price> {
-    return this.providerMap[source].getPrice(from, to);
+  async getPriceFrom(source: PriceSource, from: string, to: string, param?: string): Promise<Price> {
+    return this.providerMap[source].getPrice(from, to, param);
   }
 
   // --- PRIVATE METHODS --- //
@@ -204,7 +204,7 @@ export class PricingService {
   private async getRulePrice(rule: Rule): Promise<Price> {
     return this.providerPriceCache
       .get(`${rule.source}:${rule.asset}/${rule.reference}`, () =>
-        this.getPriceFrom(rule.source, rule.asset, rule.reference),
+        this.getPriceFrom(rule.source, rule.asset, rule.reference, rule.param),
       )
       .catch((e) => {
         throw new Error(`Failed to get price ${rule.asset} -> ${rule.reference} on ${rule.source}: ${e.message}`);

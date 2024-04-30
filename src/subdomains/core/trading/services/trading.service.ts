@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { NativeCurrency, Token } from '@uniswap/sdk-core';
+import { NativeCurrency } from '@uniswap/sdk-core';
 import { ethers } from 'ethers';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
@@ -54,6 +54,7 @@ export class TradingService {
       tradingRule.source2,
       tradingRule.leftAsset2,
       tradingRule.rightAsset2,
+      tradingRule.source2 === PriceSource.DEX ? `${tradingRule.poolFee}` : undefined,
     );
     if (tradingRule.source2 === PriceSource.DEX)
       price2.price = price2.price / (1 + EvmUtil.poolFeeFactor(tradingRule.poolFee));
@@ -84,19 +85,11 @@ export class TradingService {
 
     const poolContract = await this.getPoolContract(client, tradingInfo);
 
-    const token0Address = await poolContract.token0();
-    const token0IsInToken = tokenIn.address === token0Address;
-
-    const priceImpact = tradingInfo.priceImpact;
-    const usePriceImpact = Math.abs(priceImpact) / 2;
+    const usePriceImpact = Math.abs(tradingInfo.priceImpact) / 2;
     const checkPriceImpact = usePriceImpact.toFixed(6);
     const estimatedProfitPercent = usePriceImpact - EvmUtil.poolFeeFactor(tradingInfo.poolFee);
 
     const coin = await this.assetService.getNativeAsset(tradingInfo.assetIn.blockchain);
-
-    const slot0 = await poolContract.slot0();
-    const sqrtPriceX96 = slot0.sqrtPriceX96;
-    const fee = await poolContract.fee();
 
     const poolBalance = await client.getTokenBalance(tradingInfo.assetOut, poolContract.address);
     const poolBalanceLimit = 0.99; // cannot swap 100% of the pool balance, therefore reduce by 1%
@@ -104,89 +97,54 @@ export class TradingService {
 
     let amountIn = START_AMOUNT_IN * tradingInfo.assetIn.minimalPriceReferenceAmount;
 
-    const quoterV2Params = {
-      tokenIn: tokenIn.address,
-      tokenOut: tokenOut.address,
-      fee: fee,
-      amountIn: EvmUtil.toWeiAmount(amountIn, tokenIn.decimals),
-      sqrtPriceLimitX96: '0',
-    };
-
-    let { calcPriceImpact, amountOut, swapFee } = await this.calculatePriceImpact(
-      client,
-      quoterV2Params,
-      token0IsInToken,
-      sqrtPriceX96,
-      tokenOut,
+    let { targetAmount, feeAmount, priceImpact } = await client.testSwapPool(
+      tradingInfo.assetIn,
+      amountIn,
+      tradingInfo.assetOut,
+      tradingInfo.poolFee,
     );
 
-    if (checkPoolBalance <= amountOut)
+    if (checkPoolBalance <= targetAmount)
       throw new PoolOutOfRangeException(
-        `Pool balance ${checkPoolBalance} is lower than required output amount ${amountOut}`,
+        `Pool balance ${checkPoolBalance} is lower than required output amount ${targetAmount}`,
       );
 
     const maxAllowedLoopCounter = 100;
     let currentLoopCounter = 0;
 
-    while (checkPriceImpact !== calcPriceImpact.toFixed(6)) {
-      const ratio = usePriceImpact / calcPriceImpact;
+    while (checkPriceImpact !== priceImpact.toFixed(6)) {
+      const ratio = usePriceImpact / priceImpact;
       amountIn *= ratio;
 
-      quoterV2Params.amountIn = EvmUtil.toWeiAmount(amountIn, tokenIn.decimals);
-
-      ({ calcPriceImpact, amountOut, swapFee } = await this.calculatePriceImpact(
-        client,
-        quoterV2Params,
-        token0IsInToken,
-        sqrtPriceX96,
-        tokenOut,
+      ({ targetAmount, feeAmount, priceImpact } = await client.testSwapPool(
+        tradingInfo.assetIn,
+        amountIn,
+        tradingInfo.assetOut,
+        tradingInfo.poolFee,
       ));
 
-      if (checkPoolBalance <= amountOut)
+      if (checkPoolBalance <= targetAmount)
         throw new PoolOutOfRangeException(
-          `Pool balance ${checkPoolBalance} is lower than required output amount ${amountOut}`,
+          `Pool balance ${checkPoolBalance} is lower than required output amount ${targetAmount}`,
         );
 
       if (++currentLoopCounter > maxAllowedLoopCounter)
         throw new Error(
-          `Max allowed loop counter exceeded: checkPriceImpact ${checkPriceImpact}, calcPriceImpact ${calcPriceImpact.toFixed(
+          `Max allowed loop counter exceeded: checkPriceImpact ${checkPriceImpact}, calcPriceImpact ${priceImpact.toFixed(
             6,
           )}`,
         );
     }
 
     const estimatedProfitChf = Util.round(amountIn * tradingInfo.assetIn.approxPriceChf * estimatedProfitPercent, 2);
-    const swapFeeChf = Util.round(swapFee * coin.approxPriceChf, 2);
+    const swapFeeChf = Util.round(feeAmount * coin.approxPriceChf, 2);
     if (swapFeeChf > estimatedProfitChf)
       throw new Error(`Swap fee (${swapFeeChf} CHF) ist larger than estimated profit (${estimatedProfitChf} CHF)`);
 
     tradingInfo.amountIn = amountIn;
-    tradingInfo.amountOut = amountOut;
+    tradingInfo.amountOut = targetAmount;
 
     return tradingInfo;
-  }
-
-  private async calculatePriceImpact(
-    client: EvmClient,
-    quoterV2Params: any,
-    token0IsInToken: boolean,
-    sqrtPriceX96: number,
-    tokenOut: Token,
-  ): Promise<{ calcPriceImpact: number; amountOut: number; swapFee: number }> {
-    const quoterV2Contract = client.getQuoteContract();
-    const quote = await quoterV2Contract.callStatic.quoteExactInputSingle(quoterV2Params);
-    const sqrtPriceX96After = quote.sqrtPriceX96After;
-
-    let sqrtPriceRatio = sqrtPriceX96After / sqrtPriceX96;
-    if (!token0IsInToken) sqrtPriceRatio = 1 / sqrtPriceRatio;
-
-    const gasPrice = await client.getRecommendedGasPrice();
-
-    return {
-      calcPriceImpact: Math.abs(1 - sqrtPriceRatio) + 0.0001,
-      amountOut: EvmUtil.fromWeiAmount(quote.amountOut, tokenOut.decimals),
-      swapFee: EvmUtil.fromWeiAmount(quote.gasEstimate.mul(gasPrice)),
-    };
   }
 
   private async getPoolContract(client: EvmClient, tradingInfo: TradingInfo): Promise<ethers.Contract> {
