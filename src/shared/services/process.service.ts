@@ -38,6 +38,7 @@ export enum Process {
   TX_SPEEDUP = 'TxSpeedup',
   MAIL_RETRY = 'MailRetry',
   TRADING = 'Trading',
+  TX_MAIL = 'TxMail',
   SYNCHRONIZE_MAIL_DATA = 'SynchronizeMailData',
 }
 

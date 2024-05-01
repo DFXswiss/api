@@ -44,7 +44,7 @@ export class Configuration {
 
   amlCheckLastNameCheckValidity = 90; // days
   maxBlockchainFee = 50; // CHF
-  blockchainFeeBuffer = 1.1;
+  blockchainFeeBuffer = 1.2;
 
   tradingLimits = {
     dailyDefault: 1000, // CHF

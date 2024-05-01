@@ -8,7 +8,8 @@
         "welcome": "Bonjour {name},",
         "team_questions": "If you have any questions, please do not hesitate to contact us.",
         "personal_closing": "Kind regards,<br>{closingName}",
-        "button": "ou<br>[url:Cliquez ici]"
+        "button": "ou<br>[url:Cliquez ici]",
+        "link": "ou<br>[url:{urlText}]"
     },
     "login": {
         "title": "Connexion DFX",
@@ -16,34 +17,18 @@
         "message": "Cliquez sur le lien suivant pour vous connecter à DFX:<br>[url:{urlText}]"
     },
     "payment": {
-        "buy_fiat": {
-            "initiated": {
-                "title": "Fonds reçus",
-                "salutation": "Nous avons reçu vos fonds",
-                "next_step": "Étape suivante: nous allons vendre vos fonds et les échanger dans la monnaie que vous souhaitez, nous vous informerons dans les prochains e-mails."
-            },
-            "exchanged": {
-                "title": "Fonds vendus",
-                "salutation": "Nous avons vendu vos fonds",
-                "next_step": "Étape suivante : maintenant que nous avons vendu vos fonds, nous préparons le virement bancaire. Lorsque l'argent sera sorti de notre compte bancaire, vous recevrez un dernier e-mail confirmant le virement."
-            },
-            "processed": {
-                "title": "Virement effectué",
-                "salutation": "Nous avons effectué le virement bancaire",
-                "next_step": "Le virement vient de partir de notre banque et sera visible sur votre compte sous peu. La latence du traitement est désormais de la responsabilité de la banque. Merci d'avoir utilisé le service de retrait de DFX."
-            },
-            "input_amount": "Versement",
-            "output_amount": "Versement net",
-            "payment_link": "Vous trouverez ici l'ID de transaction associée à votre retrait: [url:Link]"
+        "crypto_input": {
+            "title": "Fonds cryptographiques reçus",
+            "salutation": "Nous avons reçu vos fonds en crypto-monnaie"
         },
-        "buy_crypto": {
-            "confirmed": {
-                "title": "Dépôt effectué",
-                "salutation": "Votre dépôt a été effectué avec succès"
-            },
-            "input_amount": "Déposé",
-            "output_amount": "Paiement crypto",
-            "payment_link": "Vous trouverez ici l'ID de transaction associée à votre versement: [url:Link]"
+        "fiat_input": {
+            "title": "Dépôt reçu",
+            "salutation": "Nous avons reçu votre dépôt",
+            "unassigned": {
+                "title": "Attribuer un dépôt",
+                "salutation": "Votre dépôt ne peut pas être attribué automatiquement",
+                "transaction_button": "Veuillez affecter votre dépôt à votre commande:<br>[url:cliquez ici]"
+            }
         },
         "return": {
             "fiat": {
@@ -143,11 +128,8 @@
                 "line5": ""
             }
         },
+        "transaction_button": "Cliquez sur le bouton ci-dessous pour obtenir plus de détails sur votre transaction:<br>[url:cliquez ici]",
         "blockchain": "Blockchain",
-        "input_blockchain": "Blockchain de dépôt",
-        "output_blockchain": "Blockchain de paiement",
-        "dfx_fee": "DFX Frais",
-        "exchange_rate": "Taux de change",
         "bank_account": "Compte bancaire",
         "remittance_info": "Motif du paiement",
         "transaction_id": "ID de la transaction",

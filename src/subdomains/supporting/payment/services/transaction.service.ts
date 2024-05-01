@@ -6,10 +6,14 @@ import { CreateTransactionDto } from '../dto/input/create-transaction.dto';
 import { UpdateTransactionDto } from '../dto/input/update-transaction.dto';
 import { Transaction } from '../entities/transaction.entity';
 import { TransactionRepository } from '../repositories/transaction.repository';
+import { TransactionNotificationService } from './transaction-notification.service';
 
 @Injectable()
 export class TransactionService {
-  constructor(private readonly repo: TransactionRepository) {}
+  constructor(
+    private readonly repo: TransactionRepository,
+    private readonly transactionNotificationService: TransactionNotificationService,
+  ) {}
 
   async create(dto: CreateTransactionDto): Promise<Transaction | undefined> {
     const entity = this.repo.create(dto);
@@ -21,12 +25,16 @@ export class TransactionService {
   }
 
   async update(id: number, dto: UpdateTransactionDto): Promise<Transaction> {
-    const entity = await this.getTransactionById(id);
+    let entity = await this.getTransactionById(id);
     if (!entity) throw new Error('Transaction not found');
 
     Object.assign(entity, dto);
 
-    return this.repo.save(entity);
+    entity = await this.repo.save(entity);
+
+    await this.transactionNotificationService.sendTxAssignedMail(entity);
+
+    return entity;
   }
 
   async getTransactionById(id: number, relations: FindOptionsRelations<Transaction> = {}): Promise<Transaction> {
@@ -35,6 +43,10 @@ export class TransactionService {
 
   async getTransactionByUid(uid: string, relations: FindOptionsRelations<Transaction> = {}): Promise<Transaction> {
     return this.repo.findOne({ where: { uid }, relations });
+  }
+
+  async getTransactionByCkoId(ckoId: string, relations: FindOptionsRelations<Transaction> = {}): Promise<Transaction> {
+    return this.repo.findOne({ where: { checkoutTx: { paymentId: ckoId } }, relations });
   }
 
   async getTransactionsWithoutUid(filterDate: Date): Promise<Transaction[]> {

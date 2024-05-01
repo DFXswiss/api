@@ -1,5 +1,6 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { UpdateResult } from 'src/shared/models/entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
@@ -78,5 +79,9 @@ export class RefReward extends Reward {
 
   get isLightningTransaction(): boolean {
     return this.targetBlockchain === Blockchain.LIGHTNING;
+  }
+
+  get userData(): UserData {
+    return this.user.userData;
   }
 }
