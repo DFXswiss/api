@@ -141,22 +141,23 @@ export class TransactionController {
   // --- AUTHORIZED ENDPOINTS --- //
   @Get('detail')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse({ type: TransactionDetailDto, isArray: true })
   async getTransactionDetails(
     @GetJwt() jwt: JwtPayload,
     @Query() query: TransactionFilter,
   ): Promise<TransactionDetailDto[]> {
-    return this.getAllTransactions(jwt.id, query);
+    return this.getAllTransactions(jwt.account, query);
+  }
   }
 
   @Put('detail/csv')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiCreatedResponse()
   @ApiOperation({ description: 'Initiate CSV history export' })
   async createDetailCsv(@GetJwt() jwt: JwtPayload, @Query() query: TransactionFilter): Promise<string> {
-    const transactions = await this.getAllTransactions(jwt.id, query);
+    const transactions = await this.getAllTransactions(jwt.account, query);
 
     const csvFile = this.historyService.getCsv(transactions, ExportType.COMPACT);
 
@@ -165,11 +166,10 @@ export class TransactionController {
 
   @Get('unassigned')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiExcludeEndpoint()
   async getUnassignedTransactions(@GetJwt() jwt: JwtPayload): Promise<UnassignedTransactionDto[]> {
-    const user = await this.userService.getUser(jwt.id, { userData: true });
-    const bankDatas = await this.bankDataService.getBankDatasForUser(user.userData.id);
+    const bankDatas = await this.bankDataService.getBankDatasForUser(jwt.account);
 
     const txList = await this.bankTxService.getUnassignedBankTx(bankDatas.map((b) => b.iban));
     return Util.asyncMap(txList, async (tx) => {
@@ -180,10 +180,10 @@ export class TransactionController {
 
   @Get('target')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiExcludeEndpoint()
   async getTransactionTargets(@GetJwt() jwt: JwtPayload): Promise<TransactionTarget[]> {
-    const buys = await this.buyService.getUserDataBuys(jwt.id);
+    const buys = await this.buyService.getUserDataBuys(jwt.account);
 
     return buys.map((b) => ({
       id: b.id,
@@ -195,7 +195,7 @@ export class TransactionController {
 
   @Put(':id/target')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiExcludeEndpoint()
   async setTransactionTarget(
     @GetJwt() jwt: JwtPayload,
@@ -206,14 +206,10 @@ export class TransactionController {
     if (!transaction.bankTx) throw new NotFoundException('Transaction not found');
     if (!BankTxTypeUnassigned(transaction.bankTx.type)) throw new ConflictException('Transaction already assigned');
 
-    const user = await this.userService.getUser(jwt.id, { userData: { users: true } });
-    const buy = await this.buyService.get(
-      user.userData.users.map((u) => u.id),
-      +buyId,
-    );
+    const buy = await this.buyService.get(jwt.account, +buyId);
     if (!buy) throw new NotFoundException('Buy not found');
 
-    const bankDatas = await this.bankDataService.getBankDatasForUser(user.userData.id);
+    const bankDatas = await this.bankDataService.getBankDatasForUser(jwt.account);
     if (!bankDatas.map((b) => b.iban).includes(transaction.bankTx.senderAccount))
       throw new ForbiddenException('You can only assign your own transaction');
 
@@ -279,9 +275,8 @@ export class TransactionController {
     });
   }
 
-  private async getAllTransactions(userId: number, query: TransactionFilter) {
-    const user = await this.userService.getUser(userId, { userData: { users: true } });
-    const txList = await this.transactionService.getTransactionsForUsers(user.userData.users, query.from, query.to);
+  private async getAllTransactions(userDataId: number, query: TransactionFilter) {
+    const txList = await this.transactionService.getTransactionsForAccount(userDataId, query.from, query.to);
 
     // map to DTO
     return Util.asyncMap(txList, async (tx) => {

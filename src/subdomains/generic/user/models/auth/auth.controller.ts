@@ -53,6 +53,14 @@ export class AuthController {
     return this.authService.signInByMail(dto);
   }
 
+  @Get('mail/redirect')
+  @ApiExcludeEndpoint()
+  @UseGuards(IpCountryGuard)
+  async redirectMail(@Query('code') code: string, @Res() res: Response, @RealIP() ip: string): Promise<void> {
+    const redirectUri = await this.authService.completeSignInByMail(code, ip);
+    res.redirect(redirectUri);
+  }
+
   @Get('mail/confirm')
   @ApiExcludeEndpoint()
   async executeMerge(@Query('code') code: string, @Res() res: Response): Promise<void> {

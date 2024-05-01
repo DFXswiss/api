@@ -36,52 +36,52 @@ export class KycController {
   // --- JWT Calls --- //
   @Get()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse({ type: KycInfo })
   @ApiOperation({ deprecated: true })
   async getKycProgress(@GetJwt() jwt: JwtPayload): Promise<KycInfo> {
-    return this.kycService.getKycInfo('', jwt.id);
+    return this.kycService.getKycInfo('', jwt.account);
   }
 
   @Post()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiCreatedResponse({ type: KycInfo })
   @ApiOperation({ deprecated: true })
   async requestKyc(@GetJwt() jwt: JwtPayload): Promise<KycInfo> {
-    return this.kycService.requestKyc('', jwt.id);
+    return this.kycService.requestKyc('', jwt.account);
   }
 
   @Get('countries')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse({ type: CountryDto, isArray: true })
   @ApiOperation({ deprecated: true })
   async getKycCountries(@GetJwt() jwt: JwtPayload): Promise<CountryDto[]> {
-    return this.kycService.getKycCountries('', jwt.id).then(CountryDtoMapper.entitiesToDto);
+    return this.kycService.getKycCountries('', jwt.account).then(CountryDtoMapper.entitiesToDto);
   }
 
   @Post('limit')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse()
   @ApiOperation({ deprecated: true })
   async increaseLimit(@GetJwt() jwt: JwtPayload, @Body() request: LimitRequestDto): Promise<void> {
-    return this.limitRequestService.increaseLimit(request, '', jwt.id);
+    return this.limitRequestService.increaseLimit(request, '', jwt.account);
   }
 
   @Post('data')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiCreatedResponse({ type: KycInfo })
   @ApiOperation({ deprecated: true })
   async updateKycData(@GetJwt() jwt: JwtPayload, @Body() data: KycUserDataDto): Promise<KycInfo> {
-    return this.kycService.updateKycData('', data, jwt.id);
+    return this.kycService.updateKycData('', data, jwt.account);
   }
 
   @Post('incorporationCertificate')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @UseInterceptors(FilesInterceptor('files'))
   @ApiCreatedResponse({ type: Boolean })
   @ApiOperation({ deprecated: true })
@@ -89,7 +89,7 @@ export class KycController {
     @GetJwt() jwt: JwtPayload,
     @UploadedFiles() files: Express.Multer.File[],
   ): Promise<boolean> {
-    return this.kycService.uploadDocument('', files[0], FileType.USER_NOTES, jwt.id);
+    return this.kycService.uploadDocument('', files[0], FileType.USER_NOTES, jwt.account);
   }
 
   // --- CODE CALLS --- //

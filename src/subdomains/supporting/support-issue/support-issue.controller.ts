@@ -17,13 +17,13 @@ export class SupportIssueController {
 
   @Post('transaction')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   async createTransactionIssue(
     @GetJwt() jwt: JwtPayload,
     @Query('id') transactionId: string,
     @Body() dto: CreateTransactionIssueDto,
   ): Promise<void> {
-    return this.supportIssueService.createTransactionIssue(jwt.id, +transactionId, dto);
+    return this.supportIssueService.createTransactionIssue(jwt.account, +transactionId, dto);
   }
 
   @Put(':id')

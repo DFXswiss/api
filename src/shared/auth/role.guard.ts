@@ -5,6 +5,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 export class RoleGuard implements CanActivate {
   // additional allowed roles
   private readonly additionalRoles = {
+    [UserRole.ACCOUNT]: [UserRole.USER, UserRole.VIP, UserRole.BETA, UserRole.ADMIN],
     [UserRole.USER]: [UserRole.VIP, UserRole.BETA, UserRole.ADMIN],
     [UserRole.VIP]: [UserRole.ADMIN],
     [UserRole.BETA]: [UserRole.ADMIN],

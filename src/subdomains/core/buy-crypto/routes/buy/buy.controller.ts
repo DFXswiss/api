@@ -60,7 +60,7 @@ export class BuyController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: BuyDto })
   async getBuy(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<BuyDto> {
-    return this.buyService.get([jwt.id], +id).then((l) => this.toDto(jwt.id, l));
+    return this.buyService.get(jwt.account, +id).then((l) => this.toDto(jwt.id, l));
   }
 
   @Post()

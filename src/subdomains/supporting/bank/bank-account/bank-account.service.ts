@@ -23,13 +23,12 @@ export class BankAccountService {
     private readonly countryService: CountryService,
   ) {}
 
-  async getUserBankAccounts(userId: number): Promise<BankAccount[]> {
+  async getUserBankAccounts(userDataId: number): Promise<BankAccount[]> {
     return this.bankAccountRepo
       .createQueryBuilder('bankAccount')
       .innerJoin('bankAccount.userData', 'userData')
-      .innerJoin('userData.users', 'user')
       .leftJoinAndSelect('bankAccount.preferredCurrency', 'preferredCurrency')
-      .where('user.id = :id', { id: userId })
+      .where('userData.id = :id', { id: userDataId })
       .getMany();
   }
 
@@ -49,17 +48,15 @@ export class BankAccountService {
       .getOne();
   }
 
-  async createBankAccount(userId: number, dto: CreateBankAccountDto): Promise<BankAccount> {
-    const { id: userDataId, kycType } = await this.userDataService.getUserDataByUser(userId);
+  async createBankAccount(userDataId: number, dto: CreateBankAccountDto): Promise<BankAccount> {
+    const { kycType } = await this.userDataService.getUserData(userDataId);
 
     const bankAccount = await this.getOrCreateBankAccountInternal(dto.iban, userDataId, kycType);
 
     return this.updateEntity(dto, bankAccount);
   }
 
-  async updateBankAccount(id: number, userId: number, dto: UpdateBankAccountDto): Promise<BankAccount> {
-    const { id: userDataId } = await this.userDataService.getUserDataByUser(userId);
-
+  async updateBankAccount(id: number, userDataId: number, dto: UpdateBankAccountDto): Promise<BankAccount> {
     const bankAccount = await this.bankAccountRepo.findOne({
       where: { id, userData: { id: userDataId } },
       relations: ['userData'],
