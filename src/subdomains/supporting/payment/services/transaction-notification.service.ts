@@ -51,7 +51,7 @@ export class TransactionNotificationService {
               },
               {
                 key: `${MailTranslationKey.GENERAL}.link`,
-                params: { url: entity.url },
+                params: { url: entity.url, urlText: entity.url },
               },
               { key: MailKey.SPACE, params: { value: '4' } },
               { key: MailKey.DFX_TEAM_CLOSING },
@@ -93,7 +93,7 @@ export class TransactionNotificationService {
                 },
                 {
                   key: `${MailTranslationKey.GENERAL}.link`,
-                  params: { url: entity.url },
+                  params: { url: entity.url, urlText: entity.url },
                 },
                 { key: MailKey.SPACE, params: { value: '4' } },
                 { key: MailKey.DFX_TEAM_CLOSING },
