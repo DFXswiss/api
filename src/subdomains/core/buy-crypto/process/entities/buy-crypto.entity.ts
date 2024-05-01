@@ -451,10 +451,6 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
-  get isLightningOutput(): boolean {
-    return this.target.asset.blockchain === Blockchain.LIGHTNING;
-  }
-
   get isLightningInput(): boolean {
     return this.cryptoInput?.asset.blockchain === Blockchain.LIGHTNING;
   }
@@ -524,6 +520,10 @@ export class BuyCrypto extends IEntity {
 
   get noCommunication(): boolean {
     return this.amlReason === AmlReason.NO_COMMUNICATION;
+  }
+
+  get inputMailTranslationKey(): MailTranslationKey {
+    return this.isCryptoCryptoTransaction ? MailTranslationKey.CRYPTO_INPUT : MailTranslationKey.FIAT_INPUT;
   }
 
   // --- HELPER METHODS --- //
