@@ -37,6 +37,10 @@ export class TransactionService {
     return this.repo.findOne({ where: { uid }, relations });
   }
 
+  async getTransactionByCkoId(ckoId: string, relations: FindOptionsRelations<Transaction> = {}): Promise<Transaction> {
+    return this.repo.findOne({ where: { checkoutTx: { paymentId: ckoId } }, relations });
+  }
+
   async getTransactionsWithoutUid(filterDate: Date): Promise<Transaction[]> {
     return this.repo.findBy({ uid: IsNull(), created: LessThanOrEqual(filterDate) });
   }
