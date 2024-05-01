@@ -73,7 +73,12 @@ export class AuthService {
   // --- AUTH METHODS --- //
   async authenticate(dto: CreateUserDto, userIp: string): Promise<AuthResponseDto> {
     const existingUser = await this.userRepo.getByAddress(dto.address, true);
-    return existingUser ? this.doSignIn(existingUser, dto, userIp, false) : this.doSignUp(dto, userIp, false);
+    return existingUser
+      ? this.doSignIn(existingUser, dto, userIp, false)
+      : this.doSignUp(dto, userIp, false).catch((e) => {
+          if (e.message?.includes('duplicate key')) return this.signIn(dto, userIp, false);
+          throw e;
+        });
   }
 
   async signUp(dto: CreateUserDto, userIp: string, isCustodial = false): Promise<AuthResponseDto> {
