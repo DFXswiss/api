@@ -30,7 +30,6 @@ import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
-import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTxType, BankTxTypeUnassigned } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
@@ -49,7 +48,7 @@ import { RefReward } from '../../referral/reward/ref-reward.entity';
 import { RefRewardService } from '../../referral/reward/ref-reward.service';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from '../../sell-crypto/process/services/buy-fiat.service';
-import { ExportFormat, HistoryQueryExportType, HistoryQueryUser } from '../dto/history-query.dto';
+import { ExportFormat, HistoryQueryUser } from '../dto/history-query.dto';
 import { HistoryDto } from '../dto/history.dto';
 import { ChainReportCsvHistoryDto } from '../dto/output/chain-report-history.dto';
 import { CoinTrackingCsvHistoryDto } from '../dto/output/coin-tracking-history.dto';
@@ -64,7 +63,6 @@ export class TransactionController {
 
   constructor(
     private readonly historyService: HistoryService,
-    private readonly userService: UserService,
     private readonly transactionService: TransactionService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly buyFiatService: BuyFiatService,
@@ -78,7 +76,7 @@ export class TransactionController {
   // --- OPEN ENDPOINTS --- //
   @Get()
   @ApiOkResponse({ type: TransactionDto, isArray: true })
-  async getCsvCompact(
+  async getTransactions(
     @Query() query: HistoryQueryUser,
     @Res({ passthrough: true }) res: Response,
   ): Promise<TransactionDto[] | StreamableFile> {
@@ -114,6 +112,28 @@ export class TransactionController {
     if (!transaction) throw new NotFoundException('Transaction not found');
 
     return this.txToTransactionDto(transaction);
+  }
+
+  @Put('csv')
+  @ApiCreatedResponse()
+  @ApiOperation({ description: 'Initiate CSV history export' })
+  async createCsv(@Query() query: HistoryQueryUser): Promise<string> {
+    const csvFile = await this.historyService.getCsvHistory({ ...query, format: ExportFormat.CSV }, ExportType.COMPACT);
+
+    return this.cacheCsv(csvFile);
+  }
+
+  @Get('csv')
+  @ApiOkResponse({ type: StreamableFile })
+  @ApiOperation({ description: 'Get initiated CSV history export' })
+  async getCsv(@Query('key') key: string, @Res({ passthrough: true }) res: Response): Promise<StreamableFile> {
+    const csvFile = this.files[key];
+    if (!csvFile) throw new NotFoundException('File not found');
+    delete this.files[key];
+
+    this.setCsvResult(res, ExportType.COMPACT);
+
+    return csvFile;
   }
 
   @Get('CoinTracking')
@@ -214,35 +234,6 @@ export class TransactionController {
       throw new ForbiddenException('You can only assign your own transaction');
 
     await this.bankTxService.update(transaction.bankTx.id, { type: BankTxType.BUY_CRYPTO, buyId: buy.id });
-  }
-
-  // --- CSV ENDPOINTS --- //
-  @Put('csv')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiCreatedResponse()
-  @ApiOperation({ description: 'Initiate CSV history export' })
-  async createCsv(@GetJwt() jwt: JwtPayload, @Query() query: HistoryQueryExportType): Promise<string> {
-    const csvFile = await this.historyService.getCsvHistory(
-      { ...query, userAddress: jwt.address, format: ExportFormat.CSV },
-      query.type,
-    );
-
-    return this.cacheCsv(csvFile);
-  }
-
-  @Get('csv')
-  @ApiBearerAuth()
-  @ApiOkResponse({ type: StreamableFile })
-  @ApiOperation({ description: 'Get initiated CSV history export' })
-  async getCsv(@Query('key') key: string, @Res({ passthrough: true }) res: Response): Promise<StreamableFile> {
-    const csvFile = this.files[key];
-    if (!csvFile) throw new NotFoundException('File not found');
-    delete this.files[key];
-
-    this.setCsvResult(res, ExportType.COMPACT);
-
-    return csvFile;
   }
 
   // --- HELPER METHODS --- //
