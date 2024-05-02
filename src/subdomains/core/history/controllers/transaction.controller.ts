@@ -92,7 +92,7 @@ export class TransactionController {
     @Query('cko-id') ckoId?: string,
   ): Promise<TransactionDto | UnassignedTransactionDto> {
     const relations: FindOptionsRelations<Transaction> = {
-      buyCrypto: { buy: { user: true }, cryptoRoute: { user: true }, cryptoInput: true, bankTx: true },
+      buyCrypto: { buy: { user: true }, cryptoRoute: { user: true }, cryptoInput: true, bankTx: { transaction: true } },
       buyFiat: { sell: { user: true }, cryptoInput: true, bankTx: true },
       refReward: true,
       bankTx: true,
