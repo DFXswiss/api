@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ConflictException,
   Controller,
   ForbiddenException,
@@ -86,22 +85,6 @@ export class TransactionController {
     return this.getHistoryData(query, ExportType.COMPACT, res);
   }
 
-  @Get('uid/:uid')
-  @ApiExcludeEndpoint()
-  async getTransactionByUid(@Param('uid') uid: string): Promise<TransactionDto | UnassignedTransactionDto> {
-    const transaction = await this.transactionService.getTransactionByUid(uid, {
-      buyCrypto: { buy: { user: true }, cryptoRoute: { user: true }, cryptoInput: true, bankTx: { transaction: true } },
-      buyFiat: { sell: { user: true }, cryptoInput: true, bankTx: true },
-      refReward: true,
-      bankTx: true,
-      cryptoInput: true,
-      checkoutTx: true,
-    });
-    if (!transaction) throw new NotFoundException('Transaction not found');
-
-    return this.txToTransactionDto(transaction);
-  }
-
   @Get('single')
   @ApiExcludeEndpoint()
   async getSingleTransaction(
@@ -121,9 +104,10 @@ export class TransactionController {
     if (uid) transaction = await this.transactionService.getTransactionByUid(uid, relations);
     if (ckoId) transaction = await this.transactionService.getTransactionByCkoId(ckoId, relations);
 
-    if (!transaction) throw new NotFoundException('Transaction not found');
+    const dto = this.txToTransactionDto(transaction);
+    if (!dto) throw new NotFoundException('Transaction not found');
 
-    return this.txToTransactionDto(transaction);
+    return dto;
   }
 
   @Get('CoinTracking')
@@ -300,8 +284,10 @@ export class TransactionController {
     }).then((list) => list.filter((dto) => dto));
   }
 
-  private async txToTransactionDto(transaction: Transaction): Promise<TransactionDto | UnassignedTransactionDto> {
-    switch (transaction.targetEntity?.constructor) {
+  private async txToTransactionDto(
+    transaction?: Transaction,
+  ): Promise<TransactionDto | UnassignedTransactionDto | undefined> {
+    switch (transaction?.targetEntity?.constructor) {
       case BuyCrypto:
         const buyCryptoExtended = await this.buyCryptoWebhookService.extendBuyCrypto(transaction.buyCrypto);
         return TransactionDtoMapper.mapBuyCryptoTransaction(buyCryptoExtended);
@@ -315,12 +301,12 @@ export class TransactionController {
         return TransactionDtoMapper.mapReferralReward(refRewardExtended);
 
       default:
-        if (transaction.sourceEntity instanceof BankTx && !transaction.type) {
+        if (transaction?.sourceEntity instanceof BankTx && !transaction?.type) {
           const currency = await this.fiatService.getFiatByName(transaction.bankTx.txCurrency);
           return TransactionDtoMapper.mapUnassignedTransaction(transaction.bankTx, currency);
         }
 
-        throw new BadRequestException('Unsupported transaction type');
+        return undefined;
     }
   }
 }
