@@ -93,6 +93,9 @@ export class TransactionController {
       buyCrypto: { buy: { user: true }, cryptoRoute: { user: true }, cryptoInput: true, bankTx: true },
       buyFiat: { sell: { user: true }, cryptoInput: true, bankTx: true },
       refReward: true,
+      bankTx: true,
+      cryptoInput: true,
+      checkoutTx: true,
     });
     if (!transaction) throw new NotFoundException('Transaction not found');
 
@@ -109,6 +112,9 @@ export class TransactionController {
       buyCrypto: { buy: { user: true }, cryptoRoute: { user: true }, cryptoInput: true, bankTx: true },
       buyFiat: { sell: { user: true }, cryptoInput: true, bankTx: true },
       refReward: true,
+      bankTx: true,
+      cryptoInput: true,
+      checkoutTx: true,
     };
 
     let transaction: Transaction;
