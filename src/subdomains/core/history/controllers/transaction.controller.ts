@@ -90,7 +90,7 @@ export class TransactionController {
   @ApiExcludeEndpoint()
   async getTransactionByUid(@Param('uid') uid: string): Promise<TransactionDto | UnassignedTransactionDto> {
     const transaction = await this.transactionService.getTransactionByUid(uid, {
-      buyCrypto: { buy: { user: true }, cryptoRoute: { user: true }, cryptoInput: true, bankTx: true },
+      buyCrypto: { buy: { user: true }, cryptoRoute: { user: true }, cryptoInput: true, bankTx: { transaction: true } },
       buyFiat: { sell: { user: true }, cryptoInput: true, bankTx: true },
       refReward: true,
       bankTx: true,
