@@ -8,12 +8,13 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
-import { Config } from 'src/config/config';
+import { Config, Environment } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
@@ -44,7 +45,9 @@ export interface ChallengeData {
 export interface MailKeyData {
   created: Date;
   key: string;
+  mail: string;
   userDataId: number;
+  loginUrl: string;
   redirectUri?: string;
 }
 
@@ -68,6 +71,7 @@ export class AuthService {
     private readonly feeService: FeeService,
     private readonly userDataService: UserDataService,
     private readonly notificationService: NotificationService,
+    private readonly ipLogService: IpLogService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -155,11 +159,12 @@ export class AuthService {
     return { accessToken: this.generateUserToken(user, userIp) };
   }
 
-  async signInByMail(dto: AuthMailDto): Promise<void> {
+  async signInByMail(dto: AuthMailDto, url: string): Promise<void> {
     if (dto.redirectUri) {
       try {
         const redirectUrl = new URL(dto.redirectUri);
-        if (!redirectUrl.host.endsWith('dfx.swiss')) throw new Error('Redirect URL not allowed');
+        if (Config.environment !== Environment.LOC && !redirectUrl.host.endsWith('dfx.swiss'))
+          throw new Error('Redirect URL not allowed');
       } catch (e) {
         throw new BadRequestException(e.message);
       }
@@ -178,12 +183,14 @@ export class AuthService {
 
     // create random key
     const key = randomUUID();
-    const url = `${Config.url()}/auth/mail/redirect?code=${key}`;
+    const loginUrl = `${Config.url()}/auth/mail/redirect?code=${key}`;
 
     this.mailKeyList.set(key, {
       created: new Date(),
       key,
+      mail: dto.mail,
       userDataId: userData.id,
+      loginUrl: url,
       redirectUri: dto.redirectUri,
     });
 
@@ -200,13 +207,13 @@ export class AuthService {
           {
             key: `${MailTranslationKey.LOGIN}.message`,
             params: {
-              url: url,
-              urlText: url,
+              url: loginUrl,
+              urlText: loginUrl,
             },
           },
           {
             key: `${MailTranslationKey.GENERAL}.button`,
-            params: { url },
+            params: { url: loginUrl },
           },
           { key: MailKey.SPACE, params: { value: '2' } },
           { key: MailKey.DFX_TEAM_CLOSING },
@@ -216,16 +223,23 @@ export class AuthService {
   }
 
   async completeSignInByMail(code: string, ip: string): Promise<string> {
-    const entry = this.mailKeyList.get(code);
-    if (!this.isMailKeyValid(entry)) throw new UnauthorizedException('Link is expired');
-    this.mailKeyList.delete(code);
+    try {
+      const entry = this.mailKeyList.get(code);
+      if (!this.isMailKeyValid(entry)) throw new Error('Login link expired');
+      this.mailKeyList.delete(code);
 
-    const account = await this.userDataService.getUserData(entry.userDataId);
-    const token = this.generateAccountToken(account, ip);
+      const ipLog = await this.ipLogService.create(ip, entry.loginUrl, entry.mail);
+      if (!ipLog.result) throw new Error('The country of IP address is not allowed');
 
-    const url = new URL(entry.redirectUri ?? `${Config.frontend.services}/kyc`);
-    url.searchParams.set('session', token);
-    return url.toString();
+      const account = await this.userDataService.getUserData(entry.userDataId);
+      const token = this.generateAccountToken(account, ip);
+
+      const url = new URL(entry.redirectUri ?? `${Config.frontend.services}/kyc`);
+      url.searchParams.set('session', token);
+      return url.toString();
+    } catch (e) {
+      return `${Config.frontend.services}/error?msg=${encodeURIComponent(e.message)}`;
+    }
   }
 
   private async companySignIn(dto: AuthCredentialsDto, ip: string): Promise<AuthResponseDto> {
