@@ -5,11 +5,12 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
-import { In, IsNull, Not } from 'typeorm';
+import { In, IsNull } from 'typeorm';
 import { BankTxUnassignedTypes } from '../../bank-tx/bank-tx/bank-tx.entity';
 import { MailContext, MailType } from '../../notification/enums';
 import { MailKey, MailTranslationKey } from '../../notification/factories/mail.factory';
 import { NotificationService } from '../../notification/services/notification.service';
+import { TransactionTypeInternal } from '../entities/transaction.entity';
 import { TransactionRepository } from '../repositories/transaction.repository';
 
 @Injectable()
@@ -32,7 +33,10 @@ export class TransactionNotificationService {
 
   async sendTxAssignedMails(): Promise<void> {
     const entities = await this.repo.find({
-      where: { type: Not(IsNull()), mailSendDate: IsNull() },
+      where: {
+        type: In([TransactionTypeInternal.BUY_CRYPTO, TransactionTypeInternal.BUY_FIAT]),
+        mailSendDate: IsNull(),
+      },
       relations: {
         buyCrypto: { buy: { user: { userData: true } }, cryptoRoute: { user: { userData: true } } },
         buyFiat: { sell: { user: { userData: true } } },
