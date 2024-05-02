@@ -30,9 +30,9 @@ export class TransactionService {
 
     Object.assign(entity, dto);
 
-    entity = await this.repo.save(entity);
+    if (dto.resetMailSendDate) entity.mailSendDate = null;
 
-    await this.transactionNotificationService.sendTxAssignedMail(entity);
+    entity = await this.repo.save(entity);
 
     return entity;
   }
