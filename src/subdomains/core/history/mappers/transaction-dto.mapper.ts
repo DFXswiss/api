@@ -5,7 +5,6 @@ import { Util } from 'src/shared/utils/util';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
-import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import {
   KycRequiredReason,
   TransactionDetailDto,
@@ -34,38 +33,6 @@ export class RefRewardExtended extends RefReward {
 }
 
 export class TransactionDtoMapper {
-  static mapUnassignedBankTxTransaction(tx: Transaction): TransactionDto {
-    const dto: TransactionDto = {
-      id: tx.id,
-      type: TransactionType.BUY,
-      state: null,
-      reason: null,
-      inputAmount: Util.roundReadable(tx.bankTx.txAmount, true),
-      inputAsset: tx.bankTx.txCurrency,
-      inputAssetId: null,
-      inputBlockchain: null,
-      inputPaymentMethod: FiatPaymentMethod.BANK,
-      exchangeRate: null,
-      rate: null,
-      outputAmount: null,
-      outputAsset: null,
-      outputAssetId: null,
-      outputBlockchain: null,
-      outputPaymentMethod: CryptoPaymentMethod.CRYPTO,
-      feeAmount: null,
-      feeAsset: null,
-      fees: null,
-      inputTxId: null,
-      inputTxUrl: null,
-      outputTxId: null,
-      outputTxUrl: null,
-      date: tx.updated,
-      externalTransactionId: null,
-    };
-
-    return Object.assign(new TransactionDto(), dto);
-  }
-
   static mapBuyCryptoTransaction(buyCrypto: BuyCryptoExtended): TransactionDto {
     const dto: TransactionDto = {
       id: buyCrypto.transaction?.id,
@@ -210,6 +177,7 @@ export class TransactionDtoMapper {
     return {
       id: tx.transaction?.id,
       type: TransactionType.BUY,
+      state: TransactionState.UNASSIGNED,
       inputAmount: tx.txAmount,
       inputAsset: tx.txCurrency,
       inputAssetId: currency.id,

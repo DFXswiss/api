@@ -88,7 +88,7 @@ export class TransactionController {
 
   @Get('uid/:uid')
   @ApiExcludeEndpoint()
-  async getTransactionByUid(@Param('uid') uid: string): Promise<TransactionDto> {
+  async getTransactionByUid(@Param('uid') uid: string): Promise<TransactionDto | UnassignedTransactionDto> {
     const transaction = await this.transactionService.getTransactionByUid(uid, {
       buyCrypto: { buy: { user: true }, cryptoRoute: { user: true }, cryptoInput: true, bankTx: true },
       buyFiat: { sell: { user: true }, cryptoInput: true, bankTx: true },
@@ -101,7 +101,10 @@ export class TransactionController {
 
   @Get('single')
   @ApiExcludeEndpoint()
-  async getSingleTransaction(@Query('uid') uid?: string, @Query('cko-id') ckoId?: string): Promise<TransactionDto> {
+  async getSingleTransaction(
+    @Query('uid') uid?: string,
+    @Query('cko-id') ckoId?: string,
+  ): Promise<TransactionDto | UnassignedTransactionDto> {
     const relations: FindOptionsRelations<Transaction> = {
       buyCrypto: { buy: { user: true }, cryptoRoute: { user: true }, cryptoInput: true, bankTx: true },
       buyFiat: { sell: { user: true }, cryptoInput: true, bankTx: true },
@@ -291,7 +294,7 @@ export class TransactionController {
     }).then((list) => list.filter((dto) => dto));
   }
 
-  private async txToTransactionDto(transaction: Transaction) {
+  private async txToTransactionDto(transaction: Transaction): Promise<TransactionDto | UnassignedTransactionDto> {
     switch (transaction.targetEntity?.constructor) {
       case BuyCrypto:
         const buyCryptoExtended = await this.buyCryptoWebhookService.extendBuyCrypto(transaction.buyCrypto);
@@ -306,8 +309,10 @@ export class TransactionController {
         return TransactionDtoMapper.mapReferralReward(refRewardExtended);
 
       default:
-        if (transaction.sourceEntity instanceof BankTx && !transaction.type)
-          return TransactionDtoMapper.mapUnassignedBankTxTransaction(transaction);
+        if (transaction.sourceEntity instanceof BankTx && !transaction.type) {
+          const currency = await this.fiatService.getFiatByName(transaction.bankTx.txCurrency);
+          return TransactionDtoMapper.mapUnassignedTransaction(transaction.bankTx, currency);
+        }
 
         throw new BadRequestException('Unsupported transaction type');
     }
