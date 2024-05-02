@@ -21,6 +21,7 @@ export enum TransactionState {
   COMPLETED = 'Completed',
   FAILED = 'Failed',
   RETURNED = 'Returned',
+  UNASSIGNED = 'Unassigned',
 }
 
 export enum TransactionReason {
@@ -82,6 +83,9 @@ export class UnassignedTransactionDto {
   @ApiProperty({ enum: TransactionType })
   type: TransactionType;
 
+  @ApiProperty({ enum: TransactionState })
+  state: TransactionState;
+
   @ApiPropertyOptional()
   inputAmount?: number;
 
@@ -108,9 +112,6 @@ export class UnassignedTransactionDto {
 }
 
 export class TransactionDto extends UnassignedTransactionDto {
-  @ApiProperty({ enum: TransactionState })
-  state: TransactionState;
-
   @ApiPropertyOptional({ enum: TransactionReason })
   reason?: TransactionReason;
 

@@ -68,6 +68,7 @@ export class BuyCryptoService {
     const transaction = await this.transactionService.update(bankTx.transaction.id, {
       type: TransactionTypeInternal.BUY_CRYPTO,
       user: buy.user,
+      resetMailSendDate: true,
     });
 
     const forexFee = bankTx.txCurrency === bankTx.currency ? 0 : 0.02;
