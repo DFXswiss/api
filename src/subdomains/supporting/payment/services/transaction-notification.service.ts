@@ -34,7 +34,11 @@ export class TransactionNotificationService {
   async sendTxAssignedMails(): Promise<void> {
     const entities = await this.repo.find({
       where: {
-        type: In([TransactionTypeInternal.BUY_CRYPTO, TransactionTypeInternal.BUY_FIAT]),
+        type: In([
+          TransactionTypeInternal.BUY_CRYPTO,
+          TransactionTypeInternal.BUY_FIAT,
+          TransactionTypeInternal.CRYPTO_CRYPTO,
+        ]),
         mailSendDate: IsNull(),
       },
       relations: {
