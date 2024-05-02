@@ -104,7 +104,7 @@ export class TransactionController {
     if (uid) transaction = await this.transactionService.getTransactionByUid(uid, relations);
     if (ckoId) transaction = await this.transactionService.getTransactionByCkoId(ckoId, relations);
 
-    const dto = this.txToTransactionDto(transaction);
+    const dto = await this.txToTransactionDto(transaction);
     if (!dto) throw new NotFoundException('Transaction not found');
 
     return dto;
