@@ -156,6 +156,15 @@ export class AuthService {
   }
 
   async signInByMail(dto: AuthMailDto): Promise<void> {
+    if (dto.redirectUri) {
+      try {
+        const redirectUrl = new URL(dto.redirectUri);
+        if (!redirectUrl.host.endsWith('dfx.swiss')) throw new Error('Redirect URL not allowed');
+      } catch (e) {
+        throw new BadRequestException(e.message);
+      }
+    }
+
     const userData =
       (await this.userDataService
         .getUsersByMail(dto.mail)
