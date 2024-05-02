@@ -4,5 +4,5 @@ import { TransactionTypeInternal } from '../../entities/transaction.entity';
 export class UpdateTransactionDto {
   type: TransactionTypeInternal;
   user?: User;
-  resetMailSendDate? = false;
+  resetMailSendDate?: boolean;
 }
