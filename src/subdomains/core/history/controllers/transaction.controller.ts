@@ -31,7 +31,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { BankTxType, BankTxTypeUnassigned } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
+import { BankTx, BankTxType, BankTxTypeUnassigned } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
@@ -306,6 +306,9 @@ export class TransactionController {
         return TransactionDtoMapper.mapReferralReward(refRewardExtended);
 
       default:
+        if (transaction.sourceEntity instanceof BankTx && !transaction.type)
+          return TransactionDtoMapper.mapUnassignedBankTxTransaction(transaction);
+
         throw new BadRequestException('Unsupported transaction type');
     }
   }

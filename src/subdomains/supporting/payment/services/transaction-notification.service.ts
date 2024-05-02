@@ -69,7 +69,12 @@ export class TransactionNotificationService {
   private async sendTxUnassignedMails(): Promise<void> {
     const entities = await this.repo.find({
       where: { bankTx: { type: In(BankTxUnassignedTypes), creditDebitIndicator: 'CRDT' }, mailSendDate: IsNull() },
-      relations: { bankTx: true },
+      relations: {
+        bankTx: true,
+        buyCrypto: { buy: { user: { userData: true } }, cryptoRoute: { user: { userData: true } } },
+        buyFiat: { sell: { user: { userData: true } } },
+        refReward: { user: { userData: true } },
+      },
     });
     if (entities.length === 0) return;
 
