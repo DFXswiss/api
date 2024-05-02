@@ -112,9 +112,6 @@ export class UnassignedTransactionDto {
 }
 
 export class TransactionDto extends UnassignedTransactionDto {
-  @ApiProperty({ enum: TransactionState })
-  state: TransactionState;
-
   @ApiPropertyOptional({ enum: TransactionReason })
   reason?: TransactionReason;
 
