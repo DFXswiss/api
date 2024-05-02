@@ -187,7 +187,7 @@ export class UserService {
     const user = await this.userRepo.findOne({ where: { id }, relations: ['userData'] });
     if (!user) throw new NotFoundException('User not found');
 
-    if (update.status && update.status == UserStatus.ACTIVE && user.status == UserStatus.NA)
+    if (update.status && update.status === UserStatus.ACTIVE && user.status == UserStatus.NA)
       await this.activateUser(user);
     return this.userRepo.save({ ...user, ...update });
   }
@@ -479,7 +479,7 @@ export class UserService {
 
   private async getUserDetails(user: User): Promise<UserDetails> {
     return {
-      ...(user.status == UserStatus.ACTIVE ? await this.getUserRef(user) : undefined),
+      ...(user.ref ? await this.getUserRef(user) : undefined),
       bsLink:
         user.buyVolume + user.sellVolume + user.cryptoVolume >= Config.support.blackSquad.limit
           ? Config.support.blackSquad.link

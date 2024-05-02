@@ -148,6 +148,6 @@ export class User extends IEntity {
   }
 
   get isPaymentStatusEnabled(): boolean {
-    return [UserStatus.ACTIVE, UserStatus.NA].includes(this.status);
+    return this.status != UserStatus.BLOCKED;
   }
 }

@@ -13,7 +13,7 @@ import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
-import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
+import { UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -265,7 +265,10 @@ export class BuyController {
       // TODO: temporary CC solution
       nameRequired:
         dto.paymentMethod === FiatPaymentMethod.CARD &&
-        !(user.status === UserStatus.ACTIVE || (Boolean(user.userData.firstname) && Boolean(user.userData.surname))),
+        !(
+          user.userData.status === UserDataStatus.ACTIVE ||
+          (Boolean(user.userData.firstname) && Boolean(user.userData.surname))
+        ),
     };
 
     void this.transactionRequestService.createTransactionRequest(TransactionRequestType.Buy, dto, buyDto);
