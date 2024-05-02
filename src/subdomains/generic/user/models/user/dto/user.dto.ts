@@ -66,7 +66,7 @@ export class UserDto {
   @ApiProperty({ type: TradingLimit })
   tradingLimit: TradingLimit;
 
-  @ApiProperty({ deprecated: true })
+  @ApiProperty()
   kycDataComplete: boolean;
 
   @ApiProperty()
