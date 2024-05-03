@@ -29,7 +29,7 @@ export class KycController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse()
   @ApiOperation({ deprecated: true })
-  async transferKycData(@GetJwt() jwt: JwtPayload, @Body() data: KycDataTransferDto): Promise<void> {
+  async transferKycDataV1(@GetJwt() jwt: JwtPayload, @Body() data: KycDataTransferDto): Promise<void> {
     await this.kycService.transferKycData(jwt.id, data);
   }
 
@@ -39,7 +39,7 @@ export class KycController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: KycInfo })
   @ApiOperation({ deprecated: true })
-  async getKycProgress(@GetJwt() jwt: JwtPayload): Promise<KycInfo> {
+  async getKycProgressV1(@GetJwt() jwt: JwtPayload): Promise<KycInfo> {
     return this.kycService.getKycInfo('', jwt.id);
   }
 
@@ -48,7 +48,7 @@ export class KycController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiCreatedResponse({ type: KycInfo })
   @ApiOperation({ deprecated: true })
-  async requestKyc(@GetJwt() jwt: JwtPayload): Promise<KycInfo> {
+  async requestKycV1(@GetJwt() jwt: JwtPayload): Promise<KycInfo> {
     return this.kycService.requestKyc('', jwt.id);
   }
 
@@ -57,7 +57,7 @@ export class KycController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: CountryDto, isArray: true })
   @ApiOperation({ deprecated: true })
-  async getKycCountries(@GetJwt() jwt: JwtPayload): Promise<CountryDto[]> {
+  async getKycCountriesV1(@GetJwt() jwt: JwtPayload): Promise<CountryDto[]> {
     return this.kycService.getKycCountries('', jwt.id).then(CountryDtoMapper.entitiesToDto);
   }
 
@@ -66,7 +66,7 @@ export class KycController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse()
   @ApiOperation({ deprecated: true })
-  async increaseLimit(@GetJwt() jwt: JwtPayload, @Body() request: LimitRequestDto): Promise<void> {
+  async increaseLimitV1(@GetJwt() jwt: JwtPayload, @Body() request: LimitRequestDto): Promise<void> {
     return this.limitRequestService.increaseLimit(request, '', jwt.id);
   }
 
@@ -75,7 +75,7 @@ export class KycController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiCreatedResponse({ type: KycInfo })
   @ApiOperation({ deprecated: true })
-  async updateKycData(@GetJwt() jwt: JwtPayload, @Body() data: KycUserDataDto): Promise<KycInfo> {
+  async updateKycDataV1(@GetJwt() jwt: JwtPayload, @Body() data: KycUserDataDto): Promise<KycInfo> {
     return this.kycService.updateKycData('', data, jwt.id);
   }
 
@@ -85,7 +85,7 @@ export class KycController {
   @UseInterceptors(FilesInterceptor('files'))
   @ApiCreatedResponse({ type: Boolean })
   @ApiOperation({ deprecated: true })
-  async uploadIncorporationCertificate(
+  async uploadIncorporationCertificateV1(
     @GetJwt() jwt: JwtPayload,
     @UploadedFiles() files: Express.Multer.File[],
   ): Promise<boolean> {
@@ -96,35 +96,35 @@ export class KycController {
   @Get(':code')
   @ApiOkResponse({ type: KycInfo })
   @ApiOperation({ deprecated: true })
-  async getKycProgressByCode(@Param('code') code: string): Promise<KycInfo> {
+  async getKycProgressByCodeV1(@Param('code') code: string): Promise<KycInfo> {
     return this.kycService.getKycInfo(code);
   }
 
   @Post(':code')
   @ApiCreatedResponse({ type: KycInfo })
   @ApiOperation({ deprecated: true })
-  async requestKycByCode(@Param('code') code: string): Promise<KycInfo> {
+  async requestKycByCodeV1(@Param('code') code: string): Promise<KycInfo> {
     return this.kycService.requestKyc(code);
   }
 
   @Get(':code/countries')
   @ApiOkResponse({ type: CountryDto, isArray: true })
   @ApiOperation({ deprecated: true })
-  async getKycCountriesByCode(@Param('code') code: string): Promise<CountryDto[]> {
+  async getKycCountriesByCodeV1(@Param('code') code: string): Promise<CountryDto[]> {
     return this.kycService.getKycCountries(code).then(CountryDtoMapper.entitiesToDto);
   }
 
   @Put(':code/data')
   @ApiOkResponse({ type: KycInfo })
   @ApiOperation({ deprecated: true })
-  async updateKycDataByCode(@Param('code') code: string, @Body() data: KycUserDataDto): Promise<KycInfo> {
+  async updateKycDataByCodeV1(@Param('code') code: string, @Body() data: KycUserDataDto): Promise<KycInfo> {
     return this.kycService.updateKycData(code, data);
   }
 
   @Post(':code/limit')
   @ApiOkResponse()
   @ApiOperation({ deprecated: true })
-  async increaseLimitByCode(@Param('code') code: string, @Body() request: LimitRequestDto): Promise<void> {
+  async increaseLimitByCodeV1(@Param('code') code: string, @Body() request: LimitRequestDto): Promise<void> {
     return this.limitRequestService.increaseLimit(request, code);
   }
 
@@ -132,7 +132,7 @@ export class KycController {
   @UseInterceptors(FilesInterceptor('files'))
   @ApiCreatedResponse({ type: Boolean })
   @ApiOperation({ deprecated: true })
-  async uploadIncorporationCertificateByCode(
+  async uploadIncorporationCertificateByCodeV1(
     @Param('code') code: string,
     @UploadedFiles() files: Express.Multer.File[],
   ): Promise<boolean> {
