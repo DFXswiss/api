@@ -11,7 +11,7 @@ import { BankTx } from '../../bank-tx/bank-tx/bank-tx.entity';
 import { CheckoutTx } from '../../fiat-payin/entities/checkout-tx.entity';
 import { MailContext } from '../../notification/enums';
 import { CryptoInput } from '../../payin/entities/crypto-input.entity';
-import { SupportIssue } from '../../support-issue/support-issue.entity';
+import { SupportIssue } from '../../support-issue/entities/support-issue.entity';
 
 export enum TransactionTypeInternal {
   BUY_CRYPTO = 'BuyCrypto',

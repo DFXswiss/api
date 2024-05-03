@@ -1,6 +1,7 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity, ManyToOne } from 'typeorm';
-import { Transaction } from '../payment/entities/transaction.entity';
+import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
+import { Transaction } from '../../payment/entities/transaction.entity';
+import { SupportMessage } from './support-message.entity';
 
 export enum SupportIssueState {
   CREATED = 'Created',
@@ -28,12 +29,18 @@ export class SupportIssue extends IEntity {
   @Column({ length: 256, nullable: false })
   reason: SupportIssueReason;
 
+  @Column({ length: 256, nullable: true })
+  name: string;
+
   @Column({ length: 'MAX', nullable: true })
   description: string;
 
   @Column({ length: 256, nullable: true })
-  fileUrl: string;
+  fileUrl: string; // TODO: remove
 
   @ManyToOne(() => Transaction, (transaction) => transaction.supportIssues, { nullable: true, eager: true })
   transaction: Transaction;
+
+  @OneToMany(() => SupportMessage, (supportMessage) => supportMessage.supportIssue)
+  messages: SupportMessage[];
 }

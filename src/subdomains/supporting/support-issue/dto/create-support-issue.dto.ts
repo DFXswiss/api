@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
-import { SupportIssueReason } from '../support-issue.entity';
+import { SupportIssueReason } from '../entities/support-issue.entity';
 
 export class CreateTransactionIssueDto {
   @ApiProperty()
@@ -11,7 +11,7 @@ export class CreateTransactionIssueDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  description?: string;
+  message?: string;
 
   @ApiPropertyOptional({ description: 'Base64 encoded file' })
   @IsOptional()
