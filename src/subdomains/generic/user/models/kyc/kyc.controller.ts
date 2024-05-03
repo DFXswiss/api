@@ -150,7 +150,7 @@ export class KycClientController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
   @ApiOkResponse({ type: KycDataDto, isArray: true })
   @ApiOperation({ deprecated: true })
-  async getAllKycData(@GetJwt() jwt: JwtPayload): Promise<KycDataDto[]> {
+  async getAllKycDataV1(@GetJwt() jwt: JwtPayload): Promise<KycDataDto[]> {
     return this.kycService.getAllKycData(jwt.id);
   }
 
@@ -159,7 +159,7 @@ export class KycClientController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
   @ApiOkResponse({ type: KycFileDto, isArray: true })
   @ApiOperation({ deprecated: true })
-  async getKycFiles(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<KycFileDto[]> {
+  async getKycFilesV1(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<KycFileDto[]> {
     return this.kycService.getKycFiles(id, jwt.id);
   }
 
@@ -168,7 +168,7 @@ export class KycClientController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
   @ApiOkResponse({ type: Buffer })
   @ApiOperation({ deprecated: true })
-  async getKycFile(
+  async getKycFileV1(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
     @Param('type') type: KycDocumentType,
