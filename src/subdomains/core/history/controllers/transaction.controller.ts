@@ -169,7 +169,6 @@ export class TransactionController {
   ): Promise<TransactionDetailDto[]> {
     return this.getAllTransactions(jwt.account, query);
   }
-  }
 
   @Put('detail/csv')
   @ApiBearerAuth()
