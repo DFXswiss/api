@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { Language } from 'src/shared/models/language/language.entity';
+import { LanguageDto } from 'src/shared/models/language/dto/language.dto';
 import { HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { AccountType } from '../../user-data/account-type.enum';
 import { KycLevel, KycState, KycStatus, LimitPeriod } from '../../user-data/user-data.entity';
@@ -48,8 +48,8 @@ export class UserDto {
   @ApiProperty()
   phone: string;
 
-  @ApiProperty({ type: Language })
-  language: Language;
+  @ApiProperty({ type: LanguageDto })
+  language: LanguageDto;
 
   @ApiProperty({ enum: KycStatus, deprecated: true })
   kycStatus: KycStatus;

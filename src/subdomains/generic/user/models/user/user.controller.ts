@@ -6,6 +6,7 @@ import {
   ApiCreatedResponse,
   ApiExcludeEndpoint,
   ApiOkResponse,
+  ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
 import { Response } from 'express';
@@ -25,6 +26,7 @@ import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserNameDto } from './dto/user-name.dto';
+import { UserV2Dto } from './dto/user-v2.dto';
 import { UserDetailDto, UserDto } from './dto/user.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
 import { User } from './user.entity';
@@ -50,7 +52,8 @@ export class UserController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: UserDto })
-  async getUser(@GetJwt() jwt: JwtPayload): Promise<UserDto> {
+  @ApiOperation({ deprecated: true })
+  async getUserV1(@GetJwt() jwt: JwtPayload): Promise<UserDto> {
     return this.userService.getUserDto(jwt.id, false);
   }
 
@@ -58,7 +61,8 @@ export class UserController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: UserDetailDto })
-  async getUserDetail(@GetJwt() jwt: JwtPayload): Promise<UserDetailDto> {
+  @ApiOperation({ deprecated: true })
+  async getUserDetailV1(@GetJwt() jwt: JwtPayload): Promise<UserDetailDto> {
     return this.userService.getUserDto(jwt.id, true);
   }
 
@@ -191,5 +195,19 @@ export class UserController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async updateUserAdmin(@Param('id') id: string, @Body() dto: UpdateUserAdminDto): Promise<User> {
     return this.userService.updateUserInternal(+id, dto);
+  }
+}
+
+@ApiTags('User')
+@Controller({ path: 'user', version: ['2'] })
+export class UserV2Controller {
+  constructor(private readonly userService: UserService) {}
+
+  @Get()
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse({ type: UserV2Dto })
+  async getUser(@GetJwt() jwt: JwtPayload): Promise<UserV2Dto> {
+    return this.userService.getUserDtoV2(jwt.id);
   }
 }
