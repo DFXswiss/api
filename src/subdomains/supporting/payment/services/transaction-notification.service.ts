@@ -28,7 +28,7 @@ export class TransactionNotificationService {
   async sendNotificationMails(): Promise<void> {
     if (DisabledProcess(Process.TX_MAIL)) return;
     await this.sendTxAssignedMails();
-    await this.sendTxUnassignedMails();
+    if (!DisabledProcess(Process.TX_UNASSIGNED_MAIL)) await this.sendTxUnassignedMails();
   }
 
   async sendTxAssignedMails(): Promise<void> {

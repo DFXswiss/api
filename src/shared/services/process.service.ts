@@ -39,6 +39,7 @@ export enum Process {
   MAIL_RETRY = 'MailRetry',
   TRADING = 'Trading',
   TX_MAIL = 'TxMail',
+  TX_UNASSIGNED_MAIL = 'TxUnassignedMail',
   SYNCHRONIZE_MAIL_DATA = 'SynchronizeMailData',
 }
 
