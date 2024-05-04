@@ -1,6 +1,7 @@
 import { Config } from 'src/config/config';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Column, Entity, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { BuyCrypto } from '../../../core/buy-crypto/process/entities/buy-crypto.entity';
@@ -120,5 +121,9 @@ export class Transaction extends IEntity {
 
   get targetEntity(): BuyCrypto | BuyFiat | RefReward | undefined {
     return this.buyCrypto ?? this.buyFiat ?? this.refReward ?? undefined;
+  }
+
+  get userData(): UserData {
+    return this.user?.userData;
   }
 }
