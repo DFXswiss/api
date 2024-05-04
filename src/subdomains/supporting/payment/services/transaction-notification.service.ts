@@ -6,7 +6,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { In, IsNull } from 'typeorm';
-import { BankTxUnassignedTypes } from '../../bank-tx/bank-tx/bank-tx.entity';
+import { BankTxIndicator, BankTxUnassignedTypes } from '../../bank-tx/bank-tx/bank-tx.entity';
 import { MailContext, MailType } from '../../notification/enums';
 import { MailKey, MailTranslationKey } from '../../notification/factories/mail.factory';
 import { NotificationService } from '../../notification/services/notification.service';
@@ -42,9 +42,9 @@ export class TransactionNotificationService {
         mailSendDate: IsNull(),
       },
       relations: {
-        buyCrypto: { buy: { user: { userData: true } }, cryptoRoute: { user: { userData: true } } },
-        buyFiat: { sell: { user: { userData: true } } },
-        refReward: true,
+        buyCrypto: true,
+        buyFiat: true,
+        user: { userData: true },
       },
     });
     if (entities.length === 0) return;
@@ -53,12 +53,12 @@ export class TransactionNotificationService {
       try {
         if (!entity.targetEntity || entity.targetEntity instanceof RefReward) continue;
 
-        if (entity.targetEntity.userData.mail)
+        if (entity.userData.mail)
           await this.notificationService.sendMail({
             type: MailType.USER,
             context: entity.mailContext,
             input: {
-              userData: entity.targetEntity.userData,
+              userData: entity.userData,
               title: `${entity.targetEntity.inputMailTranslationKey}.title`,
               salutation: { key: `${entity.targetEntity.inputMailTranslationKey}.salutation` },
               suffix: [
@@ -85,13 +85,11 @@ export class TransactionNotificationService {
 
   private async sendTxUnassignedMails(): Promise<void> {
     const entities = await this.repo.find({
-      where: { bankTx: { type: In(BankTxUnassignedTypes), creditDebitIndicator: 'CRDT' }, mailSendDate: IsNull() },
-      relations: {
-        bankTx: true,
-        buyCrypto: { buy: { user: { userData: true } }, cryptoRoute: { user: { userData: true } } },
-        buyFiat: { sell: { user: { userData: true } } },
-        refReward: { user: { userData: true } },
+      where: {
+        bankTx: { type: In(BankTxUnassignedTypes), creditDebitIndicator: BankTxIndicator.CREDIT },
+        mailSendDate: IsNull(),
       },
+      relations: { bankTx: true },
     });
     if (entities.length === 0) return;
 
