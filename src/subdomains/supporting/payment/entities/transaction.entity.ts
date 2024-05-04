@@ -124,6 +124,6 @@ export class Transaction extends IEntity {
   }
 
   get userData(): UserData {
-    return this.user.userData;
+    return this.user?.userData;
   }
 }

@@ -53,7 +53,7 @@ export class TransactionNotificationService {
       try {
         if (!entity.targetEntity || entity.targetEntity instanceof RefReward) continue;
 
-        if (entity.userData.mail)
+        if (entity.userData?.mail)
           await this.notificationService.sendMail({
             type: MailType.USER,
             context: entity.mailContext,
