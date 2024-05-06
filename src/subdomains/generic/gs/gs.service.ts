@@ -11,6 +11,7 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { DataSource } from 'typeorm';
 import { File } from '../kyc/dto/kyc-file.dto';
 import { DocumentStorageService } from '../kyc/services/integration/document-storage.service';
@@ -31,6 +32,7 @@ export enum SupportTable {
   BANK_TX = 'bankTx',
   BANK_ACCOUNT = 'bankAccount',
   FIAT_OUTPUT = 'fiatOutput',
+  TRANSACTION = 'transaction',
 }
 
 @Injectable()
@@ -50,6 +52,7 @@ export class GsService {
     private readonly fiatOutputService: FiatOutputService,
     private readonly dataSource: DataSource,
     private readonly documentStorageService: DocumentStorageService,
+    private readonly transactionService: TransactionService,
   ) {}
 
   async getDbData(query: DbQueryDto): Promise<DbReturnData> {
@@ -164,13 +167,9 @@ export class GsService {
       case SupportTable.SELL:
         return this.sellService.getSellByKey(query.key, query.value).then((sell) => sell?.user.userData);
       case SupportTable.BUY_CRYPTO:
-        return this.buyCryptoService
-          .getBuyCryptoByKey(query.key, query.value)
-          .then((buyCrypto) => buyCrypto?.user.userData);
+        return this.buyCryptoService.getBuyCryptoByKey(query.key, query.value).then((buyCrypto) => buyCrypto?.userData);
       case SupportTable.BUY_FIAT:
-        return this.buyFiatService
-          .getBuyFiatByKey(query.key, query.value)
-          .then((buyFiat) => buyFiat?.sell.user.userData);
+        return this.buyFiatService.getBuyFiatByKey(query.key, query.value).then((buyFiat) => buyFiat?.userData);
       case SupportTable.BANK_ACCOUNT:
         return this.bankAccountService.getBankAccountByKey(query.key, query.value).then((bankAcc) => bankAcc?.userData);
       case SupportTable.BANK_TX:
@@ -183,6 +182,10 @@ export class GsService {
         return this.fiatOutputService
           .getFiatOutputByKey(query.key, query.value)
           .then((fiatOutput) => fiatOutput?.buyFiat.sell.user.userData);
+      case SupportTable.TRANSACTION:
+        return this.transactionService
+          .getTransactionByKey(query.key, query.value)
+          .then((transaction) => transaction?.userData);
     }
   }
 
