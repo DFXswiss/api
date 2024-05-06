@@ -214,7 +214,7 @@ export class AuthService {
   getSignInfo(address: string): SignMessageDto {
     return {
       message: this.getSignMessages(address).defaultMessage,
-      blockchains: this.cryptoService.getBlockchainsBasedOn(address),
+      blockchains: CryptoService.getBlockchainsBasedOn(address),
     };
   }
 
@@ -249,7 +249,7 @@ export class AuthService {
   ): Promise<boolean> {
     const { defaultMessage, fallbackMessage } = this.getSignMessages(address);
 
-    const blockchains = this.cryptoService.getBlockchainsBasedOn(address);
+    const blockchains = CryptoService.getBlockchainsBasedOn(address);
 
     if (blockchains.includes(Blockchain.LIGHTNING)) {
       if (isCustodial || /^[a-z0-9]{140,146}$/.test(signature)) {
@@ -283,7 +283,7 @@ export class AuthService {
       id: user.id,
       address: user.address,
       role: user.role,
-      blockchains: this.getBlockchains(user),
+      blockchains: user.blockchains,
       ip,
     };
     return this.jwtService.sign(payload);
@@ -301,14 +301,5 @@ export class AuthService {
 
   private isChallengeValid(challenge: ChallengeData): boolean {
     return challenge && Util.secondsDiff(challenge.created) <= Config.auth.challenge.expiresIn;
-  }
-
-  private getBlockchains(user: User): Blockchain[] {
-    // wallet name / blockchain map
-    const customChains = {
-      Talium: ['Talium' as Blockchain],
-    };
-
-    return customChains[user.wallet.name] ?? this.cryptoService.getBlockchainsBasedOn(user.address);
   }
 }

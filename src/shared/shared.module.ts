@@ -34,7 +34,6 @@ import { Setting } from './models/setting/setting.entity';
 import { SettingRepository } from './models/setting/setting.repository';
 import { SettingService } from './models/setting/setting.service';
 import { RepositoryFactory } from './repositories/repository.factory';
-import { ApiKeyService } from './services/api-key.service';
 import { HttpService } from './services/http.service';
 import { PaymentInfoService } from './services/payment-info.service';
 import { ProcessService } from './services/process.service';
@@ -67,7 +66,6 @@ import { ProcessService } from './services/process.service';
     LanguageService,
     SettingService,
     JwtStrategy,
-    ApiKeyService,
     PaymentInfoService,
     IpLogService,
     ProcessService,
@@ -84,7 +82,6 @@ import { ProcessService } from './services/process.service';
     CountryService,
     LanguageService,
     SettingService,
-    ApiKeyService,
     PaymentInfoService,
     IpLogService,
     ProcessService,

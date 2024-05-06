@@ -3,7 +3,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { UserDataRepository } from '../../user-data/user-data.repository';
@@ -22,7 +21,6 @@ describe('UserService', () => {
   let geoLocationService: GeoLocationService;
   let countryService: CountryService;
   let cryptoService: CryptoService;
-  let apiKeyService: ApiKeyService;
   let feeService: FeeService;
 
   beforeEach(async () => {
@@ -33,7 +31,6 @@ describe('UserService', () => {
     geoLocationService = createMock<GeoLocationService>();
     countryService = createMock<CountryService>();
     cryptoService = createMock<CryptoService>();
-    apiKeyService = createMock<ApiKeyService>();
     feeService = createMock<FeeService>();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -46,7 +43,6 @@ describe('UserService', () => {
         { provide: GeoLocationService, useValue: geoLocationService },
         { provide: CountryService, useValue: countryService },
         { provide: CryptoService, useValue: cryptoService },
-        { provide: ApiKeyService, useValue: apiKeyService },
         { provide: FeeService, useValue: feeService },
         TestUtil.provideConfig(),
       ],
