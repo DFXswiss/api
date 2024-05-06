@@ -1,29 +1,7 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import {
-  IsEnum,
-  IsNotEmpty,
-  IsNotEmptyObject,
-  IsOptional,
-  IsString,
-  ValidateIf,
-  ValidateNested,
-} from 'class-validator';
-import { EntityDto } from 'src/shared/dto/entity.dto';
-import { SupportIssue } from '../entities/support-issue.entity';
-import { SupportMessageAuthor } from '../entities/support-message.entity';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
 
 export class CreateSupportMessageDto {
-  @ApiProperty({ type: EntityDto })
-  @IsNotEmptyObject()
-  @ValidateNested()
-  @Type(() => EntityDto)
-  supportIssue: SupportIssue;
-
-  @IsNotEmpty()
-  @IsEnum(SupportMessageAuthor)
-  author: SupportMessageAuthor;
-
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -39,4 +17,10 @@ export class CreateSupportMessageDto {
   @IsNotEmpty()
   @IsString()
   fileName?: string;
+}
+
+export class CreateSupportReplyDto extends CreateSupportMessageDto {
+  @IsNotEmpty()
+  @IsString()
+  author: string;
 }

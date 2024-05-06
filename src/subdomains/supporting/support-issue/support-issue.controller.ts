@@ -6,10 +6,9 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CreateTransactionIssueDto } from './dto/create-support-issue.dto';
-import { CreateSupportMessageDto } from './dto/create-support-message.dto';
+import { CreateSupportMessageDto, CreateSupportReplyDto } from './dto/create-support-message.dto';
 import { UpdateSupportIssueDto } from './dto/update-support-issue.dto';
 import { SupportIssue } from './entities/support-issue.entity';
-import { SupportMessageAuthor } from './entities/support-message.entity';
 import { SupportIssueService } from './services/support-issue.service';
 
 @ApiTags('Support')
@@ -28,11 +27,11 @@ export class SupportIssueController {
     return this.supportIssueService.createTransactionIssue(jwt.id, +transactionId, dto);
   }
 
-  @Post('message')
+  @Post(':id/message')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async createSupportMessage(@GetJwt() jwt: JwtPayload, @Body() dto: CreateSupportMessageDto): Promise<void> {
-    return this.supportIssueService.createSupportMessage({ ...dto, author: SupportMessageAuthor.CUSTOMER }, jwt.id);
+  async createSupportMessage(@Param('id') id: string, @Body() dto: CreateSupportMessageDto): Promise<void> {
+    return this.supportIssueService.createSupportMessage(+id, dto);
   }
 
   // --- SUPPORT --- //
@@ -44,10 +43,10 @@ export class SupportIssueController {
     return this.supportIssueService.updateSupportIssue(+id, dto);
   }
 
-  @Post('message/reply')
+  @Post(':id/reply')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
-  async createSupportMessageReply(@Body() dto: CreateSupportMessageDto): Promise<void> {
-    return this.supportIssueService.createSupportMessage(dto);
+  async createSupportMessageReply(@Param('id') id: string, @Body() dto: CreateSupportReplyDto): Promise<void> {
+    return this.supportIssueService.createSupportMessage(+id, dto);
   }
 }

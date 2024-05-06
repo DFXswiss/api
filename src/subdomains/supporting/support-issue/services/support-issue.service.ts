@@ -5,10 +5,9 @@ import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/inte
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CreateTransactionIssueDto } from '../dto/create-support-issue.dto';
-import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
+import { CreateSupportMessageDto, CreateSupportReplyDto } from '../dto/create-support-message.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
 import { SupportIssue, SupportIssueType } from '../entities/support-issue.entity';
-import { SupportMessageAuthor } from '../entities/support-message.entity';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportMessageRepository } from '../repositories/support-message.repository';
 
@@ -40,46 +39,41 @@ export class SupportIssueService {
 
     entity = await this.supportIssueRepo.save(entity);
 
-    if (dto.message)
-      await this.createSupportMessage(
-        {
-          author: SupportMessageAuthor.CUSTOMER,
-          supportIssue: entity,
-          ...dto,
-        },
-        userId,
-      );
+    if (dto.message || dto.file) await this.createSupportMessage(entity.id, dto);
   }
 
   async updateSupportIssue(id: number, dto: UpdateSupportIssueDto): Promise<SupportIssue> {
     const entity = await this.supportIssueRepo.findOneBy({ id });
-    if (!entity) throw new NotFoundException('SupportIssue not found');
+    if (!entity) throw new NotFoundException('Support issue not found');
 
     Object.assign(entity, dto);
 
     return this.supportIssueRepo.save(entity);
   }
 
-  async createSupportMessage(dto: CreateSupportMessageDto, userId?: number): Promise<void> {
+  async createSupportMessage(id: number, dto: CreateSupportMessageDto | CreateSupportReplyDto): Promise<void> {
     const existing = await this.messageRepo.findOneBy({
       message: dto.message,
-      supportIssue: { id: dto.supportIssue.id },
+      issue: { id },
     });
-    if (existing) throw new ConflictException('Support Message already exists');
+    if (existing) throw new ConflictException('Support message already exists');
 
     const entity = this.messageRepo.create(dto);
 
-    entity.supportIssue = await this.supportIssueRepo.findOneBy({ id: dto.supportIssue.id });
-    if (!entity.supportIssue) throw new NotFoundException('Support Issue not found');
+    entity.issue = await this.supportIssueRepo.findOneBy({ id });
+    if (!entity.issue) throw new NotFoundException('Support issue not found');
 
     // upload document proof
-    if (dto.file && userId) {
+    if (dto.file) {
       const { contentType, buffer } = Util.fromBase64(dto.file);
 
-      const user = await this.userService.getUser(userId, { userData: true });
+      const supportIssue = await this.supportIssueRepo.findOne({
+        where: { id },
+        relations: { transaction: { user: { userData: true } } },
+      });
 
       entity.fileUrl = await this.storageService.uploadFile(
-        user.userData.id,
+        supportIssue.transaction.user.userData.id,
         FileType.SUPPORT_ISSUE,
         `${Util.isoDateTime(new Date())}_support-issue_user-upload_${dto.fileName}`,
         buffer,
