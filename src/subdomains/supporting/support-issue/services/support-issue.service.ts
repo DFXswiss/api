@@ -66,7 +66,7 @@ export class SupportIssueService {
     if (existing) throw new ConflictException('Support message already exists');
 
     const entity = this.messageRepo.create(dto);
-    if (!entity.author) entity.author = 'Customer';
+    entity.author ??= 'Customer';
 
     entity.issue = await this.supportIssueRepo.findOne({
       where: { id },
