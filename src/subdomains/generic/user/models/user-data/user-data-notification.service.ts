@@ -68,7 +68,7 @@ export class UserDataNotificationService {
 
   async userDataChangedMailInfo(master: UserData, slave: UserData): Promise<void> {
     try {
-      if (master.mail) {
+      if (master.mail)
         await this.notificationService.sendMail({
           type: MailType.USER,
           context: MailContext.CHANGED_MAIL,
@@ -93,30 +93,29 @@ export class UserDataNotificationService {
           },
         });
 
-        await this.notificationService.sendMail({
-          type: MailType.USER,
-          context: MailContext.CHANGED_MAIL,
-          input: {
-            userData: slave,
-            title: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.title`,
-            salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.salutation` },
-            prefix: [
-              { key: MailKey.SPACE, params: { value: '3' } },
-              {
-                key: `${MailTranslationKey.GENERAL}.welcome`,
-                params: { name: slave.organizationName ?? slave.firstname },
-              },
-              { key: MailKey.SPACE, params: { value: '2' } },
-              {
-                key: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.message`,
-                params: { userMail: Util.blankMail(slave.mail) },
-              },
-              { key: MailKey.SPACE, params: { value: '4' } },
-            ],
-            suffix: [{ key: MailKey.SPACE, params: { value: '4' } }, { key: MailKey.DFX_TEAM_CLOSING }],
-          },
-        });
-      }
+      await this.notificationService.sendMail({
+        type: MailType.USER,
+        context: MailContext.CHANGED_MAIL,
+        input: {
+          userData: slave,
+          title: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.title`,
+          salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.salutation` },
+          prefix: [
+            { key: MailKey.SPACE, params: { value: '3' } },
+            {
+              key: `${MailTranslationKey.GENERAL}.welcome`,
+              params: { name: slave.organizationName ?? slave.firstname },
+            },
+            { key: MailKey.SPACE, params: { value: '2' } },
+            {
+              key: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.message`,
+              params: { userMail: Util.blankMail(slave.mail) },
+            },
+            { key: MailKey.SPACE, params: { value: '4' } },
+          ],
+          suffix: [{ key: MailKey.SPACE, params: { value: '4' } }, { key: MailKey.DFX_TEAM_CLOSING }],
+        },
+      });
     } catch (e) {
       this.logger.error(`Failed to send userData changed mail info slave (${slave.id}) and master (${master.id}):`, e);
     }
