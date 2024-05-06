@@ -11,7 +11,7 @@ import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/inte
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CreateTransactionIssueDto } from '../dto/create-support-issue.dto';
-import { CreateSupportMessageDto, CreateSupportReplyDto } from '../dto/create-support-message.dto';
+import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
 import { SupportIssue, SupportIssueType } from '../entities/support-issue.entity';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
@@ -58,7 +58,7 @@ export class SupportIssueService {
     return this.supportIssueRepo.save(entity);
   }
 
-  async createSupportMessage(id: number, dto: CreateSupportMessageDto | CreateSupportReplyDto): Promise<void> {
+  async createSupportMessage(id: number, dto: CreateSupportMessageDto): Promise<void> {
     const existing = await this.messageRepo.findOneBy({
       message: dto.message,
       issue: { id },
@@ -66,7 +66,6 @@ export class SupportIssueService {
     if (existing) throw new ConflictException('Support message already exists');
 
     const entity = this.messageRepo.create(dto);
-    entity.author ??= 'Customer';
 
     entity.issue = await this.supportIssueRepo.findOne({
       where: { id },

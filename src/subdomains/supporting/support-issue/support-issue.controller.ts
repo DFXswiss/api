@@ -6,7 +6,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CreateTransactionIssueDto } from './dto/create-support-issue.dto';
-import { CreateSupportMessageDto, CreateSupportReplyDto } from './dto/create-support-message.dto';
+import { CreateSupportMessageDto } from './dto/create-support-message.dto';
 import { UpdateSupportIssueDto } from './dto/update-support-issue.dto';
 import { SupportIssue } from './entities/support-issue.entity';
 import { SupportIssueService } from './services/support-issue.service';
@@ -30,8 +30,15 @@ export class SupportIssueController {
   @Post(':id/message')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async createSupportMessage(@Param('id') id: string, @Body() dto: CreateSupportMessageDto): Promise<void> {
-    return this.supportIssueService.createSupportMessage(+id, dto);
+  async createSupportMessage(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: CreateSupportMessageDto,
+  ): Promise<void> {
+    return this.supportIssueService.createSupportMessage(
+      +id,
+      jwt.role === UserRole.SUPPORT || jwt.role === UserRole.ADMIN ? dto : { ...dto, author: 'Customer' },
+    );
   }
 
   // --- SUPPORT --- //
@@ -41,13 +48,5 @@ export class SupportIssueController {
   @ApiExcludeEndpoint()
   async updateSupportIssue(@Param('id') id: string, @Body() dto: UpdateSupportIssueDto): Promise<SupportIssue> {
     return this.supportIssueService.updateSupportIssue(+id, dto);
-  }
-
-  @Post(':id/reply')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
-  @ApiExcludeEndpoint()
-  async createSupportMessageReply(@Param('id') id: string, @Body() dto: CreateSupportReplyDto): Promise<void> {
-    return this.supportIssueService.createSupportMessage(+id, dto);
   }
 }
