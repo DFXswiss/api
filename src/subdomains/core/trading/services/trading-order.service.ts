@@ -81,7 +81,7 @@ export class TradingOrderService {
     if (availableAmount < minAmount) {
       throw new Error(`Not enough liquidity: ${availableAmount} available, min. required ${minAmount}`);
     } else {
-      order.amountIn = Math.min(order.amountIn, availableAmount);
+      liquidityRequest.referenceAmount = order.amountIn = Math.min(order.amountIn, availableAmount);
     }
 
     await this.dexService.reserveLiquidity(liquidityRequest);
