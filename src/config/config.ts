@@ -459,6 +459,10 @@ export class Configuration {
     limitCheck: process.env.REQUEST_LIMIT_CHECK === 'true',
   };
 
+  sift = {
+    apiKey: process.env.SIFT_API_KEY,
+  };
+
   // --- GETTERS --- //
   url(version: Version = this.defaultVersion): string {
     const versionString = `v${version}`;

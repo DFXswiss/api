@@ -12,6 +12,7 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
+import { SiftService } from 'src/integration/sift/services/sift.service';
 import { JwtPayload, JwtPayloadBase } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -59,6 +60,7 @@ export class AuthService {
     private readonly feeService: FeeService,
     private readonly userDataService: UserDataService,
     private readonly notificationService: NotificationService,
+    private readonly siftService: SiftService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -97,6 +99,7 @@ export class AuthService {
 
     const wallet = await this.walletService.getByIdOrName(dto.walletId, dto.wallet);
     const user = await this.userService.createUser(dto, userIp, ref?.origin, wallet, dto.discountCode);
+    await this.siftService.createAccount(user);
     return { accessToken: this.generateUserToken(user, userIp) };
   }
 
@@ -106,7 +109,7 @@ export class AuthService {
 
     const user = await this.userRepo.getByAddress(dto.address, true);
     if (!user) throw new NotFoundException('User not found');
-
+    await this.siftService.createAccount(user);
     return this.doSignIn(user, dto, userIp, isCustodial);
   }
 
