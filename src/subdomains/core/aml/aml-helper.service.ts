@@ -67,7 +67,7 @@ export class AmlHelperService {
       // crypto input
       if (entity.cryptoInput.amlCheck !== CheckStatus.PASS) errors.push(AmlError.INPUT_AML_CHECK_FAILED);
       if (!entity.cryptoInput.isConfirmed) errors.push(AmlError.INPUT_NOT_CONFIRMED);
-    } else if (entity.user.status === UserStatus.NA && entity.userData.hasSuspiciousMail)
+    } else if (entity.userData.status === UserDataStatus.NA && entity.userData.hasSuspiciousMail)
       errors.push(AmlError.SUSPICIOUS_MAIL);
 
     if (entity instanceof BuyCrypto) {
