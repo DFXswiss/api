@@ -36,7 +36,7 @@ import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserDtoMapper } from './dto/user-dto.mapper';
 import { UserNameDto } from './dto/user-name.dto';
-import { UserV2Dto } from './dto/user-v2.dto';
+import { ReferralDto, UserV2Dto } from './dto/user-v2.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
 import { User, UserStatus } from './user.entity';
@@ -91,16 +91,6 @@ export class UserService {
     return this.toDto(user, detailed);
   }
 
-  async getUserDtoV2(userId: number): Promise<UserV2Dto> {
-    const user = await this.userRepo.findOne({
-      where: { id: userId },
-      relations: { userData: { users: { wallet: true } } },
-    });
-    if (!user) throw new NotFoundException('User not found');
-
-    return UserDtoMapper.toDto(user.userData, user.id);
-  }
-
   async getAllLinkedUsers(id: number): Promise<LinkedUserOutDto[]> {
     const linkedUsers = await this.userRepo
       .createQueryBuilder('user')
@@ -132,6 +122,26 @@ export class UserService {
 
   async getRefUser(ref: string): Promise<User> {
     return this.userRepo.findOne({ where: { ref }, relations: ['userData', 'userData.users'] });
+  }
+
+  async getUserDtoV2(userId: number): Promise<UserV2Dto> {
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: { userData: { users: { wallet: true } } },
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    return UserDtoMapper.mapUser(user.userData, user.id);
+  }
+
+  async getRefDtoV2(userId: number): Promise<ReferralDto> {
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+    });
+
+    const { refCount, refCountActive } = await this.getRefUserCounts(user);
+
+    return UserDtoMapper.mapRef(user, refCount, refCountActive);
   }
 
   async createUser(
@@ -490,7 +500,7 @@ export class UserService {
 
   private async getUserDetails(user: User): Promise<UserDetails> {
     return {
-      ...(user.status == UserStatus.ACTIVE ? await this.getUserRef(user) : undefined),
+      ...(user.status === UserStatus.ACTIVE ? await this.getUserRef(user) : undefined),
       bsLink:
         user.buyVolume + user.sellVolume + user.cryptoVolume >= Config.support.blackSquad.limit
           ? Config.support.blackSquad.link
@@ -509,8 +519,16 @@ export class UserService {
       refVolume: user.refVolume,
       refCredit: user.refCredit,
       paidRefCredit: user.paidRefCredit,
-      refCount: await this.userRepo.countBy({ usedRef: user.ref }),
-      refCountActive: await this.userRepo.countBy({ usedRef: user.ref, status: Not(UserStatus.NA) }),
+      ...(await this.getRefUserCounts(user)),
     };
+  }
+
+  private async getRefUserCounts(user: User): Promise<{ refCount: number; refCountActive: number }> {
+    return user.ref
+      ? {
+          refCount: await this.userRepo.countBy({ usedRef: user.ref }),
+          refCountActive: await this.userRepo.countBy({ usedRef: user.ref, status: UserStatus.ACTIVE }),
+        }
+      : { refCount: 0, refCountActive: 0 };
   }
 }

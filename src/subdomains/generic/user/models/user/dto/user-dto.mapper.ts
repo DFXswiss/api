@@ -2,10 +2,10 @@ import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.m
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { UserData } from '../../user-data/user-data.entity';
 import { User } from '../user.entity';
-import { UserAddressDto, UserV2Dto, VolumesDto } from './user-v2.dto';
+import { ReferralDto, UserAddressDto, UserV2Dto, VolumesDto } from './user-v2.dto';
 
 export class UserDtoMapper {
-  static toDto(userData: UserData, activeUserId?: number): UserV2Dto {
+  static mapUser(userData: UserData, activeUserId?: number): UserV2Dto {
     const activeUser = activeUserId && userData.users.find((u) => u.id === activeUserId);
 
     const dto: UserV2Dto = {
@@ -33,6 +33,7 @@ export class UserDtoMapper {
       address: user.address,
       blockchains: user.blockchains,
       volumes: this.mapVolumes(user),
+      refCode: user.ref,
       apiKeyCT: user.apiKeyCT,
       apiFilterCT: ApiKeyService.getFilterArray(user.apiFilterCT),
     };
@@ -48,5 +49,18 @@ export class UserDtoMapper {
     };
 
     return Object.assign(new VolumesDto(), dto);
+  }
+
+  static mapRef(user: User, userCount: number, activeUserCount: number): ReferralDto {
+    const dto: ReferralDto = {
+      code: user.ref,
+      volume: user.refVolume,
+      credit: user.refCredit,
+      paidCredit: user.paidRefCredit,
+      userCount: userCount,
+      activeUserCount: activeUserCount,
+    };
+
+    return Object.assign(new ReferralDto(), dto);
   }
 }

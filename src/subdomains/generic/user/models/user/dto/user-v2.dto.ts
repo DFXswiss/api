@@ -18,23 +18,23 @@ export class VolumesDto {
 }
 
 export class ReferralDto {
-  @ApiProperty()
-  code: string;
+  @ApiPropertyOptional()
+  code?: string;
 
   @ApiProperty({ description: 'Referral volume in EUR' })
-  volume?: number;
+  volume: number;
 
   @ApiProperty({ description: 'Referral credit in EUR' })
-  credit?: number;
+  credit: number;
 
   @ApiProperty({ description: 'Paid referral credit in EUR' })
-  paidCredit?: number;
+  paidCredit: number;
 
   @ApiProperty()
-  userCount?: number;
+  userCount: number;
 
   @ApiProperty()
-  activeUserCount?: number;
+  activeUserCount: number;
 }
 
 export class UserAddressDto {
@@ -49,6 +49,9 @@ export class UserAddressDto {
 
   @ApiProperty({ type: VolumesDto })
   volumes: VolumesDto;
+
+  @ApiPropertyOptional()
+  refCode?: string;
 
   @ApiPropertyOptional()
   apiKeyCT?: string;

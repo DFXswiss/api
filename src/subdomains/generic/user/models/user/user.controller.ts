@@ -26,7 +26,7 @@ import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserNameDto } from './dto/user-name.dto';
-import { UserV2Dto } from './dto/user-v2.dto';
+import { ReferralDto, UserV2Dto } from './dto/user-v2.dto';
 import { UserDetailDto, UserDto } from './dto/user.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
 import { User } from './user.entity';
@@ -209,5 +209,13 @@ export class UserV2Controller {
   @ApiOkResponse({ type: UserV2Dto })
   async getUser(@GetJwt() jwt: JwtPayload): Promise<UserV2Dto> {
     return this.userService.getUserDtoV2(jwt.id);
+  }
+
+  @Get('ref')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse({ type: ReferralDto })
+  async getRef(@GetJwt() jwt: JwtPayload): Promise<ReferralDto> {
+    return this.userService.getRefDtoV2(jwt.id);
   }
 }
