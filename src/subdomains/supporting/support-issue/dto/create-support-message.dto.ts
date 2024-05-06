@@ -2,7 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
 
 export class CreateSupportMessageDto {
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   author: string;
 
