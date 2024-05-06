@@ -39,7 +39,7 @@ export class SupportIssueService {
       const { contentType, buffer } = Util.fromBase64(dto.file);
 
       entity.fileUrl = await this.storageService.uploadFile(
-        userId,
+        user.userData.id,
         FileType.SUPPORT_ISSUE,
         `${Util.isoDateTime(new Date())}_support-issue_user-upload_${dto.fileName}`,
         buffer,

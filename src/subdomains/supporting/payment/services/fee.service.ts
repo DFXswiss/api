@@ -50,7 +50,7 @@ export interface FeeRequestBase {
   allowBlockchainFeeFallback: boolean;
 }
 
-const FeeValidityMinutes = 70;
+const FeeValidityMinutes = 30;
 
 @Injectable()
 export class FeeService {
@@ -69,7 +69,7 @@ export class FeeService {
   ) {}
 
   // --- JOBS --- //
-  @Cron(CronExpression.EVERY_30_MINUTES)
+  @Cron(CronExpression.EVERY_10_MINUTES)
   @Lock(1800)
   async updateBlockchainFees() {
     const blockchainFees = await this.blockchainFeeRepo.find({ relations: ['asset'] });

@@ -64,7 +64,7 @@ export class TradingOrderService {
   }
 
   private async reserveLiquidity(order: TradingOrder): Promise<void> {
-    const reservationRequest: ReserveLiquidityRequest = {
+    const liquidityRequest: ReserveLiquidityRequest = {
       context: LiquidityOrderContext.TRADING,
       correlationId: `${order.id}`,
       referenceAmount: order.amountIn,
@@ -72,10 +72,19 @@ export class TradingOrderService {
       targetAsset: order.assetIn,
     };
 
-    const reservedLiquidity = await this.dexService.reserveLiquidity(reservationRequest);
+    // adapt the amount if not enough liquidity (down to half)
+    const {
+      reference: { availableAmount },
+    } = await this.dexService.checkLiquidity(liquidityRequest);
 
-    if (reservedLiquidity < order.amountIn)
-      throw new Error(`Liquidity not available: reserved ${reservedLiquidity}, needed ${order.amountIn}`);
+    const minAmount = order.amountIn / 2;
+    if (availableAmount < minAmount) {
+      throw new Error(`Not enough liquidity: ${availableAmount} available, min. required ${minAmount}`);
+    } else {
+      liquidityRequest.referenceAmount = order.amountIn = Math.min(order.amountIn, availableAmount);
+    }
+
+    await this.dexService.reserveLiquidity(liquidityRequest);
   }
 
   private async closeReservation(order: TradingOrder): Promise<void> {
@@ -114,7 +123,10 @@ export class TradingOrderService {
   private async handleOrderCompletion(order: TradingOrder): Promise<void> {
     await this.closeReservation(order);
 
-    order.complete();
+    const client = this.evmRegistryService.getClient(order.assetIn.blockchain);
+    const outputAmount = await client.getSwapResult(order.txId, order.assetOut);
+
+    order.complete(outputAmount);
     await this.orderRepo.save(order);
 
     const rule = order.tradingRule.reactivate();

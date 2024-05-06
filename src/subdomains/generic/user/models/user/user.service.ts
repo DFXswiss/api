@@ -11,6 +11,7 @@ import { CryptoService } from 'src/integration/blockchain/shared/services/crypto
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { Active } from 'src/shared/models/active';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
@@ -33,7 +34,9 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UserDtoMapper } from './dto/user-dto.mapper';
 import { UserNameDto } from './dto/user-name.dto';
+import { ReferralDto, UserV2Dto } from './dto/user-v2.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
 import { User, UserStatus } from './user.entity';
@@ -48,10 +51,8 @@ export class UserService {
     private readonly userDataRepo: UserDataRepository,
     private readonly userDataService: UserDataService,
     private readonly walletService: WalletService,
-    private readonly apiKeyService: ApiKeyService,
     private readonly geoLocationService: GeoLocationService,
     private readonly countryService: CountryService,
-    private readonly cryptoService: CryptoService,
     private readonly feeService: FeeService,
   ) {}
 
@@ -104,7 +105,7 @@ export class UserService {
 
     return linkedUsers.map((u) => ({
       address: u.address,
-      blockchains: this.cryptoService.getBlockchainsBasedOn(u.address),
+      blockchains: CryptoService.getBlockchainsBasedOn(u.address),
     }));
   }
 
@@ -121,6 +122,26 @@ export class UserService {
 
   async getRefUser(ref: string): Promise<User> {
     return this.userRepo.findOne({ where: { ref }, relations: ['userData', 'userData.users'] });
+  }
+
+  async getUserDtoV2(userId: number): Promise<UserV2Dto> {
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: { userData: { users: { wallet: true } } },
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    return UserDtoMapper.mapUser(user.userData, user.id);
+  }
+
+  async getRefDtoV2(userId: number): Promise<ReferralDto> {
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+    });
+
+    const { refCount, refCountActive } = await this.getRefUserCounts(user);
+
+    return UserDtoMapper.mapRef(user, refCount, refCountActive);
   }
 
   async createUser(
@@ -419,12 +440,12 @@ export class UserService {
     if (!user) throw new BadRequestException('User not found');
     if (user.apiKeyCT) throw new ConflictException('API key already exists');
 
-    user.apiKeyCT = this.apiKeyService.createKey(user.address);
-    user.apiFilterCT = this.apiKeyService.getFilterCode(filter);
+    user.apiKeyCT = ApiKeyService.createKey(user.address);
+    user.apiFilterCT = ApiKeyService.getFilterCode(filter);
 
     await this.userRepo.update(userId, { apiKeyCT: user.apiKeyCT, apiFilterCT: user.apiFilterCT });
 
-    const secret = this.apiKeyService.getSecret(user);
+    const secret = ApiKeyService.getSecret(user);
 
     return { key: user.apiKeyCT, secret: secret };
   }
@@ -438,7 +459,7 @@ export class UserService {
     const user = await this.userRepo.findOneBy({ apiKeyCT: key });
     if (!user) throw new NotFoundException('API key not found');
 
-    if (!this.apiKeyService.isValidSign(user, sign, timestamp)) throw new ForbiddenException('Invalid API key/sign');
+    if (!ApiKeyService.isValidSign(user, sign, timestamp)) throw new ForbiddenException('Invalid API key/sign');
 
     return user;
   }
@@ -447,10 +468,10 @@ export class UserService {
     const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
     if (!user) throw new BadRequestException('User not found');
 
-    user.apiFilterCT = this.apiKeyService.getFilterCode(filter);
+    user.apiFilterCT = ApiKeyService.getFilterCode(filter);
     await this.userRepo.update(userId, { apiFilterCT: user.apiFilterCT });
 
-    return this.apiKeyService.getFilterArray(user.apiFilterCT);
+    return ApiKeyService.getFilterArray(user.apiFilterCT);
   }
 
   // --- DTO --- //
@@ -462,7 +483,7 @@ export class UserService {
       status: user.status,
       mail: user.userData?.mail,
       phone: user.userData?.phone,
-      language: user.userData?.language,
+      language: LanguageDtoMapper.entityToDto(user.userData?.language),
       currency: user.userData?.currency,
       kycStatus: user.userData?.kycStatus,
       kycState: KycState.NA,
@@ -471,7 +492,7 @@ export class UserService {
       tradingLimit: user.userData?.tradingLimit,
       kycDataComplete: user.userData?.isDataComplete,
       apiKeyCT: user.apiKeyCT,
-      apiFilterCT: this.apiKeyService.getFilterArray(user.apiFilterCT),
+      apiFilterCT: ApiKeyService.getFilterArray(user.apiFilterCT),
       ...(detailed ? await this.getUserDetails(user) : undefined),
       linkedAddresses: detailed ? await this.getAllLinkedUsers(user.id) : undefined,
     };
@@ -479,7 +500,7 @@ export class UserService {
 
   private async getUserDetails(user: User): Promise<UserDetails> {
     return {
-      ...(user.status == UserStatus.ACTIVE ? await this.getUserRef(user) : undefined),
+      ...(user.status === UserStatus.ACTIVE ? await this.getUserRef(user) : undefined),
       bsLink:
         user.buyVolume + user.sellVolume + user.cryptoVolume >= Config.support.blackSquad.limit
           ? Config.support.blackSquad.link
@@ -498,8 +519,16 @@ export class UserService {
       refVolume: user.refVolume,
       refCredit: user.refCredit,
       paidRefCredit: user.paidRefCredit,
-      refCount: await this.userRepo.countBy({ usedRef: user.ref }),
-      refCountActive: await this.userRepo.countBy({ usedRef: user.ref, status: Not(UserStatus.NA) }),
+      ...(await this.getRefUserCounts(user)),
     };
+  }
+
+  private async getRefUserCounts(user: User): Promise<{ refCount: number; refCountActive: number }> {
+    return user.ref
+      ? {
+          refCount: await this.userRepo.countBy({ usedRef: user.ref }),
+          refCountActive: await this.userRepo.countBy({ usedRef: user.ref, status: UserStatus.ACTIVE }),
+        }
+      : { refCount: 0, refCountActive: 0 };
   }
 }

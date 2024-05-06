@@ -32,7 +32,7 @@ import { UserDataRelationRepository } from './models/user-data-relation/user-dat
 import { UserDataRelationService } from './models/user-data-relation/user-data-relation.service';
 import { UserDataNotificationService } from './models/user-data/user-data-notification.service';
 import { UserData } from './models/user-data/user-data.entity';
-import { UserController } from './models/user/user.controller';
+import { UserController, UserV2Controller } from './models/user/user.controller';
 import { User } from './models/user/user.entity';
 import { UserRepository } from './models/user/user.repository';
 import { UserService } from './models/user/user.service';
@@ -56,6 +56,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     SiftModule,
   ],
   controllers: [
+    UserV2Controller,
     UserController,
     UserDataController,
     BankDataController,

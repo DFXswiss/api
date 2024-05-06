@@ -71,7 +71,7 @@ export class TradingRuleService {
 
       const tradingInfo = await this.tradingService.createTradingInfo(rule);
 
-      if (tradingInfo.amountIn) {
+      if (tradingInfo) {
         rule.processing();
         await this.ruleRepo.save(rule);
 

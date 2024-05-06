@@ -183,7 +183,7 @@ export class PricingService {
         context: MailContext.PRICING,
         input: { subject: 'Price Mismatch', errors: [message], isLiqMail: true },
         correlationId: `PriceMismatch&${rule.asset}&${rule.reference}`,
-        options: { debounce: 1800000 },
+        options: { debounce: 86400000 },
       });
 
       return false;

@@ -177,6 +177,7 @@ export class TransactionDtoMapper {
     return {
       id: tx.transaction?.id,
       type: TransactionType.BUY,
+      state: TransactionState.UNASSIGNED,
       inputAmount: tx.txAmount,
       inputAsset: tx.txCurrency,
       inputAssetId: currency.id,

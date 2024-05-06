@@ -17,6 +17,7 @@ export class TradingRule extends IEntity {
   @ManyToOne(() => Asset, { nullable: false, eager: true })
   rightAsset: Asset;
 
+  // reference price
   @Column()
   source1: PriceSource;
 
@@ -26,6 +27,7 @@ export class TradingRule extends IEntity {
   @Column()
   rightAsset1: string;
 
+  // pool price
   @Column()
   source2: PriceSource;
 
@@ -35,11 +37,27 @@ export class TradingRule extends IEntity {
   @Column()
   rightAsset2: string;
 
+  // check price
+  @Column({ nullable: true })
+  source3: PriceSource;
+
+  @Column({ nullable: true })
+  leftAsset3: string;
+
+  @Column({ nullable: true })
+  rightAsset3: string;
+
   @Column({ type: 'float' })
   lowerLimit: number;
 
+  @Column({ type: 'float', default: 1 })
+  lowerTarget: number;
+
   @Column({ type: 'float' })
   upperLimit: number;
+
+  @Column({ type: 'float', default: 1 })
+  upperTarget: number;
 
   @Column({ type: 'int', default: FeeAmount.LOWEST })
   poolFee: FeeAmount;
