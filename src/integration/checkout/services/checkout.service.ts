@@ -4,11 +4,12 @@ import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
-import { Util } from 'src/shared/utils/util';
 import { CheckoutHostedPayment, CheckoutLanguages, CheckoutPagedResponse, CheckoutPayment } from '../dto/checkout.dto';
 
-interface Balance {
-  balance: number;
+interface CheckoutBalance {
+  balances: { available: number; collateral: number; payable: number; pending: number };
+  descriptor: string;
+  holding_currency: string;
 }
 
 @Injectable()
@@ -77,10 +78,8 @@ export class CheckoutService {
     return payments.filter((p) => !(new Date(p.requested_on) < since));
   }
 
-  async getBalance(): Promise<Balance> {
-    const balance = await this.checkout.balances.retrieve('ent_hd7mszkohikuziapak4igmw5ua');
-    return {
-      balance: Util.round(balance / 100, 2),
-    };
+  async getBalances(): Promise<CheckoutBalance[]> {
+    const balance = await this.checkout.balances.retrieve(Config.checkout.ckoEntityId);
+    return balance.data;
   }
 }
