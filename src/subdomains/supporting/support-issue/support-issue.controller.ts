@@ -46,6 +46,7 @@ export class SupportIssueController {
   @Post(':id/reply')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
+  @ApiExcludeEndpoint()
   async createSupportMessageReply(@Param('id') id: string, @Body() dto: CreateSupportReplyDto): Promise<void> {
     return this.supportIssueService.createSupportMessage(+id, dto);
   }
