@@ -6,14 +6,10 @@ import { CreateTransactionDto } from '../dto/input/create-transaction.dto';
 import { UpdateTransactionDto } from '../dto/input/update-transaction.dto';
 import { Transaction } from '../entities/transaction.entity';
 import { TransactionRepository } from '../repositories/transaction.repository';
-import { TransactionNotificationService } from './transaction-notification.service';
 
 @Injectable()
 export class TransactionService {
-  constructor(
-    private readonly repo: TransactionRepository,
-    private readonly transactionNotificationService: TransactionNotificationService,
-  ) {}
+  constructor(private readonly repo: TransactionRepository) {}
 
   async create(dto: CreateTransactionDto): Promise<Transaction | undefined> {
     const entity = this.repo.create(dto);
@@ -68,5 +64,16 @@ export class TransactionService {
         refReward: { user: true },
       },
     });
+  }
+
+  async getTransactionByKey(key: string, value: any): Promise<Transaction> {
+    return this.repo
+      .createQueryBuilder('transaction')
+      .select('transaction')
+      .leftJoinAndSelect('transaction.user', 'user')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('userData.users', 'users')
+      .where(`${key.includes('.') ? key : `transaction.${key}`} = :param`, { param: value })
+      .getOne();
   }
 }
