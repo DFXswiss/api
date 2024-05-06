@@ -1,11 +1,11 @@
 import { Config } from 'src/config/config';
-import { Language } from 'src/shared/models/language/language.entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { MailAffix, TranslationItem } from '../../interfaces';
 import { NotificationOptions } from '../notification.entity';
 import { Mail } from './base/mail';
 
 export interface MailRequestUserInput {
-  userData: { id: number; mail: string; language: Language };
+  userData: UserData;
   title: string;
   salutation?: TranslationItem;
   prefix?: TranslationItem[];

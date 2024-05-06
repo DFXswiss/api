@@ -19,13 +19,11 @@ import { CreateDepositDto } from './dto/create-deposit.dto';
 
 @Injectable()
 export class DepositService {
-  private inpClient: NodeClient;
   private btcInpClient: NodeClient;
   private readonly lightningClient: LightningClient;
 
   constructor(
     private readonly depositRepo: DepositRepository,
-    private readonly cryptoService: CryptoService,
     private readonly alchemyWebhookService: AlchemyWebhookService,
     nodeService: NodeService,
     lightningService: LightningService,
@@ -65,7 +63,7 @@ export class DepositService {
   async createDeposits({ blockchain, count }: CreateDepositDto): Promise<void> {
     if ([Blockchain.BITCOIN].includes(blockchain)) {
       return this.createBitcoinDeposits(blockchain, count);
-    } else if (this.cryptoService.EthereumBasedChains.includes(blockchain)) {
+    } else if (CryptoService.EthereumBasedChains.includes(blockchain)) {
       return this.createEvmDeposits(blockchain, count);
     } else if (blockchain === Blockchain.LIGHTNING) {
       return this.createLightningDeposits(blockchain, count);
@@ -89,7 +87,7 @@ export class DepositService {
   private async createEvmDeposits(blockchain: Blockchain, count: number) {
     const addresses: string[] = await this.getDepositsByBlockchain(blockchain).then((d) => d.map((d) => d.address));
 
-    const nextDepositIndex = await this.getNextDepositIndex(this.cryptoService.EthereumBasedChains);
+    const nextDepositIndex = await this.getNextDepositIndex(CryptoService.EthereumBasedChains);
 
     for (let i = 0; i < count; i++) {
       const accountIndex = nextDepositIndex + i;

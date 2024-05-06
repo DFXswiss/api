@@ -2,9 +2,8 @@ import { Inject, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
+import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -39,16 +38,13 @@ export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy 
 
   abstract get blockchain(): Blockchain;
 
-  abstract doAmlCheck(payIn: CryptoInput, route: Staking | Sell | CryptoRoute): Promise<CheckStatus> | CheckStatus;
+  abstract doAmlCheck(payIn: CryptoInput, route: Staking | Sell | Swap): Promise<CheckStatus> | CheckStatus;
 
   protected async createPayInsAndSave(transactions: PayInEntry[], log: PayInInputLog): Promise<void> {
     const payIns = transactions.map((t) => this.payInFactory.createFromEntry(t));
 
     for (const payIn of payIns) {
-      if (!DisabledProcess(Process.CREATE_TRANSACTION))
-        payIn.transaction = await this.transactionService.create({
-          sourceType: TransactionSourceType.CRYPTO_INPUT,
-        });
+      payIn.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.CRYPTO_INPUT });
 
       await this.payInRepository.save(payIn);
     }

@@ -8,7 +8,8 @@
         "welcome": "Hi {name},",
         "team_questions": "Bei Fragen zögere bitte nicht, uns anzusprechen.",
         "personal_closing": "Freundliche Grüsse,<br>{closingName}",
-        "button": "oder<br>[url:Klick hier]"
+        "button": "oder<br>[url:Klick hier]",
+        "link": "oder<br>[url:{urlText}]"
     },
     "login": {
         "title": "DFX Login",
@@ -16,34 +17,18 @@
         "message": "Klicke den nachfolgenden Link um dich bei DFX einzuloggen:<br>[url:{urlText}]"
     },
     "payment": {
-        "buy_fiat": {
-            "initiated": {
-                "title": "Krypto-Asset erhalten",
-                "salutation": "Dein Krypto-Asset ist bei uns eingetroffen",
-                "next_step": "Nächster Schritt: Wir verkaufen das Krypto-Asset und tauschen es in deine gewünschte Währung. Über die nächsten Schritte halten wir dich mit weiteren Emails auf dem Laufenden."
-            },
-            "exchanged": {
-                "title": "Krypto-Asset verkauft",
-                "salutation": "Wir haben das Krypto-Asset verkauft",
-                "next_step": "Nächster Schritt: Wir haben das Krypto-Asset verkauft und bereiten nun die Banküberweisung vor. Sobald das Geld von unserem Bankkonto überwiesen wurde, senden wir eine E-Mail und bestätigen die Überweisung."
-            },
-            "processed": {
-                "title": "Überweisungsbestätigung",
-                "salutation": "Wir haben die Überweisung veranlasst",
-                "next_step": "Die Zahlung hat gerade das DFX-Bankkonto verlassen und wird in Kürze auf deinem Bankkonto eintreffen. In der Zwischenzeit sind die Banken für die Dauer der Überweisung verantwortlich. Vielen Dank, für die Nutzung der DFX Fiat-Offramp."
-            },
-            "input_amount": "Auszahlung",
-            "output_amount": "Betrag",
-            "payment_link": "Dies ist die Transaktions-ID zu deiner Auszahlung: [url:Link]"
+        "crypto_input": {
+            "title": "Krypto-Asset eingetroffen",
+            "salutation": "Dein Krypto-Asset ist bei uns eingetroffen"
         },
-        "buy_crypto": {
-            "confirmed": {
-                "title": "Einzahlung abgearbeitet",
-                "salutation": "Deine Einzahlung wurde erfolgreich bearbeitet"
-            },
-            "input_amount": "Einzahlung",
-            "output_amount": "Krypto Auszahlung",
-            "payment_link": "Dies ist die Transaktions-ID zur Krypto-Auszahlung: [url:Link]"
+        "fiat_input": {
+            "title": "Einzahlung eingetroffen",
+            "salutation": "Deine Einzahlung ist bei DFX eingetroffen und ist in Bearbeitung",
+            "unassigned": {
+                "title": "Einzahlung zuordnen",
+                "salutation": "Deine Einzahlung kann nicht automatisch zugeordnet werden",
+                "transaction_button": "Bitte ordne deinen Zahlungseingang deiner Bestellung zu:<br>[url:Klick hier]"
+            }
         },
         "return": {
             "fiat": {
@@ -72,7 +57,9 @@
                 "bank_not_allowed": "Die von dir verwendete Absenderbank ist nicht erlaubt. Bitte nutze eine andere Bank für deine Einzahlung.",
                 "country_not_allowed": "Deine Einzahlung kann leider nicht bearbeitet werden,<br>weil das Geld aus einem Land stammt welches wir nicht unterstützen können. Mehr Informationen:<br><a style='color:white' href='https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html'>https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html</a>",
                 "high_risk_kyc_needed": "Wir konnten ohne Verifizierung (KYC) nicht sicherstellen, dass es sich bei dieser Transaktion nicht um einen Betrug handelt und mussten daher die Transaktion leider ablehnen.<br>Einzahlungen per Banktransaktion stehen dir weiterhin zur Verfügung.",
-                "high_risk_blocked": "Wir können nicht sicherstellen, dass es sich bei dieser Transaktion nicht um einen Betrug handelt und mussten daher die Transaktion leider ablehnen.<br>Einzahlungen per Banktransaktion stehen dir weiterhin zur Verfügung."
+                "high_risk_blocked": "Wir können nicht sicherstellen, dass es sich bei dieser Transaktion nicht um einen Betrug handelt und mussten daher die Transaktion leider ablehnen.<br>Einzahlungen per Banktransaktion stehen dir weiterhin zur Verfügung.",
+                "fee_too_high": "Die Netzwerk Gebühren sind derzeit zu hoch für den Betrag, den du geschickt hast",
+                "receiver_rejected_tx": "Die Empfänger-Node hat die Transaktion abgelehnt"
             },
             "kyc_start": "Du kannst den KYC Prozess hier starten:<br>[url:{urlText}]"           
         },
@@ -141,11 +128,8 @@
                 "line5": ""
             }
         },
+        "transaction_button": "Klicke den nachfolgenden Button für weitere Details zu deiner Transaktion:<br>[url:Klick hier]",
         "blockchain": "Blockchain",
-        "input_blockchain": "Einzahlungs-Blockchain",
-        "output_blockchain": "Auszahlungs-Blockchain",
-        "dfx_fee": "DFX Gebühr",
-        "exchange_rate": "Wechselkurs",
         "bank_account": "Bank Konto",
         "remittance_info": "Verwendungszweck",
         "transaction_id": "Transaktions-ID",

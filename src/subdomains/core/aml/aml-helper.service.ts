@@ -1,7 +1,8 @@
 import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
-import { KycLevel, KycType } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycLevel, KycType, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { AmlRule } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
@@ -11,7 +12,7 @@ import {
 } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { BuyCrypto } from '../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../sell-crypto/process/buy-fiat.entity';
-import { AmlError, AmlErrorReasons, FailedAmlErrors, PendingAmlErrors } from './enums/aml-error.enum';
+import { AmlError, AmlErrorResult, AmlErrorType } from './enums/aml-error.enum';
 import { AmlReason } from './enums/aml-reason.enum';
 import { CheckStatus } from './enums/check-status.enum';
 
@@ -66,9 +67,7 @@ export class AmlHelperService {
       // crypto input
       if (entity.cryptoInput.amlCheck !== CheckStatus.PASS) errors.push(AmlError.INPUT_AML_CHECK_FAILED);
       if (!entity.cryptoInput.isConfirmed) errors.push(AmlError.INPUT_NOT_CONFIRMED);
-      if (entity instanceof BuyCrypto && !entity.userData.cryptoCryptoAllowed)
-        errors.push(AmlError.CRYPTO_CRYPTO_NOT_ALLOWED);
-    } else if (entity.user.status === UserStatus.NA && entity.userData.hasSuspiciousMail)
+    } else if (entity.userData.status === UserDataStatus.NA && entity.userData.hasSuspiciousMail)
       errors.push(AmlError.SUSPICIOUS_MAIL);
 
     if (entity instanceof BuyCrypto) {
@@ -83,11 +82,19 @@ export class AmlHelperService {
             errors.push(AmlError.IP_MISMATCH);
           break;
         case AmlRule.RULE_2:
-          if (entity.user.status === UserStatus.NA && entity.userData.kycLevel < KycLevel.LEVEL_30)
+          if (
+            entity.user.status === UserStatus.NA &&
+            entity.userData.kycLevel < KycLevel.LEVEL_30 &&
+            entity.target.asset.blockchain !== Blockchain.LIGHTNING
+          )
             errors.push(AmlError.KYC_LEVEL_30_NOT_REACHED);
           break;
         case AmlRule.RULE_3:
-          if (entity.user.status === UserStatus.NA && entity.userData.kycLevel < KycLevel.LEVEL_50)
+          if (
+            entity.user.status === UserStatus.NA &&
+            entity.userData.kycLevel < KycLevel.LEVEL_50 &&
+            entity.target.asset.blockchain !== Blockchain.LIGHTNING
+          )
             errors.push(AmlError.KYC_LEVEL_50_NOT_REACHED);
           break;
         case AmlRule.RULE_4:
@@ -125,6 +132,11 @@ export class AmlHelperService {
         )
           errors.push(AmlError.CARD_BLACKLISTED);
         if (last7dVolume > Config.tradingLimits.weeklyAmlRule) errors.push(AmlError.WEEKLY_LIMIT_REACHED);
+      } else {
+        // swap
+        if (entity.userData.status !== UserDataStatus.ACTIVE && entity.userData.kycLevel < KycLevel.LEVEL_30) {
+          errors.push(AmlError.KYC_LEVEL_TOO_LOW);
+        }
       }
     } else {
       // buyFiat
@@ -171,22 +183,25 @@ export class AmlHelperService {
     // Pass
     if (amlErrors.length === 0) return { amlCheck: CheckStatus.PASS, amlReason: AmlReason.NA };
 
-    // Pending
-    if (amlErrors.every((e) => PendingAmlErrors.includes(e) && AmlErrorReasons[e]))
-      return {
-        amlCheck: CheckStatus.PENDING,
-        amlReason: AmlErrorReasons[amlErrors.find((e) => PendingAmlErrors.includes(e))],
-        comment,
-      };
+    const amlResults = amlErrors.map((amlError) => ({ amlError, ...AmlErrorResult[amlError] }));
 
-    // Fail
-    const failedError = amlErrors.find((e) => FailedAmlErrors.includes(e) && AmlErrorReasons[e]);
-    if (failedError)
-      return {
-        amlCheck: CheckStatus.FAIL,
-        amlReason: AmlErrorReasons[failedError],
-        comment,
-      };
+    // Crucial error aml
+    const crucialErrorResult = amlResults.find((r) => r.type === AmlErrorType.CRUCIAL);
+    if (crucialErrorResult)
+      return { amlCheck: crucialErrorResult.amlCheck, amlReason: crucialErrorResult.amlReason, comment };
+
+    // Only error aml
+    const onlyErrorResult = amlResults.find((r) => r.type === AmlErrorType.SINGLE);
+    if (onlyErrorResult && amlErrors.length === 1)
+      return { amlCheck: onlyErrorResult.amlCheck, amlReason: onlyErrorResult.amlReason, comment };
+
+    // Same error aml
+    if (
+      amlResults.every((r) => r.type === AmlErrorType.MULTI) &&
+      (amlResults.every((r) => r.amlCheck === CheckStatus.PENDING) ||
+        amlResults.every((r) => r.amlCheck === CheckStatus.FAIL))
+    )
+      return { amlCheck: amlResults[0].amlCheck, amlReason: amlResults[0].amlReason, comment };
 
     // GSheet
     if (Util.minutesDiff(entity.created) >= 10) return { amlCheck: CheckStatus.GSHEET, comment };

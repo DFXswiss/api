@@ -1,5 +1,6 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity } from 'typeorm';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { Column, Entity, ManyToOne } from 'typeorm';
 import { MailContext, MailType } from '../enums';
 
 export interface NotificationOptions {
@@ -35,6 +36,9 @@ export class Notification extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   debounce: number;
+
+  @ManyToOne(() => UserData, { nullable: true })
+  userData: UserData;
 
   isSuppressed(existingNotification: Notification): boolean {
     return (

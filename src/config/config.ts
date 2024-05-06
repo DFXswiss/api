@@ -44,6 +44,7 @@ export class Configuration {
 
   amlCheckLastNameCheckValidity = 90; // days
   maxBlockchainFee = 50; // CHF
+  blockchainFeeBuffer = 1.2;
 
   tradingLimits = {
     dailyDefault: 1000, // CHF
@@ -58,6 +59,7 @@ export class Configuration {
     linkedin: 'https://www.linkedin.com/company/dfxswiss/',
     instagram: 'https://www.instagram.com/dfx.swiss/',
     twitter: 'https://twitter.com/DFX_Swiss',
+    github: 'https://github.com/DFXswiss/api#dfx-api',
   };
 
   bitcoinAddressFormat = '([13]|bc1)[a-zA-HJ-NP-Z0-9]{25,62}';
@@ -126,12 +128,12 @@ export class Configuration {
     jwt: {
       secret: process.env.JWT_SECRET,
       signOptions: {
-        expiresIn: process.env.JWT_EXPIRES_IN ?? 172800,
+        expiresIn: process.env.JWT_EXPIRES_IN ?? '2d',
       },
     },
     company: {
       signOptions: {
-        expiresIn: process.env.JWT_EXPIRES_IN_COMPANY ?? 30,
+        expiresIn: process.env.JWT_EXPIRES_IN_COMPANY ?? '10m',
       },
     },
     challenge: {

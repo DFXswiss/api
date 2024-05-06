@@ -1,7 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
-import { PurchaseLiquidityRequest, ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
+import { ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
@@ -18,7 +19,11 @@ export class TradingOrderService {
   @Inject() private readonly ruleRepo: TradingRuleRepository;
   @Inject() private readonly orderRepo: TradingOrderRepository;
 
-  constructor(private readonly dexService: DexService, private readonly notificationService: NotificationService) {}
+  constructor(
+    private readonly dexService: DexService,
+    private readonly notificationService: NotificationService,
+    private readonly evmRegistryService: EvmRegistryService,
+  ) {}
 
   // --- PUBLIC API --- //
 
@@ -59,35 +64,38 @@ export class TradingOrderService {
   }
 
   private async reserveLiquidity(order: TradingOrder): Promise<void> {
-    const reservationRequest: ReserveLiquidityRequest = {
+    const liquidityRequest: ReserveLiquidityRequest = {
       context: LiquidityOrderContext.TRADING,
-      correlationId: this.correlationId(order, true),
+      correlationId: `${order.id}`,
       referenceAmount: order.amountIn,
       referenceAsset: order.assetIn,
       targetAsset: order.assetIn,
     };
 
-    const reservedLiquidity = await this.dexService.reserveLiquidity(reservationRequest);
+    // adapt the amount if not enough liquidity (down to half)
+    const {
+      reference: { availableAmount },
+    } = await this.dexService.checkLiquidity(liquidityRequest);
 
-    if (reservedLiquidity < order.amountIn)
-      throw new Error(`Liquidity not available: reserved ${reservedLiquidity}, needed ${order.amountIn}`);
+    const minAmount = order.amountIn / 2;
+    if (availableAmount < minAmount) {
+      throw new Error(`Not enough liquidity: ${availableAmount} available, min. required ${minAmount}`);
+    } else {
+      liquidityRequest.referenceAmount = order.amountIn = Math.min(order.amountIn, availableAmount);
+    }
+
+    await this.dexService.reserveLiquidity(liquidityRequest);
   }
 
   private async closeReservation(order: TradingOrder): Promise<void> {
-    await this.dexService.completeOrders(LiquidityOrderContext.TRADING, this.correlationId(order, true));
-    await this.dexService.completeOrders(LiquidityOrderContext.TRADING, this.correlationId(order, false));
+    await this.dexService.completeOrders(LiquidityOrderContext.TRADING, `${order.id}`);
   }
 
   private async purchaseLiquidity(order: TradingOrder): Promise<void> {
-    const purchaseRequest: PurchaseLiquidityRequest = {
-      context: LiquidityOrderContext.TRADING,
-      correlationId: this.correlationId(order, false),
-      referenceAmount: order.amountIn,
-      referenceAsset: order.assetIn,
-      targetAsset: order.assetOut,
-    };
+    const client = this.evmRegistryService.getClient(order.assetIn.blockchain);
 
-    await this.dexService.purchaseLiquidity(purchaseRequest);
+    order.txId = await client.swapPool(order.assetIn, order.assetOut, order.amountIn, order.tradingRule.poolFee, 0.2);
+    await this.orderRepo.save(order);
   }
 
   private async checkRunningOrders(): Promise<void> {
@@ -100,12 +108,11 @@ export class TradingOrderService {
 
   private async checkOrder(order: TradingOrder): Promise<void> {
     try {
-      const { isReady, purchaseTxId } = await this.dexService.checkOrderReady(
-        LiquidityOrderContext.TRADING,
-        this.correlationId(order, false),
-      );
+      const client = this.evmRegistryService.getClient(order.assetIn.blockchain);
 
-      if (isReady) await this.handleOrderCompletion(order, purchaseTxId);
+      const isComplete = await client.isTxComplete(order.txId);
+
+      if (isComplete) await this.handleOrderCompletion(order);
     } catch (e) {
       const message = `Failed to check trading order ${order.id} (rule ${order.tradingRule.id}): ${e.message}`;
       await this.handleOrderFail(order, message);
@@ -113,10 +120,13 @@ export class TradingOrderService {
     }
   }
 
-  private async handleOrderCompletion(order: TradingOrder, txId: string): Promise<void> {
+  private async handleOrderCompletion(order: TradingOrder): Promise<void> {
     await this.closeReservation(order);
 
-    order.complete(txId);
+    const client = this.evmRegistryService.getClient(order.assetIn.blockchain);
+    const outputAmount = await client.getSwapResult(order.txId, order.assetOut);
+
+    order.complete(outputAmount);
     await this.orderRepo.save(order);
 
     const rule = order.tradingRule.reactivate();
@@ -160,9 +170,5 @@ export class TradingOrderService {
     };
 
     await this.notificationService.sendMail(mailRequest);
-  }
-
-  private correlationId(order: TradingOrder, isReservation: boolean): string {
-    return `${order.id}${isReservation ? '-reservation' : ''}`;
   }
 }

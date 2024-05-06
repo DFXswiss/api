@@ -10,7 +10,7 @@ import { UpdateSupportIssueDto } from './dto/update-support-issue.dto';
 import { SupportIssue } from './support-issue.entity';
 import { SupportIssueService } from './support-issue.service';
 
-@ApiTags('SupportIssue')
+@ApiTags('Support')
 @Controller('support/issue')
 export class SupportIssueController {
   constructor(private readonly supportIssueService: SupportIssueService) {}
@@ -22,7 +22,7 @@ export class SupportIssueController {
     @GetJwt() jwt: JwtPayload,
     @Query('id') transactionId: string,
     @Body() dto: CreateTransactionIssueDto,
-  ): Promise<SupportIssue> {
+  ): Promise<void> {
     return this.supportIssueService.createTransactionIssue(jwt.id, +transactionId, dto);
   }
 

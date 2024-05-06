@@ -1,7 +1,8 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
-import { Active, isFiat } from 'src/shared/models/active';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Active, isAsset, isFiat } from 'src/shared/models/active';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -9,7 +10,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
-import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { AmlRule } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-helper/min-amount.dto';
@@ -194,13 +195,15 @@ export class TransactionHelper implements OnModuleInit {
 
     times.push(Date.now());
 
+    const defaultLimit = [paymentMethodIn, paymentMethodOut].includes(FiatPaymentMethod.CARD)
+      ? Config.tradingLimits.cardDefault
+      : Config.tradingLimits.yearlyDefault;
+
     const extendedSpecs: TxSpec = {
       fee: { network: fee.network, fixed: fee.fixed, min: specs.minFee },
       volume: {
         min: specs.minVolume,
-        max: [paymentMethodIn, paymentMethodOut].includes(FiatPaymentMethod.CARD)
-          ? Math.min(user?.userData.availableTradingLimit ?? Number.MAX_VALUE, Config.tradingLimits.cardDefault)
-          : user?.userData.availableTradingLimit ?? Config.tradingLimits.yearlyDefault,
+        max: Math.min(user?.userData.availableTradingLimit ?? Number.MAX_VALUE, defaultLimit),
       },
     };
 
@@ -327,7 +330,7 @@ export class TransactionHelper implements OnModuleInit {
     const sourceAmount = inputAmount ?? this.getInputAmount(outputAmountSource, feeRate, sourceSpecs);
     const sourceFees = this.calculateTotalFee(sourceAmount, from, feeRate, sourceSpecs);
 
-    const targetAmount = outputAmount ?? price.convert(inputAmount - sourceFees.total);
+    const targetAmount = outputAmount ?? price.convert(Math.max(inputAmount - sourceFees.total, 0));
     const targetFees = {
       dfx: this.convert(sourceFees.dfx, price, isFiat(to)),
       total: this.convert(sourceFees.total, price, isFiat(to)),
@@ -425,22 +428,31 @@ export class TransactionHelper implements OnModuleInit {
     user?: User,
   ): QuoteError | undefined {
     // KYC checks
-    if (isFiat(from)) {
+    if (isFiat(from) && isAsset(to)) {
       if (
-        (user?.status === UserStatus.NA &&
+        ((user?.status === UserStatus.NA &&
           user?.wallet.amlRule === AmlRule.RULE_2 &&
           user?.userData.kycLevel < KycLevel.LEVEL_30) ||
-        (user?.status === UserStatus.NA &&
-          user?.wallet.amlRule === AmlRule.RULE_3 &&
-          user?.userData.kycLevel < KycLevel.LEVEL_50)
+          (user?.status === UserStatus.NA &&
+            user?.wallet.amlRule === AmlRule.RULE_3 &&
+            user?.userData.kycLevel < KycLevel.LEVEL_50)) &&
+        to.blockchain !== Blockchain.LIGHTNING
       )
         return QuoteError.KYC_REQUIRED;
     }
 
+    const isSwapTx = isAsset(from) && isAsset(to);
+
+    if (isSwapTx && user?.userData.kycLevel < KycLevel.LEVEL_30 && user?.userData.status !== UserDataStatus.ACTIVE)
+      return QuoteError.KYC_REQUIRED;
+
     if (paymentMethodIn === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed)
       return QuoteError.KYC_REQUIRED_INSTANT;
+
+    if (user && txAmountChf > user.userData.availableTradingLimit) return QuoteError.LIMIT_EXCEEDED;
+
     if (
-      ((isFiat(to) && to.name !== 'CHF') || paymentMethodIn === FiatPaymentMethod.CARD) &&
+      ((isFiat(to) && to.name !== 'CHF') || paymentMethodIn === FiatPaymentMethod.CARD || isSwapTx) &&
       user &&
       !user.userData.hasBankTxVerification &&
       txAmountChf > Config.tradingLimits.dailyDefault

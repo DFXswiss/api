@@ -329,7 +329,7 @@ export class UserDataService {
     }
 
     if (dto.verifiedName) {
-      const multiAccountIbans = await this.specialExternalBankAccountService.getMultiAccountIbans();
+      const multiAccountIbans = await this.specialExternalBankAccountService.getMultiAccounts();
       if (multiAccountIbans.some((m) => dto.verifiedName.includes(m.name)))
         throw new BadRequestException('VerifiedName includes a multiAccountIban');
     }
@@ -461,7 +461,7 @@ export class UserDataService {
       .filter((i) => i)
       .join(' and ');
 
-    const log = `Merging user ${master.id} (master) and ${slave.id} (slave): reassigning ${mergedEntitiesString}`;
+    const log = `Merging user ${master.id} (master with mail ${master.mail}) and ${slave.id} (slave with firstname ${slave.firstname}): reassigning ${mergedEntitiesString}`;
     this.logger.info(log);
 
     await this.updateBankTxTime(slave.id);

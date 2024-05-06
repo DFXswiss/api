@@ -68,6 +68,8 @@ export class KycService {
       await this.userDataService.save(user);
 
       await this.createStepLog(user, step);
+
+      await this.kycNotificationService.identFailed(user, 'Identification session has expired');
     }
   }
 

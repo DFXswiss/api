@@ -37,9 +37,10 @@ export enum Process {
   AUTO_CREATE_BANK_DATA = 'AutoCreateBankData',
   TX_SPEEDUP = 'TxSpeedup',
   MAIL_RETRY = 'MailRetry',
-  CREATE_TRANSACTION = 'CreateTransaction',
-  SYNCHRONIZE_TRANSACTION = 'SynchronizeTransaction',
   TRADING = 'Trading',
+  TX_MAIL = 'TxMail',
+  TX_UNASSIGNED_MAIL = 'TxUnassignedMail',
+  SYNCHRONIZE_MAIL_DATA = 'SynchronizeMailData',
 }
 
 type ProcessMap = { [p in Process]?: boolean };

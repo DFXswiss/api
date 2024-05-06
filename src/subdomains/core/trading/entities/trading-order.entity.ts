@@ -14,10 +14,10 @@ export class TradingOrder extends IEntity {
   tradingRule: TradingRule;
 
   @Column({ type: 'float' })
-  price1: number;
+  price1: number; // target price
 
   @Column({ type: 'float' })
-  price2: number;
+  price2: number; // current price
 
   @Column({ type: 'float' })
   priceImpact: number;
@@ -82,9 +82,9 @@ export class TradingOrder extends IEntity {
     return this;
   }
 
-  complete(txId: string): this {
+  complete(outputAmount: number): this {
+    this.amountOut = outputAmount;
     this.status = TradingOrderStatus.COMPLETE;
-    this.txId = txId;
 
     return this;
   }

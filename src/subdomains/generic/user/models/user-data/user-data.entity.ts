@@ -191,9 +191,6 @@ export class UserData extends IEntity {
   olkypayAllowed: boolean;
 
   @Column({ nullable: true })
-  cryptoCryptoAllowed: boolean;
-
-  @Column({ nullable: true })
   complexOrgStructure: boolean;
 
   @Column({ length: 256, default: KycStatus.NA })
@@ -385,7 +382,11 @@ export class UserData extends IEntity {
 
   get tradingLimit(): TradingLimit {
     if (this.kycLevel >= KycLevel.LEVEL_50) {
-      return { limit: this.depositLimit, period: LimitPeriod.YEAR };
+      return {
+        limit: this.depositLimit,
+        remaining: this.getRemainingYearlyLimit(this.depositLimit),
+        period: LimitPeriod.YEAR,
+      };
     } else if (this.isKycTerminated) {
       return { limit: 0, period: LimitPeriod.DAY };
     } else {
@@ -395,8 +396,12 @@ export class UserData extends IEntity {
 
   get availableTradingLimit(): number {
     return this.tradingLimit.period === LimitPeriod.YEAR
-      ? this.tradingLimit.limit - this.annualBuyVolume - this.annualSellVolume - this.annualCryptoVolume
+      ? this.getRemainingYearlyLimit(this.tradingLimit.limit)
       : this.tradingLimit.limit;
+  }
+
+  private getRemainingYearlyLimit(limit: number): number {
+    return Math.max(limit - this.annualBuyVolume - this.annualSellVolume - this.annualCryptoVolume, 0);
   }
 
   get isKycTerminated(): boolean {

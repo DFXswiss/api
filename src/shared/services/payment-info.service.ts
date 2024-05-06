@@ -2,9 +2,10 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { CreateBuyDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/create-buy.dto';
 import { GetBuyPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/get-buy-payment-info.dto';
 import { GetBuyQuoteDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/get-buy-quote.dto';
-import { CreateCryptoRouteDto } from 'src/subdomains/core/buy-crypto/routes/crypto-route/dto/create-crypto-route.dto';
-import { GetCryptoPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/crypto-route/dto/get-crypto-payment-info.dto';
-import { GetCryptoQuoteDto } from 'src/subdomains/core/buy-crypto/routes/crypto-route/dto/get-crypto-quote.dto';
+import { CreateSwapDto } from 'src/subdomains/core/buy-crypto/routes/swap/dto/create-swap.dto';
+import { GetSwapPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/swap/dto/get-swap-payment-info.dto';
+import { GetSwapQuoteDto } from 'src/subdomains/core/buy-crypto/routes/swap/dto/get-swap-quote.dto';
+import { SwapInputBlockchains } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { CreateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/create-sell.dto';
 import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-payment-info.dto';
 import { GetSellQuoteDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-quote.dto';
@@ -71,7 +72,7 @@ export class PaymentInfoService {
     return dto;
   }
 
-  async cryptoCheck<T extends GetCryptoPaymentInfoDto | GetCryptoQuoteDto | CreateCryptoRouteDto>(
+  async swapCheck<T extends GetSwapPaymentInfoDto | GetSwapQuoteDto | CreateSwapDto>(
     dto: T,
     jwt?: JwtPayload,
   ): Promise<T> {
@@ -79,6 +80,13 @@ export class PaymentInfoService {
       dto.sourceAsset = await this.assetService.getAssetById(dto.sourceAsset.id);
       if (!dto.sourceAsset) throw new NotFoundException('Source asset not found');
       if (!dto.sourceAsset.sellable) throw new BadRequestException('Source asset not sellable');
+      if (!SwapInputBlockchains.includes(dto.sourceAsset.blockchain))
+        throw new BadRequestException('Assets on this blockchain are not swappable');
+    }
+
+    if ('blockchain' in dto) {
+      if (!SwapInputBlockchains.includes(dto.blockchain))
+        throw new BadRequestException('Assets on this blockchain are not swappable');
     }
 
     dto.targetAsset = await this.assetService.getAssetById(dto.targetAsset.id);

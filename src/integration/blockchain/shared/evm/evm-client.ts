@@ -1,8 +1,9 @@
-import { ChainId, Currency, CurrencyAmount, Ether, Percent, Token, TradeType } from '@uniswap/sdk-core';
+import { ChainId, Currency, CurrencyAmount, Ether, NativeCurrency, Percent, Token, TradeType } from '@uniswap/sdk-core';
 import { AlphaRouter, SwapRoute, SwapType } from '@uniswap/smart-order-router';
+import { buildSwapMethodParameters } from '@uniswap/smart-order-router/build/main/util/methodParameters';
 import IUniswapV3PoolABI from '@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Pool.sol/IUniswapV3Pool.json';
 import QuoterV2ABI from '@uniswap/v3-periphery/artifacts/contracts/lens/QuoterV2.sol/QuoterV2.json';
-import { FeeAmount, Pool } from '@uniswap/v3-sdk';
+import { FeeAmount, MethodParameters, Pool, Route, SwapQuoter, Trade } from '@uniswap/v3-sdk';
 import { AssetTransfersCategory } from 'alchemy-sdk';
 import { Contract, BigNumber as EthersNumber, ethers } from 'ethers';
 import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
@@ -275,20 +276,108 @@ export abstract class EvmClient {
     };
   }
 
-  async swap(sourceToken: Asset, sourceAmount: number, targetToken: Asset, maxSlippage: number): Promise<string> {
-    const route = await this.getRoute(sourceToken, targetToken, sourceAmount, maxSlippage);
+  async testSwapPool(
+    source: Asset,
+    sourceAmount: number,
+    target: Asset,
+    poolFee: FeeAmount,
+  ): Promise<{ targetAmount: number; feeAmount: number; priceImpact: number }> {
+    if (source.id === target.id) return { targetAmount: sourceAmount, feeAmount: 0, priceImpact: 0 };
+
+    const sourceToken = await this.getToken(source);
+    const targetToken = await this.getToken(target);
+    if (sourceToken instanceof NativeCurrency || targetToken instanceof NativeCurrency)
+      throw new Error(`Only tokens can be in a pool`);
+
+    const poolContract = this.getPoolContract(Pool.getAddress(sourceToken, targetToken, poolFee));
+
+    const token0IsInToken = sourceToken.address === (await poolContract.token0());
+    const slot0 = await poolContract.slot0();
+    const sqrtPriceX96 = slot0.sqrtPriceX96;
+
+    const quote = await this.getQuoteContract().callStatic.quoteExactInputSingle({
+      tokenIn: sourceToken.address,
+      tokenOut: targetToken.address,
+      fee: poolFee,
+      amountIn: EvmUtil.toWeiAmount(sourceAmount, sourceToken.decimals),
+      sqrtPriceLimitX96: '0',
+    });
+
+    const sqrtPriceX96After = quote.sqrtPriceX96After;
+    let sqrtPriceRatio = sqrtPriceX96After / sqrtPriceX96;
+    if (!token0IsInToken) sqrtPriceRatio = 1 / sqrtPriceRatio;
 
     const gasPrice = await this.getRecommendedGasPrice();
 
-    const tx = await this.wallet.sendTransaction({
-      data: route.methodParameters?.calldata,
-      to: this.swapContractAddress,
-      value: route.methodParameters?.value,
-      from: this.dfxAddress,
-      gasPrice,
+    return {
+      targetAmount: EvmUtil.fromWeiAmount(quote.amountOut, targetToken.decimals),
+      feeAmount: EvmUtil.fromWeiAmount(quote.gasEstimate.mul(gasPrice)),
+      priceImpact: Math.abs(1 - sqrtPriceRatio),
+    };
+  }
+
+  async swap(sourceToken: Asset, sourceAmount: number, targetToken: Asset, maxSlippage: number): Promise<string> {
+    const route = await this.getRoute(sourceToken, targetToken, sourceAmount, maxSlippage);
+
+    return this.doSwap(route.methodParameters);
+  }
+
+  async swapPool(
+    source: Asset,
+    target: Asset,
+    sourceAmount: number,
+    poolFee: FeeAmount,
+    maxSlippage: number,
+  ): Promise<string> {
+    // get pool info
+    const sourceToken = await this.getToken(source);
+    const targetToken = await this.getToken(target);
+    if (sourceToken instanceof NativeCurrency || targetToken instanceof NativeCurrency)
+      throw new Error(`Only tokens can be in a pool`);
+
+    const poolContract = this.getPoolContract(Pool.getAddress(sourceToken, targetToken, poolFee));
+    const [liquidity, slot0] = await Promise.all([poolContract.liquidity(), poolContract.slot0()]);
+
+    // create route
+    const pool = new Pool(sourceToken, targetToken, poolFee, slot0[0].toString(), liquidity.toString(), slot0[1]);
+    const route = new Route([pool], sourceToken, targetToken);
+
+    const { calldata } = SwapQuoter.quoteCallParameters(
+      route,
+      this.toCurrencyAmount(sourceAmount, sourceToken),
+      TradeType.EXACT_INPUT,
+      {
+        useQuoterV2: true,
+      },
+    );
+    const quoteCallReturnData = await this.provider.call({
+      to: this.quoteContractAddress,
+      data: calldata,
     });
 
-    return tx.hash;
+    const [amountOut] = ethers.utils.defaultAbiCoder.decode(['uint256'], quoteCallReturnData);
+
+    // generate call parameters
+    const trade = Trade.createUncheckedTrade({
+      route,
+      inputAmount: this.toCurrencyAmount(sourceAmount, sourceToken),
+      outputAmount: CurrencyAmount.fromRawAmount(targetToken, +amountOut),
+      tradeType: TradeType.EXACT_INPUT,
+    });
+
+    const parameters = buildSwapMethodParameters(trade as any, this.swapConfig(maxSlippage), this.chainId);
+
+    return this.doSwap(parameters);
+  }
+
+  async getSwapResult(txId: string, asset: Asset): Promise<number> {
+    const receipt = await this.getTxReceipt(txId);
+
+    const swapLog = receipt?.logs?.find((l) => l.address.toLowerCase() === asset.chainId);
+    if (!swapLog) throw new Error(`Failed to get swap result for TX ${txId}`);
+
+    const token = await this.getToken(asset);
+    return EvmUtil.fromWeiAmount(swapLog.data, token.decimals);
   }
 
   private async getRoute(source: Asset, target: Asset, sourceAmount: number, maxSlippage: number): Promise<SwapRoute> {
@@ -308,6 +397,20 @@ export abstract class EvmClient {
       );
 
     return route;
+  }
+
+  private async doSwap(parameters: MethodParameters) {
+    const gasPrice = await this.getRecommendedGasPrice();
+
+    const tx = await this.wallet.sendTransaction({
+      data: parameters.calldata,
+      to: this.swapContractAddress,
+      value: parameters.value,
+      from: this.dfxAddress,
+      gasPrice,
+    });
+
+    return tx.hash;
   }
 
   // --- GETTERS --- //
@@ -340,7 +443,7 @@ export abstract class EvmClient {
 
   // --- PRIVATE HELPER METHODS --- //
 
-  private toCurrencyAmount(amount: number, token: Currency): CurrencyAmount<Currency> {
+  private toCurrencyAmount<T extends NativeCurrency | Token>(amount: number, token: T): CurrencyAmount<T> {
     const targetAmount = EvmUtil.toWeiAmount(amount, token.decimals).toString();
 
     return CurrencyAmount.fromRawAmount(token, targetAmount);

@@ -156,6 +156,8 @@ export class BuyFiatPreparationService {
           ),
         );
 
+        if (entity.amlCheck === CheckStatus.FAIL) return;
+
         for (const feeId of fee.fees) {
           await this.feeService.increaseTxUsages(amountInChf, feeId, entity.sell.user.userData);
         }

@@ -172,7 +172,7 @@ export class SellController {
       sell.fiat.name,
     );
 
-    const defaultBlockchain = this.cryptoService.getDefaultBlockchainBasedOn(sell.user.address);
+    const defaultBlockchain = CryptoService.getDefaultBlockchainBasedOn(sell.user.address);
     const fee = await this.userService.getUserFee(
       sell.user.id,
       CryptoPaymentMethod.CRYPTO,

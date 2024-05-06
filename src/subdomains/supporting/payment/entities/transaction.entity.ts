@@ -1,5 +1,7 @@
-import { IEntity } from 'src/shared/models/entity';
+import { Config } from 'src/config/config';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Column, Entity, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { BuyCrypto } from '../../../core/buy-crypto/process/entities/buy-crypto.entity';
@@ -8,6 +10,7 @@ import { BankTxRepeat } from '../../bank-tx/bank-tx-repeat/bank-tx-repeat.entity
 import { BankTxReturn } from '../../bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTx } from '../../bank-tx/bank-tx/bank-tx.entity';
 import { CheckoutTx } from '../../fiat-payin/entities/checkout-tx.entity';
+import { MailContext } from '../../notification/enums';
 import { CryptoInput } from '../../payin/entities/crypto-input.entity';
 import { SupportIssue } from '../../support-issue/support-issue.entity';
 
@@ -38,6 +41,17 @@ export class Transaction extends IEntity {
   @Column({ length: 256, nullable: true })
   type: TransactionTypeInternal;
 
+  @Column({ length: 256, unique: true })
+  uid: string;
+
+  // Mail
+  @Column({ length: 256, nullable: true })
+  recipientMail: string;
+
+  @Column({ type: 'datetime2', nullable: true })
+  mailSendDate: Date;
+
+  // References
   @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.transaction, { nullable: true })
   buyCrypto: BuyCrypto;
 
@@ -67,4 +81,49 @@ export class Transaction extends IEntity {
 
   @ManyToOne(() => User, (user) => user.transactions, { nullable: true, eager: true })
   user: User;
+
+  // --- ENTITY METHODS --- //
+
+  mailSent(): UpdateResult<Transaction> {
+    const update: Partial<BuyCrypto> = {
+      recipientMail: this.userData?.mail,
+      mailSendDate: new Date(),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  get url(): string {
+    return `${Config.frontend.services}/tx/${this.uid}`;
+  }
+
+  get mailContext(): MailContext | undefined {
+    return this.buyCrypto ? MailContext.BUY_CRYPTO : this.buyFiat ? MailContext.BUY_FIAT : undefined;
+  }
+
+  get sourceEntity(): BankTx | CryptoInput | CheckoutTx | RefReward {
+    switch (this.sourceType) {
+      case TransactionSourceType.BANK_TX:
+        return this.bankTx;
+
+      case TransactionSourceType.CHECKOUT_TX:
+        return this.checkoutTx;
+
+      case TransactionSourceType.CRYPTO_INPUT:
+        return this.cryptoInput;
+
+      case TransactionSourceType.REF:
+        return this.refReward;
+    }
+  }
+
+  get targetEntity(): BuyCrypto | BuyFiat | RefReward | undefined {
+    return this.buyCrypto ?? this.buyFiat ?? this.refReward ?? undefined;
+  }
+
+  get userData(): UserData {
+    return this.user?.userData;
+  }
 }

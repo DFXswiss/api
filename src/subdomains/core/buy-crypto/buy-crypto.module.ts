@@ -2,7 +2,7 @@ import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { IntegrationModule } from 'src/integration/integration.module';
 import { SharedModule } from 'src/shared/shared.module';
-import { CryptoRouteRepository } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.repository';
+import { SwapRepository } from 'src/subdomains/core/buy-crypto/routes/swap/swap.repository';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { AddressPoolModule } from 'src/subdomains/supporting/address-pool/address-pool.module';
 import { BankTxModule } from 'src/subdomains/supporting/bank-tx/bank-tx.module';
@@ -37,13 +37,14 @@ import { BuyController } from './routes/buy/buy.controller';
 import { Buy } from './routes/buy/buy.entity';
 import { BuyRepository } from './routes/buy/buy.repository';
 import { BuyService } from './routes/buy/buy.service';
-import { CryptoRouteController } from './routes/crypto-route/crypto-route.controller';
-import { CryptoRoute } from './routes/crypto-route/crypto-route.entity';
-import { CryptoRouteService } from './routes/crypto-route/crypto-route.service';
+import { CryptoRouteController } from './routes/swap/crypto-route.controller';
+import { SwapController } from './routes/swap/swap.controller';
+import { Swap } from './routes/swap/swap.entity';
+import { SwapService } from './routes/swap/swap.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([BuyCrypto, BuyCryptoBatch, BuyCryptoFee, Buy, CryptoRoute]),
+    TypeOrmModule.forFeature([BuyCrypto, BuyCryptoBatch, BuyCryptoFee, Buy, Swap]),
     SharedModule,
     DexModule,
     PricingModule,
@@ -61,12 +62,13 @@ import { CryptoRouteService } from './routes/crypto-route/crypto-route.service';
     TransactionModule,
     AmlModule,
   ],
-  controllers: [BuyCryptoController, BuyController, CryptoRouteController],
+  controllers: [BuyCryptoController, BuyController, CryptoRouteController, SwapController],
   providers: [
     BuyCryptoRepository,
     BuyCryptoBatchRepository,
     BuyRepository,
-    CryptoRouteRepository,
+    SwapRepository,
+    SwapController,
     CryptoRouteController,
     BuyController,
     BuyCryptoService,
@@ -77,11 +79,11 @@ import { CryptoRouteService } from './routes/crypto-route/crypto-route.service';
     BuyCryptoNotificationService,
     BuyCryptoOutService,
     BuyService,
-    CryptoRouteService,
+    SwapService,
     BuyCryptoWebhookService,
     BuyCryptoPreparationService,
     BuyCryptoJobService,
   ],
-  exports: [BuyController, CryptoRouteController, BuyCryptoService, BuyService, BuyCryptoWebhookService],
+  exports: [BuyController, SwapController, BuyCryptoService, BuyService, BuyCryptoWebhookService],
 })
 export class BuyCryptoModule {}

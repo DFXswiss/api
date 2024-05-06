@@ -1,3 +1,4 @@
+import { FeeAmount } from '@uniswap/v3-sdk';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmService } from 'src/integration/blockchain/shared/evm/evm.service';
@@ -66,11 +67,14 @@ export abstract class DexEvmService implements PurchaseDexService {
     sourceAsset: Asset,
     sourceAmount: number,
     targetAsset: Asset,
+    poolFee?: FeeAmount,
     maxSlippage = 0.2,
   ): Promise<number> {
     if (sourceAsset.id === targetAsset.id) return sourceAmount;
 
-    return this.#client.testSwap(sourceAsset, sourceAmount, targetAsset, maxSlippage).then((r) => r.targetAmount);
+    return poolFee != null
+      ? this.#client.testSwapPool(sourceAsset, sourceAmount, targetAsset, poolFee).then((r) => r.targetAmount)
+      : this.#client.testSwap(sourceAsset, sourceAmount, targetAsset, maxSlippage).then((r) => r.targetAmount);
   }
 
   async swap(swapAsset: Asset, swapAmount: number, targetAsset: Asset, maxSlippage: number): Promise<string> {
@@ -88,16 +92,8 @@ export abstract class DexEvmService implements PurchaseDexService {
   }
 
   async getSwapResult(txId: string, asset: Asset): Promise<{ targetAmount: number; feeAmount: number }> {
-    const receipt = await this.#client.getTxReceipt(txId);
-
-    const swapLog = receipt.logs.find((l) => l.address.toLowerCase() === asset.chainId);
-
-    if (!swapLog) {
-      throw new Error(`Failed to get swap amount for TX: ${txId} while trying to extract purchased liquidity`);
-    }
-
     return {
-      targetAmount: await this.fromWeiAmount(swapLog.data, asset),
+      targetAmount: await this.#client.getSwapResult(txId, asset),
       feeAmount: await this.#client.getTxActualFee(txId),
     };
   }

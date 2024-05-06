@@ -1,7 +1,9 @@
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
-import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
+import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { StakingRefReward } from 'src/subdomains/core/staking/entities/staking-ref-reward.entity';
@@ -80,8 +82,8 @@ export class User extends IEntity {
   @OneToMany(() => Sell, (sell) => sell.user)
   sells: Sell[];
 
-  @OneToMany(() => CryptoRoute, (crypto) => crypto.user)
-  cryptoRoutes: CryptoRoute[];
+  @OneToMany(() => Swap, (swap) => swap.user)
+  swaps: Swap[];
 
   @OneToMany(() => Staking, (staking) => staking.user)
   stakingRoutes: Staking[];
@@ -149,5 +151,14 @@ export class User extends IEntity {
 
   get isPaymentStatusEnabled(): boolean {
     return [UserStatus.ACTIVE, UserStatus.NA].includes(this.status);
+  }
+
+  get blockchains(): Blockchain[] {
+    // wallet name / blockchain map
+    const customChains = {
+      Talium: ['Talium' as Blockchain],
+    };
+
+    return customChains[this.wallet.name] ?? CryptoService.getBlockchainsBasedOn(this.address);
   }
 }

@@ -1,4 +1,3 @@
-import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
@@ -39,17 +38,17 @@ export class BuyCryptoFee extends IEntity {
   actualPayoutFeePercent: number;
 
   @Column({ type: 'float', nullable: true })
-  allowedTotalFeePercent: number;
+  allowedTotalFeeAmount: number;
 
   //*** FACTORY METHODS ***//
 
-  static create(transaction: BuyCrypto): BuyCryptoFee {
+  static create(transaction: BuyCrypto, totalFeeAmount: number): BuyCryptoFee {
     const entity = new BuyCryptoFee();
 
     entity.buyCrypto = transaction;
     entity.feeReferenceAsset = transaction.outputReferenceAsset;
 
-    entity.allowedTotalFeePercent = Config.buy.fee.limit;
+    entity.allowedTotalFeeAmount = totalFeeAmount;
 
     return entity;
   }

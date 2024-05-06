@@ -8,7 +8,8 @@
         "welcome": "Ciao {name},",
         "team_questions": "If you have any questions, please do not hesitate to contact us.",
         "personal_closing": "Kind regards,<br>{closingName}",
-        "button": "o<br>[url:Clicca qui]"
+        "button": "o<br>[url:Clicca qui]",
+        "link": "o<br>[url:{urlText}]"
     },
     "login": {
         "title": "Accesso DFX",
@@ -16,34 +17,18 @@
         "message": "Fare clic sul seguente link per accedere a DFX:<br>[url:{urlText}]"
     },
     "payment": {
-        "buy_fiat": {
-            "initiated": {
-                "title": "Fondi ricevuti",
-                "salutation": "Abbiamo ricevuto il tuoi fondi",
-                "next_step": "Prossimo passaggio: vendiamo i tuoi fondi e li cambiamo nella valuta desiderata e ti teniamo aggiornato con ulteriori email."
-            },
-            "exchanged": {
-                "title": "Fondi venduti",
-                "salutation": "Abbiamo venduto i tuoi fondi",
-                "next_step": "Prossimo passaggio: abbiamo venduto i tuoi fondi ed ora stiamo preparando il transferimento bancario. Una volta che il denaro sara' inviato al tuo conto corrente bancario riceverai la email finale di notifica del bonifico."
-            },
-            "processed": {
-                "title": "Trasferimento bancario effettuato",
-                "salutation": "Abbiamo disposto il trasferimento bancario",
-                "next_step": "Il pagamento e' stato emesso dal nostro conto corrente e sara' visibile sul tuo conto a breve. Nel frattempo gli iter bancari sono gli unici responsabili delle tempistiche del bonifico. Grazie per avere utilizzato il servizio di DFX."
-            },
-            "input_amount": "Pagamento",
-            "output_amount": "Importo",
-            "payment_link": "Qui puoi trovare l'ID della transazione con il tuo prelievo: [url:Link]"
+        "crypto_input": {
+            "title": "Fondi cripto ricevuti",
+            "salutation": "Abbiamo ricevuto i vostri fondi in criptovaluta"
         },
-        "buy_crypto": {
-            "confirmed": {
-                "title": "Deposito effetuato",
-                "salutation": "Il tuo deposito e' stato processato con successo"
-            },
-            "input_amount": "Depositato",
-            "output_amount": "Pagamento Crypto",
-            "payment_link": "Qui puoi trovare l'ID della transazione con il tuo pagamento: [url:Link]"
+        "fiat_input": {
+            "title": "Deposito ricevuto",
+            "salutation": "Abbiamo ricevuto il vostro deposito",
+            "unassigned": {
+                "title": "Assegnazione del deposito",
+                "salutation": "Il vostro deposito non può essere assegnato automaticamente",
+                "transaction_button": "Si prega di assegnare il deposito all'ordine:<br>[url:clicca qui]"
+            }
         },
         "return": {
             "fiat": {
@@ -72,7 +57,9 @@
                 "bank_not_allowed": "La banca mittente utilizzata non è consentita. Si prega di utilizzare un'altra banca per il deposito.",
                 "country_not_allowed": "Purtroppo il vostro deposito non può essere elaborato <br>perché il denaro proviene da un paese che non possiamo supportare. Ulteriori informazioni:<br><a style='color:white' href='https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html'>https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html</a>",
                 "high_risk_kyc_needed": "Senza una verifica (KYC), non abbiamo potuto garantire che questa transazione non fosse fraudolenta e quindi, purtroppo, abbiamo dovuto rifiutare la transazione.<br>I pagamenti tramite transazione bancaria sono ancora disponibili per voi.",
-                "high_risk_blocked": "Non possiamo garantire che questa transazione non sia fraudolenta e quindi purtroppo abbiamo dovuto rifiutare la transazione.<br>I pagamenti tramite transazione bancaria sono ancora disponibili per voi."
+                "high_risk_blocked": "Non possiamo garantire che questa transazione non sia fraudolenta e quindi purtroppo abbiamo dovuto rifiutare la transazione.<br>I pagamenti tramite transazione bancaria sono ancora disponibili per voi.",
+                "fee_too_high": "Le spese di rete sono attualmente troppo elevate per l'importo inviato.",
+                "receiver_rejected_tx": "Il nodo ricevente ha rifiutato la transazione"
             },
             "kyc_start": "Potete iniziare il processo KYC qui:<br>[url:{urlText}]"
         },
@@ -141,11 +128,8 @@
                 "line5": ""
             }
         },
+        "transaction_button": "Fare clic sul pulsante sottostante per maggiori dettagli sulla transazione:<br>[url:clicca qui]",
         "blockchain": "Blockchain",
-        "input_blockchain": "Deposito Blockchain",
-        "output_blockchain": "Pagamento Blockchain",
-        "dfx_fee": "DFX Commissioni",
-        "exchange_rate": "Tasso di cambio",
         "bank_account": "Conto corrente bancario",
         "remittance_info": "Utilizzo della banca",
         "transaction_id": "ID transazione",

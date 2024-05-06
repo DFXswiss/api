@@ -30,18 +30,23 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { BankTxType, BankTxTypeUnassigned } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
+import { BankTx, BankTxType, BankTxTypeUnassigned } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
+import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { FindOptionsRelations } from 'typeorm';
 import {
   TransactionDetailDto,
   TransactionDto,
   TransactionTarget,
   UnassignedTransactionDto,
 } from '../../../supporting/payment/dto/transaction.dto';
+import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-crypto-webhook.service';
 import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
+import { RefReward } from '../../referral/reward/ref-reward.entity';
 import { RefRewardService } from '../../referral/reward/ref-reward.service';
+import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from '../../sell-crypto/process/services/buy-fiat.service';
 import { ExportFormat, HistoryQueryExportType, HistoryQueryUser } from '../dto/history-query.dto';
 import { HistoryDto } from '../dto/history.dto';
@@ -78,6 +83,31 @@ export class TransactionController {
   ): Promise<TransactionDto[] | StreamableFile> {
     if (!query.format) query.format = ExportFormat.JSON;
     return this.getHistoryData(query, ExportType.COMPACT, res);
+  }
+
+  @Get('single')
+  @ApiExcludeEndpoint()
+  async getSingleTransaction(
+    @Query('uid') uid?: string,
+    @Query('cko-id') ckoId?: string,
+  ): Promise<TransactionDto | UnassignedTransactionDto> {
+    const relations: FindOptionsRelations<Transaction> = {
+      buyCrypto: { buy: { user: true }, cryptoRoute: { user: true }, cryptoInput: true, bankTx: true },
+      buyFiat: { sell: { user: true }, cryptoInput: true, bankTx: true },
+      refReward: true,
+      bankTx: { transaction: true },
+      cryptoInput: true,
+      checkoutTx: true,
+    };
+
+    let transaction: Transaction;
+    if (uid) transaction = await this.transactionService.getTransactionByUid(uid, relations);
+    if (ckoId) transaction = await this.transactionService.getTransactionByCkoId(ckoId, relations);
+
+    const dto = await this.txToTransactionDto(transaction);
+    if (!dto) throw new NotFoundException('Transaction not found');
+
+    return dto;
   }
 
   @Get('CoinTracking')
@@ -133,9 +163,9 @@ export class TransactionController {
   @ApiExcludeEndpoint()
   async getUnassignedTransactions(@GetJwt() jwt: JwtPayload): Promise<UnassignedTransactionDto[]> {
     const user = await this.userService.getUser(jwt.id, { userData: true });
-    const ibans = await this.bankDataService.getIbansForUser(user.userData.id);
+    const bankDatas = await this.bankDataService.getBankDatasForUser(user.userData.id);
 
-    const txList = await this.bankTxService.getUnassignedBankTx(ibans);
+    const txList = await this.bankTxService.getUnassignedBankTx(bankDatas.map((b) => b.iban));
     return Util.asyncMap(txList, async (tx) => {
       const currency = await this.fiatService.getFiatByName(tx.txCurrency);
       return TransactionDtoMapper.mapUnassignedTransaction(tx, currency);
@@ -166,16 +196,19 @@ export class TransactionController {
     @Param('id') id: string,
     @Query('buyId') buyId: string,
   ): Promise<void> {
-    const transaction = await this.transactionService.getTransaction(+id, { bankTx: true });
+    const transaction = await this.transactionService.getTransactionById(+id, { bankTx: true });
     if (!transaction.bankTx) throw new NotFoundException('Transaction not found');
     if (!BankTxTypeUnassigned(transaction.bankTx.type)) throw new ConflictException('Transaction already assigned');
 
-    const buy = await this.buyService.get(jwt.id, +buyId);
+    const user = await this.userService.getUser(jwt.id, { userData: { users: true } });
+    const buy = await this.buyService.get(
+      user.userData.users.map((u) => u.id),
+      +buyId,
+    );
     if (!buy) throw new NotFoundException('Buy not found');
 
-    const user = await this.userService.getUser(jwt.id, { userData: true });
-    const ibans = await this.bankDataService.getIbansForUser(user.userData.id);
-    if (!ibans.includes(transaction.bankTx.iban))
+    const bankDatas = await this.bankDataService.getBankDatasForUser(user.userData.id);
+    if (!bankDatas.map((b) => b.iban).includes(transaction.bankTx.senderAccount))
       throw new ForbiddenException('You can only assign your own transaction');
 
     await this.bankTxService.update(transaction.bankTx.id, { type: BankTxType.BUY_CRYPTO, buyId: buy.id });
@@ -212,10 +245,6 @@ export class TransactionController {
 
   // --- HELPER METHODS --- //
 
-  private formatDate(date: Date = new Date()): string {
-    return Util.isoDateTime(date).split('-').join('');
-  }
-
   public async getHistoryData<T extends ExportType>(
     query: HistoryQueryUser,
     exportType: T,
@@ -224,6 +253,10 @@ export class TransactionController {
     const tx = await this.historyService.getHistory(query, exportType);
     if (query.format === ExportFormat.CSV) this.setCsvResult(res, exportType);
     return tx;
+  }
+
+  private formatDate(date: Date = new Date()): string {
+    return Util.isoDateTime(date).split('-').join('');
   }
 
   private cacheCsv(csvFile: StreamableFile): string {
@@ -246,18 +279,34 @@ export class TransactionController {
 
     // map to DTO
     return Util.asyncMap(txList, async (tx) => {
-      if (tx.buyCrypto) {
-        const bc = await this.buyCryptoWebhookService.extendBuyCrypto(tx.buyCrypto);
-        return TransactionDtoMapper.mapBuyCryptoTransactionDetail(bc);
-      } else if (tx.buyFiat) {
-        const bf = await this.buyFiatService.extendBuyFiat(tx.buyFiat);
-        return TransactionDtoMapper.mapBuyFiatTransactionDetail(bf);
-      } else if (tx.refReward) {
-        const rr = await this.refRewardService.extendReward(tx.refReward);
-        return TransactionDtoMapper.mapReferralRewardDetail(rr);
-      }
-
-      return undefined;
+      if (!tx.targetEntity) return undefined;
+      return this.txToTransactionDto(tx);
     }).then((list) => list.filter((dto) => dto));
+  }
+
+  private async txToTransactionDto(
+    transaction?: Transaction,
+  ): Promise<TransactionDto | UnassignedTransactionDto | undefined> {
+    switch (transaction?.targetEntity?.constructor) {
+      case BuyCrypto:
+        const buyCryptoExtended = await this.buyCryptoWebhookService.extendBuyCrypto(transaction.buyCrypto);
+        return TransactionDtoMapper.mapBuyCryptoTransaction(buyCryptoExtended);
+
+      case BuyFiat:
+        const buyFiatExtended = await this.buyFiatService.extendBuyFiat(transaction.buyFiat);
+        return TransactionDtoMapper.mapBuyFiatTransaction(buyFiatExtended);
+
+      case RefReward:
+        const refRewardExtended = await this.refRewardService.extendReward(transaction.refReward);
+        return TransactionDtoMapper.mapReferralReward(refRewardExtended);
+
+      default:
+        if (transaction?.sourceEntity instanceof BankTx && !transaction?.type) {
+          const currency = await this.fiatService.getFiatByName(transaction.bankTx.txCurrency);
+          return TransactionDtoMapper.mapUnassignedTransaction(transaction.bankTx, currency);
+        }
+
+        return undefined;
+    }
   }
 }

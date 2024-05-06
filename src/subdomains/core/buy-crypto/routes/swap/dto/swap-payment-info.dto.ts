@@ -5,14 +5,14 @@ import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-helper/min-amount.dto';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 
-export class CryptoPaymentInfoDto {
+export class SwapPaymentInfoDto {
   @ApiProperty()
   routeId: number;
 
   @ApiProperty()
   depositAddress: string;
 
-  @ApiProperty()
+  @ApiProperty({ deprecated: true })
   blockchain: Blockchain;
 
   @ApiProperty({ type: MinAmount, deprecated: true })

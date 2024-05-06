@@ -1,4 +1,11 @@
-import { ConflictException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  forwardRef,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { RevolutService } from 'src/integration/bank/services/revolut.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -10,17 +17,18 @@ import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/service
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { In, IsNull } from 'typeorm';
+import { DeepPartial, In, IsNull } from 'typeorm';
 import { OlkypayService } from '../../../../integration/bank/services/olkypay.service';
 import { BankName } from '../../bank/bank/bank.entity';
 import { BankService } from '../../bank/bank/bank.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
+import { SpecialExternalAccountService } from '../../payment/services/special-external-account.service';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { BankTxRepeatService } from '../bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnService } from '../bank-tx-return/bank-tx-return.service';
 import { BankTxBatch } from './bank-tx-batch.entity';
 import { BankTxBatchRepository } from './bank-tx-batch.repository';
-import { BankTx, BankTxType, BankTxTypeCompleted, BankTxUnassignedTypes } from './bank-tx.entity';
+import { BankTx, BankTxIndicator, BankTxType, BankTxTypeCompleted, BankTxUnassignedTypes } from './bank-tx.entity';
 import { BankTxRepository } from './bank-tx.repository';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
 import { SepaParser } from './sepa-parser.service';
@@ -66,6 +74,7 @@ export class BankTxService {
     private readonly bankService: BankService,
     private readonly revolutService: RevolutService,
     private readonly transactionService: TransactionService,
+    private readonly specialAccountService: SpecialExternalAccountService,
   ) {}
 
   // --- TRANSACTION HANDLING --- //
@@ -98,9 +107,10 @@ export class BankTxService {
     );
     const allTransactions = olkyTransactions.concat(revolutTransactions);
 
+    const multiAccountIbans = await this.specialAccountService.getMultiAccountIbans();
     for (const transaction of allTransactions) {
       try {
-        await this.create(transaction);
+        await this.create(transaction, multiAccountIbans);
       } catch (e) {
         if (!(e instanceof ConflictException)) this.logger.error(`Failed to import transaction:`, e);
       }
@@ -118,7 +128,10 @@ export class BankTxService {
 
     for (const tx of unassignedBankTx) {
       const remittanceInfo = tx.remittanceInfo?.replace(/[ -]/g, '');
-      const buy = remittanceInfo && buys.find((b) => remittanceInfo.includes(b.bankUsage.replace(/-/g, '')));
+      const buy =
+        remittanceInfo &&
+        tx.creditDebitIndicator === BankTxIndicator.CREDIT &&
+        buys.find((b) => remittanceInfo.includes(b.bankUsage.replace(/-/g, '')));
 
       const update = buy ? { type: BankTxType.BUY_CRYPTO, buyId: buy.id } : { type: BankTxType.GSHEET };
 
@@ -126,15 +139,14 @@ export class BankTxService {
     }
   }
 
-  async create(bankTx: Partial<BankTx>): Promise<Partial<BankTx>> {
+  async create(bankTx: Partial<BankTx>, multiAccountIbans: string[]): Promise<Partial<BankTx>> {
     let entity = await this.bankTxRepo.findOneBy({ accountServiceRef: bankTx.accountServiceRef });
     if (entity)
       throw new ConflictException(`There is already a bank tx with the accountServiceRef: ${bankTx.accountServiceRef}`);
 
-    entity = this.bankTxRepo.create(bankTx);
+    entity = this.createTx(bankTx, multiAccountIbans);
 
-    if (!DisabledProcess(Process.CREATE_TRANSACTION))
-      entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.BANK_TX });
+    entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.BANK_TX });
 
     return this.bankTxRepo.save(entity);
   }
@@ -147,6 +159,8 @@ export class BankTxService {
 
       switch (dto.type) {
         case BankTxType.BUY_CRYPTO:
+          if (bankTx.creditDebitIndicator === BankTxIndicator.DEBIT)
+            throw new BadRequestException('DBIT BankTx cannot set to buyCrypto type');
           await this.buyCryptoService.createFromBankTx(bankTx, dto.buyId);
           break;
         case BankTxType.BANK_TX_RETURN:
@@ -156,7 +170,7 @@ export class BankTxService {
           await this.bankTxRepeatService.create(bankTx);
           break;
         default:
-          if (!DisabledProcess(Process.CREATE_TRANSACTION) && dto.type)
+          if (dto.type)
             await this.transactionService.update(bankTx.transaction.id, {
               type: TransactionBankTxTypeMapper[dto.type],
             });
@@ -167,6 +181,16 @@ export class BankTxService {
     Util.removeNullFields(dto);
 
     return this.bankTxRepo.save({ ...bankTx, ...dto });
+  }
+
+  async reset(id: number): Promise<void> {
+    const bankTx = await this.bankTxRepo.findOne({ where: { id }, relations: { buyCrypto: true } });
+    if (!bankTx) throw new NotFoundException('BankTx not found');
+    if (!bankTx.buyCrypto) throw new BadRequestException('Only buyCrypto bankTx can be reset');
+    if (bankTx.buyCrypto.isComplete) throw new BadRequestException('BuyCrypto already completed');
+
+    await this.buyCryptoService.delete(bankTx.buyCrypto);
+    await this.bankTxRepo.update(...bankTx.reset());
   }
 
   async getBankTxByKey(key: string, value: any): Promise<BankTx> {
@@ -197,9 +221,11 @@ export class BankTxService {
   async storeSepaFile(xmlFile: string): Promise<BankTxBatch> {
     const sepaFile = SepaParser.parseSepaFile(xmlFile);
 
+    const multiAccountIbans = await this.specialAccountService.getMultiAccountIbans();
+
     // parse the file
     let batch = this.bankTxBatchRepo.create(SepaParser.parseBatch(sepaFile));
-    const txList = this.bankTxRepo.create(SepaParser.parseEntries(sepaFile, batch.iban));
+    const txList = SepaParser.parseEntries(sepaFile, batch.iban).map((e) => this.createTx(e, multiAccountIbans));
 
     // find duplicate entries
     const duplicates = await this.bankTxRepo
@@ -252,15 +278,21 @@ export class BankTxService {
     return null;
   }
 
-  getUnassignedBankTx(ibanList: string[]): Promise<BankTx[]> {
+  getUnassignedBankTx(accounts: string[]): Promise<BankTx[]> {
     return this.bankTxRepo.find({
       where: {
         type: In(BankTxUnassignedTypes),
-        iban: In(ibanList),
+        senderAccount: In(accounts),
         creditDebitIndicator: 'CRDT',
       },
       relations: { transaction: true },
     });
+  }
+
+  private createTx(entity: DeepPartial<BankTx>, multiAccountIbans: string[]): BankTx {
+    const tx = this.bankTxRepo.create(entity);
+    tx.senderAccount = tx.getSenderAccount(multiAccountIbans);
+    return tx;
   }
 
   //*** GETTERS ***//

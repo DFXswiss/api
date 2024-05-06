@@ -6,6 +6,7 @@ import { createCustomBuy } from 'src/subdomains/core/buy-crypto/routes/buy/__moc
 import { createCustomUser } from 'src/subdomains/generic/user/models/user/__mocks__/user.entity.mock';
 import { MissingBuyCryptoLiquidityException } from '../../exceptions/abort-batch-creation.exception';
 import { createCustomBuyCryptoBatch, createDefaultBuyCryptoBatch } from '../__mocks__/buy-crypto-batch.entity.mock';
+import { createCustomBuyCryptoFee } from '../__mocks__/buy-crypto-fee.entity.mock';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-crypto.entity.mock';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../buy-crypto-batch.entity';
 
@@ -212,15 +213,6 @@ describe('BuyCryptoBatch', () => {
   });
 
   describe('#checkByPurchaseFeeEstimation(...)', () => {
-    it('aborts batch creation if fee is too high', () => {
-      const batch = createDiverseBuyCryptoBatch();
-
-      const testCall = () => batch.checkByPurchaseFeeEstimation(8);
-
-      expect(testCall).toThrow();
-      expect(testCall).toThrowError('BuyCryptoBatch purchase fee limit exceeded');
-    });
-
     it('assigns fee proportions by transaction volume', () => {
       const batch = createDiverseBuyCryptoBatch();
 
@@ -394,9 +386,21 @@ function createDiverseBuyCryptoBatch(): BuyCryptoBatch {
     created: undefined,
     outputReferenceAmount: 111,
     transactions: [
-      createCustomBuyCrypto({ id: 1, outputReferenceAmount: 100 }),
-      createCustomBuyCrypto({ id: 2, outputReferenceAmount: 10 }),
-      createCustomBuyCrypto({ id: 3, outputReferenceAmount: 1 }),
+      createCustomBuyCrypto({
+        id: 1,
+        outputReferenceAmount: 100,
+        fee: createCustomBuyCryptoFee({ allowedTotalFeeAmount: 0.2 }),
+      }),
+      createCustomBuyCrypto({
+        id: 2,
+        outputReferenceAmount: 10,
+        fee: createCustomBuyCryptoFee({ allowedTotalFeeAmount: 0.5 }),
+      }),
+      createCustomBuyCrypto({
+        id: 3,
+        outputReferenceAmount: 1,
+        fee: createCustomBuyCryptoFee({ allowedTotalFeeAmount: 0.01 }),
+      }),
     ],
   });
 }

@@ -47,12 +47,10 @@ export class BuyFiatService {
   ) {}
 
   async createFromCryptoInput(cryptoInput: CryptoInput, sell: Sell): Promise<void> {
-    const transaction = !DisabledProcess(Process.CREATE_TRANSACTION)
-      ? await this.transactionService.update(cryptoInput.transaction.id, {
-          type: TransactionTypeInternal.BUY_FIAT,
-          user: sell.user,
-        })
-      : null;
+    const transaction = await this.transactionService.update(cryptoInput.transaction.id, {
+      type: TransactionTypeInternal.BUY_FIAT,
+      user: sell.user,
+    });
 
     let entity = this.buyFiatRepo.create({
       cryptoInput,
@@ -267,7 +265,13 @@ export class BuyFiatService {
   async getAllUserTransactions(userIds: number[]): Promise<BuyFiat[]> {
     return this.buyFiatRepo.find({
       where: { sell: { user: { id: In(userIds) } } },
-      relations: ['cryptoInput', 'bankTx', 'sell', 'sell.user', 'fiatOutput', 'fiatOutput.bankTx'],
+      relations: {
+        cryptoInput: true,
+        bankTx: true,
+        sell: { user: true },
+        fiatOutput: { bankTx: true },
+        transaction: true,
+      },
       order: { id: 'DESC' },
     });
   }

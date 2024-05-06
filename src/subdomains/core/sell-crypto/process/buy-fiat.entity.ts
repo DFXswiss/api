@@ -1,4 +1,3 @@
-import { ConflictException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -7,6 +6,7 @@ import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
+import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { FeeDto, InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
@@ -239,26 +239,28 @@ export class BuyFiat extends IEntity {
     totalFeeAmountChf: number,
   ): UpdateResult<BuyFiat> {
     const { usedRef, refProvision } = this.user.specifiedRef;
+    const inputReferenceAmountMinusFee = this.inputReferenceAmount - fee.total;
 
-    const update: Partial<BuyFiat> = {
-      absoluteFeeAmount: fee.fixed,
-      percentFee: fee.rate,
-      percentFeeAmount: fee.rate * this.inputReferenceAmount,
-      minFeeAmount: fee.min,
-      minFeeAmountFiat,
-      totalFeeAmount: fee.total,
-      totalFeeAmountChf,
-      blockchainFee: fee.network,
-      inputReferenceAmountMinusFee: this.inputReferenceAmount - fee.total,
-      amountInEur,
-      amountInChf,
-      usedRef,
-      refProvision,
-      refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
-      usedFees: fee.fees?.map((fee) => fee.id).join(';'),
-    };
-
-    if (update.inputReferenceAmountMinusFee < 0) throw new ConflictException('InputReferenceAmountMinusFee smaller 0');
+    const update: Partial<BuyFiat> =
+      inputReferenceAmountMinusFee < 0
+        ? { amlCheck: CheckStatus.FAIL, amlReason: AmlReason.FEE_TOO_HIGH }
+        : {
+            absoluteFeeAmount: fee.fixed,
+            percentFee: fee.rate,
+            percentFeeAmount: fee.rate * this.inputReferenceAmount,
+            minFeeAmount: fee.min,
+            minFeeAmountFiat,
+            totalFeeAmount: fee.total,
+            totalFeeAmountChf,
+            blockchainFee: fee.network,
+            inputReferenceAmountMinusFee,
+            amountInEur,
+            amountInChf,
+            usedRef,
+            refProvision,
+            refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
+            usedFees: fee.fees?.map((fee) => fee.id).join(';'),
+          };
 
     Object.assign(this, update);
 
@@ -318,9 +320,7 @@ export class BuyFiat extends IEntity {
       amountInChf: null,
       amountInEur: null,
       outputReferenceAmount: null,
-      outputReferenceAsset: null,
       outputAmount: null,
-      outputAsset: null,
       minFeeAmount: null,
       minFeeAmountFiat: null,
       totalFeeAmount: null,
@@ -383,6 +383,10 @@ export class BuyFiat extends IEntity {
     return this.user.userData;
   }
 
+  set userData(userData: UserData) {
+    this.user.userData = userData;
+  }
+
   get route(): Sell {
     return this.sell;
   }
@@ -397,6 +401,10 @@ export class BuyFiat extends IEntity {
 
   get noCommunication(): boolean {
     return this.amlReason === AmlReason.NO_COMMUNICATION;
+  }
+
+  get inputMailTranslationKey(): MailTranslationKey {
+    return MailTranslationKey.CRYPTO_INPUT;
   }
 }
 

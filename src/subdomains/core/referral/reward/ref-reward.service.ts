@@ -44,7 +44,6 @@ export class RefRewardService {
   constructor(
     private readonly rewardRepo: RefRewardRepository,
     private readonly userService: UserService,
-    private readonly cryptoService: CryptoService,
     private readonly pricingService: PricingService,
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
@@ -70,7 +69,7 @@ export class RefRewardService {
     const eurChfPrice = await this.pricingService.getPrice(fiatEur, fiatChf, false);
 
     const groupedUser = Util.groupByAccessor<User, Blockchain>(openCreditUser, (o) =>
-      this.cryptoService.getDefaultBlockchainBasedOn(o.address),
+      CryptoService.getDefaultBlockchainBasedOn(o.address),
     );
 
     for (const [blockchain, users] of groupedUser.entries()) {
@@ -97,8 +96,7 @@ export class RefRewardService {
           amountInEur: refCreditEur,
         });
 
-        if (!DisabledProcess(Process.CREATE_TRANSACTION))
-          entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.REF, user });
+        entity.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.REF, user });
 
         await this.rewardRepo.save(entity);
       }

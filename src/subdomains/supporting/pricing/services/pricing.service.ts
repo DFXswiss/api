@@ -4,7 +4,7 @@ import { KrakenService } from 'src/integration/exchange/services/kraken.service'
 import { KucoinService } from 'src/integration/exchange/services/kucoin.service';
 import { Active, activesEqual, isFiat } from 'src/shared/models/active';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { AsyncCache } from 'src/shared/utils/async-cache';
+import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from '../../notification/enums';
 import { NotificationService } from '../../notification/services/notification.service';
@@ -25,9 +25,9 @@ export class PricingService {
   private readonly logger = new DfxLogger(PricingService);
 
   private readonly providerMap: { [s in PriceSource]: PricingProvider };
-  private readonly priceRuleCache = new AsyncCache<PriceRule[]>(60 * 60 * 6);
-  private readonly providerPriceCache = new AsyncCache<Price>(10);
-  private readonly updateCalls = new AsyncCache<PriceRule>(0);
+  private readonly priceRuleCache = new AsyncCache<PriceRule[]>(CacheItemResetPeriod.EVERY_6_HOURS);
+  private readonly providerPriceCache = new AsyncCache<Price>(CacheItemResetPeriod.EVERY_10_SECONDS);
+  private readonly updateCalls = new AsyncCache<PriceRule>(CacheItemResetPeriod.ALWAYS);
 
   constructor(
     private readonly priceRuleRepo: PriceRuleRepository,
@@ -98,8 +98,8 @@ export class PricingService {
     }
   }
 
-  async getPriceFrom(source: PriceSource, from: string, to: string): Promise<Price> {
-    return this.providerMap[source].getPrice(from, to);
+  async getPriceFrom(source: PriceSource, from: string, to: string, param?: string): Promise<Price> {
+    return this.providerMap[source].getPrice(from, to, param);
   }
 
   // --- PRIVATE METHODS --- //
@@ -183,7 +183,7 @@ export class PricingService {
         context: MailContext.PRICING,
         input: { subject: 'Price Mismatch', errors: [message], isLiqMail: true },
         correlationId: `PriceMismatch&${rule.asset}&${rule.reference}`,
-        options: { debounce: 1800000 },
+        options: { debounce: 86400000 },
       });
 
       return false;
@@ -204,7 +204,7 @@ export class PricingService {
   private async getRulePrice(rule: Rule): Promise<Price> {
     return this.providerPriceCache
       .get(`${rule.source}:${rule.asset}/${rule.reference}`, () =>
-        this.getPriceFrom(rule.source, rule.asset, rule.reference),
+        this.getPriceFrom(rule.source, rule.asset, rule.reference, rule.param),
       )
       .catch((e) => {
         throw new Error(`Failed to get price ${rule.asset} -> ${rule.reference} on ${rule.source}: ${e.message}`);

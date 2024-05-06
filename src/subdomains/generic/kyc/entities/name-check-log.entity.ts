@@ -4,6 +4,7 @@ import { KycLog } from './kyc-log.entity';
 
 export enum RiskStatus {
   SANCTIONED = 'Sanctioned',
+  MATCH_WITHOUT_BIRTHDAY = 'MatchWithoutBirthday',
   NOT_SANCTIONED = 'NotSanctioned',
 }
 

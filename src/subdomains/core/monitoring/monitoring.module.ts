@@ -11,6 +11,7 @@ import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { MonitoringController } from './monitoring.controller';
 import { MonitoringService } from './monitoring.service';
+import { AmlObserver } from './observers/aml.observer';
 import { BankObserver } from './observers/bank.observer';
 import { BankingBotObserver } from './observers/banking-bot.observer';
 import { CheckoutObserver } from './observers/checkout.observer';
@@ -46,6 +47,7 @@ import { SystemStateSnapshotRepository } from './system-state-snapshot.repositor
     BankObserver,
     ExternalServicesObserver,
     CheckoutObserver,
+    AmlObserver,
   ],
   controllers: [MonitoringController],
   exports: [MonitoringService],
