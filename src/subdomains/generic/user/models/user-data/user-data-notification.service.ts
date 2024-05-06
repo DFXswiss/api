@@ -92,8 +92,30 @@ export class UserDataNotificationService {
             suffix: [{ key: MailKey.SPACE, params: { value: '4' } }, { key: MailKey.DFX_TEAM_CLOSING }],
           },
         });
-      } else {
-        this.logger.warn(`Failed to send userData changed mail info ${master.id}: user has no email`);
+
+        await this.notificationService.sendMail({
+          type: MailType.USER,
+          context: MailContext.CHANGED_MAIL,
+          input: {
+            userData: slave,
+            title: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.title`,
+            salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.salutation` },
+            prefix: [
+              { key: MailKey.SPACE, params: { value: '3' } },
+              {
+                key: `${MailTranslationKey.GENERAL}.welcome`,
+                params: { name: slave.organizationName ?? slave.firstname },
+              },
+              { key: MailKey.SPACE, params: { value: '2' } },
+              {
+                key: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.message`,
+                params: { userMail: Util.blankMail(slave.mail) },
+              },
+              { key: MailKey.SPACE, params: { value: '4' } },
+            ],
+            suffix: [{ key: MailKey.SPACE, params: { value: '4' } }, { key: MailKey.DFX_TEAM_CLOSING }],
+          },
+        });
       }
     } catch (e) {
       this.logger.error(`Failed to send userData changed mail info slave (${slave.id}) and master (${master.id}):`, e);
