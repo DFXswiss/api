@@ -30,10 +30,10 @@ export class ReferralDto {
   @ApiProperty({ description: 'Paid referral credit in EUR' })
   paidCredit: number;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Number of users referred' })
   userCount: number;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Number of active users referred' })
   activeUserCount: number;
 }
 
