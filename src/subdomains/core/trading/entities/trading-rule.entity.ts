@@ -38,8 +38,14 @@ export class TradingRule extends IEntity {
   @Column({ type: 'float' })
   lowerLimit: number;
 
+  @Column({ type: 'float', default: 1 })
+  lowerTarget: number;
+
   @Column({ type: 'float' })
   upperLimit: number;
+
+  @Column({ type: 'float', default: 1 })
+  upperTarget: number;
 
   @Column({ type: 'int', default: FeeAmount.LOWEST })
   poolFee: FeeAmount;
