@@ -1,4 +1,10 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Util } from 'src/shared/utils/util';
 import { ContentType, FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
@@ -29,6 +35,7 @@ export class SupportIssueService {
     if (existing) throw new ConflictException('There is already a support issue for this transaction');
 
     const user = await this.userService.getUser(userId, { userData: true });
+    if (!user.userData.mail) throw new BadRequestException('Mail is missing');
 
     let entity = this.supportIssueRepo.create({ type: SupportIssueType.TRANSACTION_ISSUE, ...dto });
 
@@ -39,7 +46,7 @@ export class SupportIssueService {
 
     entity = await this.supportIssueRepo.save(entity);
 
-    if (dto.message || dto.file) await this.createSupportMessage(entity.id, dto);
+    await this.createSupportMessage(entity.id, dto);
   }
 
   async updateSupportIssue(id: number, dto: UpdateSupportIssueDto): Promise<SupportIssue> {

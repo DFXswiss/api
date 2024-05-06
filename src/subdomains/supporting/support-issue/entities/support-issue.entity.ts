@@ -33,7 +33,7 @@ export class SupportIssue extends IEntity {
   name: string;
 
   @Column({ length: 'MAX', nullable: true })
-  description: string;
+  description: string; // TODO: remove?
 
   @Column({ length: 256, nullable: true })
   fileUrl: string; // TODO: remove
