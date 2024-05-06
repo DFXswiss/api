@@ -92,16 +92,8 @@ export abstract class DexEvmService implements PurchaseDexService {
   }
 
   async getSwapResult(txId: string, asset: Asset): Promise<{ targetAmount: number; feeAmount: number }> {
-    const receipt = await this.#client.getTxReceipt(txId);
-
-    const swapLog = receipt.logs.find((l) => l.address.toLowerCase() === asset.chainId);
-
-    if (!swapLog) {
-      throw new Error(`Failed to get swap amount for TX: ${txId} while trying to extract purchased liquidity`);
-    }
-
     return {
-      targetAmount: await this.fromWeiAmount(swapLog.data, asset),
+      targetAmount: await this.#client.getSwapResult(txId, asset),
       feeAmount: await this.#client.getTxActualFee(txId),
     };
   }

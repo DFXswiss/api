@@ -5,6 +5,7 @@ import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { PriceSource } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
@@ -16,65 +17,91 @@ const START_AMOUNT_IN = 10000; // CHF
 
 @Injectable()
 export class TradingService {
+  private readonly logger = new DfxLogger(TradingService);
+
   constructor(
     private readonly evmRegistryService: EvmRegistryService,
     private readonly pricingService: PricingService,
     private readonly assetService: AssetService,
   ) {}
 
-  async createTradingInfo(tradingRule: TradingRule): Promise<TradingInfo> {
+  async createTradingInfo(tradingRule: TradingRule): Promise<TradingInfo | undefined> {
     if (tradingRule.leftAsset.blockchain !== tradingRule.rightAsset.blockchain)
       throw new Error(`Blockchain mismatch in trading rule ${tradingRule.id}`);
 
-    let tradingInfo = await this.getPriceImpactForTrading(tradingRule);
-
-    if (tradingInfo.priceImpact >= tradingRule.upperLimit) {
-      tradingInfo.assetIn = tradingRule.leftAsset;
-      tradingInfo.assetOut = tradingRule.rightAsset;
-
-      tradingInfo = await this.calculateAmountForPriceImpact(tradingInfo);
-    } else if (tradingInfo.priceImpact <= -tradingRule.lowerLimit) {
-      tradingInfo.assetIn = tradingRule.rightAsset;
-      tradingInfo.assetOut = tradingRule.leftAsset;
-
-      tradingInfo = await this.calculateAmountForPriceImpact(tradingInfo);
-    }
+    let tradingInfo = await this.getTradingInfo(tradingRule);
+    tradingInfo = await this.calculateAmountForPriceImpact(tradingInfo);
 
     return tradingInfo;
   }
 
-  private async getPriceImpactForTrading(tradingRule: TradingRule): Promise<TradingInfo> {
-    const price1 = await this.pricingService.getPriceFrom(
+  private async getTradingInfo(tradingRule: TradingRule): Promise<TradingInfo> {
+    // get prices
+    const referencePrice = await this.pricingService.getPriceFrom(
       tradingRule.source1,
       tradingRule.leftAsset1,
       tradingRule.rightAsset1,
     );
 
-    const price2 = await this.pricingService.getPriceFrom(
+    const checkPrice = await this.pricingService.getPriceFrom(
+      tradingRule.source3 ?? tradingRule.source1,
+      tradingRule.leftAsset3 ?? tradingRule.leftAsset1,
+      tradingRule.rightAsset3 ?? tradingRule.rightAsset1,
+    );
+
+    const poolPrice = await this.pricingService.getPriceFrom(
       tradingRule.source2,
       tradingRule.leftAsset2,
       tradingRule.rightAsset2,
       tradingRule.source2 === PriceSource.DEX ? `${tradingRule.poolFee}` : undefined,
     );
-    if (tradingRule.source2 === PriceSource.DEX)
-      price2.price = price2.price / (1 + EvmUtil.poolFeeFactor(tradingRule.poolFee));
 
-    const tradingInfo: TradingInfo = {
-      price1: price1.price,
-      price2: price2.price,
-      priceImpact: 0,
-      poolFee: tradingRule.poolFee,
-    };
+    const lowerTargetPrice = referencePrice.price * tradingRule.lowerTarget;
+    const upperTargetPrice = referencePrice.price * tradingRule.upperTarget;
 
-    if (price1.isValid && price2.isValid) {
-      const ratio = price1.price / price2.price;
-      tradingInfo.priceImpact = ratio - 1;
+    const lowerCheckPrice = checkPrice.price * tradingRule.lowerTarget;
+    const upperCheckPrice = checkPrice.price * tradingRule.upperTarget;
+
+    const currentPrice =
+      tradingRule.source2 === PriceSource.DEX
+        ? poolPrice.price / (1 + EvmUtil.poolFeeFactor(tradingRule.poolFee))
+        : poolPrice.price;
+
+    // calculate current deviation
+    const lowerDeviation = currentPrice / lowerTargetPrice - 1;
+    const upperDeviation = currentPrice / upperTargetPrice - 1;
+
+    const lowerCheckDeviation = currentPrice / lowerCheckPrice - 1;
+    const upperCheckDeviation = currentPrice / upperCheckPrice - 1;
+
+    if (lowerDeviation < -tradingRule.lowerLimit && lowerCheckDeviation < -tradingRule.lowerLimit) {
+      return {
+        price1: lowerTargetPrice,
+        price2: currentPrice,
+        priceImpact: lowerDeviation,
+        poolFee: tradingRule.poolFee,
+        assetIn: tradingRule.leftAsset,
+        assetOut: tradingRule.rightAsset,
+      };
+    } else if (upperDeviation > tradingRule.upperLimit && upperCheckDeviation > tradingRule.upperLimit) {
+      return {
+        price1: upperTargetPrice,
+        price2: currentPrice,
+        priceImpact: upperDeviation,
+        poolFee: tradingRule.poolFee,
+        assetIn: tradingRule.rightAsset,
+        assetOut: tradingRule.leftAsset,
+      };
+    } else {
+      this.logger.verbose(
+        `No action required for trading rule ${tradingRule.id}: lower deviation is ${lowerDeviation} / ${lowerCheckDeviation}, upper deviation is ${upperDeviation} / ${upperCheckDeviation}`,
+      );
     }
-
-    return tradingInfo;
   }
 
-  private async calculateAmountForPriceImpact(tradingInfo: TradingInfo): Promise<TradingInfo> {
+  private async calculateAmountForPriceImpact(tradingInfo?: TradingInfo): Promise<TradingInfo | undefined> {
+    if (!tradingInfo) return;
+
     const client = this.evmRegistryService.getClient(tradingInfo.assetIn.blockchain);
 
     const tokenIn = await client.getToken(tradingInfo.assetIn);
