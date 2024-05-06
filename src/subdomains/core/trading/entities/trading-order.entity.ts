@@ -82,7 +82,8 @@ export class TradingOrder extends IEntity {
     return this;
   }
 
-  complete(): this {
+  complete(outputAmount: number): this {
+    this.amountOut = outputAmount;
     this.status = TradingOrderStatus.COMPLETE;
 
     return this;
