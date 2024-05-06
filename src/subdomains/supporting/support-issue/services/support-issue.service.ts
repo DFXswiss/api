@@ -59,21 +59,20 @@ export class SupportIssueService {
     if (existing) throw new ConflictException('Support message already exists');
 
     const entity = this.messageRepo.create(dto);
+    if (!entity.author) entity.author = 'Customer';
 
-    entity.issue = await this.supportIssueRepo.findOneBy({ id });
+    entity.issue = await this.supportIssueRepo.findOne({
+      where: { id },
+      relations: { transaction: { user: { userData: true } } },
+    });
     if (!entity.issue) throw new NotFoundException('Support issue not found');
 
     // upload document proof
     if (dto.file) {
       const { contentType, buffer } = Util.fromBase64(dto.file);
 
-      const supportIssue = await this.supportIssueRepo.findOne({
-        where: { id },
-        relations: { transaction: { user: { userData: true } } },
-      });
-
       entity.fileUrl = await this.storageService.uploadFile(
-        supportIssue.transaction.user.userData.id,
+        entity.issue.transaction.user.userData.id,
         FileType.SUPPORT_ISSUE,
         `${Util.isoDateTime(new Date())}_support-issue_user-upload_${dto.fileName}`,
         buffer,

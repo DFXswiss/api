@@ -4,10 +4,10 @@ import { SupportIssue } from './support-issue.entity';
 
 @Entity()
 export class SupportMessage extends IEntity {
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 256, nullable: false })
   author: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ length: 'MAX', nullable: false })
   message: string;
 
   @Column({ length: 256, nullable: true })
