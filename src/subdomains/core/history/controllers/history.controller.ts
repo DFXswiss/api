@@ -43,7 +43,6 @@ export class HistoryController {
     private readonly historyService: HistoryService,
     private readonly transactionController: TransactionController,
     private readonly userService: UserService,
-    private readonly apiKeyService: ApiKeyService,
   ) {}
 
   // --- DEPRECATED ENDPOINTS --- //
@@ -70,7 +69,7 @@ export class HistoryController {
     @Headers('DFX-ACCESS-TIMESTAMP') timestamp: string,
   ): Promise<CoinTrackingApiHistoryDto[]> {
     const user = await this.userService.checkApiKey(key, sign, timestamp);
-    query = Object.assign(query, this.apiKeyService.getFilter(user.apiFilterCT));
+    query = Object.assign(query, ApiKeyService.getFilter(user.apiFilterCT));
 
     return (
       await this.historyService.getJsonHistory(

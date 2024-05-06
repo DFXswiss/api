@@ -14,7 +14,7 @@ type CryptoAlgorithm = 'md5' | 'sha256' | 'sha512';
 export class Util {
   // --- MATH --- //
   static roundReadable(amount: number, isFiat: boolean): number {
-    return isFiat ? this.round(amount, 2) : this.roundByPrecision(amount, 5);
+    return isFiat ? (amount < 0.01 ? this.round(amount, 2) : this.ceil(amount, 2)) : this.roundByPrecision(amount, 5);
   }
 
   static round(amount: number, decimals: number): number {
@@ -23,6 +23,14 @@ export class Util {
 
   static roundToValue(amount: number, value: number): number {
     return new BigNumber(Math.round(amount / value)).multipliedBy(value).toNumber();
+  }
+
+  static ceil(amount: number, decimals: number): number {
+    return this.ceilToValue(amount, Math.pow(10, -decimals));
+  }
+
+  static ceilToValue(amount: number, value: number): number {
+    return new BigNumber(Math.ceil(amount / value)).multipliedBy(value).toNumber();
   }
 
   static toPercent(num: number): string {
