@@ -16,9 +16,9 @@ import { EvmRegistryService } from '../evm/evm-registry.service';
 
 @Injectable()
 export class CryptoService {
-  private readonly defaultEthereumChain = Blockchain.ARBITRUM;
+  private static readonly defaultEthereumChain = Blockchain.ARBITRUM;
 
-  readonly EthereumBasedChains = [
+  static readonly EthereumBasedChains = [
     Blockchain.ETHEREUM,
     Blockchain.BINANCE_SMART_CHAIN,
     Blockchain.ARBITRUM,
@@ -68,7 +68,7 @@ export class CryptoService {
   }
 
   // --- ADDRESSES --- //
-  public getBlockchainsBasedOn(address: string): Blockchain[] {
+  public static getBlockchainsBasedOn(address: string): Blockchain[] {
     if (isEthereumAddress(address)) return this.EthereumBasedChains;
     if (this.isBitcoinAddress(address)) return [Blockchain.BITCOIN];
     if (this.isLightningAddress(address)) return [Blockchain.LIGHTNING];
@@ -79,26 +79,26 @@ export class CryptoService {
     return [Blockchain.DEFICHAIN];
   }
 
-  public getDefaultBlockchainBasedOn(address: string): Blockchain {
+  public static getDefaultBlockchainBasedOn(address: string): Blockchain {
     const chains = this.getBlockchainsBasedOn(address);
     return chains.includes(this.defaultEthereumChain)
       ? this.defaultEthereumChain
       : this.getBlockchainsBasedOn(address)[0];
   }
 
-  private isBitcoinAddress(address: string): boolean {
+  private static isBitcoinAddress(address: string): boolean {
     return RegExp(`^(${Config.bitcoinAddressFormat})$`).test(address);
   }
 
-  private isLightningAddress(address: string): boolean {
+  private static isLightningAddress(address: string): boolean {
     return RegExp(`^(${Config.lightningAddressFormat})$`).test(address);
   }
 
-  private isMoneroAddress(address: string): boolean {
+  private static isMoneroAddress(address: string): boolean {
     return RegExp(`^(${Config.moneroAddressFormat})$`).test(address);
   }
 
-  private isLiquidAddress(address: string): boolean {
+  private static isLiquidAddress(address: string): boolean {
     return new RegExp(`^(${Config.liquidAddressFormat})$`).test(address);
   }
 
@@ -112,10 +112,11 @@ export class CryptoService {
 
   // --- SIGNATURE VERIFICATION --- //
   public async verifySignature(message: string, address: string, signature: string, key?: string): Promise<boolean> {
-    const blockchain = this.getDefaultBlockchainBasedOn(address);
+    const blockchain = CryptoService.getDefaultBlockchainBasedOn(address);
 
     try {
-      if (this.EthereumBasedChains.includes(blockchain)) return this.verifyEthereumBased(message, address, signature);
+      if (CryptoService.EthereumBasedChains.includes(blockchain))
+        return this.verifyEthereumBased(message, address, signature);
       if (blockchain === Blockchain.BITCOIN) return this.verifyBitcoinBased(message, address, signature, null);
       if (blockchain === Blockchain.LIGHTNING) return this.verifyLightning(message, signature, key);
       if (blockchain === Blockchain.MONERO) return await this.verifyMonero(message, address, signature);

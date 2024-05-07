@@ -68,6 +68,7 @@ export class BuyCryptoService {
     const transaction = await this.transactionService.update(bankTx.transaction.id, {
       type: TransactionTypeInternal.BUY_CRYPTO,
       user: buy.user,
+      resetMailSendDate: true,
     });
 
     const forexFee = bankTx.txCurrency === bankTx.currency ? 0 : 0.02;
@@ -108,13 +109,10 @@ export class BuyCryptoService {
 
     // create bank data
     if (checkoutTx.cardFingerPrint && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
-      const bankData = await this.bankDataService.getBankDataWithIban(
-        checkoutTx.cardFingerPrint,
-        entity.buy.user.userData.id,
-      );
+      const bankData = await this.bankDataService.getBankDataWithIban(checkoutTx.cardFingerPrint, buy.user.userData.id);
 
       if (!bankData)
-        await this.bankDataService.createBankData(entity.buy.user.userData, {
+        await this.bankDataService.createBankData(buy.user.userData, {
           iban: checkoutTx.cardFingerPrint,
           type: BankDataType.CARD_IN,
         });
@@ -554,9 +552,13 @@ export class BuyCryptoService {
   ): Promise<BuyCrypto[]> {
     return this.buyCryptoRepo.find({
       where: [
-        { buy: { user: { id: In(userIds) } }, bankTx: { created: Between(dateFrom, dateTo) } },
-        { buy: { user: { id: In(userIds) } }, checkoutTx: { created: Between(dateFrom, dateTo) } },
-        { cryptoRoute: { user: { id: In(userIds) } }, cryptoInput: { created: Between(dateFrom, dateTo) } },
+        { buy: { user: { id: In(userIds) } }, bankTx: { created: Between(dateFrom, dateTo) }, transaction: true },
+        { buy: { user: { id: In(userIds) } }, checkoutTx: { created: Between(dateFrom, dateTo) }, transaction: true },
+        {
+          cryptoRoute: { user: { id: In(userIds) } },
+          cryptoInput: { created: Between(dateFrom, dateTo) },
+          transaction: true,
+        },
       ],
       relations: [
         'bankTx',

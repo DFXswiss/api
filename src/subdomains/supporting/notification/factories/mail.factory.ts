@@ -14,8 +14,8 @@ import { MailAffix, MailRequest, MailRequestGenericInput, TranslationItem, Trans
 export enum MailTranslationKey {
   GENERAL = 'mail.general',
   PAYMENT = 'mail.payment',
-  BUY_FIAT = 'mail.payment.buy_fiat',
-  BUY_CRYPTO = 'mail.payment.buy_crypto',
+  CRYPTO_INPUT = 'mail.payment.crypto_input',
+  FIAT_INPUT = 'mail.payment.fiat_input',
   PENDING = 'mail.payment.pending',
   RETURN = 'mail.payment.return',
   RETURN_REASON = 'mail.payment.return.reasons',
@@ -32,6 +32,7 @@ export enum MailTranslationKey {
   ACCOUNT_MERGE_CHANGED_MAIL = 'mail.account_merge.changed_mail',
   LIMIT_REQUEST = 'mail.limit_request',
   BLACK_SQUAD = 'mail.black_squad',
+  UNASSIGNED_FIAT_INPUT = 'mail.payment.fiat_input.unassigned',
 }
 
 export enum MailKey {

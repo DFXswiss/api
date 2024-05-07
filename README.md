@@ -43,14 +43,12 @@ If a user wants to get notified about ongoing transactions, he can register his 
 
 - Basic information about the referral program can be found in our [FAQ](https://docs.dfx.swiss/en/faq)
 - A referral code can only be set once during [user registration](#authentication) (`usedRef` parameter)
-- Every user will receive his own referral code after the first successful transaction. It can be get from the [user detail endpoint](https://api.dfx.swiss/swagger/#/User/UserController_getUserDetail).
+- Every user will receive his own referral code after the first successful transaction. It can be got from the [user endpoint](https://api.dfx.swiss/swagger/#/User/UserV2Controller_getUser).
+- Details about the referred users can be got from the [ref endpoint](https://api.dfx.swiss/swagger/#/User/UserV2Controller_getRef).
 
 ### KYC (optional)
 
-KYC is not required for a daily transaction volume up to 1000 CHF. To increase the transaction volume, the user needs to be verified with a KYC process, which can be done on the DFX KYC page.
-
-1. Get the user's KYC hash from [user endpoint](https://api.dfx.swiss/swagger/#/User/UserController_getUser)
-1. Open then link to the KYC page: `https://services.dfx.swiss/kyc?code=<kyc-hash>`
+KYC is not required for a daily transaction volume up to 1000 CHF. To increase the transaction volume, the user needs to be verified with a KYC process, which can be done on the DFX KYC page. Just open then link to the KYC page with the user's API access token: `https://services.dfx.swiss/kyc?session=<jwt-access-token>`
 
 ### Transactions
 
@@ -91,7 +89,7 @@ _Get payment infos_
 
 <em>In order to perform bank transactions, DFX needs to know the name and address of the recipient. Therefore, user data must be collected once before a sale can be made. The user data can be updated with the [kyc data endpoint](https://api.dfx.swiss/swagger#/User/UserController_updateKycData). Required fields are `accountType, mail, phone, firstname, lastName, address (street, city, zip, country)`. For non personal accounts, `organizationName, organizationAddress (street, city, zip, country)` are also required.</em>
 
-1. Update user data, if required (check with `kycDataComplete` field from [user endpoint](https://api.dfx.swiss/swagger/#/User/UserController_getUser))
+1. Update user data, if required (check with `kyc.dataComplete` field from [user endpoint](https://api.dfx.swiss/swagger/#/User/UserV2Controller_getUser))
 1. Get all available assets with the [asset endpoint](https://api.dfx.swiss/swagger/#/Asset/AssetController_getAllAsset)
    - Only assets with the `sellable` field set to `true` can be sold
 1. Get all available currencies with the [fiat endpoint](https://api.dfx.swiss/swagger/#/Fiat/FiatController_getAllFiat)

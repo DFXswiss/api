@@ -173,7 +173,7 @@ export class SwapController {
       swap.asset.dexName,
     );
 
-    const defaultBlockchain = this.cryptoService.getDefaultBlockchainBasedOn(swap.user.address);
+    const defaultBlockchain = CryptoService.getDefaultBlockchainBasedOn(swap.user.address);
     const fee = await this.userService.getUserFee(
       userId,
       CryptoPaymentMethod.CRYPTO,

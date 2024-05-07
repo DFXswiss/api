@@ -1,3 +1,5 @@
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
@@ -149,5 +151,14 @@ export class User extends IEntity {
 
   get isPaymentStatusEnabled(): boolean {
     return this.status != UserStatus.BLOCKED;
+  }
+
+  get blockchains(): Blockchain[] {
+    // wallet name / blockchain map
+    const customChains = {
+      Talium: ['Talium' as Blockchain],
+    };
+
+    return customChains[this.wallet.name] ?? CryptoService.getBlockchainsBasedOn(this.address);
   }
 }

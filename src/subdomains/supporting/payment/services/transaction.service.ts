@@ -20,12 +20,16 @@ export class TransactionService {
   }
 
   async update(id: number, dto: UpdateTransactionDto): Promise<Transaction> {
-    const entity = await this.getTransactionById(id);
+    let entity = await this.getTransactionById(id);
     if (!entity) throw new Error('Transaction not found');
 
     Object.assign(entity, dto);
 
-    return this.repo.save(entity);
+    if (dto.resetMailSendDate) entity.mailSendDate = null;
+
+    entity = await this.repo.save(entity);
+
+    return entity;
   }
 
   async getTransactionById(id: number, relations: FindOptionsRelations<Transaction> = {}): Promise<Transaction> {
@@ -59,5 +63,16 @@ export class TransactionService {
         refReward: { user: true },
       },
     });
+  }
+
+  async getTransactionByKey(key: string, value: any): Promise<Transaction> {
+    return this.repo
+      .createQueryBuilder('transaction')
+      .select('transaction')
+      .leftJoinAndSelect('transaction.user', 'user')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('userData.users', 'users')
+      .where(`${key.includes('.') ? key : `transaction.${key}`} = :param`, { param: value })
+      .getOne();
   }
 }

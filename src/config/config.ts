@@ -44,7 +44,7 @@ export class Configuration {
 
   amlCheckLastNameCheckValidity = 90; // days
   maxBlockchainFee = 50; // CHF
-  blockchainFeeBuffer = 1.1;
+  blockchainFeeBuffer = 1.2;
 
   tradingLimits = {
     dailyDefault: 1000, // CHF
@@ -457,6 +457,10 @@ export class Configuration {
   request = {
     knownIps: process.env.REQUEST_KNOWN_IPS?.split(',') ?? [],
     limitCheck: process.env.REQUEST_LIMIT_CHECK === 'true',
+  };
+
+  checkout = {
+    entityId: process.env.CKO_ENTITY_ID,
   };
 
   // --- GETTERS --- //

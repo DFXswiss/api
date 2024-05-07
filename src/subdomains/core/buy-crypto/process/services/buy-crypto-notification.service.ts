@@ -1,8 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import {
   MailFactory,
@@ -29,95 +27,10 @@ export class BuyCryptoNotificationService {
   async sendNotificationMails(): Promise<void> {
     try {
       if (DisabledProcess(Process.BUY_CRYPTO_MAIL)) return;
-      await this.buyCryptoConfirmed();
       await this.paybackToAddressInitiated();
       await this.pendingBuyCrypto();
     } catch (e) {
       this.logger.error('Error during buy-crypto notification:', e);
-    }
-  }
-
-  async buyCryptoConfirmed(): Promise<void> {
-    try {
-      const txOutput = await this.buyCryptoRepo.find({
-        where: {
-          mailSendDate: IsNull(),
-          txId: Not(IsNull()),
-          amlCheck: CheckStatus.PASS,
-        },
-        relations: [
-          'bankTx',
-          'checkoutTx',
-          'buy',
-          'buy.user',
-          'buy.user.userData',
-          'batch',
-          'cryptoRoute',
-          'cryptoRoute.user',
-          'cryptoRoute.user.userData',
-          'cryptoInput',
-        ],
-      });
-
-      txOutput.length &&
-        this.logger.verbose(
-          `Sending notifications for ${txOutput.length} buy-crypto transaction(s). Transaction ID(s): ${txOutput.map(
-            (t) => t.id,
-          )}`,
-        );
-
-      for (const tx of txOutput) {
-        try {
-          if (tx.user.userData.mail && !tx.noCommunication) {
-            const minFee = tx.minFeeAmountFiat
-              ? ` (min. ${tx.minFeeAmountFiat} ${tx.cryptoInput ? 'EUR' : tx.inputReferenceAsset})`
-              : '';
-
-            await this.notificationService.sendMail({
-              type: MailType.USER,
-              context: MailContext.BUY_CRYPTO,
-              input: {
-                userData: tx.user.userData,
-                title: `${MailTranslationKey.BUY_CRYPTO}.confirmed.title`,
-                salutation: { key: `${MailTranslationKey.BUY_CRYPTO}.confirmed.salutation` },
-                table: {
-                  [`${MailTranslationKey.BUY_CRYPTO}.input_amount`]: `${tx.inputAmount} ${tx.inputAsset}`,
-                  [`${MailTranslationKey.PAYMENT}.input_blockchain`]: tx.cryptoInput
-                    ? `${tx.cryptoInput.asset.blockchain}`
-                    : null,
-                  [`${MailTranslationKey.BUY_CRYPTO}.output_amount`]: `${tx.outputAmount} ${tx.outputAsset.name}`,
-                  [`${MailTranslationKey.PAYMENT}.blockchain`]: tx.cryptoInput ? null : `${tx.outputAsset.blockchain}`,
-                  [`${MailTranslationKey.PAYMENT}.output_blockchain`]: tx.cryptoInput
-                    ? `${tx.outputAsset.blockchain}`
-                    : null,
-                  [`${MailTranslationKey.PAYMENT}.dfx_fee`]: Util.toPercent(tx.percentFee) + minFee,
-                  [`${MailTranslationKey.PAYMENT}.exchange_rate`]: `${tx.exchangeRateString}`,
-                  [`${MailTranslationKey.PAYMENT}.wallet_address`]: Util.blankStart(tx.target.address),
-                  [`${MailTranslationKey.PAYMENT}.transaction_id`]: tx.isLightningOutput
-                    ? Util.blankStart(tx.txId)
-                    : null,
-                },
-                suffix: [
-                  tx.isLightningOutput
-                    ? null
-                    : {
-                        key: `${MailTranslationKey.BUY_CRYPTO}.payment_link`,
-                        params: { url: txExplorerUrl(tx.target.asset.blockchain, tx.txId) },
-                      },
-                  { key: MailKey.SPACE, params: { value: '4' } },
-                  { key: MailKey.DFX_TEAM_CLOSING },
-                ],
-              },
-            });
-          }
-
-          await this.buyCryptoRepo.update(...tx.confirmSentMail());
-        } catch (e) {
-          this.logger.error(`Failed to send buy-crypto confirmed mail ${tx.id}:`, e);
-        }
-      }
-    } catch (e) {
-      this.logger.error(`Failed to send buy-crypto confirmed mails:`, e);
     }
   }
 
@@ -154,7 +67,7 @@ export class BuyCryptoNotificationService {
     });
   }
 
-  async paybackToAddressInitiated(): Promise<void> {
+  private async paybackToAddressInitiated(): Promise<void> {
     const search: FindOptionsWhere<BuyCrypto> = {
       mailSendDate: IsNull(),
       outputAmount: IsNull(),
@@ -177,6 +90,7 @@ export class BuyCryptoNotificationService {
         'cryptoRoute.user.userData',
         'bankTx',
         'checkoutTx',
+        'transaction',
       ],
     });
 
@@ -196,32 +110,15 @@ export class BuyCryptoNotificationService {
               userData: entity.user.userData,
               title: `${entity.translationReturnMailKey}.title`,
               salutation: { key: `${entity.translationReturnMailKey}.salutation` },
-              table: {
-                [`${MailTranslationKey.PAYMENT}.reimbursed`]: `${entity.inputAmount} ${entity.inputAsset}`,
-                [`${MailTranslationKey.PAYMENT}.bank_account`]:
-                  entity.isBankInput && entity.bankTx.iban ? Util.blankStart(entity.bankTx.iban) : null,
-                [`${MailTranslationKey.PAYMENT}.remittance_info`]: !entity.isCryptoCryptoTransaction
-                  ? entity.chargebackRemittanceInfo?.split(' Zahlung')[0]
-                  : null,
-                [`${MailTranslationKey.PAYMENT}.blockchain`]: entity.isCryptoCryptoTransaction
-                  ? entity.cryptoInput.asset.blockchain
-                  : null,
-                [`${MailTranslationKey.PAYMENT}.wallet_address`]: entity.isCryptoCryptoTransaction
-                  ? Util.blankStart(entity.cryptoRoute.user.address)
-                  : null,
-                [`${MailTranslationKey.PAYMENT}.transaction_id`]: entity.isLightningInput
-                  ? Util.blankStart(entity.chargebackCryptoTxId)
-                  : null,
-              },
               suffix: [
-                !entity.isLightningInput && entity.isCryptoCryptoTransaction
-                  ? {
-                      key: `${entity.translationReturnMailKey}.payment_link`,
-                      params: {
-                        url: txExplorerUrl(entity.cryptoInput.asset.blockchain, entity.chargebackCryptoTxId),
-                      },
-                    }
-                  : null,
+                {
+                  key: `${MailTranslationKey.PAYMENT}.transaction_button`,
+                  params: { url: entity.transaction.url },
+                },
+                {
+                  key: `${MailTranslationKey.GENERAL}.link`,
+                  params: { url: entity.transaction.url, urlText: entity.transaction.url },
+                },
                 !AmlReasonWithoutReason.includes(entity.amlReason)
                   ? {
                       key: `${MailTranslationKey.RETURN}.introduction`,
@@ -258,7 +155,7 @@ export class BuyCryptoNotificationService {
     }
   }
 
-  async pendingBuyCrypto(): Promise<void> {
+  private async pendingBuyCrypto(): Promise<void> {
     const entities = await this.buyCryptoRepo.find({
       where: {
         mailSendDate: IsNull(),

@@ -8,7 +8,8 @@
         "welcome": "Hi {name},",
         "team_questions": "If you have any questions, please do not hesitate to contact us.",
         "personal_closing": "Kind regards,<br>{closingName}",
-        "button": "or<br>[url:Click here]"
+        "button": "or<br>[url:Click here]",
+        "link": "or<br>[url:{urlText}]"
     },
     "login": {
         "title": "DFX Login",
@@ -16,42 +17,26 @@
         "message": "Click on the following link to log in to DFX:<br>[url:{urlText}]"
     },
     "payment": {
-        "buy_fiat": {
-            "initiated": {
-                "title": "Funds received",
-                "salutation": "We have received your funds",
-                "next_step": "Next Step: We are going to sell your funds and exchange them into your desired currency and keep you updated with further emails."
-            },
-            "exchanged": {
-                "title": "Funds sold",
-                "salutation": "We sold your funds",
-                "next_step": "Next Step: We sold your funds and are now preparing the bank transfer. Once the money is sent out of our bank account you will receive the final wire-transfer email."
-            },
-            "processed": {
-                "title": "Bank transfer arranged",
-                "salutation": "We have arranged the bank transfer",
-                "next_step": "The payment has just left our bank account and will be visible on your bank account shortly. In the meantime the bank performances are responsible for the wire transfer duration. Thank you for using the DFX withdrawal service."
-            },
-            "input_amount": "Payout",
-            "output_amount": "Output",
-            "payment_link": "Here you can find the transaction ID with your withdrawal: [url:Link]"
+        "crypto_input": {
+            "title": "Crypto funds received",
+            "salutation": "We have received your crypto funds"
         },
-        "buy_crypto": {
-            "confirmed": {
-                "title": "Deposit processed",
-                "salutation": "Your deposit has been successfully processed"
-            },
-            "input_amount": "Deposited",
-            "output_amount": "Crypto payment",
-            "payment_link": "Here you can find the transaction ID with your payout: [url:Link]"
+        "fiat_input": {
+            "title": "Deposit received",
+            "salutation": "We have received your deposit",
+            "unassigned": {
+                "title": "Assign deposit",
+                "salutation": "Your deposit cannot be allocated automatically",
+                "transaction_button": "Please assign your deposit to your order:<br>[url:click here]"
+            }
         },
         "return": {
             "fiat": {
-                "title":"Funds have been reimbursed",
+                "title": "Funds have been reimbursed",
                 "salutation": "Your funds have been reimbursed to your bank account"
             },
             "crypto": {
-                "title":"Funds have been reimbursed",
+                "title": "Funds have been reimbursed",
                 "salutation": "Your funds have been reimbursed to your wallet address",
                 "payment_link": "Here you can find the transaction ID<br>for your reimbursement: [url:Link]"
             },
@@ -143,11 +128,8 @@
                 "line5": ""
             }
         },
+        "transaction_button": "Click the button below for more details about your transaction:<br>[url:click here]",
         "blockchain": "Blockchain",
-        "input_blockchain": "Deposit-Blockchain",
-        "output_blockchain": "Payout-Blockchain",
-        "dfx_fee": "DFX Fee",
-        "exchange_rate": "Exchange rate",
         "bank_account": "Bank Account",
         "remittance_info": "Purpose of the payment",
         "transaction_id": "Transaction-ID",

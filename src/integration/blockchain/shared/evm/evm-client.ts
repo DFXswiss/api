@@ -370,6 +370,16 @@ export abstract class EvmClient {
     return this.doSwap(parameters);
   }
 
+  async getSwapResult(txId: string, asset: Asset): Promise<number> {
+    const receipt = await this.getTxReceipt(txId);
+
+    const swapLog = receipt?.logs?.find((l) => l.address.toLowerCase() === asset.chainId);
+    if (!swapLog) throw new Error(`Failed to get swap result for TX ${txId}`);
+
+    const token = await this.getToken(asset);
+    return EvmUtil.fromWeiAmount(swapLog.data, token.decimals);
+  }
+
   private async getRoute(source: Asset, target: Asset, sourceAmount: number, maxSlippage: number): Promise<SwapRoute> {
     const sourceToken = await this.getToken(source);
     const targetToken = await this.getToken(target);

@@ -6,6 +6,7 @@ import { UserRepository } from 'src/subdomains/generic/user/models/user/user.rep
 import { DepositRepository } from 'src/subdomains/supporting/address-pool/deposit/deposit.repository';
 import { DepositRouteRepository } from 'src/subdomains/supporting/address-pool/route/deposit-route.repository';
 import { BankTxRepository } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.repository';
+import { CheckoutTxRepository } from 'src/subdomains/supporting/fiat-payin/repositories/checkout-tx.repository';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { TransactionSpecificationRepository } from 'src/subdomains/supporting/payment/repositories/transaction-specification.repository';
 import { EntityManager } from 'typeorm';
@@ -21,6 +22,7 @@ export class RepositoryFactory {
   public readonly deposit: DepositRepository;
   public readonly depositRoute: DepositRouteRepository;
   public readonly transactionSpecification: TransactionSpecificationRepository;
+  public readonly checkoutTx: CheckoutTxRepository;
 
   constructor(manager: EntityManager) {
     this.user = new UserRepository(manager);
@@ -32,5 +34,6 @@ export class RepositoryFactory {
     this.deposit = new DepositRepository(manager);
     this.depositRoute = new DepositRouteRepository(manager);
     this.transactionSpecification = new TransactionSpecificationRepository(manager);
+    this.checkoutTx = new CheckoutTxRepository(manager);
   }
 }
