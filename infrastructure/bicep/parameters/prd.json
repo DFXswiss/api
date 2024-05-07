@@ -401,6 +401,9 @@
     "ckoSecretKey": {
       "value": "xxx"
     },
+    "ckoEntityId": {
+      "value": "xxx"
+    },
     "delisenseJsonPath": {
       "value": "/home/Data/Dilisense/consolidated.json"
     },
