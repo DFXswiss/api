@@ -1,5 +1,7 @@
 export enum EventType {
   CREATE_ACCOUNT = '$create_account',
+  UPDATE_ACCOUNT = '$update_account',
+  LOGIN = '$login',
 }
 
 export interface SiftBase {
@@ -8,10 +10,10 @@ export interface SiftBase {
   $user_id: string;
   $ip: string;
   $time: number;
+  $session_id?: string;
 }
 
 export interface CreateAccount extends SiftBase {
-  $session_id?: string;
   $user_email?: string;
   $verification_phone_number?: string;
   $name?: string;

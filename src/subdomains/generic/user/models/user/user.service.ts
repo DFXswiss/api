@@ -9,6 +9,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Environment } from 'src/config/config';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
+import { SiftService } from 'src/integration/sift/services/sift.service';
 import { Active } from 'src/shared/models/active';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
@@ -54,6 +55,7 @@ export class UserService {
     private readonly geoLocationService: GeoLocationService,
     private readonly countryService: CountryService,
     private readonly feeService: FeeService,
+    private readonly siftService: SiftService,
   ) {}
 
   async getAllUser(): Promise<User[]> {
@@ -187,6 +189,8 @@ export class UserService {
     const user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
     if (user.userData.kycLevel >= KycLevel.LEVEL_20) throw new BadRequestException('KYC already started');
 
+    await this.siftService.updateAccount(user);
+
     await this.userDataService.updateUserName(user.userData, dto);
   }
 
@@ -201,6 +205,8 @@ export class UserService {
     });
     user.userData = update;
 
+    await this.siftService.updateAccount(user);
+
     return { user: await this.toDto(user, true), isKnownUser };
   }
 
@@ -210,6 +216,9 @@ export class UserService {
 
     if (update.status && update.status == UserStatus.ACTIVE && user.status == UserStatus.NA)
       await this.activateUser(user);
+
+    await this.siftService.updateAccount(user);
+
     return this.userRepo.save({ ...user, ...update });
   }
 

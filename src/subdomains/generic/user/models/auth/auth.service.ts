@@ -114,7 +114,6 @@ export class AuthService {
 
     const user = await this.userRepo.getByAddress(dto.address, true);
     if (!user) throw new NotFoundException('User not found');
-    await this.siftService.createAccount(user);
     return this.doSignIn(user, dto, userIp, isCustodial);
   }
 
@@ -139,6 +138,8 @@ export class AuthService {
     } catch (e) {
       this.logger.warn(`Error while adding discountCode in user signIn ${user.id}:`, e);
     }
+
+    await this.siftService.login(user);
 
     return { accessToken: this.generateUserToken(user, userIp) };
   }
