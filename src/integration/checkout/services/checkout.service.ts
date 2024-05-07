@@ -79,7 +79,7 @@ export class CheckoutService {
   }
 
   async getBalances(): Promise<CheckoutBalance[]> {
-    const balance = await this.checkout.balances.retrieve(Config.checkout.ckoEntityId);
+    const balance = await this.checkout.balances.retrieve(Config.checkout.entityId);
     return balance.data;
   }
 }

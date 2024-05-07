@@ -27,9 +27,8 @@ export class CheckoutObserver extends MetricObserver<CheckoutData[]> {
   async fetch() {
     if (DisabledProcess(Process.MONITORING)) return;
 
-    let data = [];
+    const data = await this.getCheckout();
 
-    data = data.concat(await this.getCheckout());
     this.emit(data);
 
     return data;
@@ -40,15 +39,11 @@ export class CheckoutObserver extends MetricObserver<CheckoutData[]> {
   private async getCheckout(): Promise<CheckoutData[]> {
     const balances = await this.checkoutService.getBalances();
 
-    const checkoutData = [];
-    for (const balance of balances) {
-      checkoutData.push({
-        name: 'Checkout',
-        currency: balance.holding_currency,
-        balance: balance.balances,
-        description: balance.descriptor,
-      });
-    }
-    return checkoutData;
+    return balances.map((b) => ({
+      name: 'Checkout',
+      currency: b.holding_currency,
+      balance: b.balances,
+      description: b.descriptor,
+    }));
   }
 }

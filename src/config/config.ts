@@ -460,7 +460,7 @@ export class Configuration {
   };
 
   checkout = {
-    ckoEntityId: process.env.CKO_ENTITY_ID,
+    entityId: process.env.CKO_ENTITY_ID,
   };
 
   // --- GETTERS --- //

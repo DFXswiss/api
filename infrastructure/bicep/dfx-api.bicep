@@ -218,7 +218,7 @@ param ckoPublicKey string
 @secure()
 param ckoSecretKey string
 @secure()
-param ckoEntityId string
+param entityId string
 
 param delisenseJsonPath string
 @secure()
@@ -1040,7 +1040,7 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         }
         {
           name: 'CKO_ENTITY_ID'
-          value: ckoEntityId
+          value: entityId
         }
         {
           name: 'WEBSITE_RUN_FROM_PACKAGE'
