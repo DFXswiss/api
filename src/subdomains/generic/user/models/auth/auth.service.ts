@@ -376,6 +376,6 @@ export class AuthService {
   }
 
   private isMailKeyValid(entry: MailKeyData): boolean {
-    return entry && Util.secondsDiff(entry.created) <= Config.auth.challenge.expiresIn; // TODO
+    return entry && Util.minutesDiff(entry.created) <= Config.auth.mailLoginExpiresIn;
   }
 }
