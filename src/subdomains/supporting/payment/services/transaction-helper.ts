@@ -190,7 +190,7 @@ export class TransactionHelper implements OnModuleInit {
       targetAmount ?? sourceAmount,
       targetAmount ? to : from,
       discountCodes,
-      allowExpiredPrice,
+      true,
     );
 
     times.push(Date.now());
@@ -308,7 +308,7 @@ export class TransactionHelper implements OnModuleInit {
       to,
       txVolume: txVolumeInChf,
       discountCodes,
-      allowCachedBlockchainFee: allowCachedBlockchainFee,
+      allowCachedBlockchainFee,
     };
 
     return user ? this.feeService.getUserFee(feeRequest) : this.feeService.getDefaultFee(feeRequest);

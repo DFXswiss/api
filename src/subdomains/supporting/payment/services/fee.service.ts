@@ -230,7 +230,8 @@ export class FeeService {
       const feeAmount = allowCached
         ? await this.blockchainFeeRepo.findOneCachedBy(`${active.id}`, where).then((fee) => fee?.amount)
         : await this.calculateBlockchainFee(active, false);
-      if (!feeAmount && !allowCached) throw new Error(`No blockchain fee found for asset ${active.id}`);
+      if (!feeAmount && !allowCached)
+        throw new Error(`No blockchain fee found for asset ${active.id} and allowCached: ${allowCached}`);
 
       return feeAmount ?? this.getBlockchainMaxFee(active.blockchain);
     } else {
@@ -342,14 +343,10 @@ export class FeeService {
   private async calculateBlockchainFee(asset: Asset, allowExpiredPrice: boolean, chf?: Fiat): Promise<number> {
     chf ??= await this.fiatService.getFiatByName('CHF');
 
-    try {
-      const { amount } = await this.payoutService.estimateBlockchainFee(asset);
-      const price = await this.pricingService.getPrice(asset, chf, allowExpiredPrice);
+    const { amount } = await this.payoutService.estimateBlockchainFee(asset);
+    const price = await this.pricingService.getPrice(asset, chf, allowExpiredPrice);
 
-      return price.convert(amount);
-    } catch (e) {
-      this.logger.error(`Failed to get blockchain fee of asset id ${asset.id}:`, e);
-    }
+    return price.convert(amount);
   }
 
   private async getBlockchainMaxFee(blockchain: Blockchain): Promise<number> {
