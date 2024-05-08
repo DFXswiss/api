@@ -3,7 +3,9 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Active, isAsset } from 'src/shared/models/active';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -77,17 +79,15 @@ export class FeeService {
 
     for (const blockchainFee of blockchainFees) {
       try {
-        const { asset, amount } = await this.payoutService.estimateBlockchainFee(blockchainFee.asset);
-        const price = await this.pricingService.getPrice(asset, chf, true);
-
-        blockchainFee.amount = price.convert(amount);
+        blockchainFee.amount = await this.calculateBlockchainFee(blockchainFee.asset, true, chf);
         blockchainFee.updated = new Date();
         await this.blockchainFeeRepo.save(blockchainFee);
       } catch (e) {
-        this.logger.error(`Failed to get fee of asset id ${blockchainFee.asset.id}:`, e);
+        this.logger.error(`Failed to update blockchain fee of asset id ${blockchainFee.asset.id}:`, e);
       }
     }
   }
+
   async createFee(dto: CreateFeeDto): Promise<Fee> {
     // check if exists
     const existing = await this.feeRepo.findOneBy({
@@ -227,12 +227,12 @@ export class FeeService {
         updated: MoreThan(Util.minutesBefore(FeeValidityMinutes)),
       };
 
-      const fee = allowCached
-        ? await this.blockchainFeeRepo.findOneCachedBy(`${active.id}`, where)
-        : await this.blockchainFeeRepo.findOneBy(where);
-      if (!fee && !allowCached) throw new Error(`No blockchain fee found for asset ${active.id}`);
+      const feeAmount = allowCached
+        ? await this.blockchainFeeRepo.findOneCachedBy(`${active.id}`, where).then((fee) => fee?.amount)
+        : await this.calculateBlockchainFee(active, false);
+      if (!feeAmount && !allowCached) throw new Error(`No blockchain fee found for asset ${active.id}`);
 
-      return fee?.amount ?? this.getBlockchainMaxFee(active.blockchain);
+      return feeAmount ?? this.getBlockchainMaxFee(active.blockchain);
     } else {
       return 0;
     }
@@ -337,6 +337,19 @@ export class FeeService {
         Config.maxBlockchainFee,
       ),
     };
+  }
+
+  private async calculateBlockchainFee(asset: Asset, allowExpiredPrice: boolean, chf?: Fiat): Promise<number> {
+    chf ??= await this.fiatService.getFiatByName('CHF');
+
+    try {
+      const { amount } = await this.payoutService.estimateBlockchainFee(asset);
+      const price = await this.pricingService.getPrice(asset, chf, allowExpiredPrice);
+
+      return price.convert(amount);
+    } catch (e) {
+      this.logger.error(`Failed to get blockchain fee of asset id ${asset.id}:`, e);
+    }
   }
 
   private async getBlockchainMaxFee(blockchain: Blockchain): Promise<number> {
