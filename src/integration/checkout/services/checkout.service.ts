@@ -6,6 +6,12 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { CheckoutHostedPayment, CheckoutLanguages, CheckoutPagedResponse, CheckoutPayment } from '../dto/checkout.dto';
 
+interface CheckoutBalance {
+  balances: { available: number; collateral: number; payable: number; pending: number };
+  descriptor: string;
+  holding_currency: string;
+}
+
 @Injectable()
 export class CheckoutService {
   private readonly reference = 'DFX';
@@ -70,5 +76,10 @@ export class CheckoutService {
     payments.reverse();
 
     return payments.filter((p) => !(new Date(p.requested_on) < since));
+  }
+
+  async getBalances(): Promise<CheckoutBalance[]> {
+    const balance = await this.checkout.balances.retrieve(Config.checkout.entityId);
+    return balance.data;
   }
 }

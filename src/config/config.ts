@@ -463,6 +463,10 @@ export class Configuration {
     apiKey: process.env.SIFT_API_KEY,
   };
 
+  checkout = {
+    entityId: process.env.CKO_ENTITY_ID,
+  };
+
   // --- GETTERS --- //
   url(version: Version = this.defaultVersion): string {
     const versionString = `v${version}`;
