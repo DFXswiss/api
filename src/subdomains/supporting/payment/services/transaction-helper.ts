@@ -173,7 +173,7 @@ export class TransactionHelper implements OnModuleInit {
     to: Active,
     paymentMethodIn: PaymentMethod,
     paymentMethodOut: PaymentMethod,
-    allowCachedBlockchainFee: boolean,
+    allowExpiredPrice: boolean,
     user?: User,
     discountCodes: string[] = [],
   ): Promise<TransactionDetails> {
@@ -190,7 +190,7 @@ export class TransactionHelper implements OnModuleInit {
       targetAmount ?? sourceAmount,
       targetAmount ? to : from,
       discountCodes,
-      allowCachedBlockchainFee,
+      allowExpiredPrice,
     );
 
     times.push(Date.now());
@@ -207,8 +207,8 @@ export class TransactionHelper implements OnModuleInit {
       },
     };
 
-    const sourceSpecs = await this.getSourceSpecs(from, extendedSpecs, allowCachedBlockchainFee);
-    const targetSpecs = await this.getTargetSpecs(to, extendedSpecs, allowCachedBlockchainFee);
+    const sourceSpecs = await this.getSourceSpecs(from, extendedSpecs, allowExpiredPrice);
+    const targetSpecs = await this.getTargetSpecs(to, extendedSpecs, allowExpiredPrice);
 
     times.push(Date.now());
 
@@ -221,7 +221,7 @@ export class TransactionHelper implements OnModuleInit {
       targetSpecs,
       from,
       to,
-      allowCachedBlockchainFee,
+      allowExpiredPrice,
     );
 
     times.push(Date.now());
@@ -229,7 +229,7 @@ export class TransactionHelper implements OnModuleInit {
     const txAmountChf = await this.getVolumeChfSince(
       target.sourceAmount,
       from,
-      allowCachedBlockchainFee,
+      allowExpiredPrice,
       Util.daysBefore(1),
       user ? [user] : undefined,
     );
