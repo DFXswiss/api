@@ -1,3 +1,4 @@
+import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { FeeDto } from '../fee.dto';
 import { QuoteError } from './quote-error.enum';
 
@@ -16,6 +17,7 @@ export interface TransactionDetails extends TargetEstimation {
   minVolumeTarget: number;
   maxVolume: number;
   maxVolumeTarget: number;
+  priceSteps: PriceStep[];
   isValid: boolean;
   error?: QuoteError;
 }

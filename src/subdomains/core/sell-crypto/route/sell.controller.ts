@@ -96,6 +96,7 @@ export class SellController {
       error,
       feeSource,
       feeTarget,
+      priceSteps,
     } = await this.transactionHelper.getTxDetails(
       sourceAmount,
       targetAmount,
@@ -120,6 +121,7 @@ export class SellController {
       feesTarget: feeTarget,
       maxVolume,
       maxVolumeTarget,
+      priceSteps,
       isValid,
       error,
     };
@@ -214,6 +216,7 @@ export class SellController {
       exactPrice,
       feeSource,
       feeTarget,
+      priceSteps,
     } = await this.transactionHelper.getTxDetails(
       dto.amount,
       dto.targetAmount,
@@ -239,6 +242,7 @@ export class SellController {
       exchangeRate,
       rate,
       exactPrice,
+      priceSteps,
       estimatedAmount,
       amount,
       currency: FiatDtoMapper.toDto(dto.currency),

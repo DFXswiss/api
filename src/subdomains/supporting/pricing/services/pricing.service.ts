@@ -8,7 +8,7 @@ import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from '../../notification/enums';
 import { NotificationService } from '../../notification/services/notification.service';
-import { Price } from '../domain/entities/price';
+import { Price, PriceStep } from '../domain/entities/price';
 import { PriceRule, PriceSource, Rule } from '../domain/entities/price-rule.entity';
 import { PriceInvalidException } from '../domain/exceptions/price-invalid.exception';
 import { PricingProvider } from '../domain/interfaces';
@@ -73,6 +73,8 @@ export class PricingService {
       ]);
 
       const price = Price.join(this.joinRules(fromRules), this.joinRules(toRules).invert());
+
+      price.addSteps([...(await this.getPriceSteps(fromRules)), ...(await this.getPriceSteps(toRules))]);
 
       if (!price.isValid && !allowExpired) {
         if (tryCount > 1) return await this.getPrice(from, to, allowExpired, tryCount - 1);
@@ -209,5 +211,20 @@ export class PricingService {
       .catch((e) => {
         throw new Error(`Failed to get price ${rule.asset} -> ${rule.reference} on ${rule.source}: ${e.message}`);
       });
+  }
+
+  private async getPriceSteps(rules: PriceRule[]): Promise<PriceStep[]> {
+    const priceSteps = [];
+
+    for (const rule of rules) {
+      priceSteps.push(await this.getPriceStep(rule));
+    }
+
+    return priceSteps;
+  }
+
+  private async getPriceStep(rule: PriceRule): Promise<PriceStep> {
+    const price = await this.getRulePrice(rule.rule);
+    return PriceStep.create(rule.rule.source, price.source, price.target, rule.currentPrice, rule.priceTimestamp);
   }
 }

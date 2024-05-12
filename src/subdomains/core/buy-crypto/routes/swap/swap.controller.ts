@@ -94,6 +94,7 @@ export class SwapController {
       error,
       feeSource,
       feeTarget,
+      priceSteps,
     } = await this.transactionHelper.getTxDetails(
       sourceAmount,
       targetAmount,
@@ -117,6 +118,7 @@ export class SwapController {
       maxVolumeTarget,
       fees: feeSource,
       feesTarget: feeTarget,
+      priceSteps,
       isValid,
       error,
     };
@@ -213,6 +215,7 @@ export class SwapController {
       exactPrice,
       feeSource,
       feeTarget,
+      priceSteps,
     } = await this.transactionHelper.getTxDetails(
       dto.amount,
       dto.targetAmount,
@@ -239,6 +242,7 @@ export class SwapController {
       exchangeRate,
       rate,
       exactPrice,
+      priceSteps,
       estimatedAmount,
       amount,
       targetAsset: AssetDtoMapper.toDto(dto.targetAsset),

@@ -97,6 +97,7 @@ export class BuyController {
       feeTarget,
       isValid,
       error,
+      priceSteps,
     } = await this.transactionHelper.getTxDetails(
       sourceAmount,
       targetAmount,
@@ -121,6 +122,7 @@ export class BuyController {
       maxVolumeTarget,
       fees: feeSource,
       feesTarget: feeTarget,
+      priceSteps,
       isValid,
       error,
     };
@@ -213,6 +215,7 @@ export class BuyController {
       exactPrice,
       feeSource,
       feeTarget,
+      priceSteps,
     } = await this.transactionHelper.getTxDetails(
       dto.amount,
       dto.targetAmount,
@@ -238,6 +241,7 @@ export class BuyController {
       exchangeRate,
       rate,
       exactPrice,
+      priceSteps,
       estimatedAmount,
       amount,
       asset: AssetDtoMapper.toDto(dto.asset),

@@ -21,7 +21,7 @@ import {
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
-import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { AmlReason } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
@@ -173,6 +173,9 @@ export class BuyCrypto extends IEntity {
   @ManyToOne(() => Asset, { eager: true, nullable: true })
   outputAsset: Asset;
 
+  @Column({ length: 'MAX', nullable: true })
+  priceSteps: string;
+
   // Transaction details
   @Column({ length: 256, nullable: true })
   txId: string;
@@ -204,7 +207,12 @@ export class BuyCrypto extends IEntity {
 
   calculateOutputReferenceAmount(price: Price): this {
     this.outputReferenceAmount = price.convert(this.inputReferenceAmountMinusFee, 8);
+    this.addPriceSteps(price.steps);
     return this;
+  }
+
+  addPriceSteps(steps: PriceStep[]): void {
+    this.priceSteps = JSON.stringify([...this.priceStepsObject, ...steps]);
   }
 
   assignCandidateBatch(batch: BuyCryptoBatch): this {
@@ -524,6 +532,10 @@ export class BuyCrypto extends IEntity {
 
   get inputMailTranslationKey(): MailTranslationKey {
     return this.isCryptoCryptoTransaction ? MailTranslationKey.CRYPTO_INPUT : MailTranslationKey.FIAT_INPUT;
+  }
+
+  get priceStepsObject(): PriceStep[] {
+    return this.priceSteps ? JSON.parse(this.priceSteps) : [];
   }
 
   // --- HELPER METHODS --- //
