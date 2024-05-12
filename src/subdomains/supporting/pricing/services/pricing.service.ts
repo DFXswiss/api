@@ -74,7 +74,7 @@ export class PricingService {
 
       const price = Price.join(this.joinRules(fromRules), this.joinRules(toRules).invert());
 
-      price.addSteps([...(await this.getPriceSteps(fromRules)), ...(await this.getPriceSteps(toRules))]);
+      price.addSteps([...(await this.getPriceSteps(fromRules, from)), ...(await this.getPriceSteps(toRules, from))]);
 
       if (!price.isValid && !allowExpired) {
         if (tryCount > 1) return await this.getPrice(from, to, allowExpired, tryCount - 1);
@@ -213,10 +213,11 @@ export class PricingService {
       });
   }
 
-  private async getPriceSteps(rules: PriceRule[]): Promise<PriceStep[]> {
+  private async getPriceSteps(rules: PriceRule[], from: Active): Promise<PriceStep[]> {
     const priceSteps = [];
 
     for (const rule of rules) {
+      if (activesEqual(from, rule.reference)) continue;
       priceSteps.push(await this.getPriceStep(rule));
     }
 
