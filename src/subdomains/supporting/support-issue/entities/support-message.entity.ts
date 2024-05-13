@@ -1,6 +1,7 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, ManyToOne } from 'typeorm';
 import { SupportIssue } from './support-issue.entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 
 @Entity()
 export class SupportMessage extends IEntity {
@@ -15,4 +16,8 @@ export class SupportMessage extends IEntity {
 
   @ManyToOne(() => SupportIssue, (issue) => issue.messages, { nullable: false, eager: true })
   issue: SupportIssue;
+
+  get userData(): UserData {
+    return this.issue.userData;
+  }
 }

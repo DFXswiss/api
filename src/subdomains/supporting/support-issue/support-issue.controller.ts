@@ -37,7 +37,8 @@ export class SupportIssueController {
   ): Promise<void> {
     return this.supportIssueService.createSupportMessage(
       +id,
-      jwt.role === UserRole.SUPPORT || jwt.role === UserRole.ADMIN ? dto : { ...dto, author: 'Customer' },
+      [UserRole.SUPPORT, UserRole.ADMIN].includes(jwt.role) ? dto : { ...dto, author: 'Customer' },
+      jwt.id,
     );
   }
 

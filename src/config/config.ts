@@ -168,6 +168,11 @@ export class Configuration {
       mailAddress: process.env.BLACK_SQUAD_MAIL,
       mailBanner: process.env.BLACK_SQUAD_BANNER,
     },
+    message: {
+      mailName: process.env.SUPPORT_MESSAGE_NAME,
+      mailAddress: process.env.SUPPORT_MESSAGE_MAIL,
+      mailBanner: process.env.SUPPORT_MESSAGE_BANNER,
+    },
   };
 
   letter = {

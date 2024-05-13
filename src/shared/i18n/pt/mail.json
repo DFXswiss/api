@@ -184,6 +184,10 @@
         "title": "Transaction volume approved",
         "message": "Your request of {limitAmount} EUR transaction volume has been approved and is now freely available to you."
     },
+    "support_message": {
+        "title": "New support message",
+        "message": "{supportMessage}"
+    },
     "black_squad": {
         "title": "Invitation Black Squad",
         "line1": "first of all I would like to introduce myself. My name is Oli and I am CMO at DFX.swiss.",

@@ -46,7 +46,7 @@ export class SupportIssueService {
 
     entity = await this.supportIssueRepo.save(entity);
 
-    await this.createSupportMessage(entity.id, dto);
+    await this.createSupportMessage(entity.id, dto, userId);
   }
 
   async updateSupportIssue(id: number, dto: UpdateSupportIssueDto): Promise<SupportIssue> {
@@ -58,7 +58,7 @@ export class SupportIssueService {
     return this.supportIssueRepo.save(entity);
   }
 
-  async createSupportMessage(id: number, dto: CreateSupportMessageDto): Promise<void> {
+  async createSupportMessage(id: number, dto: CreateSupportMessageDto, userId: number): Promise<void> {
     const existing = await this.messageRepo.findOneBy({
       message: dto.message,
       issue: { id },
@@ -72,6 +72,9 @@ export class SupportIssueService {
       relations: { transaction: { user: { userData: true } } },
     });
     if (!entity.issue) throw new NotFoundException('Support issue not found');
+
+    if (dto.author === 'Customer' && entity.issue.user.id !== userId)
+      throw new BadRequestException('You can only create support messages for your own transaction');
 
     // upload document proof
     if (dto.file) {

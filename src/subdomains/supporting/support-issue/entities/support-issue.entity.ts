@@ -1,4 +1,6 @@
 import { IEntity } from 'src/shared/models/entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { Transaction } from '../../payment/entities/transaction.entity';
 import { SupportMessage } from './support-message.entity';
@@ -43,4 +45,12 @@ export class SupportIssue extends IEntity {
 
   @OneToMany(() => SupportMessage, (supportMessage) => supportMessage.issue)
   messages: SupportMessage[];
+
+  get user(): User {
+    return this.transaction.user;
+  }
+
+  get userData(): UserData {
+    return this.user.userData;
+  }
 }
