@@ -49,7 +49,7 @@ export class SupportIssueService {
 
     entity = await this.supportIssueRepo.save(entity);
 
-    await this.createSupportMessage(entity.id, dto, userId);
+    await this.createSupportMessage(entity.id, { ...dto, author: CustomerAuthor }, userId);
   }
 
   async updateSupportIssue(id: number, dto: UpdateSupportIssueDto): Promise<SupportIssue> {
