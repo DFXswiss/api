@@ -76,7 +76,9 @@ export class SupportIssueService {
     });
     if (!entity.issue) throw new NotFoundException('Support issue not found');
 
-    if (dto.author === CustomerAuthor && entity.issue.user.id !== userId)
+    const user = await this.userService.getUser(userId, { userData: true });
+
+    if (dto.author === CustomerAuthor && entity.userData.id !== user.userData.id)
       throw new ForbiddenException('You can only create support messages for your own transaction');
 
     // upload document proof
