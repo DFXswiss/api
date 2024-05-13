@@ -2,6 +2,7 @@ import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
+import { SiftService } from 'src/integration/sift/services/sift.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -22,6 +23,7 @@ describe('UserService', () => {
   let countryService: CountryService;
   let cryptoService: CryptoService;
   let feeService: FeeService;
+  let siftService: SiftService;
 
   beforeEach(async () => {
     userRepo = createMock<UserRepository>();
@@ -32,6 +34,7 @@ describe('UserService', () => {
     countryService = createMock<CountryService>();
     cryptoService = createMock<CryptoService>();
     feeService = createMock<FeeService>();
+    siftService = createMock<SiftService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -44,6 +47,7 @@ describe('UserService', () => {
         { provide: CountryService, useValue: countryService },
         { provide: CryptoService, useValue: cryptoService },
         { provide: FeeService, useValue: feeService },
+        { provide: SiftService, useValue: siftService },
         TestUtil.provideConfig(),
       ],
     }).compile();
