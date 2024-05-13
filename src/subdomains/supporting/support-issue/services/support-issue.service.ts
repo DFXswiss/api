@@ -16,6 +16,7 @@ import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
 import { SupportIssue, SupportIssueType } from '../entities/support-issue.entity';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportMessageRepository } from '../repositories/support-message.repository';
+import { SupportIssueNotificationService } from './support-issue-notification.service';
 
 @Injectable()
 export class SupportIssueService {
@@ -25,6 +26,7 @@ export class SupportIssueService {
     private readonly storageService: DocumentStorageService,
     private readonly userService: UserService,
     private readonly messageRepo: SupportMessageRepository,
+    private readonly supportIssueNotificationService: SupportIssueNotificationService,
   ) {}
 
   async createTransactionIssue(userId: number, transactionId: number, dto: CreateTransactionIssueDto): Promise<void> {
@@ -90,5 +92,7 @@ export class SupportIssueService {
     }
 
     await this.messageRepo.save(entity);
+
+    if (dto.author !== 'Customer') await this.supportIssueNotificationService.newSupportMessage(entity);
   }
 }
