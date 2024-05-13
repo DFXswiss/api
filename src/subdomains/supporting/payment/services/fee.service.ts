@@ -230,8 +230,7 @@ export class FeeService {
       const feeAmount = allowCached
         ? await this.blockchainFeeRepo.findOneCachedBy(`${active.id}`, where).then((fee) => fee?.amount)
         : await this.calculateBlockchainFee(active, false);
-      if (!feeAmount && !allowCached)
-        throw new Error(`No blockchain fee found for asset ${active.id} and allowCached: ${allowCached}`);
+      if (!feeAmount && !allowCached) throw new Error(`No blockchain fee found for asset ${active.id}`);
 
       return feeAmount ?? this.getBlockchainMaxFee(active.blockchain);
     } else {
