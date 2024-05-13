@@ -337,7 +337,7 @@ export class UserService {
       to,
       txVolume: undefined,
       discountCodes: [],
-      allowBlockchainFeeFallback: true,
+      allowCachedBlockchainFee: true,
     });
   }
 
