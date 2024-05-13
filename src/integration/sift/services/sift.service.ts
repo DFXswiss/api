@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { CreateAccount, EventType, SiftBase } from '../dto/sift.dto';
 
@@ -20,8 +21,11 @@ export class SiftService {
         $user_id: user.id.toString(),
         $referrer_user_id: user.ref,
         $ip: user.ip,
-        $time: Date.now(),
+        $time: user.created.getTime(),
+        $brand_name: user.wallet.name,
+        $site_country: 'CH',
         blockchain_address: user.address,
+        kyc_level: KycLevel.LEVEL_0,
       };
       await this.http.post(this.url, data);
     } catch (error) {
@@ -29,30 +33,25 @@ export class SiftService {
     }
   }
 
-  async updateAccount(user: User): Promise<void> {
+  async updateAccount(data: CreateAccount): Promise<void> {
+    data.$type = EventType.CREATE_ACCOUNT;
+    data.$api_key = Config.sift.apiKey;
+    data.$time = Date.now();
+
     try {
-      const data: CreateAccount = {
-        $type: EventType.UPDATE_ACCOUNT,
-        $api_key: Config.sift.apiKey,
-        $user_id: user.id.toString(),
-        $referrer_user_id: user.ref,
-        $ip: user.ip,
-        $time: Date.now(),
-        blockchain_address: user.address,
-      };
       await this.http.post(this.url, data);
     } catch (error) {
       this.logger.error('Error during account creation', error);
     }
   }
 
-  async login(user: User): Promise<void> {
+  async login(user: User, ip: string): Promise<void> {
     try {
       const data: SiftBase = {
         $type: EventType.LOGIN,
         $api_key: Config.sift.apiKey,
         $user_id: user.id.toString(),
-        $ip: user.ip,
+        $ip: ip,
         $time: Date.now(),
       };
       await this.http.post(this.url, data);

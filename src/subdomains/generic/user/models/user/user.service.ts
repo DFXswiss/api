@@ -9,7 +9,6 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Environment } from 'src/config/config';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
-import { SiftService } from 'src/integration/sift/services/sift.service';
 import { Active } from 'src/shared/models/active';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
@@ -55,7 +54,6 @@ export class UserService {
     private readonly geoLocationService: GeoLocationService,
     private readonly countryService: CountryService,
     private readonly feeService: FeeService,
-    private readonly siftService: SiftService,
   ) {}
 
   async getAllUser(): Promise<User[]> {
@@ -173,39 +171,47 @@ export class UserService {
     return user;
   }
 
-  async updateUser(id: number, dto: UpdateUserDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
+  async updateUser(
+    id: number,
+    dto: UpdateUserDto,
+    userIp: string,
+  ): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
     let user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users', 'wallet'] });
     if (!user) throw new NotFoundException('User not found');
 
     // update
     user = await this.userRepo.save({ ...user, ...dto });
-    const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(user.userData, dto);
+    const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(user.userData, dto, userIp);
     user.userData = update;
 
     return { user: await this.toDto(user, true), isKnownUser };
   }
 
-  async updateUserName(id: number, dto: UserNameDto): Promise<void> {
+  async updateUserName(id: number, dto: UserNameDto, ip: string): Promise<void> {
     const user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
     if (user.userData.kycLevel >= KycLevel.LEVEL_20) throw new BadRequestException('KYC already started');
 
-    await this.siftService.updateAccount(user);
-
-    await this.userDataService.updateUserName(user.userData, dto);
+    await this.userDataService.updateUserName(user.userData, dto, ip);
   }
 
-  async updateUserData(id: number, dto: KycInputDataDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
+  async updateUserData(
+    id: number,
+    dto: KycInputDataDto,
+    userIp: string,
+  ): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
     const user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users', 'wallet'] });
     if (user.userData.kycLevel !== KycLevel.LEVEL_0) throw new BadRequestException('KYC already started');
 
-    user.userData = await this.userDataService.updateKycData(user.userData, KycDataMapper.toUserData(dto));
+    user.userData = await this.userDataService.updateKycData(user.userData, KycDataMapper.toUserData(dto), userIp);
 
-    const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(user.userData, {
-      mail: dto.mail,
-    });
+    const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(
+      user.userData,
+      {
+        mail: dto.mail,
+      },
+      userIp,
+    );
     user.userData = update;
-
-    await this.siftService.updateAccount(user);
 
     return { user: await this.toDto(user, true), isKnownUser };
   }
@@ -216,8 +222,6 @@ export class UserService {
 
     if (update.status && update.status == UserStatus.ACTIVE && user.status == UserStatus.NA)
       await this.activateUser(user);
-
-    await this.siftService.updateAccount(user);
 
     return this.userRepo.save({ ...user, ...update });
   }

@@ -139,7 +139,7 @@ export class AuthService {
       this.logger.warn(`Error while adding discountCode in user signIn ${user.id}:`, e);
     }
 
-    await this.siftService.login(user);
+    await this.siftService.login(user, userIp);
 
     return { accessToken: this.generateUserToken(user, userIp) };
   }

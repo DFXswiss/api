@@ -5,20 +5,22 @@ export enum EventType {
 }
 
 export interface SiftBase {
-  $type: EventType;
-  $api_key: string;
-  $user_id: string;
+  $type?: EventType;
+  $api_key?: string;
+  $user_id?: string;
   $ip: string;
-  $time: number;
-  $session_id?: string;
+  $time?: number;
 }
 
 export interface CreateAccount extends SiftBase {
+  $session_id?: string;
   $user_email?: string;
   $verification_phone_number?: string;
   $name?: string;
   $phone?: string;
   $referrer_user_id?: string;
+  $brand_name?: string;
+  $site_country?: string;
   $payment_methods?: [
     {
       $payment_type?: string;
@@ -86,5 +88,6 @@ export interface CreateAccount extends SiftBase {
   };
 
   //Custom fields
-  blockchain_address: string;
+  blockchain_address?: string;
+  kyc_level?: number;
 }

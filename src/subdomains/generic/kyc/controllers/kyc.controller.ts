@@ -109,8 +109,9 @@ export class KycController {
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycContactData,
+    @RealIP() ip: string,
   ): Promise<KycResultDto> {
-    return this.kycService.updateContactData(code, +id, data);
+    return this.kycService.updateContactData(code, +id, data, ip);
   }
 
   @Put('data/personal/:id')
@@ -120,8 +121,9 @@ export class KycController {
     @Headers(CodeHeaderName) code: string,
     @Param('id') id: string,
     @Body() data: KycPersonalData,
+    @RealIP() ip: string,
   ): Promise<KycResultDto> {
-    return this.kycService.updatePersonalData(code, +id, data);
+    return this.kycService.updatePersonalData(code, +id, data, ip);
   }
 
   @Get('data/financial/:id')

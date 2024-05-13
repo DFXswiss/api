@@ -1046,7 +1046,7 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: ckoEntityId
         }
         {
-          name: 'CKO_ENTITY_ID'
+          name: 'SIFT_API_KEY'
           value: siftApiKey
         }
         {

@@ -75,8 +75,9 @@ export class UserController {
     @GetJwt() jwt: JwtPayload,
     @Body() newUser: UpdateUserDto,
     @Res({ passthrough: true }) res: Response,
+    @RealIP() ip: string,
   ): Promise<UserDetailDto> {
-    const { user, isKnownUser } = await this.userService.updateUser(jwt.id, newUser);
+    const { user, isKnownUser } = await this.userService.updateUser(jwt.id, newUser, ip);
     if (isKnownUser) res.status(HttpStatus.ACCEPTED);
 
     return user;
@@ -109,8 +110,8 @@ export class UserController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
-  async updateUserName(@GetJwt() jwt: JwtPayload, @Body() data: UserNameDto): Promise<void> {
-    await this.userService.updateUserName(jwt.id, data);
+  async updateUserName(@GetJwt() jwt: JwtPayload, @Body() data: UserNameDto, @RealIP() ip: string): Promise<void> {
+    await this.userService.updateUserName(jwt.id, data, ip);
   }
 
   @Post('data')
@@ -122,8 +123,9 @@ export class UserController {
     @GetJwt() jwt: JwtPayload,
     @Body() data: KycInputDataDto,
     @Res({ passthrough: true }) res: Response,
+    @RealIP() ip: string,
   ): Promise<UserDetailDto> {
-    const { user, isKnownUser } = await this.userService.updateUserData(jwt.id, data);
+    const { user, isKnownUser } = await this.userService.updateUserData(jwt.id, data, ip);
     if (isKnownUser) res.status(HttpStatus.ACCEPTED);
 
     return user;
