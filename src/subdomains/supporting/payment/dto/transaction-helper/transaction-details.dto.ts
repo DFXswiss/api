@@ -8,6 +8,7 @@ export interface TargetEstimation {
   sourceAmount: number;
   estimatedAmount: number;
   exactPrice: boolean;
+  priceSteps: PriceStep[];
   feeSource: FeeDto;
   feeTarget: FeeDto;
 }
@@ -17,7 +18,6 @@ export interface TransactionDetails extends TargetEstimation {
   minVolumeTarget: number;
   maxVolume: number;
   maxVolumeTarget: number;
-  priceSteps: PriceStep[];
   isValid: boolean;
   error?: QuoteError;
 }

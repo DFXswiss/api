@@ -247,8 +247,6 @@ export class TransactionHelper implements OnModuleInit {
       user,
     );
 
-    const price = from && to ? await this.pricingService.getPrice(from, to, allowExpiredPrice) : null;
-
     if (Date.now() - times[0] > 300) {
       const timesString = times.map((t, i, a) => Util.round((t - (a[i - 1] ?? t)) / 1000, 3)).join(', ');
       this.logger.verbose(`${user ? 'Info' : 'Quote'} request times: ${timesString}`);
@@ -261,7 +259,6 @@ export class TransactionHelper implements OnModuleInit {
       maxVolume: sourceSpecs.volume.max ?? undefined,
       maxVolumeTarget: targetSpecs.volume.max ?? undefined,
       isValid: error == null,
-      priceSteps: price?.steps,
       error,
     };
   }
@@ -345,6 +342,7 @@ export class TransactionHelper implements OnModuleInit {
       sourceAmount: Util.roundReadable(sourceAmount, isFiat(from)),
       estimatedAmount: Util.roundReadable(targetAmount, isFiat(to)),
       exactPrice: price.isValid,
+      priceSteps: price.steps,
       feeSource: {
         rate: feeRate,
         ...sourceSpecs.fee,
