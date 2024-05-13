@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { CheckoutBalance, CheckoutService } from 'src/integration/checkout/services/checkout.service';
+import { CheckoutBalances, CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
@@ -10,7 +9,7 @@ import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.ser
 interface CheckoutData {
   name: string;
   currency: string;
-  balance: CheckoutBalance;
+  balance: CheckoutBalances;
   description: string;
 }
 
@@ -42,7 +41,7 @@ export class CheckoutObserver extends MetricObserver<CheckoutData[]> {
     return balances.map((b) => ({
       name: 'Checkout',
       currency: b.holding_currency,
-      balance: b.balance,
+      balance: b.balances,
       description: b.descriptor,
     }));
   }
