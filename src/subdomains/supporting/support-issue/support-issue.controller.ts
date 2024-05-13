@@ -9,6 +9,7 @@ import { CreateTransactionIssueDto } from './dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from './dto/create-support-message.dto';
 import { UpdateSupportIssueDto } from './dto/update-support-issue.dto';
 import { SupportIssue } from './entities/support-issue.entity';
+import { CustomerAuthor } from './entities/support-message.entity';
 import { SupportIssueService } from './services/support-issue.service';
 
 @ApiTags('Support')
@@ -37,7 +38,7 @@ export class SupportIssueController {
   ): Promise<void> {
     return this.supportIssueService.createSupportMessage(
       +id,
-      [UserRole.SUPPORT, UserRole.ADMIN].includes(jwt.role) ? dto : { ...dto, author: 'Customer' },
+      [UserRole.SUPPORT, UserRole.ADMIN].includes(jwt.role) ? dto : { ...dto, author: CustomerAuthor },
       jwt.id,
     );
   }

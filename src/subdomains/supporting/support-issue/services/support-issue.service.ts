@@ -14,6 +14,7 @@ import { CreateTransactionIssueDto } from '../dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
 import { SupportIssue, SupportIssueType } from '../entities/support-issue.entity';
+import { CustomerAuthor } from '../entities/support-message.entity';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportMessageRepository } from '../repositories/support-message.repository';
 import { SupportIssueNotificationService } from './support-issue-notification.service';
@@ -75,15 +76,15 @@ export class SupportIssueService {
     });
     if (!entity.issue) throw new NotFoundException('Support issue not found');
 
-    if (dto.author === 'Customer' && entity.issue.user.id !== userId)
-      throw new BadRequestException('You can only create support messages for your own transaction');
+    if (dto.author === CustomerAuthor && entity.issue.user.id !== userId)
+      throw new ForbiddenException('You can only create support messages for your own transaction');
 
     // upload document proof
     if (dto.file) {
       const { contentType, buffer } = Util.fromBase64(dto.file);
 
       entity.fileUrl = await this.storageService.uploadFile(
-        entity.issue.transaction.user.userData.id,
+        entity.userData.id,
         FileType.SUPPORT_ISSUE,
         `${Util.isoDateTime(new Date())}_support-issue_user-upload_${dto.fileName}`,
         buffer,
@@ -93,6 +94,6 @@ export class SupportIssueService {
 
     await this.messageRepo.save(entity);
 
-    if (dto.author !== 'Customer') await this.supportIssueNotificationService.newSupportMessage(entity);
+    if (dto.author !== CustomerAuthor) await this.supportIssueNotificationService.newSupportMessage(entity);
   }
 }

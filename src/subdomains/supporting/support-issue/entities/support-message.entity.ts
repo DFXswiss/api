@@ -1,7 +1,9 @@
 import { IEntity } from 'src/shared/models/entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Column, Entity, ManyToOne } from 'typeorm';
 import { SupportIssue } from './support-issue.entity';
-import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+
+export const CustomerAuthor = 'Customer';
 
 @Entity()
 export class SupportMessage extends IEntity {
