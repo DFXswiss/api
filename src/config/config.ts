@@ -459,6 +459,10 @@ export class Configuration {
     limitCheck: process.env.REQUEST_LIMIT_CHECK === 'true',
   };
 
+  checkout = {
+    entityId: process.env.CKO_ENTITY_ID,
+  };
+
   // --- GETTERS --- //
   url(version: Version = this.defaultVersion): string {
     const versionString = `v${version}`;

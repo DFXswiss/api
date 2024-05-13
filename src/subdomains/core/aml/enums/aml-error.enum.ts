@@ -48,7 +48,11 @@ export enum AmlErrorType {
 export const AmlErrorResult: {
   [b in AmlError]: { type: AmlErrorType; amlCheck: CheckStatus; amlReason: AmlReason };
 } = {
-  [AmlError.ASSET_NOT_BUYABLE]: null,
+  [AmlError.ASSET_NOT_BUYABLE]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.FAIL,
+    amlReason: AmlReason.ASSET_CURRENTLY_NOT_AVAILABLE,
+  },
   [AmlError.MIN_VOLUME_NOT_REACHED]: null,
   [AmlError.KYC_LEVEL_30_NOT_REACHED]: null,
   [AmlError.KYC_LEVEL_50_NOT_REACHED]: null,
