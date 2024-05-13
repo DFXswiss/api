@@ -38,4 +38,5 @@ export enum MailContext {
   PRICING = 'Pricing',
   LIQUIDITY_MANAGEMENT = 'LiquidityManagement',
   UNASSIGNED_TX = 'UnassignedTx',
+  SUPPORT_MESSAGE = 'SupportMessage',
 }

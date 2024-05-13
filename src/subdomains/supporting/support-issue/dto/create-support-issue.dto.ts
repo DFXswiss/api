@@ -1,26 +1,16 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
-import { SupportIssueReason } from '../support-issue.entity';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
+import { SupportIssueReason } from '../entities/support-issue.entity';
+import { CreateSupportMessageDto } from './create-support-message.dto';
 
-export class CreateTransactionIssueDto {
+export class CreateTransactionIssueDto extends CreateSupportMessageDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsEnum(SupportIssueReason)
   reason: SupportIssueReason;
 
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  description?: string;
-
-  @ApiPropertyOptional({ description: 'Base64 encoded file' })
-  @IsOptional()
-  @IsString()
-  file?: string;
-
-  @ApiPropertyOptional({ description: 'Name of the file' })
-  @ValidateIf((l: CreateTransactionIssueDto) => l.file != null)
+  @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  fileName?: string;
+  name: string;
 }
