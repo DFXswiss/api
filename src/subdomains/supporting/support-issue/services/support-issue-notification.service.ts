@@ -3,7 +3,7 @@ import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { MailContext, MailType } from '../../notification/enums';
-import { MailKey, MailTranslationKey } from '../../notification/factories/mail.factory';
+import { MailTranslationKey } from '../../notification/factories/mail.factory';
 import { NotificationService } from '../../notification/services/notification.service';
 import { SupportMessage } from '../entities/support-message.entity';
 
@@ -24,20 +24,8 @@ export class SupportIssueNotificationService {
             title: `${MailTranslationKey.SUPPORT_MESSAGE}.title`,
             prefix: [
               {
-                key: `${MailTranslationKey.GENERAL}.welcome`,
-                params: { name: entity.userData.firstname ?? entity.issue.name },
-              },
-              { key: MailKey.SPACE, params: { value: '2' } },
-              {
                 key: `${MailTranslationKey.SUPPORT_MESSAGE}.message`,
-                params: { supportMessage: entity.message },
-              },
-              { key: MailKey.SPACE, params: { value: '4' } },
-              { key: `${MailTranslationKey.GENERAL}.thanks` },
-              { key: MailKey.SPACE, params: { value: '2' } },
-              {
-                key: `${MailTranslationKey.GENERAL}.personal_closing`,
-                params: { closingName: entity.author },
+                params: { supportMessage: entity.message.split('\n').join('<br>') },
               },
             ],
             from: Config.support.message.mailAddress,

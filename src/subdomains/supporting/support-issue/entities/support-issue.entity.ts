@@ -31,14 +31,8 @@ export class SupportIssue extends IEntity {
   @Column({ length: 256, nullable: false })
   reason: SupportIssueReason;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 256, nullable: false })
   name: string;
-
-  @Column({ length: 'MAX', nullable: true })
-  description: string; // TODO: remove?
-
-  @Column({ length: 256, nullable: true })
-  fileUrl: string; // TODO: remove
 
   @ManyToOne(() => Transaction, (transaction) => transaction.supportIssues, { nullable: true, eager: true })
   transaction: Transaction;
