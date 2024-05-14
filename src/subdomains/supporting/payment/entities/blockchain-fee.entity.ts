@@ -9,5 +9,5 @@ export class BlockchainFee extends IEntity {
   asset: Asset;
 
   @Column({ type: 'float' })
-  amount: number; //CHF
+  amount: number; // CHF
 }

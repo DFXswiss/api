@@ -342,8 +342,8 @@ export class FeeService {
   private async calculateBlockchainFee(asset: Asset, allowExpiredPrice: boolean, chf?: Fiat): Promise<number> {
     chf ??= await this.fiatService.getFiatByName('CHF');
 
-    const { amount } = await this.payoutService.estimateBlockchainFee(asset);
-    const price = await this.pricingService.getPrice(asset, chf, allowExpiredPrice);
+    const { asset: feeAsset, amount } = await this.payoutService.estimateBlockchainFee(asset);
+    const price = await this.pricingService.getPrice(feeAsset, chf, allowExpiredPrice);
 
     return price.convert(amount);
   }
