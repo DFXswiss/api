@@ -40,5 +40,6 @@ export class KycStepMapper {
     [EntityStatus.COMPLETED]: DtoStatus.COMPLETED,
     [EntityStatus.CANCELED]: DtoStatus.FAILED,
     [EntityStatus.OUTDATED]: DtoStatus.OUTDATED,
+    [EntityStatus.INTERNAL_REVIEW]: DtoStatus.IN_REVIEW,
   };
 }

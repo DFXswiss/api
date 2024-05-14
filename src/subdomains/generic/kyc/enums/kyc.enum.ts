@@ -40,6 +40,7 @@ export enum KycStepStatus {
   FINISHED = 'Finished',
   CHECK_PENDING = 'CheckPending',
   IN_REVIEW = 'InReview',
+  INTERNAL_REVIEW = 'InternalReview',
   FAILED = 'Failed',
   COMPLETED = 'Completed',
   CANCELED = 'Canceled',

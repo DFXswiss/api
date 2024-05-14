@@ -8,7 +8,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { LessThan } from 'typeorm';
-import { KycLevel, UserData } from '../../user/models/user-data/user-data.entity';
+import { KycLevel, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { IdentStatus } from '../dto/ident.dto';
 import { IdentResultDto, IdentShortResult, getIdentReason, getIdentResult } from '../dto/input/ident-result.dto';
@@ -29,6 +29,19 @@ import { FinancialService } from './integration/financial.service';
 import { IdentService } from './integration/ident.service';
 import { KycNotificationService } from './kyc-notification.service';
 import { TfaService } from './tfa.service';
+
+export enum IdentCheckError {
+  USER_DATA_MERGED = 'UserDataMerged',
+  USER_DATA_BLOCKED = 'UserDataBlocked',
+  FIRST_NAME_NOT_MATCHING = 'FirstNameNotMatching',
+  LAST_NAME_NOT_MATCHING = 'LastNameNotMatching',
+  INVALID_TYPE = 'InvalidType',
+  IDENTIFICATION_NUMBER_MISSING = 'IdentificationNumberMissing',
+  INVALID_RESULT = 'InvalidResult',
+  VERIFIED_NAME_MISSING = 'VerifiedNameMissing',
+  FIRST_NAME_NOT_MATCHING_VERIFIED_NAME = 'FirstNameNotMatchingVerifiedName',
+  LAST_NAME_NOT_MATCHING_VERIFIED_NAME = 'LastNameNotMatchingVerifiedName',
+}
 
 @Injectable()
 export class KycService {
@@ -71,6 +84,75 @@ export class KycService {
 
       await this.kycNotificationService.identFailed(user, 'Identification session has expired');
     }
+  }
+
+  @Cron(CronExpression.EVERY_MINUTE)
+  async reviewIdentSteps(): Promise<void> {
+    if (DisabledProcess(Process.KYC)) return;
+
+    const entities = await this.kycStepRepo.find({
+      where: { name: KycStepName.IDENT, status: KycStepStatus.IN_REVIEW },
+      relations: { userData: true },
+    });
+
+    for (const entity of entities) {
+      const errors = this.getIdentCheckErrors(entity);
+
+      if (errors.includes(IdentCheckError.USER_DATA_BLOCKED) || errors.includes(IdentCheckError.USER_DATA_MERGED)) {
+        entity.cancel();
+      } else if (errors.includes(IdentCheckError.VERIFIED_NAME_MISSING) && errors.length === 1) {
+        entity.userData.verifiedName = `${entity.userData.firstname} ${entity.userData.surname}`;
+        entity.complete();
+      } else if (errors.length === 0) {
+        entity.complete();
+      } else {
+        entity.internalReview();
+      }
+
+      await this.createStepLog(entity.userData, entity);
+    }
+
+    await this.kycStepRepo.saveMany(entities);
+  }
+
+  private getIdentCheckErrors(entity: KycStep): IdentCheckError[] {
+    const errors = [];
+    const resultJson = JSON.parse(entity.result);
+
+    if (entity.userData.status === UserDataStatus.MERGED) errors.push(IdentCheckError.USER_DATA_MERGED);
+    if (entity.userData.status === UserDataStatus.BLOCKED) errors.push(IdentCheckError.USER_DATA_BLOCKED);
+
+    if (!Util.isSameName(entity.userData.firstname, resultJson.userdata?.firstname.value))
+      errors.push(IdentCheckError.FIRST_NAME_NOT_MATCHING);
+    if (
+      !Util.isSameName(
+        entity.userData.surname,
+        resultJson.userdata?.lastname.value ?? resultJson.userData?.birthname.value,
+      )
+    )
+      errors.push(IdentCheckError.LAST_NAME_NOT_MATCHING);
+
+    if (resultJson.identificationprocess?.type !== 'IDCARD' && resultJson.identificationprocess?.type !== 'PASSPORT')
+      errors.push(IdentCheckError.INVALID_TYPE);
+
+    if (!resultJson.identificationdocument?.number) errors.push(IdentCheckError.IDENTIFICATION_NUMBER_MISSING);
+
+    if (
+      resultJson.identificationprocess?.result !== 'SUCCESS_DATA_CHANGED' &&
+      resultJson.identificationprocess?.result !== 'SUCCESS'
+    )
+      errors.push(IdentCheckError.INVALID_RESULT);
+
+    if (!entity.userData.verifiedName) {
+      errors.push(IdentCheckError.VERIFIED_NAME_MISSING);
+    } else {
+      if (!entity.userData.verifiedName.includes(entity.userData.firstname))
+        errors.push(IdentCheckError.FIRST_NAME_NOT_MATCHING_VERIFIED_NAME);
+      if (!entity.userData.verifiedName.includes(entity.userData.surname))
+        errors.push(IdentCheckError.LAST_NAME_NOT_MATCHING_VERIFIED_NAME);
+    }
+
+    return errors;
   }
 
   async getInfo(kycHash: string): Promise<KycLevelDto> {
