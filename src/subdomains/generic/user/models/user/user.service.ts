@@ -171,17 +171,13 @@ export class UserService {
     return user;
   }
 
-  async updateUser(
-    id: number,
-    dto: UpdateUserDto,
-    userIp: string,
-  ): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
+  async updateUser(id: number, dto: UpdateUserDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
     let user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users', 'wallet'] });
     if (!user) throw new NotFoundException('User not found');
 
     // update
     user = await this.userRepo.save({ ...user, ...dto });
-    const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(user.userData, dto, userIp);
+    const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(user.userData, dto);
     user.userData = update;
 
     return { user: await this.toDto(user, true), isKnownUser };
@@ -194,23 +190,15 @@ export class UserService {
     await this.userDataService.updateUserName(user.userData, dto, ip);
   }
 
-  async updateUserData(
-    id: number,
-    dto: KycInputDataDto,
-    userIp: string,
-  ): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
+  async updateUserData(id: number, dto: KycInputDataDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
     const user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users', 'wallet'] });
     if (user.userData.kycLevel !== KycLevel.LEVEL_0) throw new BadRequestException('KYC already started');
 
-    user.userData = await this.userDataService.updateKycData(user.userData, KycDataMapper.toUserData(dto), userIp);
+    user.userData = await this.userDataService.updateKycData(user.userData, KycDataMapper.toUserData(dto));
 
-    const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(
-      user.userData,
-      {
-        mail: dto.mail,
-      },
-      userIp,
-    );
+    const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(user.userData, {
+      mail: dto.mail,
+    });
     user.userData = update;
 
     return { user: await this.toDto(user, true), isKnownUser };

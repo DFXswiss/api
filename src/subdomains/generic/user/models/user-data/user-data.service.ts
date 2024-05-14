@@ -204,7 +204,7 @@ export class UserDataService {
     return userData;
   }
 
-  async updateKycData(userData: UserData, data: KycUserDataDto, userIp: string): Promise<UserData> {
+  async updateKycData(userData: UserData, data: KycUserDataDto): Promise<UserData> {
     const isPersonalAccount = (data.accountType ?? userData.accountType) === AccountType.PERSONAL;
 
     // check countries
@@ -231,7 +231,6 @@ export class UserDataService {
     for (const user of userData.users) {
       await this.siftService.updateAccount({
         $user_id: user.id.toString(),
-        $ip: userIp,
         $user_email: data.mail,
         $name: `${data.firstname} ${data.surname}`,
         $phone: data.phone,
@@ -269,7 +268,6 @@ export class UserDataService {
   async updateUserSettings(
     userData: UserData,
     dto: UpdateUserDto,
-    userIp: string,
     forceUpdate?: boolean,
   ): Promise<{ user: UserData; isKnownUser: boolean }> {
     // check phone & mail if KYC is already started
@@ -287,7 +285,7 @@ export class UserDataService {
 
     const mailChanged = dto.mail && dto.mail !== userData.mail;
 
-    const updateSiftAccount: CreateAccount = { $ip: userIp };
+    const updateSiftAccount: CreateAccount = {};
 
     if (dto.phone != userData.phone) updateSiftAccount.$phone = dto.phone;
     if (mailChanged) updateSiftAccount.$user_email = dto.mail;

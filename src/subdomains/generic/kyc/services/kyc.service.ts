@@ -115,16 +115,11 @@ export class KycService {
   }
 
   // --- UPDATE METHODS --- //
-  async updateContactData(
-    kycHash: string,
-    stepId: number,
-    data: KycContactData,
-    userIp: string,
-  ): Promise<KycResultDto> {
+  async updateContactData(kycHash: string, stepId: number, data: KycContactData): Promise<KycResultDto> {
     let user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
-    const { user: updatedUser, isKnownUser } = await this.userDataService.updateUserSettings(user, data, userIp, true);
+    const { user: updatedUser, isKnownUser } = await this.userDataService.updateUserSettings(user, data, true);
     user = isKnownUser ? updatedUser.failStep(kycStep, data) : updatedUser.completeStep(kycStep, data);
 
     await this.createStepLog(user, kycStep);
@@ -133,16 +128,11 @@ export class KycService {
     return { status: kycStep.status };
   }
 
-  async updatePersonalData(
-    kycHash: string,
-    stepId: number,
-    data: KycPersonalData,
-    userIp: string,
-  ): Promise<KycResultDto> {
+  async updatePersonalData(kycHash: string, stepId: number, data: KycPersonalData): Promise<KycResultDto> {
     let user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
 
-    user = await this.userDataService.updateKycData(user, KycDataMapper.toUserData(data), userIp);
+    user = await this.userDataService.updateKycData(user, KycDataMapper.toUserData(data));
 
     if (user.isDataComplete) {
       user = user.completeStep(kycStep, data);

@@ -251,7 +251,7 @@ export class SellController {
       error,
     };
 
-    void this.transactionRequestService.createTransactionRequest(TransactionRequestType.Sell, dto, sellDto);
+    void this.transactionRequestService.createTransactionRequest(TransactionRequestType.Sell, dto, sellDto, userId);
 
     return sellDto;
   }

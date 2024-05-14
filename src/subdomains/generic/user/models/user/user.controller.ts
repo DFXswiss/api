@@ -75,9 +75,8 @@ export class UserController {
     @GetJwt() jwt: JwtPayload,
     @Body() newUser: UpdateUserDto,
     @Res({ passthrough: true }) res: Response,
-    @RealIP() ip: string,
   ): Promise<UserDetailDto> {
-    const { user, isKnownUser } = await this.userService.updateUser(jwt.id, newUser, ip);
+    const { user, isKnownUser } = await this.userService.updateUser(jwt.id, newUser);
     if (isKnownUser) res.status(HttpStatus.ACCEPTED);
 
     return user;
@@ -123,9 +122,8 @@ export class UserController {
     @GetJwt() jwt: JwtPayload,
     @Body() data: KycInputDataDto,
     @Res({ passthrough: true }) res: Response,
-    @RealIP() ip: string,
   ): Promise<UserDetailDto> {
-    const { user, isKnownUser } = await this.userService.updateUserData(jwt.id, data, ip);
+    const { user, isKnownUser } = await this.userService.updateUserData(jwt.id, data);
     if (isKnownUser) res.status(HttpStatus.ACCEPTED);
 
     return user;

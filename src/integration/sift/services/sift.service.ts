@@ -4,7 +4,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { CreateAccount, EventType, SiftBase } from '../dto/sift.dto';
+import { CreateAccount, CreateOrder, EventType, SiftBase } from '../dto/sift.dto';
 
 @Injectable()
 export class SiftService {
@@ -54,6 +54,17 @@ export class SiftService {
         $ip: ip,
         $time: Date.now(),
       };
+      await this.http.post(this.url, data);
+    } catch (error) {
+      this.logger.error('Error during account creation', error);
+    }
+  }
+
+  async createOrder(data: CreateOrder): Promise<void> {
+    data.$type = EventType.CREATE_ORDER;
+    data.$api_key = Config.sift.apiKey;
+
+    try {
       await this.http.post(this.url, data);
     } catch (error) {
       this.logger.error('Error during account creation', error);

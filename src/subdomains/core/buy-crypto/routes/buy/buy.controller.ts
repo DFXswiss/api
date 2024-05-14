@@ -268,7 +268,7 @@ export class BuyController {
         !(user.status === UserStatus.ACTIVE || (Boolean(user.userData.firstname) && Boolean(user.userData.surname))),
     };
 
-    void this.transactionRequestService.createTransactionRequest(TransactionRequestType.Buy, dto, buyDto);
+    void this.transactionRequestService.createTransactionRequest(TransactionRequestType.Buy, dto, buyDto, user.id);
 
     return buyDto;
   }
