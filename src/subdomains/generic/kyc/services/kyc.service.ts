@@ -98,6 +98,8 @@ export class KycService {
     for (const entity of entities) {
       const errors = this.getIdentCheckErrors(entity);
 
+      entity.comment = errors.join(';');
+
       if (errors.includes(IdentCheckError.USER_DATA_BLOCKED) || errors.includes(IdentCheckError.USER_DATA_MERGED)) {
         entity.cancel();
       } else if (errors.includes(IdentCheckError.VERIFIED_NAME_MISSING) && errors.length === 1) {
