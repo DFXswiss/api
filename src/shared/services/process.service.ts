@@ -41,6 +41,7 @@ export enum Process {
   TX_MAIL = 'TxMail',
   TX_UNASSIGNED_MAIL = 'TxUnassignedMail',
   SYNCHRONIZE_MAIL_DATA = 'SynchronizeMailData',
+  BANK_DATA_VERIFICATION = 'BankDataVerification',
 }
 
 type ProcessMap = { [p in Process]?: boolean };
