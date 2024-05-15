@@ -464,6 +464,10 @@ export class Configuration {
     limitCheck: process.env.REQUEST_LIMIT_CHECK === 'true',
   };
 
+  sift = {
+    apiKey: process.env.SIFT_API_KEY,
+  };
+
   checkout = {
     entityId: process.env.CKO_ENTITY_ID,
   };

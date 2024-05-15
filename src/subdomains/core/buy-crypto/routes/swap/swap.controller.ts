@@ -255,7 +255,7 @@ export class SwapController {
       error,
     };
 
-    void this.transactionRequestService.createTransactionRequest(TransactionRequestType.Convert, dto, swapDto);
+    void this.transactionRequestService.createTransactionRequest(TransactionRequestType.Swap, dto, swapDto, user.id);
 
     return swapDto;
   }

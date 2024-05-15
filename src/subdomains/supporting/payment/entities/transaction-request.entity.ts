@@ -6,7 +6,7 @@ import { QuoteError } from '../dto/transaction-helper/quote-error.enum';
 export enum TransactionRequestType {
   Buy = 'Buy',
   Sell = 'Sell',
-  Convert = 'Convert',
+  Swap = 'Swap',
 }
 
 @Entity()
