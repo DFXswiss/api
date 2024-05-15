@@ -19,6 +19,13 @@ import { TransactionRequestRepository } from '../repositories/transaction-reques
 export class TransactionRequestService {
   private readonly logger = new DfxLogger(TransactionRequestService);
 
+  PaymentMethodMap: { [method in PaymentMethod]: PaymentType } = {
+    [FiatPaymentMethod.BANK]: PaymentType.SEPA_CREDIT,
+    [FiatPaymentMethod.INSTANT]: PaymentType.SEPA_INSTANT_CREDIT,
+    [FiatPaymentMethod.CARD]: PaymentType.CREDIT_CARD,
+    [CryptoPaymentMethod.CRYPTO]: PaymentType.CRYPTO_CURRENCY,
+  };
+
   constructor(
     private readonly transactionRequestRepo: TransactionRequestRepository,
     private readonly siftService: SiftService,
@@ -102,7 +109,7 @@ export class TransactionRequestService {
         $amount: transactionRequest.amount,
         $currency_code: sourceCurrencyName,
         $site_country: 'CH',
-        $payment_methods: [{ $payment_type: this.getPaymentType(transactionRequest.sourcePaymentMethod) }],
+        $payment_methods: [{ $payment_type: this.PaymentMethodMap[transactionRequest.sourcePaymentMethod] }],
         $digital_orders: [
           {
             $digital_asset: targetCurrencyName,
@@ -120,21 +127,6 @@ export class TransactionRequestService {
         )}, response was ${JSON.stringify(response)}:`,
         e,
       );
-    }
-  }
-
-  getPaymentType(fiatPaymentMethod: PaymentMethod): PaymentType {
-    switch (fiatPaymentMethod) {
-      case FiatPaymentMethod.BANK:
-        return PaymentType.SEPA_CREDIT;
-      case FiatPaymentMethod.INSTANT:
-        return PaymentType.SEPA_INSTANT_CREDIT;
-      case FiatPaymentMethod.CARD:
-        return PaymentType.CREDIT_CARD;
-      case CryptoPaymentMethod.CRYPTO:
-        return PaymentType.CRYPTO_CURRENCY;
-      default:
-        throw new Error(`No payment type for fiat payment ${fiatPaymentMethod}`);
     }
   }
 

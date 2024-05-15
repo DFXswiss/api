@@ -183,11 +183,11 @@ export class UserService {
     return { user: await this.toDto(user, true), isKnownUser };
   }
 
-  async updateUserName(id: number, dto: UserNameDto, ip: string): Promise<void> {
+  async updateUserName(id: number, dto: UserNameDto): Promise<void> {
     const user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
     if (user.userData.kycLevel >= KycLevel.LEVEL_20) throw new BadRequestException('KYC already started');
 
-    await this.userDataService.updateUserName(user.userData, dto, ip);
+    await this.userDataService.updateUserName(user.userData, dto);
   }
 
   async updateUserData(id: number, dto: KycInputDataDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {

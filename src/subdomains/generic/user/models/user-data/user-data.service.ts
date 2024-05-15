@@ -236,13 +236,12 @@ export class UserDataService {
         $phone: data.phone,
         $billing_address: {
           $name: `${data.firstname} ${data.surname}`,
-          $address_1: data.street,
+          $address_1: `${data.street} ${data.houseNumber}`,
           $city: data.location,
           $phone: data.phone,
           $country: country.name,
           $zipcode: data.zip,
         },
-        kyc_level: userData.kycLevel,
       });
     }
 
@@ -253,12 +252,11 @@ export class UserDataService {
     await this.userDataRepo.update(user.id, { totpSecret: secret });
   }
 
-  async updateUserName(userData: UserData, dto: UserNameDto, ip: string) {
+  async updateUserName(userData: UserData, dto: UserNameDto) {
     for (const user of userData.users) {
       await this.siftService.updateAccount({
         $user_id: user.id.toString(),
         $name: `${dto.firstName} ${dto.lastName}`,
-        $ip: ip,
       } as CreateAccount);
     }
 
@@ -287,7 +285,7 @@ export class UserDataService {
 
     const updateSiftAccount: CreateAccount = {};
 
-    if (dto.phone != userData.phone) updateSiftAccount.$phone = dto.phone;
+    if (dto.phone && dto.phone !== userData.phone) updateSiftAccount.$phone = dto.phone;
     if (mailChanged) updateSiftAccount.$user_email = dto.mail;
 
     for (const user of userData.users) {

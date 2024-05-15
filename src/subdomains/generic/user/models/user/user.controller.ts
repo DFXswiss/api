@@ -109,8 +109,8 @@ export class UserController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
-  async updateUserName(@GetJwt() jwt: JwtPayload, @Body() data: UserNameDto, @RealIP() ip: string): Promise<void> {
-    await this.userService.updateUserName(jwt.id, data, ip);
+  async updateUserName(@GetJwt() jwt: JwtPayload, @Body() data: UserNameDto): Promise<void> {
+    await this.userService.updateUserName(jwt.id, data);
   }
 
   @Post('data')
