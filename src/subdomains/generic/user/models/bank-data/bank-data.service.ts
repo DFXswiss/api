@@ -43,17 +43,12 @@ export class BankDataService {
       const errors = this.getBankDataVerificationErrors(entity, existing);
 
       if (errors.length === 0) {
-        if (existing?.type === BankDataType.BANK_IN) {
+        if (!existing) {
+          await this.bankDataRepo.update(...entity.activate());
+        } else if (existing.type === BankDataType.BANK_IN || entity.type !== BankDataType.BANK_IN) {
           await this.bankDataRepo.update(...entity.deactivate(BankDataVerificationError.ALREADY_ACTIVE_EXISTS));
-        } else if (entity.type !== BankDataType.BANK_IN || !existing) {
-          await this.bankDataRepo.update(
-            ...(existing ? entity.deactivate(BankDataVerificationError.ALREADY_ACTIVE_EXISTS) : entity.activate()),
-          );
         } else {
-          const existingError = [
-            ...(existing?.comment?.split(';') ?? []),
-            BankDataVerificationError.NEW_BANK_IN_ACTIVE,
-          ];
+          const existingError = [...(existing.comment?.split(';') ?? []), BankDataVerificationError.NEW_BANK_IN_ACTIVE];
 
           await this.bankDataRepo.update(...existing.deactivate(existingError.join(';')));
           await this.bankDataRepo.update(...entity.activate());
