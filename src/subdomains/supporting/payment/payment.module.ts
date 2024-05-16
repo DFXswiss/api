@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { SiftModule } from 'src/integration/sift/sift.module';
 import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.module';
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
@@ -32,6 +33,7 @@ import { TransactionModule } from './transaction.module';
     forwardRef(() => SellCryptoModule),
     forwardRef(() => BuyCryptoModule),
     TransactionModule,
+    SiftModule,
   ],
   controllers: [FeeController],
   providers: [

@@ -86,8 +86,8 @@ export class TransactionHelper implements OnModuleInit {
     return this.convert(spec.minVolume, price, isFiat(to));
   }
 
-  async getBlockchainFee(asset: Active, allowExpiredPrice: boolean): Promise<number> {
-    return this.feeService.getBlockchainFee(asset, allowExpiredPrice);
+  async getBlockchainFee(asset: Active, allowCachedBlockchainFee: boolean): Promise<number> {
+    return this.feeService.getBlockchainFee(asset, allowCachedBlockchainFee);
   }
 
   getMinSpecs(from: Active, to: Active): TxMinSpec {
@@ -190,7 +190,7 @@ export class TransactionHelper implements OnModuleInit {
       targetAmount ?? sourceAmount,
       targetAmount ? to : from,
       discountCodes,
-      allowExpiredPrice,
+      true,
     );
 
     times.push(Date.now());
@@ -294,7 +294,7 @@ export class TransactionHelper implements OnModuleInit {
     txVolume: number,
     txAsset: Active,
     discountCodes: string[],
-    allowExpiredPrice: boolean,
+    allowCachedBlockchainFee: boolean,
   ): Promise<InternalFeeDto> {
     const price = await this.pricingService.getPrice(txAsset, this.chf, true);
 
@@ -308,7 +308,7 @@ export class TransactionHelper implements OnModuleInit {
       to,
       txVolume: txVolumeInChf,
       discountCodes,
-      allowBlockchainFeeFallback: allowExpiredPrice,
+      allowCachedBlockchainFee,
     };
 
     return user ? this.feeService.getUserFee(feeRequest) : this.feeService.getDefaultFee(feeRequest);

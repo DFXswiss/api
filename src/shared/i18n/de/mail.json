@@ -184,6 +184,10 @@
         "title": "Transaktionsvolumen genehmigt",
         "message": "Deine Anfrage von {limitAmount} EUR Transaktionsvolumen wurde genehmigt und steht dir nun frei zur Verfügung."
     },
+    "support_message": {
+        "title": "Neue Support Nachricht",
+        "message": "{supportMessage}"
+    },
     "black_squad": {
         "title": "Einladung Black Squad",
         "line1": "zunächst möchte ich mich kurz vorstellen. Mein Name ist Oli und ich bin CMO bei DFX.swiss.",

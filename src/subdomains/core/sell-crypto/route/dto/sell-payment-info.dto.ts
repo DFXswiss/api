@@ -8,6 +8,9 @@ import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-he
 import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 
 export class SellPaymentInfoDto {
+  @ApiProperty({ description: 'Transaction request ID' })
+  id: number;
+
   @ApiProperty()
   routeId: number;
 

@@ -229,6 +229,7 @@ export class BuyController {
     const bankInfo = await this.getBankInfo(buy, { ...dto, amount });
 
     const buyDto: BuyPaymentInfoDto = {
+      id: 0, // set during request creation
       routeId: buy.id,
       fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
       minDeposit: { amount: minVolume, asset: dto.currency.name }, // TODO: remove
@@ -272,7 +273,7 @@ export class BuyController {
         !(user.status === UserStatus.ACTIVE || (Boolean(user.userData.firstname) && Boolean(user.userData.surname))),
     };
 
-    void this.transactionRequestService.createTransactionRequest(TransactionRequestType.Buy, dto, buyDto);
+    await this.transactionRequestService.createTransactionRequest(TransactionRequestType.Buy, dto, buyDto, user.id);
 
     return buyDto;
   }
