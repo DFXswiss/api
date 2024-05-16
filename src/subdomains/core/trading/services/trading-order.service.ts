@@ -80,7 +80,9 @@ export class TradingOrderService {
 
     const minAmount = order.amountIn / 2;
     if (availableAmount < minAmount) {
-      throw new Error(`Not enough liquidity: ${availableAmount} available, min. required ${minAmount}`);
+      throw new Error(
+        `Not enough liquidity of ${order.assetIn.uniqueName}: ${availableAmount} available, min. required ${minAmount}`,
+      );
     } else {
       liquidityRequest.referenceAmount = order.amountIn = Math.min(order.amountIn, availableAmount);
     }

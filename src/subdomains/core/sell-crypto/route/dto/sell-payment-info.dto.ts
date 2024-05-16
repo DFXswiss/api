@@ -7,6 +7,9 @@ import { MinAmount } from 'src/subdomains/supporting/payment/dto/transaction-hel
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 
 export class SellPaymentInfoDto {
+  @ApiProperty({ description: 'Transaction request ID' })
+  id: number;
+
   @ApiProperty()
   routeId: number;
 

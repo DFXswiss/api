@@ -100,7 +100,8 @@ export class TransactionRequestService {
       }
 
       // save
-      await this.transactionRequestRepo.save(transactionRequest);
+      const entity = await this.transactionRequestRepo.save(transactionRequest);
+      response.id = entity.id;
 
       // create order at sift
       await this.siftService.createOrder({
