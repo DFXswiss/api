@@ -225,6 +225,7 @@ export class SwapController {
     );
 
     const swapDto: SwapPaymentInfoDto = {
+      id: 0, // set during request creation
       routeId: swap.id,
       fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
       depositAddress: swap.deposit.address,
@@ -255,7 +256,7 @@ export class SwapController {
       error,
     };
 
-    void this.transactionRequestService.createTransactionRequest(TransactionRequestType.Convert, dto, swapDto);
+    await this.transactionRequestService.createTransactionRequest(TransactionRequestType.Swap, dto, swapDto, user.id);
 
     return swapDto;
   }

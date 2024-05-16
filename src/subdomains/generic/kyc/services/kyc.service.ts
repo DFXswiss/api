@@ -374,7 +374,10 @@ export class KycService {
 
     const user = await this.getUser(kycHash);
 
-    let step = sequence != null ? user.getStepsWith(name, type, sequence)[0] : user.getPendingStepWith(name, type);
+    let step =
+      sequence != null
+        ? user.getStepsWith(name, type, sequence)[0]
+        : user.getStepsWith(name, type).find((s) => s.isInProgress || s.isInReview);
     if (!step) {
       step = await this.initiateStep(user, name, type, true);
       user.nextStep(step);

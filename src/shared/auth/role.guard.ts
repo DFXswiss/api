@@ -10,6 +10,7 @@ export class RoleGuard implements CanActivate {
     [UserRole.BETA]: [UserRole.ADMIN],
     [UserRole.SUPPORT]: [UserRole.COMPLIANCE, UserRole.ADMIN],
     [UserRole.COMPLIANCE]: [UserRole.ADMIN],
+    [UserRole.BANKING_BOT]: [UserRole.ADMIN],
   };
 
   constructor(private readonly entryRole: UserRole) {}

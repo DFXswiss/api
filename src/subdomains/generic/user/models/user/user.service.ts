@@ -210,6 +210,7 @@ export class UserService {
 
     if (update.status && update.status == UserStatus.ACTIVE && user.status == UserStatus.NA)
       await this.activateUser(user);
+
     return this.userRepo.save({ ...user, ...update });
   }
 
@@ -337,7 +338,7 @@ export class UserService {
       to,
       txVolume: undefined,
       discountCodes: [],
-      allowBlockchainFeeFallback: true,
+      allowCachedBlockchainFee: true,
     });
   }
 
