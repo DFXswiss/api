@@ -210,6 +210,7 @@ export class UserService {
 
     if (update.status && update.status == UserStatus.ACTIVE && user.status == UserStatus.NA)
       await this.activateUser(user);
+
     return this.userRepo.save({ ...user, ...update });
   }
 
