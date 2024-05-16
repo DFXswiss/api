@@ -1,4 +1,9 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import {
+  CryptoPaymentMethod,
+  FiatPaymentMethod,
+  PaymentMethod,
+} from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 
 export enum EventType {
   CREATE_ACCOUNT = '$create_account',
@@ -831,3 +836,10 @@ export interface CreateOrder extends SiftBase {
   // custom field
   blockchain: Blockchain;
 }
+
+export const SiftPaymentMethodMap: { [method in PaymentMethod]: PaymentType } = {
+  [FiatPaymentMethod.BANK]: PaymentType.SEPA_CREDIT,
+  [FiatPaymentMethod.INSTANT]: PaymentType.SEPA_INSTANT_CREDIT,
+  [FiatPaymentMethod.CARD]: PaymentType.CREDIT_CARD,
+  [CryptoPaymentMethod.CRYPTO]: PaymentType.CRYPTO_CURRENCY,
+};

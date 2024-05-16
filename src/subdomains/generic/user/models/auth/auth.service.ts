@@ -114,6 +114,7 @@ export class AuthService {
 
     const user = await this.userRepo.getByAddress(dto.address, true);
     if (!user) throw new NotFoundException('User not found');
+
     return this.doSignIn(user, dto, userIp, isCustodial);
   }
 

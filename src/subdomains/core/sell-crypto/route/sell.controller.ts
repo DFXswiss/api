@@ -150,9 +150,9 @@ export class SellController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
   @ApiOkResponse({ type: TransactionDto })
   async confirmSell(
-    @GetJwt() jwt: JwtPayload,
-    @Param('id') id: string,
-    @Body() dto: ConfirmSellDto,
+    @GetJwt() _jwt: JwtPayload,
+    @Param('id') _id: string,
+    @Body() _dto: ConfirmSellDto,
   ): Promise<TransactionDto> {
     throw new NotImplementedException();
   }

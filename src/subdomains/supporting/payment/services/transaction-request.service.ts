@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { AssetType, CreateOrder, PaymentType } from 'src/integration/sift/dto/sift.dto';
+import { AssetType, CreateOrder, SiftPaymentMethodMap } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -11,20 +11,13 @@ import { SwapPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/swap/d
 import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/sell-payment-info.dto';
 import { MoreThan } from 'typeorm';
-import { CryptoPaymentMethod, FiatPaymentMethod, PaymentMethod } from '../dto/payment-method.enum';
+import { CryptoPaymentMethod, FiatPaymentMethod } from '../dto/payment-method.enum';
 import { TransactionRequest, TransactionRequestType } from '../entities/transaction-request.entity';
 import { TransactionRequestRepository } from '../repositories/transaction-request.repository';
 
 @Injectable()
 export class TransactionRequestService {
   private readonly logger = new DfxLogger(TransactionRequestService);
-
-  PaymentMethodMap: { [method in PaymentMethod]: PaymentType } = {
-    [FiatPaymentMethod.BANK]: PaymentType.SEPA_CREDIT,
-    [FiatPaymentMethod.INSTANT]: PaymentType.SEPA_INSTANT_CREDIT,
-    [FiatPaymentMethod.CARD]: PaymentType.CREDIT_CARD,
-    [CryptoPaymentMethod.CRYPTO]: PaymentType.CRYPTO_CURRENCY,
-  };
 
   constructor(
     private readonly transactionRequestRepo: TransactionRequestRepository,
@@ -100,17 +93,18 @@ export class TransactionRequestService {
       }
 
       // save
-      const entity = await this.transactionRequestRepo.save(transactionRequest);
-      response.id = entity.id;
+      await this.transactionRequestRepo.save(transactionRequest);
+      response.id = transactionRequest.id;
 
       // create order at sift
       await this.siftService.createOrder({
         $order_id: transactionRequest.id.toString(),
         $user_id: userId.toString(),
+        $time: transactionRequest.created.getTime(),
         $amount: transactionRequest.amount,
         $currency_code: sourceCurrencyName,
         $site_country: 'CH',
-        $payment_methods: [{ $payment_type: this.PaymentMethodMap[transactionRequest.sourcePaymentMethod] }],
+        $payment_methods: [{ $payment_type: SiftPaymentMethodMap[transactionRequest.sourcePaymentMethod] }],
         $digital_orders: [
           {
             $digital_asset: targetCurrencyName,
