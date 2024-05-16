@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, NotImplementedException, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
@@ -16,10 +16,12 @@ import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { TransactionDto } from 'src/subdomains/supporting/payment/dto/transaction.dto';
 import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { BuyFiatService } from '../process/services/buy-fiat.service';
+import { ConfirmSellDto } from './dto/confirm-sell.dto';
 import { CreateSellDto } from './dto/create-sell.dto';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { GetSellQuoteDto } from './dto/get-sell-quote.dto';
@@ -143,6 +145,18 @@ export class SellController {
     ).then((sell) => this.toPaymentInfoDto(jwt.id, sell, dto));
   }
 
+  @Put('/paymentInfos/:id/confirm')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
+  @ApiOkResponse({ type: TransactionDto })
+  async confirmSell(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: ConfirmSellDto,
+  ): Promise<TransactionDto> {
+    throw new NotImplementedException();
+  }
+
   @Put(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
@@ -226,6 +240,7 @@ export class SellController {
     );
 
     const sellDto: SellPaymentInfoDto = {
+      id: 0, // set during request creation
       routeId: sell.id,
       fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
       depositAddress: sell.deposit.address,
@@ -251,7 +266,7 @@ export class SellController {
       error,
     };
 
-    void this.transactionRequestService.createTransactionRequest(TransactionRequestType.Sell, dto, sellDto);
+    await this.transactionRequestService.createTransactionRequest(TransactionRequestType.Sell, dto, sellDto, user.id);
 
     return sellDto;
   }

@@ -73,13 +73,16 @@ export class TradingOrderService {
     };
 
     // adapt the amount if not enough liquidity (down to half)
-    const {
+    let {
       reference: { availableAmount },
     } = await this.dexService.checkLiquidity(liquidityRequest);
+    availableAmount *= 0.99; // 1% cap for rounding
 
     const minAmount = order.amountIn / 2;
     if (availableAmount < minAmount) {
-      throw new Error(`Not enough liquidity: ${availableAmount} available, min. required ${minAmount}`);
+      throw new Error(
+        `Not enough liquidity of ${order.assetIn.uniqueName}: ${availableAmount} available, min. required ${minAmount}`,
+      );
     } else {
       liquidityRequest.referenceAmount = order.amountIn = Math.min(order.amountIn, availableAmount);
     }

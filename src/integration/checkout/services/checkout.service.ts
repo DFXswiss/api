@@ -7,12 +7,12 @@ import { Language } from 'src/shared/models/language/language.entity';
 import { CheckoutHostedPayment, CheckoutLanguages, CheckoutPagedResponse, CheckoutPayment } from '../dto/checkout.dto';
 
 interface CheckoutBalanceData {
-  balance: CheckoutBalance;
+  balances: CheckoutBalances;
   descriptor: string;
   holding_currency: string;
 }
 
-export interface CheckoutBalance {
+export interface CheckoutBalances {
   available: number;
   collateral: number;
   payable: number;

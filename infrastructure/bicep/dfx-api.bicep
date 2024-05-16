@@ -220,6 +220,9 @@ param ckoSecretKey string
 @secure()
 param ckoEntityId string
 
+@secure()
+param siftApiKey string
+
 param delisenseJsonPath string
 @secure()
 param delisenseKey string
@@ -1041,6 +1044,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'CKO_ENTITY_ID'
           value: ckoEntityId
+        }
+        {
+          name: 'SIFT_API_KEY'
+          value: siftApiKey
         }
         {
           name: 'WEBSITE_RUN_FROM_PACKAGE'

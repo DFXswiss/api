@@ -1,4 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { AssetType, CreateOrder, PaymentType } from 'src/integration/sift/dto/sift.dto';
+import { SiftService } from 'src/integration/sift/services/sift.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { BuyPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
@@ -8,7 +11,7 @@ import { SwapPaymentInfoDto } from 'src/subdomains/core/buy-crypto/routes/swap/d
 import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/sell-payment-info.dto';
 import { MoreThan } from 'typeorm';
-import { CryptoPaymentMethod, FiatPaymentMethod } from '../dto/payment-method.enum';
+import { CryptoPaymentMethod, FiatPaymentMethod, PaymentMethod } from '../dto/payment-method.enum';
 import { TransactionRequest, TransactionRequestType } from '../entities/transaction-request.entity';
 import { TransactionRequestRepository } from '../repositories/transaction-request.repository';
 
@@ -16,12 +19,23 @@ import { TransactionRequestRepository } from '../repositories/transaction-reques
 export class TransactionRequestService {
   private readonly logger = new DfxLogger(TransactionRequestService);
 
-  constructor(private readonly transactionRequestRepo: TransactionRequestRepository) {}
+  PaymentMethodMap: { [method in PaymentMethod]: PaymentType } = {
+    [FiatPaymentMethod.BANK]: PaymentType.SEPA_CREDIT,
+    [FiatPaymentMethod.INSTANT]: PaymentType.SEPA_INSTANT_CREDIT,
+    [FiatPaymentMethod.CARD]: PaymentType.CREDIT_CARD,
+    [CryptoPaymentMethod.CRYPTO]: PaymentType.CRYPTO_CURRENCY,
+  };
+
+  constructor(
+    private readonly transactionRequestRepo: TransactionRequestRepository,
+    private readonly siftService: SiftService,
+  ) {}
 
   async createTransactionRequest(
     type: TransactionRequestType,
     request: GetBuyPaymentInfoDto | GetSellPaymentInfoDto | GetSwapPaymentInfoDto,
     response: BuyPaymentInfoDto | SellPaymentInfoDto | SwapPaymentInfoDto,
+    userId: number,
   ): Promise<void> {
     try {
       // create the entity
@@ -42,6 +56,10 @@ export class TransactionRequestService {
         totalFee: response.fees.total,
       });
 
+      let sourceCurrencyName: string;
+      let targetCurrencyName: string;
+      let blockchain: Blockchain;
+
       switch (type) {
         case TransactionRequestType.Buy:
           const buyRequest = request as GetBuyPaymentInfoDto;
@@ -52,6 +70,9 @@ export class TransactionRequestService {
           transactionRequest.sourceId = buyResponse.currency.id;
           transactionRequest.targetId = buyResponse.asset.id;
           transactionRequest.paymentLink = buyResponse.paymentLink;
+          sourceCurrencyName = buyResponse.currency.name;
+          targetCurrencyName = buyResponse.asset.name;
+          blockchain = buyResponse.asset.blockchain;
           break;
 
         case TransactionRequestType.Sell:
@@ -61,20 +82,45 @@ export class TransactionRequestService {
           transactionRequest.targetPaymentMethod = FiatPaymentMethod.BANK;
           transactionRequest.sourceId = sellResponse.asset.id;
           transactionRequest.targetId = sellResponse.currency.id;
+          sourceCurrencyName = sellResponse.asset.name;
+          targetCurrencyName = sellResponse.currency.name;
+          blockchain = sellResponse.asset.blockchain;
           break;
 
-        case TransactionRequestType.Convert:
+        case TransactionRequestType.Swap:
           const convertResponse = response as SwapPaymentInfoDto;
 
           transactionRequest.sourcePaymentMethod = CryptoPaymentMethod.CRYPTO;
           transactionRequest.targetPaymentMethod = CryptoPaymentMethod.CRYPTO;
           transactionRequest.sourceId = convertResponse.sourceAsset.id;
           transactionRequest.targetId = convertResponse.targetAsset.id;
+          sourceCurrencyName = convertResponse.sourceAsset.name;
+          targetCurrencyName = convertResponse.targetAsset.name;
           break;
       }
 
       // save
-      await this.transactionRequestRepo.save(transactionRequest);
+      const entity = await this.transactionRequestRepo.save(transactionRequest);
+      response.id = entity.id;
+
+      // create order at sift
+      await this.siftService.createOrder({
+        $order_id: transactionRequest.id.toString(),
+        $user_id: userId.toString(),
+        $amount: transactionRequest.amount,
+        $currency_code: sourceCurrencyName,
+        $site_country: 'CH',
+        $payment_methods: [{ $payment_type: this.PaymentMethodMap[transactionRequest.sourcePaymentMethod] }],
+        $digital_orders: [
+          {
+            $digital_asset: targetCurrencyName,
+            $pair: `${sourceCurrencyName}_${targetCurrencyName}`,
+            $asset_type: type == TransactionRequestType.Sell ? AssetType.FIAT : AssetType.CRYPTO,
+            $volume: transactionRequest.estimatedAmount.toString(),
+          },
+        ],
+        blockchain,
+      } as CreateOrder);
     } catch (e) {
       this.logger.error(
         `Failed to store ${type} transaction request for route ${response.routeId}, request was ${JSON.stringify(

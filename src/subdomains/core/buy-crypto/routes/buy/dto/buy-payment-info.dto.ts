@@ -35,6 +35,9 @@ export class BankInfoDto {
 }
 
 export class BuyPaymentInfoDto extends BankInfoDto {
+  @ApiProperty({ description: 'Transaction request ID' })
+  id: number;
+
   @ApiProperty()
   routeId: number;
 

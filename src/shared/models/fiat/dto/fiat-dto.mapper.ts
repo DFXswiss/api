@@ -24,9 +24,18 @@ export class FiatDtoMapper {
   static toDetailDto(fiat: Fiat, spec: TxMinSpec): FiatDetailDto {
     return Object.assign(this.toDto(fiat), {
       limits: {
-        [FiatPaymentMethod.BANK]: this.convert(spec.minVolume, Config.tradingLimits.yearlyDefault, fiat),
-        [FiatPaymentMethod.INSTANT]: this.convert(spec.minVolume, Config.tradingLimits.yearlyDefault, fiat),
-        [FiatPaymentMethod.CARD]: this.convert(spec.minVolume, Config.tradingLimits.cardDefault, fiat),
+        [FiatPaymentMethod.BANK]:
+          fiat.buyable || fiat.sellable
+            ? this.convert(spec.minVolume, Config.tradingLimits.yearlyDefault, fiat)
+            : this.zeroLimits,
+        [FiatPaymentMethod.INSTANT]:
+          fiat.instantBuyable || fiat.instantSellable
+            ? this.convert(spec.minVolume, Config.tradingLimits.yearlyDefault, fiat)
+            : this.zeroLimits,
+        [FiatPaymentMethod.CARD]:
+          fiat.cardBuyable || fiat.cardSellable
+            ? this.convert(spec.minVolume, Config.tradingLimits.cardDefault, fiat)
+            : this.zeroLimits,
       },
     });
   }
@@ -38,5 +47,9 @@ export class FiatDtoMapper {
       minVolume: Util.roundReadable(min / price, true),
       maxVolume: Util.roundReadable(max / price, true),
     };
+  }
+
+  private static get zeroLimits(): VolumeLimitDto {
+    return { minVolume: 0, maxVolume: 0 };
   }
 }
