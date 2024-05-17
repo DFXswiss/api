@@ -24,12 +24,7 @@ export class BankAccountService {
   ) {}
 
   async getUserBankAccounts(userDataId: number): Promise<BankAccount[]> {
-    return this.bankAccountRepo
-      .createQueryBuilder('bankAccount')
-      .innerJoin('bankAccount.userData', 'userData')
-      .leftJoinAndSelect('bankAccount.preferredCurrency', 'preferredCurrency')
-      .where('userData.id = :id', { id: userDataId })
-      .getMany();
+    return this.bankAccountRepo.findBy({ userData: { id: userDataId } });
   }
 
   async getBankAccountByKey(key: string, value: any): Promise<BankAccount> {
