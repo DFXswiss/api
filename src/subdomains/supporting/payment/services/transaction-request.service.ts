@@ -101,7 +101,7 @@ export class TransactionRequestService {
         $order_id: transactionRequest.id.toString(),
         $user_id: userId.toString(),
         $time: transactionRequest.created.getTime(),
-        $amount: transactionRequest.amount,
+        $amount: transactionRequest.amount * 10000,
         $currency_code: sourceCurrencyName,
         $site_country: 'CH',
         $payment_methods: [{ $payment_type: SiftPaymentMethodMap[transactionRequest.sourcePaymentMethod] }],

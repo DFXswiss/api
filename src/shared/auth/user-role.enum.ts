@@ -1,5 +1,6 @@
 export enum UserRole {
   // user roles
+  ACCOUNT = 'Account',
   USER = 'User',
   VIP = 'VIP',
   BETA = 'Beta',
@@ -8,7 +9,6 @@ export enum UserRole {
   COMPLIANCE = 'Compliance',
 
   // service roles
-  MASTERNODE_OPERATOR = 'MasternodeOperator',
   BANKING_BOT = 'BankingBot',
 
   // external kyc client company roles
