@@ -38,6 +38,7 @@ export class AmlService {
         bankData.active &&
         bankData.userData.id !== entity.userData.id &&
         entity instanceof BuyCrypto &&
+        entity.userData.verifiedName &&
         (Util.isSameName(entity.bankTx.name, entity.userData.verifiedName) ||
           Util.isSameName(entity.bankTx.ultimateName, entity.userData.verifiedName)) &&
         IbanTools.validateIBAN(bankData.iban.split(';')[0]).valid
