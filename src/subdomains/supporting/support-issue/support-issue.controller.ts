@@ -25,7 +25,7 @@ export class SupportIssueController {
     @Query('id') transactionId: string,
     @Body() dto: CreateTransactionIssueDto,
   ): Promise<void> {
-    return this.supportIssueService.createTransactionIssue(jwt.id, +transactionId, dto);
+    return this.supportIssueService.createTransactionIssue(jwt.user, +transactionId, dto);
   }
 
   @Post(':id/message')
@@ -39,7 +39,7 @@ export class SupportIssueController {
     return this.supportIssueService.createSupportMessage(
       +id,
       [UserRole.SUPPORT, UserRole.ADMIN].includes(jwt.role) ? dto : { ...dto, author: CustomerAuthor },
-      jwt.id,
+      jwt.user,
     );
   }
 

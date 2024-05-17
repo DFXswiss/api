@@ -45,7 +45,7 @@ function createBuyPaymentInfoDto(
 
 function createJwt(): JwtPayload {
   return {
-    id: 0,
+    user: 0,
     address: '',
     role: UserRole.USER,
     blockchains: [Blockchain.DEFICHAIN],

@@ -13,7 +13,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { SiftService } from 'src/integration/sift/services/sift.service';
-import { JwtPayload, JwtPayloadBase } from 'src/shared/auth/jwt-payload.interface';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -286,8 +286,10 @@ export class AuthService {
   private generateUserToken(user: User, ip: string): string {
     const payload: JwtPayload = {
       id: user.id,
+      user: user.id,
       address: user.address,
       role: user.role,
+      account: user.userData.id,
       blockchains: user.blockchains,
       ip,
     };
@@ -295,8 +297,9 @@ export class AuthService {
   }
 
   private generateCompanyToken(wallet: Wallet, ip: string): string {
-    const payload: JwtPayloadBase = {
+    const payload: JwtPayload = {
       id: wallet.id,
+      user: wallet.id,
       address: wallet.address,
       role: UserRole.KYC_CLIENT_COMPANY,
       ip,
