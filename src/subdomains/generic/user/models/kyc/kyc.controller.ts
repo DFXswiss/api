@@ -30,7 +30,7 @@ export class KycController {
   @ApiOkResponse()
   @ApiOperation({ deprecated: true })
   async transferKycDataV1(@GetJwt() jwt: JwtPayload, @Body() data: KycDataTransferDto): Promise<void> {
-    await this.kycService.transferKycData(jwt.id, data);
+    await this.kycService.transferKycData(jwt.user, data);
   }
 
   // --- JWT Calls --- //
@@ -151,7 +151,7 @@ export class KycClientController {
   @ApiOkResponse({ type: KycDataDto, isArray: true })
   @ApiOperation({ deprecated: true })
   async getAllKycDataV1(@GetJwt() jwt: JwtPayload): Promise<KycDataDto[]> {
-    return this.kycService.getAllKycData(jwt.id);
+    return this.kycService.getAllKycData(jwt.user);
   }
 
   @Get(':id/documents')
@@ -160,7 +160,7 @@ export class KycClientController {
   @ApiOkResponse({ type: KycFileDto, isArray: true })
   @ApiOperation({ deprecated: true })
   async getKycFilesV1(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<KycFileDto[]> {
-    return this.kycService.getKycFiles(id, jwt.id);
+    return this.kycService.getKycFiles(id, jwt.user);
   }
 
   @Get(':id/documents/:type')
@@ -173,6 +173,6 @@ export class KycClientController {
     @Param('id') id: string,
     @Param('type') type: KycDocumentType,
   ): Promise<Buffer> {
-    return this.kycService.getKycFile(id, jwt.id, type);
+    return this.kycService.getKycFile(id, jwt.user, type);
   }
 }

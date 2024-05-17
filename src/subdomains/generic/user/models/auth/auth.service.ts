@@ -346,7 +346,7 @@ export class AuthService {
 
   private generateUserToken(user: User, ip: string): string {
     const payload: JwtPayload = {
-      id: user.id,
+      user: user.id,
       address: user.address,
       role: user.role,
       account: user.userData.id,
@@ -368,7 +368,7 @@ export class AuthService {
 
   private generateCompanyToken(wallet: Wallet, ip: string): string {
     const payload: JwtPayload = {
-      id: wallet.id,
+      user: wallet.id,
       address: wallet.address,
       role: UserRole.KYC_CLIENT_COMPANY,
       ip,

@@ -14,7 +14,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload): Promise<JwtPayload> {
-    const { address, id, account, role } = payload;
+    payload.user ??= payload['id']; // TODO: remove temporary code
+
+    const { address, user, account, role } = payload;
 
     switch (role) {
       case UserRole.ACCOUNT:
@@ -22,11 +24,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         break;
 
       case UserRole.KYC_CLIENT_COMPANY:
-        if (!address || !id) throw new UnauthorizedException();
+        if (!address || !user) throw new UnauthorizedException();
         break;
 
       default:
-        if (!address || !id || !account) throw new UnauthorizedException();
+        if (!address || !user || !account) throw new UnauthorizedException();
         break;
     }
 

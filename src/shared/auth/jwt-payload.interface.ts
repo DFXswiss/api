@@ -2,10 +2,10 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { UserRole } from './user-role.enum';
 
 export interface JwtPayload {
-  id?: number;
-  address?: string;
+  account?: number; // user data ID
+  user?: number; // user/wallet ID
+  address?: string; // user/wallet address
   role: UserRole;
-  account?: number;
   blockchains?: Blockchain[];
   ip: string;
 }
