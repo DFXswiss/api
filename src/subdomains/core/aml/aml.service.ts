@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import * as IbanTools from 'ibantools';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
@@ -29,7 +30,7 @@ export class AmlService {
     const blacklist = await this.specialExternalBankAccountService.getBlacklist();
     const bankData = await this.getBankData(entity);
 
-    if (bankData && isNaN(+bankData.iban)) {
+    if (bankData && IbanTools.validateIBAN(bankData.iban.split(';')[0]).valid) {
       if (!entity.userData.hasValidNameCheckDate) await this.checkNameCheck(entity, bankData);
       if (bankData.active && bankData.userData.id !== entity.userData.id) {
         try {
