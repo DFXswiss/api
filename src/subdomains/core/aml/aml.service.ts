@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import * as IbanTools from 'ibantools';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
@@ -32,7 +33,13 @@ export class AmlService {
 
     if (bankData && IbanTools.validateIBAN(bankData.iban.split(';')[0]).valid) {
       if (!entity.userData.hasValidNameCheckDate) await this.checkNameCheck(entity, bankData);
-      if (bankData.active && bankData.userData.id !== entity.userData.id) {
+
+      if (
+        bankData.active &&
+        bankData.userData.id !== entity.userData.id &&
+        entity instanceof BuyCrypto &&
+        Util.isSameName(entity.bankTx.name, entity.userData.verifiedName)
+      ) {
         try {
           const [master, slave] =
             bankData.userData.kycLevel < entity.userData.kycLevel
