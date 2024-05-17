@@ -31,14 +31,16 @@ export class AmlService {
     const blacklist = await this.specialExternalBankAccountService.getBlacklist();
     const bankData = await this.getBankData(entity);
 
-    if (bankData && IbanTools.validateIBAN(bankData.iban.split(';')[0]).valid) {
+    if (bankData) {
       if (!entity.userData.hasValidNameCheckDate) await this.checkNameCheck(entity, bankData);
 
       if (
         bankData.active &&
         bankData.userData.id !== entity.userData.id &&
         entity instanceof BuyCrypto &&
-        Util.isSameName(entity.bankTx.name, entity.userData.verifiedName)
+        (Util.isSameName(entity.bankTx.name, entity.userData.verifiedName) ||
+          Util.isSameName(entity.bankTx.ultimateName, entity.userData.verifiedName)) &&
+        IbanTools.validateIBAN(bankData.iban.split(';')[0]).valid
       ) {
         try {
           const [master, slave] =
