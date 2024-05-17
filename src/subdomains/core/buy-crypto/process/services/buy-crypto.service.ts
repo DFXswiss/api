@@ -7,6 +7,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import {
+  CreateTransaction,
+  SiftAssetType,
+  SiftPaymentMethodMap,
+  TransactionStatus,
+  TransactionType,
+} from 'src/integration/sift/dto/sift.dto';
+import { SiftService } from 'src/integration/sift/services/sift.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -57,6 +65,7 @@ export class BuyCryptoService {
     private readonly bankDataService: BankDataService,
     private readonly transactionRequestService: TransactionRequestService,
     private readonly transactionService: TransactionService,
+    private readonly siftService: SiftService,
   ) {}
 
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<void> {
@@ -159,6 +168,29 @@ export class BuyCryptoService {
     entity = await this.setTxRequest(entity);
 
     entity = await this.buyCryptoRepo.save(entity);
+
+    //create sift transaction
+    await this.siftService.createTransaction({
+      $transaction_id: entity.id.toString(),
+      $transaction_type: TransactionType.BUY,
+      $transaction_status: TransactionStatus.SUCCESS,
+      $order_id: entity.transactionRequest?.id.toString(),
+      $user_id: entity.user.toString(),
+      $time: entity.created.getTime(),
+      $amount: entity.inputAmount * 10000,
+      $currency_code: entity.inputAsset,
+      $site_country: 'CH',
+      $payment_methods: [{ $payment_type: SiftPaymentMethodMap[entity.paymentMethodIn] }],
+      $digital_orders: [
+        {
+          $digital_asset: entity.outputAsset.name,
+          $pair: `${entity.inputAsset}_${entity.outputAsset.name}`,
+          $asset_type: SiftAssetType.CRYPTO,
+          $volume: entity.outputAmount.toString(),
+        },
+      ],
+      blockchain: entity.outputAsset.blockchain,
+    } as CreateTransaction);
 
     await this.buyCryptoWebhookService.triggerWebhook(entity);
   }
