@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
+import { SiftModule } from 'src/integration/sift/sift.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { ReferralModule } from 'src/subdomains/core/referral/referral.module';
 import { UserDataController } from 'src/subdomains/generic/user/models/user-data/user-data.controller';
@@ -52,6 +53,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     forwardRef(() => PaymentModule),
     forwardRef(() => KycModule),
     BankModule,
+    SiftModule,
   ],
   controllers: [
     UserV2Controller,

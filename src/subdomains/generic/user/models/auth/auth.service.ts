@@ -12,6 +12,7 @@ import { Config, Environment } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
+import { SiftService } from 'src/integration/sift/services/sift.service';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
@@ -72,6 +73,7 @@ export class AuthService {
     private readonly userDataService: UserDataService,
     private readonly notificationService: NotificationService,
     private readonly ipLogService: IpLogService,
+    private readonly siftService: SiftService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -121,6 +123,7 @@ export class AuthService {
 
     const wallet = await this.walletService.getByIdOrName(dto.walletId, dto.wallet);
     const user = await this.userService.createUser(dto, userIp, ref?.origin, wallet, dto.discountCode);
+    await this.siftService.createAccount(user);
     return { accessToken: this.generateUserToken(user, userIp) };
   }
 
@@ -155,6 +158,8 @@ export class AuthService {
     } catch (e) {
       this.logger.warn(`Error while adding discountCode in user signIn ${user.id}:`, e);
     }
+
+    await this.siftService.login(user, userIp);
 
     return { accessToken: this.generateUserToken(user, userIp) };
   }

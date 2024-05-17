@@ -72,6 +72,11 @@ export class TransactionService {
       .leftJoinAndSelect('transaction.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
+      .leftJoinAndSelect('userData.country', 'country')
+      .leftJoinAndSelect('userData.nationality', 'nationality')
+      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+      .leftJoinAndSelect('userData.language', 'language')
       .where(`${key.includes('.') ? key : `transaction.${key}`} = :param`, { param: value })
       .getOne();
   }

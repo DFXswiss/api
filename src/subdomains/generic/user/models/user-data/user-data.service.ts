@@ -9,6 +9,8 @@ import {
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { CreateAccount } from 'src/integration/sift/dto/sift.dto';
+import { SiftService } from 'src/integration/sift/services/sift.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -56,6 +58,7 @@ export class UserDataService {
     private readonly userDataNotificationService: UserDataNotificationService,
     @Inject(forwardRef(() => AccountMergeService)) private readonly mergeService: AccountMergeService,
     private readonly specialExternalBankAccountService: SpecialExternalAccountService,
+    private readonly siftService: SiftService,
   ) {}
 
   async getUserDataByUser(userId: number): Promise<UserData> {
@@ -201,17 +204,20 @@ export class UserDataService {
     return userData;
   }
 
-  async updateKycData(user: UserData, data: KycUserDataDto): Promise<UserData> {
-    const isPersonalAccount = (data.accountType ?? user.accountType) === AccountType.PERSONAL;
+  async updateKycData(userData: UserData, data: KycUserDataDto): Promise<UserData> {
+    const isPersonalAccount = (data.accountType ?? userData.accountType) === AccountType.PERSONAL;
 
     // check countries
     const [country, organizationCountry] = await Promise.all([
-      this.countryService.getCountry(data.country?.id ?? user.country?.id),
-      this.countryService.getCountry(data.organizationCountry?.id ?? user.organizationCountry?.id),
+      this.countryService.getCountry(data.country?.id ?? userData.country?.id),
+      this.countryService.getCountry(data.organizationCountry?.id ?? userData.organizationCountry?.id),
     ]);
     if (!country || (!isPersonalAccount && !organizationCountry)) throw new BadRequestException('Country not found');
-    if (!country.isEnabled(user.kycType) || (!isPersonalAccount && !organizationCountry.isEnabled(user.kycType)))
-      throw new BadRequestException(`Country not allowed for ${user.kycType}`);
+    if (
+      !country.isEnabled(userData.kycType) ||
+      (!isPersonalAccount && !organizationCountry.isEnabled(userData.kycType))
+    )
+      throw new BadRequestException(`Country not allowed for ${userData.kycType}`);
 
     if (isPersonalAccount) {
       data.organizationName = null;
@@ -222,25 +228,51 @@ export class UserDataService {
       data.organizationCountry = null;
     }
 
-    return this.userDataRepo.save(Object.assign(user, data));
+    for (const user of userData.users) {
+      await this.siftService.updateAccount({
+        $user_id: user.id.toString(),
+        $time: Date.now(),
+        $user_email: data.mail,
+        $name: `${data.firstname} ${data.surname}`,
+        $phone: data.phone,
+        $billing_address: {
+          $name: `${data.firstname} ${data.surname}`,
+          $address_1: `${data.street} ${data.houseNumber}`,
+          $city: data.location,
+          $phone: data.phone,
+          $country: country.name,
+          $zipcode: data.zip,
+        },
+      });
+    }
+
+    return this.userDataRepo.save(Object.assign(userData, data));
   }
 
   async updateTotpSecret(user: UserData, secret: string): Promise<void> {
     await this.userDataRepo.update(user.id, { totpSecret: secret });
   }
 
-  async updateUserName(user: UserData, dto: UserNameDto) {
-    await this.userDataRepo.update(user.id, { firstname: dto.firstName, surname: dto.lastName });
+  async updateUserName(userData: UserData, dto: UserNameDto) {
+    for (const user of userData.users) {
+      await this.siftService.updateAccount({
+        $user_id: user.id.toString(),
+        $time: Date.now(),
+        $name: `${dto.firstName} ${dto.lastName}`,
+      } as CreateAccount);
+    }
+
+    await this.userDataRepo.update(userData.id, { firstname: dto.firstName, surname: dto.lastName });
   }
 
   async updateUserSettings(
-    user: UserData,
+    userData: UserData,
     dto: UpdateUserDto,
     forceUpdate?: boolean,
   ): Promise<{ user: UserData; isKnownUser: boolean }> {
     // check phone & mail if KYC is already started
     if (
-      user.kycLevel != KycLevel.LEVEL_0 &&
+      userData.kycLevel != KycLevel.LEVEL_0 &&
       (dto.mail === null || dto.mail === '' || dto.phone === null || dto.phone === '')
     )
       throw new BadRequestException('KYC already started, user data deletion not allowed');
@@ -251,12 +283,22 @@ export class UserDataService {
       if (!dto.language) throw new BadRequestException('Language not found');
     }
 
-    const mailChanged = dto.mail && dto.mail !== user.mail;
+    const mailChanged = dto.mail && dto.mail !== userData.mail;
 
-    user = await this.userDataRepo.save(Object.assign(user, dto));
+    const updateSiftAccount: CreateAccount = { $time: Date.now() };
 
-    const isKnownUser = (mailChanged || forceUpdate) && (await this.isKnownKycUser(user));
-    return { user, isKnownUser };
+    if (dto.phone && dto.phone !== userData.phone) updateSiftAccount.$phone = dto.phone;
+    if (mailChanged) updateSiftAccount.$user_email = dto.mail;
+
+    for (const user of userData.users) {
+      updateSiftAccount.$user_id = user.id.toString();
+      await this.siftService.updateAccount(updateSiftAccount);
+    }
+
+    userData = await this.userDataRepo.save(Object.assign(userData, dto));
+
+    const isKnownUser = (mailChanged || forceUpdate) && (await this.isKnownKycUser(userData));
+    return { user: userData, isKnownUser };
   }
 
   async blockUserData(userData: UserData): Promise<void> {

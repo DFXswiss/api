@@ -169,6 +169,11 @@ export class Configuration {
       mailAddress: process.env.BLACK_SQUAD_MAIL,
       mailBanner: process.env.BLACK_SQUAD_BANNER,
     },
+    message: {
+      mailName: process.env.SUPPORT_MESSAGE_NAME,
+      mailAddress: process.env.SUPPORT_MESSAGE_MAIL,
+      mailBanner: process.env.SUPPORT_MESSAGE_BANNER,
+    },
   };
 
   letter = {
@@ -458,6 +463,10 @@ export class Configuration {
   request = {
     knownIps: process.env.REQUEST_KNOWN_IPS?.split(',') ?? [],
     limitCheck: process.env.REQUEST_LIMIT_CHECK === 'true',
+  };
+
+  sift = {
+    apiKey: process.env.SIFT_API_KEY,
   };
 
   checkout = {

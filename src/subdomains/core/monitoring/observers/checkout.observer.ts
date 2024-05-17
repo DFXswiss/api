@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
+import { CheckoutBalances, CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
@@ -10,7 +10,7 @@ import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.ser
 interface CheckoutData {
   name: string;
   currency: string;
-  balance: { available: number; collateral: number; payable: number; pending: number };
+  balance: CheckoutBalances;
   description: string;
 }
 

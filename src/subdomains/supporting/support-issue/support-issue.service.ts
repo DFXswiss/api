@@ -5,8 +5,8 @@ import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/inte
 import { TransactionService } from '../payment/services/transaction.service';
 import { CreateTransactionIssueDto } from './dto/create-support-issue.dto';
 import { UpdateSupportIssueDto } from './dto/update-support-issue.dto';
-import { SupportIssue, SupportIssueType } from './support-issue.entity';
-import { SupportIssueRepository } from './support-issue.repository';
+import { SupportIssue, SupportIssueType } from './entities/support-issue.entity';
+import { SupportIssueRepository } from './repositories/support-issue.repository';
 
 @Injectable()
 export class SupportIssueService {
