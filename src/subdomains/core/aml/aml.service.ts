@@ -29,7 +29,7 @@ export class AmlService {
     const blacklist = await this.specialExternalBankAccountService.getBlacklist();
     const bankData = await this.getBankData(entity);
 
-    if (bankData) {
+    if (bankData && isNaN(+bankData.iban)) {
       if (!entity.userData.hasValidNameCheckDate) await this.checkNameCheck(entity, bankData);
       if (bankData.active && bankData.userData.id !== entity.userData.id) {
         try {
