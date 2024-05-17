@@ -141,7 +141,7 @@ export class TransactionController {
     @GetJwt() jwt: JwtPayload,
     @Query() query: TransactionFilter,
   ): Promise<TransactionDetailDto[]> {
-    return this.getAllTransactions(jwt.id, query);
+    return this.getAllTransactionsDetailed(jwt.user, query);
   }
 
   @Put('detail/csv')
@@ -150,7 +150,7 @@ export class TransactionController {
   @ApiCreatedResponse()
   @ApiOperation({ description: 'Initiate CSV history export' })
   async createDetailCsv(@GetJwt() jwt: JwtPayload, @Query() query: TransactionFilter): Promise<string> {
-    const transactions = await this.getAllTransactions(jwt.id, query);
+    const transactions = await this.getAllTransactionsDetailed(jwt.user, query);
 
     const csvFile = this.historyService.getCsv(transactions, ExportType.COMPACT);
 
@@ -162,7 +162,7 @@ export class TransactionController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
   async getUnassignedTransactions(@GetJwt() jwt: JwtPayload): Promise<UnassignedTransactionDto[]> {
-    const user = await this.userService.getUser(jwt.id, { userData: true });
+    const user = await this.userService.getUser(jwt.user, { userData: true });
     const bankDatas = await this.bankDataService.getBankDatasForUser(user.userData.id);
 
     const txList = await this.bankTxService.getUnassignedBankTx(bankDatas.map((b) => b.iban));
@@ -177,7 +177,7 @@ export class TransactionController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
   async getTransactionTargets(@GetJwt() jwt: JwtPayload): Promise<TransactionTarget[]> {
-    const buys = await this.buyService.getUserDataBuys(jwt.id);
+    const buys = await this.buyService.getUserDataBuys(jwt.user);
 
     return buys.map((b) => ({
       id: b.id,
@@ -200,7 +200,7 @@ export class TransactionController {
     if (!transaction.bankTx) throw new NotFoundException('Transaction not found');
     if (!BankTxTypeUnassigned(transaction.bankTx.type)) throw new ConflictException('Transaction already assigned');
 
-    const user = await this.userService.getUser(jwt.id, { userData: { users: true } });
+    const user = await this.userService.getUser(jwt.user, { userData: { users: true } });
     const buy = await this.buyService.get(
       user.userData.users.map((u) => u.id),
       +buyId,
@@ -273,32 +273,42 @@ export class TransactionController {
     });
   }
 
-  private async getAllTransactions(userId: number, query: TransactionFilter) {
+  private async getAllTransactionsDetailed(
+    userId: number,
+    query: TransactionFilter,
+  ): Promise<TransactionDetailDto[] | UnassignedTransactionDto[]> {
     const user = await this.userService.getUser(userId, { userData: { users: true } });
     const txList = await this.transactionService.getTransactionsForUsers(user.userData.users, query.from, query.to);
 
     // map to DTO
     return Util.asyncMap(txList, async (tx) => {
       if (!tx.targetEntity) return undefined;
-      return this.txToTransactionDto(tx);
+      return this.txToTransactionDto(tx, true);
     }).then((list) => list.filter((dto) => dto));
   }
 
   private async txToTransactionDto(
     transaction?: Transaction,
-  ): Promise<TransactionDto | UnassignedTransactionDto | undefined> {
+    detailed = false,
+  ): Promise<TransactionDto | TransactionDetailDto | UnassignedTransactionDto | undefined> {
     switch (transaction?.targetEntity?.constructor) {
       case BuyCrypto:
         const buyCryptoExtended = await this.buyCryptoWebhookService.extendBuyCrypto(transaction.buyCrypto);
-        return TransactionDtoMapper.mapBuyCryptoTransaction(buyCryptoExtended);
+        return detailed
+          ? TransactionDtoMapper.mapBuyCryptoTransactionDetail(buyCryptoExtended)
+          : TransactionDtoMapper.mapBuyCryptoTransaction(buyCryptoExtended);
 
       case BuyFiat:
         const buyFiatExtended = await this.buyFiatService.extendBuyFiat(transaction.buyFiat);
-        return TransactionDtoMapper.mapBuyFiatTransaction(buyFiatExtended);
+        return detailed
+          ? TransactionDtoMapper.mapBuyFiatTransactionDetail(buyFiatExtended)
+          : TransactionDtoMapper.mapBuyFiatTransaction(buyFiatExtended);
 
       case RefReward:
         const refRewardExtended = await this.refRewardService.extendReward(transaction.refReward);
-        return TransactionDtoMapper.mapReferralReward(refRewardExtended);
+        return detailed
+          ? TransactionDtoMapper.mapReferralRewardDetail(refRewardExtended)
+          : TransactionDtoMapper.mapReferralReward(refRewardExtended);
 
       default:
         if (transaction?.sourceEntity instanceof BankTx && !transaction?.type) {

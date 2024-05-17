@@ -33,6 +33,7 @@ export enum MailTranslationKey {
   LIMIT_REQUEST = 'mail.limit_request',
   BLACK_SQUAD = 'mail.black_squad',
   UNASSIGNED_FIAT_INPUT = 'mail.payment.fiat_input.unassigned',
+  SUPPORT_MESSAGE = 'mail.support_message',
 }
 
 export enum MailKey {

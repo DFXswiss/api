@@ -80,6 +80,9 @@ export class UnassignedTransactionDto {
   @ApiProperty()
   id: number;
 
+  @ApiProperty()
+  uid: string;
+
   @ApiProperty({ enum: TransactionType })
   type: TransactionType;
 

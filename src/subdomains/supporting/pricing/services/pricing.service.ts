@@ -85,7 +85,7 @@ export class PricingService {
 
       return price;
     } catch (e) {
-      this.logger.error(`Failed to get price for ${this.itemString(from)} -> ${this.itemString(to)}:`, e);
+      this.logger.info(`Failed to get price for ${this.itemString(from)} -> ${this.itemString(to)}:`, e);
 
       throw new PriceInvalidException(`No valid price found for ${from.name} -> ${to.name}`);
     }

@@ -1,5 +1,4 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { LnBitsInvoiceDto } from '../dto/lnbits.dto';
 import { LnurlPayRequestDto, LnurlpInvoiceDto } from '../dto/lnurlp.dto';
@@ -8,8 +7,6 @@ import { LightningAddressType, LightningHelper } from '../lightning-helper';
 
 @Injectable()
 export class LightningService {
-  private readonly logger = new DfxLogger(LightningService);
-
   private static ALLOWED_LNDHUB_PATTERN = /^lndhub:\/\/invoice:(?<key>.+)@(?<url>https:\/\/.+)$/;
 
   private readonly client: LightningClient;

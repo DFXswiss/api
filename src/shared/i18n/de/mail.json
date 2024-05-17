@@ -120,7 +120,7 @@
             },
             "manual_check": {
                 "title": "Einzahlung wird geprüft",
-                "salutation": "Dine Einzahlung wird geprüft",
+                "salutation": "Deine Einzahlung wird geprüft",
                 "line1": "Vielen Dank für dein Vertrauen in DFX.",
                 "line2": "Leider konnte die Transaktion nicht vollautomatisch freigegeben werden und muss nun durch einen Mitarbeiter manuell geprüft werden.",
                 "line3": "Dies dauert in der Regel 24h, maximal aber 7 Tage.",
@@ -183,6 +183,10 @@
     "limit_request": {
         "title": "Transaktionsvolumen genehmigt",
         "message": "Deine Anfrage von {limitAmount} EUR Transaktionsvolumen wurde genehmigt und steht dir nun frei zur Verfügung."
+    },
+    "support_message": {
+        "title": "Neue Support Nachricht",
+        "message": "{supportMessage}"
     },
     "black_squad": {
         "title": "Einladung Black Squad",

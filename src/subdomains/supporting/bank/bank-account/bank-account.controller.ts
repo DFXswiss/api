@@ -28,7 +28,7 @@ export class BankAccountController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: BankAccountDto, isArray: true })
   async getAllUserBankAccount(@GetJwt() jwt: JwtPayload): Promise<BankAccountDto[]> {
-    return this.bankAccountService.getUserBankAccounts(jwt.id).then((l) => this.toDtoList(l));
+    return this.bankAccountService.getUserBankAccounts(jwt.user).then((l) => this.toDtoList(l));
   }
 
   @Post()
@@ -39,7 +39,7 @@ export class BankAccountController {
     @GetJwt() jwt: JwtPayload,
     @Body() createBankAccountDto: CreateBankAccountDto,
   ): Promise<BankAccountDto> {
-    return this.bankAccountService.createBankAccount(jwt.id, createBankAccountDto).then((b) => this.toDto(b));
+    return this.bankAccountService.createBankAccount(jwt.user, createBankAccountDto).then((b) => this.toDto(b));
   }
 
   @Put(':id')
@@ -51,7 +51,7 @@ export class BankAccountController {
     @Param('id') id: string,
     @Body() updateBankAccountDto: UpdateBankAccountDto,
   ): Promise<BankAccountDto> {
-    return this.bankAccountService.updateBankAccount(+id, jwt.id, updateBankAccountDto).then((b) => this.toDto(b));
+    return this.bankAccountService.updateBankAccount(+id, jwt.user, updateBankAccountDto).then((b) => this.toDto(b));
   }
 
   // --- IBAN --- //
@@ -61,7 +61,7 @@ export class BankAccountController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
   async getAllUserIban(@GetJwt() jwt: JwtPayload): Promise<IbanDto[]> {
-    const user = await this.userService.getUser(jwt.id, { userData: true });
+    const user = await this.userService.getUser(jwt.user, { userData: true });
     const ibans = await this.bankDataService.getIbansForUser(user.userData.id);
 
     return ibans.map((iban) => ({ iban }));
@@ -72,7 +72,7 @@ export class BankAccountController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
   async addUserIban(@GetJwt() jwt: JwtPayload, @Body() dto: CreateIbanDto): Promise<void> {
-    const user = await this.userService.getUser(jwt.id, { userData: true });
+    const user = await this.userService.getUser(jwt.user, { userData: true });
     return this.bankDataService.createIbanForUser(user.userData.id, dto.iban);
   }
 

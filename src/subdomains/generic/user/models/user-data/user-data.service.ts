@@ -231,6 +231,7 @@ export class UserDataService {
     for (const user of userData.users) {
       await this.siftService.updateAccount({
         $user_id: user.id.toString(),
+        $time: Date.now(),
         $user_email: data.mail,
         $name: `${data.firstname} ${data.surname}`,
         $phone: data.phone,
@@ -256,6 +257,7 @@ export class UserDataService {
     for (const user of userData.users) {
       await this.siftService.updateAccount({
         $user_id: user.id.toString(),
+        $time: Date.now(),
         $name: `${dto.firstName} ${dto.lastName}`,
       } as CreateAccount);
     }
@@ -283,7 +285,7 @@ export class UserDataService {
 
     const mailChanged = dto.mail && dto.mail !== userData.mail;
 
-    const updateSiftAccount: CreateAccount = {};
+    const updateSiftAccount: CreateAccount = { $time: Date.now() };
 
     if (dto.phone && dto.phone !== userData.phone) updateSiftAccount.$phone = dto.phone;
     if (mailChanged) updateSiftAccount.$user_email = dto.mail;
