@@ -14,8 +14,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload): Promise<JwtPayload> {
-    payload.user ??= payload['id']; // TODO: remove temporary code
-
     const { address, user, account, role } = payload;
 
     switch (role) {
