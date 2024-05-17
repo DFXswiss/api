@@ -29,7 +29,7 @@ export class Price {
     _price: number,
     _isValid = true,
     _timestamp = new Date(),
-    _steps: PriceStep[] = [],
+    priceSource?: PriceSource,
   ): Price {
     const price = new Price();
 
@@ -38,23 +38,24 @@ export class Price {
     price.price = _price;
     price.isValid = _isValid;
     price.timestamp = _timestamp;
-    price.steps = _steps;
+    price.steps = priceSource ? [PriceStep.create(priceSource, source, target, _price, _timestamp)] : [];
 
     return price;
   }
 
-  addSteps(step: PriceStep[]): void {
-    this.steps.push(...step);
-  }
-
   static join(...prices: Price[]): Price {
-    return Price.create(
+    const price = Price.create(
       prices[0].source,
       prices[prices.length - 1].target,
       prices.reduce((prev, curr) => prev * curr.price, 1),
       prices.reduce((prev, curr) => prev && curr.isValid, true),
       new Date(Math.min(...prices.map((p) => p.timestamp.getTime()))),
     );
+
+    const priceSteps = prices.map((p) => p.steps).flat();
+    price.steps.push(...priceSteps);
+
+    return price;
   }
 }
 
@@ -71,7 +72,7 @@ export class PriceStep {
   @ApiProperty()
   price: number;
 
-  @ApiProperty({ type: Date })
+  @ApiProperty()
   timestamp: Date;
 
   static create(source: PriceSource, from: string, to: string, _price: number, _timestamp = new Date()): PriceStep {

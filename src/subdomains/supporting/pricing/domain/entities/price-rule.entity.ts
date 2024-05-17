@@ -107,6 +107,7 @@ export class PriceRule extends IEntity {
       this.currentPrice,
       this.isPriceValid,
       this.priceTimestamp,
+      this.rule.source,
     );
   }
 
