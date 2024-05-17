@@ -30,7 +30,7 @@ export class SupportIssueController {
 
   @Post(':id/message')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   async createSupportMessage(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
@@ -39,7 +39,7 @@ export class SupportIssueController {
     return this.supportIssueService.createSupportMessage(
       +id,
       [UserRole.SUPPORT, UserRole.ADMIN].includes(jwt.role) ? dto : { ...dto, author: CustomerAuthor },
-      jwt.id,
+      jwt.account,
     );
   }
 
