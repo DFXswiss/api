@@ -61,7 +61,7 @@ export const AmlErrorResult: {
   [AmlError.ASSET_NOT_INSTANT_BUYABLE]: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.FAIL,
-    amlReason: AmlReason.ASSET_CURRENTLY_NOT_AVAILABLE,
+    amlReason: AmlReason.ASSET_NOT_AVAILABLE_WITH_CHOSEN_BANK,
   },
   [AmlError.ASSET_NOT_CARD_BUYABLE]: null,
   [AmlError.INSTANT_NOT_ALLOWED]: {
