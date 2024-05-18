@@ -188,7 +188,9 @@ export class AmlHelperService {
     // Crucial error aml
     const crucialErrorResult = amlResults.find((r) => r.type === AmlErrorType.CRUCIAL);
     if (crucialErrorResult)
-      return { amlCheck: crucialErrorResult.amlCheck, amlReason: crucialErrorResult.amlReason, comment };
+      return Util.minutesDiff(entity.created) >= 10
+        ? { amlCheck: crucialErrorResult.amlCheck, amlReason: crucialErrorResult.amlReason, comment }
+        : { comment };
 
     // Only error aml
     const onlyErrorResult = amlResults.find((r) => r.type === AmlErrorType.SINGLE);
