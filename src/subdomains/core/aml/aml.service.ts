@@ -3,7 +3,7 @@ import * as IbanTools from 'ibantools';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
-import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
+import { BankData, BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
@@ -38,6 +38,7 @@ export class AmlService {
         bankData.active &&
         bankData.userData.id !== entity.userData.id &&
         entity instanceof BuyCrypto &&
+        !entity.isCryptoCryptoTransaction &&
         entity.userData.verifiedName &&
         (Util.isSameName(entity.bankTx.name, entity.userData.verifiedName) ||
           Util.isSameName(entity.bankTx.ultimateName, entity.userData.verifiedName)) &&
@@ -78,7 +79,10 @@ export class AmlService {
 
   private async getBankData(entity: BuyFiat | BuyCrypto): Promise<BankData | undefined> {
     if (entity instanceof BuyFiat) return this.bankDataService.getBankDataWithIban(entity.sell.iban);
-    if (entity.cryptoInput) return undefined;
+    if (entity.cryptoInput) {
+      const bankDatas = await this.bankDataService.getBankDatasForUser(entity.userData.id);
+      return bankDatas.find((b) => b.type === BankDataType.IDENT) ?? bankDatas[0];
+    }
 
     return this.bankDataService.getBankDataWithIban(entity.bankTx?.senderAccount ?? entity.checkoutTx?.cardFingerPrint);
   }
