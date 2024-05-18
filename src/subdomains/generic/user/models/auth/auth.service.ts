@@ -214,6 +214,7 @@ export class AuthService {
             params: {
               url: loginUrl,
               urlText: loginUrl,
+              expiration: `${Config.auth.mailLoginExpiresIn}`,
             },
           },
           {
