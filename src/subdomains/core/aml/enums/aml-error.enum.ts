@@ -65,9 +65,9 @@ export const AmlErrorResult: {
   },
   [AmlError.ASSET_NOT_CARD_BUYABLE]: null,
   [AmlError.INSTANT_NOT_ALLOWED]: {
-    type: AmlErrorType.CRUCIAL,
-    amlCheck: CheckStatus.FAIL,
-    amlReason: AmlReason.ASSET_CURRENTLY_NOT_AVAILABLE,
+    type: AmlErrorType.MULTI,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.OLKY_NO_KYC,
   },
   [AmlError.CRYPTO_CRYPTO_NOT_ALLOWED]: null,
   [AmlError.INVALID_USER_STATUS]: null,
