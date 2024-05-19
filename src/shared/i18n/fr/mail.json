@@ -30,6 +30,14 @@
                 "transaction_button": "Veuillez affecter votre dépôt à votre commande:<br>[url:cliquez ici]"
             }
         },
+        "crypto_output": {
+            "title": "Actif cryptographique payé",
+            "salutation": "Vos avoirs en crypto-monnaie ont été payés à votre adresse"
+        },
+        "fiat_output": {
+            "title": "Paiement payé",
+            "salutation": "Votre paiement a été envoyé sur votre compte bancaire"
+        },
         "return": {
             "fiat": {
                 "title":"Remboursement des fonds",
