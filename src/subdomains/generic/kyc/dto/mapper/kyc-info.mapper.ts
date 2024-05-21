@@ -24,7 +24,7 @@ export class KycInfoMapper {
       kycSteps.find((s) => s.status === KycStepStatus.FAILED);
 
     const dto: KycLevelDto | KycSessionDto = {
-      kycLevel: userData.kycLevel,
+      kycLevel: userData.kycLevelDisplay,
       tradingLimit: userData.tradingLimit,
       twoFactorEnabled: userData.totpSecret != null,
       language: LanguageDtoMapper.entityToDto(userData.language),

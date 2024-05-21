@@ -488,7 +488,7 @@ export class UserService {
       currency: user.userData?.currency,
       kycStatus: user.userData?.kycStatus,
       kycState: KycState.NA,
-      kycLevel: user.userData?.kycLevel,
+      kycLevel: user.userData?.kycLevelDisplay,
       kycHash: user.userData?.kycHash,
       tradingLimit: user.userData?.tradingLimit,
       kycDataComplete: user.userData?.isDataComplete,

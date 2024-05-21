@@ -16,7 +16,7 @@ export class UserDtoMapper {
       tradingLimit: userData.tradingLimit,
       kyc: {
         hash: userData.kycHash,
-        level: userData.kycLevel,
+        level: userData.kycLevelDisplay,
         dataComplete: userData.isDataComplete,
       },
       volumes: this.mapVolumes(userData),
