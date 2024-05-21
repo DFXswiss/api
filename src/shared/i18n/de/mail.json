@@ -36,7 +36,7 @@
         },
         "fiat_output": {
             "title": "Auszahlung verschickt",
-            "salutation": "Deine Auszahlung wurde an deinen Bank-Account verschickt"
+            "salutation": "Deine Auszahlung wurde an dein Bankkonto verschickt"
         },
         "return": {
             "fiat": {
