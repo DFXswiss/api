@@ -205,10 +205,10 @@ export class UserV2Controller {
 
   @Get()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse({ type: UserV2Dto })
   async getUser(@GetJwt() jwt: JwtPayload): Promise<UserV2Dto> {
-    return this.userService.getUserDtoV2(jwt.user);
+    return this.userService.getUserDtoV2(jwt.account, jwt.user);
   }
 
   @Get('ref')

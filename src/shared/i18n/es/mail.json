@@ -14,7 +14,7 @@
     "login": {
         "title": "DFX Entrar",
         "salutation": "DFX Entrar",
-        "message": "Haga clic en el siguiente enlace para iniciar sesión en DFX:<br>[url:{urlText}]"
+        "message": "Haga clic en el siguiente enlace dentro de {expiration} minutos para iniciar sesión en DFX:<br>[url:{urlText}]"
     },
     "payment": {
         "crypto_input": {

@@ -25,10 +25,10 @@ export class LimitRequestService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  async increaseLimit(dto: LimitRequestDto, kycHash: string, userId?: number): Promise<void> {
+  async increaseLimit(dto: LimitRequestDto, kycHash: string, userDataId?: number): Promise<void> {
     // get user data
-    const user = userId
-      ? await this.userDataService.getUserDataByUser(userId)
+    const user = userDataId
+      ? await this.userDataService.getUserData(userDataId)
       : await this.userDataService.getByKycHashOrThrow(kycHash);
 
     if (user.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing KYC');

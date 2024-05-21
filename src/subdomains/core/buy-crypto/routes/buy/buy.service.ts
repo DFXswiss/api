@@ -5,7 +5,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
-import { In, IsNull, Not, Repository } from 'typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
 import { Buy } from './buy.entity';
 import { BuyRepository } from './buy.repository';
 import { CreateBuyDto } from './dto/create-buy.dto';
@@ -74,8 +74,8 @@ export class BuyService {
     return this.cache;
   }
 
-  async get(userIds: number[], id: number): Promise<Buy> {
-    return this.buyRepo.findOneBy({ id, user: { id: In(userIds) } });
+  async get(userDataId: number, id: number): Promise<Buy> {
+    return this.buyRepo.findOneBy({ id, user: { userData: { id: userDataId } } });
   }
 
   async createBuy(userId: number, userAddress: string, dto: CreateBuyDto, ignoreExisting = false): Promise<Buy> {
@@ -126,10 +126,9 @@ export class BuyService {
     return this.buyRepo.findBy({ user: { id: userId }, asset: { buyable: true } });
   }
 
-  async getUserDataBuys(userId: number): Promise<Buy[]> {
-    const user = await this.userService.getUser(userId, { userData: true });
+  async getUserDataBuys(userDataId: number): Promise<Buy[]> {
     return this.buyRepo.find({
-      where: { user: { userData: { id: user.userData.id } }, asset: { buyable: true } },
+      where: { user: { userData: { id: userDataId } }, asset: { buyable: true } },
       relations: { user: true },
     });
   }

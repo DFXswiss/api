@@ -8,13 +8,14 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
-import { Config } from 'src/config/config';
+import { Config, Environment } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
@@ -23,7 +24,7 @@ import { MailContext, MailType } from 'src/subdomains/supporting/notification/en
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
-import { KycType, UserDataStatus } from '../user-data/user-data.entity';
+import { KycType, UserData, UserDataStatus } from '../user-data/user-data.entity';
 import { UserDataService } from '../user-data/user-data.service';
 import { LinkedUserInDto } from '../user/dto/linked-user.dto';
 import { User, UserStatus } from '../user/user.entity';
@@ -42,12 +43,23 @@ export interface ChallengeData {
   challenge: string;
 }
 
+export interface MailKeyData {
+  created: Date;
+  key: string;
+  mail: string;
+  userDataId: number;
+  loginUrl: string;
+  redirectUri?: string;
+}
+
 @Injectable()
 export class AuthService {
   private readonly logger = new DfxLogger(AuthService);
 
   private readonly masterKeyPrefix = 'MASTER-KEY-';
-  private challengeList: Map<string, ChallengeData> = new Map<string, ChallengeData>();
+
+  private readonly challengeList = new Map<string, ChallengeData>();
+  private readonly mailKeyList = new Map<string, MailKeyData>();
 
   constructor(
     private readonly userService: UserService,
@@ -60,14 +72,21 @@ export class AuthService {
     private readonly feeService: FeeService,
     private readonly userDataService: UserDataService,
     private readonly notificationService: NotificationService,
+    private readonly ipLogService: IpLogService,
     private readonly siftService: SiftService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
-  checkChallengeList() {
+  checkLists() {
     for (const [key, challenge] of this.challengeList.entries()) {
       if (!this.isChallengeValid(challenge)) {
         this.challengeList.delete(key);
+      }
+    }
+
+    for (const [key, entry] of this.mailKeyList.entries()) {
+      if (!this.isMailKeyValid(entry)) {
+        this.mailKeyList.delete(key);
       }
     }
   }
@@ -145,7 +164,17 @@ export class AuthService {
     return { accessToken: this.generateUserToken(user, userIp) };
   }
 
-  async signInByMail(dto: AuthMailDto): Promise<void> {
+  async signInByMail(dto: AuthMailDto, url: string): Promise<void> {
+    if (dto.redirectUri) {
+      try {
+        const redirectUrl = new URL(dto.redirectUri);
+        if (Config.environment !== Environment.LOC && !redirectUrl.host.endsWith('dfx.swiss'))
+          throw new Error('Redirect URL not allowed');
+      } catch (e) {
+        throw new BadRequestException(e.message);
+      }
+    }
+
     const userData =
       (await this.userDataService
         .getUsersByMail(dto.mail)
@@ -157,6 +186,20 @@ export class AuthService {
         status: UserDataStatus.KYC_ONLY,
       }));
 
+    // create random key
+    const key = randomUUID();
+    const loginUrl = `${Config.url()}/auth/mail/redirect?code=${key}`;
+
+    this.mailKeyList.set(key, {
+      created: new Date(),
+      key,
+      mail: dto.mail,
+      userDataId: userData.id,
+      loginUrl: url,
+      redirectUri: dto.redirectUri,
+    });
+
+    // send notification
     await this.notificationService.sendMail({
       type: MailType.USER,
       context: MailContext.LOGIN,
@@ -169,21 +212,40 @@ export class AuthService {
           {
             key: `${MailTranslationKey.LOGIN}.message`,
             params: {
-              url: userData.kycUrl,
-              urlText: userData.kycUrl,
+              url: loginUrl,
+              urlText: loginUrl,
+              expiration: `${Config.auth.mailLoginExpiresIn}`,
             },
           },
           {
             key: `${MailTranslationKey.GENERAL}.button`,
-            params: {
-              url: userData.kycUrl,
-            },
+            params: { url: loginUrl },
           },
           { key: MailKey.SPACE, params: { value: '2' } },
           { key: MailKey.DFX_TEAM_CLOSING },
         ],
       },
     });
+  }
+
+  async completeSignInByMail(code: string, ip: string): Promise<string> {
+    try {
+      const entry = this.mailKeyList.get(code);
+      if (!this.isMailKeyValid(entry)) throw new Error('Login link expired');
+      this.mailKeyList.delete(code);
+
+      const ipLog = await this.ipLogService.create(ip, entry.loginUrl, entry.mail);
+      if (!ipLog.result) throw new Error('The country of IP address is not allowed');
+
+      const account = await this.userDataService.getUserData(entry.userDataId);
+      const token = this.generateAccountToken(account, ip);
+
+      const url = new URL(entry.redirectUri ?? `${Config.frontend.services}/kyc`);
+      url.searchParams.set('session', token);
+      return url.toString();
+    } catch (e) {
+      return `${Config.frontend.services}/error?msg=${encodeURIComponent(e.message)}`;
+    }
   }
 
   private async companySignIn(dto: AuthCredentialsDto, ip: string): Promise<AuthResponseDto> {
@@ -285,7 +347,6 @@ export class AuthService {
 
   private generateUserToken(user: User, ip: string): string {
     const payload: JwtPayload = {
-      id: user.id,
       user: user.id,
       address: user.address,
       role: user.role,
@@ -296,9 +357,18 @@ export class AuthService {
     return this.jwtService.sign(payload);
   }
 
+  private generateAccountToken(userData: UserData, ip: string): string {
+    const payload: JwtPayload = {
+      role: UserRole.ACCOUNT,
+      account: userData.id,
+      blockchains: [],
+      ip,
+    };
+    return this.jwtService.sign(payload);
+  }
+
   private generateCompanyToken(wallet: Wallet, ip: string): string {
     const payload: JwtPayload = {
-      id: wallet.id,
       user: wallet.id,
       address: wallet.address,
       role: UserRole.KYC_CLIENT_COMPANY,
@@ -309,5 +379,9 @@ export class AuthService {
 
   private isChallengeValid(challenge: ChallengeData): boolean {
     return challenge && Util.secondsDiff(challenge.created) <= Config.auth.challenge.expiresIn;
+  }
+
+  private isMailKeyValid(entry: MailKeyData): boolean {
+    return entry && Util.minutesDiff(entry.created) <= Config.auth.mailLoginExpiresIn;
   }
 }

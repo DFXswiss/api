@@ -14,7 +14,7 @@
     "login": {
         "title": "DFX Login",
         "salutation": "DFX Login",
-        "message": "Click on the following link to log in to DFX:<br>[url:{urlText}]"
+        "message": "Click the following link within {expiration} minutes to log in to DFX:<br>[url:{urlText}]"
     },
     "payment": {
         "crypto_input": {

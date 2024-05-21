@@ -124,14 +124,14 @@ export class UserService {
     return this.userRepo.findOne({ where: { ref }, relations: ['userData', 'userData.users'] });
   }
 
-  async getUserDtoV2(userId: number): Promise<UserV2Dto> {
-    const user = await this.userRepo.findOne({
-      where: { id: userId },
-      relations: { userData: { users: { wallet: true } } },
+  async getUserDtoV2(userDataId: number, userId?: number): Promise<UserV2Dto> {
+    const userData = await this.userDataRepo.findOne({
+      where: { id: userDataId },
+      relations: { users: { wallet: true } },
     });
-    if (!user) throw new NotFoundException('User not found');
+    if (!userData) throw new NotFoundException('User not found');
 
-    return UserDtoMapper.mapUser(user.userData, user.id);
+    return UserDtoMapper.mapUser(userData, userId);
   }
 
   async getRefDtoV2(userId: number): Promise<ReferralDto> {
@@ -208,7 +208,7 @@ export class UserService {
     const user = await this.userRepo.findOne({ where: { id }, relations: ['userData'] });
     if (!user) throw new NotFoundException('User not found');
 
-    if (update.status && update.status == UserStatus.ACTIVE && user.status == UserStatus.NA)
+    if (update.status && update.status === UserStatus.ACTIVE && user.status === UserStatus.NA)
       await this.activateUser(user);
 
     return this.userRepo.save({ ...user, ...update });
@@ -501,7 +501,7 @@ export class UserService {
 
   private async getUserDetails(user: User): Promise<UserDetails> {
     return {
-      ...(user.status === UserStatus.ACTIVE ? await this.getUserRef(user) : undefined),
+      ...(user.ref ? await this.getUserRef(user) : undefined),
       bsLink:
         user.buyVolume + user.sellVolume + user.cryptoVolume >= Config.support.blackSquad.limit
           ? Config.support.blackSquad.link
