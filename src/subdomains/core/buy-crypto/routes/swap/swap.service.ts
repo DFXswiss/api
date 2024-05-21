@@ -79,10 +79,10 @@ export class SwapService {
     return this.swapRepo.findOne({ where: { id, user: { id: userId } }, relations: { user: true } });
   }
 
-  async createSwap(userId: number, blockchain: Blockchain, asset: Asset, ignoreExisting = false): Promise<Swap> {
+  async createSwap(userId: number, blockchain: Blockchain, asset: Asset, ignoreException = false): Promise<Swap> {
     // KYC check
     const userData = await this.userDataService.getUserDataByUser(userId);
-    if (userData.status !== UserDataStatus.ACTIVE && userData.kycLevel < KycLevel.LEVEL_30)
+    if (userData.status !== UserDataStatus.ACTIVE && userData.kycLevel < KycLevel.LEVEL_30 && !ignoreException)
       throw new BadRequestException('User not allowed for swap trading');
 
     // check if exists
@@ -97,7 +97,7 @@ export class SwapService {
     });
 
     if (existing) {
-      if (existing.active && !ignoreExisting) throw new ConflictException('Swap route already exists');
+      if (existing.active && !ignoreException) throw new ConflictException('Swap route already exists');
 
       if (!existing.active) {
         // reactivate deleted route
