@@ -232,7 +232,6 @@ export class AuthService {
     try {
       const entry = this.mailKeyList.get(code);
       if (!this.isMailKeyValid(entry)) throw new Error('Login link expired');
-      this.mailKeyList.delete(code);
 
       const ipLog = await this.ipLogService.create(ip, entry.loginUrl, entry.mail);
       if (!ipLog.result) throw new Error('The country of IP address is not allowed');

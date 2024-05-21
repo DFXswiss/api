@@ -5,6 +5,7 @@ import { SharedModule } from 'src/shared/shared.module';
 import { DexModule } from 'src/subdomains/supporting/dex/dex.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
+import { LiquidityManagementModule } from '../liquidity-management/liquidity-management.module';
 import { TradingOrder } from './entities/trading-order.entity';
 import { TradingRule } from './entities/trading-rule.entity';
 import { TradingOrderRepository } from './repositories/trading-order.respository';
@@ -22,6 +23,7 @@ import { TradingService } from './services/trading.service';
     PricingModule,
     DexModule,
     NotificationModule,
+    LiquidityManagementModule,
   ],
   controllers: [],
   providers: [
