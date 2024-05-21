@@ -25,39 +25,39 @@ export class BankDataService {
   @Lock(1800)
   async checkAndSetActive() {
     if (DisabledProcess(Process.BANK_DATA_VERIFICATION)) return;
-    await this.bankDataVerification();
+    await this.checkUnverifiedBankDatas();
   }
 
-  async bankDataVerification(): Promise<void> {
+  async checkUnverifiedBankDatas(): Promise<void> {
     const entities = await this.bankDataRepo.find({
-      where: { active: IsNull(), type: Not(In([BankDataType.IDENT, BankDataType.USER])), comment: IsNull() },
+      where: { active: Not(true), type: Not(In([BankDataType.IDENT, BankDataType.USER])), comment: IsNull() },
       relations: { userData: true },
     });
 
     for (const entity of entities) {
-      const existing = await this.bankDataRepo.findOne({
-        where: { iban: entity.iban, active: true },
-        relations: { userData: true },
-      });
+      await this.verifyBankData(entity);
+    }
+  }
 
-      const errors = this.getBankDataVerificationErrors(entity, existing);
+  async verifyBankData(entity: BankData): Promise<void> {
+    const existing = await this.bankDataRepo.findOne({
+      where: { iban: entity.iban, active: true },
+      relations: { userData: true },
+    });
 
-      if (errors.length === 0) {
-        if (!existing) {
-          await this.bankDataRepo.update(...entity.activate());
-        } else if (existing.type === BankDataType.BANK_IN || entity.type !== BankDataType.BANK_IN) {
-          await this.bankDataRepo.update(...entity.deactivate(BankDataVerificationError.ALREADY_ACTIVE_EXISTS));
-        } else {
-          const existingError = [...(existing.comment?.split(';') ?? []), BankDataVerificationError.NEW_BANK_IN_ACTIVE];
+    const errors = this.getBankDataVerificationErrors(entity, existing);
 
-          await this.bankDataRepo.update(...existing.deactivate(existingError.join(';')));
-          await this.bankDataRepo.update(...entity.activate());
-        }
+    if (errors.length === 0) {
+      if (!existing) {
+        await this.bankDataRepo.update(...entity.activate());
       } else {
-        if (existing.type === BankDataType.BANK_IN) errors.push(BankDataVerificationError.ALREADY_ACTIVE_EXISTS);
+        const existingError = [...(existing.comment?.split(';') ?? []), BankDataVerificationError.NEW_BANK_IN_ACTIVE];
 
-        await this.bankDataRepo.update(...entity.deactivate(errors.join(';')));
+        await this.bankDataRepo.update(...existing.deactivate(existingError.join(';')));
+        await this.bankDataRepo.update(...entity.activate());
       }
+    } else {
+      await this.bankDataRepo.update(...entity.deactivate(errors.join(';')));
     }
   }
 
@@ -66,11 +66,13 @@ export class BankDataService {
 
     if (!entity.userData.verifiedName) errors.push(BankDataVerificationError.VERIFIED_NAME_MISSING);
     else if (!entity.name) errors.push(BankDataVerificationError.NAME_MISSING);
-    else if (Util.isSameName(entity.name, entity.userData.verifiedName))
+    else if (!Util.isSameName(entity.name, entity.userData.verifiedName))
       errors.push(BankDataVerificationError.VERIFIED_NAME_NOT_MATCHING);
 
     if (existingActive && entity.userData.id !== existingActive.userData.id)
       errors.push(BankDataVerificationError.USER_DATA_NOT_MATCHING);
+
+    if (existingActive?.type === BankDataType.BANK_IN) errors.push(BankDataVerificationError.ALREADY_ACTIVE_EXISTS);
 
     return errors;
   }
@@ -86,6 +88,8 @@ export class BankDataService {
   async createBankData(userData: UserData, dto: CreateBankDataDto): Promise<UserData> {
     const bankData = this.bankDataRepo.create({ ...dto, userData });
     await this.bankDataRepo.save(bankData);
+
+    await this.verifyBankData(bankData);
 
     // update updated time in user data
     await this.userDataRepo.setNewUpdateTime(userData.id);
