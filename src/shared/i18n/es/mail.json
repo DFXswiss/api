@@ -59,7 +59,8 @@
                 "high_risk_kyc_needed": "Sin la verificación (KYC), no podíamos asegurar que esta transacción no fuera fraudulenta y por lo tanto desafortunadamente tuvimos que rechazar la transacción.<br>Los pagos por transacción bancaria todavía están disponibles para usted.",
                 "high_risk_blocked": "No podemos asegurar que esta transacción no es fraudulenta y por lo tanto, lamentablemente, tuvo que rechazar la transacción.<br>Pagos por transacción bancaria todavía están disponibles para usted.",
                 "fee_too_high": "Las tarifas de la red son actualmente demasiado altas para la cantidad que has enviado",
-                "receiver_rejected_tx": "El nodo receptor ha rechazado la transacción"
+                "receiver_rejected_tx": "El nodo receptor ha rechazado la transacción",
+                "asset_not_available_with_chosen_bank": "Este activo no puede comprarse a través de la cuenta bancaria seleccionada"
             },
             "kyc_start": "Puede iniciar el proceso KYC aquí:<br>[url:{urlText}]"
         },
