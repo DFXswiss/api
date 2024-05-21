@@ -49,8 +49,15 @@ export class AuthController {
 
   @Post('mail')
   @ApiCreatedResponse()
-  signInByMail(@Body() dto: AuthMailDto): Promise<void> {
-    return this.authService.signInByMail(dto);
+  signInByMail(@Body() dto: AuthMailDto, @Req() req: Request): Promise<void> {
+    return this.authService.signInByMail(dto, req.url);
+  }
+
+  @Get('mail/redirect')
+  @ApiExcludeEndpoint()
+  async redirectMail(@Query('code') code: string, @Res() res: Response, @RealIP() ip: string): Promise<void> {
+    const redirectUri = await this.authService.completeSignInByMail(code, ip);
+    res.redirect(redirectUri);
   }
 
   @Get('mail/confirm')

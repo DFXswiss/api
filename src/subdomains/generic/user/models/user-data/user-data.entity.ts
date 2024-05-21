@@ -408,6 +408,10 @@ export class UserData extends IEntity {
     return [KycLevel.REJECTED, KycLevel.TERMINATED].includes(this.kycLevel);
   }
 
+  get kycLevelDisplay(): number {
+    return Util.floor(this.kycLevel, -1);
+  }
+
   // --- KYC PROCESS --- //
 
   setKycLevel(level: KycLevel): this {

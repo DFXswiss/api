@@ -25,6 +25,14 @@ export class Util {
     return new BigNumber(Math.round(amount / value)).multipliedBy(value).toNumber();
   }
 
+  static floor(amount: number, decimals: number): number {
+    return this.floorToValue(amount, Math.pow(10, -decimals));
+  }
+
+  static floorToValue(amount: number, value: number): number {
+    return new BigNumber(Math.floor(amount / value)).multipliedBy(value).toNumber();
+  }
+
   static ceil(amount: number, decimals: number): number {
     return this.ceilToValue(amount, Math.pow(10, -decimals));
   }
@@ -102,6 +110,8 @@ export class Util {
   }
 
   static isSameName(input1: string, input2: string): boolean {
+    if (!input1 || !input2) return false;
+
     const array1 = this.removeSpecialChars(input1).split(' ');
     const array2 = this.removeSpecialChars(input2).split(' ');
 

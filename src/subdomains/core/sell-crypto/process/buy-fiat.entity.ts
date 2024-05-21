@@ -417,4 +417,4 @@ export const BuyFiatAmlReasonPendingStates = [
   AmlReason.MANUAL_CHECK,
 ];
 
-export const BuyFiatEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET];
+export const BuyFiatEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];

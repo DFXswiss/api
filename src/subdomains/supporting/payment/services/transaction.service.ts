@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Util } from 'src/shared/utils/util';
-import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { Between, FindOptionsRelations, In, IsNull, LessThanOrEqual, Not } from 'typeorm';
+import { Between, FindOptionsRelations, IsNull, LessThanOrEqual, Not } from 'typeorm';
 import { CreateTransactionDto } from '../dto/input/create-transaction.dto';
 import { UpdateTransactionDto } from '../dto/input/update-transaction.dto';
 import { Transaction } from '../entities/transaction.entity';
@@ -49,9 +48,9 @@ export class TransactionService {
     return this.repo.findBy({ uid: IsNull(), created: LessThanOrEqual(filterDate) });
   }
 
-  async getTransactionsForUsers(users: User[], from = new Date(0), to = new Date()): Promise<Transaction[]> {
+  async getTransactionsForAccount(userDataId: number, from = new Date(0), to = new Date()): Promise<Transaction[]> {
     return this.repo.find({
-      where: { user: { id: In(users.map((u) => u.id)) }, type: Not(IsNull()), created: Between(from, to) },
+      where: { user: { userData: { id: userDataId } }, type: Not(IsNull()), created: Between(from, to) },
       relations: {
         buyCrypto: {
           buy: { user: true },

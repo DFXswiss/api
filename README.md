@@ -50,6 +50,14 @@ If a user wants to get notified about ongoing transactions, he can register his 
 
 KYC is not required for a daily transaction volume up to 1000 CHF. To increase the transaction volume, the user needs to be verified with a KYC process, which can be done on the DFX KYC page. Just open then link to the KYC page with the user's API access token: `https://services.dfx.swiss/kyc?session=<jwt-access-token>`
 
+The current KYC level of a user can be read using the [user endpoint](https://api.dfx.swiss/swagger/#/User/UserV2Controller_getUser). The different levels are listed below.
+
+- Level 10: Contact data recorded (mail)
+- Level 20: Personal data recorded (account type, name, address, phone number)
+- Level 30: Successful identification with ID or passport
+- Level 40: Financial background queried (income, assets, business activity)
+- Level 50: Risk analysis carried out (start of the business relationship between DFX and the user)
+
 ### Transactions
 
 #### Buy Crypto
@@ -87,7 +95,7 @@ _Get a quote_
 
 _Get payment infos_
 
-<em>In order to perform bank transactions, DFX needs to know the name and address of the recipient. Therefore, user data must be collected once before a sale can be made. The user data can be updated with the [kyc data endpoint](https://api.dfx.swiss/swagger#/User/UserController_updateKycData). Required fields are `accountType, mail, phone, firstname, lastName, address (street, city, zip, country)`. For non personal accounts, `organizationName, organizationAddress (street, city, zip, country)` are also required.</em>
+<em>In order to perform bank transactions, DFX needs to know the name and address of the recipient (KYC level ≥ 20). Therefore, user data must be collected once before a sale can be made. The user data can be updated with the [kyc data endpoint](https://api.dfx.swiss/swagger#/User/UserController_updateKycData). Required fields are `accountType, mail, phone, firstname, lastName, address (street, city, zip, country)`. For non personal accounts, `organizationName, organizationAddress (street, city, zip, country)` are also required.</em>
 
 1. Update user data, if required (check with `kyc.dataComplete` field from [user endpoint](https://api.dfx.swiss/swagger/#/User/UserV2Controller_getUser))
 1. Get all available assets with the [asset endpoint](https://api.dfx.swiss/swagger/#/Asset/AssetController_getAllAsset)

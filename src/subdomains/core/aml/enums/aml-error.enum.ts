@@ -11,7 +11,7 @@ export enum AmlError {
   ASSET_NOT_INSTANT_BUYABLE = 'AssetNotInstantBuyable',
   ASSET_NOT_CARD_BUYABLE = 'AssetNotCardBuyable',
   INSTANT_NOT_ALLOWED = 'InstantNotAllowed',
-  CRYPTO_CRYPTO_NOT_ALLOWED = 'CryptoNotAllowed',
+  CRYPTO_CRYPTO_NOT_ALLOWED = 'CryptoCryptoNotAllowed',
   INVALID_USER_STATUS = 'InvalidUserStatus',
   INVALID_USER_DATA_STATUS = 'InvalidUserDataStatus',
   INVALID_KYC_STATUS = 'InvalidKycStatus',
@@ -48,19 +48,27 @@ export enum AmlErrorType {
 export const AmlErrorResult: {
   [b in AmlError]: { type: AmlErrorType; amlCheck: CheckStatus; amlReason: AmlReason };
 } = {
-  [AmlError.ASSET_NOT_BUYABLE]: {
-    type: AmlErrorType.CRUCIAL,
-    amlCheck: CheckStatus.FAIL,
-    amlReason: AmlReason.ASSET_CURRENTLY_NOT_AVAILABLE,
-  },
   [AmlError.MIN_VOLUME_NOT_REACHED]: null,
   [AmlError.KYC_LEVEL_30_NOT_REACHED]: null,
   [AmlError.KYC_LEVEL_50_NOT_REACHED]: null,
   [AmlError.KYC_LEVEL_TOO_LOW]: null,
   [AmlError.ASSET_NOT_SELLABLE]: null,
-  [AmlError.ASSET_NOT_INSTANT_BUYABLE]: null,
+  [AmlError.ASSET_NOT_BUYABLE]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.FAIL,
+    amlReason: AmlReason.ASSET_CURRENTLY_NOT_AVAILABLE,
+  },
+  [AmlError.ASSET_NOT_INSTANT_BUYABLE]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.FAIL,
+    amlReason: AmlReason.ASSET_NOT_AVAILABLE_WITH_CHOSEN_BANK,
+  },
   [AmlError.ASSET_NOT_CARD_BUYABLE]: null,
-  [AmlError.INSTANT_NOT_ALLOWED]: null,
+  [AmlError.INSTANT_NOT_ALLOWED]: {
+    type: AmlErrorType.MULTI,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.OLKY_NO_KYC,
+  },
   [AmlError.CRYPTO_CRYPTO_NOT_ALLOWED]: null,
   [AmlError.INVALID_USER_STATUS]: null,
   [AmlError.INVALID_USER_DATA_STATUS]: null,
