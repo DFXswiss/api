@@ -166,7 +166,7 @@ export class BuyCryptoService {
   private async setTxRequest(entity: BuyCrypto): Promise<BuyCrypto> {
     const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
 
-    const transactionRequest = await this.transactionRequestService.findAndCompleteRequest(
+    const transactionRequest = await this.transactionRequestService.findAndComplete(
       entity.inputAmount,
       entity.route.id,
       inputCurrency.id,
@@ -240,7 +240,8 @@ export class BuyCryptoService {
     update.amlReason = update.amlCheck === CheckStatus.PASS ? AmlReason.NA : update.amlReason;
 
     const forceUpdate: Partial<BuyCrypto> = {
-      ...(BuyCryptoEditableAmlCheck.includes(entity.amlCheck) && !entity.isComplete &&
+      ...(BuyCryptoEditableAmlCheck.includes(entity.amlCheck) &&
+      !entity.isComplete &&
       (update?.amlCheck !== entity.amlCheck || update.amlReason !== entity.amlReason)
         ? { amlCheck: update.amlCheck, mailSendDate: null, amlReason: update.amlReason, comment: update.comment }
         : undefined),

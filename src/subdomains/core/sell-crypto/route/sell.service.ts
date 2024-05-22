@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
@@ -9,9 +10,12 @@ import { UpdateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/update-
 import { SellRepository } from 'src/subdomains/core/sell-crypto/route/sell.repository';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { In, Not } from 'typeorm';
 import { DepositService } from '../../../supporting/address-pool/deposit/deposit.service';
 import { BankAccountService } from '../../../supporting/bank/bank-account/bank-account.service';
+import { ConfirmSellDto } from './dto/confirm-sell.dto';
 import { Sell } from './sell.entity';
 
 @Injectable()
@@ -23,6 +27,7 @@ export class SellService {
     private readonly userDataService: UserDataService,
     private readonly bankAccountService: BankAccountService,
     private readonly assetService: AssetService,
+    private readonly evmRegistry: EvmRegistryService,
   ) {}
 
   // --- SELLS --- //
@@ -150,5 +155,26 @@ export class SellService {
       .select('SUM(volume)', 'volume')
       .getRawOne<{ volume: number }>()
       .then((r) => r.volume);
+  }
+
+  // --- CONFIRMATION --- //
+  async confirmSell(request: TransactionRequest, dto: ConfirmSellDto): Promise<Transaction> {
+    const asset = await this.assetService.getAssetById(request.sourceId);
+    const client = this.evmRegistry.getClient(asset.blockchain);
+
+    const txId = await client.permitTransfer(
+      dto.permit.address,
+      dto.permit.signature,
+      dto.permit.signatureTransferContract,
+      asset,
+      request.amount,
+      dto.permit.nonce,
+      dto.permit.deadline,
+    );
+    console.log(txId);
+
+    // TODO: create crypto input
+
+    throw new Error('Method not implemented.');
   }
 }

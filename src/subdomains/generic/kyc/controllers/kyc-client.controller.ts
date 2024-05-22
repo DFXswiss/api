@@ -23,6 +23,8 @@ export class KycClientController {
     return this.kycClientService.getAllKycData(jwt.user);
   }
 
+  // TODO: single user api
+
   @Get('payments')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))

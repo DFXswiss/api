@@ -80,7 +80,7 @@ export class BuyFiatService {
   }
 
   private async setTxRequest(entity: BuyFiat): Promise<BuyFiat> {
-    const transactionRequest = await this.transactionRequestService.findAndCompleteRequest(
+    const transactionRequest = await this.transactionRequestService.findAndComplete(
       entity.inputAmount,
       entity.sell.id,
       entity.cryptoInput.asset.id,

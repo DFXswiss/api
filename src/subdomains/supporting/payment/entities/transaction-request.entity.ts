@@ -1,5 +1,6 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity } from 'typeorm';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { Column, Entity, ManyToOne } from 'typeorm';
 import { PaymentMethod } from '../dto/payment-method.enum';
 import { QuoteError } from '../dto/transaction-helper/quote-error.enum';
 
@@ -70,4 +71,7 @@ export class TransactionRequest extends IEntity {
 
   @Column({ default: false })
   isComplete: boolean;
+
+  @ManyToOne(() => User, { nullable: true }) // TODO: nullable false
+  user: User;
 }

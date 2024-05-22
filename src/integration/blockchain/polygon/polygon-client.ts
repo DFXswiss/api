@@ -2,9 +2,10 @@ import { POSClient, setProofApi, use } from '@maticnetwork/maticjs';
 import { Web3ClientPlugin } from '@maticnetwork/maticjs-ethers';
 import { Contract, ethers } from 'ethers';
 import { Config, GetConfig } from 'src/config/config';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { Blockchain } from '../shared/enums/blockchain.enum';
 import ERC20_ABI from '../shared/evm/abi/erc20.abi.json';
 import { EvmClient, EvmClientParams } from '../shared/evm/evm-client';
 import { EvmUtil } from '../shared/evm/evm.util';
@@ -36,6 +37,21 @@ export class PolygonClient extends EvmClient implements L2BridgeEvmClient {
     void this.initPolygonNetwork(ethWalletAddress, polygonWalletAddress);
 
     this.l2TxIdCache = new Set();
+
+    const address = '0xd1f92a7f86cc94639ed6f3acd2ed540c742602dc';
+    const signature =
+      '0x0c03d568d289d71adc94989d2722c1ed208aafc16865bd52b162cfd7a6ed49df32c789799311c4e3bd5688299bbba20370919d12fa4c599dc7ca33631d4a753c1b';
+    const contract = '0x666a22Cca1d155032eD2F6ae7797616ede16F21c';
+    const asset = {
+      type: AssetType.TOKEN,
+      chainId: '0x02567e4b14b25549331fcee2b56c647a8bab16fd',
+      blockchain: Blockchain.POLYGON,
+    } as Asset;
+    const amount = 0.0001;
+    const nonce = 6;
+    const deadline = 111111111111;
+
+    void this.permitTransfer(address, signature, contract, asset, amount, nonce, deadline).then(console.log);
   }
 
   async depositCoinOnDex(_amount: number): Promise<string> {

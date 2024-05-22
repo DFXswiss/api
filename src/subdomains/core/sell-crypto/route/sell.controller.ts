@@ -150,10 +150,13 @@ export class SellController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
   @ApiOkResponse({ type: TransactionDto })
   async confirmSell(
-    @GetJwt() _jwt: JwtPayload,
-    @Param('id') _id: string,
-    @Body() _dto: ConfirmSellDto,
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: ConfirmSellDto,
   ): Promise<TransactionDto> {
+    const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
+    // TODO: return type?
+    // return this.sellService.confirmSell(request, dto).then((tx) => TransactionDtoMapper.mapBuyFiatTransaction(tx));
     throw new NotImplementedException();
   }
 
@@ -266,7 +269,7 @@ export class SellController {
       error,
     };
 
-    await this.transactionRequestService.createTransactionRequest(TransactionRequestType.Sell, dto, sellDto, user.id);
+    await this.transactionRequestService.create(TransactionRequestType.Sell, dto, sellDto, user.id);
 
     return sellDto;
   }
