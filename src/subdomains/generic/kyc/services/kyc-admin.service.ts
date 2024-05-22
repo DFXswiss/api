@@ -6,6 +6,7 @@ import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/u
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
 import { KycWebhookTriggerDto } from '../dto/kyc-webhook-trigger.dto';
+import { KycStep } from '../entities/kyc-step.entity';
 import { KycLogType, KycStepName, KycStepStatus } from '../enums/kyc.enum';
 import { KycLogRepository } from '../repositories/kyc-log.repository';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
@@ -18,6 +19,10 @@ export class KycAdminService {
     private readonly webhookService: WebhookService,
     private readonly bankDataService: BankDataService,
   ) {}
+
+  async getKycSteps(userDataId: number): Promise<KycStep[]> {
+    return this.kycStepRepo.find({ where: { userData: { id: userDataId } }, relations: { userData: true } });
+  }
 
   async updateLogPdfUrl(id: number, url: string): Promise<void> {
     const entity = await this.kycLogRepo.findOneBy({ id });
