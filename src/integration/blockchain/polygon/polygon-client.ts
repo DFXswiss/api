@@ -48,10 +48,13 @@ export class PolygonClient extends EvmClient implements L2BridgeEvmClient {
       blockchain: Blockchain.POLYGON,
     } as Asset;
     const amount = 0.0001;
+    const permittedAmount = 0.1;
     const nonce = 6;
     const deadline = 111111111111;
 
-    void this.permitTransfer(address, signature, contract, asset, amount, nonce, deadline).then(console.log);
+    void this.permitTransfer(address, signature, contract, asset, amount, permittedAmount, nonce, deadline).then(
+      console.log,
+    );
   }
 
   async depositCoinOnDex(_amount: number): Promise<string> {

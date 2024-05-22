@@ -168,6 +168,7 @@ export class SellService {
       dto.permit.signatureTransferContract,
       asset,
       request.amount,
+      request.amount,
       dto.permit.nonce,
       dto.permit.deadline,
     );

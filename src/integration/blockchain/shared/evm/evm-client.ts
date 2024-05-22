@@ -212,19 +212,20 @@ export abstract class EvmClient {
     signatureTransferContract: string,
     asset: Asset,
     amount: number,
+    permittedAmount: number,
     nonce: number,
     deadline: number,
   ): Promise<string> {
     const contract = new ethers.Contract(signatureTransferContract, SIGNATURE_TRANSFER_ABI, this.wallet);
 
     const token = await this.getToken(asset);
-    const targetAmount = EvmUtil.toWeiAmount(amount, token.decimals);
-    const permittedAmount = EvmUtil.toWeiAmount(0.1, token.decimals); // TODO: remove
+    const amountWei = EvmUtil.toWeiAmount(amount, token.decimals);
+    const permittedAmountWei = EvmUtil.toWeiAmount(permittedAmount, token.decimals);
 
     const values = {
       permitted: {
         token: asset.chainId,
-        amount: permittedAmount,
+        amount: permittedAmountWei,
       },
       spender: this.dfxAddress,
       nonce,
@@ -232,11 +233,10 @@ export abstract class EvmClient {
     };
     const transferDetails = {
       to: this.dfxAddress,
-      requestedAmount: targetAmount,
+      requestedAmount: amountWei,
     };
 
-    const result = await contract.permitTransferFrom(values, transferDetails, from, signature);
-    return result;
+    return contract.permitTransferFrom(values, transferDetails, from, signature);
   }
 
   // --- PUBLIC API - UTILITY --- //
