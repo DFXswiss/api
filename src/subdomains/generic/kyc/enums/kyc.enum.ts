@@ -38,7 +38,7 @@ export enum KycStepStatus {
   NOT_STARTED = 'NotStarted',
   IN_PROGRESS = 'InProgress',
   FINISHED = 'Finished',
-  EXTERNAL_REVIEW = 'ExternalPending',
+  EXTERNAL_REVIEW = 'ExternalReview',
   INTERNAL_REVIEW = 'InternalReview',
   MANUAL_REVIEW = 'ManualReview',
   FAILED = 'Failed',
