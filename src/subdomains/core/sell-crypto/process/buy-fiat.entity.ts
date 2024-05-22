@@ -354,8 +354,7 @@ export class BuyFiat extends IEntity {
   }
 
   addPriceSteps(steps: PriceStep[]): void {
-    this.priceStepsObject = [...this.priceStepsObject, ...steps];
-    return;
+    this.priceStepsObject = [...this.priceStepsObject, ...(steps ?? [])];
   }
 
   get exchangeRate(): { exchangeRate: number; rate: number } {

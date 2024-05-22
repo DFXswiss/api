@@ -207,12 +207,12 @@ export class BuyCrypto extends IEntity {
 
   calculateOutputReferenceAmount(price: Price): this {
     this.outputReferenceAmount = price.convert(this.inputReferenceAmountMinusFee, 8);
-    this.addPriceSteps(price.steps);
+    this.addPriceSteps(price?.steps);
     return this;
   }
 
   addPriceSteps(steps: PriceStep[]): void {
-    this.priceStepsObject = [...this.priceStepsObject, ...steps];
+    this.priceStepsObject = [...this.priceStepsObject, ...(steps ?? [])];
   }
 
   assignCandidateBatch(batch: BuyCryptoBatch): this {
