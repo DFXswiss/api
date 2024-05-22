@@ -101,7 +101,12 @@ export class KycStep extends IEntity {
   }
 
   get isInReview(): boolean {
-    return [KycStepStatus.FINISHED, KycStepStatus.CHECK_PENDING, KycStepStatus.IN_REVIEW].includes(this.status);
+    return [
+      KycStepStatus.FINISHED,
+      KycStepStatus.EXTERNAL_REVIEW,
+      KycStepStatus.INTERNAL_REVIEW,
+      KycStepStatus.MANUAL_REVIEW,
+    ].includes(this.status);
   }
 
   get isCompleted(): boolean {
@@ -159,20 +164,20 @@ export class KycStep extends IEntity {
     return this;
   }
 
-  check(result?: KycStepResult): this {
-    this.status = KycStepStatus.CHECK_PENDING;
+  externalReview(result?: KycStepResult): this {
+    this.status = KycStepStatus.EXTERNAL_REVIEW;
 
     return this.setResult(result);
   }
 
-  review(result?: KycStepResult): this {
-    this.status = KycStepStatus.IN_REVIEW;
-
-    return this.setResult(result);
-  }
-
-  internalReview(): this {
+  internalReview(result?: KycStepResult): this {
     this.status = KycStepStatus.INTERNAL_REVIEW;
+
+    return this.setResult(result);
+  }
+
+  manualReview(): this {
+    this.status = KycStepStatus.MANUAL_REVIEW;
 
     return this;
   }

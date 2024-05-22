@@ -91,7 +91,7 @@ export class KycService {
     if (DisabledProcess(Process.KYC)) return;
 
     const entities = await this.kycStepRepo.find({
-      where: { name: KycStepName.IDENT, status: KycStepStatus.IN_REVIEW },
+      where: { name: KycStepName.IDENT, status: KycStepStatus.INTERNAL_REVIEW },
       relations: { userData: true },
     });
 
@@ -108,7 +108,7 @@ export class KycService {
       } else if (errors.length === 0) {
         entity.complete();
       } else {
-        entity.internalReview();
+        entity.manualReview();
       }
 
       await this.createStepLog(entity.userData, entity);
@@ -251,7 +251,7 @@ export class KycService {
 
     const complete = this.financialService.isComplete(data.responses);
     if (complete) {
-      user.reviewStep(kycStep);
+      user.internalReviewStep(kycStep);
       await this.createStepLog(user, kycStep);
     }
 
@@ -293,11 +293,11 @@ export class KycService {
         break;
 
       case IdentShortResult.REVIEW:
-        user = user.checkStep(kycStep, dto);
+        user = user.externalReviewStep(kycStep, dto);
         break;
 
       case IdentShortResult.SUCCESS:
-        user = user.reviewStep(kycStep, dto);
+        user = user.internalReviewStep(kycStep, dto);
         await this.downloadIdentDocuments(user, kycStep);
         break;
 

@@ -455,16 +455,16 @@ export class UserData extends IEntity {
     return this;
   }
 
-  checkStep(kycStep: KycStep, result?: KycStepResult): this {
-    kycStep.check(result);
+  externalReviewStep(kycStep: KycStep, result?: KycStepResult): this {
+    kycStep.externalReview(result);
 
     this.logger.verbose(`User ${this.id} checks step ${kycStep.name} (${kycStep.id})`);
 
     return this;
   }
 
-  reviewStep(kycStep: KycStep, result?: KycStepResult): this {
-    kycStep.review(result);
+  internalReviewStep(kycStep: KycStep, result?: KycStepResult): this {
+    kycStep.internalReview(result);
 
     this.logger.verbose(`User ${this.id} reviews step ${kycStep.name} (${kycStep.id})`);
 
