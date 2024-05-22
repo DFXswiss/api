@@ -71,6 +71,7 @@ export class UserController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: UserDetailDto })
   @ApiAcceptedResponse(AccountExistsResponse)
+  @ApiOperation({ deprecated: true })
   async updateUserV1(
     @GetJwt() jwt: JwtPayload,
     @Body() newUser: UpdateUserDto,
