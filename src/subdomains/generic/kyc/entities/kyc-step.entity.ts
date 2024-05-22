@@ -7,59 +7,7 @@ import { KycStepName, KycStepStatus, KycStepType, UrlType } from '../enums/kyc.e
 import { IdentService } from '../services/integration/ident.service';
 import { StepLog } from './step-log.entity';
 
-export type KycStepResult = string | object | KycStepResultDto;
-
-export interface KycStepResultDto {
-  identificationprocess: {
-    result: string;
-    companyid: string;
-    filename: string;
-    agentname: string;
-    identificationtime: string;
-    id: string;
-    href: string;
-    type: string;
-    transactionnumber: string;
-  };
-  customdata: any;
-  contactdata: {
-    mobilphone?: any;
-    email?: any;
-  };
-  userdata: {
-    birthday: KycStepResultValue;
-    firstname: KycStepResultValue;
-    lastname: KycStepResultValue;
-    birthname: KycStepResultValue;
-    address?: any;
-    birthplace: KycStepResultValue;
-    nationality: KycStepResultValue;
-    gender: KycStepResultValue;
-    identlanguage: KycStepResultValue;
-  };
-  identificationdocument: {
-    country: KycStepResultValue;
-    number: KycStepResultValue;
-    issuedby: KycStepResultValue;
-    dateissued: KycStepResultValue;
-    type: KycStepResultValue;
-    validuntil: KycStepResultValue;
-  };
-  attachments: {
-    pdf: string;
-    xml: string;
-    idbackside: string;
-    livenessscreenshot1: string;
-    idfrontside: string;
-    userface: string;
-  };
-}
-
-interface KycStepResultValue {
-  status: string;
-  value: string;
-  original?: string;
-}
+export type KycStepResult = string | object;
 
 @Entity()
 @Index((s: KycStep) => [s.userData, s.name, s.type, s.sequenceNumber], { unique: true })
@@ -195,6 +143,12 @@ export class KycStep extends IEntity {
 
   cancel(): this {
     this.status = KycStepStatus.CANCELED;
+
+    return this;
+  }
+
+  ignored(): this {
+    this.status = KycStepStatus.IGNORED;
 
     return this;
   }

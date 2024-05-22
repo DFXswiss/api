@@ -35,7 +35,7 @@ export enum IdentCheckError {
   USER_DATA_BLOCKED = 'UserDataBlocked',
   FIRST_NAME_NOT_MATCHING = 'FirstNameNotMatching',
   LAST_NAME_NOT_MATCHING = 'LastNameNotMatching',
-  INVALID_TYPE = 'InvalidType',
+  INVALID_DOCUMENT_TYPE = 'InvalidDocumentType',
   IDENTIFICATION_NUMBER_MISSING = 'IdentificationNumberMissing',
   INVALID_RESULT = 'InvalidResult',
   VERIFIED_NAME_MISSING = 'VerifiedNameMissing',
@@ -101,7 +101,7 @@ export class KycService {
       entity.comment = errors.join(';');
 
       if (errors.includes(IdentCheckError.USER_DATA_BLOCKED) || errors.includes(IdentCheckError.USER_DATA_MERGED)) {
-        entity.cancel();
+        entity.ignored();
       } else if (errors.includes(IdentCheckError.VERIFIED_NAME_MISSING) && errors.length === 1) {
         entity.userData.verifiedName = `${entity.userData.firstname} ${entity.userData.surname}`;
         entity.complete();
@@ -119,30 +119,25 @@ export class KycService {
 
   private getIdentCheckErrors(entity: KycStep): IdentCheckError[] {
     const errors = [];
-    const resultJson = JSON.parse(entity.result);
+    const result = entity.getResult<IdentResultDto>();
 
     if (entity.userData.status === UserDataStatus.MERGED) errors.push(IdentCheckError.USER_DATA_MERGED);
     if (entity.userData.status === UserDataStatus.BLOCKED) errors.push(IdentCheckError.USER_DATA_BLOCKED);
 
-    if (!Util.isSameName(entity.userData.firstname, resultJson.userdata?.firstname.value))
+    if (!Util.isSameName(entity.userData.firstname, result.userdata?.firstname.value))
       errors.push(IdentCheckError.FIRST_NAME_NOT_MATCHING);
     if (
-      !Util.isSameName(
-        entity.userData.surname,
-        resultJson.userdata?.lastname.value ?? resultJson.userData?.birthname.value,
-      )
+      !Util.isSameName(entity.userData.surname, result.userdata?.lastname.value) &&
+      !Util.isSameName(entity.userData.surname, result.userdata?.birthname.value)
     )
       errors.push(IdentCheckError.LAST_NAME_NOT_MATCHING);
 
-    if (resultJson.identificationprocess?.type !== 'IDCARD' && resultJson.identificationprocess?.type !== 'PASSPORT')
-      errors.push(IdentCheckError.INVALID_TYPE);
+    if (!['IDCARD', 'PASSPORT'].includes(result.identificationprocess?.type))
+      errors.push(IdentCheckError.INVALID_DOCUMENT_TYPE);
 
-    if (!resultJson.identificationdocument?.number) errors.push(IdentCheckError.IDENTIFICATION_NUMBER_MISSING);
+    if (!result.identificationdocument?.number) errors.push(IdentCheckError.IDENTIFICATION_NUMBER_MISSING);
 
-    if (
-      resultJson.identificationprocess?.result !== 'SUCCESS_DATA_CHANGED' &&
-      resultJson.identificationprocess?.result !== 'SUCCESS'
-    )
+    if (!['SUCCESS_DATA_CHANGED', 'SUCCESS'].includes(result.identificationprocess?.result))
       errors.push(IdentCheckError.INVALID_RESULT);
 
     if (!entity.userData.verifiedName) {

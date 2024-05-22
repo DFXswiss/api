@@ -44,6 +44,7 @@ export enum KycStepStatus {
   FAILED = 'Failed',
   COMPLETED = 'Completed',
   CANCELED = 'Canceled',
+  IGNORED = 'Ignored',
   OUTDATED = 'Outdated',
 }
 
