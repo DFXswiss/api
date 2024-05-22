@@ -48,13 +48,11 @@ export class BankDataService {
     const errors = this.getBankDataVerificationErrors(entity, existing);
 
     if (errors.length === 0) {
-      if (!existing) {
-        await this.bankDataRepo.update(...entity.activate());
-      } else {
-        const existingError = [...(existing.comment?.split(';') ?? []), BankDataVerificationError.NEW_BANK_IN_ACTIVE];
+      await this.bankDataRepo.update(...entity.activate());
 
+      if (existing) {
+        const existingError = [...(existing.comment?.split(';') ?? []), BankDataVerificationError.NEW_BANK_IN_ACTIVE];
         await this.bankDataRepo.update(...existing.deactivate(existingError.join(';')));
-        await this.bankDataRepo.update(...entity.activate());
       }
     } else {
       await this.bankDataRepo.update(...entity.deactivate(errors.join(';')));
@@ -69,10 +67,12 @@ export class BankDataService {
     else if (!Util.isSameName(entity.name, entity.userData.verifiedName))
       errors.push(BankDataVerificationError.VERIFIED_NAME_NOT_MATCHING);
 
-    if (existingActive && entity.userData.id !== existingActive.userData.id)
-      errors.push(BankDataVerificationError.USER_DATA_NOT_MATCHING);
-
-    if (existingActive?.type === BankDataType.BANK_IN) errors.push(BankDataVerificationError.ALREADY_ACTIVE_EXISTS);
+    if (existingActive) {
+      if (entity.userData.id !== existingActive.userData.id)
+        errors.push(BankDataVerificationError.USER_DATA_NOT_MATCHING);
+      if (existingActive.type === BankDataType.BANK_IN || entity.type !== BankDataType.BANK_IN)
+        errors.push(BankDataVerificationError.ALREADY_ACTIVE_EXISTS);
+    }
 
     return errors;
   }
