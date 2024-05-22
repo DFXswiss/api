@@ -480,7 +480,8 @@ export class UserDataService {
       }),
     ]);
     if (!master.isDfxUser) throw new BadRequestException(`Master ${master.id} not allowed to merge. Wrong KYC type`);
-    if (slave.amlListAddedDate) throw new BadRequestException('Slave is on AML list');
+    if (slave.amlListAddedDate && master.amlListAddedDate)
+      throw new BadRequestException('Slave and master are on AML list');
     if ([master.status, slave.status].includes(UserDataStatus.MERGED))
       throw new BadRequestException('Master or slave is already merged');
     if (slave.verifiedName && !Util.isSameName(master.verifiedName, slave.verifiedName))
@@ -517,18 +518,22 @@ export class UserDataService {
     master.users = master.users.concat(slave.users);
     master.accountRelations = master.accountRelations.concat(slave.accountRelations);
     master.relatedAccountRelations = master.relatedAccountRelations.concat(slave.relatedAccountRelations);
+    master.amlListAddedDate = slave.amlListAddedDate;
+    master.kycFileId = slave.kycFileId;
     slave.individualFeeList?.forEach((fee) => !master.individualFeeList?.includes(fee) && master.addFee(fee));
 
     if (master.status === UserDataStatus.KYC_ONLY) master.status = slave.status;
     master.mail = slave.mail ?? master.mail;
 
-    await this.userDataRepo.save(master);
-
     // update slave status
     await this.userDataRepo.update(slave.id, {
       status: UserDataStatus.MERGED,
       firstname: `${MergedPrefix}${master.id}`,
+      amlListAddedDate: null,
+      kycFileId: null,
     });
+
+    await this.userDataRepo.save(master);
 
     // KYC change Webhook
     await this.kycNotificationService.kycChanged(master);
