@@ -89,7 +89,7 @@ export class BankDataService {
     const bankData = this.bankDataRepo.create({ ...dto, userData });
     await this.bankDataRepo.save(bankData);
 
-    await this.verifyBankData(bankData);
+    if (!DisabledProcess(Process.BANK_DATA_VERIFICATION)) await this.verifyBankData(bankData);
 
     // update updated time in user data
     await this.userDataRepo.setNewUpdateTime(userData.id);
