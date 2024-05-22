@@ -54,13 +54,13 @@ export class KycNotificationService {
 
         if (recipientMail) {
           await this.notificationService.sendMail({
-            type: MailType.USER,
+            type: MailType.USER_V2,
             context: MailContext.KYC_REMINDER,
             input: {
               userData: entity.userData,
               title: `${MailTranslationKey.KYC_REMINDER}.title`,
               salutation: { key: `${MailTranslationKey.KYC_REMINDER}.salutation` },
-              suffix: [
+              texts: [
                 { key: MailKey.SPACE, params: { value: '1' } },
                 { key: `${MailTranslationKey.KYC_REMINDER}.message` },
                 { key: MailKey.SPACE, params: { value: '2' } },
@@ -98,13 +98,13 @@ export class KycNotificationService {
     try {
       if ((userData.mail, !DisabledProcess(Process.KYC_MAIL))) {
         await this.notificationService.sendMail({
-          type: MailType.USER,
+          type: MailType.USER_V2,
           context: MailContext.KYC_FAILED,
           input: {
             userData: userData,
             title: `${MailTranslationKey.KYC_FAILED}.title`,
             salutation: { key: `${MailTranslationKey.KYC_FAILED}.salutation` },
-            suffix: [
+            texts: [
               { key: MailKey.SPACE, params: { value: '1' } },
               {
                 key: `${MailTranslationKey.KYC_FAILED}.message`,
@@ -149,13 +149,13 @@ export class KycNotificationService {
       if (newLevel === KycLevel.LEVEL_50 && !DisabledProcess(Process.KYC_MAIL)) {
         if (userData.mail) {
           await this.notificationService.sendMail({
-            type: MailType.USER,
+            type: MailType.USER_V2,
             context: MailContext.KYC_CHANGED,
             input: {
               userData,
               title: `${MailTranslationKey.KYC_SUCCESS}.title`,
               salutation: { key: `${MailTranslationKey.KYC_SUCCESS}.salutation` },
-              suffix: [
+              texts: [
                 { key: MailKey.SPACE, params: { value: '1' } },
                 { key: `${MailTranslationKey.KYC_SUCCESS}.message` },
                 { key: MailKey.SPACE, params: { value: '4' } },

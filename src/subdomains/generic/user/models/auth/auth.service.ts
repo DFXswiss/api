@@ -158,13 +158,13 @@ export class AuthService {
       }));
 
     await this.notificationService.sendMail({
-      type: MailType.USER,
+      type: MailType.USER_V2,
       context: MailContext.LOGIN,
       input: {
         userData: userData,
         title: `${MailTranslationKey.LOGIN}.title`,
         salutation: { key: `${MailTranslationKey.LOGIN}.salutation` },
-        suffix: [
+        texts: [
           { key: MailKey.SPACE, params: { value: '1' } },
           {
             key: `${MailTranslationKey.LOGIN}.message`,

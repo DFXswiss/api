@@ -2,6 +2,7 @@ import { ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail
 import { MailRequestInternalInput } from '../entities/mail/internal-mail';
 import { MailRequestPersonalInput } from '../entities/mail/personal-mail';
 import { MailRequestUserInput } from '../entities/mail/user-mail';
+import { MailRequestUserInputV2 } from '../entities/mail/user-mail-v2';
 import { NotificationOptions } from '../entities/notification.entity';
 import { MailContext, MailType } from '../enums';
 
@@ -12,6 +13,7 @@ export interface MailRequest {
     | MailRequestGenericInput
     | ErrorMonitoringMailInput
     | MailRequestUserInput
+    | MailRequestUserInputV2
     | MailRequestPersonalInput
     | MailRequestInternalInput;
   correlationId?: string;

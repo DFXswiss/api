@@ -8,6 +8,7 @@ import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/
 import { InternalMail, MailRequestInternalInput } from '../entities/mail/internal-mail';
 import { MailRequestPersonalInput, PersonalMail } from '../entities/mail/personal-mail';
 import { MailRequestUserInput, UserMail, UserMailTable } from '../entities/mail/user-mail';
+import { MailRequestUserInputV2, UserMailV2 } from '../entities/mail/user-mail-v2';
 import { MailType } from '../enums';
 import { MailAffix, MailRequest, MailRequestGenericInput, TranslationItem, TranslationParams } from '../interfaces';
 
@@ -71,6 +72,10 @@ export class MailFactory {
 
       case MailType.USER: {
         return this.createUserMail(request);
+      }
+
+      case MailType.USER_V2: {
+        return this.createUserV2Mail(request);
       }
 
       case MailType.PERSONAL: {
@@ -142,6 +147,22 @@ export class MailFactory {
       prefix: prefix && this.getMailAffix(prefix, lang),
       table: table && this.getTable(table, lang),
       suffix: suffix && this.getMailAffix(suffix, lang),
+      correlationId,
+      options,
+    });
+  }
+
+  private createUserV2Mail(request: MailRequest): UserMailV2 {
+    const { correlationId, options } = request;
+    const { userData, title, salutation, texts } = request.input as MailRequestUserInputV2;
+
+    const lang = userData.language.symbol.toLowerCase();
+
+    return new UserMailV2({
+      to: userData.mail,
+      subject: this.translate(title, lang),
+      salutation: salutation && this.translate(salutation.key, lang, salutation.params),
+      texts: texts && this.getMailAffix(texts, lang),
       correlationId,
       options,
     });

@@ -104,13 +104,13 @@ export class BuyCryptoNotificationService {
           !entity.noCommunication
         ) {
           await this.notificationService.sendMail({
-            type: MailType.USER,
+            type: MailType.USER_V2,
             context: MailContext.BUY_CRYPTO_RETURN,
             input: {
               userData: entity.user.userData,
               title: `${entity.translationReturnMailKey}.title`,
               salutation: { key: `${entity.translationReturnMailKey}.salutation` },
-              suffix: [
+              texts: [
                 {
                   key: `${MailTranslationKey.PAYMENT}.transaction_button`,
                   params: { url: entity.transaction.url },
@@ -182,7 +182,7 @@ export class BuyCryptoNotificationService {
       try {
         if (entity.user.userData.mail) {
           await this.notificationService.sendMail({
-            type: MailType.USER,
+            type: MailType.USER_V2,
             context: MailContext.BUY_CRYPTO_PENDING,
             input: {
               userData: entity.user.userData,
@@ -190,7 +190,7 @@ export class BuyCryptoNotificationService {
               salutation: {
                 key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.salutation`,
               },
-              suffix: [
+              texts: [
                 { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line1` },
                 {
                   key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line2`,
