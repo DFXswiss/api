@@ -212,7 +212,7 @@ export class BuyCrypto extends IEntity {
   }
 
   addPriceSteps(steps: PriceStep[]): void {
-    this.priceSteps = JSON.stringify([...this.priceStepsObject, ...steps]);
+    this.priceStepsObject = [...this.priceStepsObject, ...steps];
   }
 
   assignCandidateBatch(batch: BuyCryptoBatch): this {
@@ -536,6 +536,10 @@ export class BuyCrypto extends IEntity {
 
   get priceStepsObject(): PriceStep[] {
     return this.priceSteps ? JSON.parse(this.priceSteps) : [];
+  }
+
+  set priceStepsObject(priceSteps: PriceStep[]) {
+    this.priceSteps = JSON.stringify(priceSteps);
   }
 
   // --- HELPER METHODS --- //

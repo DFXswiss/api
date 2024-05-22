@@ -354,7 +354,8 @@ export class BuyFiat extends IEntity {
   }
 
   addPriceSteps(steps: PriceStep[]): void {
-    this.priceSteps = JSON.stringify([...this.priceStepsObject, ...steps]);
+    this.priceStepsObject = [...this.priceStepsObject, ...steps];
+    return;
   }
 
   get exchangeRate(): { exchangeRate: number; rate: number } {
@@ -419,6 +420,10 @@ export class BuyFiat extends IEntity {
 
   get priceStepsObject(): PriceStep[] {
     return this.priceSteps ? JSON.parse(this.priceSteps) : [];
+  }
+
+  set priceStepsObject(priceSteps: PriceStep[]) {
+    this.priceSteps = JSON.stringify(priceSteps);
   }
 }
 

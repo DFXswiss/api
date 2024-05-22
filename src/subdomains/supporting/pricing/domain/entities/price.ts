@@ -23,6 +23,10 @@ export class Price {
     return decimals != null ? Util.round(targetAmount, decimals) : targetAmount;
   }
 
+  addPriceSteps(steps: PriceStep[]) {
+    this.steps = [...(this.steps ?? []), ...steps];
+  }
+
   static create(
     source: string,
     target: string,
@@ -38,7 +42,7 @@ export class Price {
     price.price = _price;
     price.isValid = _isValid;
     price.timestamp = _timestamp;
-    price.steps = priceSource ? [PriceStep.create(priceSource, source, target, _price, _timestamp)] : [];
+    price.steps = priceSource ? [PriceStep.create(priceSource, source, target, _price, _timestamp)] : undefined;
 
     return price;
   }
@@ -53,7 +57,11 @@ export class Price {
     );
 
     const priceSteps = prices.map((p) => p.steps).flat();
-    price.steps.push(...priceSteps);
+    const filteredPriceSteps = priceSteps.filter((p1) =>
+      priceSteps.some((p2) => p1.source === p2.source && p1.to === p2.from && p1.from === p2.to),
+    );
+
+    price.addPriceSteps(filteredPriceSteps);
 
     return price;
   }
