@@ -135,7 +135,8 @@ export class Util {
       .replace(/[ñ]/g, 'n')
       .replace(/[ç]/g, 'c')
       .replace(/[ß]/g, 's')
-      .replace(/[\.]/g, '');
+      .replace(/[\.]/g, '')
+      .replace(/[-]/g, ' ');
   }
 
   static fixRoundingMismatch<T>(list: T[], key: KeyType<T, number>, targetAmount: number, precision = 8): T[] {
