@@ -106,7 +106,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     const asset = order.pipeline.rule.targetAsset.dexName;
 
     const balance = await this.exchangeService.getBalance(asset);
-    const amount = Util.round(order.amount * 1.01 - balance, 8); // small cap for price changes
+    const amount = Util.round(order.amount * 1.01 - balance, 6); // small cap for price changes
     if (amount <= 0) {
       // trade not necessary
       throw new OrderNotNecessaryException(
@@ -144,7 +144,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     }
 
     const balance = await targetExchange.getBalance(token);
-    const amount = Util.round(requiredAmount * 1.01 - balance, 8); // small cap for price changes
+    const amount = Util.round(requiredAmount * 1.01 - balance, 6); // small cap for price changes
 
     const sourceBalance = await this.exchangeService.getBalance(token);
     if (amount > sourceBalance)
