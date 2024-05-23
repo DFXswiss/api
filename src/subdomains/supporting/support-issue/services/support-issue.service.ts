@@ -9,11 +9,12 @@ import { Util } from 'src/shared/utils/util';
 import { ContentType, FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { Not } from 'typeorm';
 import { TransactionService } from '../../payment/services/transaction.service';
-import { CreateTransactionIssueDto } from '../dto/create-support-issue.dto';
+import { CreateSupportIssueDto } from '../dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
-import { SupportIssue, SupportIssueType } from '../entities/support-issue.entity';
+import { SupportIssue, SupportIssueState, SupportIssueType } from '../entities/support-issue.entity';
 import { CustomerAuthor } from '../entities/support-message.entity';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportMessageRepository } from '../repositories/support-message.repository';
@@ -30,25 +31,20 @@ export class SupportIssueService {
     private readonly supportIssueNotificationService: SupportIssueNotificationService,
   ) {}
 
-  async createTransactionIssue(
-    userDataId: number,
-    transactionId: number,
-    dto: CreateTransactionIssueDto,
-  ): Promise<void> {
-    const existing = await this.supportIssueRepo.findOneBy({
-      transaction: { id: transactionId },
-      reason: dto.reason,
-    });
-    if (existing) throw new ConflictException('There is already a support issue for this transaction');
+  async createIssue(userDataId: number, dto: CreateSupportIssueDto): Promise<void> {
+    let entity = await this.create(userDataId, SupportIssueType.GENERIC_ISSUE, dto);
 
-    const userData = await this.userDataService.getUserData(userDataId);
-    if (!userData.mail) throw new BadRequestException('Mail is missing');
+    entity = await this.supportIssueRepo.save(entity);
 
-    let entity = this.supportIssueRepo.create({ type: SupportIssueType.TRANSACTION_ISSUE, ...dto });
+    await this.createSupportMessage(entity.id, { ...dto, author: CustomerAuthor }, userDataId);
+  }
+
+  async createTransactionIssue(userDataId: number, transactionId: number, dto: CreateSupportIssueDto): Promise<void> {
+    let entity = await this.create(userDataId, SupportIssueType.TRANSACTION_ISSUE, dto, transactionId);
 
     entity.transaction = await this.transactionService.getTransactionById(transactionId, { user: { userData: true } });
     if (!entity.transaction) throw new NotFoundException('Transaction not found');
-    if (!entity.transaction.user || entity.transaction.user.userData.id !== userData.id)
+    if (!entity.transaction.user || entity.transaction.user.userData.id !== entity.userData.id)
       throw new ForbiddenException('You can only create support issue for your own transaction');
 
     entity = await this.supportIssueRepo.save(entity);
@@ -99,5 +95,29 @@ export class SupportIssueService {
     await this.messageRepo.save(entity);
 
     if (dto.author !== CustomerAuthor) await this.supportIssueNotificationService.newSupportMessage(entity);
+  }
+
+  // --- HELPER METHODS --- //
+  private async create(
+    userDataId: number,
+    type: SupportIssueType,
+    dto: CreateSupportIssueDto,
+    transactionId?: number,
+  ): Promise<SupportIssue> {
+    const userData = await this.userDataService.getUserData(userDataId);
+    if (!userData.mail) throw new BadRequestException('Mail is missing');
+
+    const existing = await this.supportIssueRepo.exist({
+      where: {
+        userData: { id: userDataId },
+        type: type,
+        transaction: { id: transactionId },
+        reason: dto.reason,
+        state: Not(SupportIssueState.COMPLETED),
+      },
+    });
+    if (existing) throw new ConflictException('There is already a pending support issue');
+
+    return this.supportIssueRepo.create({ type, userData, ...dto });
   }
 }
