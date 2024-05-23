@@ -4,7 +4,7 @@ import { buildSwapMethodParameters } from '@uniswap/smart-order-router/build/mai
 import IUniswapV3PoolABI from '@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Pool.sol/IUniswapV3Pool.json';
 import QuoterV2ABI from '@uniswap/v3-periphery/artifacts/contracts/lens/QuoterV2.sol/QuoterV2.json';
 import { FeeAmount, MethodParameters, Pool, Route, SwapQuoter, Trade } from '@uniswap/v3-sdk';
-import { AssetTransfersCategory } from 'alchemy-sdk';
+import { AssetTransfersCategory, BigNumberish } from 'alchemy-sdk';
 import { Contract, BigNumber as EthersNumber, ethers } from 'ethers';
 import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
 import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
@@ -214,7 +214,7 @@ export abstract class EvmClient {
     amount: number,
     permittedAmount: number,
     nonce: number,
-    deadline: number,
+    deadline: BigNumberish,
   ): Promise<string> {
     const contract = new ethers.Contract(signatureTransferContract, SIGNATURE_TRANSFER_ABI, this.wallet);
 
