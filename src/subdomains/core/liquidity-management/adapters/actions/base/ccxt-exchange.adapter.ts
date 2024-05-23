@@ -1,5 +1,6 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { TradeChangedException } from 'src/integration/exchange/exceptions/trade-changed.exception';
+import { ExchangeRegistryService } from 'src/integration/exchange/services/exchange-registry.service';
 import { ExchangeService } from 'src/integration/exchange/services/exchange.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -19,6 +20,7 @@ import { LiquidityActionAdapter } from './liquidity-action.adapter';
 export enum CcxtExchangeAdapterCommands {
   WITHDRAW = 'withdraw',
   TRADE = 'trade',
+  TRANSFER = 'transfer',
 }
 
 export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
@@ -29,6 +31,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
   constructor(
     system: LiquidityManagementSystem,
     private readonly exchangeService: ExchangeService,
+    private readonly exchangeRegistry: ExchangeRegistryService,
     private readonly dexService: DexService,
     private readonly orderRepo: LiquidityManagementOrderRepository,
   ) {
@@ -36,6 +39,7 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     this.commands.set(CcxtExchangeAdapterCommands.WITHDRAW, this.withdraw.bind(this));
     this.commands.set(CcxtExchangeAdapterCommands.TRADE, this.trade.bind(this));
+    this.commands.set(CcxtExchangeAdapterCommands.TRANSFER, this.transfer.bind(this));
   }
 
   protected abstract mapBlockchainToCcxtNetwork(blockchain: Blockchain): string;
@@ -47,6 +51,9 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
       case CcxtExchangeAdapterCommands.TRADE:
         return this.checkTradeCompletion(order);
+
+      case CcxtExchangeAdapterCommands.TRANSFER:
+        return this.checkTransferCompletion(order);
 
       default:
         return false;
@@ -60,6 +67,9 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
       case CcxtExchangeAdapterCommands.TRADE:
         return this.validateTradeParams(params);
+
+      case CcxtExchangeAdapterCommands.TRANSFER:
+        return this.validateTransferParams(params);
 
       default:
         throw new Error(`Command ${command} not supported by CcxtExchangeAdapter`);
@@ -119,6 +129,40 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     }
   }
 
+  private async transfer(order: LiquidityManagementOrder): Promise<CorrelationId> {
+    const { address, key, network, source, asset } = this.parseTransferParams(order.action.paramMap);
+
+    const targetAsset = order.pipeline.rule.targetAsset.dexName;
+    const token = asset ?? targetAsset;
+
+    const sourceExchange = this.exchangeRegistry.get(source);
+
+    let requiredAmount = order.amount;
+    if (token !== targetAsset) {
+      const price = await this.exchangeService.getPrice(token, targetAsset);
+      requiredAmount = price.invert().convert(order.amount);
+    }
+
+    const balance = await this.exchangeService.getBalance(token);
+    const amount = Util.round(requiredAmount * 1.01 - balance, 8); // small cap for price changes
+
+    const sourceBalance = await sourceExchange.getBalance(token);
+    if (amount > sourceBalance)
+      throw new OrderNotProcessableException(`Not enough balance of ${token} (${order.amount} > ${balance})`);
+
+    try {
+      const response = await sourceExchange.withdrawFunds(token, amount, address, key, network);
+
+      return response.id;
+    } catch (e) {
+      if (['Insufficient funds', 'insufficient balance'].some((m) => e.message?.includes(m))) {
+        throw new OrderNotProcessableException(e.message);
+      }
+
+      throw e;
+    }
+  }
+
   // --- COMPLETION CHECKS --- //
   private async checkWithdrawCompletion(order: LiquidityManagementOrder): Promise<boolean> {
     const {
@@ -165,6 +209,35 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     }
   }
 
+  private async checkTransferCompletion(order: LiquidityManagementOrder): Promise<boolean> {
+    const {
+      pipeline: {
+        rule: { targetAsset },
+      },
+      action: { paramMap },
+      correlationId,
+    } = order;
+
+    const { source, asset } = this.parseTransferParams(paramMap);
+
+    const token = asset ?? targetAsset.dexName;
+
+    const sourceExchange = this.exchangeRegistry.get(source);
+
+    const withdrawal = await sourceExchange.getWithdraw(correlationId, token);
+    if (!withdrawal?.txid) {
+      this.logger.verbose(
+        `No withdrawal id for id ${correlationId} and asset ${token} at ${this.exchangeService.name} found`,
+      );
+      return false;
+    }
+
+    const deposits = await this.exchangeService.getDeposits(token, order.created);
+    const deposit = deposits.find((d) => d.txid === withdrawal.txid);
+
+    return deposit && deposit.status === 'ok';
+  }
+
   // --- PARAM VALIDATION --- //
 
   private validateWithdrawParams(params: Record<string, unknown>): boolean {
@@ -208,5 +281,33 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     if (!tradeAsset) throw new Error(`Params provided to CcxtExchangeAdapter.trade(...) command are invalid.`);
 
     return { tradeAsset };
+  }
+
+  private validateTransferParams(params: Record<string, unknown>): boolean {
+    try {
+      this.parseTransferParams(params);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private parseTransferParams(params: Record<string, unknown>): {
+    address: string;
+    key: string;
+    network: string;
+    source: string;
+    asset?: string;
+  } {
+    const address = process.env[params.destinationAddress as string];
+    const key = this.exchangeService.config.withdrawKeys?.get(params.destinationAddressKey as string);
+    const network = this.mapBlockchainToCcxtNetwork(params.destinationBlockchain as Blockchain);
+    const source = params.sourceExchange as string;
+    const asset = params.asset as string | undefined;
+
+    if (!(address && key && network && source))
+      throw new Error(`Params provided to CcxtExchangeAdapter.transfer(...) command are invalid.`);
+
+    return { address, key, network, source, asset };
   }
 }

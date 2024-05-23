@@ -10,6 +10,9 @@ export class LiquidityManagementAction extends IEntity {
   @Column({ length: 256, nullable: false })
   command: string;
 
+  @Column({ length: 256, nullable: true })
+  tag: string;
+
   @Column({ length: 'MAX', nullable: true })
   params: string;
 
