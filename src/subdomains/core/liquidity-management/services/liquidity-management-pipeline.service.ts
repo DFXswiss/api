@@ -102,44 +102,38 @@ export class LiquidityManagementPipelineService {
 
     for (const pipeline of runningPipelines) {
       try {
-        const order = await this.orderRepo.findOneBy({
-          pipeline: { id: pipeline.id },
-          action: { id: pipeline.currentAction.id },
+        const lastOrder = await this.orderRepo.findOne({
+          where: { pipeline: { id: pipeline.id } },
+          order: { id: 'DESC' },
         });
 
-        if (!order) {
-          const previousOrder =
-            pipeline.previousAction &&
-            (await this.orderRepo.findOneBy({
-              pipeline: { id: pipeline.id },
-              action: { id: pipeline.previousAction.id },
-            }));
+        if (lastOrder?.action.id === pipeline.currentAction.id) {
+          // check running order
+          if (
+            lastOrder.status === LiquidityManagementOrderStatus.COMPLETE ||
+            lastOrder.status === LiquidityManagementOrderStatus.FAILED ||
+            lastOrder.status === LiquidityManagementOrderStatus.NOT_PROCESSABLE
+          ) {
+            pipeline.continue(lastOrder.status);
+            await this.pipelineRepo.save(pipeline);
 
-          await this.placeLiquidityOrder(pipeline, previousOrder);
-          continue;
-        }
+            if (pipeline.status === LiquidityManagementPipelineStatus.COMPLETE) {
+              await this.handlePipelineCompletion(pipeline);
+              continue;
+            }
 
-        if (
-          order.status === LiquidityManagementOrderStatus.COMPLETE ||
-          order.status === LiquidityManagementOrderStatus.FAILED ||
-          order.status === LiquidityManagementOrderStatus.NOT_PROCESSABLE
-        ) {
-          pipeline.continue(order.status);
-          await this.pipelineRepo.save(pipeline);
+            if (pipeline.status === LiquidityManagementPipelineStatus.FAILED) {
+              await this.handlePipelineFail(pipeline, lastOrder);
+              continue;
+            }
 
-          if (pipeline.status === LiquidityManagementPipelineStatus.COMPLETE) {
-            await this.handlePipelineCompletion(pipeline);
-            continue;
+            this.logger.verbose(
+              `Continue with next liquidity management pipeline action. Action ID: ${pipeline.currentAction.id}`,
+            );
           }
-
-          if (pipeline.status === LiquidityManagementPipelineStatus.FAILED) {
-            await this.handlePipelineFail(pipeline, order);
-            continue;
-          }
-
-          this.logger.verbose(
-            `Continue with next liquidity management pipeline action. Action ID: ${pipeline.currentAction.id}`,
-          );
+        } else {
+          // start new order
+          await this.placeLiquidityOrder(pipeline, lastOrder);
         }
       } catch (e) {
         this.logger.error(`Error in checking running liquidity pipeline ${pipeline.id}:`, e);

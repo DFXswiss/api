@@ -83,7 +83,9 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     const balance = await this.exchangeService.getBalance(token);
     if (order.amount > balance)
-      throw new OrderNotProcessableException(`Not enough balance of ${token} (${order.amount} > ${balance})`);
+      throw new OrderNotProcessableException(
+        `${this.exchangeService.name}: not enough balance of ${token} (${order.amount} > ${balance})`,
+      );
 
     try {
       const response = await this.exchangeService.withdrawFunds(token, order.amount, address, key, network);
@@ -146,7 +148,9 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
 
     const sourceBalance = await this.exchangeService.getBalance(token);
     if (amount > sourceBalance)
-      throw new OrderNotProcessableException(`Not enough balance of ${token} (${amount} > ${sourceBalance})`);
+      throw new OrderNotProcessableException(
+        `${this.exchangeService.name}: not enough balance of ${token} (${amount} > ${sourceBalance})`,
+      );
 
     try {
       const response = await this.exchangeService.withdrawFunds(token, amount, address, key, network);
