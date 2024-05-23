@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { CustomCronExpression } from 'src/shared/utils/cron';
@@ -37,16 +37,13 @@ export class LiquidityManagementPipelineService {
   @Lock(1800)
   async processPipelines() {
     if (DisabledProcess(Process.LIQUIDITY_MANAGEMENT)) return;
+
+    await this.checkRunningOrders();
+
     await this.startNewPipelines();
     await this.checkRunningPipelines();
-  }
 
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(1800)
-  async processOrders() {
-    if (DisabledProcess(Process.LIQUIDITY_MANAGEMENT)) return;
     await this.startNewOrders();
-    await this.checkRunningOrders();
   }
 
   //*** PUBLIC API ***//
