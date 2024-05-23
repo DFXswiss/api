@@ -524,7 +524,6 @@ export class UserDataService {
     if (!master.amlListAddedDate && slave.amlListAddedDate) {
       master.amlListAddedDate = slave.amlListAddedDate;
       master.kycFileId = slave.kycFileId;
-      master.letterSentDate = null;
     }
     master.mail = slave.mail ?? master.mail;
 
