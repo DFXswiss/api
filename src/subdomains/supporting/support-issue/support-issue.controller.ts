@@ -5,7 +5,7 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { CreateTransactionIssueDto } from './dto/create-support-issue.dto';
+import { CreateSupportIssueDto } from './dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from './dto/create-support-message.dto';
 import { UpdateSupportIssueDto } from './dto/update-support-issue.dto';
 import { SupportIssue } from './entities/support-issue.entity';
@@ -17,13 +17,20 @@ import { SupportIssueService } from './services/support-issue.service';
 export class SupportIssueController {
   constructor(private readonly supportIssueService: SupportIssueService) {}
 
+  @Post()
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  async createIssue(@GetJwt() jwt: JwtPayload, @Body() dto: CreateSupportIssueDto): Promise<void> {
+    return this.supportIssueService.createIssue(jwt.account, dto);
+  }
+
   @Post('transaction')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   async createTransactionIssue(
     @GetJwt() jwt: JwtPayload,
     @Query('id') transactionId: string,
-    @Body() dto: CreateTransactionIssueDto,
+    @Body() dto: CreateSupportIssueDto,
   ): Promise<void> {
     return this.supportIssueService.createTransactionIssue(jwt.account, +transactionId, dto);
   }
