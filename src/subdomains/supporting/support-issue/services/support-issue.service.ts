@@ -9,11 +9,12 @@ import { Util } from 'src/shared/utils/util';
 import { ContentType, FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { Not } from 'typeorm';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CreateSupportIssueDto } from '../dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
-import { SupportIssue, SupportIssueType } from '../entities/support-issue.entity';
+import { SupportIssue, SupportIssueState, SupportIssueType } from '../entities/support-issue.entity';
 import { CustomerAuthor } from '../entities/support-message.entity';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportMessageRepository } from '../repositories/support-message.repository';
@@ -31,6 +32,16 @@ export class SupportIssueService {
   ) {}
 
   async createIssue(userDataId: number, dto: CreateSupportIssueDto): Promise<void> {
+    const existing = await this.supportIssueRepo.exist({
+      where: {
+        userData: { id: userDataId },
+        type: SupportIssueType.GENERIC_ISSUE,
+        reason: dto.reason,
+        state: Not(SupportIssueState.COMPLETED),
+      },
+    });
+    if (existing) throw new ConflictException('There is already a pending support issue');
+
     let entity = await this.create(userDataId, SupportIssueType.GENERIC_ISSUE, dto);
 
     entity = await this.supportIssueRepo.save(entity);
@@ -39,11 +50,15 @@ export class SupportIssueService {
   }
 
   async createTransactionIssue(userDataId: number, transactionId: number, dto: CreateSupportIssueDto): Promise<void> {
-    const existing = await this.supportIssueRepo.findOneBy({
-      transaction: { id: transactionId },
-      reason: dto.reason,
+    const existing = await this.supportIssueRepo.exist({
+      where: {
+        type: SupportIssueType.TRANSACTION_ISSUE,
+        transaction: { id: transactionId },
+        reason: dto.reason,
+        state: Not(SupportIssueState.COMPLETED),
+      },
     });
-    if (existing) throw new ConflictException('There is already a support issue for this transaction');
+    if (existing) throw new ConflictException('There is already a pending support issue for this transaction');
 
     let entity = await this.create(userDataId, SupportIssueType.TRANSACTION_ISSUE, dto);
 
