@@ -40,10 +40,6 @@ export class SupportIssue extends IEntity {
   @OneToMany(() => SupportMessage, (supportMessage) => supportMessage.issue)
   messages: SupportMessage[];
 
-  @ManyToOne(() => UserData, { nullable: true, eager: true })
+  @ManyToOne(() => UserData, { nullable: false, eager: true })
   userData: UserData;
-
-  get userDataTemp(): UserData {
-    return this.userData ?? this.transaction.user.userData;
-  }
 }
