@@ -20,6 +20,6 @@ export class SupportMessage extends IEntity {
   issue: SupportIssue;
 
   get userData(): UserData {
-    return this.issue.userData;
+    return this.issue.userDataTemp;
   }
 }
