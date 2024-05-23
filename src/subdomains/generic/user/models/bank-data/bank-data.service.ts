@@ -65,16 +65,19 @@ export class BankDataService {
     return this.bankDataRepo
       .find({
         where: { iban, userData: { id: userDataId } },
-        relations: ['userData'],
+        relations: { userData: true },
       })
       .then((b) => b.filter((b) => b.active)[0] ?? b[0]);
   }
 
   async getBankDatasForUser(userDataId: number): Promise<BankData[]> {
-    return this.bankDataRepo.findBy([
-      { userData: { id: userDataId }, active: true },
-      { userData: { id: userDataId }, active: IsNull() },
-    ]);
+    return this.bankDataRepo.find({
+      where: [
+        { userData: { id: userDataId }, active: true },
+        { userData: { id: userDataId }, active: IsNull() },
+      ],
+      relations: { userData: true },
+    });
   }
 
   async getIbansForUser(userDataId: number): Promise<string[]> {
