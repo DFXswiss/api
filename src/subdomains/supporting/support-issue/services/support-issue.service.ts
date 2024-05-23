@@ -32,16 +32,6 @@ export class SupportIssueService {
   ) {}
 
   async createIssue(userDataId: number, dto: CreateSupportIssueDto): Promise<void> {
-    const existing = await this.supportIssueRepo.exist({
-      where: {
-        userData: { id: userDataId },
-        type: SupportIssueType.GENERIC_ISSUE,
-        reason: dto.reason,
-        state: Not(SupportIssueState.COMPLETED),
-      },
-    });
-    if (existing) throw new ConflictException('There is already a pending support issue');
-
     let entity = await this.create(userDataId, SupportIssueType.GENERIC_ISSUE, dto);
 
     entity = await this.supportIssueRepo.save(entity);
@@ -50,17 +40,7 @@ export class SupportIssueService {
   }
 
   async createTransactionIssue(userDataId: number, transactionId: number, dto: CreateSupportIssueDto): Promise<void> {
-    const existing = await this.supportIssueRepo.exist({
-      where: {
-        type: SupportIssueType.TRANSACTION_ISSUE,
-        transaction: { id: transactionId },
-        reason: dto.reason,
-        state: Not(SupportIssueState.COMPLETED),
-      },
-    });
-    if (existing) throw new ConflictException('There is already a pending support issue for this transaction');
-
-    let entity = await this.create(userDataId, SupportIssueType.TRANSACTION_ISSUE, dto);
+    let entity = await this.create(userDataId, SupportIssueType.TRANSACTION_ISSUE, dto, transactionId);
 
     entity.transaction = await this.transactionService.getTransactionById(transactionId, { user: { userData: true } });
     if (!entity.transaction) throw new NotFoundException('Transaction not found');
@@ -118,9 +98,25 @@ export class SupportIssueService {
   }
 
   // --- HELPER METHODS --- //
-  private async create(userDataId: number, type: SupportIssueType, dto: CreateSupportIssueDto): Promise<SupportIssue> {
+  private async create(
+    userDataId: number,
+    type: SupportIssueType,
+    dto: CreateSupportIssueDto,
+    transactionId?: number,
+  ): Promise<SupportIssue> {
     const userData = await this.userDataService.getUserData(userDataId);
     if (!userData.mail) throw new BadRequestException('Mail is missing');
+
+    const existing = await this.supportIssueRepo.exist({
+      where: {
+        userData: { id: userDataId },
+        type: type,
+        transaction: { id: transactionId },
+        reason: dto.reason,
+        state: Not(SupportIssueState.COMPLETED),
+      },
+    });
+    if (existing) throw new ConflictException('There is already a pending support issue');
 
     return this.supportIssueRepo.create({ type, userData, ...dto });
   }
