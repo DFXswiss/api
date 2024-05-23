@@ -518,11 +518,14 @@ export class UserDataService {
     master.users = master.users.concat(slave.users);
     master.accountRelations = master.accountRelations.concat(slave.accountRelations);
     master.relatedAccountRelations = master.relatedAccountRelations.concat(slave.relatedAccountRelations);
-    master.amlListAddedDate = slave.amlListAddedDate;
-    master.kycFileId = slave.kycFileId;
     slave.individualFeeList?.forEach((fee) => !master.individualFeeList?.includes(fee) && master.addFee(fee));
 
     if (master.status === UserDataStatus.KYC_ONLY) master.status = slave.status;
+    if (!master.amlListAddedDate && slave.amlListAddedDate) {
+      master.amlListAddedDate = slave.amlListAddedDate;
+      master.kycFileId = slave.kycFileId;
+      master.letterSentDate = null;
+    }
     master.mail = slave.mail ?? master.mail;
 
     // update slave status
