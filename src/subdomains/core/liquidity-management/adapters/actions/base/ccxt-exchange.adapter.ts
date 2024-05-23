@@ -232,8 +232,9 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
       return false;
     }
 
-    const deposits = await this.exchangeService.getDeposits(token, order.created);
-    const deposit = deposits.find((d) => d.txid === withdrawal.txid);
+    const deposit = await this.exchangeService
+      .getDeposits(token, order.created)
+      .then((deposits) => deposits.find((d) => d.txid === withdrawal.txid));
 
     return deposit && deposit.status === 'ok';
   }
