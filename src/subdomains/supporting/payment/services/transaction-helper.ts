@@ -427,8 +427,12 @@ export class TransactionHelper implements OnModuleInit {
     txAmountChf: number,
     user?: User,
   ): QuoteError | undefined {
+    const isBuy = isFiat(from) && isAsset(to);
+    const isSell = isAsset(from) && isFiat(to);
+    const isSwap = isAsset(from) && isAsset(to);
+
     // KYC checks
-    if (isFiat(from) && isAsset(to)) {
+    if (isBuy) {
       if (
         ((user?.status === UserStatus.NA &&
           user?.wallet.amlRule === AmlRule.RULE_2 &&
@@ -441,18 +445,18 @@ export class TransactionHelper implements OnModuleInit {
         return QuoteError.KYC_REQUIRED;
     }
 
-    const isSwapTx = isAsset(from) && isAsset(to);
-
-    if (isSwapTx && user?.userData.kycLevel < KycLevel.LEVEL_30 && user?.userData.status !== UserDataStatus.ACTIVE)
+    if (isSwap && user?.userData.kycLevel < KycLevel.LEVEL_30 && user?.userData.status !== UserDataStatus.ACTIVE)
       return QuoteError.KYC_REQUIRED;
 
     if (paymentMethodIn === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed)
       return QuoteError.KYC_REQUIRED_INSTANT;
 
+    if (isSell && user && !user.userData.isDataComplete) return QuoteError.KYC_DATA_REQUIRED;
+
     if (user && txAmountChf > user.userData.availableTradingLimit) return QuoteError.LIMIT_EXCEEDED;
 
     if (
-      ((isFiat(to) && to.name !== 'CHF') || paymentMethodIn === FiatPaymentMethod.CARD || isSwapTx) &&
+      ((isSell && to.name !== 'CHF') || paymentMethodIn === FiatPaymentMethod.CARD || isSwap) &&
       user &&
       !user.userData.hasBankTxVerification &&
       txAmountChf > Config.tradingLimits.dailyDefault
