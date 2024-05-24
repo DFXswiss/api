@@ -88,7 +88,7 @@ export class KycService {
 
   @Cron(CronExpression.EVERY_MINUTE)
   async reviewIdentSteps(): Promise<void> {
-    if (DisabledProcess(Process.KYC)) return;
+    if (DisabledProcess(Process.AUTO_IDENT_KYC)) return;
 
     const entities = await this.kycStepRepo.find({
       where: { name: KycStepName.IDENT, status: KycStepStatus.INTERNAL_REVIEW },
@@ -96,25 +96,28 @@ export class KycService {
     });
 
     for (const entity of entities) {
-      const errors = this.getIdentCheckErrors(entity);
+      try {
+        const errors = this.getIdentCheckErrors(entity);
 
-      entity.comment = errors.join(';');
+        entity.comment = errors.join(';');
 
-      if (errors.includes(IdentCheckError.USER_DATA_BLOCKED) || errors.includes(IdentCheckError.USER_DATA_MERGED)) {
-        entity.ignored();
-      } else if (errors.includes(IdentCheckError.VERIFIED_NAME_MISSING) && errors.length === 1) {
-        entity.userData.verifiedName = `${entity.userData.firstname} ${entity.userData.surname}`;
-        entity.complete();
-      } else if (errors.length === 0) {
-        entity.complete();
-      } else {
-        entity.manualReview();
+        if (errors.includes(IdentCheckError.USER_DATA_BLOCKED) || errors.includes(IdentCheckError.USER_DATA_MERGED)) {
+          entity.ignored();
+        } else if (errors.includes(IdentCheckError.VERIFIED_NAME_MISSING) && errors.length === 1) {
+          entity.userData.verifiedName = `${entity.userData.firstname} ${entity.userData.surname}`;
+          entity.complete();
+        } else if (errors.length === 0) {
+          entity.complete();
+        } else {
+          entity.manualReview();
+        }
+
+        await this.createStepLog(entity.userData, entity);
+        await this.kycStepRepo.save(entity);
+      } catch (e) {
+        this.logger.error(`Failed to auto review ident step ${entity.id}:`, e);
       }
-
-      await this.createStepLog(entity.userData, entity);
     }
-
-    await this.kycStepRepo.saveMany(entities);
   }
 
   private getIdentCheckErrors(entity: KycStep): IdentCheckError[] {
