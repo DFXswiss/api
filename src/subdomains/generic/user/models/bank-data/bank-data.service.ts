@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import * as IbanTools from 'ibantools';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
@@ -15,6 +16,8 @@ import { UpdateBankDataDto } from './dto/update-bank-data.dto';
 
 @Injectable()
 export class BankDataService {
+  private readonly logger = new DfxLogger(BankDataService);
+
   constructor(
     private readonly userDataRepo: UserDataRepository,
     private readonly bankDataRepo: BankDataRepository,
@@ -43,22 +46,26 @@ export class BankDataService {
   }
 
   async verifyBankData(entity: BankData): Promise<void> {
-    const existing = await this.bankDataRepo.findOne({
-      where: { iban: entity.iban, active: true },
-      relations: { userData: true },
-    });
+    try {
+      const existing = await this.bankDataRepo.findOne({
+        where: { iban: entity.iban, active: true },
+        relations: { userData: true },
+      });
 
-    const errors = this.getBankDataVerificationErrors(entity, existing);
+      const errors = this.getBankDataVerificationErrors(entity, existing);
 
-    if (errors.length === 0) {
-      if (existing) {
-        const existingError = [...(existing.comment?.split(';') ?? []), BankDataVerificationError.NEW_BANK_IN_ACTIVE];
-        await this.bankDataRepo.update(...existing.deactivate(existingError.join(';')));
+      if (errors.length === 0) {
+        if (existing) {
+          const existingError = [...(existing.comment?.split(';') ?? []), BankDataVerificationError.NEW_BANK_IN_ACTIVE];
+          await this.bankDataRepo.update(...existing.deactivate(existingError.join(';')));
+        }
+
+        await this.bankDataRepo.update(...entity.activate());
+      } else {
+        await this.bankDataRepo.update(...entity.deactivate(errors.join(';')));
       }
-
-      await this.bankDataRepo.update(...entity.activate());
-    } else {
-      await this.bankDataRepo.update(...entity.deactivate(errors.join(';')));
+    } catch (e) {
+      this.logger.error(`Failed to verify bankData ${entity.id}:`, e);
     }
   }
 
