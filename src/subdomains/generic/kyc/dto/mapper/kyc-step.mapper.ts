@@ -34,11 +34,13 @@ export class KycStepMapper {
     [EntityStatus.NOT_STARTED]: DtoStatus.NOT_STARTED,
     [EntityStatus.IN_PROGRESS]: DtoStatus.IN_PROGRESS,
     [EntityStatus.FINISHED]: DtoStatus.IN_REVIEW,
-    [EntityStatus.CHECK_PENDING]: DtoStatus.IN_REVIEW,
-    [EntityStatus.IN_REVIEW]: DtoStatus.IN_REVIEW,
+    [EntityStatus.EXTERNAL_REVIEW]: DtoStatus.IN_REVIEW,
+    [EntityStatus.INTERNAL_REVIEW]: DtoStatus.IN_REVIEW,
+    [EntityStatus.MANUAL_REVIEW]: DtoStatus.IN_REVIEW,
     [EntityStatus.FAILED]: DtoStatus.FAILED,
-    [EntityStatus.COMPLETED]: DtoStatus.COMPLETED,
     [EntityStatus.CANCELED]: DtoStatus.FAILED,
+    [EntityStatus.IGNORED]: DtoStatus.FAILED,
+    [EntityStatus.COMPLETED]: DtoStatus.COMPLETED,
     [EntityStatus.OUTDATED]: DtoStatus.OUTDATED,
   };
 }
