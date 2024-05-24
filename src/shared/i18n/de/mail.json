@@ -30,6 +30,14 @@
                 "transaction_button": "Bitte ordne deinen Zahlungseingang deiner Bestellung zu:<br>[url:Klick hier]"
             }
         },
+        "crypto_output": {
+            "title": "Krypto-Asset verschickt",
+            "salutation": "Deine Krypto-Assets wurden an deine Adresse ausgezahlt"
+        },
+        "fiat_output": {
+            "title": "Auszahlung verschickt",
+            "salutation": "Deine Auszahlung wurde an dein Bankkonto verschickt"
+        },
         "return": {
             "fiat": {
                 "title": "Guthaben wurde erstattet",

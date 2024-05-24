@@ -30,6 +30,14 @@
                 "transaction_button": "Please assign your deposit to your order:<br>[url:click here]"
             }
         },
+        "crypto_output": {
+            "title": "Crypto asset paid out",
+            "salutation": "Your crypto assets have been paid out to your address"
+        },
+        "fiat_output": {
+            "title": "Payout paid out",
+            "salutation": "Your payout has been sent to your bank account"
+        },
         "return": {
             "fiat": {
                 "title": "Funds have been reimbursed",

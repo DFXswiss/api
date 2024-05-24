@@ -30,6 +30,14 @@
                 "transaction_button": "Por favor, asigne su depósito a su pedido:<br>[url:haga clic aquí]"
             }
         },
+        "crypto_output": {
+            "title": "Criptoactivo pagado",
+            "salutation": "Sus cripto activos han sido pagados a su dirección"
+        },
+        "fiat_output": {
+            "title": "Pago abonado",
+            "salutation": "Su pago ha sido enviado a su cuenta bancaria"
+        },
         "return": {
             "fiat": {
                 "title": "Los fondos han sido reembolsados",
