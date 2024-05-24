@@ -51,12 +51,12 @@ export class BankDataService {
     const errors = this.getBankDataVerificationErrors(entity, existing);
 
     if (errors.length === 0) {
-      await this.bankDataRepo.update(...entity.activate());
-
       if (existing) {
         const existingError = [...(existing.comment?.split(';') ?? []), BankDataVerificationError.NEW_BANK_IN_ACTIVE];
         await this.bankDataRepo.update(...existing.deactivate(existingError.join(';')));
       }
+
+      await this.bankDataRepo.update(...entity.activate());
     } else {
       await this.bankDataRepo.update(...entity.deactivate(errors.join(';')));
     }
