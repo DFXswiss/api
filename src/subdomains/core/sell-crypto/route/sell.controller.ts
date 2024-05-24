@@ -52,7 +52,7 @@ export class SellController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
   async getAllSell(@GetJwt() jwt: JwtPayload): Promise<SellDto[]> {
-    return this.sellService.getUserSells(jwt.id).then((l) => this.toDtoList(l));
+    return this.sellService.getUserSells(jwt.user).then((l) => this.toDtoList(l));
   }
 
   @Get(':id')
@@ -60,7 +60,7 @@ export class SellController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: SellDto })
   async getSell(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<SellDto> {
-    return this.sellService.get(jwt.id, +id).then((l) => this.toDto(l));
+    return this.sellService.get(jwt.user, +id).then((l) => this.toDto(l));
   }
 
   @Post()
@@ -71,7 +71,7 @@ export class SellController {
     dto.currency ??= dto.fiat;
 
     dto = await this.paymentInfoService.sellCheck(dto, jwt);
-    return this.sellService.createSell(jwt.id, dto).then((s) => this.toDto(s));
+    return this.sellService.createSell(jwt.user, dto).then((s) => this.toDto(s));
   }
 
   @Put('/quote')
@@ -137,12 +137,12 @@ export class SellController {
   ): Promise<SellPaymentInfoDto> {
     dto = await this.paymentInfoService.sellCheck(dto, jwt);
     return Util.retry(
-      () => this.sellService.createSell(jwt.id, { ...dto, blockchain: dto.asset.blockchain }, true),
+      () => this.sellService.createSell(jwt.user, { ...dto, blockchain: dto.asset.blockchain }, true),
       2,
       0,
       undefined,
       (e) => e.message?.includes('duplicate key'),
-    ).then((sell) => this.toPaymentInfoDto(jwt.id, sell, dto));
+    ).then((sell) => this.toPaymentInfoDto(jwt.user, sell, dto));
   }
 
   @Put('/paymentInfos/:id/confirm')
@@ -150,9 +150,9 @@ export class SellController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
   @ApiOkResponse({ type: TransactionDto })
   async confirmSell(
-    @GetJwt() jwt: JwtPayload,
-    @Param('id') id: string,
-    @Body() dto: ConfirmSellDto,
+    @GetJwt() _jwt: JwtPayload,
+    @Param('id') _id: string,
+    @Body() _dto: ConfirmSellDto,
   ): Promise<TransactionDto> {
     throw new NotImplementedException();
   }
@@ -162,7 +162,7 @@ export class SellController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
   async updateSell(@GetJwt() jwt: JwtPayload, @Param('id') id: string, @Body() dto: UpdateSellDto): Promise<SellDto> {
-    return this.sellService.updateSell(jwt.id, +id, dto).then((s) => this.toDto(s));
+    return this.sellService.updateSell(jwt.user, +id, dto).then((s) => this.toDto(s));
   }
 
   @Get(':id/history')
@@ -170,7 +170,7 @@ export class SellController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
   async getSellRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<SellHistoryDto[]> {
-    return this.buyFiatService.getSellHistory(jwt.id, +id);
+    return this.buyFiatService.getSellHistory(jwt.user, +id);
   }
 
   // --- DTO --- //

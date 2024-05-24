@@ -20,7 +20,7 @@ export class KycClientController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
   @ApiOkResponse({ type: KycClientDataDto, isArray: true })
   async getAllKycData(@GetJwt() jwt: JwtPayload): Promise<KycClientDataDto[]> {
-    return this.kycClientService.getAllKycData(jwt.id);
+    return this.kycClientService.getAllKycData(jwt.user);
   }
 
   @Get('payments')
@@ -33,7 +33,7 @@ export class KycClientController {
     @Query('to') to: string,
   ): Promise<PaymentWebhookData[]> {
     return this.kycClientService.getAllPayments(
-      jwt.id,
+      jwt.user,
       from ? new Date(from) : undefined,
       to ? new Date(to) : undefined,
     );
@@ -44,7 +44,7 @@ export class KycClientController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
   @ApiOkResponse({ type: KycReportDto, isArray: true })
   async getKycFiles(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<KycReportDto[]> {
-    return this.kycClientService.getKycFiles(id, jwt.id);
+    return this.kycClientService.getKycFiles(id, jwt.user);
   }
 
   @Get('users/:id/documents/:type')
@@ -56,7 +56,7 @@ export class KycClientController {
     @Param('id') id: string,
     @Param('type') type: KycReportType,
   ): Promise<Buffer> {
-    return this.kycClientService.getKycFile(id, jwt.id, type);
+    return this.kycClientService.getKycFile(id, jwt.user, type);
   }
 
   @Get('users/:id/payments')
@@ -70,7 +70,7 @@ export class KycClientController {
     @Query('to') to: string,
   ): Promise<PaymentWebhookData[]> {
     return this.kycClientService.getAllUserPayments(
-      jwt.id,
+      jwt.user,
       userId,
       from ? new Date(from) : undefined,
       to ? new Date(to) : undefined,

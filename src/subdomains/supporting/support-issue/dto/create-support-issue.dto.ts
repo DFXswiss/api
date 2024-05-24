@@ -3,7 +3,7 @@ import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
 import { SupportIssueReason } from '../entities/support-issue.entity';
 import { CreateSupportMessageDto } from './create-support-message.dto';
 
-export class CreateTransactionIssueDto extends CreateSupportMessageDto {
+export class CreateSupportIssueDto extends CreateSupportMessageDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsEnum(SupportIssueReason)

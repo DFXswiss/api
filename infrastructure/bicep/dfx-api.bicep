@@ -142,6 +142,7 @@ param krakenSecret string
 
 param krakenWithdrawKeys string
 param krakenBtcDepositAddress string
+param krakenPolygonDepositAddress string
 
 @secure()
 param binanceKey string
@@ -150,6 +151,7 @@ param binanceSecret string
 
 param binanceWithdrawKeys string
 param binanceBtcDepositAddress string
+param binancePolygonDepositAddress string
 
 param olkyClient string
 @secure()
@@ -390,15 +392,14 @@ resource sqlVNetRule 'Microsoft.Sql/servers/virtualNetworkRules@2021-02-01-previ
   }
 }
 
-resource sqlAllRule 'Microsoft.Sql/servers/firewallRules@2021-02-01-preview' =
-  if (dbAllowAllIps) {
-    parent: sqlServer
-    name: 'all'
-    properties: {
-      startIpAddress: '0.0.0.0'
-      endIpAddress: '255.255.255.255'
-    }
+resource sqlAllRule 'Microsoft.Sql/servers/firewallRules@2021-02-01-preview' = if (dbAllowAllIps) {
+  parent: sqlServer
+  name: 'all'
+  properties: {
+    startIpAddress: '0.0.0.0'
+    endIpAddress: '255.255.255.255'
   }
+}
 
 resource sqlDb 'Microsoft.Sql/servers/databases@2021-02-01-preview' = {
   parent: sqlServer
@@ -886,6 +887,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: krakenBtcDepositAddress
         }
         {
+          name: 'KRAKEN_POLYGON_DEPOSIT_ADDRESS'
+          value: krakenPolygonDepositAddress
+        }
+        {
           name: 'BINANCE_KEY'
           value: binanceKey
         }
@@ -900,6 +905,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'BINANCE_BTC_DEPOSIT_ADDRESS'
           value: binanceBtcDepositAddress
+        }
+        {
+          name: 'BINANCE_POLYGON_DEPOSIT_ADDRESS'
+          value: binancePolygonDepositAddress
         }
         {
           name: 'LETTER_URL'
@@ -1156,21 +1165,20 @@ resource vmNsg 'Microsoft.Network/networkSecurityGroups@2020-11-01' = {
   }
 }
 
-resource rpcRule 'Microsoft.Network/networkSecurityGroups/securityRules@2020-11-01' =
-  if (nodeAllowAllIps) {
-    parent: vmNsg
-    name: 'RPC'
-    properties: {
-      protocol: 'TCP'
-      sourcePortRange: '*'
-      destinationPortRange: btcNodePort
-      sourceAddressPrefix: allowedIpRange
-      destinationAddressPrefix: '*'
-      access: 'Allow'
-      priority: 350
-      direction: 'Inbound'
-    }
+resource rpcRule 'Microsoft.Network/networkSecurityGroups/securityRules@2020-11-01' = if (nodeAllowAllIps) {
+  parent: vmNsg
+  name: 'RPC'
+  properties: {
+    protocol: 'TCP'
+    sourcePortRange: '*'
+    destinationPortRange: btcNodePort
+    sourceAddressPrefix: allowedIpRange
+    destinationAddressPrefix: '*'
+    access: 'Allow'
+    priority: 350
+    direction: 'Inbound'
   }
+}
 
 module btcNodes 'btc-node.bicep' = [
   for node in btcNodeProps: {

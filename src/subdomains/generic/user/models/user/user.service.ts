@@ -124,14 +124,14 @@ export class UserService {
     return this.userRepo.findOne({ where: { ref }, relations: ['userData', 'userData.users'] });
   }
 
-  async getUserDtoV2(userId: number): Promise<UserV2Dto> {
-    const user = await this.userRepo.findOne({
-      where: { id: userId },
-      relations: { userData: { users: { wallet: true } } },
+  async getUserDtoV2(userDataId: number, userId?: number): Promise<UserV2Dto> {
+    const userData = await this.userDataRepo.findOne({
+      where: { id: userDataId },
+      relations: { users: { wallet: true } },
     });
-    if (!user) throw new NotFoundException('User not found');
+    if (!userData) throw new NotFoundException('User not found');
 
-    return UserDtoMapper.mapUser(user.userData, user.id);
+    return UserDtoMapper.mapUser(userData, userId);
   }
 
   async getRefDtoV2(userId: number): Promise<ReferralDto> {
@@ -171,7 +171,7 @@ export class UserService {
     return user;
   }
 
-  async updateUser(id: number, dto: UpdateUserDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
+  async updateUserV1(id: number, dto: UpdateUserDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
     let user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users', 'wallet'] });
     if (!user) throw new NotFoundException('User not found');
 
@@ -181,6 +181,22 @@ export class UserService {
     user.userData = update;
 
     return { user: await this.toDto(user, true), isKnownUser };
+  }
+
+  async updateUser(
+    userDataId: number,
+    dto: UpdateUserDto,
+    userId?: number,
+  ): Promise<{ user: UserV2Dto; isKnownUser: boolean }> {
+    const userData = await this.userDataRepo.findOne({
+      where: { id: userDataId },
+      relations: { users: { wallet: true } },
+    });
+    if (!userData) throw new NotFoundException('User not found');
+
+    const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(userData, dto);
+
+    return { user: UserDtoMapper.mapUser(update, userId), isKnownUser };
   }
 
   async updateUserName(id: number, dto: UserNameDto): Promise<void> {
@@ -208,7 +224,7 @@ export class UserService {
     const user = await this.userRepo.findOne({ where: { id }, relations: ['userData'] });
     if (!user) throw new NotFoundException('User not found');
 
-    if (update.status && update.status == UserStatus.ACTIVE && user.status == UserStatus.NA)
+    if (update.status && update.status === UserStatus.ACTIVE && user.status === UserStatus.NA)
       await this.activateUser(user);
 
     return this.userRepo.save({ ...user, ...update });
@@ -488,7 +504,7 @@ export class UserService {
       currency: user.userData?.currency,
       kycStatus: user.userData?.kycStatus,
       kycState: KycState.NA,
-      kycLevel: user.userData?.kycLevel,
+      kycLevel: user.userData?.kycLevelDisplay,
       kycHash: user.userData?.kycHash,
       tradingLimit: user.userData?.tradingLimit,
       kycDataComplete: user.userData?.isDataComplete,
@@ -501,7 +517,7 @@ export class UserService {
 
   private async getUserDetails(user: User): Promise<UserDetails> {
     return {
-      ...(user.status === UserStatus.ACTIVE ? await this.getUserRef(user) : undefined),
+      ...(user.ref ? await this.getUserRef(user) : undefined),
       bsLink:
         user.buyVolume + user.sellVolume + user.cryptoVolume >= Config.support.blackSquad.limit
           ? Config.support.blackSquad.link

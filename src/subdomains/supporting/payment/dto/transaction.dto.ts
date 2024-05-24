@@ -34,6 +34,7 @@ export enum TransactionReason {
   SANCTION_SUSPICION = 'SanctionSuspicion',
   MIN_DEPOSIT_NOT_REACHED = 'MinDepositNotReached',
   ASSET_NOT_AVAILABLE = 'AssetNotAvailable',
+  ASSET_NOT_AVAILABLE_WITH_CHOSEN_BANK = 'AssetNotAvailableWithChosenBank',
   STAKING_DISCONTINUED = 'StakingDiscontinued',
   BANK_NOT_ALLOWED = 'BankNotAllowed',
   PAYMENT_ACCOUNT_NOT_ALLOWED = 'PaymentAccountNotAllowed',
@@ -68,6 +69,7 @@ export const TransactionReasonMapper: {
   [AmlReason.HIGH_RISK_KYC_NEEDED]: TransactionReason.FRAUD_SUSPICION,
   [AmlReason.MIN_DEPOSIT_NOT_REACHED]: TransactionReason.MIN_DEPOSIT_NOT_REACHED,
   [AmlReason.ASSET_CURRENTLY_NOT_AVAILABLE]: TransactionReason.ASSET_NOT_AVAILABLE,
+  [AmlReason.ASSET_NOT_AVAILABLE_WITH_CHOSEN_BANK]: TransactionReason.ASSET_NOT_AVAILABLE_WITH_CHOSEN_BANK,
   [AmlReason.STAKING_DISCONTINUED]: TransactionReason.STAKING_DISCONTINUED,
   [AmlReason.BANK_NOT_ALLOWED]: TransactionReason.BANK_NOT_ALLOWED,
   [AmlReason.HIGH_RISK_BLOCKED]: TransactionReason.PAYMENT_ACCOUNT_NOT_ALLOWED,
@@ -79,6 +81,9 @@ export const TransactionReasonMapper: {
 export class UnassignedTransactionDto {
   @ApiProperty()
   id: number;
+
+  @ApiProperty()
+  uid: string;
 
   @ApiProperty({ enum: TransactionType })
   type: TransactionType;

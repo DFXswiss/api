@@ -1,14 +1,18 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { LiquidityManagementRuleStatus } from '../../liquidity-management/enums';
+import { LiquidityManagementService } from '../../liquidity-management/services/liquidity-management.service';
 import { TradingOrder } from '../entities/trading-order.entity';
 import { TradingOrderStatus } from '../enums';
+import { WaitingForLiquidityException } from '../exceptions/waiting-for-liquidity.exception';
 import { TradingOrderRepository } from '../repositories/trading-order.respository';
 import { TradingRuleRepository } from '../repositories/trading-rule.respository';
 
@@ -23,6 +27,7 @@ export class TradingOrderService {
     private readonly dexService: DexService,
     private readonly notificationService: NotificationService,
     private readonly evmRegistryService: EvmRegistryService,
+    private readonly liquidityService: LiquidityManagementService,
   ) {}
 
   // --- PUBLIC API --- //
@@ -57,9 +62,7 @@ export class TradingOrderService {
 
       this.logger.verbose(`Trading order ${order.id} in progress`);
     } catch (e) {
-      const message = `Failed to execute trading order ${order.id} (rule ${order.tradingRule.id}): ${e.message}`;
-      await this.handleOrderFail(order, message);
-      this.logger.error(message, e);
+      await this.handleOrderFail('execute', order, e);
     }
   }
 
@@ -80,9 +83,18 @@ export class TradingOrderService {
 
     const minAmount = order.amountIn / 2;
     if (availableAmount < minAmount) {
-      throw new Error(
-        `Not enough liquidity of ${order.assetIn.uniqueName}: ${availableAmount} available, min. required ${minAmount}`,
-      );
+      // order liquidity
+      try {
+        const deficitAmount = Util.round(order.amountIn - availableAmount, 8);
+        await this.liquidityService.buyLiquidity(order.assetIn.id, deficitAmount, true);
+      } catch (e) {
+        if (!e.message?.includes(LiquidityManagementRuleStatus.PROCESSING))
+          throw new Error(
+            `Not enough liquidity of ${order.assetIn.uniqueName}: ${availableAmount} available, min. required ${minAmount}`,
+          );
+      }
+
+      throw new WaitingForLiquidityException(`Waiting for liquidity of ${order.assetIn.uniqueName}`);
     } else {
       liquidityRequest.referenceAmount = order.amountIn = Math.min(order.amountIn, availableAmount);
     }
@@ -117,9 +129,7 @@ export class TradingOrderService {
 
       if (isComplete) await this.handleOrderCompletion(order);
     } catch (e) {
-      const message = `Failed to check trading order ${order.id} (rule ${order.tradingRule.id}): ${e.message}`;
-      await this.handleOrderFail(order, message);
-      this.logger.error(message, e);
+      await this.handleOrderFail('check', order, e);
     }
   }
 
@@ -152,7 +162,9 @@ export class TradingOrderService {
     await this.notificationService.sendMail(mailRequest);
   }
 
-  private async handleOrderFail(order: TradingOrder, message: string): Promise<void> {
+  private async handleOrderFail(process: string, order: TradingOrder, e: Error): Promise<void> {
+    const message = `Failed to ${process} trading order ${order.id} (rule ${order.tradingRule.id}): ${e.message}`;
+
     await this.closeReservation(order);
 
     order.fail(message);
@@ -161,17 +173,23 @@ export class TradingOrderService {
     const rule = order.tradingRule.pause();
     await this.ruleRepo.save(rule);
 
-    // send mail
-    const mailRequest: MailRequest = {
-      type: MailType.ERROR_MONITORING,
-      context: MailContext.DEX,
-      input: {
-        subject: 'Trading order FAIL',
-        errors: [message],
-        isLiqMail: true,
-      },
-    };
+    // send notification
+    if (e instanceof WaitingForLiquidityException) {
+      this.logger.warn(message, e);
+    } else {
+      this.logger.error(message, e);
 
-    await this.notificationService.sendMail(mailRequest);
+      const mailRequest: MailRequest = {
+        type: MailType.ERROR_MONITORING,
+        context: MailContext.DEX,
+        input: {
+          subject: 'Trading order FAIL',
+          errors: [message],
+          isLiqMail: true,
+        },
+      };
+
+      await this.notificationService.sendMail(mailRequest);
+    }
   }
 }

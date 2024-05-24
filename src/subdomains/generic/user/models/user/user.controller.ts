@@ -54,7 +54,7 @@ export class UserController {
   @ApiOkResponse({ type: UserDto })
   @ApiOperation({ deprecated: true })
   async getUserV1(@GetJwt() jwt: JwtPayload): Promise<UserDto> {
-    return this.userService.getUserDto(jwt.id, false);
+    return this.userService.getUserDto(jwt.user, false);
   }
 
   @Get('detail')
@@ -63,7 +63,7 @@ export class UserController {
   @ApiOkResponse({ type: UserDetailDto })
   @ApiOperation({ deprecated: true })
   async getUserDetailV1(@GetJwt() jwt: JwtPayload): Promise<UserDetailDto> {
-    return this.userService.getUserDto(jwt.id, true);
+    return this.userService.getUserDto(jwt.user, true);
   }
 
   @Put()
@@ -71,12 +71,13 @@ export class UserController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: UserDetailDto })
   @ApiAcceptedResponse(AccountExistsResponse)
-  async updateUser(
+  @ApiOperation({ deprecated: true })
+  async updateUserV1(
     @GetJwt() jwt: JwtPayload,
     @Body() newUser: UpdateUserDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<UserDetailDto> {
-    const { user, isKnownUser } = await this.userService.updateUser(jwt.id, newUser);
+    const { user, isKnownUser } = await this.userService.updateUserV1(jwt.user, newUser);
     if (isKnownUser) res.status(HttpStatus.ACCEPTED);
 
     return user;
@@ -87,7 +88,7 @@ export class UserController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse()
   async addDiscountCode(@GetJwt() jwt: JwtPayload, @Query('code') code: string): Promise<void> {
-    const user = await this.userService.getUser(jwt.id, { userData: true, wallet: true });
+    const user = await this.userService.getUser(jwt.user, { userData: true, wallet: true });
 
     return this.feeService.addDiscountCodeUser(user, code);
   }
@@ -101,7 +102,7 @@ export class UserController {
     @Body() changeUser: LinkedUserInDto,
     @RealIP() ip: string,
   ): Promise<AuthResponseDto> {
-    return this.authService.changeUser(jwt.id, changeUser, ip);
+    return this.authService.changeUser(jwt.user, changeUser, ip);
   }
 
   // TODO: temporary CC solution
@@ -110,7 +111,7 @@ export class UserController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
   async updateUserName(@GetJwt() jwt: JwtPayload, @Body() data: UserNameDto): Promise<void> {
-    await this.userService.updateUserName(jwt.id, data);
+    await this.userService.updateUserName(jwt.user, data);
   }
 
   @Post('data')
@@ -123,7 +124,7 @@ export class UserController {
     @Body() data: KycInputDataDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<UserDetailDto> {
-    const { user, isKnownUser } = await this.userService.updateUserData(jwt.id, data);
+    const { user, isKnownUser } = await this.userService.updateUserData(jwt.user, data);
     if (isKnownUser) res.status(HttpStatus.ACCEPTED);
 
     return user;
@@ -134,7 +135,7 @@ export class UserController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse()
   async deleteUser(@GetJwt() jwt: JwtPayload): Promise<void> {
-    return this.userService.blockUser(jwt.id);
+    return this.userService.blockUser(jwt.user);
   }
 
   @Delete('account')
@@ -142,7 +143,7 @@ export class UserController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse()
   async deleteUserAccount(@GetJwt() jwt: JwtPayload): Promise<void> {
-    return this.userService.blockUser(jwt.id, true);
+    return this.userService.blockUser(jwt.user, true);
   }
 
   // --- API KEYS --- //
@@ -151,7 +152,7 @@ export class UserController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiCreatedResponse({ type: ApiKeyDto })
   async createApiKey(@GetJwt() jwt: JwtPayload, @Query() filter: HistoryFilter): Promise<ApiKeyDto> {
-    return this.userService.createApiKey(jwt.id, filter);
+    return this.userService.createApiKey(jwt.user, filter);
   }
 
   @Delete('apiKey/CT')
@@ -159,7 +160,7 @@ export class UserController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse()
   async deleteApiKey(@GetJwt() jwt: JwtPayload): Promise<void> {
-    return this.userService.deleteApiKey(jwt.id);
+    return this.userService.deleteApiKey(jwt.user);
   }
 
   @Put('apiFilter/CT')
@@ -167,7 +168,7 @@ export class UserController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: String, isArray: true })
   async updateApiFilter(@GetJwt() jwt: JwtPayload, @Query() filter: HistoryFilter): Promise<HistoryFilterKey[]> {
-    return this.userService.updateApiFilter(jwt.id, filter);
+    return this.userService.updateApiFilter(jwt.user, filter);
   }
 
   // --- ADMIN --- //
@@ -205,10 +206,26 @@ export class UserV2Controller {
 
   @Get()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse({ type: UserV2Dto })
   async getUser(@GetJwt() jwt: JwtPayload): Promise<UserV2Dto> {
-    return this.userService.getUserDtoV2(jwt.id);
+    return this.userService.getUserDtoV2(jwt.account, jwt.user);
+  }
+
+  @Put()
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @ApiOkResponse({ type: UserV2Dto })
+  @ApiAcceptedResponse(AccountExistsResponse)
+  async updateUser(
+    @GetJwt() jwt: JwtPayload,
+    @Body() newUser: UpdateUserDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<UserV2Dto> {
+    const { user, isKnownUser } = await this.userService.updateUser(jwt.account, newUser, jwt.user);
+    if (isKnownUser) res.status(HttpStatus.ACCEPTED);
+
+    return user;
   }
 
   @Get('ref')
@@ -216,6 +233,6 @@ export class UserV2Controller {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: ReferralDto })
   async getRef(@GetJwt() jwt: JwtPayload): Promise<ReferralDto> {
-    return this.userService.getRefDtoV2(jwt.id);
+    return this.userService.getRefDtoV2(jwt.user);
   }
 }

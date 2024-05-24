@@ -48,32 +48,32 @@ export class SwapController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
-  async getAllCrypto(@GetJwt() jwt: JwtPayload): Promise<SwapDto[]> {
-    return this.swapService.getUserSwaps(jwt.id).then((l) => this.toDtoList(jwt.id, l));
+  async getAllSwap(@GetJwt() jwt: JwtPayload): Promise<SwapDto[]> {
+    return this.swapService.getUserSwaps(jwt.user).then((l) => this.toDtoList(jwt.user, l));
   }
 
   @Get(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: SwapDto })
-  async getCrypto(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<SwapDto> {
-    return this.swapService.get(jwt.id, +id).then((l) => this.toDto(jwt.id, l));
+  async getSwap(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<SwapDto> {
+    return this.swapService.get(jwt.user, +id).then((l) => this.toDto(jwt.user, l));
   }
 
   @Post()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
-  async createCrypto(@GetJwt() jwt: JwtPayload, @Body() dto: CreateSwapDto): Promise<SwapDto> {
+  async createSwap(@GetJwt() jwt: JwtPayload, @Body() dto: CreateSwapDto): Promise<SwapDto> {
     dto.targetAsset ??= dto.asset;
 
     dto = await this.paymentInfoService.swapCheck(dto, jwt);
-    return this.swapService.createSwap(jwt.id, dto.blockchain, dto.targetAsset).then((b) => this.toDto(jwt.id, b));
+    return this.swapService.createSwap(jwt.user, dto.blockchain, dto.targetAsset).then((b) => this.toDto(jwt.user, b));
   }
 
   @Put('/quote')
   @ApiOkResponse({ type: SwapQuoteDto })
-  async getCryptoQuote(@Body() dto: GetSwapQuoteDto): Promise<SwapQuoteDto> {
+  async getSwapQuote(@Body() dto: GetSwapQuoteDto): Promise<SwapQuoteDto> {
     const {
       amount: sourceAmount,
       sourceAsset,
@@ -126,38 +126,38 @@ export class SwapController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
   @ApiOkResponse({ type: SwapPaymentInfoDto })
-  async createCryptoWithPaymentInfo(
+  async createSwapWithPaymentInfo(
     @GetJwt() jwt: JwtPayload,
     @Body() dto: GetSwapPaymentInfoDto,
   ): Promise<SwapPaymentInfoDto> {
     dto = await this.paymentInfoService.swapCheck(dto, jwt);
     return Util.retry(
-      () => this.swapService.createSwap(jwt.id, dto.sourceAsset.blockchain, dto.targetAsset, true),
+      () => this.swapService.createSwap(jwt.user, dto.sourceAsset.blockchain, dto.targetAsset, true),
       2,
       0,
       undefined,
       (e) => e.message?.includes('duplicate key'),
-    ).then((crypto) => this.toPaymentInfoDto(jwt.id, crypto, dto));
+    ).then((crypto) => this.toPaymentInfoDto(jwt.user, crypto, dto));
   }
 
   @Put(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
-  async updateCryptoRoute(
+  async updateSwapRoute(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
     @Body() updateCryptoDto: UpdateSwapDto,
   ): Promise<SwapDto> {
-    return this.swapService.updateSwap(jwt.id, +id, updateCryptoDto).then((b) => this.toDto(jwt.id, b));
+    return this.swapService.updateSwap(jwt.user, +id, updateCryptoDto).then((b) => this.toDto(jwt.user, b));
   }
 
   @Get(':id/history')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
-  async getCryptoRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<HistoryDtoDeprecated[]> {
-    return this.buyCryptoService.getCryptoHistory(jwt.id, +id);
+  async getSwapRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<HistoryDtoDeprecated[]> {
+    return this.buyCryptoService.getCryptoHistory(jwt.user, +id);
   }
 
   // --- DTO --- //
