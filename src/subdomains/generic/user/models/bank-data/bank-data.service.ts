@@ -30,7 +30,10 @@ export class BankDataService {
 
   async checkUnverifiedBankDatas(): Promise<void> {
     const entities = await this.bankDataRepo.find({
-      where: { active: Not(true), type: Not(In([BankDataType.IDENT, BankDataType.USER])), comment: IsNull() },
+      where: [
+        { active: false, type: Not(In([BankDataType.IDENT, BankDataType.USER])), comment: IsNull() },
+        { active: IsNull(), type: Not(In([BankDataType.IDENT, BankDataType.USER])), comment: IsNull() },
+      ],
       relations: { userData: true },
     });
 
