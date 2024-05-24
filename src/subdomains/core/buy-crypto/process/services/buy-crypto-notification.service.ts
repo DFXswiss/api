@@ -75,6 +75,7 @@ export class BuyCryptoNotificationService {
         amlCheck: CheckStatus.PASS,
         isComplete: true,
         status: BuyCryptoStatus.COMPLETE,
+        outputAmount: Not(IsNull()),
       },
       relations: {
         buy: { user: { userData: true } },

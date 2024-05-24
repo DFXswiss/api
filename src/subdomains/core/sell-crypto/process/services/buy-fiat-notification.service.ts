@@ -40,6 +40,7 @@ export class BuyFiatNotificationService {
         mail3SendDate: IsNull(),
         amlCheck: CheckStatus.PASS,
         isComplete: true,
+        outputAmount: Not(IsNull()),
       },
       relations: {
         sell: { user: { userData: true } },
