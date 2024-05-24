@@ -21,6 +21,7 @@ export enum Process {
   MONITORING = 'Monitoring',
   UPDATE_STATISTIC = 'UpdateStatistic',
   KYC = 'Kyc',
+  AUTO_IDENT_KYC = 'AutoIdentKyc',
   KYC_MAIL = 'KycMail',
   BANK_ACCOUNT = 'BankAccount',
   BANK_TX = 'BankTx',
