@@ -127,15 +127,15 @@ export class KycService {
     if (entity.userData.status === UserDataStatus.MERGED) errors.push(IdentCheckError.USER_DATA_MERGED);
     if (entity.userData.status === UserDataStatus.BLOCKED) errors.push(IdentCheckError.USER_DATA_BLOCKED);
 
-    if (!Util.isSameName(entity.userData.firstname, result.userdata?.firstname.value))
+    if (!Util.isSameName(entity.userData.firstname, result.userdata?.firstname?.value))
       errors.push(IdentCheckError.FIRST_NAME_NOT_MATCHING);
     if (
-      !Util.isSameName(entity.userData.surname, result.userdata?.lastname.value) &&
-      !Util.isSameName(entity.userData.surname, result.userdata?.birthname.value)
+      !Util.isSameName(entity.userData.surname, result.userdata?.lastname?.value) &&
+      !Util.isSameName(entity.userData.surname, result.userdata?.birthname?.value)
     )
       errors.push(IdentCheckError.LAST_NAME_NOT_MATCHING);
 
-    if (!['IDCARD', 'PASSPORT'].includes(result.identificationprocess?.type))
+    if (!['IDCARD', 'PASSPORT'].includes(result.identificationdocument?.type?.value))
       errors.push(IdentCheckError.INVALID_DOCUMENT_TYPE);
 
     if (!result.identificationdocument?.number) errors.push(IdentCheckError.IDENTIFICATION_NUMBER_MISSING);
@@ -143,7 +143,7 @@ export class KycService {
     if (!['SUCCESS_DATA_CHANGED', 'SUCCESS'].includes(result.identificationprocess?.result))
       errors.push(IdentCheckError.INVALID_RESULT);
 
-    if (!entity.userData.verifiedName) {
+    if (!entity.userData.verifiedName && entity.userData.status === UserDataStatus.ACTIVE) {
       errors.push(IdentCheckError.VERIFIED_NAME_MISSING);
     } else {
       if (!entity.userData.verifiedName.includes(entity.userData.firstname))
