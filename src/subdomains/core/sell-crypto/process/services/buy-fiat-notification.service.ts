@@ -29,8 +29,60 @@ export class BuyFiatNotificationService {
   @Lock(1800)
   async sendNotificationMails(): Promise<void> {
     if (DisabledProcess(Process.BUY_FIAT_MAIL)) return;
+    await this.paymentCompleted();
     await this.paybackToAddressInitiated();
     await this.pendingBuyFiat();
+  }
+
+  private async paymentCompleted(): Promise<void> {
+    const entities = await this.buyFiatRepo.find({
+      where: {
+        mail3SendDate: IsNull(),
+        amlCheck: CheckStatus.PASS,
+        isComplete: true,
+        outputAmount: Not(IsNull()),
+      },
+      relations: {
+        sell: { user: { userData: true } },
+        cryptoInput: true,
+        transaction: true,
+      },
+    });
+
+    for (const entity of entities) {
+      try {
+        if (entity.userData.mail) {
+          await this.notificationService.sendMail({
+            type: MailType.USER,
+            context: MailContext.BUY_FIAT_COMPLETED,
+            input: {
+              userData: entity.userData,
+              title: `${MailTranslationKey.FIAT_OUTPUT}.title`,
+              salutation: { key: `${MailTranslationKey.FIAT_OUTPUT}.salutation` },
+              suffix: [
+                {
+                  key: `${MailTranslationKey.PAYMENT}.transaction_button`,
+                  params: { url: entity.transaction.url },
+                },
+                {
+                  key: `${MailTranslationKey.GENERAL}.link`,
+                  params: { url: entity.transaction.url, urlText: entity.transaction.url },
+                },
+                { key: MailKey.SPACE, params: { value: '2' } },
+                { key: `${MailTranslationKey.GENERAL}.support` },
+                { key: MailKey.SPACE, params: { value: '4' } },
+                { key: `${MailTranslationKey.GENERAL}.thanks` },
+                { key: MailKey.DFX_TEAM_CLOSING },
+              ],
+            },
+          });
+        }
+
+        await this.buyFiatRepo.update(...entity.fiatToBankTransferInitiated());
+      } catch (e) {
+        this.logger.error(`Failed to send buy-fiat completed mail ${entity.id}:`, e);
+      }
+    }
   }
 
   private async paybackToAddressInitiated(): Promise<void> {
@@ -42,7 +94,7 @@ export class BuyFiatNotificationService {
         amlReason: Not(IsNull()),
         mailReturnSendDate: IsNull(),
       },
-      relations: ['sell', 'sell.user', 'sell.user.userData', 'cryptoInput', 'transaction'],
+      relations: { sell: { user: { userData: true } }, cryptoInput: true, transaction: true },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'payback to address' email(s)`);
@@ -115,7 +167,7 @@ export class BuyFiatNotificationService {
         amlReason: In(BuyFiatAmlReasonPendingStates),
         amlCheck: CheckStatus.PENDING,
       },
-      relations: ['sell', 'sell.user', 'sell.user.userData'],
+      relations: { sell: { user: { userData: true } } },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'pending' email(s)`);

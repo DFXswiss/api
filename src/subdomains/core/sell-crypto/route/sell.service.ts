@@ -60,10 +60,10 @@ export class SellService {
     });
   }
 
-  async createSell(userId: number, dto: CreateSellDto, ignoreExisting = false): Promise<Sell> {
+  async createSell(userId: number, dto: CreateSellDto, ignoreException = false): Promise<Sell> {
     // check user data
     const userData = await this.userDataService.getUserDataByUser(userId);
-    if (!userData.isDataComplete) throw new BadRequestException('Ident data incomplete');
+    if (!userData.isDataComplete && !ignoreException) throw new BadRequestException('Ident data incomplete');
 
     // check if exists
     const existing = await this.sellRepo.findOne({
@@ -77,7 +77,7 @@ export class SellService {
     });
 
     if (existing) {
-      if (existing.active && !ignoreExisting) throw new ConflictException('Sell route already exists');
+      if (existing.active && !ignoreException) throw new ConflictException('Sell route already exists');
 
       if (!existing.active) {
         // reactivate deleted route

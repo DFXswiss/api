@@ -14,60 +14,48 @@ export class SiftService {
   constructor(private readonly http: HttpService) {}
 
   async createAccount(user: User): Promise<void> {
-    try {
-      const data: CreateAccount = {
-        $type: EventType.CREATE_ACCOUNT,
-        $api_key: Config.sift.apiKey,
-        $user_id: user.id.toString(),
-        $referrer_user_id: user.ref,
-        $ip: user.ip,
-        $time: user.created.getTime(),
-        $brand_name: user.wallet.name,
-        $site_country: 'CH',
-        blockchain_address: user.address,
-        kyc_level: KycLevel.LEVEL_0,
-      };
-      await this.http.post(this.url, data);
-    } catch (error) {
-      this.logger.error('Error during account creation', error);
-    }
+    const data: CreateAccount = {
+      $user_id: user.id.toString(),
+      $referrer_user_id: user.ref,
+      $ip: user.ip,
+      $time: user.created.getTime(),
+      $brand_name: user.wallet.name,
+      $site_country: 'CH',
+      blockchain_address: user.address,
+      kyc_level: KycLevel.LEVEL_0,
+    };
+
+    return this.send(EventType.CREATE_ACCOUNT, data);
   }
 
   async updateAccount(data: CreateAccount): Promise<void> {
-    data.$type = EventType.CREATE_ACCOUNT;
-    data.$api_key = Config.sift.apiKey;
-    data.$time = Date.now();
-
-    try {
-      await this.http.post(this.url, data);
-    } catch (error) {
-      this.logger.error('Error during account creation', error);
-    }
+    return this.send(EventType.UPDATE_ACCOUNT, data);
   }
 
   async login(user: User, ip: string): Promise<void> {
-    try {
-      const data: SiftBase = {
-        $type: EventType.LOGIN,
-        $api_key: Config.sift.apiKey,
-        $user_id: user.id.toString(),
-        $ip: ip,
-        $time: Date.now(),
-      };
-      await this.http.post(this.url, data);
-    } catch (error) {
-      this.logger.error('Error during account creation', error);
-    }
+    const data: SiftBase = {
+      $user_id: user.id.toString(),
+      $ip: ip,
+      $time: Date.now(),
+    };
+
+    return this.send(EventType.LOGIN, data);
   }
 
   async createOrder(data: CreateOrder): Promise<void> {
-    data.$type = EventType.CREATE_ORDER;
+    return this.send(EventType.CREATE_ORDER, data);
+  }
+
+  private async send(type: EventType, data: SiftBase): Promise<void> {
+    if (!Config.sift.apiKey) return;
+
+    data.$type = type;
     data.$api_key = Config.sift.apiKey;
 
     try {
       await this.http.post(this.url, data);
     } catch (error) {
-      this.logger.error('Error during account creation', error);
+      this.logger.error(`Error sending Sift event ${type} for user ${data.$user_id}:`, error);
     }
   }
 }

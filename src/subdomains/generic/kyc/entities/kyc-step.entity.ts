@@ -36,6 +36,9 @@ export class KycStep extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   result?: string;
 
+  @Column({ length: 'MAX', nullable: true })
+  comment: string;
+
   @OneToMany(() => StepLog, (l) => l.kycStep)
   logs: StepLog;
 
@@ -98,7 +101,12 @@ export class KycStep extends IEntity {
   }
 
   get isInReview(): boolean {
-    return [KycStepStatus.FINISHED, KycStepStatus.CHECK_PENDING, KycStepStatus.IN_REVIEW].includes(this.status);
+    return [
+      KycStepStatus.FINISHED,
+      KycStepStatus.EXTERNAL_REVIEW,
+      KycStepStatus.INTERNAL_REVIEW,
+      KycStepStatus.MANUAL_REVIEW,
+    ].includes(this.status);
   }
 
   get isCompleted(): boolean {
@@ -144,22 +152,34 @@ export class KycStep extends IEntity {
     return this;
   }
 
+  ignored(): this {
+    this.status = KycStepStatus.IGNORED;
+
+    return this;
+  }
+
   finish(): this {
     if (this.isInProgress) this.status = KycStepStatus.FINISHED;
 
     return this;
   }
 
-  check(result?: KycStepResult): this {
-    this.status = KycStepStatus.CHECK_PENDING;
+  externalReview(result?: KycStepResult): this {
+    this.status = KycStepStatus.EXTERNAL_REVIEW;
 
     return this.setResult(result);
   }
 
-  review(result?: KycStepResult): this {
-    this.status = KycStepStatus.IN_REVIEW;
+  internalReview(result?: KycStepResult): this {
+    this.status = KycStepStatus.INTERNAL_REVIEW;
 
     return this.setResult(result);
+  }
+
+  manualReview(): this {
+    this.status = KycStepStatus.MANUAL_REVIEW;
+
+    return this;
   }
 
   getResult<T extends KycStepResult>(): T | undefined {

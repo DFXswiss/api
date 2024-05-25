@@ -12,7 +12,7 @@ import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { AmlReason, AmlReasonWithoutReason, KycAmlReasons } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
-import { BuyCrypto, BuyCryptoAmlReasonPendingStates } from '../entities/buy-crypto.entity';
+import { BuyCrypto, BuyCryptoAmlReasonPendingStates, BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 
 @Injectable()
@@ -27,6 +27,7 @@ export class BuyCryptoNotificationService {
   async sendNotificationMails(): Promise<void> {
     try {
       if (DisabledProcess(Process.BUY_CRYPTO_MAIL)) return;
+      await this.paymentCompleted();
       await this.paybackToAddressInitiated();
       await this.pendingBuyCrypto();
     } catch (e) {
@@ -67,6 +68,59 @@ export class BuyCryptoNotificationService {
     });
   }
 
+  private async paymentCompleted(): Promise<void> {
+    const entities = await this.buyCryptoRepo.find({
+      where: {
+        mailSendDate: IsNull(),
+        amlCheck: CheckStatus.PASS,
+        isComplete: true,
+        status: BuyCryptoStatus.COMPLETE,
+        outputAmount: Not(IsNull()),
+      },
+      relations: {
+        buy: { user: { userData: true } },
+        cryptoRoute: { user: { userData: true } },
+        cryptoInput: true,
+        transaction: true,
+      },
+    });
+
+    for (const entity of entities) {
+      try {
+        if (entity.userData.mail) {
+          await this.notificationService.sendMail({
+            type: MailType.USER,
+            context: MailContext.BUY_CRYPTO_COMPLETED,
+            input: {
+              userData: entity.userData,
+              title: `${MailTranslationKey.CRYPTO_OUTPUT}.title`,
+              salutation: { key: `${MailTranslationKey.CRYPTO_OUTPUT}.salutation` },
+              suffix: [
+                {
+                  key: `${MailTranslationKey.PAYMENT}.transaction_button`,
+                  params: { url: entity.transaction.url },
+                },
+                {
+                  key: `${MailTranslationKey.GENERAL}.link`,
+                  params: { url: entity.transaction.url, urlText: entity.transaction.url },
+                },
+                { key: MailKey.SPACE, params: { value: '2' } },
+                { key: `${MailTranslationKey.GENERAL}.support` },
+                { key: MailKey.SPACE, params: { value: '4' } },
+                { key: `${MailTranslationKey.GENERAL}.thanks` },
+                { key: MailKey.DFX_TEAM_CLOSING },
+              ],
+            },
+          });
+        }
+
+        await this.buyCryptoRepo.update(...entity.confirmSentMail());
+      } catch (e) {
+        this.logger.error(`Failed to send buy-crypto completed mail ${entity.id}:`, e);
+      }
+    }
+  }
+
   private async paybackToAddressInitiated(): Promise<void> {
     const search: FindOptionsWhere<BuyCrypto> = {
       mailSendDate: IsNull(),
@@ -80,18 +134,14 @@ export class BuyCryptoNotificationService {
         { ...search, chargebackBankTx: Not(IsNull()) },
         { ...search, chargebackCryptoTxId: Not(IsNull()) },
       ],
-      relations: [
-        'buy',
-        'buy.user',
-        'buy.user.userData',
-        'cryptoInput',
-        'cryptoRoute',
-        'cryptoRoute.user',
-        'cryptoRoute.user.userData',
-        'bankTx',
-        'checkoutTx',
-        'transaction',
-      ],
+      relations: {
+        buy: { user: { userData: true } },
+        cryptoRoute: { user: { userData: true } },
+        cryptoInput: true,
+        bankTx: true,
+        checkoutTx: true,
+        transaction: true,
+      },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'payback to address' email(s)`);
@@ -99,15 +149,15 @@ export class BuyCryptoNotificationService {
     for (const entity of entities) {
       try {
         if (
-          entity.user.userData.mail &&
-          (entity.user.userData.verifiedName || entity.amlReason !== AmlReason.NAME_CHECK_WITHOUT_KYC) &&
+          entity.userData.mail &&
+          (entity.userData.verifiedName || entity.amlReason !== AmlReason.NAME_CHECK_WITHOUT_KYC) &&
           !entity.noCommunication
         ) {
           await this.notificationService.sendMail({
             type: MailType.USER,
             context: MailContext.BUY_CRYPTO_RETURN,
             input: {
-              userData: entity.user.userData,
+              userData: entity.userData,
               title: `${entity.translationReturnMailKey}.title`,
               salutation: { key: `${entity.translationReturnMailKey}.salutation` },
               suffix: [
@@ -124,8 +174,8 @@ export class BuyCryptoNotificationService {
                       key: `${MailTranslationKey.RETURN}.introduction`,
                       params: {
                         reason: MailFactory.parseMailKey(MailTranslationKey.RETURN_REASON, entity.amlReason),
-                        url: entity.user.userData.dilisenseUrl,
-                        urlText: entity.user.userData.dilisenseUrl,
+                        url: entity.userData.dilisenseUrl,
+                        urlText: entity.userData.dilisenseUrl,
                       },
                     }
                   : null,
@@ -133,8 +183,8 @@ export class BuyCryptoNotificationService {
                   ? {
                       key: `${MailTranslationKey.RETURN}.kyc_start`,
                       params: {
-                        url: entity.user.userData.kycUrl,
-                        urlText: entity.user.userData.kycUrl,
+                        url: entity.userData.kycUrl,
+                        urlText: entity.userData.kycUrl,
                       },
                     }
                   : null,
@@ -165,27 +215,19 @@ export class BuyCryptoNotificationService {
         amlReason: In(BuyCryptoAmlReasonPendingStates),
         amlCheck: CheckStatus.PENDING,
       },
-      relations: [
-        'buy',
-        'buy.user',
-        'buy.user.userData',
-        'cryptoInput',
-        'cryptoRoute',
-        'cryptoRoute.user',
-        'cryptoRoute.user.userData',
-      ],
+      relations: { buy: { user: { userData: true } }, cryptoRoute: { user: { userData: true } }, cryptoInput: true },
     });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'pending' email(s)`);
 
     for (const entity of entities) {
       try {
-        if (entity.user.userData.mail) {
+        if (entity.userData.mail) {
           await this.notificationService.sendMail({
             type: MailType.USER,
             context: MailContext.BUY_CRYPTO_PENDING,
             input: {
-              userData: entity.user.userData,
+              userData: entity.userData,
               title: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.title`,
               salutation: {
                 key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.salutation`,
@@ -195,22 +237,22 @@ export class BuyCryptoNotificationService {
                 {
                   key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line2`,
                   params: {
-                    url: entity.user.userData.kycUrl,
-                    urlText: entity.user.userData.kycUrl,
+                    url: entity.userData.kycUrl,
+                    urlText: entity.userData.kycUrl,
                   },
                 },
                 {
                   key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line3`,
                   params: {
-                    url: entity.user.userData.kycUrl,
-                    urlText: entity.user.userData.kycUrl,
+                    url: entity.userData.kycUrl,
+                    urlText: entity.userData.kycUrl,
                   },
                 },
                 {
                   key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line4`,
                   params: {
-                    url: entity.user.userData.kycUrl,
-                    urlText: entity.user.userData.kycUrl,
+                    url: entity.userData.kycUrl,
+                    urlText: entity.userData.kycUrl,
                   },
                 },
                 { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line5` },

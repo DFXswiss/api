@@ -10,6 +10,7 @@ export enum AmlReason {
   NAME_CHECK_WITHOUT_KYC = 'NameCheckWithoutKyc',
   ANNUAL_LIMIT_WITHOUT_KYC = 'AnnualLimitWithoutKyc',
   ASSET_CURRENTLY_NOT_AVAILABLE = 'AssetCurrentlyNotAvailable',
+  ASSET_NOT_AVAILABLE_WITH_CHOSEN_BANK = 'AssetNotAvailableWithChosenBank',
   STAKING_DISCONTINUED = 'StakingDiscontinued',
   BANK_NOT_ALLOWED = 'BankNotAllowed',
   COUNTRY_NOT_ALLOWED = 'CountryNotAllowed',

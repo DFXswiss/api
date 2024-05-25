@@ -231,6 +231,7 @@ export class UserDataService {
     for (const user of userData.users) {
       await this.siftService.updateAccount({
         $user_id: user.id.toString(),
+        $time: Date.now(),
         $user_email: data.mail,
         $name: `${data.firstname} ${data.surname}`,
         $phone: data.phone,
@@ -256,6 +257,7 @@ export class UserDataService {
     for (const user of userData.users) {
       await this.siftService.updateAccount({
         $user_id: user.id.toString(),
+        $time: Date.now(),
         $name: `${dto.firstName} ${dto.lastName}`,
       } as CreateAccount);
     }
@@ -283,7 +285,7 @@ export class UserDataService {
 
     const mailChanged = dto.mail && dto.mail !== userData.mail;
 
-    const updateSiftAccount: CreateAccount = {};
+    const updateSiftAccount: CreateAccount = { $time: Date.now() };
 
     if (dto.phone && dto.phone !== userData.phone) updateSiftAccount.$phone = dto.phone;
     if (mailChanged) updateSiftAccount.$user_email = dto.mail;
@@ -436,7 +438,6 @@ export class UserDataService {
       const matchingUser = users.find(
         (u) =>
           u.id !== user.id &&
-          u.identDocumentId != null &&
           u.isDfxUser &&
           u.verifiedName &&
           (!user.verifiedName || Util.isSameName(user.verifiedName, u.verifiedName)),
@@ -479,7 +480,8 @@ export class UserDataService {
       }),
     ]);
     if (!master.isDfxUser) throw new BadRequestException(`Master ${master.id} not allowed to merge. Wrong KYC type`);
-    if (slave.amlListAddedDate) throw new BadRequestException('Slave is on AML list');
+    if (slave.amlListAddedDate && master.amlListAddedDate)
+      throw new BadRequestException('Slave and master are on AML list');
     if ([master.status, slave.status].includes(UserDataStatus.MERGED))
       throw new BadRequestException('Master or slave is already merged');
     if (slave.verifiedName && !Util.isSameName(master.verifiedName, slave.verifiedName))
@@ -519,15 +521,21 @@ export class UserDataService {
     slave.individualFeeList?.forEach((fee) => !master.individualFeeList?.includes(fee) && master.addFee(fee));
 
     if (master.status === UserDataStatus.KYC_ONLY) master.status = slave.status;
+    if (!master.amlListAddedDate && slave.amlListAddedDate) {
+      master.amlListAddedDate = slave.amlListAddedDate;
+      master.kycFileId = slave.kycFileId;
+    }
     master.mail = slave.mail ?? master.mail;
-
-    await this.userDataRepo.save(master);
 
     // update slave status
     await this.userDataRepo.update(slave.id, {
       status: UserDataStatus.MERGED,
       firstname: `${MergedPrefix}${master.id}`,
+      amlListAddedDate: null,
+      kycFileId: null,
     });
+
+    await this.userDataRepo.save(master);
 
     // KYC change Webhook
     await this.kycNotificationService.kycChanged(master);

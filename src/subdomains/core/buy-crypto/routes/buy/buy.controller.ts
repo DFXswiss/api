@@ -13,7 +13,7 @@ import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { Util } from 'src/shared/utils/util';
-import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
+import { UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -52,7 +52,7 @@ export class BuyController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getAllBuy(@GetJwt() jwt: JwtPayload): Promise<BuyDto[]> {
-    return this.buyService.getUserBuys(jwt.id).then((l) => this.toDtoList(jwt.id, l));
+    return this.buyService.getUserBuys(jwt.user).then((l) => this.toDtoList(jwt.user, l));
   }
 
   @Get(':id')
@@ -60,7 +60,7 @@ export class BuyController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: BuyDto })
   async getBuy(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<BuyDto> {
-    return this.buyService.get([jwt.id], +id).then((l) => this.toDto(jwt.id, l));
+    return this.buyService.get(jwt.account, +id).then((l) => this.toDto(jwt.user, l));
   }
 
   @Post()
@@ -69,7 +69,7 @@ export class BuyController {
   @ApiExcludeEndpoint()
   async createBuy(@GetJwt() jwt: JwtPayload, @Body() dto: CreateBuyDto): Promise<BuyDto> {
     dto = await this.paymentInfoService.buyCheck(dto, jwt);
-    return this.buyService.createBuy(jwt.id, jwt.address, dto).then((b) => this.toDto(jwt.id, b));
+    return this.buyService.createBuy(jwt.user, jwt.address, dto).then((b) => this.toDto(jwt.user, b));
   }
 
   @Put('/quote')
@@ -139,12 +139,12 @@ export class BuyController {
     dto = await this.paymentInfoService.buyCheck(dto, jwt);
 
     return Util.retry(
-      () => this.buyService.createBuy(jwt.id, jwt.address, dto, true),
+      () => this.buyService.createBuy(jwt.user, jwt.address, dto, true),
       2,
       0,
       undefined,
       (e) => e.message?.includes('duplicate key'),
-    ).then((buy) => this.toPaymentInfoDto(jwt.id, buy, dto));
+    ).then((buy) => this.toPaymentInfoDto(jwt.user, buy, dto));
   }
 
   @Put(':id')
@@ -152,7 +152,7 @@ export class BuyController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
   async updateBuyRoute(@GetJwt() jwt: JwtPayload, @Param('id') id: string, @Body() dto: UpdateBuyDto): Promise<BuyDto> {
-    return this.buyService.updateBuy(jwt.id, +id, dto).then((b) => this.toDto(jwt.id, b));
+    return this.buyService.updateBuy(jwt.user, +id, dto).then((b) => this.toDto(jwt.user, b));
   }
 
   @Get(':id/history')
@@ -160,7 +160,7 @@ export class BuyController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
   async getBuyRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<BuyHistoryDto[]> {
-    return this.buyCryptoService.getBuyHistory(jwt.id, +id);
+    return this.buyCryptoService.getBuyHistory(jwt.user, +id);
   }
 
   // --- DTO --- //
@@ -270,7 +270,10 @@ export class BuyController {
       // TODO: temporary CC solution
       nameRequired:
         dto.paymentMethod === FiatPaymentMethod.CARD &&
-        !(user.status === UserStatus.ACTIVE || (Boolean(user.userData.firstname) && Boolean(user.userData.surname))),
+        !(
+          user.userData.status === UserDataStatus.ACTIVE ||
+          (Boolean(user.userData.firstname) && Boolean(user.userData.surname))
+        ),
     };
 
     await this.transactionRequestService.createTransactionRequest(TransactionRequestType.Buy, dto, buyDto, user.id);

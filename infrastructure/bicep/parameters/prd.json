@@ -275,6 +275,9 @@
     "krakenBtcDepositAddress": {
       "value": "xxx"
     },
+    "krakenPolygonDepositAddress": {
+      "value": "xxx"
+    },
     "binanceKey": {
       "value": "xxx"
     },
@@ -285,6 +288,9 @@
       "value": "xxx"
     },
     "binanceBtcDepositAddress": {
+      "value": "xxx"
+    },
+    "binancePolygonDepositAddress": {
       "value": "xxx"
     },
     "olkyClient": {

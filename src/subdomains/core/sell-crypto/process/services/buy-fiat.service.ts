@@ -130,6 +130,7 @@ export class BuyFiatService {
 
     const forceUpdate: Partial<BuyFiat> = {
       ...(BuyFiatEditableAmlCheck.includes(entity.amlCheck) &&
+      !entity.isComplete &&
       (update?.amlCheck !== entity.amlCheck || update.amlReason !== entity.amlReason)
         ? { amlCheck: update.amlCheck, mailSendDate: null, amlReason: update.amlReason }
         : undefined),

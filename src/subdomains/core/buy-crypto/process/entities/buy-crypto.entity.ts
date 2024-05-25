@@ -569,4 +569,4 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.MANUAL_CHECK,
 ];
 
-export const BuyCryptoEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET];
+export const BuyCryptoEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];

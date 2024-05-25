@@ -1,5 +1,6 @@
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
+import { Util } from 'src/shared/utils/util';
 import { UserData } from '../../user-data/user-data.entity';
 import { User, UserStatus } from '../user.entity';
 import { ReferralDto, UserAddressDto, UserV2Dto, VolumesDto } from './user-v2.dto';
@@ -16,7 +17,7 @@ export class UserDtoMapper {
       tradingLimit: userData.tradingLimit,
       kyc: {
         hash: userData.kycHash,
-        level: userData.kycLevel,
+        level: userData.kycLevelDisplay,
         dataComplete: userData.isDataComplete,
       },
       volumes: this.mapVolumes(userData),
@@ -56,6 +57,7 @@ export class UserDtoMapper {
   static mapRef(user: User, userCount: number, activeUserCount: number): ReferralDto {
     const dto: ReferralDto = {
       code: user.ref,
+      commission: Util.round(user.refFeePercent / 100, 4),
       volume: user.refVolume,
       credit: user.refCredit,
       paidCredit: user.paidRefCredit,
