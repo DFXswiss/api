@@ -120,6 +120,12 @@ export class Util {
     );
   }
 
+  static includesSameName(reference: string, testedName: string): boolean {
+    if (!reference || !testedName) return false;
+
+    return this.removeSpecialChars(reference).includes(this.removeSpecialChars(testedName));
+  }
+
   static removeSpecialChars(name: string): string {
     return name
       .toLowerCase()
