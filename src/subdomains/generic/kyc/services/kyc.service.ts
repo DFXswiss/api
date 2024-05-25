@@ -145,7 +145,7 @@ export class KycService {
 
     if (!entity.userData.verifiedName && entity.userData.status === UserDataStatus.ACTIVE) {
       errors.push(IdentCheckError.VERIFIED_NAME_MISSING);
-    } else {
+    } else if (entity.userData.verifiedName) {
       if (!entity.userData.verifiedName.includes(entity.userData.firstname))
         errors.push(IdentCheckError.FIRST_NAME_NOT_MATCHING_VERIFIED_NAME);
       if (!entity.userData.verifiedName.includes(entity.userData.surname))
