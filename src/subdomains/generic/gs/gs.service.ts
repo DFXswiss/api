@@ -16,6 +16,7 @@ import { DataSource } from 'typeorm';
 import { File } from '../kyc/dto/kyc-file.dto';
 import { DocumentStorageService } from '../kyc/services/integration/document-storage.service';
 import { KycAdminService } from '../kyc/services/kyc-admin.service';
+import { BankDataService } from '../user/models/bank-data/bank-data.service';
 import { AccountType } from '../user/models/user-data/account-type.enum';
 import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
@@ -55,6 +56,7 @@ export class GsService {
     private readonly documentStorageService: DocumentStorageService,
     private readonly transactionService: TransactionService,
     private readonly kycAdminService: KycAdminService,
+    private readonly bankDataService: BankDataService,
   ) {}
 
   async getDbData(query: DbQueryDto): Promise<DbReturnData> {
@@ -84,6 +86,7 @@ export class GsService {
     return {
       userData,
       kycSteps: await this.kycAdminService.getKycSteps(userData.id),
+      bankData: await this.bankDataService.getBankDatasForUser(userData.id),
       documents: await this.getAllUserDocuments(userData.id, userData.accountType),
       buyCrypto: await this.buyCryptoService.getAllUserTransactions(userIds),
       buyFiat: await this.buyFiatService.getAllUserTransactions(userIds),
