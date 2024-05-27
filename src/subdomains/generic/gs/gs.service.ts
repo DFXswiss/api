@@ -10,6 +10,7 @@ import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.en
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { DataSource } from 'typeorm';
@@ -57,6 +58,7 @@ export class GsService {
     private readonly transactionService: TransactionService,
     private readonly kycAdminService: KycAdminService,
     private readonly bankDataService: BankDataService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async getDbData(query: DbQueryDto): Promise<DbReturnData> {
@@ -87,6 +89,7 @@ export class GsService {
       userData,
       kycSteps: await this.kycAdminService.getKycSteps(userData.id),
       bankData: await this.bankDataService.getBankDatasForUser(userData.id),
+      notification: await this.notificationService.getMails(userData.id),
       documents: await this.getAllUserDocuments(userData.id, userData.accountType),
       buyCrypto: await this.buyCryptoService.getAllUserTransactions(userIds),
       buyFiat: await this.buyFiatService.getAllUserTransactions(userIds),
