@@ -10,7 +10,7 @@ export enum EventType {
   UPDATE_ACCOUNT = '$update_account',
   LOGIN = '$login',
   CREATE_ORDER = '$create_order',
-  CREATE_TRANSACTION = '$transaction',
+  TRANSACTION = '$transaction',
 }
 
 export enum SiftAssetType {
@@ -873,7 +873,7 @@ export interface CreateOrder extends SiftBase {
   blockchain: Blockchain;
 }
 
-export interface CreateTransaction extends SiftBase {
+export interface Transaction extends SiftBase {
   $amount?: number;
   $currency_code?: string;
   $transaction_type?: TransactionType;
@@ -888,8 +888,14 @@ export interface CreateTransaction extends SiftBase {
     {
       $payment_type?: PaymentType;
       $payment_gateway?: PaymentGateway;
+      $account_holder_name?: string;
       $card_bin?: string;
       $card_last4?: string;
+      $shortened_iban_first6?: string;
+      $shortened_iban_last4?: string;
+      $bank_name?: string;
+      $bank_country?: string;
+      $routing_number?: string;
     },
   ];
   $digital_orders?: [
