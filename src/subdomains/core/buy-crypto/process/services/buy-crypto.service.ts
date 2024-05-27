@@ -324,6 +324,14 @@ export class BuyCryptoService {
       await this.userService.activateUser(entity.buy.user);
     }
 
+    // update sift transaction status
+    if (forceUpdate.amlCheck === CheckStatus.FAIL)
+      await this.siftService.transaction({
+        $transaction_id: entity.id.toString(),
+        $transaction_status: TransactionStatus.FAILURE,
+        $time: entity.updated.getTime(),
+      } as Transaction);
+
     // payment webhook
     if (
       dto.isComplete ||

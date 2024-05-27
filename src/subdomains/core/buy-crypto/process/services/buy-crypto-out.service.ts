@@ -141,17 +141,15 @@ export class BuyCryptoOutService {
             nativePayoutFee,
           );
 
+          tx.complete(payoutFee);
+          await this.buyCryptoRepo.save(tx);
+
           //update sift transaction status
           await this.siftService.transaction({
             $transaction_id: tx.id.toString(),
             $transaction_status: TransactionStatus.SUCCESS,
-            $order_id: tx.transactionRequest?.id.toString(),
-            $user_id: tx.user.id.toString(),
-            $time: new Date().getTime(),
+            $time: tx.updated.getTime(),
           } as Transaction);
-
-          tx.complete(payoutFee);
-          await this.buyCryptoRepo.save(tx);
 
           // payment webhook
           await this.buyCryptoWebhookService.triggerWebhook(tx);
