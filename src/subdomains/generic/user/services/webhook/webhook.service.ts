@@ -105,12 +105,8 @@ export class WebhookService {
     const entity = this.webhookRepo.create(dto);
 
     // try to send the webhook
-    try {
-      const result = await this.webhookNotificationService.triggerUserWebhook(entity);
-      entity.sentWebhook(result);
-    } catch (e) {
-      this.logger.error(`Failed to send webhook for ${dto.user.id}:`, e);
-    }
+    const result = await this.webhookNotificationService.triggerUserWebhook(entity);
+    entity.sentWebhook(result);
 
     return this.webhookRepo.save(entity);
   }

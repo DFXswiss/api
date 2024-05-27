@@ -8,7 +8,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { LessThan } from 'typeorm';
-import { KycLevel, UserData } from '../../user/models/user-data/user-data.entity';
+import { KycLevel, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { IdentStatus } from '../dto/ident.dto';
 import { IdentResultDto, IdentShortResult, getIdentReason, getIdentResult } from '../dto/input/ident-result.dto';
@@ -29,6 +29,19 @@ import { FinancialService } from './integration/financial.service';
 import { IdentService } from './integration/ident.service';
 import { KycNotificationService } from './kyc-notification.service';
 import { TfaService } from './tfa.service';
+
+export enum IdentCheckError {
+  USER_DATA_MERGED = 'UserDataMerged',
+  USER_DATA_BLOCKED = 'UserDataBlocked',
+  FIRST_NAME_NOT_MATCHING = 'FirstNameNotMatching',
+  LAST_NAME_NOT_MATCHING = 'LastNameNotMatching',
+  INVALID_DOCUMENT_TYPE = 'InvalidDocumentType',
+  IDENTIFICATION_NUMBER_MISSING = 'IdentificationNumberMissing',
+  INVALID_RESULT = 'InvalidResult',
+  VERIFIED_NAME_MISSING = 'VerifiedNameMissing',
+  FIRST_NAME_NOT_MATCHING_VERIFIED_NAME = 'FirstNameNotMatchingVerifiedName',
+  LAST_NAME_NOT_MATCHING_VERIFIED_NAME = 'LastNameNotMatchingVerifiedName',
+}
 
 @Injectable()
 export class KycService {
@@ -71,6 +84,75 @@ export class KycService {
 
       await this.kycNotificationService.identFailed(user, 'Identification session has expired');
     }
+  }
+
+  @Cron(CronExpression.EVERY_MINUTE)
+  async reviewIdentSteps(): Promise<void> {
+    if (DisabledProcess(Process.AUTO_IDENT_KYC)) return;
+
+    const entities = await this.kycStepRepo.find({
+      where: { name: KycStepName.IDENT, status: KycStepStatus.INTERNAL_REVIEW },
+      relations: { userData: true },
+    });
+
+    for (const entity of entities) {
+      try {
+        const errors = this.getIdentCheckErrors(entity);
+
+        entity.comment = errors.join(';');
+
+        if (errors.includes(IdentCheckError.USER_DATA_BLOCKED) || errors.includes(IdentCheckError.USER_DATA_MERGED)) {
+          entity.ignored();
+        } else if (errors.includes(IdentCheckError.VERIFIED_NAME_MISSING) && errors.length === 1) {
+          entity.userData.verifiedName = `${entity.userData.firstname} ${entity.userData.surname}`;
+          entity.complete();
+        } else if (errors.length === 0) {
+          entity.complete();
+        } else {
+          entity.manualReview();
+        }
+
+        await this.createStepLog(entity.userData, entity);
+        await this.kycStepRepo.save(entity);
+      } catch (e) {
+        this.logger.error(`Failed to auto review ident step ${entity.id}:`, e);
+      }
+    }
+  }
+
+  private getIdentCheckErrors(entity: KycStep): IdentCheckError[] {
+    const errors = [];
+    const result = entity.getResult<IdentResultDto>();
+
+    if (entity.userData.status === UserDataStatus.MERGED) errors.push(IdentCheckError.USER_DATA_MERGED);
+    if (entity.userData.status === UserDataStatus.BLOCKED) errors.push(IdentCheckError.USER_DATA_BLOCKED);
+
+    if (!Util.isSameName(entity.userData.firstname, result.userdata?.firstname?.value))
+      errors.push(IdentCheckError.FIRST_NAME_NOT_MATCHING);
+    if (
+      !Util.isSameName(entity.userData.surname, result.userdata?.lastname?.value) &&
+      !Util.isSameName(entity.userData.surname, result.userdata?.birthname?.value)
+    )
+      errors.push(IdentCheckError.LAST_NAME_NOT_MATCHING);
+
+    if (!['IDCARD', 'PASSPORT'].includes(result.identificationdocument?.type?.value))
+      errors.push(IdentCheckError.INVALID_DOCUMENT_TYPE);
+
+    if (!result.identificationdocument?.number) errors.push(IdentCheckError.IDENTIFICATION_NUMBER_MISSING);
+
+    if (!['SUCCESS_DATA_CHANGED', 'SUCCESS'].includes(result.identificationprocess?.result))
+      errors.push(IdentCheckError.INVALID_RESULT);
+
+    if (!entity.userData.verifiedName && entity.userData.status === UserDataStatus.ACTIVE) {
+      errors.push(IdentCheckError.VERIFIED_NAME_MISSING);
+    } else if (entity.userData.verifiedName) {
+      if (!Util.includesSameName(entity.userData.verifiedName, entity.userData.firstname))
+        errors.push(IdentCheckError.FIRST_NAME_NOT_MATCHING_VERIFIED_NAME);
+      if (!Util.includesSameName(entity.userData.verifiedName, entity.userData.surname))
+        errors.push(IdentCheckError.LAST_NAME_NOT_MATCHING_VERIFIED_NAME);
+    }
+
+    return errors;
   }
 
   async getInfo(kycHash: string): Promise<KycLevelDto> {
@@ -172,7 +254,7 @@ export class KycService {
 
     const complete = this.financialService.isComplete(data.responses);
     if (complete) {
-      user.reviewStep(kycStep);
+      user.internalReviewStep(kycStep);
       await this.createStepLog(user, kycStep);
     }
 
@@ -214,11 +296,11 @@ export class KycService {
         break;
 
       case IdentShortResult.REVIEW:
-        user = user.checkStep(kycStep, dto);
+        user = user.externalReviewStep(kycStep, dto);
         break;
 
       case IdentShortResult.SUCCESS:
-        user = user.reviewStep(kycStep, dto);
+        user = user.internalReviewStep(kycStep, dto);
         await this.downloadIdentDocuments(user, kycStep);
         break;
 

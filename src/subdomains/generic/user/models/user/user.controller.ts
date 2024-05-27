@@ -71,12 +71,13 @@ export class UserController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: UserDetailDto })
   @ApiAcceptedResponse(AccountExistsResponse)
-  async updateUser(
+  @ApiOperation({ deprecated: true })
+  async updateUserV1(
     @GetJwt() jwt: JwtPayload,
     @Body() newUser: UpdateUserDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<UserDetailDto> {
-    const { user, isKnownUser } = await this.userService.updateUser(jwt.user, newUser);
+    const { user, isKnownUser } = await this.userService.updateUserV1(jwt.user, newUser);
     if (isKnownUser) res.status(HttpStatus.ACCEPTED);
 
     return user;
@@ -205,10 +206,26 @@ export class UserV2Controller {
 
   @Get()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse({ type: UserV2Dto })
   async getUser(@GetJwt() jwt: JwtPayload): Promise<UserV2Dto> {
-    return this.userService.getUserDtoV2(jwt.user);
+    return this.userService.getUserDtoV2(jwt.account, jwt.user);
+  }
+
+  @Put()
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+  @ApiOkResponse({ type: UserV2Dto })
+  @ApiAcceptedResponse(AccountExistsResponse)
+  async updateUser(
+    @GetJwt() jwt: JwtPayload,
+    @Body() newUser: UpdateUserDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<UserV2Dto> {
+    const { user, isKnownUser } = await this.userService.updateUser(jwt.account, newUser, jwt.user);
+    if (isKnownUser) res.status(HttpStatus.ACCEPTED);
+
+    return user;
   }
 
   @Get('ref')

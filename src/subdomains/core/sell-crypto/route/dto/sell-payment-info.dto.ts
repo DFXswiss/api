@@ -16,7 +16,7 @@ export class SellPaymentInfoDto {
   @ApiProperty()
   depositAddress: string;
 
-  @ApiProperty()
+  @ApiProperty({ deprecated: true })
   blockchain: Blockchain;
 
   @ApiProperty({ type: MinAmount, deprecated: true })
