@@ -131,7 +131,7 @@ export class BuyFiatPreparationService {
       try {
         const inputCurrency = entity.cryptoInput.asset;
 
-        const { fee } = await this.transactionHelper.getTxFeeInfos(
+        const { fee, priceSteps } = await this.transactionHelper.getTxFeeInfos(
           entity.inputAmount,
           inputCurrency,
           inputCurrency,
@@ -153,6 +153,7 @@ export class BuyFiatPreparationService {
             fee,
             eurPrice.convert(fee.min, 2),
             chfPrice.convert(fee.total, 2),
+            priceSteps,
           ),
         );
 

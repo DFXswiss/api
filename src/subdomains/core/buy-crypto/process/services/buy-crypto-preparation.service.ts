@@ -157,7 +157,7 @@ export class BuyCryptoPreparationService {
 
         const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
 
-        const { fee } = await this.transactionHelper.getTxFeeInfos(
+        const { fee, priceSteps } = await this.transactionHelper.getTxFeeInfos(
           entity.inputReferenceAmount,
           inputCurrency,
           inputReferenceCurrency,
@@ -189,6 +189,7 @@ export class BuyCryptoPreparationService {
           isFiat(inputReferenceCurrency) ? fee.min : referenceEurPrice.convert(fee.min, 2),
           referenceChfPrice.convert(fee.total, 2),
           feeConstraints,
+          priceSteps,
         );
 
         await this.buyCryptoRepo.save(entity);

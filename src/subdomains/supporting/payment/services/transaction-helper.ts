@@ -155,6 +155,8 @@ export class TransactionHelper implements OnModuleInit {
 
     const { dfx, total } = this.calculateTotalFee(inputReferenceAmount, fromReference, fee.rate, sourceSpecs);
 
+    const price = await this.pricingService.getPrice(from, to, true);
+
     return {
       minVolume: sourceSpecs.volume.min,
       fee: {
@@ -163,6 +165,7 @@ export class TransactionHelper implements OnModuleInit {
         total,
         dfx,
       },
+      priceSteps: price.steps,
     };
   }
 

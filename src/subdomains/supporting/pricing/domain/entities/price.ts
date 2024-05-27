@@ -58,7 +58,7 @@ export class Price {
 
     const priceSteps = prices.map((p) => p.steps).flat();
     const filteredPriceSteps = priceSteps.filter((p1) =>
-      priceSteps.some((p2) => p1.source === p2.source && p1.to === p2.from && p1.from === p2.to),
+      priceSteps.every((p2) => p1?.source !== p2?.source || p1?.to !== p2?.from || p1?.from !== p2?.to),
     );
 
     price.addPriceSteps(filteredPriceSteps);
