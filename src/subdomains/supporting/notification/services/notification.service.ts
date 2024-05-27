@@ -38,6 +38,10 @@ export class NotificationService {
     }
   }
 
+  async getMails(userDataId: number): Promise<Notification[]> {
+    return this.notificationRepo.find({ where: { userData: { id: userDataId } } });
+  }
+
   //*** HELPER METHODS ***//
 
   static fromRequest(request: MailRequest): Partial<Notification> {
