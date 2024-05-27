@@ -10,9 +10,10 @@ export enum EventType {
   UPDATE_ACCOUNT = '$update_account',
   LOGIN = '$login',
   CREATE_ORDER = '$create_order',
+  TRANSACTION = '$transaction',
 }
 
-export enum AssetType {
+export enum SiftAssetType {
   COIN = '$coin',
   COMMODITY = '$commodity',
   CRYPTO = '$crypto',
@@ -715,6 +716,41 @@ export enum PaymentGateway {
   ZWYPAY = '$zwypay',
 }
 
+export enum TransactionType {
+  SALE = '$sale',
+  AUTHORIZE = '$authorize',
+  CAPTURE = '$capture',
+  VOID = '$void',
+  REFUND = '$refund',
+  DEPOSIT = '$deposit',
+  WITHDRAWAL = '$withdrawal',
+  TRANSFER = '$transfer',
+  BUY = '$buy',
+  SELL = '$sell',
+  SEND = '$send',
+  RECEIVE = '$receive',
+}
+
+export enum TransactionStatus {
+  SUCCESS = '$success',
+  FAILURE = '$failure',
+  PENDING = '$pending',
+}
+
+export enum DeclineCategory {
+  FRAUD = '$fraud',
+  LOST_OR_STOLEN = '$lost_or_stolen',
+  RISKY = '$risky',
+  BANK_DEVLINE = '$bank_decline',
+  INVALID = '$invalid',
+  EXPIRED = '$expired',
+  INSUFFICIENT_FUNDS = '$insufficient_funds',
+  LIMIT_EXCEEDED = '$limit_exceeded',
+  ADDITIONAL_VERIFICATION_REQUIRED = '$additional_verification_required',
+  INVALID_VERIFICATION = '$invalid_verification',
+  OTHER = '$other',
+}
+
 export interface SiftBase {
   $type?: EventType;
   $api_key?: string;
@@ -837,6 +873,44 @@ export interface CreateOrder extends SiftBase {
   blockchain: Blockchain;
 }
 
+export interface Transaction extends SiftBase {
+  $amount?: number;
+  $currency_code?: string;
+  $transaction_type?: TransactionType;
+  $transaction_status?: TransactionStatus;
+  $decline_category?: DeclineCategory;
+  $order_id?: string;
+  $transaction_id?: string;
+  $status_3ds?: string;
+  $brand_name?: string;
+  $site_country?: string;
+  $payment_methods?: [
+    {
+      $payment_type?: PaymentType;
+      $payment_gateway?: PaymentGateway;
+      $account_holder_name?: string;
+      $card_bin?: string;
+      $card_last4?: string;
+      $shortened_iban_first6?: string;
+      $shortened_iban_last4?: string;
+      $bank_name?: string;
+      $bank_country?: string;
+      $routing_number?: string;
+    },
+  ];
+  $digital_orders?: [
+    {
+      $digital_asset?: string;
+      $pair?: string;
+      $asset_type?: string;
+      $order_type?: string;
+      $volume?: string;
+    },
+  ];
+
+  // custom field
+  blockchain: Blockchain;
+}
 export const SiftPaymentMethodMap: { [method in PaymentMethod]: PaymentType } = {
   [FiatPaymentMethod.BANK]: PaymentType.SEPA_CREDIT,
   [FiatPaymentMethod.INSTANT]: PaymentType.SEPA_INSTANT_CREDIT,

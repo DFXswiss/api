@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { AssetType, CreateOrder, SiftPaymentMethodMap } from 'src/integration/sift/dto/sift.dto';
+import { CreateOrder, SiftAssetType, SiftPaymentMethodMap } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -109,7 +109,7 @@ export class TransactionRequestService {
           {
             $digital_asset: targetCurrencyName,
             $pair: `${sourceCurrencyName}_${targetCurrencyName}`,
-            $asset_type: type == TransactionRequestType.Sell ? AssetType.FIAT : AssetType.CRYPTO,
+            $asset_type: type == TransactionRequestType.Sell ? SiftAssetType.FIAT : SiftAssetType.CRYPTO,
             $volume: transactionRequest.estimatedAmount.toString(),
           },
         ],

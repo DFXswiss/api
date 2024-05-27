@@ -1,5 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { SiftService } from 'src/integration/sift/services/sift.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -49,6 +50,7 @@ describe('BuyCryptoService', () => {
   let transactionRequestService: TransactionRequestService;
   let specialExternalBankAccountService: SpecialExternalAccountService;
   let transactionService: TransactionService;
+  let siftService: SiftService;
 
   beforeEach(async () => {
     buyCryptoRepo = createMock<BuyCryptoRepository>();
@@ -65,6 +67,7 @@ describe('BuyCryptoService', () => {
     transactionRequestService = createMock<TransactionRequestService>();
     specialExternalBankAccountService = createMock<SpecialExternalAccountService>();
     transactionService = createMock<TransactionService>();
+    siftService = createMock<SiftService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -84,6 +87,7 @@ describe('BuyCryptoService', () => {
         { provide: TransactionRequestService, useValue: transactionRequestService },
         { provide: SpecialExternalAccountService, useValue: specialExternalBankAccountService },
         { provide: TransactionService, useValue: transactionService },
+        { provide: SiftService, useValue: siftService },
       ],
     }).compile();
 
