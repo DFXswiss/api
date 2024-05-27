@@ -181,7 +181,7 @@ export class AuthService {
       (await this.userDataService.createUserData({
         kycType: KycType.DFX,
         mail: dto.mail,
-        language: dto.language,
+        language: dto.language, // TODO: set language based on IP (if not defined)
         status: UserDataStatus.KYC_ONLY,
       }));
 

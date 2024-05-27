@@ -6,11 +6,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Config, Environment } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { Active } from 'src/shared/models/active';
-import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -52,7 +51,6 @@ export class UserService {
     private readonly userDataService: UserDataService,
     private readonly walletService: WalletService,
     private readonly geoLocationService: GeoLocationService,
-    private readonly countryService: CountryService,
     private readonly feeService: FeeService,
   ) {}
 
@@ -154,7 +152,7 @@ export class UserService {
     let user = this.userRepo.create({ address, signature });
 
     user.ip = userIp;
-    user.ipCountry = await this.checkIpCountry(userIp);
+    user.ipCountry = await this.geoLocationService.getCountry(userIp); // TODO: set dto language based on IP (if not defined)
     user.wallet = wallet ?? (await this.walletService.getDefault());
     user.usedRef = await this.checkRef(user, usedRef);
     user.origin = userOrigin;
@@ -228,24 +226,6 @@ export class UserService {
       await this.activateUser(user);
 
     return this.userRepo.save({ ...user, ...update });
-  }
-
-  private async checkIpCountry(userIp: string): Promise<string> {
-    // ignore Azure private addresses
-    if (userIp?.includes(Config.azureIpSubstring)) {
-      return;
-    }
-
-    const ipCountry = await this.geoLocationService.getCountry(userIp);
-
-    const country = ipCountry && (await this.countryService.getCountryWithSymbol(ipCountry));
-
-    if (!country) return;
-
-    if (!country.ipEnable && Config.environment !== Environment.LOC)
-      throw new ForbiddenException('The country of IP address is not allowed');
-
-    return ipCountry;
   }
 
   async blockUser(id: number, allUser = false): Promise<void> {
