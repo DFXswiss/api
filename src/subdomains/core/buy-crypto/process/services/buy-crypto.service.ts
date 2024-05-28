@@ -216,7 +216,7 @@ export class BuyCryptoService {
           $digital_asset: entity.outputAsset.name,
           $pair: `${entity.inputAsset}_${entity.outputAsset.name}`,
           $asset_type: SiftAssetType.CRYPTO,
-          $volume: entity.outputAmount.toString(),
+          $volume: entity.outputAmount?.toString(),
         },
       ],
       blockchain: entity.outputAsset.blockchain,
