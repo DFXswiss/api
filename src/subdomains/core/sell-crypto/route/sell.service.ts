@@ -1,8 +1,17 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  forwardRef,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { EvmRegistryService } from 'src/integration/blockchain/shared/evm/evm-registry.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { CreateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/create-sell.dto';
@@ -10,16 +19,21 @@ import { UpdateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/update-
 import { SellRepository } from 'src/subdomains/core/sell-crypto/route/sell.repository';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { PayInPurpose, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
-import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { In, Not } from 'typeorm';
 import { DepositService } from '../../../supporting/address-pool/deposit/deposit.service';
 import { BankAccountService } from '../../../supporting/bank/bank-account/bank-account.service';
+import { BuyFiatExtended } from '../../history/mappers/transaction-dto.mapper';
+import { BuyFiatService } from '../process/services/buy-fiat.service';
 import { ConfirmSellDto } from './dto/confirm-sell.dto';
 import { Sell } from './sell.entity';
 
 @Injectable()
 export class SellService {
+  private readonly logger = new DfxLogger(SellService);
+
   constructor(
     private readonly sellRepo: SellRepository,
     private readonly depositService: DepositService,
@@ -28,6 +42,9 @@ export class SellService {
     private readonly bankAccountService: BankAccountService,
     private readonly assetService: AssetService,
     private readonly evmRegistry: EvmRegistryService,
+    private readonly payInService: PayInService,
+    @Inject(forwardRef(() => BuyFiatService))
+    private readonly buyFiatService: BuyFiatService,
   ) {}
 
   // --- SELLS --- //
@@ -158,24 +175,48 @@ export class SellService {
   }
 
   // --- CONFIRMATION --- //
-  async confirmSell(request: TransactionRequest, dto: ConfirmSellDto): Promise<Transaction> {
-    const asset = await this.assetService.getAssetById(request.sourceId);
-    const client = this.evmRegistry.getClient(asset.blockchain);
+  async confirmSell(request: TransactionRequest, dto: ConfirmSellDto): Promise<BuyFiatExtended> {
+    try {
+      const route = await this.sellRepo.findOne({
+        where: { id: request.routeId },
+        relations: { user: { wallet: true } },
+      });
+      const asset = await this.assetService.getAssetById(request.sourceId);
 
-    const txId = await client.permitTransfer(
-      dto.permit.address,
-      dto.permit.signature,
-      dto.permit.signatureTransferContract,
-      asset,
-      request.amount,
-      request.amount,
-      dto.permit.nonce,
-      dto.permit.deadline,
-    );
-    console.log(txId);
+      const client = this.evmRegistry.getClient(asset.blockchain);
 
-    // TODO: create crypto input
+      const txId = await client.permitTransfer(
+        dto.permit.address,
+        dto.permit.signature,
+        dto.permit.signatureTransferContract,
+        asset,
+        request.amount,
+        request.amount,
+        dto.permit.nonce,
+        dto.permit.deadline,
+      );
 
-    throw new Error('Method not implemented.');
+      const blockHeight = await client.getCurrentBlock();
+
+      const [payIn] = await this.payInService.createPayIns([
+        {
+          address: BlockchainAddress.create(route.deposit.address, asset.blockchain),
+          txId,
+          txType: PayInType.PERMIT_TRANSFER,
+          blockHeight: blockHeight,
+          amount: request.amount,
+          asset,
+        },
+      ]);
+
+      const buyFiat = await this.buyFiatService.createFromCryptoInput(payIn, route, request);
+
+      await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_FIAT, route);
+
+      return await this.buyFiatService.extendBuyFiat(buyFiat);
+    } catch (e) {
+      this.logger.warn(`Failed to execute permit transfer for sell request ${request.id}:`, e);
+      throw new BadRequestException(`Failed to execute permit transfer: ${e.message}`);
+    }
   }
 }

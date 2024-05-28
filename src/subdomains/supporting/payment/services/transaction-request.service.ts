@@ -153,7 +153,11 @@ export class TransactionRequestService {
 
     const transactionRequest = transactionRequests.find((t) => Math.abs(amount - t.amount) / t.amount < 0.01);
 
-    if (transactionRequest) await this.transactionRequestRepo.update(transactionRequest.id, { isComplete: true });
+    if (transactionRequest) await this.complete(transactionRequest.id);
     return transactionRequest;
+  }
+
+  async complete(id: number): Promise<void> {
+    await this.transactionRequestRepo.update(id, { isComplete: true });
   }
 }
