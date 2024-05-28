@@ -48,13 +48,13 @@ export class BankDataService {
   async verifyBankData(entity: BankData): Promise<void> {
     if ([BankDataType.IDENT, BankDataType.USER].includes(entity.type)) return;
     try {
-      if (!entity.userData.verifiedName)
-        await this.userDataRepo.update(...entity.userData.setVerifiedName(entity.name));
-
       const existing = await this.bankDataRepo.findOne({
         where: { iban: entity.iban, active: true },
         relations: { userData: true },
       });
+
+      if (!existing && !entity.userData.verifiedName)
+        await this.userDataRepo.update(...entity.userData.setVerifiedName(entity.name));
 
       const errors = this.getBankDataVerificationErrors(entity, existing);
 
