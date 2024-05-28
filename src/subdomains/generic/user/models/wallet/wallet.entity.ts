@@ -18,9 +18,9 @@ export interface WebhookConfig {
 }
 
 export enum WebhookConfigOption {
-  TRUE = 'true',
-  FALSE = 'false',
-  CONSENT_ONLY = 'consentOnly',
+  TRUE = 'True',
+  FALSE = 'False',
+  CONSENT_ONLY = 'ConsentOnly',
 }
 
 @Entity()
