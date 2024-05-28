@@ -50,7 +50,10 @@ export class PayInService {
 
   async getNewPayIns(): Promise<CryptoInput[]> {
     return this.payInRepository.find({
-      where: { status: PayInStatus.CREATED, txType: Not(PayInType.PERMIT_TRANSFER) },
+      where: [
+        { status: PayInStatus.CREATED, txType: IsNull() },
+        { status: PayInStatus.CREATED, txType: Not(PayInType.PERMIT_TRANSFER) },
+      ],
       relations: { transaction: true },
     });
   }

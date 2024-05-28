@@ -203,7 +203,7 @@ export class SellService {
           address: BlockchainAddress.create(route.deposit.address, asset.blockchain),
           txId,
           txType: PayInType.PERMIT_TRANSFER,
-          blockHeight: blockHeight,
+          blockHeight,
           amount: request.amount,
           asset,
         },

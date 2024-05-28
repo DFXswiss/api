@@ -72,6 +72,6 @@ export class TransactionRequest extends IEntity {
   @Column({ default: false })
   isComplete: boolean;
 
-  @ManyToOne(() => User, { nullable: true }) // TODO: nullable false
+  @ManyToOne(() => User, { nullable: true })
   user: User;
 }
