@@ -11,7 +11,6 @@ import { TransactionModule } from '../payment/transaction.module';
 import { PayoutModule } from '../payout/payout.module';
 import { PricingModule } from '../pricing/pricing.module';
 import { CryptoInput } from './entities/crypto-input.entity';
-import { PayInFactory } from './factories/payin.factory';
 import { PayInRepository } from './repositories/payin.repository';
 import { PayInArbitrumService } from './services/payin-arbitrum.service';
 import { PayInBaseService } from './services/payin-base.service';
@@ -68,7 +67,6 @@ import { PolygonTokenStrategy as PolygonTokenStrategyS } from './strategies/send
   providers: [
     PayInRepository,
     PayInService,
-    PayInFactory,
     PayInNotificationService,
     PayInBitcoinService,
     PayInMoneroService,

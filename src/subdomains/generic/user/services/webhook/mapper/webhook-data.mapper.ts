@@ -1,3 +1,4 @@
+import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import {
   BuyCryptoExtended,
   BuyFiatExtended,
@@ -17,6 +18,9 @@ export class WebhookDataMapper {
       houseNumber: userData.houseNumber,
       city: userData.location,
       zip: userData.zip,
+      country: userData.country && CountryDtoMapper.entityToDto(userData.country),
+      nationality: userData.nationality && CountryDtoMapper.entityToDto(userData.nationality),
+      birthday: userData.birthday,
       phone: userData.phone,
       kycStatus: getKycWebhookStatus(userData.kycStatus, userData.kycType),
       kycLevel: userData.kycLevelDisplay,
