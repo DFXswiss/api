@@ -381,6 +381,20 @@ export class UserDataService {
     return this.userDataRepo.save(userData);
   }
 
+  // --- KYC CLIENTS --- //
+
+  async addKycClient(userData: UserData, walletId: number): Promise<void> {
+    if (userData.kycClientList?.includes(walletId)) return;
+
+    await this.userDataRepo.update(...userData.addKycClient(walletId));
+  }
+
+  async removeKycClient(userData: UserData, walletId: number): Promise<void> {
+    if (!userData.kycClientList?.includes(walletId)) throw new BadRequestException('Kyc client already removed');
+
+    await this.userDataRepo.update(...userData.removeKycClient(walletId));
+  }
+
   // --- FEES --- //
 
   async addFee(userData: UserData, feeId: number): Promise<void> {

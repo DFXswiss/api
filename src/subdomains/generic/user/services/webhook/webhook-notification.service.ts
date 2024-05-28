@@ -31,16 +31,13 @@ export class WebhookNotificationService {
   }
 
   async sendOpenWebhooks(): Promise<void> {
-    const entities = await this.webhookRepo.find({
-      where: { lastTryDate: IsNull() },
-      relations: { user: { wallet: true } },
-    });
+    const entities = await this.webhookRepo.find({ where: { lastTryDate: IsNull() } });
 
     entities.length > 0 && this.logger.verbose(`Sending ${entities.length} 'webhooks`);
 
     for (const entity of entities) {
       try {
-        const result = await this.triggerUserWebhook(entity);
+        const result = await this.triggerWebhook(entity);
         await this.webhookRepo.update(...entity.sentWebhook(result));
       } catch (e) {
         this.logger.error(`Failed to send webhook ${entity.id}:`, e);
@@ -50,29 +47,28 @@ export class WebhookNotificationService {
 
   // --- HELPER METHODS --- //
 
-  async triggerUserWebhook<T extends PaymentWebhookData | KycWebhookData>(webhook: Webhook): Promise<boolean> {
+  async triggerWebhook<T extends PaymentWebhookData | KycWebhookData>(webhook: Webhook): Promise<boolean> {
     try {
-      if (!webhook.user.wallet.apiUrl)
-        throw new Error(
-          `API URL for wallet ${webhook.user.wallet.name} not available anymore in webhook ${webhook.id}`,
-        );
+      if (!webhook.wallet.apiUrl)
+        throw new Error(`API URL for wallet ${webhook.wallet.name} not available anymore in webhook ${webhook.id}`);
 
       const webhookDto: WebhookDto<T> = {
-        id: webhook.user.address,
+        accountId: webhook.userData.id,
+        id: webhook.user?.address,
         type: webhook.type,
         data: JSON.parse(webhook.data),
         reason: webhook.reason,
       };
 
-      await this.http.post(webhook.user.wallet.apiUrl, webhookDto, {
-        headers: { 'x-api-key': webhook.user.wallet.apiKey },
+      await this.http.post(webhook.wallet.apiUrl, webhookDto, {
+        headers: { 'x-api-key': webhook.wallet.apiKey },
         retryDelay: 5000,
         tryCount: 3,
       });
 
       return true;
     } catch (error) {
-      const errMessage = `Exception during webhook for user ${webhook.user.id} and wallet ${webhook.user.wallet.name} (webhook ${webhook.id}):`;
+      const errMessage = `Exception during webhook for user ${webhook.user.id} and wallet ${webhook.wallet.name} (webhook ${webhook.id}):`;
 
       this.logger.error(errMessage, error);
 

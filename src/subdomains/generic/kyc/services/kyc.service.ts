@@ -10,6 +10,7 @@ import { Util } from 'src/shared/utils/util';
 import { LessThan } from 'typeorm';
 import { KycLevel, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
+import { WalletService } from '../../user/models/wallet/wallet.service';
 import { IdentStatus } from '../dto/ident.dto';
 import { IdentResultDto, IdentShortResult, getIdentReason, getIdentResult } from '../dto/input/ident-result.dto';
 import { KycContactData, KycPersonalData } from '../dto/input/kyc-data.dto';
@@ -58,6 +59,7 @@ export class KycService {
     private readonly stepLogRepo: StepLogRepository,
     private readonly tfaService: TfaService,
     private readonly kycNotificationService: KycNotificationService,
+    private readonly walletService: WalletService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
@@ -194,6 +196,26 @@ export class KycService {
     const user = await this.getUser(kycHash);
 
     return this.countryService.getCountriesByKycType(user.kycType);
+  }
+
+  async addKycClient(userDataId: number, walletName: string): Promise<void> {
+    const wallet = await this.walletService.getByIdOrName(undefined, walletName);
+    if (!wallet) throw new NotFoundException('KYC client not found');
+
+    const userData = await this.userDataService.getUserData(userDataId);
+    if (!userData) throw new NotFoundException('User data not found');
+
+    await this.userDataService.addKycClient(userData, wallet.id);
+  }
+
+  async removeKycClient(userDataId: number, walletName: string): Promise<void> {
+    const wallet = await this.walletService.getByIdOrName(undefined, walletName);
+    if (!wallet) throw new NotFoundException('KYC client not found');
+
+    const userData = await this.userDataService.getUserData(userDataId);
+    if (!userData) throw new NotFoundException('User data not found');
+
+    await this.userDataService.removeKycClient(userData, wallet.id);
   }
 
   // --- UPDATE METHODS --- //
