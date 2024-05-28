@@ -130,27 +130,30 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
   }
 
   private async transfer(order: LiquidityManagementOrder): Promise<CorrelationId> {
-    const { address, key, network, target, asset } = this.parseTransferParams(order.action.paramMap);
+    const { address, key, network, target, optimum, asset } = this.parseTransferParams(order.action.paramMap);
 
     const targetAsset = order.pipeline.rule.targetAsset.dexName;
     const token = asset ?? targetAsset;
 
     const targetExchange = this.exchangeRegistry.get(target);
 
-    let requiredAmount = order.amount;
+    let requiredAmount = order.amount * 1.01; // small cap for price changes
     if (token !== targetAsset) {
       const price = await targetExchange.getPrice(token, targetAsset);
-      requiredAmount = price.invert().convert(order.amount);
+      requiredAmount = price.invert().convert(requiredAmount);
     }
 
     const balance = await targetExchange.getBalance(token);
-    const amount = Util.round(requiredAmount * 1.01 - balance, 6); // small cap for price changes
+    const minAmount = Util.round(requiredAmount - balance, 6);
+    const maxAmount = Util.round(requiredAmount - balance + (optimum ?? 0), 6);
 
     const sourceBalance = await this.exchangeService.getBalance(token);
-    if (amount > sourceBalance)
+    if (minAmount > sourceBalance)
       throw new OrderNotProcessableException(
-        `${this.exchangeService.name}: not enough balance of ${token} (${amount} > ${sourceBalance})`,
+        `${this.exchangeService.name}: not enough balance of ${token} (${minAmount} > ${sourceBalance})`,
       );
+
+    const amount = Math.min(sourceBalance, maxAmount);
 
     try {
       const response = await this.exchangeService.withdrawFunds(token, amount, address, key, network);
@@ -300,17 +303,19 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     key: string;
     network: string;
     target: string;
+    optimum?: number;
     asset?: string;
   } {
     const address = process.env[params.destinationAddress as string];
     const key = this.exchangeService.config.withdrawKeys?.get(params.destinationAddressKey as string);
     const network = this.exchangeService.mapNetwork(params.destinationBlockchain as Blockchain);
     const target = params.targetExchange as string;
+    const optimum = params.targetOptimum as number | undefined;
     const asset = params.asset as string | undefined;
 
     if (!(address && key && network && target))
       throw new Error(`Params provided to CcxtExchangeAdapter.transfer(...) command are invalid.`);
 
-    return { address, key, network, target, asset };
+    return { address, key, network, target, asset, optimum };
   }
 }

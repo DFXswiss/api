@@ -53,6 +53,9 @@ export class BankDataService {
         relations: { userData: true },
       });
 
+      if (!existing && !entity.userData.verifiedName)
+        await this.userDataRepo.update(...entity.userData.setVerifiedName(entity.name));
+
       const errors = this.getBankDataVerificationErrors(entity, existing);
 
       if (errors.length === 0) {
