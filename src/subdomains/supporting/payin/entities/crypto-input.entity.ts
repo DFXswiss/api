@@ -163,7 +163,6 @@ export class CryptoInput extends IEntity {
     this.purpose = purpose;
     this.route = route;
     this.amlCheck = amlCheck;
-
     this.sendType = PayInSendType.FORWARD;
 
     if (this.txType === PayInType.PERMIT_TRANSFER) {
