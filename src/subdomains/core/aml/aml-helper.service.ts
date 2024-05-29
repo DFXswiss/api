@@ -1,5 +1,6 @@
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Country } from 'src/shared/models/country/country.entity';
 import { Util } from 'src/shared/utils/util';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { KycLevel, KycType, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -27,6 +28,7 @@ export class AmlHelperService {
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
     instantBanks?: Bank[],
+    ibanCountry?: Country,
   ): AmlError[] {
     const errors = [];
 
@@ -36,7 +38,12 @@ export class AmlHelperService {
     if (!entity.userData.isPaymentKycStatusEnabled) errors.push(AmlError.INVALID_KYC_STATUS);
     if (entity.userData.kycType !== KycType.DFX) errors.push(AmlError.INVALID_KYC_TYPE);
     if (!entity.userData.verifiedName) errors.push(AmlError.NO_VERIFIED_NAME);
-    if (!entity.userData.verifiedCountry) errors.push(AmlError.NO_VERIFIED_COUNTRY);
+    if (!entity.userData.verifiedCountry) {
+      errors.push(AmlError.NO_VERIFIED_COUNTRY);
+    } else if (!entity.userData.verifiedCountry.fatfEnable) {
+      errors.push(AmlError.VERIFIED_COUNTRY_NOT_ALLOWED);
+    }
+    if (ibanCountry && !ibanCountry.fatfEnable) errors.push(AmlError.IBAN_COUNTRY_NOT_ALLOWED);
     if (!entity.userData.hasValidNameCheckDate)
       errors.push(entity.userData.birthday ? AmlError.NAME_CHECK_WITH_BIRTHDAY : AmlError.NAME_CHECK_WITHOUT_KYC);
     if (blacklist.some((b) => b.matches([SpecialExternalAccountType.BANNED_MAIL], entity.userData.mail)))
@@ -165,6 +172,7 @@ export class AmlHelperService {
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
     instantBanks?: Bank[],
+    ibanCountry?: Country,
   ): { amlCheck?: CheckStatus; amlReason?: AmlReason; comment?: string } {
     const amlErrors = this.getAmlErrors(
       entity,
@@ -176,6 +184,7 @@ export class AmlHelperService {
       bankData,
       blacklist,
       instantBanks,
+      ibanCountry,
     );
 
     const comment = amlErrors.join(';');
