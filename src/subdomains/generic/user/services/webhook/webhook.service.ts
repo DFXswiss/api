@@ -20,129 +20,81 @@ export class WebhookService {
     private readonly walletService: WalletService,
   ) {}
 
+  // --- KYC WEBHOOKS --- //
   async kycChanged(userData: UserData): Promise<void> {
-    userData.users ??= await this.userRepo.find({
-      where: { userData: { id: userData.id } },
-      relations: { wallet: true },
-    });
+    const payload = WebhookDataMapper.mapKycData(userData);
+    const users = await this.getUsers(userData);
 
-    const webhookData: CreateWebhookInput = {
-      data: JSON.stringify(WebhookDataMapper.mapKycData(userData)),
-      type: WebhookType.KYC_CHANGED,
-      userData,
-      wallet: null,
-    };
-
-    for (const user of userData.users) {
-      if (!user.wallet) continue;
-      await this.createAndSendWebhook({ ...webhookData, user, wallet: user.wallet });
-    }
-
-    await this.createAndSendKycClientWebhook(webhookData);
+    await this.sendWebhooks(WebhookType.KYC_CHANGED, payload, userData, users);
   }
 
   async kycFailed(userData: UserData, reason: string): Promise<void> {
-    userData.users ??= await this.userRepo.find({
-      where: { userData: { id: userData.id } },
-      relations: { wallet: true },
-    });
+    const payload = WebhookDataMapper.mapKycData(userData);
+    const users = await this.getUsers(userData);
 
-    const webhookData: CreateWebhookInput = {
-      data: JSON.stringify(WebhookDataMapper.mapKycData(userData)),
-      reason,
-      type: WebhookType.KYC_FAILED,
-      userData,
-      wallet: null,
-    };
-
-    for (const user of userData.users) {
-      if (!user.wallet) continue;
-      await this.createAndSendWebhook({ ...webhookData, user, wallet: user.wallet });
-    }
-
-    await this.createAndSendKycClientWebhook(webhookData);
-  }
-
-  async fiatCryptoUpdate(user: User, payment: BuyCryptoExtended): Promise<void> {
-    const webhookData: CreateWebhookInput = {
-      user,
-      data: JSON.stringify(WebhookDataMapper.mapFiatCryptoData(payment)),
-      type: WebhookType.PAYMENT,
-      userData: user.userData,
-      wallet: user.wallet,
-    };
-
-    await this.createAndSendWebhook(webhookData);
-    await this.createAndSendKycClientWebhook(webhookData);
-  }
-
-  async cryptoCryptoUpdate(user: User, payment: BuyCryptoExtended): Promise<void> {
-    const webhookData: CreateWebhookInput = {
-      user,
-      data: JSON.stringify(WebhookDataMapper.mapCryptoCryptoData(payment)),
-      type: WebhookType.PAYMENT,
-      userData: user.userData,
-      wallet: user.wallet,
-    };
-
-    await this.createAndSendWebhook(webhookData);
-    await this.createAndSendKycClientWebhook(webhookData);
-  }
-
-  async cryptoFiatUpdate(user: User, payment: BuyFiatExtended): Promise<void> {
-    const webhookData: CreateWebhookInput = {
-      user,
-      data: JSON.stringify(WebhookDataMapper.mapCryptoFiatData(payment)),
-      type: WebhookType.PAYMENT,
-      userData: user.userData,
-      wallet: user.wallet,
-    };
-
-    await this.createAndSendWebhook(webhookData);
-    await this.createAndSendKycClientWebhook(webhookData);
-  }
-
-  async fiatFiatUpdate(user: User, payment: BuyFiatExtended): Promise<void> {
-    const webhookData: CreateWebhookInput = {
-      user,
-      data: JSON.stringify(WebhookDataMapper.mapFiatFiatData(payment)),
-      type: WebhookType.PAYMENT,
-      userData: user.userData,
-      wallet: user.wallet,
-    };
-
-    await this.createAndSendWebhook(webhookData);
-    await this.createAndSendKycClientWebhook(webhookData);
+    await this.sendWebhooks(WebhookType.KYC_FAILED, payload, userData, users, reason);
   }
 
   async accountMerge(master: UserData, slave: UserData): Promise<void> {
-    await this.createAndSendKycClientWebhook({
-      data: JSON.stringify(WebhookDataMapper.mapAccountMergeData(master, slave)),
-      type: WebhookType.ACCOUNT_MERGE,
-      userData: master,
-      wallet: null,
-    });
+    const payload = WebhookDataMapper.mapAccountMergeData(master, slave);
+
+    await this.sendWebhooks(WebhookType.ACCOUNT_MERGE, payload, slave, []);
+  }
+
+  // --- PAYMENT WEBHOOKS --- //
+  async fiatCryptoUpdate(user: User, payment: BuyCryptoExtended): Promise<void> {
+    const payload = WebhookDataMapper.mapFiatCryptoData(payment);
+
+    await this.sendWebhooks(WebhookType.PAYMENT, payload, user.userData, [user]);
+  }
+
+  async cryptoCryptoUpdate(user: User, payment: BuyCryptoExtended): Promise<void> {
+    const payload = WebhookDataMapper.mapCryptoCryptoData(payment);
+
+    await this.sendWebhooks(WebhookType.PAYMENT, payload, user.userData, [user]);
+  }
+
+  async cryptoFiatUpdate(user: User, payment: BuyFiatExtended): Promise<void> {
+    const payload = WebhookDataMapper.mapCryptoFiatData(payment);
+
+    await this.sendWebhooks(WebhookType.PAYMENT, payload, user.userData, [user]);
+  }
+
+  async fiatFiatUpdate(user: User, payment: BuyFiatExtended): Promise<void> {
+    const payload = WebhookDataMapper.mapFiatFiatData(payment);
+
+    await this.sendWebhooks(WebhookType.PAYMENT, payload, user.userData, [user]);
   }
 
   // --- HELPER METHODS --- //
+  private async sendWebhooks(
+    type: WebhookType,
+    payload: object,
+    userData: UserData,
+    users: User[],
+    reason?: string,
+  ): Promise<void> {
+    const data = JSON.stringify(payload);
 
-  private async createAndSendKycClientWebhook(dto: CreateWebhookInput) {
-    for (const walletId of dto.userData.kycClientList) {
+    // user webhooks
+    const webhooks: CreateWebhookInput[] = users
+      .filter((user) => user.wallet?.isValidForWebhook(type, false))
+      .map((user) => ({ type, data, reason, userData, user, wallet: user.wallet }));
+
+    // user data webhooks
+    const additionalClients = userData.kycClientList.filter((w) => !webhooks.some(({ wallet }) => wallet.id === w));
+    for (const walletId of additionalClients) {
       const wallet = await this.walletService.getByIdOrName(walletId);
-      if (!wallet) continue;
+      if (wallet?.isValidForWebhook(type, true)) webhooks.push({ type, data, reason, userData, wallet });
+    }
 
-      await this.createAndSendWebhook({ ...dto, wallet }, true);
+    for (const client of webhooks) {
+      await this.createAndSendWebhook(client);
     }
   }
 
-  private async createAndSendWebhook(dto: CreateWebhookInput, consented = false): Promise<Webhook | undefined> {
-    if (dto.user && !dto.user.wallet)
-      dto.wallet = await this.userRepo
-        .findOne({ where: { id: dto.user.id }, relations: { wallet: true } })
-        .then((u) => u.wallet);
-    if (!dto.wallet?.apiUrl || !dto.wallet.isValidForWebhook(dto.type, consented)) return;
-
-    const existing = await this.webhookRepo.findOne({
+  private async createAndSendWebhook(dto: CreateWebhookInput): Promise<Webhook | undefined> {
+    const exists = await this.webhookRepo.exist({
       where: {
         data: dto.data,
         type: dto.type,
@@ -150,9 +102,8 @@ export class WebhookService {
         userData: { id: dto.userData.id },
         wallet: { id: dto.wallet.id },
       },
-      relations: { user: true },
     });
-    if (existing) return;
+    if (exists) return;
 
     const entity = this.webhookRepo.create(dto);
 
@@ -161,5 +112,15 @@ export class WebhookService {
     entity.sentWebhook(result);
 
     return this.webhookRepo.save(entity);
+  }
+
+  private async getUsers(userData: UserData): Promise<User[]> {
+    return (
+      userData.users ??
+      this.userRepo.find({
+        where: { userData: { id: userData.id } },
+        relations: { wallet: true },
+      })
+    );
   }
 }
