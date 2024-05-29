@@ -22,7 +22,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { PayInPurpose, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
-import { In, Not } from 'typeorm';
+import { Like, Not } from 'typeorm';
 import { DepositService } from '../../../supporting/address-pool/deposit/deposit.service';
 import { BankAccountService } from '../../../supporting/bank/bank-account/bank-account.service';
 import { BuyFiatExtended } from '../../history/mappers/transaction-dto.mapper';
@@ -72,14 +72,16 @@ export class SellService {
 
   async getUserSells(userId: number): Promise<Sell[]> {
     const sellableBlockchains = await this.assetService.getSellableBlockchains();
-    return this.sellRepo.find({
+
+    const sells = await this.sellRepo.find({
       where: {
         user: { id: userId },
         fiat: { buyable: true },
-        deposit: { blockchain: In(sellableBlockchains) },
       },
-      relations: { user: true },
+      relations: { deposit: true, user: true },
     });
+
+    return sells.filter((s) => s.deposit.blockchainList.some((b) => sellableBlockchains.includes(b)));
   }
 
   async createSell(userId: number, dto: CreateSellDto, ignoreException = false): Promise<Sell> {
@@ -92,10 +94,10 @@ export class SellService {
       where: {
         iban: dto.iban,
         fiat: { id: dto.currency.id },
-        deposit: { blockchain: dto.blockchain },
         user: { id: userId },
+        deposit: { blockchains: Like(`%${dto.blockchain}%`) },
       },
-      relations: ['deposit', 'user'],
+      relations: { deposit: true, user: true },
     });
 
     if (existing) {

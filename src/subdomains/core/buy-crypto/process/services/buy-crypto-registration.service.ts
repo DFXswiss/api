@@ -57,7 +57,7 @@ export class BuyCryptoRegistrationService {
       const relevantRoute = routes.find(
         (r) =>
           payIn.address.address.toLowerCase() === r.deposit.address.toLowerCase() &&
-          payIn.address.blockchain === r.deposit.blockchain,
+          r.deposit.blockchainList.includes(payIn.address.blockchain),
       );
 
       relevantRoute && result.push([payIn, relevantRoute]);
@@ -78,11 +78,11 @@ export class BuyCryptoRegistrationService {
             await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_CRYPTO, cryptoRoute);
             continue;
           } else if (result === ValidationError.PAY_IN_NOT_SELLABLE) {
-            if (cryptoRoute.asset.blockchain === cryptoRoute.deposit.blockchain) {
+            if (cryptoRoute.deposit.blockchainList.includes(cryptoRoute.asset.blockchain)) {
               await this.payInService.returnPayIn(
                 payIn,
                 PayInPurpose.BUY_CRYPTO,
-                BlockchainAddress.create(cryptoRoute.user.address, cryptoRoute.deposit.blockchain),
+                BlockchainAddress.create(cryptoRoute.user.address, cryptoRoute.asset.blockchain),
                 cryptoRoute,
               );
               continue;

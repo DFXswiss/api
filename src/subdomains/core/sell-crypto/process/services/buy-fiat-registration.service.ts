@@ -57,7 +57,7 @@ export class BuyFiatRegistrationService {
       const relevantRoute = routes.find(
         (r) =>
           payIn.address.address.toLowerCase() === r.deposit.address.toLowerCase() &&
-          payIn.address.blockchain === r.deposit.blockchain,
+          r.deposit.blockchainList.includes(payIn.address.blockchain),
       );
 
       relevantRoute && result.push([payIn, relevantRoute]);
@@ -81,7 +81,7 @@ export class BuyFiatRegistrationService {
             await this.payInService.returnPayIn(
               payIn,
               PayInPurpose.BUY_FIAT,
-              BlockchainAddress.create(sellRoute.user.address, sellRoute.deposit.blockchain),
+              BlockchainAddress.create(sellRoute.user.address, payIn.asset.blockchain),
               sellRoute,
             );
             continue;

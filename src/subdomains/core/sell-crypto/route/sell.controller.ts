@@ -195,7 +195,7 @@ export class SellController {
 
   private async toDto(sell: Sell): Promise<SellDto> {
     const { minDeposit } = this.transactionHelper.getDefaultSpecs(
-      sell.deposit.blockchain,
+      sell.deposit.blockchainList[0],
       undefined,
       'Fiat',
       sell.fiat.name,
@@ -220,7 +220,7 @@ export class SellController {
       currency: FiatDtoMapper.toDto(sell.fiat),
       deposit: DepositDtoMapper.entityToDto(sell.deposit),
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
-      blockchain: sell.deposit.blockchain,
+      blockchain: sell.deposit.blockchainList[0],
       minFee: { amount: fee.network, asset: 'CHF' },
       minDeposits: [minDeposit],
     };
@@ -259,7 +259,7 @@ export class SellController {
       routeId: sell.id,
       fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
       depositAddress: sell.deposit.address,
-      blockchain: sell.deposit.blockchain,
+      blockchain: dto.asset.blockchain,
       minDeposit: { amount: minVolume, asset: dto.asset.dexName },
       minVolume,
       minFee: feeSource.min,

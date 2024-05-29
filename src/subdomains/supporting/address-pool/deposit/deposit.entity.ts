@@ -4,8 +4,8 @@ import { Column, Entity, Index, OneToOne } from 'typeorm';
 import { DepositRoute } from '../route/deposit-route.entity';
 
 @Entity()
-@Index((deposit: Deposit) => [deposit.address, deposit.blockchain], { unique: true })
-@Index((deposit: Deposit) => [deposit.accountIndex, deposit.blockchain], {
+@Index((deposit: Deposit) => [deposit.address, deposit.blockchains], { unique: true })
+@Index((deposit: Deposit) => [deposit.accountIndex, deposit.blockchains], {
   unique: true,
   where: 'accountIndex IS NOT NULL',
 })
@@ -16,19 +16,23 @@ export class Deposit extends IEntity {
   @OneToOne(() => DepositRoute, (route) => route.deposit, { nullable: true })
   route: DepositRoute;
 
-  @Column({ length: 256, default: Blockchain.BITCOIN })
-  blockchain: Blockchain;
+  @Column({ length: 256 })
+  blockchains: string; // comma-separated
 
   @Column({ nullable: true })
   accountIndex?: number;
 
-  //*** FACTORY METHODS ***//
+  get blockchainList(): Blockchain[] {
+    return this.blockchains.split(',') as Blockchain[];
+  }
 
-  static create(address: string, blockchain: Blockchain, accountIndex?: number): Deposit {
+  // --- FACTORY METHODS --- //
+
+  static create(address: string, blockchains: Blockchain[], accountIndex?: number): Deposit {
     const entity = new Deposit();
 
     entity.address = address;
-    entity.blockchain = blockchain;
+    entity.blockchains = blockchains.join(',');
     entity.accountIndex = accountIndex;
 
     return entity;
