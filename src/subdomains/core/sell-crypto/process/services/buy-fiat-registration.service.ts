@@ -69,9 +69,9 @@ export class BuyFiatRegistrationService {
   private async createBuyFiatsAndAckPayIns(payInsPairs: [CryptoInput, Sell][]): Promise<void> {
     for (const [payIn, sellRoute] of payInsPairs) {
       try {
-        const buyFiat = await this.buyFiatRepo.findOneBy({ cryptoInput: { id: payIn.id } });
+        const alreadyExists = await this.buyFiatRepo.exist({ where: { cryptoInput: { id: payIn.id } } });
 
-        if (!buyFiat) {
+        if (!alreadyExists) {
           const result = await this.transactionHelper.validateInput(payIn.asset, payIn.amount);
 
           if (result === ValidationError.PAY_IN_TOO_SMALL) {

@@ -17,13 +17,13 @@ export class Deposit extends IEntity {
   route: DepositRoute;
 
   @Column({ length: 256 })
-  blockchains: string; // comma-separated
+  blockchains: string; // semicolon separated
 
   @Column({ nullable: true })
   accountIndex?: number;
 
   get blockchainList(): Blockchain[] {
-    return this.blockchains.split(',') as Blockchain[];
+    return this.blockchains.split(';') as Blockchain[];
   }
 
   // --- FACTORY METHODS --- //
@@ -32,7 +32,7 @@ export class Deposit extends IEntity {
     const entity = new Deposit();
 
     entity.address = address;
-    entity.blockchains = blockchains.join(',');
+    entity.blockchains = blockchains.join(';');
     entity.accountIndex = accountIndex;
 
     return entity;

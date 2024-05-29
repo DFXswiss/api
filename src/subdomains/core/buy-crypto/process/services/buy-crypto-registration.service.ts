@@ -69,9 +69,9 @@ export class BuyCryptoRegistrationService {
   private async createBuyCryptosAndAckPayIns(payInsPairs: [CryptoInput, Swap][]): Promise<void> {
     for (const [payIn, cryptoRoute] of payInsPairs) {
       try {
-        const existingBuyCrypto = await this.buyCryptoRepo.findOneBy({ cryptoInput: { id: payIn.id } });
+        const alreadyExists = await this.buyCryptoRepo.exist({ where: { cryptoInput: { id: payIn.id } } });
 
-        if (!existingBuyCrypto) {
+        if (!alreadyExists) {
           const result = await this.transactionHelper.validateInput(payIn.asset, payIn.amount);
 
           if (result === ValidationError.PAY_IN_TOO_SMALL) {
