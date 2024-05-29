@@ -12,9 +12,10 @@ import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { DepositRouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { In, IsNull, Not } from 'typeorm';
-import { TransactionTypeInternal } from '../../payment/entities/transaction.entity';
+import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
-import { CryptoInput, PayInPurpose, PayInSendType, PayInStatus } from '../entities/crypto-input.entity';
+import { CryptoInput, PayInPurpose, PayInSendType, PayInStatus, PayInType } from '../entities/crypto-input.entity';
+import { PayInEntry } from '../interfaces';
 import { PayInRepository } from '../repositories/payin.repository';
 import { RegisterStrategyRegistry } from '../strategies/register/impl/base/register.strategy-registry';
 import { SendType } from '../strategies/send/impl/base/send.strategy';
@@ -33,8 +34,28 @@ export class PayInService {
 
   //*** PUBLIC API ***//
 
+  async createPayIns(transactions: PayInEntry[]): Promise<CryptoInput[]> {
+    const payIns = transactions.map(({ address, txId, txType, txSequence, blockHeight, amount, asset }) =>
+      CryptoInput.create(address, txId, txType, txSequence, blockHeight, amount, asset),
+    );
+
+    for (const payIn of payIns) {
+      payIn.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.CRYPTO_INPUT });
+
+      await this.payInRepository.save(payIn);
+    }
+
+    return payIns;
+  }
+
   async getNewPayIns(): Promise<CryptoInput[]> {
-    return this.payInRepository.find({ where: { status: PayInStatus.CREATED }, relations: { transaction: true } });
+    return this.payInRepository.find({
+      where: [
+        { status: PayInStatus.CREATED, txType: IsNull() },
+        { status: PayInStatus.CREATED, txType: Not(PayInType.PERMIT_TRANSFER) },
+      ],
+      relations: { transaction: true },
+    });
   }
 
   async getNewPayInsForBlockchain(blockchain: Blockchain): Promise<CryptoInput[]> {

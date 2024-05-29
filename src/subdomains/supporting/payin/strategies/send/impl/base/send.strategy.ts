@@ -1,4 +1,4 @@
-import { Inject, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Inject, OnModuleDestroy, OnModuleInit, forwardRef } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
@@ -32,7 +32,7 @@ export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
 
   @Inject() private readonly priceProvider: PricingService;
   @Inject() private readonly payoutService: PayoutService;
-  @Inject() private readonly transactionHelper: TransactionHelper;
+  @Inject(forwardRef(() => TransactionHelper)) private readonly transactionHelper: TransactionHelper;
   @Inject() private readonly registry: SendStrategyRegistry;
 
   onModuleInit() {

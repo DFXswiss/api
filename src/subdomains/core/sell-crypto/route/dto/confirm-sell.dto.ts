@@ -18,6 +18,18 @@ export class PermitDto {
 
   @ApiProperty()
   @IsNotEmpty()
+  @IsString()
+  @Matches(GetConfig().formats.address)
+  signatureTransferContract: string;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @Matches(GetConfig().formats.address)
+  executorAddress: string;
+
+  @ApiProperty()
+  @IsNotEmpty()
   @IsInt()
   nonce: number;
 
