@@ -78,11 +78,11 @@ export class BuyCryptoRegistrationService {
             await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_CRYPTO, cryptoRoute);
             continue;
           } else if (result === ValidationError.PAY_IN_NOT_SELLABLE) {
-            if (cryptoRoute.deposit.blockchainList.includes(cryptoRoute.asset.blockchain)) {
+            if (cryptoRoute.asset.blockchain === payIn.address.blockchain) {
               await this.payInService.returnPayIn(
                 payIn,
                 PayInPurpose.BUY_CRYPTO,
-                BlockchainAddress.create(cryptoRoute.user.address, cryptoRoute.asset.blockchain),
+                BlockchainAddress.create(cryptoRoute.user.address, payIn.address.blockchain),
                 cryptoRoute,
               );
               continue;

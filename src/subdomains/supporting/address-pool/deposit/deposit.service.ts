@@ -53,7 +53,7 @@ export class DepositService {
     const deposit = await this.depositRepo
       .createQueryBuilder('deposit')
       .leftJoin('deposit.route', 'route')
-      .where('route.id IS NULL AND deposit.blockchain = :blockchain', { blockchain })
+      .where('route.id IS NULL AND deposit.blockchains LIKE :blockchain', { blockchain: `%${blockchain}%` })
       .getOne();
     if (!deposit) throw new InternalServerErrorException(`No unused deposit for ${blockchain} found`);
 
@@ -104,7 +104,9 @@ export class DepositService {
       addresses.push(deposit.address);
     }
 
-    await this.alchemyWebhookService.createAddressWebhook({ blockchain: blockchain, addresses: addresses });
+    for (const chain of applicableChains) {
+      await this.alchemyWebhookService.createAddressWebhook({ blockchain: chain, addresses: addresses });
+    }
   }
 
   private async createLightningDeposits(blockchain: Blockchain, count: number) {
