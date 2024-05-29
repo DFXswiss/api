@@ -27,6 +27,7 @@ import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.s
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { FindOptionsRelations, In, IsNull, Not } from 'typeorm';
+import { WebhookService } from '../../services/webhook/webhook.service';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
@@ -59,6 +60,7 @@ export class UserDataService {
     @Inject(forwardRef(() => AccountMergeService)) private readonly mergeService: AccountMergeService,
     private readonly specialExternalBankAccountService: SpecialExternalAccountService,
     private readonly siftService: SiftService,
+    private readonly webhookService: WebhookService,
   ) {}
 
   async getUserDataByUser(userId: number): Promise<UserData> {
@@ -550,6 +552,9 @@ export class UserDataService {
     });
 
     await this.userDataRepo.save(master);
+
+    // Merge Webhook
+    await this.webhookService.accountMerge(master, slave);
 
     // KYC change Webhook
     await this.kycNotificationService.kycChanged(master);

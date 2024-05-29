@@ -115,6 +115,15 @@ export class WebhookService {
     await this.createAndSendKycClientWebhook(webhookData);
   }
 
+  async accountMerge(master: UserData, slave: UserData): Promise<void> {
+    await this.createAndSendKycClientWebhook({
+      data: JSON.stringify(WebhookDataMapper.mapAccountMergeData(master, slave)),
+      type: WebhookType.ACCOUNT_MERGE,
+      userData: master,
+      wallet: null,
+    });
+  }
+
   // --- HELPER METHODS --- //
 
   private async createAndSendKycClientWebhook(dto: CreateWebhookInput) {

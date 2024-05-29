@@ -4,6 +4,7 @@ import {
   TransactionDtoMapper,
 } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
 import { KycCompleted, KycStatus, KycType, UserData } from '../../../models/user-data/user-data.entity';
+import { AccountMergeWebhookData } from '../dto/account-merge-webhook.dto';
 import { KycWebhookData, KycWebhookStatus } from '../dto/kyc-webhook.dto';
 import { PaymentWebhookData } from '../dto/payment-webhook.dto';
 
@@ -51,6 +52,10 @@ export class WebhookDataMapper {
       ...TransactionDtoMapper.mapBuyCryptoTransactionDetail(payment),
       dfxReference: payment.id,
     };
+  }
+
+  static mapAccountMergeData(master: UserData, slave: UserData): AccountMergeWebhookData {
+    return { master: master.id, slave: slave.id };
   }
 }
 
