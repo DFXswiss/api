@@ -88,7 +88,7 @@ export class GsService {
     return {
       userData,
       kycSteps: await this.kycAdminService.getKycSteps(userData.id),
-      bankData: await this.bankDataService.getBankDatasForUser(userData.id),
+      bankData: await this.bankDataService.getAllBankDatasForUser(userData.id),
       notification: await this.notificationService.getMails(userData.id),
       documents: await this.getAllUserDocuments(userData.id, userData.accountType),
       buyCrypto: await this.buyCryptoService.getAllUserTransactions(userIds),
