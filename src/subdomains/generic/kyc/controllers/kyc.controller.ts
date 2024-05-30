@@ -27,8 +27,6 @@ import {
 import { Response } from 'express';
 import { RealIP } from 'nestjs-real-ip';
 import { Config, GetConfig } from 'src/config/config';
-import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
-import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -106,22 +104,14 @@ export class KycController {
 
   @Post('transfer')
   @ApiExcludeEndpoint()
-  async addKycClient(
-    @Headers(CodeHeaderName) code: string,
-    @GetJwt() jwt: JwtPayload,
-    @Query('client') walletName: string,
-  ) {
-    return this.kycService.addKycClient(jwt.account, walletName);
+  async addKycClient(@Headers(CodeHeaderName) code: string, @Query('client') walletName: string) {
+    return this.kycService.addKycClient(code, walletName);
   }
 
   @Delete('transfer')
   @ApiExcludeEndpoint()
-  async removeKycClient(
-    @Headers(CodeHeaderName) code: string,
-    @GetJwt() jwt: JwtPayload,
-    @Query('client') walletName: string,
-  ) {
-    return this.kycService.removeKycClient(jwt.account, walletName);
+  async removeKycClient(@Headers(CodeHeaderName) code: string, @Query('client') walletName: string) {
+    return this.kycService.removeKycClient(code, walletName);
   }
 
   // --- UPDATE ENDPOINTS --- //
