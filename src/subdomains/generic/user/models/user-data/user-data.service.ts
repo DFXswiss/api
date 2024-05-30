@@ -392,7 +392,7 @@ export class UserDataService {
   }
 
   async removeKycClient(userData: UserData, walletId: number): Promise<void> {
-    if (!userData.kycClientList?.includes(walletId)) throw new BadRequestException('Kyc client already removed');
+    if (!userData.kycClientList?.includes(walletId)) return;
 
     await this.userDataRepo.update(...userData.removeKycClient(walletId));
   }

@@ -23,7 +23,7 @@ export class Webhook extends IEntity {
   isComplete: boolean;
 
   // References
-  @ManyToOne(() => User, { nullable: true })
+  @ManyToOne(() => User, { nullable: true, eager: true })
   user: User;
 
   @ManyToOne(() => UserData, { nullable: true, eager: true })

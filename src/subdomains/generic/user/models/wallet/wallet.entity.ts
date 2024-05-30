@@ -13,14 +13,15 @@ export enum AmlRule {
 }
 
 export interface WebhookConfig {
-  paymentWebhook: WebhookConfigOption;
-  kycWebhook: WebhookConfigOption;
+  payment: WebhookConfigOption;
+  kyc: WebhookConfigOption;
 }
 
 export enum WebhookConfigOption {
   TRUE = 'True',
   FALSE = 'False',
   CONSENT_ONLY = 'ConsentOnly',
+  WALLET_ONLY = 'WalletOnly',
 }
 
 @Entity()
@@ -56,7 +57,7 @@ export class Wallet extends IEntity {
   @Column({ default: AmlRule.DEFAULT })
   amlRule: AmlRule;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 'MAX', nullable: true })
   webhookConfig: string; // JSON string
 
   get webhookConfigObject(): WebhookConfig | undefined {
@@ -70,14 +71,16 @@ export class Wallet extends IEntity {
       case WebhookType.KYC_CHANGED:
       case WebhookType.KYC_FAILED:
         return (
-          this.webhookConfigObject.kycWebhook === WebhookConfigOption.TRUE ||
-          (this.webhookConfigObject.kycWebhook === WebhookConfigOption.CONSENT_ONLY && consented)
+          this.webhookConfigObject?.kyc === WebhookConfigOption.TRUE ||
+          (this.webhookConfigObject?.kyc === WebhookConfigOption.CONSENT_ONLY && consented) ||
+          (this.webhookConfigObject?.kyc === WebhookConfigOption.WALLET_ONLY && !consented)
         );
 
       case WebhookType.PAYMENT:
         return (
-          this.webhookConfigObject.paymentWebhook === WebhookConfigOption.TRUE ||
-          (this.webhookConfigObject.paymentWebhook === WebhookConfigOption.CONSENT_ONLY && consented)
+          this.webhookConfigObject?.payment === WebhookConfigOption.TRUE ||
+          (this.webhookConfigObject?.payment === WebhookConfigOption.CONSENT_ONLY && consented) ||
+          (this.webhookConfigObject?.payment === WebhookConfigOption.WALLET_ONLY && !consented)
         );
     }
   }

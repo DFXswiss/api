@@ -198,21 +198,22 @@ export class KycService {
     return this.countryService.getCountriesByKycType(user.kycType);
   }
 
-  async addKycClient(userDataId: number, walletName: string): Promise<void> {
+  async addKycClient(kycHash: string, walletName: string): Promise<void> {
     const wallet = await this.walletService.getByIdOrName(undefined, walletName);
     if (!wallet) throw new NotFoundException('KYC client not found');
+    if (!wallet.isKycClient) throw new BadRequestException('Wallet is not a kyc client');
 
-    const userData = await this.userDataService.getUserData(userDataId);
+    const userData = await this.getUser(kycHash);
     if (!userData) throw new NotFoundException('User data not found');
 
     await this.userDataService.addKycClient(userData, wallet.id);
   }
 
-  async removeKycClient(userDataId: number, walletName: string): Promise<void> {
+  async removeKycClient(kycHash: string, walletName: string): Promise<void> {
     const wallet = await this.walletService.getByIdOrName(undefined, walletName);
     if (!wallet) throw new NotFoundException('KYC client not found');
 
-    const userData = await this.userDataService.getUserData(userDataId);
+    const userData = await this.getUser(kycHash);
     if (!userData) throw new NotFoundException('User data not found');
 
     await this.userDataService.removeKycClient(userData, wallet.id);

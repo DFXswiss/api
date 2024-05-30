@@ -12,10 +12,8 @@ import {
   Query,
   Res,
   UploadedFile,
-  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiConflictResponse,
@@ -31,8 +29,6 @@ import { RealIP } from 'nestjs-real-ip';
 import { Config, GetConfig } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
-import { RoleGuard } from 'src/shared/auth/role.guard';
-import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -109,14 +105,22 @@ export class KycController {
   }
 
   @Post('transfer')
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
-  async addKycClient(@GetJwt() jwt: JwtPayload, @Query('client') walletName: string) {
-    return this.kycService.addKycClient(jwt.account,walletName);
+  @ApiExcludeEndpoint()
+  async addKycClient(
+    @Headers(CodeHeaderName) code: string,
+    @GetJwt() jwt: JwtPayload,
+    @Query('client') walletName: string,
+  ) {
+    return this.kycService.addKycClient(jwt.account, walletName);
   }
 
   @Delete('transfer')
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
-  async removeKycClient(@GetJwt() jwt: JwtPayload, @Query('client') walletName: string) {
+  @ApiExcludeEndpoint()
+  async removeKycClient(
+    @Headers(CodeHeaderName) code: string,
+    @GetJwt() jwt: JwtPayload,
+    @Query('client') walletName: string,
+  ) {
     return this.kycService.removeKycClient(jwt.account, walletName);
   }
 
