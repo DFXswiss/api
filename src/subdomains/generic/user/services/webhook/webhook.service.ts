@@ -35,10 +35,10 @@ export class WebhookService {
     await this.sendWebhooks(WebhookType.KYC_FAILED, payload, userData, users, reason);
   }
 
-  async accountMerge(master: UserData, slave: UserData): Promise<void> {
-    const payload = WebhookDataMapper.mapAccountMergeData(master, slave);
+  async accountChanged(master: UserData, slave: UserData): Promise<void> {
+    const payload = WebhookDataMapper.mapAccountMergeData(master);
 
-    await this.sendWebhooks(WebhookType.ACCOUNT_MERGE, payload, slave, []);
+    await this.sendWebhooks(WebhookType.ACCOUNT_CHANGED, payload, slave, []);
   }
 
   // --- PAYMENT WEBHOOKS --- //

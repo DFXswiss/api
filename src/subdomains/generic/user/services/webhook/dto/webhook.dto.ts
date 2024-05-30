@@ -4,7 +4,7 @@ export enum WebhookType {
   PAYMENT = 'Payment',
   KYC_CHANGED = 'KycChanged',
   KYC_FAILED = 'KycFailed',
-  ACCOUNT_MERGE = 'AccountMerge',
+  ACCOUNT_CHANGED = 'AccountChanged',
 }
 
 export class WebhookDto<T> {

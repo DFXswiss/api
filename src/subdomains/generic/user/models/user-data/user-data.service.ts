@@ -554,7 +554,7 @@ export class UserDataService {
     await this.userDataRepo.save(master);
 
     // Merge Webhook
-    await this.webhookService.accountMerge(master, slave);
+    await this.webhookService.accountChanged(master, slave);
 
     // KYC change Webhook
     await this.kycNotificationService.kycChanged(master);
