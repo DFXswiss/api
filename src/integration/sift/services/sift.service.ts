@@ -2,9 +2,20 @@ import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
+import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { CreateAccount, CreateOrder, EventType, SiftBase, Transaction } from '../dto/sift.dto';
+import {
+  CreateAccount,
+  CreateOrder,
+  EventType,
+  SiftAssetType,
+  SiftBase,
+  SiftPaymentMethodMap,
+  Transaction,
+  TransactionStatus,
+  TransactionType,
+} from '../dto/sift.dto';
 
 @Injectable()
 export class SiftService {
@@ -46,7 +57,61 @@ export class SiftService {
     return this.send(EventType.CREATE_ORDER, data);
   }
 
-  async transaction(data: Transaction): Promise<void> {
+  async transaction(entity: BuyCrypto, status: TransactionStatus): Promise<void> {
+    const paymentMethod: {
+      $account_holder_name;
+      $card_bin;
+      $card_last4;
+      $bank_name;
+      $bank_country;
+      $shortened_iban_first6;
+      $shortened_iban_last4;
+      $routing_number;
+    } = undefined;
+
+    if (entity.checkoutTx) {
+      paymentMethod.$account_holder_name = entity.checkoutTx.cardName;
+      paymentMethod.$card_bin = entity.checkoutTx.cardBin;
+      paymentMethod.$card_last4 = entity.checkoutTx.cardLast4;
+      paymentMethod.$bank_name = entity.checkoutTx.cardIssuer;
+      paymentMethod.$bank_country = entity.checkoutTx.cardIssuerCountry;
+    }
+
+    if (entity.bankTx) {
+      paymentMethod.$account_holder_name = entity.bankTx.name;
+      paymentMethod.$card_bin = entity.bankTx.iban.slice(0, 6);
+      paymentMethod.$card_last4 = entity.bankTx.iban.slice(-4);
+      paymentMethod.$bank_name = entity.bankTx.bankName;
+      paymentMethod.$bank_country = entity.bankTx.country;
+      paymentMethod.$routing_number = entity.bankTx.aba;
+    }
+
+    const data: Transaction = {
+      $transaction_id: entity.transaction.id.toString(),
+      $user_id: entity.user.id.toString(),
+      $order_id: entity.transactionRequest.id.toString(),
+      $transaction_type: TransactionType.BUY,
+      $transaction_status: status,
+      $time: entity.updated.getTime(),
+      $amount: entity.inputAmount * 10000,
+      $currency_code: entity.inputAsset,
+      $site_country: 'CH',
+      $payment_methods: [
+        {
+          $payment_type: SiftPaymentMethodMap[entity.paymentMethodIn],
+          ...paymentMethod,
+        },
+      ],
+      $digital_orders: [
+        {
+          $digital_asset: entity.outputAsset.name,
+          $pair: `${entity.inputAsset}_${entity.outputAsset.name}`,
+          $asset_type: SiftAssetType.CRYPTO,
+          $volume: entity.outputAmount?.toString(),
+        },
+      ],
+      blockchain: entity.outputAsset.blockchain,
+    };
     return this.send(EventType.TRANSACTION, data);
   }
 

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { Transaction, TransactionStatus } from 'src/integration/sift/dto/sift.dto';
+import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { isFiat } from 'src/shared/models/active';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -121,12 +121,7 @@ export class BuyCryptoPreparationService {
           await this.userService.activateUser(entity.user);
 
         // update sift transaction status
-        if (entity.amlCheck === CheckStatus.FAIL)
-          await this.siftService.transaction({
-            $transaction_id: entity.id.toString(),
-            $transaction_status: TransactionStatus.FAILURE,
-            $time: entity.updated.getTime(),
-          } as Transaction);
+        if (entity.amlCheck === CheckStatus.FAIL) await this.siftService.transaction(entity, TransactionStatus.FAILURE);
       } catch (e) {
         this.logger.error(`Error during buy-crypto ${entity.id} AML check:`, e);
       }
@@ -206,12 +201,7 @@ export class BuyCryptoPreparationService {
 
         if (entity.amlCheck === CheckStatus.FAIL) {
           // update sift transaction status
-          await this.siftService.transaction({
-            $transaction_id: entity.id.toString(),
-            $transaction_status: TransactionStatus.FAILURE,
-            $time: entity.updated.getTime(),
-          } as Transaction);
-
+          await this.siftService.transaction(entity, TransactionStatus.FAILURE);
           return;
         }
 
