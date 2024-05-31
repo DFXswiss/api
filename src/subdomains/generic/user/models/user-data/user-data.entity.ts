@@ -558,7 +558,7 @@ export class UserData extends IEntity {
   }
 
   get hasBankTxVerification(): boolean {
-    return [CheckStatus.PASS, CheckStatus.UNNECESSARY].includes(this.bankTransactionVerification);
+    return [CheckStatus.PASS, CheckStatus.UNNECESSARY, CheckStatus.GSHEET].includes(this.bankTransactionVerification);
   }
 
   get isPaymentStatusEnabled(): boolean {

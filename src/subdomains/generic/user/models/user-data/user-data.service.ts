@@ -204,6 +204,14 @@ export class UserDataService {
     return userData;
   }
 
+  async updateUserDataInternal(userData: UserData, dto: Partial<UserData>): Promise<UserData> {
+    Object.assign(userData, dto);
+
+    await this.userDataRepo.update(userData.id, dto);
+
+    return userData;
+  }
+
   async updateKycData(userData: UserData, data: KycUserDataDto): Promise<UserData> {
     const isPersonalAccount = (data.accountType ?? userData.accountType) === AccountType.PERSONAL;
 
