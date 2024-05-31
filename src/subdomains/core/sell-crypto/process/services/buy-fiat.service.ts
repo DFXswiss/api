@@ -68,9 +68,10 @@ export class BuyFiatService {
     entity = await this.setTxRequest(entity, request);
 
     if (!DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
-      const bankData = await this.bankDataService.getBankDataWithIban(sell.iban, sell.user.userData.id);
+      const bankData = await this.bankDataService.getBankDataWithIban(sell.iban, sell.userData.id);
       if (!bankData)
-        await this.bankDataService.createBankData(sell.user.userData, {
+        await this.bankDataService.createBankData(sell.userData, {
+          name: sell.userData.completeName,
           iban: sell.iban,
           type: BankDataType.BANK_OUT,
         });

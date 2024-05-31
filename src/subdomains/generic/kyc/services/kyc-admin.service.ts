@@ -2,12 +2,12 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
-import { KycLevel, KycType, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
+import { UserData } from '../../user/models/user-data/user-data.entity';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
 import { KycWebhookTriggerDto } from '../dto/kyc-webhook-trigger.dto';
 import { KycStep } from '../entities/kyc-step.entity';
-import { KycLogType, KycStepName, KycStepStatus } from '../enums/kyc.enum';
+import { KycLogType, KycStepStatus } from '../enums/kyc.enum';
 import { KycLogRepository } from '../repositories/kyc-log.repository';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 
@@ -40,16 +40,9 @@ export class KycAdminService {
 
     kycStep.update(dto.status, dto.result);
 
-    if (
-      kycStep.name === KycStepName.IDENT &&
-      kycStep.isCompleted &&
-      kycStep.userData.status !== UserDataStatus.MERGED &&
-      kycStep.userData.kycLevel >= KycLevel.LEVEL_30 &&
-      kycStep.userData.kycType === KycType.DFX &&
-      !kycStep.userData.lastNameCheckDate &&
-      !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)
-    )
+    if (kycStep.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
       await this.bankDataService.createBankData(kycStep.userData, {
+        name: kycStep.completeName,
         iban: `Ident${kycStep.identDocumentId}`,
         type: BankDataType.IDENT,
       });

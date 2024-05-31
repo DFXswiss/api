@@ -212,6 +212,11 @@ export class BankTx extends IEntity {
       .join(' ');
   }
 
+  get bankDataName(): string {
+    if (this.name.startsWith('/C/')) return this.addressLine1;
+    return this.completeName;
+  }
+
   getSenderAccount(multiAccountIbans: string[]): string | undefined {
     if (this.iban) {
       if (multiAccountIbans.includes(this.iban)) return `${this.iban};${this.completeName.split(' ').join('')}`;

@@ -8,6 +8,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { LessThan } from 'typeorm';
+import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
+import { BankDataService } from '../../user/models/bank-data/bank-data.service';
 import { KycLevel, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { IdentStatus } from '../dto/ident.dto';
@@ -58,6 +60,7 @@ export class KycService {
     private readonly stepLogRepo: StepLogRepository,
     private readonly tfaService: TfaService,
     private readonly kycNotificationService: KycNotificationService,
+    private readonly bankDataService: BankDataService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
@@ -114,6 +117,13 @@ export class KycService {
 
         await this.createStepLog(entity.userData, entity);
         await this.kycStepRepo.save(entity);
+
+        if (entity.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
+          await this.bankDataService.createBankData(entity.userData, {
+            name: entity.completeName,
+            iban: `Ident${entity.identDocumentId}`,
+            type: BankDataType.IDENT,
+          });
       } catch (e) {
         this.logger.error(`Failed to auto review ident step ${entity.id}:`, e);
       }

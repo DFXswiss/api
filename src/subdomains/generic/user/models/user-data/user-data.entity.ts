@@ -420,6 +420,10 @@ export class UserData extends IEntity {
     return Util.floor(this.kycLevel, -1);
   }
 
+  get completeName(): string {
+    return [this.firstname, this.surname].filter((n) => n).join(' ');
+  }
+
   // --- KYC PROCESS --- //
 
   setKycLevel(level: KycLevel): this {
