@@ -3,6 +3,7 @@ import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-c
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BankTxRepeat } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
+import { Notification } from 'src/subdomains/supporting/notification/entities/notification.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { File } from '../../kyc/dto/kyc-file.dto';
 import { KycStep } from '../../kyc/entities/kyc-step.entity';
@@ -14,6 +15,7 @@ export class SupportReturnData {
   userData: UserData;
   kycSteps: KycStep[];
   bankData: BankData[];
+  notification: Notification[];
   documents: File[];
   buyCrypto: BuyCrypto[];
   buyFiat: BuyFiat[];
