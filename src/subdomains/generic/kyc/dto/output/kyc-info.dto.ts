@@ -57,6 +57,9 @@ export class KycLevelDto {
   @ApiProperty()
   twoFactorEnabled: boolean;
 
+  @ApiProperty({ description: 'Connected KYC clients', isArray: true })
+  kycClients: string[];
+
   @ApiProperty({ type: LanguageDto })
   language: LanguageDto;
 

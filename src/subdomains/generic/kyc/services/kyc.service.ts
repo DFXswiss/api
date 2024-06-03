@@ -10,6 +10,7 @@ import { Util } from 'src/shared/utils/util';
 import { LessThan } from 'typeorm';
 import { KycLevel, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
+import { Wallet } from '../../user/models/wallet/wallet.entity';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { IdentStatus } from '../dto/ident.dto';
 import { IdentResultDto, IdentShortResult, getIdentReason, getIdentResult } from '../dto/input/ident-result.dto';
@@ -161,7 +162,9 @@ export class KycService {
     const user = await this.getUser(kycHash);
     await this.verifyUserDuplication(user);
 
-    return KycInfoMapper.toDto(user, false);
+    const kycClients = await this.getKycClients(user);
+
+    return KycInfoMapper.toDto(user, false, kycClients);
   }
 
   async continue(kycHash: string, ip: string, autoStep: boolean): Promise<KycSessionDto> {
@@ -182,7 +185,9 @@ export class KycService {
 
     await this.verify2faIfRequired(user, ip);
 
-    return KycInfoMapper.toDto(user, true);
+    const kycClients = await this.getKycClients(user);
+
+    return KycInfoMapper.toDto(user, true, kycClients);
   }
 
   private async verifyUserDuplication(user: UserData) {
@@ -408,7 +413,9 @@ export class KycService {
 
     await this.verify2faIfRequired(user, ip);
 
-    return KycInfoMapper.toDto(user, true, step);
+    const kycClients = await this.getKycClients(user);
+
+    return KycInfoMapper.toDto(user, true, kycClients, step);
   }
 
   private async updateProgress(user: UserData, shouldContinue: boolean, autoStep = true, depth = 0): Promise<UserData> {
@@ -517,6 +524,10 @@ export class KycService {
     });
 
     await this.stepLogRepo.save(entity);
+  }
+
+  private async getKycClients(userData: UserData): Promise<Wallet[]> {
+    return Promise.all(userData.kycClientList?.map((k) => this.walletService.getByIdOrName(k)) ?? []);
   }
 
   private async getUser(kycHash: string): Promise<UserData> {
