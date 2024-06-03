@@ -24,13 +24,13 @@ export class Webhook extends IEntity {
 
   // References
   @ManyToOne(() => User, { nullable: true, eager: true })
-  user: User;
+  user: User; // TODO: remove?
 
   @ManyToOne(() => UserData, { nullable: true, eager: true })
-  userData: UserData;
+  userData: UserData; // TODO: nullable: false
 
   @ManyToOne(() => Wallet, { nullable: true, eager: true })
-  wallet: Wallet;
+  wallet: Wallet; // TODO: nullable: false
 
   sentWebhook(result: boolean): UpdateResult<Webhook> {
     const update: Partial<Webhook> = {

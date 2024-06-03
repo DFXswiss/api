@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { WebhookDto, WebhookType } from './webhook.dto';
 
 export class AccountChangedWebhookData {
-  @ApiProperty()
+  @ApiProperty({ description: 'New account id' })
   accountId: number;
 }
 
