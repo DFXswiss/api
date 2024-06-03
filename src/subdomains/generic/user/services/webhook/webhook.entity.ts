@@ -1,6 +1,8 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Column, Entity, ManyToOne } from 'typeorm';
+import { UserData } from '../../models/user-data/user-data.entity';
 import { User } from '../../models/user/user.entity';
+import { Wallet } from '../../models/wallet/wallet.entity';
 import { WebhookType } from './dto/webhook.dto';
 
 @Entity()
@@ -21,8 +23,14 @@ export class Webhook extends IEntity {
   isComplete: boolean;
 
   // References
-  @ManyToOne(() => User, { nullable: false })
-  user: User;
+  @ManyToOne(() => User, { nullable: true, eager: true })
+  user: User; // TODO: remove?
+
+  @ManyToOne(() => UserData, { nullable: true, eager: true })
+  userData: UserData; // TODO: nullable: false
+
+  @ManyToOne(() => Wallet, { nullable: true, eager: true })
+  wallet: Wallet; // TODO: nullable: false
 
   sentWebhook(result: boolean): UpdateResult<Webhook> {
     const update: Partial<Webhook> = {
