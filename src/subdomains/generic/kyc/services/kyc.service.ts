@@ -12,6 +12,7 @@ import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
 import { KycLevel, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
+import { WalletService } from '../../user/models/wallet/wallet.service';
 import { IdentStatus } from '../dto/ident.dto';
 import { IdentResultDto, IdentShortResult, getIdentReason, getIdentResult } from '../dto/input/ident-result.dto';
 import { KycContactData, KycPersonalData } from '../dto/input/kyc-data.dto';
@@ -68,6 +69,7 @@ export class KycService {
     private readonly tfaService: TfaService,
     private readonly kycNotificationService: KycNotificationService,
     private readonly bankDataService: BankDataService,
+    private readonly walletService: WalletService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
@@ -196,7 +198,7 @@ export class KycService {
     const user = await this.getUser(kycHash);
     await this.verifyUserDuplication(user);
 
-    return KycInfoMapper.toDto(user, false);
+    return this.toDto(user, false);
   }
 
   async continue(kycHash: string, ip: string, autoStep: boolean): Promise<KycSessionDto> {
@@ -217,7 +219,7 @@ export class KycService {
 
     await this.verify2faIfRequired(user, ip);
 
-    return KycInfoMapper.toDto(user, true);
+    return this.toDto(user, true);
   }
 
   private async verifyUserDuplication(user: UserData) {
@@ -231,6 +233,27 @@ export class KycService {
     const user = await this.getUser(kycHash);
 
     return this.countryService.getCountriesByKycType(user.kycType);
+  }
+
+  async addKycClient(kycHash: string, walletName: string): Promise<void> {
+    const wallet = await this.walletService.getByIdOrName(undefined, walletName);
+    if (!wallet) throw new NotFoundException('KYC client not found');
+    if (!wallet.isKycClient) throw new BadRequestException('Wallet is not a kyc client');
+
+    const userData = await this.getUser(kycHash);
+    if (!userData) throw new NotFoundException('User data not found');
+
+    await this.userDataService.addKycClient(userData, wallet.id);
+  }
+
+  async removeKycClient(kycHash: string, walletName: string): Promise<void> {
+    const wallet = await this.walletService.getByIdOrName(undefined, walletName);
+    if (!wallet) throw new NotFoundException('KYC client not found');
+
+    const userData = await this.getUser(kycHash);
+    if (!userData) throw new NotFoundException('User data not found');
+
+    await this.userDataService.removeKycClient(userData, wallet.id);
   }
 
   // --- UPDATE METHODS --- //
@@ -422,7 +445,7 @@ export class KycService {
 
     await this.verify2faIfRequired(user, ip);
 
-    return KycInfoMapper.toDto(user, true, step);
+    return this.toDto(user, true, step);
   }
 
   private async updateProgress(user: UserData, shouldContinue: boolean, autoStep = true, depth = 0): Promise<UserData> {
@@ -531,6 +554,16 @@ export class KycService {
     });
 
     await this.stepLogRepo.save(entity);
+  }
+
+  private async toDto(
+    user: UserData,
+    withSession: boolean,
+    currentStep?: KycStep,
+  ): Promise<KycLevelDto | KycSessionDto> {
+    const kycClients = await this.walletService.getKycClients();
+
+    return KycInfoMapper.toDto(user, withSession, kycClients, currentStep);
   }
 
   private async getUser(kycHash: string): Promise<UserData> {

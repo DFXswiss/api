@@ -13,7 +13,6 @@ import { CreateAccount } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { UpdateResult } from 'src/shared/models/entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -28,6 +27,7 @@ import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.s
 import { KycNotificationService } from 'src/subdomains/generic/kyc/services/kyc-notification.service';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { FindOptionsRelations, In, IsNull, Not } from 'typeorm';
+import { WebhookService } from '../../services/webhook/webhook.service';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
@@ -60,6 +60,7 @@ export class UserDataService {
     @Inject(forwardRef(() => AccountMergeService)) private readonly mergeService: AccountMergeService,
     private readonly specialExternalBankAccountService: SpecialExternalAccountService,
     private readonly siftService: SiftService,
+    private readonly webhookService: WebhookService,
   ) {}
 
   async getUserDataByUser(userId: number): Promise<UserData> {
@@ -177,17 +178,17 @@ export class UserDataService {
     return userData;
   }
 
-  async updateUserDataInternal(userData: UserData, update: UpdateResult<UserData>): Promise<void> {
-    const dto = update[1];
-
+  async updateUserDataInternal(userData: UserData, dto: Partial<UserData>): Promise<UserData> {
     await this.loadRelationsAndVerify(dto, dto);
 
-    await this.userDataRepo.update(...update);
+    await this.userDataRepo.update(userData.id, dto);
 
-    Object.assign(userData, update);
+    Object.assign(userData, dto);
 
     if (dto.kycLevel && dto.kycLevel !== userData.kycLevel)
       await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
+
+    return userData;
   }
 
   async updateKycData(userData: UserData, data: KycUserDataDto): Promise<UserData> {
@@ -385,6 +386,20 @@ export class UserDataService {
     return this.userDataRepo.save(userData);
   }
 
+  // --- KYC CLIENTS --- //
+
+  async addKycClient(userData: UserData, walletId: number): Promise<void> {
+    if (userData.kycClientList.includes(walletId)) return;
+
+    await this.userDataRepo.update(...userData.addKycClient(walletId));
+  }
+
+  async removeKycClient(userData: UserData, walletId: number): Promise<void> {
+    if (!userData.kycClientList.includes(walletId)) return;
+
+    await this.userDataRepo.update(...userData.removeKycClient(walletId));
+  }
+
   // --- FEES --- //
 
   async addFee(userData: UserData, feeId: number): Promise<void> {
@@ -503,6 +518,7 @@ export class UserDataService {
       slave.relatedAccountRelations.length > 0 &&
         `relatedAccountRelations ${slave.relatedAccountRelations.map((a) => a.id)}`,
       slave.individualFees && `individualFees ${slave.individualFees}`,
+      slave.kycClients && `kycClients ${slave.kycClients}`,
     ]
       .filter((i) => i)
       .join(' and ');
@@ -523,6 +539,7 @@ export class UserDataService {
     master.accountRelations = master.accountRelations.concat(slave.accountRelations);
     master.relatedAccountRelations = master.relatedAccountRelations.concat(slave.relatedAccountRelations);
     slave.individualFeeList?.forEach((fee) => !master.individualFeeList?.includes(fee) && master.addFee(fee));
+    slave.kycClientList.forEach((kc) => !master.kycClientList.includes(kc) && master.addKycClient(kc));
 
     if (master.status === UserDataStatus.KYC_ONLY) master.status = slave.status;
     if (!master.amlListAddedDate && slave.amlListAddedDate) {
@@ -540,6 +557,9 @@ export class UserDataService {
     });
 
     await this.userDataRepo.save(master);
+
+    // Merge Webhook
+    await this.webhookService.accountChanged(master, slave);
 
     // KYC change Webhook
     await this.kycNotificationService.kycChanged(master);
