@@ -31,6 +31,9 @@ export class Country extends IEntity {
   @Column({ default: true })
   nationalityEnable: boolean;
 
+  @Column({ default: false })
+  bankTransactionVerificationEnable: boolean;
+
   isEnabled(kycType: KycType): boolean {
     switch (kycType) {
       case KycType.DFX:
