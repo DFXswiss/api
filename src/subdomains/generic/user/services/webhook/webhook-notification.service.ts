@@ -68,7 +68,7 @@ export class WebhookNotificationService {
 
       return true;
     } catch (error) {
-      const errMessage = `Exception during webhook for user ${webhook.user.id} and wallet ${webhook.wallet.name} (webhook ${webhook.id}):`;
+      const errMessage = `Exception during webhook for user data ${webhook.userData.id} and wallet ${webhook.wallet.name} (webhook ${webhook.id}):`;
 
       this.logger.error(errMessage, error);
 
