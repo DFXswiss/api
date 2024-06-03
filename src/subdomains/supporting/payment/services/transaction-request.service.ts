@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CreateOrder, SiftAssetType, SiftPaymentMethodMap } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
@@ -24,7 +24,7 @@ export class TransactionRequestService {
     private readonly siftService: SiftService,
   ) {}
 
-  async createTransactionRequest(
+  async create(
     type: TransactionRequestType,
     request: GetBuyPaymentInfoDto | GetSellPaymentInfoDto | GetSwapPaymentInfoDto,
     response: BuyPaymentInfoDto | SellPaymentInfoDto | SwapPaymentInfoDto,
@@ -47,6 +47,7 @@ export class TransactionRequestService {
         dfxFee: response.fees.dfx,
         networkFee: response.fees.network,
         totalFee: response.fees.total,
+        user: { id: userId },
       });
 
       let sourceCurrencyName: string;
@@ -125,7 +126,15 @@ export class TransactionRequestService {
     }
   }
 
-  async findAndCompleteRequest(
+  async getOrThrow(id: number, userId: number): Promise<TransactionRequest | undefined> {
+    const request = await this.transactionRequestRepo.findOne({ where: { id }, relations: { user: true } });
+    if (!request) throw new NotFoundException('Transaction request not found');
+    if (request.user.id !== userId) throw new ForbiddenException('You can only confirm your own requests');
+
+    return request;
+  }
+
+  async findAndComplete(
     amount: number,
     routeId: number,
     sourceId: number,
@@ -144,7 +153,11 @@ export class TransactionRequestService {
 
     const transactionRequest = transactionRequests.find((t) => Math.abs(amount - t.amount) / t.amount < 0.01);
 
-    if (transactionRequest) await this.transactionRequestRepo.update(transactionRequest.id, { isComplete: true });
+    if (transactionRequest) await this.complete(transactionRequest.id);
     return transactionRequest;
+  }
+
+  async complete(id: number): Promise<void> {
+    await this.transactionRequestRepo.update(id, { isComplete: true });
   }
 }

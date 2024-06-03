@@ -379,6 +379,14 @@ export class UserData extends IEntity {
     return [this.id, update];
   }
 
+  setVerifiedName(verifiedName: string): UpdateResult<UserData> {
+    const update: Partial<UserData> = { verifiedName };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   get hasValidNameCheckDate(): boolean {
     return this.lastNameCheckDate && Util.daysDiff(this.lastNameCheckDate) <= Config.amlCheckLastNameCheckValidity;
   }
@@ -577,7 +585,7 @@ export class UserData extends IEntity {
   }
 
   get hasBankTxVerification(): boolean {
-    return [CheckStatus.PASS, CheckStatus.UNNECESSARY].includes(this.bankTransactionVerification);
+    return [CheckStatus.PASS, CheckStatus.UNNECESSARY, CheckStatus.GSHEET].includes(this.bankTransactionVerification);
   }
 
   get isPaymentStatusEnabled(): boolean {

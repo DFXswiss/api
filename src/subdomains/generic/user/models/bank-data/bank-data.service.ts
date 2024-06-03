@@ -53,6 +53,9 @@ export class BankDataService {
         relations: { userData: true },
       });
 
+      if (!existing && !entity.userData.verifiedName)
+        await this.userDataRepo.update(...entity.userData.setVerifiedName(entity.name));
+
       const errors = this.getBankDataVerificationErrors(entity, existing);
 
       if (errors.length === 0) {
@@ -151,6 +154,10 @@ export class BankDataService {
       ],
       relations: { userData: true },
     });
+  }
+
+  async getAllBankDatasForUser(userDataId: number): Promise<BankData[]> {
+    return this.bankDataRepo.find({ where: { userData: { id: userDataId } }, relations: { userData: true } });
   }
 
   async getIbansForUser(userDataId: number): Promise<string[]> {

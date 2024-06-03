@@ -46,11 +46,14 @@ export class AlchemyWebhookService {
     if (!network) return;
 
     const allWebhooks = await this.alchemy.notify.getAllWebhooks();
-    await Promise.all(
-      allWebhooks.webhooks.filter((wh) => wh.network === network).map((wh) => this.alchemy.notify.deleteWebhook(wh.id)),
-    );
 
     const url = `${Config.url()}/alchemy/addressWebhook`;
+
+    await Promise.all(
+      allWebhooks.webhooks
+        .filter((wh) => wh.network === network && wh.url === url)
+        .map((wh) => this.alchemy.notify.deleteWebhook(wh.id)),
+    );
 
     return (
       await Util.doInBatches(

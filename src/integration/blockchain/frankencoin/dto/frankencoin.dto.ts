@@ -60,7 +60,8 @@ export interface FrankencoinTradeGraphDto {
 export interface FrankencoinLogDto {
   swap: FrankencoinSwapDto;
   positions: FrankencoinPositionDto[];
-  poolShares: FrankencoinPoolSharesDto[];
+  poolShares: FrankencoinPoolSharesDto;
+  totalSupply: number;
 }
 
 export interface FrankencoinSwapDto {
