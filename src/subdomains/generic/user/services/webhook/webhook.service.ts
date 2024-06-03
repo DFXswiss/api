@@ -85,7 +85,7 @@ export class WebhookService {
 
     // user webhooks
     const webhooks: CreateWebhookInput[] = users
-      .filter((user) => user.wallet?.isValidForWebhook(type, false))
+      .filter((user) => user.wallet.isValidForWebhook(type, false))
       .map((user) => ({ type, data, reason, userData, user, wallet: user.wallet }));
 
     // user data webhooks

@@ -399,8 +399,8 @@ export class UserData extends IEntity {
     return this.individualFees?.split(';')?.map(Number);
   }
 
-  get kycClientList(): number[] | undefined {
-    return this.kycClients?.split(';')?.map(Number);
+  get kycClientList(): number[] {
+    return this.kycClients?.split(';')?.map(Number) ?? [];
   }
 
   get hasActiveUser(): boolean {

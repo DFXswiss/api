@@ -26,13 +26,13 @@ export class KycInfoMapper {
       kycSteps.find((s) => s.status === KycStepStatus.IN_PROGRESS) ??
       kycSteps.find((s) => s.status === KycStepStatus.FAILED);
 
-    const userKycClients = kycClients?.filter((kc) => userData.kycClientList.includes(kc.id));
+    const userKycClients = kycClients.filter((kc) => userData.kycClientList.includes(kc.id));
 
     const dto: KycLevelDto | KycSessionDto = {
       kycLevel: userData.kycLevelDisplay,
       tradingLimit: userData.tradingLimit,
       twoFactorEnabled: userData.totpSecret != null,
-      kycClients: userKycClients?.map((kc) => kc.name) ?? [],
+      kycClients: userKycClients.map((kc) => kc.name),
       language: LanguageDtoMapper.entityToDto(userData.language),
       kycSteps: kycSteps.map((s) => KycStepMapper.toStep(s, currentStep)),
       currentStep: withSession && currentStep ? KycStepMapper.toStepSession(currentStep) : undefined,

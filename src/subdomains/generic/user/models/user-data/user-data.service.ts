@@ -386,13 +386,13 @@ export class UserDataService {
   // --- KYC CLIENTS --- //
 
   async addKycClient(userData: UserData, walletId: number): Promise<void> {
-    if (userData.kycClientList?.includes(walletId)) return;
+    if (userData.kycClientList.includes(walletId)) return;
 
     await this.userDataRepo.update(...userData.addKycClient(walletId));
   }
 
   async removeKycClient(userData: UserData, walletId: number): Promise<void> {
-    if (!userData.kycClientList?.includes(walletId)) return;
+    if (!userData.kycClientList.includes(walletId)) return;
 
     await this.userDataRepo.update(...userData.removeKycClient(walletId));
   }
