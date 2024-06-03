@@ -393,8 +393,8 @@ export class UserData extends IEntity {
     identificationType: KycIdentificationType,
     identDocumentType: string,
     identDocumentId: string,
-  ): UpdateResult<UserData> {
-    const update: Partial<UserData> = {
+  ): Partial<UserData> {
+    return {
       kycLevel: KycLevel.LEVEL_30,
       birthday,
       nationality,
@@ -402,10 +402,6 @@ export class UserData extends IEntity {
       identDocumentType,
       identDocumentId,
     };
-
-    Object.assign(this, update);
-
-    return [this.id, update];
   }
 
   get hasValidNameCheckDate(): boolean {

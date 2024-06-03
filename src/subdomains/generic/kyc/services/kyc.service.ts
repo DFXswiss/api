@@ -127,26 +127,7 @@ export class KycService {
 
         await this.createStepLog(entity.userData, entity);
         await this.kycStepRepo.save(entity);
-
-        if (
-          result.userdata?.birthday?.value &&
-          result.userdata?.nationality?.value &&
-          getIdentificationType(result.identificationprocess?.companyid) &&
-          result.identificationdocument?.type?.value &&
-          result.identificationdocument?.number?.value
-        ) {
-          const nationality = await this.countryService.getCountryWithSymbol(result.userdata.nationality.value);
-          await this.userDataService.updateUserDataInternal(
-            entity.userData,
-            entity.userData.identCompleted(
-              new Date(result.userdata.birthday.value),
-              nationality,
-              getIdentificationType(result.identificationprocess.companyid),
-              result.identificationdocument.type.value,
-              result.identificationdocument.number.value,
-            ),
-          );
-        }
+        entity.userData = await this.setUserDataIdentCompleted(result, entity.userData);
 
         if (entity.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
           await this.bankDataService.createBankData(entity.userData, {
@@ -158,40 +139,6 @@ export class KycService {
         this.logger.error(`Failed to auto review ident step ${entity.id}:`, e);
       }
     }
-  }
-
-  private getIdentCheckErrors(entity: KycStep, result: IdentResultDto): IdentCheckError[] {
-    const errors = [];
-
-    if (entity.userData.status === UserDataStatus.MERGED) errors.push(IdentCheckError.USER_DATA_MERGED);
-    if (entity.userData.status === UserDataStatus.BLOCKED) errors.push(IdentCheckError.USER_DATA_BLOCKED);
-
-    if (!Util.isSameName(entity.userData.firstname, result.userdata?.firstname?.value))
-      errors.push(IdentCheckError.FIRST_NAME_NOT_MATCHING);
-    if (
-      !Util.isSameName(entity.userData.surname, result.userdata?.lastname?.value) &&
-      !Util.isSameName(entity.userData.surname, result.userdata?.birthname?.value)
-    )
-      errors.push(IdentCheckError.LAST_NAME_NOT_MATCHING);
-
-    if (!['IDCARD', 'PASSPORT'].includes(result.identificationdocument?.type?.value))
-      errors.push(IdentCheckError.INVALID_DOCUMENT_TYPE);
-
-    if (!result.identificationdocument?.number) errors.push(IdentCheckError.IDENTIFICATION_NUMBER_MISSING);
-
-    if (!['SUCCESS_DATA_CHANGED', 'SUCCESS'].includes(result.identificationprocess?.result))
-      errors.push(IdentCheckError.INVALID_RESULT);
-
-    if (!entity.userData.verifiedName && entity.userData.status === UserDataStatus.ACTIVE) {
-      errors.push(IdentCheckError.VERIFIED_NAME_MISSING);
-    } else if (entity.userData.verifiedName) {
-      if (!Util.includesSameName(entity.userData.verifiedName, entity.userData.firstname))
-        errors.push(IdentCheckError.FIRST_NAME_NOT_MATCHING_VERIFIED_NAME);
-      if (!Util.includesSameName(entity.userData.verifiedName, entity.userData.surname))
-        errors.push(IdentCheckError.LAST_NAME_NOT_MATCHING_VERIFIED_NAME);
-    }
-
-    return errors;
   }
 
   async getInfo(kycHash: string): Promise<KycLevelDto> {
@@ -544,6 +491,65 @@ export class KycService {
   }
 
   // --- HELPER METHODS --- //
+
+  private async setUserDataIdentCompleted(result: IdentResultDto, userData: UserData): Promise<UserData> {
+    if (
+      result.userdata?.birthday?.value &&
+      result.userdata?.nationality?.value &&
+      getIdentificationType(result.identificationprocess?.companyid) &&
+      result.identificationdocument?.type?.value &&
+      result.identificationdocument?.number?.value
+    ) {
+      const nationality = await this.countryService.getCountryWithSymbol(result.userdata.nationality.value);
+      return await this.userDataService.updateUserDataInternal(userData, {
+        kycLevel: KycLevel.LEVEL_30,
+        birthday: new Date(result.userdata.birthday.value),
+        nationality,
+        identificationType: getIdentificationType(result.identificationprocess.companyid),
+        identDocumentType: result.identificationdocument.type.value,
+        identDocumentId: result.identificationdocument.number.value,
+      });
+    }
+
+    this.logger.error(`Missing ident data for userData ${userData.id}`);
+
+    return userData;
+  }
+
+  private getIdentCheckErrors(entity: KycStep, result: IdentResultDto): IdentCheckError[] {
+    const errors = [];
+
+    if (entity.userData.status === UserDataStatus.MERGED) errors.push(IdentCheckError.USER_DATA_MERGED);
+    if (entity.userData.status === UserDataStatus.BLOCKED) errors.push(IdentCheckError.USER_DATA_BLOCKED);
+
+    if (!Util.isSameName(entity.userData.firstname, result.userdata?.firstname?.value))
+      errors.push(IdentCheckError.FIRST_NAME_NOT_MATCHING);
+    if (
+      !Util.isSameName(entity.userData.surname, result.userdata?.lastname?.value) &&
+      !Util.isSameName(entity.userData.surname, result.userdata?.birthname?.value)
+    )
+      errors.push(IdentCheckError.LAST_NAME_NOT_MATCHING);
+
+    if (!['IDCARD', 'PASSPORT'].includes(result.identificationdocument?.type?.value))
+      errors.push(IdentCheckError.INVALID_DOCUMENT_TYPE);
+
+    if (!result.identificationdocument?.number) errors.push(IdentCheckError.IDENTIFICATION_NUMBER_MISSING);
+
+    if (!['SUCCESS_DATA_CHANGED', 'SUCCESS'].includes(result.identificationprocess?.result))
+      errors.push(IdentCheckError.INVALID_RESULT);
+
+    if (!entity.userData.verifiedName && entity.userData.status === UserDataStatus.ACTIVE) {
+      errors.push(IdentCheckError.VERIFIED_NAME_MISSING);
+    } else if (entity.userData.verifiedName) {
+      if (!Util.includesSameName(entity.userData.verifiedName, entity.userData.firstname))
+        errors.push(IdentCheckError.FIRST_NAME_NOT_MATCHING_VERIFIED_NAME);
+      if (!Util.includesSameName(entity.userData.verifiedName, entity.userData.surname))
+        errors.push(IdentCheckError.LAST_NAME_NOT_MATCHING_VERIFIED_NAME);
+    }
+
+    return errors;
+  }
+
   private async createStepLog(user: UserData, kycStep: KycStep): Promise<void> {
     const entity = this.stepLogRepo.create({
       type: KycLogType.KYC_STEP,
