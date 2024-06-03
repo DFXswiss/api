@@ -523,6 +523,7 @@ export class UserDataService {
       slave.relatedAccountRelations.length > 0 &&
         `relatedAccountRelations ${slave.relatedAccountRelations.map((a) => a.id)}`,
       slave.individualFees && `individualFees ${slave.individualFees}`,
+      slave.kycClients && `kycClients ${slave.kycClients}`,
     ]
       .filter((i) => i)
       .join(' and ');
@@ -543,6 +544,7 @@ export class UserDataService {
     master.accountRelations = master.accountRelations.concat(slave.accountRelations);
     master.relatedAccountRelations = master.relatedAccountRelations.concat(slave.relatedAccountRelations);
     slave.individualFeeList?.forEach((fee) => !master.individualFeeList?.includes(fee) && master.addFee(fee));
+    slave.kycClientList?.forEach((kc) => !master.kycClientList?.includes(kc) && master.addKycClient(kc));
 
     if (master.status === UserDataStatus.KYC_ONLY) master.status = slave.status;
     if (!master.amlListAddedDate && slave.amlListAddedDate) {
