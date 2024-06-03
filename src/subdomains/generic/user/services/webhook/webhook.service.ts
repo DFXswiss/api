@@ -74,6 +74,13 @@ export class WebhookService {
     users: User[],
     reason?: string,
   ): Promise<void> {
+    // load wallets
+    for (const user of users) {
+      user.wallet ??= await this.userRepo
+        .findOne({ where: { id: user.id }, relations: { wallet: true } })
+        .then((u) => u.wallet);
+    }
+
     const data = JSON.stringify(payload);
 
     // user webhooks

@@ -70,18 +70,18 @@ export class Wallet extends IEntity {
     switch (type) {
       case WebhookType.KYC_CHANGED:
       case WebhookType.KYC_FAILED:
-        return (
-          this.webhookConfigObject?.kyc === WebhookConfigOption.TRUE ||
-          (this.webhookConfigObject?.kyc === WebhookConfigOption.CONSENT_ONLY && consented) ||
-          (this.webhookConfigObject?.kyc === WebhookConfigOption.WALLET_ONLY && !consented)
-        );
+        return this.isOptionValid(this.webhookConfigObject?.kyc, consented);
 
       case WebhookType.PAYMENT:
-        return (
-          this.webhookConfigObject?.payment === WebhookConfigOption.TRUE ||
-          (this.webhookConfigObject?.payment === WebhookConfigOption.CONSENT_ONLY && consented) ||
-          (this.webhookConfigObject?.payment === WebhookConfigOption.WALLET_ONLY && !consented)
-        );
+        return this.isOptionValid(this.webhookConfigObject?.payment, consented);
     }
+  }
+
+  private isOptionValid(option: WebhookConfigOption | undefined, consented: boolean): boolean {
+    return (
+      option === WebhookConfigOption.TRUE ||
+      (option === WebhookConfigOption.CONSENT_ONLY && consented) ||
+      (option === WebhookConfigOption.WALLET_ONLY && !consented)
+    );
   }
 }
