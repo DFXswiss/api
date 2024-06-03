@@ -1,4 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { CountryDto } from 'src/shared/models/country/dto/country.dto';
 import { KycLevel } from '../../../models/user-data/user-data.entity';
 import { TradingLimit } from '../../../models/user/dto/user.dto';
 import { WebhookDto, WebhookType } from './webhook.dto';
@@ -11,28 +12,37 @@ export enum KycWebhookStatus {
 }
 
 export class KycWebhookData {
-  @ApiProperty()
+  @ApiPropertyOptional()
   mail: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   firstName: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   lastName: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   street: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   houseNumber: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   city: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   zip: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional({ type: CountryDto })
+  country: CountryDto;
+
+  @ApiPropertyOptional({ type: CountryDto })
+  nationality: CountryDto;
+
+  @ApiPropertyOptional()
+  birthday: Date;
+
+  @ApiPropertyOptional()
   phone: string;
 
   @ApiProperty({ enum: KycWebhookStatus, deprecated: true })

@@ -71,7 +71,7 @@ export enum IdentItemStatus {
 export interface IdentItem {
   status: IdentItemStatus;
   value: string;
-  original: string;
+  original?: string;
 }
 
 export interface IdentResultDto {
@@ -88,13 +88,15 @@ export interface IdentResultDto {
     transactionnumber: string;
   };
   contactdata: {
-    mobilephone: string;
-    email: string;
+    mobilephone?: string;
+    email?: string;
   };
   userdata: {
     birthday: IdentItem;
+    birthname: IdentItem;
     firstname: IdentItem;
-    address: {
+    gender: IdentItem;
+    address?: {
       zipcode: IdentItem;
       country: IdentItem;
       city: IdentItem;
@@ -119,6 +121,7 @@ export interface IdentResultDto {
     audiolog: string;
     xml: string;
     idbackside: string;
+    livenessscreenshot1: string;
     idfrontside: string;
     userface: string;
   };

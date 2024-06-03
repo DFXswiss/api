@@ -14,7 +14,7 @@
     "login": {
         "title": "Accesso DFX",
         "salutation": "Accesso DFX",
-        "message": "Fare clic sul seguente link per accedere a DFX:<br>[url:{urlText}]"
+        "message": "Fare clic sul seguente link entro {expiration} minuti per accedere a DFX:<br>[url:{urlText}]"
     },
     "payment": {
         "crypto_input": {
@@ -29,6 +29,14 @@
                 "salutation": "Il vostro deposito non può essere assegnato automaticamente",
                 "transaction_button": "Si prega di assegnare il deposito all'ordine:<br>[url:clicca qui]"
             }
+        },
+        "crypto_output": {
+            "title": "Attività in criptovaluta pagata",
+            "salutation": "Le vostre attività in criptovaluta sono state pagate al vostro indirizzo"
+        },
+        "fiat_output": {
+            "title": "Pagamento versato",
+            "salutation": "Il pagamento è stato inviato al vostro conto corrente bancario"
         },
         "return": {
             "fiat": {
@@ -59,7 +67,8 @@
                 "high_risk_kyc_needed": "Senza una verifica (KYC), non abbiamo potuto garantire che questa transazione non fosse fraudolenta e quindi, purtroppo, abbiamo dovuto rifiutare la transazione.<br>I pagamenti tramite transazione bancaria sono ancora disponibili per voi.",
                 "high_risk_blocked": "Non possiamo garantire che questa transazione non sia fraudolenta e quindi purtroppo abbiamo dovuto rifiutare la transazione.<br>I pagamenti tramite transazione bancaria sono ancora disponibili per voi.",
                 "fee_too_high": "Le spese di rete sono attualmente troppo elevate per l'importo inviato.",
-                "receiver_rejected_tx": "Il nodo ricevente ha rifiutato la transazione"
+                "receiver_rejected_tx": "Il nodo ricevente ha rifiutato la transazione",
+                "asset_not_available_with_chosen_bank": "Questo bene non può essere acquistato tramite il conto bancario selezionato"
             },
             "kyc_start": "Potete iniziare il processo KYC qui:<br>[url:{urlText}]"
         },

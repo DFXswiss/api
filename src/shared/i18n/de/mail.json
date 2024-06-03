@@ -14,7 +14,7 @@
     "login": {
         "title": "DFX Login",
         "salutation": "DFX Login",
-        "message": "Klicke den nachfolgenden Link um dich bei DFX einzuloggen:<br>[url:{urlText}]"
+        "message": "Klicke den nachfolgenden Link innerhalb von {expiration} Minuten um dich bei DFX einzuloggen:<br>[url:{urlText}]"
     },
     "payment": {
         "crypto_input": {
@@ -29,6 +29,14 @@
                 "salutation": "Deine Einzahlung kann nicht automatisch zugeordnet werden",
                 "transaction_button": "Bitte ordne deinen Zahlungseingang deiner Bestellung zu:<br>[url:Klick hier]"
             }
+        },
+        "crypto_output": {
+            "title": "Krypto-Asset verschickt",
+            "salutation": "Deine Krypto-Assets wurden an deine Adresse ausgezahlt"
+        },
+        "fiat_output": {
+            "title": "Auszahlung verschickt",
+            "salutation": "Deine Auszahlung wurde an dein Bankkonto verschickt"
         },
         "return": {
             "fiat": {
@@ -59,7 +67,8 @@
                 "high_risk_kyc_needed": "Wir konnten ohne Verifizierung (KYC) nicht sicherstellen, dass es sich bei dieser Transaktion nicht um einen Betrug handelt und mussten daher die Transaktion leider ablehnen.<br>Einzahlungen per Banktransaktion stehen dir weiterhin zur Verfügung.",
                 "high_risk_blocked": "Wir können nicht sicherstellen, dass es sich bei dieser Transaktion nicht um einen Betrug handelt und mussten daher die Transaktion leider ablehnen.<br>Einzahlungen per Banktransaktion stehen dir weiterhin zur Verfügung.",
                 "fee_too_high": "Die Netzwerk Gebühren sind derzeit zu hoch für den Betrag, den du geschickt hast",
-                "receiver_rejected_tx": "Die Empfänger-Node hat die Transaktion abgelehnt"
+                "receiver_rejected_tx": "Die Empfänger-Node hat die Transaktion abgelehnt",
+                "asset_not_available_with_chosen_bank": "Dieses Asset kann nicht über die gewählte Bankverbindung gekauft werden"
             },
             "kyc_start": "Du kannst den KYC Prozess hier starten:<br>[url:{urlText}]"           
         },

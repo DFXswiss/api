@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { Transaction, TransactionStatus } from 'src/integration/sift/dto/sift.dto';
+import { SiftService } from 'src/integration/sift/services/sift.service';
 import { isFiat } from 'src/shared/models/active';
+import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -32,6 +35,8 @@ export class BuyCryptoPreparationService {
     private readonly amlService: AmlService,
     private readonly userService: UserService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
+    private readonly siftService: SiftService,
+    private readonly countryService: CountryService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
@@ -98,6 +103,9 @@ export class BuyCryptoPreparationService {
         );
 
         const { bankData, blacklist, instantBanks } = await this.amlService.getAmlCheckInput(entity);
+        const ibanCountry = entity.bankTx?.iban
+          ? await this.countryService.getCountryWithSymbol(entity.bankTx.iban.substring(0, 2))
+          : undefined;
 
         await this.buyCryptoRepo.update(
           ...entity.amlCheckAndFillUp(
@@ -109,6 +117,7 @@ export class BuyCryptoPreparationService {
             bankData,
             blacklist,
             instantBanks,
+            ibanCountry,
           ),
         );
 
@@ -116,6 +125,14 @@ export class BuyCryptoPreparationService {
 
         if (entity.amlCheck === CheckStatus.PASS && entity.user.status === UserStatus.NA)
           await this.userService.activateUser(entity.user);
+
+        // update sift transaction status
+        if (entity.amlCheck === CheckStatus.FAIL)
+          await this.siftService.transaction({
+            $transaction_id: entity.id.toString(),
+            $transaction_status: TransactionStatus.FAILURE,
+            $time: entity.updated.getTime(),
+          } as Transaction);
       } catch (e) {
         this.logger.error(`Error during buy-crypto ${entity.id} AML check:`, e);
       }
@@ -193,7 +210,16 @@ export class BuyCryptoPreparationService {
 
         await this.buyCryptoRepo.save(entity);
 
-        if (entity.amlCheck === CheckStatus.FAIL) return;
+        if (entity.amlCheck === CheckStatus.FAIL) {
+          // update sift transaction status
+          await this.siftService.transaction({
+            $transaction_id: entity.id.toString(),
+            $transaction_status: TransactionStatus.FAILURE,
+            $time: entity.updated.getTime(),
+          } as Transaction);
+
+          return;
+        }
 
         for (const feeId of fee.fees) {
           await this.feeService.increaseTxUsages(amountInChf, feeId, entity.user.userData);

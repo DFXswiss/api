@@ -27,11 +27,11 @@ export class TransactionNotificationService {
   @Lock(1800)
   async sendNotificationMails(): Promise<void> {
     if (DisabledProcess(Process.TX_MAIL)) return;
-    await this.sendTxAssignedMails();
-    if (!DisabledProcess(Process.TX_UNASSIGNED_MAIL)) await this.sendTxUnassignedMails();
+    await this.txAssigned();
+    if (!DisabledProcess(Process.TX_UNASSIGNED_MAIL)) await this.txUnassigned();
   }
 
-  async sendTxAssignedMails(): Promise<void> {
+  private async txAssigned(): Promise<void> {
     const entities = await this.repo.find({
       where: {
         type: In([
@@ -82,7 +82,7 @@ export class TransactionNotificationService {
     }
   }
 
-  private async sendTxUnassignedMails(): Promise<void> {
+  private async txUnassigned(): Promise<void> {
     const entities = await this.repo.find({
       where: {
         bankTx: { type: In(BankTxUnassignedTypes), creditDebitIndicator: BankTxIndicator.CREDIT },
@@ -120,7 +120,7 @@ export class TransactionNotificationService {
             },
           });
 
-          await this.repo.update(...entity.mailSent());
+          await this.repo.update(...entity.mailSent(bankData.userData.mail));
         }
       } catch (e) {
         this.logger.error(`Failed to send tx unassigned mail for ${entity.id}:`, e);

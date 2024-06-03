@@ -48,14 +48,14 @@ export class KycService {
 
   // --- KYC DATA --- //
 
-  async getKycCountries(code: string, userId?: number): Promise<Country[]> {
-    const user = await this.getUser(code, userId);
+  async getKycCountries(code: string, userDataId?: number): Promise<Country[]> {
+    const user = await this.getUser(code, userDataId);
 
     return this.countryService.getCountriesByKycType(user.kycType);
   }
 
-  async updateKycData(code: string, data: KycUserDataDto, userId?: number): Promise<KycInfo> {
-    const user = await this.getUser(code, userId);
+  async updateKycData(code: string, data: KycUserDataDto, userDataId?: number): Promise<KycInfo> {
+    const user = await this.getUser(code, userDataId);
     if (user.kycLevel !== KycLevel.LEVEL_0) throw new BadRequestException('KYC already started');
 
     const updatedUser = await this.userDataService.updateKycData(user, data);
@@ -95,9 +95,9 @@ export class KycService {
     code: string,
     document: Express.Multer.File,
     kycDocument: FileType,
-    userId?: number,
+    userDataId?: number,
   ): Promise<boolean> {
-    const userData = await this.getUser(code, userId);
+    const userData = await this.getUser(code, userDataId);
 
     const upload = await this.storageService.uploadFile(
       userData.id,
@@ -110,12 +110,12 @@ export class KycService {
   }
 
   // --- KYC PROCESS --- //
-  async requestKyc(code: string, userId?: number): Promise<KycInfo> {
-    return this.getKycInfo(code, userId);
+  async requestKyc(code: string, userDataId?: number): Promise<KycInfo> {
+    return this.getKycInfo(code, userDataId);
   }
 
-  async getKycInfo(code: string, userId?: number): Promise<KycInfo> {
-    const userData = await this.getUser(code, userId);
+  async getKycInfo(code: string, userDataId?: number): Promise<KycInfo> {
+    const userData = await this.getUser(code, userDataId);
 
     return this.createKycInfoBasedOn(userData);
   }
@@ -140,12 +140,12 @@ export class KycService {
 
   // --- GET USER --- //
 
-  private async getUser(code: string, userId?: number): Promise<UserData> {
-    return userId ? this.getUserById(userId) : this.getUserByKycCode(code);
+  private async getUser(code: string, userDataId?: number): Promise<UserData> {
+    return userDataId ? this.getUserById(userDataId) : this.getUserByKycCode(code);
   }
 
   private async getUserById(id: number): Promise<UserData> {
-    const userData = await this.userDataService.getUserDataByUser(id);
+    const userData = await this.userDataService.getUserData(id, { users: true });
     if (!userData) throw new NotFoundException('User not found');
     return userData;
   }

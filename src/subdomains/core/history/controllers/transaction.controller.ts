@@ -29,7 +29,6 @@ import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
-import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTx, BankTxType, BankTxTypeUnassigned } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
@@ -48,7 +47,7 @@ import { RefReward } from '../../referral/reward/ref-reward.entity';
 import { RefRewardService } from '../../referral/reward/ref-reward.service';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from '../../sell-crypto/process/services/buy-fiat.service';
-import { ExportFormat, HistoryQueryExportType, HistoryQueryUser } from '../dto/history-query.dto';
+import { ExportFormat, HistoryQueryUser } from '../dto/history-query.dto';
 import { HistoryDto } from '../dto/history.dto';
 import { ChainReportCsvHistoryDto } from '../dto/output/chain-report-history.dto';
 import { CoinTrackingCsvHistoryDto } from '../dto/output/coin-tracking-history.dto';
@@ -63,7 +62,6 @@ export class TransactionController {
 
   constructor(
     private readonly historyService: HistoryService,
-    private readonly userService: UserService,
     private readonly transactionService: TransactionService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly buyFiatService: BuyFiatService,
@@ -77,7 +75,7 @@ export class TransactionController {
   // --- OPEN ENDPOINTS --- //
   @Get()
   @ApiOkResponse({ type: TransactionDto, isArray: true })
-  async getCsvCompact(
+  async getTransactions(
     @Query() query: HistoryQueryUser,
     @Res({ passthrough: true }) res: Response,
   ): Promise<TransactionDto[] | StreamableFile> {
@@ -110,6 +108,28 @@ export class TransactionController {
     return dto;
   }
 
+  @Put('csv')
+  @ApiCreatedResponse()
+  @ApiOperation({ description: 'Initiate CSV history export' })
+  async createCsv(@Query() query: HistoryQueryUser): Promise<string> {
+    const csvFile = await this.historyService.getCsvHistory({ ...query, format: ExportFormat.CSV }, ExportType.COMPACT);
+
+    return this.cacheCsv(csvFile);
+  }
+
+  @Get('csv')
+  @ApiOkResponse({ type: StreamableFile })
+  @ApiOperation({ description: 'Get initiated CSV history export' })
+  async getCsv(@Query('key') key: string, @Res({ passthrough: true }) res: Response): Promise<StreamableFile> {
+    const csvFile = this.files[key];
+    if (!csvFile) throw new NotFoundException('File not found');
+    delete this.files[key];
+
+    this.setCsvResult(res, ExportType.COMPACT);
+
+    return csvFile;
+  }
+
   @Get('CoinTracking')
   @ApiOkResponse({ type: CoinTrackingCsvHistoryDto, isArray: true })
   @ApiExcludeEndpoint()
@@ -135,22 +155,22 @@ export class TransactionController {
   // --- AUTHORIZED ENDPOINTS --- //
   @Get('detail')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse({ type: TransactionDetailDto, isArray: true })
   async getTransactionDetails(
     @GetJwt() jwt: JwtPayload,
     @Query() query: TransactionFilter,
   ): Promise<TransactionDetailDto[]> {
-    return this.getAllTransactionsDetailed(jwt.user, query);
+    return this.getAllTransactionsDetailed(jwt.account, query);
   }
 
   @Put('detail/csv')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiCreatedResponse()
   @ApiOperation({ description: 'Initiate CSV history export' })
   async createDetailCsv(@GetJwt() jwt: JwtPayload, @Query() query: TransactionFilter): Promise<string> {
-    const transactions = await this.getAllTransactionsDetailed(jwt.user, query);
+    const transactions = await this.getAllTransactionsDetailed(jwt.account, query);
 
     const csvFile = this.historyService.getCsv(transactions, ExportType.COMPACT);
 
@@ -159,11 +179,10 @@ export class TransactionController {
 
   @Get('unassigned')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiExcludeEndpoint()
   async getUnassignedTransactions(@GetJwt() jwt: JwtPayload): Promise<UnassignedTransactionDto[]> {
-    const user = await this.userService.getUser(jwt.user, { userData: true });
-    const bankDatas = await this.bankDataService.getBankDatasForUser(user.userData.id);
+    const bankDatas = await this.bankDataService.getBankDatasForUser(jwt.account);
 
     const txList = await this.bankTxService.getUnassignedBankTx(bankDatas.map((b) => b.iban));
     return Util.asyncMap(txList, async (tx) => {
@@ -174,10 +193,10 @@ export class TransactionController {
 
   @Get('target')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiExcludeEndpoint()
   async getTransactionTargets(@GetJwt() jwt: JwtPayload): Promise<TransactionTarget[]> {
-    const buys = await this.buyService.getUserDataBuys(jwt.user);
+    const buys = await this.buyService.getUserDataBuys(jwt.account);
 
     return buys.map((b) => ({
       id: b.id,
@@ -189,7 +208,7 @@ export class TransactionController {
 
   @Put(':id/target')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiExcludeEndpoint()
   async setTransactionTarget(
     @GetJwt() jwt: JwtPayload,
@@ -200,47 +219,14 @@ export class TransactionController {
     if (!transaction.bankTx) throw new NotFoundException('Transaction not found');
     if (!BankTxTypeUnassigned(transaction.bankTx.type)) throw new ConflictException('Transaction already assigned');
 
-    const user = await this.userService.getUser(jwt.user, { userData: { users: true } });
-    const buy = await this.buyService.get(
-      user.userData.users.map((u) => u.id),
-      +buyId,
-    );
+    const buy = await this.buyService.get(jwt.account, +buyId);
     if (!buy) throw new NotFoundException('Buy not found');
 
-    const bankDatas = await this.bankDataService.getBankDatasForUser(user.userData.id);
+    const bankDatas = await this.bankDataService.getBankDatasForUser(jwt.account);
     if (!bankDatas.map((b) => b.iban).includes(transaction.bankTx.senderAccount))
       throw new ForbiddenException('You can only assign your own transaction');
 
     await this.bankTxService.update(transaction.bankTx.id, { type: BankTxType.BUY_CRYPTO, buyId: buy.id });
-  }
-
-  // --- CSV ENDPOINTS --- //
-  @Put('csv')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiCreatedResponse()
-  @ApiOperation({ description: 'Initiate CSV history export' })
-  async createCsv(@GetJwt() jwt: JwtPayload, @Query() query: HistoryQueryExportType): Promise<string> {
-    const csvFile = await this.historyService.getCsvHistory(
-      { ...query, userAddress: jwt.address, format: ExportFormat.CSV },
-      query.type,
-    );
-
-    return this.cacheCsv(csvFile);
-  }
-
-  @Get('csv')
-  @ApiBearerAuth()
-  @ApiOkResponse({ type: StreamableFile })
-  @ApiOperation({ description: 'Get initiated CSV history export' })
-  async getCsv(@Query('key') key: string, @Res({ passthrough: true }) res: Response): Promise<StreamableFile> {
-    const csvFile = this.files[key];
-    if (!csvFile) throw new NotFoundException('File not found');
-    delete this.files[key];
-
-    this.setCsvResult(res, ExportType.COMPACT);
-
-    return csvFile;
   }
 
   // --- HELPER METHODS --- //
@@ -274,11 +260,10 @@ export class TransactionController {
   }
 
   private async getAllTransactionsDetailed(
-    userId: number,
+    userDataId: number,
     query: TransactionFilter,
   ): Promise<TransactionDetailDto[] | UnassignedTransactionDto[]> {
-    const user = await this.userService.getUser(userId, { userData: { users: true } });
-    const txList = await this.transactionService.getTransactionsForUsers(user.userData.users, query.from, query.to);
+    const txList = await this.transactionService.getTransactionsForAccount(userDataId, query.from, query.to);
 
     // map to DTO
     return Util.asyncMap(txList, async (tx) => {

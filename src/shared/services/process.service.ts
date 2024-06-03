@@ -21,6 +21,7 @@ export enum Process {
   MONITORING = 'Monitoring',
   UPDATE_STATISTIC = 'UpdateStatistic',
   KYC = 'Kyc',
+  AUTO_IDENT_KYC = 'AutoIdentKyc',
   KYC_MAIL = 'KycMail',
   BANK_ACCOUNT = 'BankAccount',
   BANK_TX = 'BankTx',
@@ -41,6 +42,7 @@ export enum Process {
   TX_MAIL = 'TxMail',
   TX_UNASSIGNED_MAIL = 'TxUnassignedMail',
   SYNCHRONIZE_MAIL_DATA = 'SynchronizeMailData',
+  BANK_DATA_VERIFICATION = 'BankDataVerification',
   SUPPORT_MESSAGE_MAIL = 'SupportMessageMail',
 }
 

@@ -21,6 +21,9 @@ export class ReferralDto {
   @ApiPropertyOptional()
   code?: string;
 
+  @ApiProperty({ description: 'Referral commission factor' })
+  commission: number;
+
   @ApiProperty({ description: 'Referral volume in EUR' })
   volume: number;
 

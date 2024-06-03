@@ -127,7 +127,9 @@ export class BankTxService {
     const buys = await this.buyService.getAllBankUsages();
 
     for (const tx of unassignedBankTx) {
-      const remittanceInfo = tx.remittanceInfo?.replace(/[ -]/g, '');
+      const remittanceInfo = (
+        !tx.remittanceInfo || tx.remittanceInfo === '-' ? tx.endToEndId : tx.remittanceInfo
+      )?.replace(/[ -]/g, '');
       const buy =
         remittanceInfo &&
         tx.creditDebitIndicator === BankTxIndicator.CREDIT &&

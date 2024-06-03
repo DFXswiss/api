@@ -27,51 +27,55 @@ export class FrankencoinClient {
     const document = gql`
       {
         positions {
-          id
-          position
-          owner
-          zchf
-          collateral
-          price
+          items {
+            id
+            position
+            owner
+            zchf
+            collateral
+            price
+          }
         }
       }
     `;
 
-    return request<{ positions: [FrankencoinPositionGraphDto] }>(
+    return request<{ positions: { items: [FrankencoinPositionGraphDto] } }>(
       Config.blockchain.frankencoin.zchfGraphUrl,
       document,
-    ).then((r) => r.positions);
+    ).then((r) => r.positions.items);
   }
 
   async getChallenges(): Promise<FrankencoinChallengeGraphDto[]> {
     const document = gql`
       {
-        challenges {
-          id
-          challenger
-          position
-          start
-          duration
-          size
-          filledSize
-          acquiredCollateral
-          number
-          bid
-          status
+        challenges(orderBy: "status") {
+          items {
+            id
+            challenger
+            position
+            start
+            duration
+            size
+            filledSize
+            acquiredCollateral
+            number
+            bid
+            status
+          }
         }
       }
     `;
 
-    return request<{ challenges: [FrankencoinChallengeGraphDto] }>(
+    return request<{ challenges: { items: [FrankencoinChallengeGraphDto] } }>(
       Config.blockchain.frankencoin.zchfGraphUrl,
       document,
-    ).then((r) => r.challenges);
+    ).then((r) => r.challenges.items);
   }
 
-  async getFPS(): Promise<FrankencoinFpsGraphDto[]> {
+  async getFPS(zchfAddress: string): Promise<FrankencoinFpsGraphDto> {
     const document = gql`
       {
-        fpss {
+        fPS(id: "${zchfAddress}") {
           id
           profits
           loss
@@ -80,38 +84,41 @@ export class FrankencoinClient {
       }
     `;
 
-    return request<{ fpss: [FrankencoinFpsGraphDto] }>(Config.blockchain.frankencoin.zchfGraphUrl, document).then(
-      (r) => r.fpss,
+    return request<{ fPS: FrankencoinFpsGraphDto }>(Config.blockchain.frankencoin.zchfGraphUrl, document).then(
+      (r) => r.fPS,
     );
   }
 
   async getMinters(): Promise<FrankencoinMinterGraphDto[]> {
     const document = gql`
       {
-        minters {
-          id
-          minter
-          applicationPeriod
-          applicationFee
-          applyMessage
-          applyDate
-          suggestor
-          denyMessage
-          denyDate
-          vetor
+        minters(orderBy: "applyDate", orderDirection: "desc") {
+          items {
+            id
+            minter
+            applicationPeriod
+            applicationFee
+            applyMessage
+            applyDate
+            suggestor
+            denyMessage
+            denyDate
+            vetor
+          }
         }
       }
     `;
 
-    return request<{ minters: [FrankencoinMinterGraphDto] }>(Config.blockchain.frankencoin.zchfGraphUrl, document).then(
-      (r) => r.minters,
-    );
+    return request<{ minters: { items: [FrankencoinMinterGraphDto] } }>(
+      Config.blockchain.frankencoin.zchfGraphUrl,
+      document,
+    ).then((r) => r.minters.items);
   }
 
-  async getDelegations(): Promise<FrankencoinDelegationGraphDto[]> {
+  async getDelegation(owner: string): Promise<FrankencoinDelegationGraphDto> {
     const document = gql`
       {
-        delegations {
+        delegation(id: "${owner.toLowerCase()}") {
           id
           owner
           delegatedTo
@@ -120,29 +127,32 @@ export class FrankencoinClient {
       }
     `;
 
-    return request<{ delegations: [FrankencoinDelegationGraphDto] }>(
+    return request<{ delegation: FrankencoinDelegationGraphDto }>(
       Config.blockchain.frankencoin.zchfGraphUrl,
       document,
-    ).then((r) => r.delegations);
+    ).then((r) => r.delegation);
   }
 
   async getTrades(): Promise<FrankencoinTradeGraphDto[]> {
     const document = gql`
       {
-        trades {
-          id
-          trader
-          amount
-          shares
-          price
-          time
+        trades(orderDirection: "desc", orderBy: "time", limit: 100) {
+          items {
+            id
+            trader
+            amount
+            shares
+            price
+            time
+          }
         }
       }
     `;
 
-    return request<{ trades: [FrankencoinTradeGraphDto] }>(Config.blockchain.frankencoin.zchfGraphUrl, document).then(
-      (r) => r.trades,
-    );
+    return request<{ trades: { items: [FrankencoinTradeGraphDto] } }>(
+      Config.blockchain.frankencoin.zchfGraphUrl,
+      document,
+    ).then((r) => r.trades.items);
   }
 
   getErc20Contract(collateralAddress: string): Contract {

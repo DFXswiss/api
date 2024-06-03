@@ -228,7 +228,7 @@
       "value": "https://eth-mainnet.g.alchemy.com/v2"
     },
     "zchfGraphUrl": {
-      "value": "https://api.thegraph.com/subgraphs/name/frankencoin-zchf/frankencoin-subgraph"
+      "value": "https://mainnetponder.frankencoin.com"
     },
     "zchfContractAddress": {
       "value": "0xB58E61C3098d85632Df34EecfB899A1Ed80921cB"
@@ -275,6 +275,9 @@
     "krakenBtcDepositAddress": {
       "value": "xxx"
     },
+    "krakenPolygonDepositAddress": {
+      "value": "xxx"
+    },
     "binanceKey": {
       "value": "xxx"
     },
@@ -285,6 +288,9 @@
       "value": "xxx"
     },
     "binanceBtcDepositAddress": {
+      "value": "xxx"
+    },
+    "binancePolygonDepositAddress": {
       "value": "xxx"
     },
     "olkyClient": {

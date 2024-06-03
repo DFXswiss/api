@@ -38,11 +38,13 @@ export enum KycStepStatus {
   NOT_STARTED = 'NotStarted',
   IN_PROGRESS = 'InProgress',
   FINISHED = 'Finished',
-  CHECK_PENDING = 'CheckPending',
-  IN_REVIEW = 'InReview',
+  EXTERNAL_REVIEW = 'ExternalReview',
+  INTERNAL_REVIEW = 'InternalReview',
+  MANUAL_REVIEW = 'ManualReview',
   FAILED = 'Failed',
   COMPLETED = 'Completed',
   CANCELED = 'Canceled',
+  IGNORED = 'Ignored',
   OUTDATED = 'Outdated',
 }
 

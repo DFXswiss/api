@@ -8,12 +8,13 @@ import {
 import { Util } from 'src/shared/utils/util';
 import { ContentType, FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { DocumentStorageService } from 'src/subdomains/generic/kyc/services/integration/document-storage.service';
-import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { Not } from 'typeorm';
 import { TransactionService } from '../../payment/services/transaction.service';
-import { CreateTransactionIssueDto } from '../dto/create-support-issue.dto';
+import { CreateSupportIssueDto } from '../dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
-import { SupportIssue, SupportIssueType } from '../entities/support-issue.entity';
+import { SupportIssue, SupportIssueState, SupportIssueType } from '../entities/support-issue.entity';
 import { CustomerAuthor } from '../entities/support-message.entity';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportMessageRepository } from '../repositories/support-message.repository';
@@ -25,31 +26,30 @@ export class SupportIssueService {
     private readonly supportIssueRepo: SupportIssueRepository,
     private readonly transactionService: TransactionService,
     private readonly storageService: DocumentStorageService,
-    private readonly userService: UserService,
+    private readonly userDataService: UserDataService,
     private readonly messageRepo: SupportMessageRepository,
     private readonly supportIssueNotificationService: SupportIssueNotificationService,
   ) {}
 
-  async createTransactionIssue(userId: number, transactionId: number, dto: CreateTransactionIssueDto): Promise<void> {
-    const existing = await this.supportIssueRepo.findOneBy({
-      transaction: { id: transactionId },
-      reason: dto.reason,
-    });
-    if (existing) throw new ConflictException('There is already a support issue for this transaction');
+  async createIssue(userDataId: number, dto: CreateSupportIssueDto): Promise<void> {
+    let entity = await this.create(userDataId, SupportIssueType.GENERIC_ISSUE, dto);
 
-    const user = await this.userService.getUser(userId, { userData: true });
-    if (!user.userData.mail) throw new BadRequestException('Mail is missing');
+    entity = await this.supportIssueRepo.save(entity);
 
-    let entity = this.supportIssueRepo.create({ type: SupportIssueType.TRANSACTION_ISSUE, ...dto });
+    await this.createSupportMessage(entity.id, { ...dto, author: CustomerAuthor }, userDataId);
+  }
+
+  async createTransactionIssue(userDataId: number, transactionId: number, dto: CreateSupportIssueDto): Promise<void> {
+    let entity = await this.create(userDataId, SupportIssueType.TRANSACTION_ISSUE, dto, transactionId);
 
     entity.transaction = await this.transactionService.getTransactionById(transactionId, { user: { userData: true } });
     if (!entity.transaction) throw new NotFoundException('Transaction not found');
-    if (!entity.transaction.user || entity.transaction.user.userData.id !== user.userData.id)
+    if (!entity.transaction.user || entity.transaction.user.userData.id !== entity.userData.id)
       throw new ForbiddenException('You can only create support issue for your own transaction');
 
     entity = await this.supportIssueRepo.save(entity);
 
-    await this.createSupportMessage(entity.id, { ...dto, author: CustomerAuthor }, userId);
+    await this.createSupportMessage(entity.id, { ...dto, author: CustomerAuthor }, userDataId);
   }
 
   async updateSupportIssue(id: number, dto: UpdateSupportIssueDto): Promise<SupportIssue> {
@@ -61,7 +61,7 @@ export class SupportIssueService {
     return this.supportIssueRepo.save(entity);
   }
 
-  async createSupportMessage(id: number, dto: CreateSupportMessageDto, userId: number): Promise<void> {
+  async createSupportMessage(id: number, dto: CreateSupportMessageDto, userDataId: number): Promise<void> {
     const existing = await this.messageRepo.findOneBy({
       message: dto.message,
       issue: { id },
@@ -76,9 +76,7 @@ export class SupportIssueService {
     });
     if (!entity.issue) throw new NotFoundException('Support issue not found');
 
-    const user = await this.userService.getUser(userId, { userData: true });
-
-    if (dto.author === CustomerAuthor && entity.userData.id !== user.userData.id)
+    if (dto.author === CustomerAuthor && entity.userData.id !== userDataId)
       throw new ForbiddenException('You can only create support messages for your own transaction');
 
     // upload document proof
@@ -97,5 +95,29 @@ export class SupportIssueService {
     await this.messageRepo.save(entity);
 
     if (dto.author !== CustomerAuthor) await this.supportIssueNotificationService.newSupportMessage(entity);
+  }
+
+  // --- HELPER METHODS --- //
+  private async create(
+    userDataId: number,
+    type: SupportIssueType,
+    dto: CreateSupportIssueDto,
+    transactionId?: number,
+  ): Promise<SupportIssue> {
+    const userData = await this.userDataService.getUserData(userDataId);
+    if (!userData.mail) throw new BadRequestException('Mail is missing');
+
+    const existing = await this.supportIssueRepo.exist({
+      where: {
+        userData: { id: userDataId },
+        type: type,
+        transaction: { id: transactionId },
+        reason: dto.reason,
+        state: Not(SupportIssueState.COMPLETED),
+      },
+    });
+    if (existing) throw new ConflictException('There is already a pending support issue');
+
+    return this.supportIssueRepo.create({ type, userData, ...dto });
   }
 }

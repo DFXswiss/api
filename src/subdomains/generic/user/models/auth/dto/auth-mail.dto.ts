@@ -13,6 +13,11 @@ export class AuthMailDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsString()
+  redirectUri?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsObject()
   @ValidateNested()
   @Type(() => EntityDto)

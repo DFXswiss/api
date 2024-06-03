@@ -2,6 +2,7 @@ import { BadRequestException, Inject, OnModuleInit } from '@nestjs/common';
 import BigNumber from 'bignumber.js';
 import { Exchange, Market, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
 import { ExchangeConfig } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
@@ -30,6 +31,7 @@ enum PrecisionMode {
 export abstract class ExchangeService implements PricingProvider, OnModuleInit {
   protected abstract readonly logger: DfxLogger;
 
+  protected abstract readonly networks: { [b in Blockchain]: string };
   protected readonly exchange: Exchange;
 
   private markets: Market[];
@@ -283,5 +285,9 @@ export abstract class ExchangeService implements PricingProvider, OnModuleInit {
   // other
   protected async callApi<T>(action: (exchange: Exchange) => Promise<T>): Promise<T> {
     return this.queue.handle(() => action(this.exchange));
+  }
+
+  mapNetwork(blockchain: Blockchain): string {
+    return this.networks[blockchain];
   }
 }

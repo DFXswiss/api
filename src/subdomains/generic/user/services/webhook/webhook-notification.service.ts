@@ -53,7 +53,9 @@ export class WebhookNotificationService {
   async triggerUserWebhook<T extends PaymentWebhookData | KycWebhookData>(webhook: Webhook): Promise<boolean> {
     try {
       if (!webhook.user.wallet.apiUrl)
-        throw new Error(`ApiUrl for wallet ${webhook.user.wallet.name} not available anymore in webhook ${webhook.id}`);
+        throw new Error(
+          `API URL for wallet ${webhook.user.wallet.name} not available anymore in webhook ${webhook.id}`,
+        );
 
       const webhookDto: WebhookDto<T> = {
         id: webhook.user.address,
@@ -70,7 +72,7 @@ export class WebhookNotificationService {
 
       return true;
     } catch (error) {
-      const errMessage = `Exception during webhook ${webhook.id}:`;
+      const errMessage = `Exception during webhook for user ${webhook.user.id} and wallet ${webhook.user.wallet.name} (webhook ${webhook.id}):`;
 
       this.logger.error(errMessage, error);
 

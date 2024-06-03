@@ -17,6 +17,8 @@ export enum MailTranslationKey {
   PAYMENT = 'mail.payment',
   CRYPTO_INPUT = 'mail.payment.crypto_input',
   FIAT_INPUT = 'mail.payment.fiat_input',
+  CRYPTO_OUTPUT = 'mail.payment.crypto_output',
+  FIAT_OUTPUT = 'mail.payment.fiat_output',
   PENDING = 'mail.payment.pending',
   RETURN = 'mail.payment.return',
   RETURN_REASON = 'mail.payment.return.reasons',

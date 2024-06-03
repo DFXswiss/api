@@ -14,7 +14,7 @@
     "login": {
         "title": "Connexion DFX",
         "salutation": "Connexion DFX",
-        "message": "Cliquez sur le lien suivant pour vous connecter à DFX:<br>[url:{urlText}]"
+        "message": "Cliquez sur le lien suivant dans les {expiration} minutes pour vous connecter à DFX:<br>[url:{urlText}]"
     },
     "payment": {
         "crypto_input": {
@@ -29,6 +29,14 @@
                 "salutation": "Votre dépôt ne peut pas être attribué automatiquement",
                 "transaction_button": "Veuillez affecter votre dépôt à votre commande:<br>[url:cliquez ici]"
             }
+        },
+        "crypto_output": {
+            "title": "Actif cryptographique payé",
+            "salutation": "Vos avoirs en crypto-monnaie ont été payés à votre adresse"
+        },
+        "fiat_output": {
+            "title": "Paiement payé",
+            "salutation": "Votre paiement a été envoyé sur votre compte bancaire"
         },
         "return": {
             "fiat": {
@@ -59,7 +67,8 @@
                 "high_risk_kyc_needed": "Sans vérification (KYC), nous n'avons pas pu nous assurer que cette transaction n'était pas frauduleuse et nous avons donc malheureusement dû la refuser.<br>Les paiements par transaction bancaire sont toujours disponibles.",
                 "high_risk_blocked": "Nous ne pouvons pas nous assurer que cette transaction n'est pas frauduleuse et nous avons donc malheureusement dû la refuser.<br>Les paiements par transaction bancaire sont toujours disponibles.",
                 "fee_too_high": "Les frais de réseau sont actuellement trop élevés pour le montant que vous avez envoyé",
-                "receiver_rejected_tx": "Le noeud récepteur a rejeté la transaction"
+                "receiver_rejected_tx": "Le noeud récepteur a rejeté la transaction",
+                "asset_not_available_with_chosen_bank": "Cet actif ne peut pas être acheté via le compte bancaire sélectionné"
             },
             "kyc_start": "Vous pouvez commencer le processus KYC ici:<br>[url:{urlText}]"
         },

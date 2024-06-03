@@ -194,18 +194,15 @@ export class BuyFiat extends IEntity {
     return this;
   }
 
-  offRampInitiated(): UpdateResult<BuyFiat> {
-    this.recipientMail = this.noCommunication ? null : this.userData.mail;
-    this.mail1SendDate = new Date();
-
-    return [this.id, { recipientMail: this.recipientMail, mail1SendDate: this.mail1SendDate }];
-  }
-
   pendingMail(): UpdateResult<BuyFiat> {
-    this.recipientMail = this.sell.user.userData.mail;
-    this.mail2SendDate = new Date();
+    const update: Partial<BuyFiat> = {
+      recipientMail: this.noCommunication ? null : this.sell.user.userData.mail,
+      mail2SendDate: new Date(),
+    };
 
-    return [this.id, { recipientMail: this.recipientMail, mail2SendDate: this.mail2SendDate }];
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   returnMail(): UpdateResult<BuyFiat> {
@@ -219,16 +216,15 @@ export class BuyFiat extends IEntity {
     return [this.id, update];
   }
 
-  cryptoExchangedToFiat(): UpdateResult<BuyFiat> {
-    this.mail2SendDate = new Date();
-
-    return [this.id, { mail2SendDate: this.mail2SendDate }];
-  }
-
   fiatToBankTransferInitiated(): UpdateResult<BuyFiat> {
-    this.mail3SendDate = new Date();
+    const update: Partial<BuyFiat> = {
+      recipientMail: this.noCommunication ? null : this.sell.user.userData.mail,
+      mail3SendDate: new Date(),
+    };
 
-    return [this.id, { mail3SendDate: this.mail3SendDate }];
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 
   setFeeAndFiatReference(
