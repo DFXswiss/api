@@ -120,7 +120,7 @@ export class KycService {
 
         if (entity.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
           await this.bankDataService.createBankData(entity.userData, {
-            name: entity.completeName,
+            name: entity.userName,
             iban: `Ident${entity.identDocumentId}`,
             type: BankDataType.IDENT,
           });

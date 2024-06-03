@@ -42,7 +42,7 @@ export class KycAdminService {
 
     if (kycStep.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
       await this.bankDataService.createBankData(kycStep.userData, {
-        name: kycStep.completeName,
+        name: kycStep.userName,
         iban: `Ident${kycStep.identDocumentId}`,
         type: BankDataType.IDENT,
       });
