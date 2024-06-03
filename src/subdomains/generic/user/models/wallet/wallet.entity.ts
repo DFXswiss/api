@@ -65,7 +65,7 @@ export class Wallet extends IEntity {
   }
 
   isValidForWebhook(type: WebhookType, consented: boolean): boolean {
-    if (!this.apiUrl || !this.isKycClient) return false;
+    if (!this.apiUrl) return false;
 
     switch (type) {
       case WebhookType.KYC_CHANGED:
