@@ -23,7 +23,14 @@ import { KycFinancialOutData } from '../dto/output/kyc-financial-out.dto';
 import { KycLevelDto, KycSessionDto } from '../dto/output/kyc-info.dto';
 import { KycResultDto } from '../dto/output/kyc-result.dto';
 import { KycStep } from '../entities/kyc-step.entity';
-import { KycLogType, KycStepName, KycStepStatus, KycStepType, requiredKycSteps } from '../enums/kyc.enum';
+import {
+  KycLogType,
+  KycStepName,
+  KycStepStatus,
+  KycStepType,
+  getIdentificationType,
+  requiredKycSteps,
+} from '../enums/kyc.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { StepLogRepository } from '../repositories/step-log.repository';
 import { DocumentStorageService } from './integration/document-storage.service';
@@ -100,7 +107,8 @@ export class KycService {
 
     for (const entity of entities) {
       try {
-        const errors = this.getIdentCheckErrors(entity);
+        const result = entity.getResult<IdentResultDto>();
+        const errors = this.getIdentCheckErrors(entity, result);
 
         entity.comment = errors.join(';');
 
@@ -118,6 +126,26 @@ export class KycService {
         await this.createStepLog(entity.userData, entity);
         await this.kycStepRepo.save(entity);
 
+        if (
+          result.userdata?.birthday?.value &&
+          result.userdata?.nationality?.value &&
+          getIdentificationType(result.identificationprocess?.companyid) &&
+          result.identificationdocument?.type?.value &&
+          result.identificationdocument?.number?.value
+        ) {
+          const nationality = await this.countryService.getCountryWithSymbol(result.userdata.nationality.value);
+          await this.userDataService.updateUserDataInternal(
+            entity.userData,
+            entity.userData.identCompleted(
+              new Date(result.userdata.birthday.value),
+              nationality,
+              getIdentificationType(result.identificationprocess.companyid),
+              result.identificationdocument.type.value,
+              result.identificationdocument.number.value,
+            ),
+          );
+        }
+
         if (entity.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
           await this.bankDataService.createBankData(entity.userData, {
             name: entity.userName,
@@ -130,9 +158,8 @@ export class KycService {
     }
   }
 
-  private getIdentCheckErrors(entity: KycStep): IdentCheckError[] {
+  private getIdentCheckErrors(entity: KycStep, result: IdentResultDto): IdentCheckError[] {
     const errors = [];
-    const result = entity.getResult<IdentResultDto>();
 
     if (entity.userData.status === UserDataStatus.MERGED) errors.push(IdentCheckError.USER_DATA_MERGED);
     if (entity.userData.status === UserDataStatus.BLOCKED) errors.push(IdentCheckError.USER_DATA_BLOCKED);

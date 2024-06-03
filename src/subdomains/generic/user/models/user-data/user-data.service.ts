@@ -13,6 +13,7 @@ import { CreateAccount } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { UpdateResult } from 'src/shared/models/entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -134,11 +135,6 @@ export class UserDataService {
       currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaultCurrency)),
     });
 
-    if (dto.kycFileId) {
-      const userWithSameFileId = await this.userDataRepo.findOneBy({ kycFileId: dto.kycFileId });
-      if (userWithSameFileId) throw new ConflictException('A user with this KYC file ID already exists');
-    }
-
     await this.loadRelationsAndVerify(userData, dto);
 
     return this.userDataRepo.save(userData);
@@ -151,21 +147,6 @@ export class UserDataService {
     });
     if (!userData) throw new NotFoundException('User data not found');
 
-    if (dto.countryId) {
-      userData.country = await this.countryService.getCountry(dto.countryId);
-      if (!userData.country) throw new BadRequestException('Country not found');
-    }
-
-    if (dto.nationality) {
-      userData.nationality = await this.countryService.getCountry(dto.nationality.id);
-      if (!userData.nationality) throw new BadRequestException('Nationality not found');
-    }
-
-    if (dto.organizationCountryId) {
-      userData.organizationCountry = await this.countryService.getCountry(dto.organizationCountryId);
-      if (!userData.organizationCountry) throw new BadRequestException('Country not found');
-    }
-
     if (dto.nationality || dto.identDocumentId) {
       const existing = await this.userDataRepo.findOneBy({
         nationality: { id: userData.nationality.id },
@@ -174,16 +155,7 @@ export class UserDataService {
       if (existing) throw new ConflictException('A user with the same nationality and identDocumentId already exists');
     }
 
-    if (dto.kycFileId) {
-      const userWithSameFileId = await this.userDataRepo.findOneBy({ id: Not(userDataId), kycFileId: dto.kycFileId });
-      if (userWithSameFileId) throw new ConflictException('A user with this KYC file ID already exists');
-
-      await this.userDataRepo.save(Object.assign(userData, { kycFileId: dto.kycFileId }));
-    }
-
     await this.loadRelationsAndVerify(userData, dto);
-
-    const kycChanged = dto.kycLevel && dto.kycLevel !== userData.kycLevel;
 
     if (dto.bankTransactionVerification === CheckStatus.PASS) {
       // cancel a pending video ident, if ident is completed
@@ -199,9 +171,23 @@ export class UserDataService {
 
     userData = await this.userDataRepo.save(Object.assign(userData, dto));
 
-    if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
+    if (dto.kycLevel && dto.kycLevel !== userData.kycLevel)
+      await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
     return userData;
+  }
+
+  async updateUserDataInternal(userData: UserData, update: UpdateResult<UserData>): Promise<void> {
+    const dto = update[1];
+
+    await this.loadRelationsAndVerify(dto, dto);
+
+    await this.userDataRepo.update(...update);
+
+    Object.assign(userData, update);
+
+    if (dto.kycLevel && dto.kycLevel !== userData.kycLevel)
+      await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
   }
 
   async updateKycData(userData: UserData, data: KycUserDataDto): Promise<UserData> {
@@ -334,7 +320,10 @@ export class UserDataService {
     return this.userRepo.exist({ where: { userData: { id: userDataId }, role } });
   }
 
-  private async loadRelationsAndVerify(userData: UserData, dto: UpdateUserDataDto | CreateUserDataDto): Promise<void> {
+  private async loadRelationsAndVerify(
+    userData: Partial<UserData> | UserData,
+    dto: UpdateUserDataDto | CreateUserDataDto,
+  ): Promise<void> {
     if (dto.countryId) {
       userData.country = await this.countryService.getCountry(dto.countryId);
       if (!userData.country) throw new BadRequestException('Country not found');
@@ -374,6 +363,21 @@ export class UserDataService {
       const multiAccountIbans = await this.specialExternalBankAccountService.getMultiAccounts();
       if (multiAccountIbans.some((m) => dto.verifiedName.includes(m.name)))
         throw new BadRequestException('VerifiedName includes a multiAccountIban');
+    }
+
+    if (dto.kycFileId) {
+      const userWithSameFileId = await this.userDataRepo.findOneBy({ kycFileId: dto.kycFileId });
+      if (userWithSameFileId) throw new ConflictException('A user with this KYC file ID already exists');
+
+      Object.assign(userData, { kycFileId: dto.kycFileId });
+    }
+
+    if (dto.nationality || dto.identDocumentId) {
+      const existing = await this.userDataRepo.findOneBy({
+        nationality: { id: dto.nationality?.id ?? userData.nationality?.id },
+        identDocumentId: dto.identDocumentId ?? userData.identDocumentId,
+      });
+      if (existing) throw new ConflictException('A user with the same nationality and identDocumentId already exists');
     }
   }
 

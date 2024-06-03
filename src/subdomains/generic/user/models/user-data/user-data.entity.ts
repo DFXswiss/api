@@ -364,6 +364,27 @@ export class UserData extends IEntity {
     return [this.id, update];
   }
 
+  identCompleted(
+    birthday: Date,
+    nationality: Country,
+    identificationType: KycIdentificationType,
+    identDocumentType: string,
+    identDocumentId: string,
+  ): UpdateResult<UserData> {
+    const update: Partial<UserData> = {
+      kycLevel: KycLevel.LEVEL_30,
+      birthday,
+      nationality,
+      identificationType,
+      identDocumentType,
+      identDocumentId,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   get hasValidNameCheckDate(): boolean {
     return this.lastNameCheckDate && Util.daysDiff(this.lastNameCheckDate) <= Config.amlCheckLastNameCheckValidity;
   }
