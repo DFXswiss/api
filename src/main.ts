@@ -11,6 +11,7 @@ import { AppModule } from './app.module';
 import { Config } from './config/config';
 import { ApiExceptionFilter } from './shared/filters/exception.filter';
 import { DfxLogger } from './shared/services/dfx-logger';
+import { AccountChangedWebhookDto } from './subdomains/generic/user/services/webhook/dto/account-changed-webhook.dto';
 import {
   KycChangedWebhookDto,
   KycFailedWebhookDto,
@@ -50,7 +51,7 @@ async function bootstrap() {
     .build();
 
   const swaggerDocument = SwaggerModule.createDocument(app, swaggerOptions, {
-    extraModels: [KycChangedWebhookDto, KycFailedWebhookDto, PaymentWebhookDto],
+    extraModels: [KycChangedWebhookDto, KycFailedWebhookDto, AccountChangedWebhookDto, PaymentWebhookDto],
   });
   SwaggerModule.setup('/swagger', app, swaggerDocument);
 
