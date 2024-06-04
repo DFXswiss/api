@@ -128,7 +128,7 @@ export class BuyService {
 
   async getUserDataBuys(userDataId: number): Promise<Buy[]> {
     return this.buyRepo.find({
-      where: { user: { userData: { id: userDataId } }, asset: { buyable: true } },
+      where: { active: true, user: { userData: { id: userDataId } }, asset: { buyable: true } },
       relations: { user: true },
     });
   }

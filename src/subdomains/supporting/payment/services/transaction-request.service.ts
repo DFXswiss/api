@@ -129,7 +129,7 @@ export class TransactionRequestService {
   async getOrThrow(id: number, userId: number): Promise<TransactionRequest | undefined> {
     const request = await this.transactionRequestRepo.findOne({ where: { id }, relations: { user: true } });
     if (!request) throw new NotFoundException('Transaction request not found');
-    if (request.user.id !== userId) throw new ForbiddenException('You can only confirm your own requests');
+    if (request.user.id !== userId) throw new ForbiddenException('Not your transaction request');
 
     return request;
   }
