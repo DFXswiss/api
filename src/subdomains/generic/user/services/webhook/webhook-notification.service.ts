@@ -79,7 +79,7 @@ export class WebhookNotificationService {
         },
       });
 
-      return error;
+      return error.message;
     }
   }
 }

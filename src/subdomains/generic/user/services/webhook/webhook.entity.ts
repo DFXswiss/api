@@ -27,12 +27,12 @@ export class Webhook extends IEntity {
 
   // References
   @ManyToOne(() => User, { nullable: true, eager: true })
-  user: User; // TODO: remove?
+  user: User;
 
-  @ManyToOne(() => UserData, { eager: true })
+  @ManyToOne(() => UserData, { nullable: false, eager: true })
   userData: UserData;
 
-  @ManyToOne(() => Wallet, { eager: true })
+  @ManyToOne(() => Wallet, { nullable: false, eager: true })
   wallet: Wallet;
 
   sentWebhook(error: string): UpdateResult<Webhook> {
