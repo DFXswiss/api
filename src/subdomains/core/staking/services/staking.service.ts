@@ -118,7 +118,9 @@ export class StakingService {
 
     for (const staking of stakings) {
       const relevantPayIn = allPayIns.find(
-        (p) => p.address.address === staking.deposit.address && p.address.blockchain === staking.deposit.blockchain,
+        (p) =>
+          p.address.address === staking.deposit.address &&
+          staking.deposit.blockchainList.includes(p.address.blockchain),
       );
 
       relevantPayIn && result.push([relevantPayIn, staking]);
@@ -132,7 +134,7 @@ export class StakingService {
       await this.payInService.returnPayIn(
         payIn,
         PayInPurpose.STAKING,
-        BlockchainAddress.create(staking.user.address, staking.deposit.blockchain),
+        BlockchainAddress.create(staking.user.address, payIn.address.blockchain),
         staking,
       );
     }

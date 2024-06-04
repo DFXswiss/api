@@ -167,7 +167,7 @@ export class SwapController {
 
   private async toDto(userId: number, swap: Swap): Promise<SwapDto> {
     const { minDeposit } = this.transactionHelper.getDefaultSpecs(
-      swap.deposit.blockchain,
+      swap.deposit.blockchainList[0],
       undefined,
       swap.asset.blockchain,
       swap.asset.dexName,
@@ -189,7 +189,7 @@ export class SwapController {
       active: swap.active,
       deposit: DepositDtoMapper.entityToDto(swap.deposit),
       asset: AssetDtoMapper.toDto(swap.asset),
-      blockchain: swap.deposit.blockchain,
+      blockchain: swap.deposit.blockchainList[0],
       fee: Util.round(fee.rate * 100, Config.defaultPercentageDecimal),
       minDeposits: [minDeposit],
       minFee: { amount: fee.network, asset: 'CHF' },
@@ -229,7 +229,7 @@ export class SwapController {
       routeId: swap.id,
       fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
       depositAddress: swap.deposit.address,
-      blockchain: swap.deposit.blockchain,
+      blockchain: dto.sourceAsset.blockchain,
       minDeposit: { amount: minVolume, asset: dto.sourceAsset.dexName },
       minVolume,
       minFee: feeSource.min,

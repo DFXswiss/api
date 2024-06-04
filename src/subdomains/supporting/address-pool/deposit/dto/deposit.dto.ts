@@ -8,6 +8,9 @@ export class DepositDto {
   @ApiProperty()
   address: string;
 
-  @ApiProperty({ enum: Blockchain })
+  @ApiProperty({ enum: Blockchain, deprecated: true })
   blockchain: Blockchain;
+
+  @ApiProperty({ enum: Blockchain, isArray: true })
+  blockchains: Blockchain[];
 }
