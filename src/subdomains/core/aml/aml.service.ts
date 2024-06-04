@@ -76,7 +76,7 @@ export class AmlService {
   //*** HELPER METHODS ***//
 
   private async checkBankTransactionVerification(entity: BuyFiat | BuyCrypto): Promise<void> {
-    if (entity instanceof BuyCrypto && (!entity.bankTx || !entity.bankTx.iban)) return;
+    if (entity instanceof BuyCrypto && !entity.bankTx?.iban) return;
 
     const ibanCountryCheck =
       entity instanceof BuyFiat
