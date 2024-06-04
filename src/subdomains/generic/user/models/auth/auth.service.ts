@@ -298,6 +298,7 @@ export class AuthService {
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('userData.users', 'linkedUser')
       .leftJoinAndSelect('linkedUser.wallet', 'wallet')
+      .leftJoinAndSelect('linkedUser.userData', 'linkedUserData')
       .where('user.id = :id', { id })
       .andWhere('linkedUser.address = :address', { address })
       .getOne();
