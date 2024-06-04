@@ -1,6 +1,7 @@
 import { AddressType } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-mapper';
 import { AlchemyWebhookService } from 'src/integration/alchemy/services/alchemy-webhook.service';
 import { NodeClient } from 'src/integration/blockchain/ain/node/node-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
@@ -89,10 +90,9 @@ export class DepositService {
 
     const nextDepositIndex = await this.getNextDepositIndex(CryptoService.EthereumBasedChains);
 
-    const applicableChains =
-      blockchain === Blockchain.BINANCE_SMART_CHAIN
-        ? [blockchain]
-        : CryptoService.EthereumBasedChains.filter((c) => c !== Blockchain.BINANCE_SMART_CHAIN);
+    const applicableChains = AlchemyNetworkMapper.availableNetworks.includes(blockchain)
+      ? AlchemyNetworkMapper.availableNetworks
+      : [blockchain];
 
     for (let i = 0; i < count; i++) {
       const accountIndex = nextDepositIndex + i;
