@@ -4,13 +4,12 @@ import { Column, Entity, Index, OneToOne } from 'typeorm';
 import { DepositRoute } from '../route/deposit-route.entity';
 
 @Entity()
-@Index((deposit: Deposit) => [deposit.address, deposit.blockchains], { unique: true })
 @Index((deposit: Deposit) => [deposit.accountIndex, deposit.blockchains], {
   unique: true,
   where: 'accountIndex IS NOT NULL',
 })
 export class Deposit extends IEntity {
-  @Column({ length: 256 })
+  @Column({ length: 256, unique: true })
   address: string;
 
   @OneToOne(() => DepositRoute, (route) => route.deposit, { nullable: true })
