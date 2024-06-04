@@ -44,7 +44,7 @@ export class BuyCryptoRegistrationService {
   private async filterBuyCryptoPayIns(allPayIns: CryptoInput[]): Promise<[CryptoInput, Swap][]> {
     const routes = await this.swapRepository.find({
       where: { deposit: Not(IsNull()) },
-      relations: ['deposit', 'user', 'user.userData'],
+      relations: { deposit: true, user: { userData: true, wallet: true } },
     });
 
     return this.pairRoutesWithPayIns(routes, allPayIns);

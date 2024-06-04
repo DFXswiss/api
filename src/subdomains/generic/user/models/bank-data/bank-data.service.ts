@@ -156,6 +156,10 @@ export class BankDataService {
     });
   }
 
+  async getAllBankDatasForUser(userDataId: number): Promise<BankData[]> {
+    return this.bankDataRepo.find({ where: { userData: { id: userDataId } }, relations: { userData: true } });
+  }
+
   async getIbansForUser(userDataId: number): Promise<string[]> {
     const bankDatas = await this.getBankDatasForUser(userDataId);
 

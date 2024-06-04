@@ -1,5 +1,6 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { AmlHelperService } from 'src/subdomains/core/aml/aml-helper.service';
@@ -398,6 +399,7 @@ export class BuyCrypto extends IEntity {
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
     instantBanks: Bank[],
+    ibanCountry: Country,
   ): UpdateResult<BuyCrypto> {
     const amountInChf = chfReferencePrice.convert(this.inputReferenceAmount, 2);
 
@@ -411,6 +413,7 @@ export class BuyCrypto extends IEntity {
       bankData,
       blacklist,
       instantBanks,
+      ibanCountry,
     );
 
     Object.assign(this, update);

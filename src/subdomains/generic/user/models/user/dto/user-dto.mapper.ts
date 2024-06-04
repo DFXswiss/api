@@ -10,6 +10,7 @@ export class UserDtoMapper {
     const activeUser = activeUserId && userData.users.find((u) => u.id === activeUserId);
 
     const dto: UserV2Dto = {
+      accountId: userData.id,
       accountType: userData.accountType,
       mail: userData.mail,
       phone: userData.phone,

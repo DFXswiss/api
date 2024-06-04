@@ -95,14 +95,14 @@ export class UserController {
 
   @Post('change')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
   @ApiOkResponse({ type: AuthResponseDto })
   async changeUser(
     @GetJwt() jwt: JwtPayload,
     @Body() changeUser: LinkedUserInDto,
     @RealIP() ip: string,
   ): Promise<AuthResponseDto> {
-    return this.authService.changeUser(jwt.user, changeUser, ip);
+    return this.authService.changeUser(jwt.account, changeUser, ip);
   }
 
   // TODO: temporary CC solution

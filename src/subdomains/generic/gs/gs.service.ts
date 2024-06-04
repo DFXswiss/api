@@ -65,7 +65,7 @@ export class GsService {
     const data = await this.getRawDbData({ ...query, select: query.select?.filter((s) => !s.includes('documents')) });
 
     if (query.table === 'user_data' && (!query.select || query.select.some((s) => s.includes('documents'))))
-      await this.setUserDataDocs(data, query.select);
+      await this.setUserDataDocs(data, query.select, query.sorting);
 
     // transform to array
     return this.transformResultArray(data, query.table);
@@ -88,7 +88,7 @@ export class GsService {
     return {
       userData,
       kycSteps: await this.kycAdminService.getKycSteps(userData.id),
-      bankData: await this.bankDataService.getBankDatasForUser(userData.id),
+      bankData: await this.bankDataService.getAllBankDatasForUser(userData.id),
       notification: await this.notificationService.getMails(userData.id),
       documents: await this.getAllUserDocuments(userData.id, userData.accountType),
       buyCrypto: await this.buyCryptoService.getAllUserTransactions(userIds),
@@ -102,7 +102,7 @@ export class GsService {
 
   //*** HELPER METHODS ***//
 
-  private async setUserDataDocs(data: UserData[], select: string[]): Promise<void> {
+  private async setUserDataDocs(data: UserData[], select: string[], sorting: 'ASC' | 'DESC'): Promise<void> {
     const selectPaths = this.filterSelectDocumentColumn(select);
     const commonPrefix = this.getBiggestCommonPrefix(selectPaths);
 
@@ -110,9 +110,13 @@ export class GsService {
       const userDataId = userData.id ?? (userData['user_data_id'] as number);
       const commonPathPrefix = this.toDocPath(commonPrefix, userDataId);
 
-      const docs = commonPathPrefix
-        ? await this.documentStorageService.listFilesByPrefix(commonPathPrefix)
-        : await this.getAllUserDocuments(userDataId, userData.accountType);
+      const docs = Util.sort(
+        commonPathPrefix
+          ? await this.documentStorageService.listFilesByPrefix(commonPathPrefix)
+          : await this.getAllUserDocuments(userDataId, userData.accountType),
+        'created',
+        sorting,
+      );
 
       for (const selectPath of selectPaths) {
         const docPath = this.toDocPath(selectPath, userDataId);

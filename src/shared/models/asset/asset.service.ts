@@ -17,7 +17,7 @@ export class AssetService {
 
   async getAllAsset(blockchains: Blockchain[], includePrivate = true): Promise<Asset[]> {
     const search: FindOptionsWhere<Asset> = {};
-    blockchains.length > 0 && (search.blockchain = In(blockchains));
+    search.blockchain = blockchains.length > 0 ? In(blockchains) : Not(Blockchain.DEFICHAIN);
     !includePrivate && (search.category = Not(AssetCategory.PRIVATE));
 
     return this.assetRepo.findCachedBy(JSON.stringify(search), search);

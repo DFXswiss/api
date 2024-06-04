@@ -1,5 +1,6 @@
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { Util } from 'src/shared/utils/util';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { UserData } from '../../../user/models/user-data/user-data.entity';
 import { KycStep } from '../../entities/kyc-step.entity';
 import {
@@ -14,25 +15,30 @@ import { KycLevelDto, KycSessionDto } from '../output/kyc-info.dto';
 import { KycStepMapper } from './kyc-step.mapper';
 
 export class KycInfoMapper {
-  static toDto(userData: UserData, withSession: false, currentStep?: KycStep): KycLevelDto;
-  static toDto(userData: UserData, withSession: true, currentStep?: KycStep): KycSessionDto;
-
-  static toDto(userData: UserData, withSession: boolean, currentStep?: KycStep): KycLevelDto | KycSessionDto {
+  static toDto(
+    userData: UserData,
+    withSession: boolean,
+    kycClients: Wallet[],
+    currentStep?: KycStep,
+  ): KycLevelDto | KycSessionDto {
     const kycSteps = KycInfoMapper.getUiSteps(userData);
     currentStep ??=
       kycSteps.find((s) => s.status === KycStepStatus.IN_PROGRESS) ??
       kycSteps.find((s) => s.status === KycStepStatus.FAILED);
 
+    const userKycClients = kycClients.filter((kc) => userData.kycClientList.includes(kc.id));
+
     const dto: KycLevelDto | KycSessionDto = {
       kycLevel: userData.kycLevelDisplay,
       tradingLimit: userData.tradingLimit,
       twoFactorEnabled: userData.totpSecret != null,
+      kycClients: userKycClients.map((kc) => kc.name),
       language: LanguageDtoMapper.entityToDto(userData.language),
       kycSteps: kycSteps.map((s) => KycStepMapper.toStep(s, currentStep)),
       currentStep: withSession && currentStep ? KycStepMapper.toStepSession(currentStep) : undefined,
     };
 
-    return Object.assign(new KycSessionDto(), dto);
+    return withSession ? Object.assign(new KycSessionDto(), dto) : Object.assign(new KycLevelDto(), dto);
   }
 
   // --- HELPER METHODS --- //

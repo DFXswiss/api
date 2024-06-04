@@ -134,7 +134,7 @@ export class BuyService {
   }
 
   async getByBankUsage(bankUsage: string): Promise<Buy> {
-    return this.buyRepo.findOne({ where: { bankUsage }, relations: ['user', 'user.userData'] });
+    return this.buyRepo.findOne({ where: { bankUsage }, relations: { user: { userData: true, wallet: true } } });
   }
 
   async getBuyByKey(key: string, value: any): Promise<Buy> {
