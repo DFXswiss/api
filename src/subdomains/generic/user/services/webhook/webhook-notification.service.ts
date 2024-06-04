@@ -47,7 +47,7 @@ export class WebhookNotificationService {
 
   // --- HELPER METHODS --- //
 
-  async triggerWebhook<T extends PaymentWebhookData | KycWebhookData>(webhook: Webhook): Promise<boolean> {
+  async triggerWebhook<T extends PaymentWebhookData | KycWebhookData>(webhook: Webhook): Promise<string | undefined> {
     try {
       if (!webhook.wallet.apiUrl)
         throw new Error(`API URL for wallet ${webhook.wallet.name} not available anymore in webhook ${webhook.id}`);
@@ -65,8 +65,6 @@ export class WebhookNotificationService {
         retryDelay: 5000,
         tryCount: 3,
       });
-
-      return true;
     } catch (error) {
       const errMessage = `Exception during webhook for user data ${webhook.userData.id} and wallet ${webhook.wallet.name} (webhook ${webhook.id}):`;
 
@@ -81,7 +79,7 @@ export class WebhookNotificationService {
         },
       });
 
-      return false;
+      return error.message;
     }
   }
 }
