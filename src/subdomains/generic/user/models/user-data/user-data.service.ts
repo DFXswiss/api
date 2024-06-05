@@ -152,14 +152,6 @@ export class UserDataService {
     });
     if (!userData) throw new NotFoundException('User data not found');
 
-    if (dto.nationality || dto.identDocumentId) {
-      const existing = await this.userDataRepo.findOneBy({
-        nationality: { id: userData.nationality.id },
-        identDocumentId: dto.identDocumentId ?? userData.identDocumentId,
-      });
-      if (existing) throw new ConflictException('A user with the same nationality and identDocumentId already exists');
-    }
-
     await this.loadRelationsAndVerify(userData, dto);
 
     if (dto.bankTransactionVerification === CheckStatus.PASS) {
@@ -174,10 +166,11 @@ export class UserDataService {
     if (userData.identificationType) dto.identificationType = userData.identificationType;
     if (userData.verifiedName && dto.verifiedName !== null) dto.verifiedName = userData.verifiedName;
 
+    const kycChanged = dto.kycLevel && dto.kycLevel !== userData.kycLevel;
+
     userData = await this.userDataRepo.save(Object.assign(userData, dto));
 
-    if (dto.kycLevel && dto.kycLevel !== userData.kycLevel)
-      await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
+    if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
     return userData;
   }
@@ -187,10 +180,11 @@ export class UserDataService {
 
     await this.userDataRepo.update(userData.id, dto);
 
+    const kycChanged = dto.kycLevel && dto.kycLevel !== userData.kycLevel;
+
     Object.assign(userData, dto);
 
-    if (dto.kycLevel && dto.kycLevel !== userData.kycLevel)
-      await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
+    if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
     return userData;
   }
@@ -382,7 +376,8 @@ export class UserDataService {
         nationality: { id: dto.nationality?.id ?? userData.nationality?.id },
         identDocumentId: dto.identDocumentId ?? userData.identDocumentId,
       });
-      if (existing) throw new ConflictException('A user with the same nationality and identDocumentId already exists');
+      if (existing)
+        throw new ConflictException('A user with the same nationality and ident document ID already exists');
     }
   }
 

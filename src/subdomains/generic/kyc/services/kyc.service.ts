@@ -131,7 +131,7 @@ export class KycService {
 
         await this.createStepLog(entity.userData, entity);
         await this.kycStepRepo.save(entity);
-        if (entity.isCompleted) entity.userData = await this.setUserDataIdentCompleted(result, entity.userData);
+        if (entity.isCompleted) entity.userData = await this.completeIdent(result, entity.userData);
 
         if (entity.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
           await this.bankDataService.createBankData(entity.userData, {
@@ -498,7 +498,7 @@ export class KycService {
 
   // --- HELPER METHODS --- //
 
-  private async setUserDataIdentCompleted(result: IdentResultDto, userData: UserData): Promise<UserData> {
+  private async completeIdent(result: IdentResultDto, userData: UserData): Promise<UserData> {
     if (
       result.userdata?.birthday?.value &&
       result.userdata?.nationality?.value &&
