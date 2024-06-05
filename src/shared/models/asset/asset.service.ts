@@ -56,7 +56,7 @@ export class AssetService {
 
   async getSellableBlockchains(): Promise<Blockchain[]> {
     return this.assetRepo
-      .findCachedBy('sellableBlockchains', { sellable: true })
+      .findCachedBy('sellable', { sellable: true })
       .then((assets) => Array.from(new Set(assets.map((a) => a.blockchain))));
   }
 

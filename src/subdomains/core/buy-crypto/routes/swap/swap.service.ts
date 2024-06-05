@@ -8,7 +8,7 @@ import { Util } from 'src/shared/utils/util';
 import { KycLevel, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { IsNull, Not } from 'typeorm';
+import { IsNull, Like, Not } from 'typeorm';
 import { DepositService } from '../../../../supporting/address-pool/deposit/deposit.service';
 import { UpdateSwapDto } from './dto/update-swap.dto';
 import { Swap } from './swap.entity';
@@ -91,9 +91,9 @@ export class SwapService {
         asset: { id: asset.id },
         targetDeposit: IsNull(),
         user: { id: userId },
-        deposit: { blockchain: blockchain },
+        deposit: { blockchains: Like(`%${blockchain}%`) },
       },
-      relations: ['deposit', 'user'],
+      relations: { deposit: true, user: true },
     });
 
     if (existing) {

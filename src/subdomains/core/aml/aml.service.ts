@@ -76,14 +76,14 @@ export class AmlService {
   //*** HELPER METHODS ***//
 
   private async checkBankTransactionVerification(entity: BuyFiat | BuyCrypto): Promise<void> {
-    if (entity instanceof BuyCrypto && !entity.bankTx) return;
+    if (entity instanceof BuyCrypto && !entity.bankTx?.iban) return;
 
     const ibanCountryCheck =
       entity instanceof BuyFiat
         ? entity.sell.iban.startsWith('LI') || entity.sell.iban.startsWith('CH')
         : await this.countryService
             .getCountryWithSymbol(entity.bankTx.iban.substring(0, 2))
-            .then((c) => c.bankTransactionVerificationEnable);
+            .then((c) => c?.bankTransactionVerificationEnable);
 
     if (ibanCountryCheck)
       entity.userData = await this.userDataService.updateUserDataInternal(entity.userData, {

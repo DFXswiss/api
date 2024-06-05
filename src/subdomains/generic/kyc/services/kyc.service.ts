@@ -14,6 +14,7 @@ import { BankDataService } from '../../user/models/bank-data/bank-data.service';
 import { KycLevel, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
+import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { IdentStatus } from '../dto/ident.dto';
 import { IdentResultDto, IdentShortResult, getIdentReason, getIdentResult } from '../dto/input/ident-result.dto';
 import { KycContactData, KycPersonalData } from '../dto/input/kyc-data.dto';
@@ -72,6 +73,7 @@ export class KycService {
     private readonly bankDataService: BankDataService,
     private readonly walletService: WalletService,
     private readonly accountMergeService: AccountMergeService,
+    private readonly webhookService: WebhookService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
@@ -193,6 +195,8 @@ export class KycService {
     if (!userData) throw new NotFoundException('User data not found');
 
     await this.userDataService.addKycClient(userData, wallet.id);
+
+    if (userData.kycLevel > KycLevel.LEVEL_0) await this.webhookService.kycChanged(userData);
   }
 
   async removeKycClient(kycHash: string, walletName: string): Promise<void> {
