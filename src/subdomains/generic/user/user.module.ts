@@ -90,6 +90,6 @@ import { WebhookService } from './services/webhook/webhook.service';
     UserDataRelationService,
     AccountMergeService,
   ],
-  exports: [UserService, UserDataService, WebhookService, BankDataService, WalletService],
+  exports: [UserService, UserDataService, WebhookService, BankDataService, WalletService, AccountMergeService],
 })
 export class UserModule {}

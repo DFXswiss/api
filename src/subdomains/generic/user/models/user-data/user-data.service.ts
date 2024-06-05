@@ -101,6 +101,10 @@ export class UserDataService {
     return user;
   }
 
+  async getUserDataByIdentDoc(identDocumentId: string): Promise<UserData> {
+    return this.userDataRepo.findOneBy({ identDocumentId });
+  }
+
   private async getMasterUser(user: UserData): Promise<UserData | undefined> {
     const masterUserId = +user.firstname.replace(MergedPrefix, '');
     if (!isNaN(masterUserId)) return this.getUserData(masterUserId);

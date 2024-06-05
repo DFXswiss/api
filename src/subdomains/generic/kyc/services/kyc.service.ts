@@ -8,6 +8,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { LessThan } from 'typeorm';
+import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../../user/models/bank-data/bank-data.service';
 import { KycLevel, UserData, UserDataStatus } from '../../user/models/user-data/user-data.entity';
@@ -70,6 +71,7 @@ export class KycService {
     private readonly kycNotificationService: KycNotificationService,
     private readonly bankDataService: BankDataService,
     private readonly walletService: WalletService,
+    private readonly accountMergeService: AccountMergeService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
@@ -501,14 +503,22 @@ export class KycService {
       result.identificationdocument?.number?.value
     ) {
       const nationality = await this.countryService.getCountryWithSymbol(result.userdata.nationality.value);
-      return this.userDataService.updateUserDataInternal(userData, {
-        kycLevel: KycLevel.LEVEL_30,
-        birthday: new Date(result.userdata.birthday.value),
-        nationality,
-        identificationType: getIdentificationType(result.identificationprocess.companyid),
-        identDocumentType: result.identificationdocument.type.value,
-        identDocumentId: result.identificationdocument.number.value,
-      });
+      const existing = await this.userDataService.getUserDataByIdentDoc(result.identificationdocument.number.value);
+
+      if (existing) {
+        await this.accountMergeService.sendMergeRequest(existing, userData);
+
+        return userData;
+      } else if (nationality) {
+        return this.userDataService.updateUserDataInternal(userData, {
+          kycLevel: KycLevel.LEVEL_30,
+          birthday: new Date(result.userdata.birthday.value),
+          nationality,
+          identificationType: getIdentificationType(result.identificationprocess.companyid),
+          identDocumentType: result.identificationdocument.type.value,
+          identDocumentId: result.identificationdocument.number.value,
+        });
+      }
     }
 
     this.logger.error(`Missing ident data for userData ${userData.id}`);
