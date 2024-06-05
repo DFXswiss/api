@@ -127,7 +127,7 @@ export class KycService {
 
         await this.createStepLog(entity.userData, entity);
         await this.kycStepRepo.save(entity);
-        entity.userData = await this.setUserDataIdentCompleted(result, entity.userData);
+        if (entity.isCompleted) entity.userData = await this.setUserDataIdentCompleted(result, entity.userData);
 
         if (entity.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
           await this.bankDataService.createBankData(entity.userData, {
@@ -501,7 +501,7 @@ export class KycService {
       result.identificationdocument?.number?.value
     ) {
       const nationality = await this.countryService.getCountryWithSymbol(result.userdata.nationality.value);
-      return await this.userDataService.updateUserDataInternal(userData, {
+      return this.userDataService.updateUserDataInternal(userData, {
         kycLevel: KycLevel.LEVEL_30,
         birthday: new Date(result.userdata.birthday.value),
         nationality,
