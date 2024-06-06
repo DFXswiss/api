@@ -136,6 +136,21 @@ export class BankDataService {
     return this.bankDataRepo.findOne({ where: { id }, relations: { userData: true } });
   }
 
+  async getBankDataByKey(key: string, value: any): Promise<BankData> {
+    return this.bankDataRepo
+      .createQueryBuilder('bankData')
+      .select('bankData')
+      .leftJoinAndSelect('bankData.userData', 'userData')
+      .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
+      .leftJoinAndSelect('userData.country', 'country')
+      .leftJoinAndSelect('userData.nationality', 'nationality')
+      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+      .leftJoinAndSelect('userData.language', 'language')
+      .where(`${key.includes('.') ? key : `bankData.${key}`} = :param`, { param: value })
+      .getOne();
+  }
+
   async getBankDataWithIban(iban: string, userDataId?: number): Promise<BankData> {
     if (!iban) return undefined;
     return this.bankDataRepo
