@@ -402,6 +402,10 @@ export class BuyFiat extends IEntity {
   get inputMailTranslationKey(): MailTranslationKey {
     return MailTranslationKey.CRYPTO_INPUT;
   }
+
+  get txInput(): CryptoInput {
+    return this.cryptoInput;
+  }
 }
 
 export const BuyFiatAmlReasonPendingStates = [

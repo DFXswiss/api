@@ -71,6 +71,7 @@ export class BuyFiatPreparationService {
           inputReferenceCurrency,
           false,
           Util.daysBefore(1),
+          entity.txInput.created,
           entity.userData.users,
         );
 
@@ -79,6 +80,7 @@ export class BuyFiatPreparationService {
           inputReferenceCurrency,
           false,
           Util.daysBefore(7),
+          entity.txInput.created,
           entity.userData.users,
         );
 
@@ -87,6 +89,7 @@ export class BuyFiatPreparationService {
           inputReferenceCurrency,
           false,
           Util.daysBefore(30),
+          entity.txInput.created,
           entity.userData.users,
         );
 

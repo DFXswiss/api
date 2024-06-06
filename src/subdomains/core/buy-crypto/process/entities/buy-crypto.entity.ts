@@ -529,6 +529,10 @@ export class BuyCrypto extends IEntity {
     return this.isCryptoCryptoTransaction ? MailTranslationKey.CRYPTO_INPUT : MailTranslationKey.FIAT_INPUT;
   }
 
+  get txInput(): BankTx | CheckoutTx | CryptoInput {
+    return this.bankTx ?? this.checkoutTx ?? this.cryptoInput;
+  }
+
   // --- HELPER METHODS --- //
 
   private resetTransaction(): Partial<BuyCrypto> {
