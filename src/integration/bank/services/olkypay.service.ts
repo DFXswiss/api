@@ -161,7 +161,7 @@ export class OlkypayService {
         },
       });
     } catch (e) {
-      if (nthTry > 1 && e.response.status == 403) {
+      if (nthTry > 1 && e.response?.status === 403) {
         return this.request(url, method, data, nthTry - 1, true);
       }
       throw e;

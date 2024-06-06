@@ -19,23 +19,27 @@ export class Webhook extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   lastTryDate: Date;
 
+  @Column({ length: 'MAX', nullable: true })
+  error: string;
+
   @Column({ default: false })
   isComplete: boolean;
 
   // References
   @ManyToOne(() => User, { nullable: true, eager: true })
-  user: User; // TODO: remove?
+  user: User;
 
-  @ManyToOne(() => UserData, { nullable: true, eager: true })
-  userData: UserData; // TODO: nullable: false
+  @ManyToOne(() => UserData, { nullable: false, eager: true })
+  userData: UserData;
 
-  @ManyToOne(() => Wallet, { nullable: true, eager: true })
-  wallet: Wallet; // TODO: nullable: false
+  @ManyToOne(() => Wallet, { nullable: false, eager: true })
+  wallet: Wallet;
 
-  sentWebhook(result: boolean): UpdateResult<Webhook> {
+  sentWebhook(error: string): UpdateResult<Webhook> {
     const update: Partial<Webhook> = {
       lastTryDate: new Date(),
-      isComplete: result,
+      isComplete: !error,
+      error,
     };
 
     Object.assign(this, update);

@@ -231,6 +231,7 @@ export class TransactionHelper implements OnModuleInit {
       from,
       allowExpiredPrice,
       Util.daysBefore(1),
+      new Date(),
       user ? [user] : undefined,
     );
 
@@ -268,6 +269,7 @@ export class TransactionHelper implements OnModuleInit {
     from: Active,
     allowExpiredPrice: boolean,
     dateFrom: Date,
+    dateTo: Date,
     users?: User[],
   ): Promise<number> {
     if (!users?.length) return inputAmount;
@@ -275,10 +277,12 @@ export class TransactionHelper implements OnModuleInit {
     const buyCryptoVolume = await this.buyCryptoService.getUserVolume(
       users.map((u) => u.id),
       dateFrom,
+      dateTo,
     );
     const buyFiatVolume = await this.buyFiatService.getUserVolume(
       users.map((u) => u.id),
       dateFrom,
+      dateTo,
     );
 
     const price = await this.pricingService.getPrice(from, this.chf, allowExpiredPrice);
