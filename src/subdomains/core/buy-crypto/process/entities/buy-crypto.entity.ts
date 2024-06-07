@@ -1,4 +1,3 @@
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
@@ -454,16 +453,8 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
-  get isLightningInput(): boolean {
-    return this.cryptoInput?.asset.blockchain === Blockchain.LIGHTNING;
-  }
-
   get isCryptoCryptoTransaction(): boolean {
     return this.cryptoInput != null;
-  }
-
-  get isBankInput(): boolean {
-    return this.bankTx != null;
   }
 
   get exchangeRate(): { exchangeRate: number; rate: number } {
@@ -475,11 +466,6 @@ export class BuyCrypto extends IEntity {
       exchangeRate: Util.roundReadable(exchangeRate, !this.isCryptoCryptoTransaction),
       rate: Util.roundReadable(rate, !this.isCryptoCryptoTransaction),
     };
-  }
-
-  get exchangeRateString(): string {
-    const amount = Util.roundReadable(this.exchangeRate.exchangeRate, !this.isCryptoCryptoTransaction);
-    return `${amount} ${this.inputAsset}/${this.outputAsset.name}`;
   }
 
   get translationReturnMailKey(): MailTranslationKey {
@@ -527,6 +513,12 @@ export class BuyCrypto extends IEntity {
 
   get inputMailTranslationKey(): MailTranslationKey {
     return this.isCryptoCryptoTransaction ? MailTranslationKey.CRYPTO_INPUT : MailTranslationKey.FIAT_INPUT;
+  }
+
+  get mailReturnReason(): string {
+    return [AmlReason.HIGH_RISK_BLOCKED, AmlReason.HIGH_RISK_KYC_NEEDED].includes(this.amlReason) && this.checkoutTx
+      ? `${this.amlReason}Checkout`
+      : this.amlReason;
   }
 
   // --- HELPER METHODS --- //
