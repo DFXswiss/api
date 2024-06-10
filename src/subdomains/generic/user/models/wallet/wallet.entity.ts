@@ -1,6 +1,7 @@
 import { IEntity } from 'src/shared/models/entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Column, Entity, Index, OneToMany } from 'typeorm';
+import { WebhookType } from '../../services/webhook/dto/webhook.dto';
 import { KycStatus, KycType } from '../user-data/user-data.entity';
 
 export enum AmlRule {
@@ -9,6 +10,18 @@ export enum AmlRule {
   RULE_2 = 2, // KycLevel 30
   RULE_3 = 3, // KycLevel 50
   RULE_4 = 4, // UserData maxWeeklyVolume
+}
+
+export interface WebhookConfig {
+  payment: WebhookConfigOption;
+  kyc: WebhookConfigOption;
+}
+
+export enum WebhookConfigOption {
+  TRUE = 'True',
+  FALSE = 'False',
+  CONSENT_ONLY = 'ConsentOnly',
+  WALLET_ONLY = 'WalletOnly',
 }
 
 @Entity()
@@ -43,4 +56,33 @@ export class Wallet extends IEntity {
 
   @Column({ default: AmlRule.DEFAULT })
   amlRule: AmlRule;
+
+  @Column({ length: 'MAX', nullable: true })
+  webhookConfig: string; // JSON string
+
+  get webhookConfigObject(): WebhookConfig | undefined {
+    return this.webhookConfig ? (JSON.parse(this.webhookConfig) as WebhookConfig) : undefined;
+  }
+
+  isValidForWebhook(type: WebhookType, consented: boolean): boolean {
+    if (!this.apiUrl) return false;
+
+    switch (type) {
+      case WebhookType.KYC_CHANGED:
+      case WebhookType.KYC_FAILED:
+      case WebhookType.ACCOUNT_CHANGED:
+        return this.isOptionValid(this.webhookConfigObject?.kyc, consented);
+
+      case WebhookType.PAYMENT:
+        return this.isOptionValid(this.webhookConfigObject?.payment, consented);
+    }
+  }
+
+  private isOptionValid(option: WebhookConfigOption | undefined, consented: boolean): boolean {
+    return (
+      option === WebhookConfigOption.TRUE ||
+      (option === WebhookConfigOption.CONSENT_ONLY && consented) ||
+      (option === WebhookConfigOption.WALLET_ONLY && !consented)
+    );
+  }
 }

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Headers,
@@ -99,6 +100,18 @@ export class KycController {
     @Query('sequence') sequence?: string,
   ): Promise<KycSessionDto> {
     return this.kycService.getOrCreateStep(code, ip, stepName, stepType, sequence ? +sequence : undefined);
+  }
+
+  @Post('transfer')
+  @ApiExcludeEndpoint()
+  async addKycClient(@Headers(CodeHeaderName) code: string, @Query('client') walletName: string) {
+    return this.kycService.addKycClient(code, walletName);
+  }
+
+  @Delete('transfer')
+  @ApiExcludeEndpoint()
+  async removeKycClient(@Headers(CodeHeaderName) code: string, @Query('client') walletName: string) {
+    return this.kycService.removeKycClient(code, walletName);
   }
 
   // --- UPDATE ENDPOINTS --- //

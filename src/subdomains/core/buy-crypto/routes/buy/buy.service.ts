@@ -128,13 +128,13 @@ export class BuyService {
 
   async getUserDataBuys(userDataId: number): Promise<Buy[]> {
     return this.buyRepo.find({
-      where: { user: { userData: { id: userDataId } }, asset: { buyable: true } },
+      where: { active: true, user: { userData: { id: userDataId } }, asset: { buyable: true } },
       relations: { user: true },
     });
   }
 
   async getByBankUsage(bankUsage: string): Promise<Buy> {
-    return this.buyRepo.findOne({ where: { bankUsage }, relations: ['user', 'user.userData'] });
+    return this.buyRepo.findOne({ where: { bankUsage }, relations: { user: { userData: true, wallet: true } } });
   }
 
   async getBuyByKey(key: string, value: any): Promise<Buy> {

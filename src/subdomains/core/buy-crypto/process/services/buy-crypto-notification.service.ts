@@ -173,7 +173,7 @@ export class BuyCryptoNotificationService {
                   ? {
                       key: `${MailTranslationKey.RETURN}.introduction`,
                       params: {
-                        reason: MailFactory.parseMailKey(MailTranslationKey.RETURN_REASON, entity.amlReason),
+                        reason: MailFactory.parseMailKey(MailTranslationKey.RETURN_REASON, entity.mailReturnReason),
                         url: entity.userData.dilisenseUrl,
                         urlText: entity.userData.dilisenseUrl,
                       },
