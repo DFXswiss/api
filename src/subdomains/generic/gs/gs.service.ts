@@ -36,6 +36,7 @@ export enum SupportTable {
   BANK_ACCOUNT = 'bankAccount',
   FIAT_OUTPUT = 'fiatOutput',
   TRANSACTION = 'transaction',
+  BANK_DATA = 'bankData',
 }
 
 @Injectable()
@@ -199,6 +200,8 @@ export class GsService {
         return this.transactionService
           .getTransactionByKey(query.key, query.value)
           .then((transaction) => transaction?.userData);
+      case SupportTable.BANK_DATA:
+        return this.bankDataService.getBankDataByKey(query.key, query.value).then((bD) => bD.userData);
     }
   }
 
