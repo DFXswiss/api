@@ -135,6 +135,15 @@
                 "line3": "This usually takes 24 hours, but a maximum of 7 days.",
                 "line4": "You will be notified as soon as the check has been completed and your payment has been processed.",
                 "line5": ""
+            },
+            "chargeback_not_possible_no_iban": {
+                "title": "Chargeback not possible",
+                "salutation": "Your Chargeback is not possible",
+                "line1": "Thank you for your trust in DFX.",
+                "line2": "Unfortunately, your chargeback is not possible because your bank has not provided an IBAN.",
+                "line3": "Please get in touch with our support team.",
+                "line4": "You can contact support via [mail:support@dfx.swiss].",
+                "line5": ""
             }
         },
         "transaction_button": "Click the button below for more details about your transaction:<br>[url:click here]",

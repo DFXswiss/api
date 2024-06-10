@@ -135,6 +135,15 @@
                 "line3": "Suele tardar 24 horas, pero un máximo de 7 días.",
                 "line4": "Se le notificará tan pronto como se haya completado la comprobación y se haya procesado su pago.",
                 "line5": ""
+            },
+            "chargeback_not_possible_no_iban": {
+                "title": "No es posible la devolución del cargo",
+                "salutation": "Su devolución no es posible",
+                "line1": "Gracias por confiar en DFX.",
+                "line2": "Lamentablemente, su devolución no es posible porque su banco no ha facilitado un IBAN.",
+                "line3": "Póngase en contacto con nuestro equipo de asistencia.",
+                "line4": "Puede ponerse en contacto con el servicio de asistencia a través de [mail:support@dfx.swiss].",
+                "line5": ""
             }
         },
         "transaction_button": "Haga clic en el botón de abajo para obtener más detalles sobre su transacción:<br>[url:haga clic aquí]",

@@ -135,6 +135,15 @@
                 "line3": "Questo processo richiede solitamente 24 ore, ma un massimo di 7 giorni.",
                 "line4": "Sarete informati non appena il controllo sarà stato completato e il pagamento sarà stato elaborato.",
                 "line5": ""
+            },
+            "chargeback_not_possible_no_iban": {
+                "title": "Il chargeback non è possibile",
+                "salutation": "Il vostro Chargeback non è possibile",
+                "line1": "Grazie per la vostra fiducia in DFX.",
+                "line2": "Purtroppo il vostro chargeback non è possibile perché la vostra banca non ha fornito un IBAN.",
+                "line3": "Contattate il nostro team di assistenza.",
+                "line4": "È possibile contattare l'assistenza tramite [mail:support@dfx.swiss].",
+                "line5": ""
             }
         },
         "transaction_button": "Fare clic sul pulsante sottostante per maggiori dettagli sulla transazione:<br>[url:clicca qui]",

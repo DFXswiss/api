@@ -20,6 +20,7 @@ export enum AmlReason {
   NO_COMMUNICATION = 'NoCommunication',
   FEE_TOO_HIGH = 'FeeTooHigh',
   RECEIVER_REJECTED_TX = 'ReceiverRejectedTx',
+  CHARGEBACK_NOT_POSSIBLE_NO_IBAN = 'ChargebackNotPossibleNoIban',
 }
 
 export const KycAmlReasons = [
@@ -30,4 +31,4 @@ export const KycAmlReasons = [
   AmlReason.HIGH_RISK_KYC_NEEDED,
 ];
 
-export const AmlReasonWithoutReason = [AmlReason.NA, AmlReason.MANUAL_CHECK];
+export const AmlReasonWithoutReason = [AmlReason.NA, AmlReason.MANUAL_CHECK, AmlReason.CHARGEBACK_NOT_POSSIBLE_NO_IBAN];
