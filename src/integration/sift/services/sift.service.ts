@@ -3,14 +3,18 @@ import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
+import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import {
   CreateAccount,
   CreateOrder,
   DeclineCategory,
   EventType,
+  PaymentType,
   SiftAssetType,
+  SiftAuthenticationStatusMap,
   SiftBase,
   SiftPaymentMethodMap,
   Transaction,
@@ -23,7 +27,7 @@ export class SiftService {
   private readonly url = 'https://api.sift.com/v205/events';
   private readonly logger = new DfxLogger(SiftService);
 
-  constructor(private readonly http: HttpService) {}
+  constructor(private readonly http: HttpService, private readonly buyService: BuyService) {}
 
   async createAccount(user: User): Promise<void> {
     const data: CreateAccount = {
@@ -94,7 +98,7 @@ export class SiftService {
     const data: Transaction = {
       $transaction_id: entity.transaction.id.toString(),
       $user_id: entity.user.id.toString(),
-      $order_id: entity.transactionRequest.id.toString(),
+      $order_id: entity.transactionRequest?.id?.toString(),
       $transaction_type: TransactionType.BUY,
       $decline_category: declineCategory,
       $transaction_status: status,
@@ -117,6 +121,42 @@ export class SiftService {
         },
       ],
       blockchain: entity.outputAsset.blockchain,
+    };
+    return this.send(EventType.TRANSACTION, data);
+  }
+
+  async transactionCheckoutDeclined(checkoutTx: CheckoutTx): Promise<void> {
+    const buy = await this.buyService.getByBankUsage(checkoutTx.reference);
+    if (!buy) return;
+
+    const data: Transaction = {
+      $transaction_id: checkoutTx.transaction.id.toString(),
+      $user_id: buy.user.id.toString(),
+      $transaction_type: TransactionType.BUY,
+      $decline_category: SiftAuthenticationStatusMap[checkoutTx.authStatusReason],
+      $transaction_status: TransactionStatus.FAILURE,
+      $time: checkoutTx.updated.getTime(),
+      $amount: checkoutTx.amount * 10000, //amount in micros in the base unit
+      $currency_code: checkoutTx.currency,
+      $site_country: 'CH',
+      $payment_methods: [
+        {
+          $payment_type: PaymentType.CREDIT_CARD,
+          $account_holder_name: checkoutTx.cardName,
+          $card_bin: checkoutTx.cardBin,
+          $card_last4: checkoutTx.cardLast4,
+          $bank_name: checkoutTx.cardIssuer,
+          $bank_country: checkoutTx.cardIssuerCountry,
+        },
+      ],
+      $digital_orders: [
+        {
+          $digital_asset: buy.asset.name,
+          $pair: `${checkoutTx.currency}_${buy.asset.name}`,
+          $asset_type: SiftAssetType.CRYPTO,
+        },
+      ],
+      blockchain: buy.asset.blockchain,
     };
     return this.send(EventType.TRANSACTION, data);
   }

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CheckoutPayment } from 'src/integration/checkout/dto/checkout.dto';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
+import { SiftService } from 'src/integration/sift/services/sift.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
@@ -20,6 +21,7 @@ export class FiatPayInSyncService {
     private readonly checkoutTxRepo: CheckoutTxRepository,
     private readonly checkoutTxService: CheckoutTxService,
     private readonly transactionService: TransactionService,
+    private readonly siftService: SiftService,
   ) {}
 
   // --- JOBS --- //
@@ -38,6 +40,8 @@ export class FiatPayInSyncService {
 
         if (checkoutTx.approved && !checkoutTx.buyCrypto)
           await this.checkoutTxService.createCheckoutBuyCrypto(checkoutTx);
+
+        if (checkoutTx.authStatusReason) await this.siftService.transactionCheckoutDeclined(checkoutTx);
       } catch (e) {
         this.logger.error(`Failed to import checkout transaction:`, e);
       }
@@ -84,6 +88,7 @@ export class FiatPayInSyncService {
       ip: payment.payment_ip,
       risk: payment.risk?.flagged,
       riskScore: payment.risk?.score,
+      authStatusReason: payment['3ds']?.authentication_status_reason,
       raw: JSON.stringify(payment),
     });
   }

@@ -63,6 +63,9 @@ export class CheckoutTx extends IEntity {
   @Column({ type: 'integer', nullable: true })
   riskScore?: number;
 
+  @Column({ nullable: true })
+  authStatusReason?: string;
+
   @Column({ length: 'MAX' })
   raw: string;
 

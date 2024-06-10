@@ -911,9 +911,50 @@ export interface Transaction extends SiftBase {
   // custom field
   blockchain: Blockchain;
 }
+
 export const SiftPaymentMethodMap: { [method in PaymentMethod]: PaymentType } = {
   [FiatPaymentMethod.BANK]: PaymentType.SEPA_CREDIT,
   [FiatPaymentMethod.INSTANT]: PaymentType.SEPA_INSTANT_CREDIT,
   [FiatPaymentMethod.CARD]: PaymentType.CREDIT_CARD,
   [CryptoPaymentMethod.CRYPTO]: PaymentType.CRYPTO_CURRENCY,
+};
+
+export const SiftAuthenticationStatusMap: { [method: string]: DeclineCategory } = {
+  '01': DeclineCategory.INVALID_VERIFICATION,
+  '02': DeclineCategory.OTHER,
+  '03': DeclineCategory.OTHER,
+  '04': DeclineCategory.LIMIT_EXCEEDED,
+  '05': DeclineCategory.EXPIRED,
+  '06': DeclineCategory.INVALID,
+  '07': DeclineCategory.INVALID,
+  '08': DeclineCategory.OTHER,
+  '09': DeclineCategory.OTHER,
+  '10': DeclineCategory.LOST_OR_STOLEN,
+  '11': DeclineCategory.FRAUD,
+  '12': DeclineCategory.OTHER,
+  '13': DeclineCategory.OTHER,
+  '14': DeclineCategory.OTHER,
+  '15': DeclineCategory.OTHER,
+  '16': DeclineCategory.OTHER,
+  '17': DeclineCategory.OTHER,
+  '18': DeclineCategory.OTHER,
+  '19': DeclineCategory.OTHER,
+  '20': DeclineCategory.OTHER,
+  '21': DeclineCategory.OTHER,
+  '22': DeclineCategory.OTHER,
+  '23': DeclineCategory.OTHER,
+  '24': DeclineCategory.OTHER,
+  '25': DeclineCategory.OTHER,
+  '26': DeclineCategory.OTHER,
+  '80': DeclineCategory.OTHER,
+  '81': DeclineCategory.OTHER,
+  '82': DeclineCategory.OTHER,
+  '83': DeclineCategory.OTHER,
+  '84': DeclineCategory.OTHER,
+  '85': DeclineCategory.OTHER,
+  '86': DeclineCategory.OTHER,
+  '87': DeclineCategory.OTHER,
+  '88': DeclineCategory.OTHER,
+  '89': DeclineCategory.OTHER,
+  '90': DeclineCategory.OTHER,
 };
