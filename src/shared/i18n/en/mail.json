@@ -128,7 +128,7 @@
                 "line5": "If you do not want to carry out the verification, the money will be returned fully automatically after 2 days."
             },
             "manual_check": {
-                "title": "Checking Deposit",
+                "title": "Checking deposit",
                 "salutation": "Your deposit will be checked",
                 "line1": "Thank you for your trust in DFX.",
                 "line2": "Unfortunately, the transaction could not be released fully automatically and must now be checked manually by an employee.",
@@ -138,7 +138,7 @@
             },
             "chargeback_not_possible_no_iban": {
                 "title": "Chargeback not possible",
-                "salutation": "Your Chargeback is not possible",
+                "salutation": "Your chargeback is not possible",
                 "line1": "Thank you for your trust in DFX.",
                 "line2": "Unfortunately, your chargeback is not possible because your bank has not provided an IBAN.",
                 "line3": "Please get in touch with our support team.",
