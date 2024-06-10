@@ -201,7 +201,7 @@ export class AmlHelperService {
 
     // Crucial error aml
     const crucialErrorResults = amlResults.filter((r) => r.type === AmlErrorType.CRUCIAL);
-    if (crucialErrorResults) {
+    if (crucialErrorResults.length) {
       const crucialErrorResult =
         crucialErrorResults.find((c) => c.amlCheck === CheckStatus.FAIL) ?? crucialErrorResults[0];
       return Util.minutesDiff(entity.created) >= 10
