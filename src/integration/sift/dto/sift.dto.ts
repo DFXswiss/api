@@ -741,7 +741,7 @@ export enum DeclineCategory {
   FRAUD = '$fraud',
   LOST_OR_STOLEN = '$lost_or_stolen',
   RISKY = '$risky',
-  BANK_DEVLINE = '$bank_decline',
+  BANK_DECLINE = '$bank_decline',
   INVALID = '$invalid',
   EXPIRED = '$expired',
   INSUFFICIENT_FUNDS = '$insufficient_funds',

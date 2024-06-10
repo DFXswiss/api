@@ -8,6 +8,7 @@ import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import {
   CreateAccount,
   CreateOrder,
+  DeclineCategory,
   EventType,
   SiftAssetType,
   SiftBase,
@@ -57,7 +58,11 @@ export class SiftService {
     return this.send(EventType.CREATE_ORDER, data);
   }
 
-  async transaction(entity: BuyCrypto, status: TransactionStatus): Promise<void> {
+  async transaction(
+    entity: BuyCrypto,
+    status: TransactionStatus,
+    declineCategory: DeclineCategory = undefined,
+  ): Promise<void> {
     const paymentMethod: {
       $account_holder_name;
       $card_bin;
@@ -91,9 +96,10 @@ export class SiftService {
       $user_id: entity.user.id.toString(),
       $order_id: entity.transactionRequest.id.toString(),
       $transaction_type: TransactionType.BUY,
+      $decline_category: declineCategory,
       $transaction_status: status,
       $time: entity.updated.getTime(),
-      $amount: entity.inputAmount * 10000,
+      $amount: entity.inputAmount * 10000, //amount in micros in the base unit
       $currency_code: entity.inputAsset,
       $site_country: 'CH',
       $payment_methods: [
