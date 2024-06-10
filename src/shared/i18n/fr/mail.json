@@ -137,6 +137,15 @@
                 "line3": "Ce délai est généralement de 24 heures, mais peut aller jusqu'à 7 jours.",
                 "line4": "Vous serez informé dès que le contrôle aura été effectué et que votre paiement aura été traité.",
                 "line5": ""
+            },
+            "chargeback_not_possible_no_iban": {
+                "title": "La rétrofacturation n'est pas possible",
+                "salutation": "Votre rétrofacturation n'est pas possible",
+                "line1": "Nous vous remercions de la confiance que vous accordez à DFX.",
+                "line2": "Malheureusement, votre rétrofacturation n'est pas possible car votre banque n'a pas fourni d'IBAN.",
+                "line3": "Veuillez contacter notre équipe d'assistance.",
+                "line4": "Vous pouvez contacter l'assistance via [mail:support@dfx.swiss].",
+                "line5": ""
             }
         },
         "transaction_button": "Cliquez sur le bouton ci-dessous pour obtenir plus de détails sur votre transaction:<br>[url:cliquez ici]",

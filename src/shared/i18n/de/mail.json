@@ -137,6 +137,15 @@
                 "line3": "Dies dauert in der Regel 24h, maximal aber 7 Tage.",
                 "line4": "Du wirst benachrichtigt sobald die Prüfung abgeschlossen ist und deine Zahlung verarbeitet wurde.",
                 "line5": ""
+            },
+            "chargeback_not_possible_no_iban": {
+                "title": "Rückzahlung nicht möglich",
+                "salutation": "Die Rückzahlung ist nicht möglich",
+                "line1": "Vielen Dank für dein Vertrauen in DFX.",
+                "line2": "Leider ist deine Rückzahlung nicht möglich, da deine Bank keine IBAN übermittelt hat.",
+                "line3": "Bitte setze dich daher mit unserem Support in Verbindung.",
+                "line4": "Du kannst den Support über [mail:support@dfx.swiss] kontaktieren.",
+                "line5": ""
             }
         },
         "transaction_button": "Klicke den nachfolgenden Button für weitere Details zu deiner Transaktion:<br>[url:Klick hier]",
