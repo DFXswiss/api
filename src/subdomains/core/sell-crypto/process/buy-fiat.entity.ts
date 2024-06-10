@@ -275,6 +275,7 @@ export class BuyFiat extends IEntity {
     last24hVolume: number,
     last7dVolume: number,
     last30dVolume: number,
+    last365dVolume: number,
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
   ): UpdateResult<BuyFiat> {
@@ -287,6 +288,7 @@ export class BuyFiat extends IEntity {
       last24hVolume,
       last7dVolume,
       last30dVolume,
+      last365dVolume,
       bankData,
       blacklist,
     );

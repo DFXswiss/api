@@ -25,6 +25,7 @@ export class AmlHelperService {
     last24hVolume: number,
     last7dVolume: number,
     last30dVolume: number,
+    last365dVolume: number,
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
     instantBanks?: Bank[],
@@ -49,6 +50,8 @@ export class AmlHelperService {
     if (blacklist.some((b) => b.matches([SpecialExternalAccountType.BANNED_MAIL], entity.userData.mail)))
       errors.push(AmlError.SUSPICIOUS_MAIL);
     if (last30dVolume > Config.tradingLimits.monthlyDefault) errors.push(AmlError.MONTHLY_LIMIT_REACHED);
+    if (entity.userData.kycLevel < KycLevel.LEVEL_50 && last365dVolume > Config.tradingLimits.yearlyWithoutKyc)
+      errors.push(AmlError.YEARLY_LIMIT_WO_KYC_REACHED);
     if (last24hVolume > Config.tradingLimits.dailyDefault) {
       // KYC required
       if (entity.userData.kycLevel < KycLevel.LEVEL_50) errors.push(AmlError.KYC_LEVEL_TOO_LOW);
@@ -169,6 +172,7 @@ export class AmlHelperService {
     last24hVolume: number,
     last7dVolume: number,
     last30dVolume: number,
+    last365dVolume: number,
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
     instantBanks?: Bank[],
@@ -181,6 +185,7 @@ export class AmlHelperService {
       last24hVolume,
       last7dVolume,
       last30dVolume,
+      last365dVolume,
       bankData,
       blacklist,
       instantBanks,
@@ -195,11 +200,14 @@ export class AmlHelperService {
     const amlResults = amlErrors.map((amlError) => ({ amlError, ...AmlErrorResult[amlError] }));
 
     // Crucial error aml
-    const crucialErrorResult = amlResults.find((r) => r.type === AmlErrorType.CRUCIAL);
-    if (crucialErrorResult)
+    const crucialErrorResults = amlResults.filter((r) => r.type === AmlErrorType.CRUCIAL);
+    if (crucialErrorResults) {
+      const crucialErrorResult =
+        crucialErrorResults.find((c) => c.amlCheck === CheckStatus.FAIL) ?? crucialErrorResults[0];
       return Util.minutesDiff(entity.created) >= 10
         ? { amlCheck: crucialErrorResult.amlCheck, amlReason: crucialErrorResult.amlReason, comment }
         : { comment };
+    }
 
     // Only error aml
     const onlyErrorResult = amlResults.find((r) => r.type === AmlErrorType.SINGLE);

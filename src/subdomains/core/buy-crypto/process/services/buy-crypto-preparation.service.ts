@@ -105,6 +105,15 @@ export class BuyCryptoPreparationService {
           entity.userData.users,
         );
 
+        const last365dVolume = await this.transactionHelper.getVolumeChfSince(
+          entity.inputReferenceAmount,
+          inputReferenceCurrency,
+          false,
+          Util.daysBefore(365, entity.transaction.created),
+          Util.daysAfter(365, entity.transaction.created),
+          entity.userData.users,
+        );
+
         const { bankData, blacklist, instantBanks } = await this.amlService.getAmlCheckInput(entity);
         const ibanCountry = entity.bankTx?.iban
           ? await this.countryService.getCountryWithSymbol(entity.bankTx.iban.substring(0, 2))
@@ -117,6 +126,7 @@ export class BuyCryptoPreparationService {
             last24hVolume,
             last7dVolume,
             last30dVolume,
+            last365dVolume,
             bankData,
             blacklist,
             instantBanks,
