@@ -214,7 +214,6 @@ export class BankTx extends IEntity {
   }
 
   get bankDataName(): string {
-    if (this.name.startsWith('/C/')) return this.addressLine1;
     if (Util.isSameName(this.name, this.ultimateName)) return this.name.replace(/[,]/g, '').trim();
     return this.completeName;
   }

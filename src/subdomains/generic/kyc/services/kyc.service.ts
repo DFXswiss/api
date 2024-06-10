@@ -131,14 +131,16 @@ export class KycService {
 
         await this.createStepLog(entity.userData, entity);
         await this.kycStepRepo.save(entity);
-        if (entity.isCompleted) entity.userData = await this.completeIdent(result, entity.userData);
+        if (entity.isCompleted) {
+          entity.userData = await this.completeIdent(result, entity.userData);
 
-        if (entity.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
-          await this.bankDataService.createBankData(entity.userData, {
-            name: entity.userName,
-            iban: `Ident${entity.identDocumentId}`,
-            type: BankDataType.IDENT,
-          });
+          if (entity.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
+            await this.bankDataService.createBankData(entity.userData, {
+              name: entity.userName,
+              iban: `Ident${entity.identDocumentId}`,
+              type: BankDataType.IDENT,
+            });
+        }
       } catch (e) {
         this.logger.error(`Failed to auto review ident step ${entity.id}:`, e);
       }
