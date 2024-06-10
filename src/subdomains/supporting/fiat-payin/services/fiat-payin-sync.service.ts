@@ -6,6 +6,7 @@ import { SiftService } from 'src/integration/sift/services/sift.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
+import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { TransactionSourceType } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CheckoutTx } from '../entities/checkout-tx.entity';
@@ -22,6 +23,7 @@ export class FiatPayInSyncService {
     private readonly checkoutTxService: CheckoutTxService,
     private readonly transactionService: TransactionService,
     private readonly siftService: SiftService,
+    private readonly buyService: BuyService,
   ) {}
 
   // --- JOBS --- //
@@ -41,7 +43,8 @@ export class FiatPayInSyncService {
         if (checkoutTx.approved && !checkoutTx.buyCrypto)
           await this.checkoutTxService.createCheckoutBuyCrypto(checkoutTx);
 
-        if (checkoutTx.authStatusReason) await this.siftService.transactionCheckoutDeclined(checkoutTx);
+        const buy = await this.buyService.getByBankUsage(checkoutTx.reference);
+        if (checkoutTx.authStatusReason && buy) await this.siftService.transactionCheckoutDeclined(checkoutTx, buy);
       } catch (e) {
         this.logger.error(`Failed to import checkout transaction:`, e);
       }

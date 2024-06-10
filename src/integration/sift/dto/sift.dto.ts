@@ -909,7 +909,7 @@ export interface Transaction extends SiftBase {
   ];
 
   // custom field
-  blockchain: Blockchain;
+  blockchain?: Blockchain;
 }
 
 export const SiftPaymentMethodMap: { [method in PaymentMethod]: PaymentType } = {

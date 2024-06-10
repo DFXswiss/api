@@ -3,7 +3,7 @@ import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
-import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
+import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
@@ -27,7 +27,7 @@ export class SiftService {
   private readonly url = 'https://api.sift.com/v205/events';
   private readonly logger = new DfxLogger(SiftService);
 
-  constructor(private readonly http: HttpService, private readonly buyService: BuyService) {}
+  constructor(private readonly http: HttpService) {}
 
   async createAccount(user: User): Promise<void> {
     const data: CreateAccount = {
@@ -125,10 +125,7 @@ export class SiftService {
     return this.send(EventType.TRANSACTION, data);
   }
 
-  async transactionCheckoutDeclined(checkoutTx: CheckoutTx): Promise<void> {
-    const buy = await this.buyService.getByBankUsage(checkoutTx.reference);
-    if (!buy) return;
-
+  async transactionCheckoutDeclined(checkoutTx: CheckoutTx, buy: Buy): Promise<void> {
     const data: Transaction = {
       $transaction_id: checkoutTx.transaction.id.toString(),
       $user_id: buy.user.id.toString(),
