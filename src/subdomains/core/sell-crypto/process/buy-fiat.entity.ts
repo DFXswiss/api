@@ -236,7 +236,6 @@ export class BuyFiat extends IEntity {
     fee: InternalFeeDto & FeeDto,
     minFeeAmountFiat: number,
     totalFeeAmountChf: number,
-    priceSteps: PriceStep[],
   ): UpdateResult<BuyFiat> {
     const { usedRef, refProvision } = this.user.specifiedRef;
     const inputReferenceAmountMinusFee = this.inputReferenceAmount - fee.total;
@@ -260,7 +259,6 @@ export class BuyFiat extends IEntity {
             refProvision,
             refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
             usedFees: fee.fees?.map((fee) => fee.id).join(';'),
-            priceSteps: priceSteps ? JSON.stringify(priceSteps) : null,
           };
 
     Object.assign(this, update);

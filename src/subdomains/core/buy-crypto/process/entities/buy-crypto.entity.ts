@@ -365,7 +365,6 @@ export class BuyCrypto extends IEntity {
     minFeeAmountFiat: number,
     totalFeeAmountChf: number,
     feeConstraints: BuyCryptoFee,
-    priceSteps: PriceStep[],
   ): UpdateResult<BuyCrypto> {
     const { usedRef, refProvision } = this.user.specifiedRef;
     const inputReferenceAmountMinusFee = this.inputReferenceAmount - fee.total;
@@ -391,7 +390,6 @@ export class BuyCrypto extends IEntity {
             refFactor: !fee.payoutRefBonus || usedRef === '000-000' ? 0 : 1,
             usedFees: fee.fees?.map((fee) => fee.id).join(';'),
             fee: feeConstraints,
-            priceSteps: priceSteps ? JSON.stringify(priceSteps) : null,
           };
 
     Object.assign(this, update);
