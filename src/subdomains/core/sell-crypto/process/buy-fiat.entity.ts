@@ -329,6 +329,7 @@ export class BuyFiat extends IEntity {
       cryptoReturnTxId: null,
       cryptoReturnDate: null,
       mailReturnSendDate: null,
+      comment: null,
     };
 
     Object.assign(this, update);
