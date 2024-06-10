@@ -42,7 +42,8 @@ export class FrankencoinService {
     const logMessage: FrankencoinLogDto = {
       swap: await this.getSwap(),
       positions: await this.getPositions(),
-      poolShares: await this.getFPSs(),
+      poolShares: await this.getFPS(),
+      totalSupply: await this.getTotalSupply(),
     };
 
     const log: CreateLogDto = {
@@ -131,37 +132,40 @@ export class FrankencoinService {
     return this.client.getChallenges();
   }
 
-  async getFPSs(): Promise<FrankencoinPoolSharesDto[]> {
-    const fpssResult: FrankencoinPoolSharesDto[] = [];
-
+  async getFPS(): Promise<FrankencoinPoolSharesDto> {
     const equityContract = this.client.getEquityContract(Config.blockchain.frankencoin.contractAddress.equity);
     const frankencoinContract = this.client.getFrankencoinContract(Config.blockchain.frankencoin.contractAddress.zchf);
 
-    const fpss = await this.client.getFPS();
+    const fps = await this.client.getFPS(Config.blockchain.frankencoin.contractAddress.zchf);
 
-    for (const fps of fpss) {
-      try {
-        const totalSupply = await equityContract.totalSupply();
-        const price = await equityContract.price();
-        const frankenMinterReserve = await frankencoinContract.minterReserve();
-        const frankenEquity = await frankencoinContract.equity();
+    try {
+      const totalSupply = await equityContract.totalSupply();
+      const price = await equityContract.price();
+      const frankenMinterReserve = await frankencoinContract.minterReserve();
+      const frankenEquity = await frankencoinContract.equity();
 
-        fpssResult.push({
-          fpsPrice: EvmUtil.fromWeiAmount(price),
-          supply: EvmUtil.fromWeiAmount(totalSupply),
-          marketCap: EvmUtil.fromWeiAmount(totalSupply) * EvmUtil.fromWeiAmount(price),
-          totalReserve: EvmUtil.fromWeiAmount(frankenMinterReserve) + EvmUtil.fromWeiAmount(frankenEquity),
-          equityCapital: EvmUtil.fromWeiAmount(frankenEquity),
-          minterReserve: EvmUtil.fromWeiAmount(frankenMinterReserve),
-          totalIncome: EvmUtil.fromWeiAmount(fps.profits),
-          totalLosses: EvmUtil.fromWeiAmount(fps.loss),
-        });
-      } catch (e) {
-        this.logger.error(`Error while getting pool shares ${fps.id}`, e);
-      }
+      const fpsResult: FrankencoinPoolSharesDto = {
+        fpsPrice: EvmUtil.fromWeiAmount(price),
+        supply: EvmUtil.fromWeiAmount(totalSupply),
+        marketCap: EvmUtil.fromWeiAmount(totalSupply) * EvmUtil.fromWeiAmount(price),
+        totalReserve: EvmUtil.fromWeiAmount(frankenMinterReserve) + EvmUtil.fromWeiAmount(frankenEquity),
+        equityCapital: EvmUtil.fromWeiAmount(frankenEquity),
+        minterReserve: EvmUtil.fromWeiAmount(frankenMinterReserve),
+        totalIncome: EvmUtil.fromWeiAmount(fps.profits),
+        totalLosses: EvmUtil.fromWeiAmount(fps.loss),
+      };
+
+      return fpsResult;
+    } catch (e) {
+      this.logger.error(`Error while getting pool shares ${fps.id}`, e);
     }
+  }
 
-    return fpssResult;
+  private async getTotalSupply(): Promise<number> {
+    const frankencoinContract = this.client.getFrankencoinContract(Config.blockchain.frankencoin.contractAddress.zchf);
+    const zchfTotalSupply = await frankencoinContract.totalSupply();
+
+    return EvmUtil.fromWeiAmount(zchfTotalSupply);
   }
 
   async getFPSPrice(): Promise<number> {
@@ -175,8 +179,8 @@ export class FrankencoinService {
     return this.client.getMinters();
   }
 
-  async getDelegations(): Promise<FrankencoinDelegationGraphDto[]> {
-    return this.client.getDelegations();
+  async getDelegation(owner: string): Promise<FrankencoinDelegationGraphDto> {
+    return this.client.getDelegation(owner);
   }
 
   async getTrades(): Promise<FrankencoinTradeGraphDto[]> {

@@ -75,6 +75,9 @@ export class UserKycDto {
 }
 
 export class UserV2Dto {
+  @ApiProperty({ description: 'Unique account id' })
+  accountId: number;
+
   @ApiProperty({ enum: AccountType })
   accountType: AccountType;
 

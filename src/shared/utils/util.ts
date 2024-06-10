@@ -120,6 +120,12 @@ export class Util {
     );
   }
 
+  static includesSameName(reference: string, testedName: string): boolean {
+    if (!reference || !testedName) return false;
+
+    return this.removeSpecialChars(reference).includes(this.removeSpecialChars(testedName));
+  }
+
   static removeSpecialChars(name: string): string {
     return name
       .toLowerCase()
@@ -320,9 +326,10 @@ export class Util {
   }
 
   static async doInBatches<T, U>(list: T[], action: (batch: T[]) => Promise<U>, batchSize: number): Promise<U[]> {
+    const listCopy = [...list];
     const results: U[] = [];
-    while (list.length > 0) {
-      const batch = list.splice(0, batchSize);
+    while (listCopy.length > 0) {
+      const batch = listCopy.splice(0, batchSize);
       results.push(await action(batch));
     }
 

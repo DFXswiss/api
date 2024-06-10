@@ -45,6 +45,7 @@ export class BankData extends IEntity {
   activate(): UpdateResult<BankData> {
     const update: Partial<BankData> = {
       active: true,
+      comment: 'Pass',
     };
 
     Object.assign(this, update);

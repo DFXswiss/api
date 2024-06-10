@@ -57,7 +57,7 @@ export class BuyFiatRegistrationService {
       const relevantRoute = routes.find(
         (r) =>
           payIn.address.address.toLowerCase() === r.deposit.address.toLowerCase() &&
-          payIn.address.blockchain === r.deposit.blockchain,
+          r.deposit.blockchainList.includes(payIn.address.blockchain),
       );
 
       relevantRoute && result.push([payIn, relevantRoute]);
@@ -69,9 +69,9 @@ export class BuyFiatRegistrationService {
   private async createBuyFiatsAndAckPayIns(payInsPairs: [CryptoInput, Sell][]): Promise<void> {
     for (const [payIn, sellRoute] of payInsPairs) {
       try {
-        const buyFiat = await this.buyFiatRepo.findOneBy({ cryptoInput: { id: payIn.id } });
+        const alreadyExists = await this.buyFiatRepo.exist({ where: { cryptoInput: { id: payIn.id } } });
 
-        if (!buyFiat) {
+        if (!alreadyExists) {
           const result = await this.transactionHelper.validateInput(payIn.asset, payIn.amount);
 
           if (result === ValidationError.PAY_IN_TOO_SMALL) {
@@ -81,7 +81,7 @@ export class BuyFiatRegistrationService {
             await this.payInService.returnPayIn(
               payIn,
               PayInPurpose.BUY_FIAT,
-              BlockchainAddress.create(sellRoute.user.address, sellRoute.deposit.blockchain),
+              BlockchainAddress.create(sellRoute.user.address, payIn.asset.blockchain),
               sellRoute,
             );
             continue;

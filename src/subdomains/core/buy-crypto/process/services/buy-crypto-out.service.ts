@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { Transaction, TransactionStatus } from 'src/integration/sift/dto/sift.dto';
+import { SiftService } from 'src/integration/sift/services/sift.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
@@ -24,6 +26,7 @@ export class BuyCryptoOutService {
     private readonly dexService: DexService,
     private readonly payoutService: PayoutService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
+    private readonly siftService: SiftService,
   ) {}
 
   async payoutTransactions(): Promise<void> {
@@ -82,20 +85,15 @@ export class BuyCryptoOutService {
         // PAYING_OUT batches are fetch for retry in case of failure in previous iteration
         status: In([BuyCryptoBatchStatus.SECURED, BuyCryptoBatchStatus.PAYING_OUT]),
       },
-      relations: [
-        'transactions',
-        'transactions.buy',
-        'transactions.buy.user',
-        'transactions.buy.user.wallet',
-        'transactions.buy.asset',
-        'transactions.cryptoRoute',
-        'transactions.cryptoRoute.user',
-        'transactions.cryptoRoute.user.wallet',
-        'transactions.cryptoRoute.asset',
-        'transactions.cryptoInput',
-        'transactions.bankTx',
-        'transactions.checkoutTx',
-      ],
+      relations: {
+        transactions: {
+          buy: { user: { userData: true, wallet: true } },
+          cryptoRoute: { user: { userData: true, wallet: true } },
+          cryptoInput: true,
+          bankTx: true,
+          checkoutTx: true,
+        },
+      },
     });
   }
 
@@ -140,6 +138,13 @@ export class BuyCryptoOutService {
 
           tx.complete(payoutFee);
           await this.buyCryptoRepo.save(tx);
+
+          //update sift transaction status
+          await this.siftService.transaction({
+            $transaction_id: tx.id.toString(),
+            $transaction_status: TransactionStatus.SUCCESS,
+            $time: tx.updated.getTime(),
+          } as Transaction);
 
           // payment webhook
           await this.buyCryptoWebhookService.triggerWebhook(tx);

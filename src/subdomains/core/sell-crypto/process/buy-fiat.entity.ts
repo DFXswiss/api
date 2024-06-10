@@ -1,4 +1,3 @@
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
@@ -191,12 +190,6 @@ export class BuyFiat extends IEntity {
 
   // --- ENTITY METHODS --- //
 
-  addAmlCheck(amlCheck: CheckStatus): this {
-    this.amlCheck = amlCheck;
-
-    return this;
-  }
-
   pendingMail(): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
       recipientMail: this.noCommunication ? null : this.sell.user.userData.mail,
@@ -363,24 +356,6 @@ export class BuyFiat extends IEntity {
     };
   }
 
-  get exchangeRateString(): string {
-    return `${Util.roundReadable(1 / this.exchangeRate.exchangeRate, true)} ${this.outputAsset.name}/${
-      this.inputAsset
-    }`;
-  }
-
-  get percentFeeString(): string {
-    return Util.toPercent(this.percentFee);
-  }
-
-  get cryptoInputBlockchain(): Blockchain {
-    return this.cryptoInput.asset.blockchain;
-  }
-
-  get isLightningTransaction(): boolean {
-    return this.cryptoInputBlockchain === Blockchain.LIGHTNING;
-  }
-
   get user(): User {
     return this.sell.user;
   }
@@ -391,10 +366,6 @@ export class BuyFiat extends IEntity {
 
   set userData(userData: UserData) {
     this.user.userData = userData;
-  }
-
-  get route(): Sell {
-    return this.sell;
   }
 
   get target(): { address: string; asset: Fiat; trimmedReturnAddress: string } {

@@ -64,8 +64,10 @@
                 "staking_discontinued": "Non è possibile effettuare nuovi depositi di staking",
                 "bank_not_allowed": "La banca mittente utilizzata non è consentita. Si prega di utilizzare un'altra banca per il deposito.",
                 "country_not_allowed": "Purtroppo il vostro deposito non può essere elaborato <br>perché il denaro proviene da un paese che non possiamo supportare. Ulteriori informazioni:<br><a style='color:white' href='https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html'>https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html</a>",
-                "high_risk_kyc_needed": "Senza una verifica (KYC), non abbiamo potuto garantire che questa transazione non fosse fraudolenta e quindi, purtroppo, abbiamo dovuto rifiutare la transazione.<br>I pagamenti tramite transazione bancaria sono ancora disponibili per voi.",
-                "high_risk_blocked": "Non possiamo garantire che questa transazione non sia fraudolenta e quindi purtroppo abbiamo dovuto rifiutare la transazione.<br>I pagamenti tramite transazione bancaria sono ancora disponibili per voi.",
+                "high_risk_kyc_needed": "Senza una verifica (KYC), non abbiamo potuto garantire che questa transazione non fosse fraudolenta e quindi, purtroppo, abbiamo dovuto rifiutare la transazione.",
+                "high_risk_kyc_needed_checkout": "Senza una verifica (KYC), non abbiamo potuto garantire che questa transazione non fosse fraudolenta e quindi, purtroppo, abbiamo dovuto rifiutare la transazione.<br>I pagamenti tramite transazione bancaria sono ancora disponibili per voi.",
+                "high_risk_blocked": "Non possiamo garantire che questa transazione non sia fraudolenta e quindi purtroppo abbiamo dovuto rifiutare la transazione.",
+                "high_risk_blocked_checkout": "Non possiamo garantire che questa transazione non sia fraudolenta e quindi purtroppo abbiamo dovuto rifiutare la transazione.<br>I pagamenti tramite transazione bancaria sono ancora disponibili per voi.",
                 "fee_too_high": "Le spese di rete sono attualmente troppo elevate per l'importo inviato.",
                 "receiver_rejected_tx": "Il nodo ricevente ha rifiutato la transazione",
                 "asset_not_available_with_chosen_bank": "Questo bene non può essere acquistato tramite il conto bancario selezionato"

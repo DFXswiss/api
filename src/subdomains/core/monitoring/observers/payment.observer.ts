@@ -57,11 +57,14 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
       bankTxWithoutType: await this.repos.bankTx.countBy({ type: IsNull() }),
       freeDeposit: await this.repos.deposit
         .createQueryBuilder('deposit')
-        .select('deposit.blockchain, COUNT(deposit.blockchain) as count')
+        .select('deposit.blockchains, COUNT(deposit.blockchains) as count')
         .leftJoin('deposit.route', 'route')
         .where('route.id IS NULL')
-        .groupBy('deposit.blockchain')
-        .getRawMany<{ blockchain: string; count: number }>(),
+        .groupBy('deposit.blockchains')
+        .getRawMany<{ blockchains: string; count: number }>()
+        .then((list) =>
+          list.map((i) => i.blockchains.split(';').map((b) => ({ blockchain: b, count: i.count }))).flat(),
+        ),
       unhandledCryptoInputs: await this.repos.payIn.countBy({
         amlCheck: Not(CheckStatus.FAIL),
         status: Not(

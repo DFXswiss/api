@@ -46,11 +46,15 @@ export class BankDataService {
   }
 
   async verifyBankData(entity: BankData): Promise<void> {
+    if ([BankDataType.IDENT, BankDataType.USER].includes(entity.type)) return;
     try {
       const existing = await this.bankDataRepo.findOne({
         where: { iban: entity.iban, active: true },
         relations: { userData: true },
       });
+
+      if (!existing && !entity.userData.verifiedName)
+        await this.userDataRepo.update(...entity.userData.setVerifiedName(entity.name));
 
       const errors = this.getBankDataVerificationErrors(entity, existing);
 
@@ -132,6 +136,21 @@ export class BankDataService {
     return this.bankDataRepo.findOne({ where: { id }, relations: { userData: true } });
   }
 
+  async getBankDataByKey(key: string, value: any): Promise<BankData> {
+    return this.bankDataRepo
+      .createQueryBuilder('bankData')
+      .select('bankData')
+      .leftJoinAndSelect('bankData.userData', 'userData')
+      .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('userData.kycSteps', 'kycSteps')
+      .leftJoinAndSelect('userData.country', 'country')
+      .leftJoinAndSelect('userData.nationality', 'nationality')
+      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+      .leftJoinAndSelect('userData.language', 'language')
+      .where(`${key.includes('.') ? key : `bankData.${key}`} = :param`, { param: value })
+      .getOne();
+  }
+
   async getBankDataWithIban(iban: string, userDataId?: number): Promise<BankData> {
     if (!iban) return undefined;
     return this.bankDataRepo
@@ -150,6 +169,10 @@ export class BankDataService {
       ],
       relations: { userData: true },
     });
+  }
+
+  async getAllBankDatasForUser(userDataId: number): Promise<BankData[]> {
+    return this.bankDataRepo.find({ where: { userData: { id: userDataId } }, relations: { userData: true } });
   }
 
   async getIbansForUser(userDataId: number): Promise<string[]> {
