@@ -46,4 +46,8 @@ export class AlchemyNetworkMapper {
     const chainId = this.blockchainToChainIdMap.get(blockchain);
     return this.chainIdToNetworkMap.get(chainId);
   }
+
+  static get availableNetworks(): Blockchain[] {
+    return Array.from(this.blockchainToChainIdMap.keys());
+  }
 }

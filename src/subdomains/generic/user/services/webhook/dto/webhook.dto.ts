@@ -4,10 +4,14 @@ export enum WebhookType {
   PAYMENT = 'Payment',
   KYC_CHANGED = 'KycChanged',
   KYC_FAILED = 'KycFailed',
+  ACCOUNT_CHANGED = 'AccountChanged',
 }
 
 export class WebhookDto<T> {
-  @ApiProperty({ description: 'User address' })
+  @ApiProperty({ description: 'Unique account id' })
+  accountId: number;
+
+  @ApiPropertyOptional({ description: 'User address' })
   id: string;
 
   @ApiProperty({ enum: WebhookType })

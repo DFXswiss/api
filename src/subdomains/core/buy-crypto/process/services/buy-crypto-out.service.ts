@@ -85,20 +85,15 @@ export class BuyCryptoOutService {
         // PAYING_OUT batches are fetch for retry in case of failure in previous iteration
         status: In([BuyCryptoBatchStatus.SECURED, BuyCryptoBatchStatus.PAYING_OUT]),
       },
-      relations: [
-        'transactions',
-        'transactions.buy',
-        'transactions.buy.user',
-        'transactions.buy.user.wallet',
-        'transactions.buy.asset',
-        'transactions.cryptoRoute',
-        'transactions.cryptoRoute.user',
-        'transactions.cryptoRoute.user.wallet',
-        'transactions.cryptoRoute.asset',
-        'transactions.cryptoInput',
-        'transactions.bankTx',
-        'transactions.checkoutTx',
-      ],
+      relations: {
+        transactions: {
+          buy: { user: { userData: true, wallet: true } },
+          cryptoRoute: { user: { userData: true, wallet: true } },
+          cryptoInput: true,
+          bankTx: true,
+          checkoutTx: true,
+        },
+      },
     });
   }
 

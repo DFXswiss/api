@@ -237,6 +237,9 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   identDocumentType: string;
 
+  @Column({ length: 256, nullable: true })
+  kycClients: string; // semicolon separated wallet id's
+
   // AML
   @Column({ type: 'datetime2', nullable: true })
   amlListAddedDate: Date;
@@ -346,6 +349,26 @@ export class UserData extends IEntity {
     return [this.id, update];
   }
 
+  addKycClient(walletId: number): UpdateResult<UserData> {
+    const update: Partial<UserData> = {
+      kycClients: !this.kycClients ? walletId.toString() : `${this.kycClients};${walletId}`,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  removeKycClient(walletId: number): UpdateResult<UserData> {
+    const update: Partial<UserData> = {
+      kycClients: this.kycClientList.filter((id) => id !== walletId).join(';'),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   refreshLastCheckedTimestamp(): UpdateResult<UserData> {
     const update: Partial<UserData> = {
       lastNameCheckDate: new Date(),
@@ -382,6 +405,10 @@ export class UserData extends IEntity {
 
   get individualFeeList(): number[] | undefined {
     return this.individualFees?.split(';')?.map(Number);
+  }
+
+  get kycClientList(): number[] {
+    return this.kycClients?.split(';')?.map(Number) ?? [];
   }
 
   get hasActiveUser(): boolean {
@@ -558,7 +585,7 @@ export class UserData extends IEntity {
   }
 
   get hasBankTxVerification(): boolean {
-    return [CheckStatus.PASS, CheckStatus.UNNECESSARY].includes(this.bankTransactionVerification);
+    return [CheckStatus.PASS, CheckStatus.UNNECESSARY, CheckStatus.GSHEET].includes(this.bankTransactionVerification);
   }
 
   get isPaymentStatusEnabled(): boolean {

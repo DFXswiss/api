@@ -64,8 +64,10 @@
                 "staking_discontinued": "No se pueden depositar más en el servicio de Staking",
                 "bank_not_allowed": "El banco remitente que ha utilizado no está autorizado. Por favor, utilice un banco diferente para su depósito.",
                 "country_not_allowed": "Desafortunadamente, su depósito no puede ser procesado <br>porque el dinero proviene de un país que no podemos apoyar. Más información:<br><a style='color:white' href='https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html'>https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html</a>",
-                "high_risk_kyc_needed": "Sin la verificación (KYC), no podíamos asegurar que esta transacción no fuera fraudulenta y por lo tanto desafortunadamente tuvimos que rechazar la transacción.<br>Los pagos por transacción bancaria todavía están disponibles para usted.",
-                "high_risk_blocked": "No podemos asegurar que esta transacción no es fraudulenta y por lo tanto, lamentablemente, tuvo que rechazar la transacción.<br>Pagos por transacción bancaria todavía están disponibles para usted.",
+                "high_risk_kyc_needed": "Sin la verificación (KYC), no podíamos asegurar que esta transacción no fuera fraudulenta y por lo tanto desafortunadamente tuvimos que rechazar la transacción.",
+                "high_risk_kyc_needed_checkout": "Sin la verificación (KYC), no podíamos asegurar que esta transacción no fuera fraudulenta y por lo tanto desafortunadamente tuvimos que rechazar la transacción.<br>Los pagos por transacción bancaria todavía están disponibles para usted.",
+                "high_risk_blocked": "No podemos asegurar que esta transacción no es fraudulenta y por lo tanto, lamentablemente, tuvo que rechazar la transacción.",
+                "high_risk_blocked_checkout": "No podemos asegurar que esta transacción no es fraudulenta y por lo tanto, lamentablemente, tuvo que rechazar la transacción.<br>Pagos por transacción bancaria todavía están disponibles para usted.",
                 "fee_too_high": "Las tarifas de la red son actualmente demasiado altas para la cantidad que has enviado",
                 "receiver_rejected_tx": "El nodo receptor ha rechazado la transacción",
                 "asset_not_available_with_chosen_bank": "Este activo no puede comprarse a través de la cuenta bancaria seleccionada"
@@ -134,6 +136,15 @@
                 "line2": "Lamentablemente, la transacción no ha podido liberarse de forma totalmente automática y ahora debe ser comprobada manualmente por un empleado.",
                 "line3": "Suele tardar 24 horas, pero un máximo de 7 días.",
                 "line4": "Se le notificará tan pronto como se haya completado la comprobación y se haya procesado su pago.",
+                "line5": ""
+            },
+            "chargeback_not_possible_no_iban": {
+                "title": "No es posible la devolución del cargo",
+                "salutation": "Su devolución no es posible",
+                "line1": "Gracias por confiar en DFX.",
+                "line2": "Lamentablemente, su devolución no es posible porque su banco no ha facilitado un IBAN.",
+                "line3": "Póngase en contacto con nuestro equipo de asistencia.",
+                "line4": "Puede ponerse en contacto con el servicio de asistencia a través de [mail:support@dfx.swiss].",
                 "line5": ""
             }
         },

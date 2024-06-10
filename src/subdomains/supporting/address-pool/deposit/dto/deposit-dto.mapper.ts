@@ -5,7 +5,8 @@ export class DepositDtoMapper {
   static entityToDto(deposit: Deposit): DepositDto {
     const dto: DepositDto = {
       id: deposit.id,
-      blockchain: deposit.blockchain,
+      blockchain: deposit.blockchainList[0],
+      blockchains: deposit.blockchainList,
       address: deposit.address,
     };
 

@@ -82,7 +82,8 @@ export class BuyCryptoPreparationService {
           entity.inputReferenceAmount,
           inputReferenceCurrency,
           false,
-          Util.daysBefore(1),
+          Util.daysBefore(1, entity.transaction.created),
+          Util.daysAfter(1, entity.transaction.created),
           entity.userData.users,
         );
 
@@ -90,7 +91,8 @@ export class BuyCryptoPreparationService {
           entity.inputReferenceAmount,
           inputReferenceCurrency,
           false,
-          Util.daysBefore(7),
+          Util.daysBefore(7, entity.transaction.created),
+          Util.daysAfter(7, entity.transaction.created),
           entity.userData.users,
         );
 
@@ -98,7 +100,8 @@ export class BuyCryptoPreparationService {
           entity.inputReferenceAmount,
           inputReferenceCurrency,
           false,
-          Util.daysBefore(30),
+          Util.daysBefore(30, entity.transaction.created),
+          Util.daysAfter(30, entity.transaction.created),
           entity.userData.users,
         );
 

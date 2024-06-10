@@ -106,7 +106,12 @@ export class BuyFiatService {
   async update(id: number, dto: UpdateBuyFiatDto): Promise<BuyFiat> {
     let entity = await this.buyFiatRepo.findOne({
       where: { id },
-      relations: ['sell', 'sell.user', 'sell.user.wallet', 'sell.user.userData', 'fiatOutput', 'bankTx', 'cryptoInput'],
+      relations: {
+        sell: { user: { wallet: true, userData: true } },
+        fiatOutput: true,
+        bankTx: true,
+        cryptoInput: true,
+      },
     });
     if (!entity) throw new NotFoundException('Buy-fiat not found');
 
@@ -189,7 +194,7 @@ export class BuyFiatService {
   async triggerWebhookManual(id: number): Promise<void> {
     const buyFiat = await this.buyFiatRepo.findOne({
       where: { id },
-      relations: ['sell', 'sell.user', 'sell.user.wallet', 'sell.user.userData', 'bankTx', 'cryptoInput'],
+      relations: { sell: { user: { wallet: true, userData: true } }, bankTx: true, cryptoInput: true },
     });
     if (!buyFiat) throw new NotFoundException('BuyFiat not found');
 
@@ -200,7 +205,7 @@ export class BuyFiatService {
     const extended = await this.extendBuyFiat(buyFiat);
 
     // TODO add fiatFiatUpdate here
-    buyFiat.sell ? await this.webhookService.cryptoFiatUpdate(buyFiat.sell.user, extended) : undefined;
+    buyFiat.sell ? await this.webhookService.cryptoFiatUpdate(buyFiat.user, extended) : undefined;
   }
 
   async extendBuyFiat(buyFiat: BuyFiat): Promise<BuyFiatExtended> {

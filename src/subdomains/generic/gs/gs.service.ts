@@ -36,6 +36,7 @@ export enum SupportTable {
   BANK_ACCOUNT = 'bankAccount',
   FIAT_OUTPUT = 'fiatOutput',
   TRANSACTION = 'transaction',
+  BANK_DATA = 'bankData',
 }
 
 @Injectable()
@@ -65,7 +66,7 @@ export class GsService {
     const data = await this.getRawDbData({ ...query, select: query.select?.filter((s) => !s.includes('documents')) });
 
     if (query.table === 'user_data' && (!query.select || query.select.some((s) => s.includes('documents'))))
-      await this.setUserDataDocs(data, query.select);
+      await this.setUserDataDocs(data, query.select, query.sorting);
 
     // transform to array
     return this.transformResultArray(data, query.table);
@@ -102,7 +103,7 @@ export class GsService {
 
   //*** HELPER METHODS ***//
 
-  private async setUserDataDocs(data: UserData[], select: string[]): Promise<void> {
+  private async setUserDataDocs(data: UserData[], select: string[], sorting: 'ASC' | 'DESC'): Promise<void> {
     const selectPaths = this.filterSelectDocumentColumn(select);
     const commonPrefix = this.getBiggestCommonPrefix(selectPaths);
 
@@ -110,9 +111,13 @@ export class GsService {
       const userDataId = userData.id ?? (userData['user_data_id'] as number);
       const commonPathPrefix = this.toDocPath(commonPrefix, userDataId);
 
-      const docs = commonPathPrefix
-        ? await this.documentStorageService.listFilesByPrefix(commonPathPrefix)
-        : await this.getAllUserDocuments(userDataId, userData.accountType);
+      const docs = Util.sort(
+        commonPathPrefix
+          ? await this.documentStorageService.listFilesByPrefix(commonPathPrefix)
+          : await this.getAllUserDocuments(userDataId, userData.accountType),
+        'created',
+        sorting,
+      );
 
       for (const selectPath of selectPaths) {
         const docPath = this.toDocPath(selectPath, userDataId);
@@ -195,6 +200,8 @@ export class GsService {
         return this.transactionService
           .getTransactionByKey(query.key, query.value)
           .then((transaction) => transaction?.userData);
+      case SupportTable.BANK_DATA:
+        return this.bankDataService.getBankDataByKey(query.key, query.value).then((bD) => bD.userData);
     }
   }
 

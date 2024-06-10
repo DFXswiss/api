@@ -267,8 +267,8 @@ export class AuthService {
     return { challenge: challenge };
   }
 
-  async changeUser(id: number, changeUser: LinkedUserInDto, ip: string): Promise<AuthResponseDto> {
-    const user = await this.getLinkedUser(id, changeUser.address);
+  async changeUser(userDataId: number, changeUser: LinkedUserInDto, ip: string): Promise<AuthResponseDto> {
+    const user = await this.getLinkedUser(userDataId, changeUser.address);
     if (!user) throw new NotFoundException('User not found');
     if (user.status === UserStatus.BLOCKED) throw new BadRequestException('User is blocked');
     return { accessToken: this.generateUserToken(user, ip) };
@@ -292,17 +292,10 @@ export class AuthService {
 
   // --- HELPER METHODS --- //
 
-  private async getLinkedUser(id: number, address: string): Promise<User> {
-    const user = await this.userRepo
-      .createQueryBuilder('user')
-      .leftJoinAndSelect('user.userData', 'userData')
-      .leftJoinAndSelect('userData.users', 'linkedUser')
-      .leftJoinAndSelect('linkedUser.wallet', 'wallet')
-      .where('user.id = :id', { id })
-      .andWhere('linkedUser.address = :address', { address })
-      .getOne();
+  private async getLinkedUser(userDataId: number, address: string): Promise<User> {
+    const userData = await this.userDataService.getUserData(userDataId, { users: { wallet: true, userData: true } });
 
-    return user?.userData?.users.find((u) => u.address === address);
+    return userData?.users.find((u) => u.address === address);
   }
 
   private async verifySignature(

@@ -15,6 +15,7 @@ import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { Like } from 'typeorm';
 import { PayInEntry } from '../../../../interfaces';
 import { PayInRepository } from '../../../../repositories/payin.repository';
 import { PayInEvmService } from '../../../../services/base/payin-evm.service';
@@ -161,7 +162,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
 
   protected async getPayInAddresses(): Promise<string[]> {
     const routes = await this.repos.depositRoute.find({
-      where: { deposit: { blockchain: this.blockchain } },
+      where: { deposit: { blockchains: Like(`%${this.blockchain}%`) } },
       relations: ['deposit'],
     });
 
