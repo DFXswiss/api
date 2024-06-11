@@ -24,7 +24,7 @@ export class Price {
   }
 
   addPriceSteps(steps: PriceStep[]) {
-    this.steps = [...(this.steps ?? []), ...steps];
+    this.steps = [...(this.steps ?? []), ...steps?.filter((s) => s)];
   }
 
   static create(
