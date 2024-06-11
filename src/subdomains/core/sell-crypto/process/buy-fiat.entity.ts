@@ -10,7 +10,7 @@ import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-inp
 import { FeeDto, InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
-import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { Transaction } from '../../../supporting/payment/entities/transaction.entity';
@@ -143,6 +143,9 @@ export class BuyFiat extends IEntity {
   @ManyToOne(() => Fiat, { eager: true, nullable: true })
   outputAsset: Fiat;
 
+  @Column({ length: 'MAX', nullable: true })
+  priceSteps: string;
+
   // Transaction details
   @Column({ length: 256, nullable: true })
   remittanceInfo: string;
@@ -256,12 +259,15 @@ export class BuyFiat extends IEntity {
     return [this.id, update];
   }
 
-  setOutput(outputAmount: number, outputAssetEntity: Fiat): UpdateResult<BuyFiat> {
+  setOutput(outputAmount: number, outputAssetEntity: Fiat, priceSteps: PriceStep[]): UpdateResult<BuyFiat> {
+    this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
+
     const update: Partial<BuyFiat> = {
       outputAmount,
       outputReferenceAmount: outputAmount,
       outputAsset: outputAssetEntity,
       outputReferenceAsset: outputAssetEntity,
+      priceSteps: this.priceSteps,
     };
 
     Object.assign(this, update);
@@ -375,6 +381,14 @@ export class BuyFiat extends IEntity {
 
   get inputMailTranslationKey(): MailTranslationKey {
     return MailTranslationKey.CRYPTO_INPUT;
+  }
+
+  get priceStepsObject(): PriceStep[] {
+    return this.priceSteps ? JSON.parse(this.priceSteps) : [];
+  }
+
+  set priceStepsObject(priceSteps: PriceStep[]) {
+    this.priceSteps = JSON.stringify(priceSteps);
   }
 }
 

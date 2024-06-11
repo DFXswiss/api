@@ -201,7 +201,7 @@ export class BuyFiatPreparationService {
         const price = await this.pricingService.getPrice(asset, currency, false);
 
         await this.buyFiatRepo.update(
-          ...entity.setOutput(price.convert(entity.inputReferenceAmountMinusFee), currency),
+          ...entity.setOutput(price.convert(entity.inputReferenceAmountMinusFee), currency, price.steps),
         );
       } catch (e) {
         this.logger.error(`Error during buy-fiat ${entity.id} output setting:`, e);

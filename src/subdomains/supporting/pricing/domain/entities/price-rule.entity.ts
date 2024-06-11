@@ -15,6 +15,7 @@ export enum PriceSource {
   CURRENCY = 'Currency',
   FRANKENCOIN = 'Frankencoin',
   EBEL2X = 'Ebel2X',
+  BANK = 'Bank',
 }
 
 export interface Rule {
@@ -107,6 +108,7 @@ export class PriceRule extends IEntity {
       this.currentPrice,
       this.isPriceValid,
       this.priceTimestamp,
+      this.rule.source,
     );
   }
 

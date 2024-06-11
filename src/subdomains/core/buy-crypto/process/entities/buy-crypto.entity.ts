@@ -21,7 +21,8 @@ import {
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
-import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { PriceSource } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { AmlReason } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
@@ -173,6 +174,9 @@ export class BuyCrypto extends IEntity {
   @ManyToOne(() => Asset, { eager: true, nullable: true })
   outputAsset: Asset;
 
+  @Column({ length: 'MAX', nullable: true })
+  priceSteps: string;
+
   // Transaction details
   @Column({ length: 256, nullable: true })
   txId: string;
@@ -204,6 +208,18 @@ export class BuyCrypto extends IEntity {
 
   calculateOutputReferenceAmount(price: Price): this {
     this.outputReferenceAmount = price.convert(this.inputReferenceAmountMinusFee, 8);
+    const inputPriceStep =
+      this.inputAsset !== this.inputReferenceAsset
+        ? [
+            PriceStep.create(
+              PriceSource.BANK,
+              this.inputAsset,
+              this.inputReferenceAsset,
+              this.inputAmount / this.inputReferenceAmount,
+            ),
+          ]
+        : [];
+    this.priceStepsObject = [...this.priceStepsObject, ...inputPriceStep, ...(price.steps ?? [])];
     return this;
   }
 
@@ -516,6 +532,14 @@ export class BuyCrypto extends IEntity {
 
   get inputMailTranslationKey(): MailTranslationKey {
     return this.isCryptoCryptoTransaction ? MailTranslationKey.CRYPTO_INPUT : MailTranslationKey.FIAT_INPUT;
+  }
+
+  get priceStepsObject(): PriceStep[] {
+    return this.priceSteps ? JSON.parse(this.priceSteps) : [];
+  }
+
+  set priceStepsObject(priceSteps: PriceStep[]) {
+    this.priceSteps = JSON.stringify(priceSteps);
   }
 
   get mailReturnReason(): string {
