@@ -11,7 +11,15 @@ export class Price {
   steps: PriceStep[];
 
   invert(): Price {
-    return Price.create(this.target, this.source, 1 / this.price, this.isValid, this.timestamp);
+    const price = Price.create(this.target, this.source, 1 / this.price, this.isValid, this.timestamp);
+
+    price.addPriceSteps(
+      this.steps
+        .map((s) => ({ source: s.source, from: s.to, to: s.from, price: 1 / s.price, timestamp: s.timestamp }))
+        .reverse(),
+    );
+
+    return price;
   }
 
   convert(fromAmount: number, decimals?: number): number {
