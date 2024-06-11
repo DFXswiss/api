@@ -3,19 +3,21 @@ import { ModuleRef } from '@nestjs/core';
 import { FrankencoinService } from 'src/integration/blockchain/frankencoin/frankencoin.service';
 import { Util } from 'src/shared/utils/util';
 import { Price } from '../../domain/entities/price';
-import { PricingProvider } from '../../domain/interfaces';
+import { PricingProvider } from './pricing-provider';
 
 @Injectable()
-export class PricingFrankencoinService implements OnModuleInit, PricingProvider {
+export class PricingFrankencoinService extends PricingProvider implements OnModuleInit {
   private static readonly ZCHF = 'ZCHF';
   private static readonly FPS = 'FPS';
   private static readonly ALLOWED_ASSETS = [PricingFrankencoinService.ZCHF, PricingFrankencoinService.FPS];
 
   private frankencoinService: FrankencoinService;
 
-  constructor(private moduleRef: ModuleRef) {}
+  constructor(private readonly moduleRef: ModuleRef) {
+    super();
+  }
 
-  onModuleInit() {
+  async onModuleInit() {
     this.frankencoinService = this.moduleRef.get(FrankencoinService, { strict: false });
   }
 

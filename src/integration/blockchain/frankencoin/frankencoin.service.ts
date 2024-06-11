@@ -2,7 +2,6 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, GetConfig } from 'src/config/config';
-import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
@@ -41,7 +40,6 @@ export class FrankencoinService implements OnModuleInit {
     http: HttpService,
     private readonly moduleRef: ModuleRef,
     private readonly logService: LogService,
-    private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
   ) {
     const { zchfGatewayUrl, zchfApiKey } = GetConfig().blockchain.frankencoin;
@@ -230,15 +228,13 @@ export class FrankencoinService implements OnModuleInit {
 
     const fiatUsd = await this.fiatService.getFiatByName('USD');
     const fiatChf = await this.fiatService.getFiatByName('CHF');
-    const assetZchf = await this.assetService.getAssetByUniqueName('Ethereum/ZCHF');
 
     const priceUsdToChf = await this.pricingService.getPrice(fiatUsd, fiatChf, false);
-    const priceZchfToChf = await this.pricingService.getPrice(assetZchf, fiatChf, false);
 
     return {
       totalSupplyZchf: frankencoinLog.totalSupply,
       totalValueLockedInChf: frankencoinLog.totalValueLocked / priceUsdToChf.price,
-      fpsMarketCapInChf: frankencoinLog.poolShares.marketCap / priceZchfToChf.price,
+      fpsMarketCapInChf: frankencoinLog.poolShares.marketCap,
     };
   }
 }
