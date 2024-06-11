@@ -260,7 +260,7 @@ export class BuyFiat extends IEntity {
   }
 
   setOutput(outputAmount: number, outputAssetEntity: Fiat, priceSteps: PriceStep[]): UpdateResult<BuyFiat> {
-    this.addPriceSteps(priceSteps);
+    this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
 
     const update: Partial<BuyFiat> = {
       outputAmount,
@@ -340,10 +340,6 @@ export class BuyFiat extends IEntity {
     Object.assign(this, update);
 
     return [this.id, update];
-  }
-
-  addPriceSteps(steps: PriceStep[]): void {
-    this.priceStepsObject = [...this.priceStepsObject, ...(steps ?? [])];
   }
 
   get exchangeRate(): { exchangeRate: number; rate: number } {
