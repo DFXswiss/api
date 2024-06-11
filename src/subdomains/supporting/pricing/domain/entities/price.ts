@@ -14,9 +14,7 @@ export class Price {
     const price = Price.create(this.target, this.source, 1 / this.price, this.isValid, this.timestamp);
 
     price.addPriceSteps(
-      this.steps
-        .map((s) => ({ source: s.source, from: s.to, to: s.from, price: 1 / s.price, timestamp: s.timestamp }))
-        .reverse(),
+      this.steps.map((s) => PriceStep.create(s.source, s.to, s.from, 1 / s.price, s.timestamp)).reverse(),
     );
 
     return price;
@@ -97,7 +95,7 @@ export class PriceStep {
     priceStep.source = source;
     priceStep.from = from;
     priceStep.to = to;
-    priceStep.price = _price;
+    priceStep.price = Util.roundReadable(_price, false);
     priceStep.timestamp = _timestamp;
 
     return priceStep;
