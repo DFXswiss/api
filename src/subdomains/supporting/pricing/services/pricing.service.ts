@@ -52,6 +52,7 @@ export class PricingService {
       [PriceSource.CURRENCY]: currencyService,
       [PriceSource.FRANKENCOIN]: frankencoinService,
       [PriceSource.EBEL2X]: ebel2xService,
+      [PriceSource.BANK]: undefined,
     };
   }
 
