@@ -81,11 +81,8 @@ export class FrankencoinService {
     const positionsResult: FrankencoinPositionDto[] = [];
 
     const positions = await this.client.getPositions();
-    this.logger.info(`Number of Positions: ${positions.length}`);
 
     for (const position of positions) {
-      this.logger.info(`Position: ${position.id}`);
-
       try {
         const collateralContract = this.client.getErc20Contract(position.collateral);
 
