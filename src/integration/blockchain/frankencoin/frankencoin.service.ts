@@ -233,7 +233,7 @@ export class FrankencoinService implements OnModuleInit {
 
     return {
       totalSupplyZchf: frankencoinLog.totalSupply,
-      totalValueLockedInChf: frankencoinLog.totalValueLocked / priceUsdToChf.price,
+      totalValueLockedInChf: priceUsdToChf.convert(frankencoinLog.totalValueLocked),
       fpsMarketCapInChf: frankencoinLog.poolShares.marketCap,
     };
   }
