@@ -70,6 +70,10 @@ export class BuyCrypto extends IEntity {
   @JoinColumn()
   chargebackBankTx: BankTx;
 
+  @OneToOne(() => CheckoutTx, { nullable: true })
+  @JoinColumn()
+  chargebackCheckoutTx: CheckoutTx;
+
   @OneToOne(() => BuyCryptoFee, (fee) => fee.buyCrypto, { eager: true, cascade: true })
   fee: BuyCryptoFee;
 

@@ -31,6 +31,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.service';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
+import { CheckoutTxService } from 'src/subdomains/supporting/fiat-payin/services/checkout-tx.service';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
@@ -65,6 +66,7 @@ export class BuyCryptoService {
     private readonly bankDataService: BankDataService,
     private readonly transactionRequestService: TransactionRequestService,
     private readonly transactionService: TransactionService,
+    private readonly checkoutTxService: CheckoutTxService,
     private readonly siftService: SiftService,
   ) {}
 
@@ -264,6 +266,12 @@ export class BuyCryptoService {
     // chargeback bank tx
     if (dto.chargebackBankTxId) {
       update.chargebackBankTx = await this.bankTxService.getBankTxRepo().findOneBy({ id: dto.chargebackBankTxId });
+      if (!update.chargebackBankTx) throw new BadRequestException('Bank TX not found');
+    }
+
+    // chargeback checkout tx
+    if (dto.chargebackCheckoutTxId) {
+      update.chargebackCheckoutTx = await this.checkoutTxService.getCheckoutTx(dto.chargebackCheckoutTxId);
       if (!update.chargebackBankTx) throw new BadRequestException('Bank TX not found');
     }
 
@@ -635,6 +643,7 @@ export class BuyCryptoService {
         'cryptoRoute',
         'cryptoRoute.user',
         'chargebackBankTx',
+        'chargebackCheckoutTx',
       ],
       order: { id: 'DESC' },
     });

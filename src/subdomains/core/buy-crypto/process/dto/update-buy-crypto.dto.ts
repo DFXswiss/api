@@ -140,6 +140,10 @@ export class UpdateBuyCryptoDto {
   chargebackBankTxId: number;
 
   @IsOptional()
+  @IsInt()
+  chargebackCheckoutTxId: number;
+
+  @IsOptional()
   @IsBoolean()
   isComplete: boolean;
 

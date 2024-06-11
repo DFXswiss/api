@@ -19,6 +19,12 @@ export interface CheckoutBalances {
   pending: number;
 }
 
+export interface CheckoutReverse {
+  action_id: string;
+  reference: string;
+  _links: { payment: { href: string } };
+}
+
 @Injectable()
 export class CheckoutService {
   private readonly reference = 'DFX';
@@ -88,5 +94,10 @@ export class CheckoutService {
   async getBalances(): Promise<CheckoutBalanceData[]> {
     const balance = await this.checkout.balances.retrieve(Config.checkout.entityId);
     return balance.data;
+  }
+
+  async reversePayment(paymentId: string): Promise<CheckoutReverse> {
+    const reverse = await this.checkout.payments.refund(paymentId);
+    return reverse as CheckoutReverse;
   }
 }

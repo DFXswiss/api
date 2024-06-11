@@ -212,6 +212,7 @@ export class BuyCryptoNotificationService {
         outputAmount: IsNull(),
         chargebackDate: IsNull(),
         chargebackBankTx: IsNull(),
+        chargebackCheckoutTx: IsNull(),
         amlReason: In(BuyCryptoAmlReasonPendingStates),
         amlCheck: CheckStatus.PENDING,
       },
