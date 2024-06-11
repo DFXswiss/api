@@ -66,9 +66,9 @@ export interface FrankencoinLogDto {
 }
 
 export interface FrankencoinInfoDto {
-  totalSupply: number;
-  totalValueLocked: number;
-  fpsMarketCap: number;
+  totalSupplyZchf: number;
+  totalValueLockedInChf: number;
+  fpsMarketCapInChf: number;
 }
 
 export interface FrankencoinSwapDto {
