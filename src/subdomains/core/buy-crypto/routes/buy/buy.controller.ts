@@ -61,6 +61,7 @@ export class BuyController {
     private readonly checkoutService: CheckoutService,
     private readonly transactionRequestService: TransactionRequestService,
     private readonly fiatService: FiatService,
+    private readonly swissQrService: SwissQRService,
   ) {}
 
   @Get()
@@ -188,7 +189,7 @@ export class BuyController {
     );
 
     return {
-      base64Enc: await SwissQRService.createSwissQrInvoice(data),
+      base64Enc: await this.swissQrService.createSwissQrInvoice(data, request),
     };
   }
 
@@ -342,7 +343,7 @@ export class BuyController {
   private generateQRCode(buy: Buy, bankInfo: BankInfoDto, dto: GetBuyPaymentInfoDto): string {
     if (dto.currency.name === 'CHF') {
       const data = this.generateSwissQrBillData(dto.amount, dto.currency.name, buy.bankUsage, bankInfo);
-      return SwissQRService.createSwissQrCode(data);
+      return this.swissQrService.createSwissQrCode(data);
     } else {
       return this.generateGiroCode(buy, bankInfo, dto);
     }

@@ -1,8 +1,13 @@
+import { Injectable } from '@nestjs/common';
+import { I18nService } from 'nestjs-i18n';
 import PDFDocument from 'pdfkit';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SwissQRBill, Table } from 'swissqrbill/pdf';
 import { SwissQRCode } from 'swissqrbill/svg';
 import { Data as QrBillData } from 'swissqrbill/types';
 import { mm2pt } from 'swissqrbill/utils';
+import { TransactionRequest } from '../entities/transaction-request.entity';
 
 const dfxLogoBall1 =
   'M86.1582 126.274C109.821 126.274 129.004 107.092 129.004 83.4287C129.004 59.7657 109.821 40.583 86.1582 40.583C62.4952 40.583 43.3126 59.7657 43.3126 83.4287C43.3126 107.092 62.4952 126.274 86.1582 126.274Z';
@@ -13,15 +18,32 @@ const dfxLogoBall2 =
 const dfxLogoText =
   'M61.5031 0H124.245C170.646 0 208.267 36.5427 208.267 84.0393C208.267 131.536 169.767 170.018 122.288 170.018H61.5031V135.504H114.046C141.825 135.504 164.541 112.789 164.541 85.009C164.541 57.2293 141.825 34.5136 114.046 34.5136H61.5031V0ZM266.25 31.5686V76.4973H338.294V108.066H266.25V170H226.906V0H355.389V31.5686H266.25ZM495.76 170L454.71 110.975L414.396 170H369.216L432.12 83.5365L372.395 0H417.072L456.183 55.1283L494.557 0H537.061L477.803 82.082L541.191 170H495.778H495.76Z';
 
+@Injectable()
 export class SwissQRService {
-  static createSwissQrCode(data: QrBillData): string {
+  constructor(
+    private readonly assetService: AssetService,
+    private readonly fiatService: FiatService,
+    private readonly i18n: I18nService,
+  ) {}
+
+  private translate(key: string, lang: string, args?: any): string {
+    return this.i18n.translate(key, { lang, args });
+  }
+
+  createSwissQrCode(data: QrBillData): string {
     return new SwissQRCode(data).toString();
   }
 
-  static createSwissQrInvoice(data: QrBillData): Promise<string> {
+  async createSwissQrInvoice(data: QrBillData, request: TransactionRequest): Promise<string> {
     if (!data.debtor) {
       throw new Error('Debtor is required');
     }
+
+    const invoiceId = request.id;
+    const currency = (await this.fiatService.getFiat(request.sourceId)).name;
+    const asset = await this.assetService.getAssetById(request.targetId);
+    const assetAmount = request.estimatedAmount;
+    const cost = request.amount;
 
     return new Promise((resolve, reject) => {
       try {
@@ -88,7 +110,7 @@ export class SwissQRService {
         // Title
         pdf.fontSize(14);
         pdf.font('Helvetica-Bold');
-        pdf.text('Rechnung Nr. 1071672', mm2pt(20), mm2pt(100), {
+        pdf.text(`Invoice No. ${invoiceId}`, mm2pt(20), mm2pt(100), {
           align: 'left',
           width: mm2pt(170),
         });
@@ -97,7 +119,7 @@ export class SwissQRService {
         const date = new Date();
         pdf.fontSize(11);
         pdf.font('Helvetica');
-        pdf.text(`Musterstadt ${date.getDate()}.${date.getMonth() + 1}.${date.getFullYear()}`, {
+        pdf.text(`Zug ${date.getDate()}.${date.getMonth() + 1}.${date.getFullYear()}`, {
           align: 'right',
           width: mm2pt(170),
         });
@@ -109,15 +131,11 @@ export class SwissQRService {
               backgroundColor: '#4A4D51',
               columns: [
                 {
-                  text: 'Position',
-                  width: mm2pt(20),
+                  text: 'Quantity *',
+                  width: mm2pt(40),
                 },
                 {
-                  text: 'Anzahl',
-                  width: mm2pt(20),
-                },
-                {
-                  text: 'Bezeichnung',
+                  text: 'Description',
                 },
                 {
                   text: 'Total',
@@ -133,38 +151,14 @@ export class SwissQRService {
             {
               columns: [
                 {
-                  text: '1',
-                  width: mm2pt(20),
+                  text: `${assetAmount}`,
+                  width: mm2pt(40),
                 },
                 {
-                  text: '14 Std.',
-                  width: mm2pt(20),
+                  text: `${asset.description} (${asset.name}) delivered on ${asset.blockchain}`,
                 },
                 {
-                  text: 'Programmierung SwissQRBill',
-                },
-                {
-                  text: "CHF 1'540.00",
-                  width: mm2pt(30),
-                },
-              ],
-              padding: 5,
-            },
-            {
-              columns: [
-                {
-                  text: '2',
-                  width: mm2pt(20),
-                },
-                {
-                  text: '8 Std.',
-                  width: mm2pt(20),
-                },
-                {
-                  text: 'Dokumentation',
-                },
-                {
-                  text: 'CHF 880.00',
+                  text: `${currency} ${cost.toFixed(2)}`,
                   width: mm2pt(30),
                 },
               ],
@@ -174,19 +168,15 @@ export class SwissQRService {
               columns: [
                 {
                   text: '',
-                  width: mm2pt(20),
-                },
-                {
-                  text: '',
-                  width: mm2pt(20),
+                  width: mm2pt(40),
                 },
                 {
                   fontName: 'Helvetica-Bold',
-                  text: 'Summe',
+                  text: 'Total',
                 },
                 {
                   fontName: 'Helvetica-Bold',
-                  text: "CHF 2'420.00",
+                  text: `${currency} ${cost.toFixed(2)}`,
                   width: mm2pt(30),
                 },
               ],
@@ -197,17 +187,13 @@ export class SwissQRService {
               columns: [
                 {
                   text: '',
-                  width: mm2pt(20),
+                  width: mm2pt(40),
                 },
                 {
-                  text: '',
-                  width: mm2pt(20),
+                  text: 'VAT',
                 },
                 {
-                  text: 'MwSt.',
-                },
-                {
-                  text: '7.7%',
+                  text: '0%',
                   width: mm2pt(30),
                 },
               ],
@@ -217,17 +203,13 @@ export class SwissQRService {
               columns: [
                 {
                   text: '',
-                  width: mm2pt(20),
+                  width: mm2pt(40),
                 },
                 {
-                  text: '',
-                  width: mm2pt(20),
+                  text: 'VAT Amount',
                 },
                 {
-                  text: 'MwSt. Betrag',
-                },
-                {
-                  text: 'CHF 186.35',
+                  text: `${currency} 0.00`,
                   width: mm2pt(30),
                 },
               ],
@@ -237,31 +219,39 @@ export class SwissQRService {
               columns: [
                 {
                   text: '',
-                  width: mm2pt(20),
-                },
-                {
-                  text: '',
-                  width: mm2pt(20),
+                  width: mm2pt(40),
                 },
                 {
                   fontName: 'Helvetica-Bold',
-                  text: 'Rechnungstotal',
+                  text: 'Invoice Total',
                 },
                 {
                   fontName: 'Helvetica-Bold',
-                  text: "CHF 2'606.35",
+                  text: `${currency} ${cost.toFixed(2)}`,
                   width: mm2pt(30),
                 },
               ],
               height: 40,
               padding: 5,
+            },
+            {
+              columns: [
+                {
+                  text: '* Info: The effective exchange rate and thus the amount of the effectively delivered quantity is determined when the money is received and processed by DFX.',
+                  textOptions: { oblique: true, lineGap: 2 },
+                  fontSize: 10,
+                  width: mm2pt(170),
+                },
+              ],
             },
           ],
           width: mm2pt(170),
         });
 
         // QR-Bill
-        const qrBill = new SwissQRBill(data);
+        const qrBill = new SwissQRBill(data, {
+          language: 'EN',
+        });
 
         // Attach to PDF
         table.attachTo(pdf);
