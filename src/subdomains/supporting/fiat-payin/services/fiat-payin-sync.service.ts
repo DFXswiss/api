@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CheckoutPayment } from 'src/integration/checkout/dto/checkout.dto';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
+import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -44,7 +45,7 @@ export class FiatPayInSyncService {
           await this.checkoutTxService.createCheckoutBuyCrypto(checkoutTx);
         } else {
           const buy = await this.buyService.getByBankUsage(checkoutTx.reference);
-          if (buy) await this.siftService.transactionCheckoutDeclined(checkoutTx, buy);
+          if (buy) await this.siftService.transaction(checkoutTx, buy, TransactionStatus.FAILURE, undefined, true);
         }
       } catch (e) {
         this.logger.error(`Failed to import checkout transaction:`, e);

@@ -131,7 +131,13 @@ export class BuyCryptoPreparationService {
 
         // update sift transaction status
         if (entity.amlCheck === CheckStatus.FAIL)
-          await this.siftService.transaction(entity, TransactionStatus.FAILURE, DeclineCategory.OTHER);
+          await this.siftService.transaction(
+            entity,
+            entity.user,
+            TransactionStatus.FAILURE,
+            DeclineCategory.OTHER,
+            Boolean(entity.checkoutTx),
+          );
       } catch (e) {
         this.logger.error(`Error during buy-crypto ${entity.id} AML check:`, e);
       }
@@ -211,7 +217,13 @@ export class BuyCryptoPreparationService {
 
         if (entity.amlCheck === CheckStatus.FAIL) {
           // update sift transaction status
-          await this.siftService.transaction(entity, TransactionStatus.FAILURE, DeclineCategory.OTHER);
+          await this.siftService.transaction(
+            entity,
+            entity.user,
+            TransactionStatus.FAILURE,
+            DeclineCategory.OTHER,
+            Boolean(entity.checkoutTx),
+          );
           return;
         }
 

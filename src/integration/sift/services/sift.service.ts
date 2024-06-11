@@ -64,98 +64,61 @@ export class SiftService {
   }
 
   async transaction(
-    entity: BuyCrypto,
+    buyCryptoOrCheckoutTx: BuyCrypto | CheckoutTx,
+    userOrBuy: User | Buy,
     status: TransactionStatus,
-    declineCategory: DeclineCategory = undefined,
+    declineCategory: DeclineCategory,
+    isCheckoutTx: boolean,
   ): Promise<SiftResponse> {
-    const paymentMethod: {
-      $account_holder_name;
-      $card_bin;
-      $card_last4;
-      $bank_name;
-      $bank_country;
-      $shortened_iban_first6;
-      $shortened_iban_last4;
-      $routing_number;
-    } = undefined;
-
-    if (entity.checkoutTx) {
-      paymentMethod.$account_holder_name = entity.checkoutTx.cardName;
-      paymentMethod.$card_bin = entity.checkoutTx.cardBin;
-      paymentMethod.$card_last4 = entity.checkoutTx.cardLast4;
-      paymentMethod.$bank_name = entity.checkoutTx.cardIssuer;
-      paymentMethod.$bank_country = entity.checkoutTx.cardIssuerCountry;
-    }
-
-    if (entity.bankTx) {
-      paymentMethod.$account_holder_name = entity.bankTx.name;
-      paymentMethod.$card_bin = entity.bankTx.iban.slice(0, 6);
-      paymentMethod.$card_last4 = entity.bankTx.iban.slice(-4);
-      paymentMethod.$bank_name = entity.bankTx.bankName;
-      paymentMethod.$bank_country = entity.bankTx.country;
-      paymentMethod.$routing_number = entity.bankTx.aba;
-    }
+    const paymentMethod = this.createPaymentMethod(buyCryptoOrCheckoutTx, isCheckoutTx);
 
     const data: Transaction = {
-      $transaction_id: entity.transaction.id.toString(),
-      $user_id: entity.user.id.toString(),
-      $order_id: entity.transactionRequest?.id?.toString(),
+      $transaction_id: isCheckoutTx
+        ? (buyCryptoOrCheckoutTx as CheckoutTx).transaction.id.toString()
+        : (buyCryptoOrCheckoutTx as BuyCrypto).transaction.id.toString(),
+      $user_id: isCheckoutTx ? (userOrBuy as Buy).user.id.toString() : (userOrBuy as User).id.toString(),
       $transaction_type: TransactionType.BUY,
-      $decline_category: declineCategory,
+      $decline_category: isCheckoutTx
+        ? SiftAuthenticationStatusMap[(buyCryptoOrCheckoutTx as CheckoutTx).authStatusReason]
+        : declineCategory,
       $transaction_status: status,
-      $time: entity.updated.getTime(),
-      $amount: entity.inputAmount * 10000, //amount in micros in the base unit
-      $currency_code: entity.inputAsset,
+      $time: isCheckoutTx
+        ? (buyCryptoOrCheckoutTx as CheckoutTx).updated.getTime()
+        : (buyCryptoOrCheckoutTx as BuyCrypto).updated.getTime(),
+      $amount: isCheckoutTx
+        ? (buyCryptoOrCheckoutTx as CheckoutTx).amount * 10000
+        : (buyCryptoOrCheckoutTx as BuyCrypto).inputAmount * 10000, // amount in micros in the base unit
+      $currency_code: isCheckoutTx
+        ? (buyCryptoOrCheckoutTx as CheckoutTx).currency
+        : (buyCryptoOrCheckoutTx as BuyCrypto).inputAsset,
       $site_country: 'CH',
       $payment_methods: [
         {
-          $payment_type: SiftPaymentMethodMap[entity.paymentMethodIn],
+          $payment_type: isCheckoutTx
+            ? PaymentType.CREDIT_CARD
+            : SiftPaymentMethodMap[(buyCryptoOrCheckoutTx as BuyCrypto).paymentMethodIn],
           ...paymentMethod,
         },
       ],
       $digital_orders: [
         {
-          $digital_asset: entity.outputAsset.name,
-          $pair: `${entity.inputAsset}_${entity.outputAsset.name}`,
+          $digital_asset: isCheckoutTx
+            ? (userOrBuy as Buy).asset.name
+            : (buyCryptoOrCheckoutTx as BuyCrypto).outputAsset.name,
+          $pair: isCheckoutTx
+            ? `${(buyCryptoOrCheckoutTx as CheckoutTx).currency}_${(userOrBuy as Buy).asset.name}`
+            : `${(buyCryptoOrCheckoutTx as BuyCrypto).inputAsset}_${
+                (buyCryptoOrCheckoutTx as BuyCrypto).outputAsset.name
+              }`,
           $asset_type: SiftAssetType.CRYPTO,
-          $volume: entity.outputAmount?.toString(),
+          $volume: isCheckoutTx ? undefined : (buyCryptoOrCheckoutTx as BuyCrypto).outputAmount?.toString(),
         },
       ],
-      blockchain: entity.outputAsset.blockchain,
+      blockchain: isCheckoutTx
+        ? (userOrBuy as Buy).asset.blockchain
+        : (buyCryptoOrCheckoutTx as BuyCrypto).outputAsset.blockchain,
     };
-    return this.send(EventType.TRANSACTION, data);
-  }
 
-  async transactionCheckoutDeclined(checkoutTx: CheckoutTx, buy: Buy): Promise<SiftResponse> {
-    const data: Transaction = {
-      $transaction_id: checkoutTx.transaction.id.toString(),
-      $user_id: buy.user.id.toString(),
-      $transaction_type: TransactionType.BUY,
-      $decline_category: SiftAuthenticationStatusMap[checkoutTx.authStatusReason],
-      $transaction_status: TransactionStatus.FAILURE,
-      $time: checkoutTx.updated.getTime(),
-      $amount: checkoutTx.amount * 10000, //amount in micros in the base unit
-      $currency_code: checkoutTx.currency,
-      $site_country: 'CH',
-      $payment_methods: [
-        {
-          $payment_type: PaymentType.CREDIT_CARD,
-          $account_holder_name: checkoutTx.cardName,
-          $card_bin: checkoutTx.cardBin,
-          $card_last4: checkoutTx.cardLast4,
-          $bank_name: checkoutTx.cardIssuer,
-          $bank_country: checkoutTx.cardIssuerCountry,
-        },
-      ],
-      $digital_orders: [
-        {
-          $digital_asset: buy.asset.name,
-          $pair: `${checkoutTx.currency}_${buy.asset.name}`,
-          $asset_type: SiftAssetType.CRYPTO,
-        },
-      ],
-      blockchain: buy.asset.blockchain,
-    };
     return this.send(EventType.TRANSACTION, data);
   }
 
@@ -170,5 +133,37 @@ export class SiftService {
     } catch (error) {
       this.logger.error(`Error sending Sift event ${type} for user ${data.$user_id}:`, error);
     }
+  }
+
+  private createPaymentMethod(buyCrypto: BuyCrypto | CheckoutTx, isCheckoutTx: boolean): any {
+    const paymentMethod: any = {};
+
+    if (isCheckoutTx) {
+      const tx = buyCrypto as CheckoutTx;
+      paymentMethod.$account_holder_name = tx.cardName;
+      paymentMethod.$card_bin = tx.cardBin;
+      paymentMethod.$card_last4 = tx.cardLast4;
+      paymentMethod.$bank_name = tx.cardIssuer;
+      paymentMethod.$bank_country = tx.cardIssuerCountry;
+    } else {
+      const tx = buyCrypto as BuyCrypto;
+      if (tx.checkoutTx) {
+        paymentMethod.$account_holder_name = tx.checkoutTx.cardName;
+        paymentMethod.$card_bin = tx.checkoutTx.cardBin;
+        paymentMethod.$card_last4 = tx.checkoutTx.cardLast4;
+        paymentMethod.$bank_name = tx.checkoutTx.cardIssuer;
+        paymentMethod.$bank_country = tx.checkoutTx.cardIssuerCountry;
+      }
+      if (tx.bankTx) {
+        paymentMethod.$account_holder_name = tx.bankTx.name;
+        paymentMethod.$card_bin = tx.bankTx.iban.slice(0, 6);
+        paymentMethod.$card_last4 = tx.bankTx.iban.slice(-4);
+        paymentMethod.$bank_name = tx.bankTx.bankName;
+        paymentMethod.$bank_country = tx.bankTx.country;
+        paymentMethod.$routing_number = tx.bankTx.aba;
+      }
+    }
+
+    return paymentMethod;
   }
 }
