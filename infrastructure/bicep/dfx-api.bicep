@@ -118,6 +118,7 @@ param moneroRpcCertificate string
 
 param zchfGatewayUrl string
 param zchfGraphUrl string
+param zchfTvlUrl string
 param zchfContractAddress string
 param zchfEquityContractAddress string
 param zchfStablecoinBridgeContractAddress string
@@ -829,6 +830,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'ZCHF_GRAPH_URL'
           value: zchfGraphUrl
+        }
+        {
+          name: 'ZCHF_TVL_URL'
+          value: zchfTvlUrl
         }
         {
           name: 'ZCHF_CONTRACT_ADDRESS'

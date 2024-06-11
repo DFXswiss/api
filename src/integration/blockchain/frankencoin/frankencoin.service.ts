@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, GetConfig } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { HttpService } from 'src/shared/services/http.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { CreateLogDto } from 'src/subdomains/supporting/log/dto/create-log.dto';
@@ -11,6 +12,7 @@ import { EvmUtil } from '../shared/evm/evm.util';
 import {
   FrankencoinChallengeGraphDto,
   FrankencoinDelegationGraphDto,
+  FrankencoinInfoDto,
   FrankencoinLogDto,
   FrankencoinMinterGraphDto,
   FrankencoinPoolSharesDto,
@@ -25,13 +27,14 @@ export class FrankencoinService {
   private readonly logger = new DfxLogger(FrankencoinService);
 
   private static readonly LOG_SYSTEM = 'EvmInformation';
+  private static readonly LOG_SUBSYSTEM = 'FrankencoinSmartContract';
 
   private readonly client: FrankencoinClient;
 
-  constructor(private readonly logService: LogService) {
+  constructor(http: HttpService, private readonly logService: LogService) {
     const { zchfGatewayUrl, zchfApiKey } = GetConfig().blockchain.frankencoin;
 
-    this.client = new FrankencoinClient(zchfGatewayUrl, zchfApiKey);
+    this.client = new FrankencoinClient(http, zchfGatewayUrl, zchfApiKey);
   }
 
   @Cron(CronExpression.EVERY_10_MINUTES)
@@ -44,11 +47,12 @@ export class FrankencoinService {
       positions: await this.getPositions(),
       poolShares: await this.getFPS(),
       totalSupply: await this.getTotalSupply(),
+      totalValueLocked: await this.getTvl(),
     };
 
     const log: CreateLogDto = {
       system: FrankencoinService.LOG_SYSTEM,
-      subsystem: 'FrankencoinSmartContract',
+      subsystem: FrankencoinService.LOG_SUBSYSTEM,
       severity: LogSeverity.INFO,
       message: JSON.stringify(logMessage),
     };
@@ -185,5 +189,33 @@ export class FrankencoinService {
 
   async getTrades(): Promise<FrankencoinTradeGraphDto[]> {
     return this.client.getTrades();
+  }
+
+  async getTvl(): Promise<number> {
+    return this.client.getTvl();
+  }
+
+  async getFrankencoinInfo(): Promise<FrankencoinInfoDto> {
+    const maxFrankencoinLogEntity = await this.logService.maxEntity(
+      FrankencoinService.LOG_SYSTEM,
+      FrankencoinService.LOG_SUBSYSTEM,
+      LogSeverity.INFO,
+    );
+
+    if (!maxFrankencoinLogEntity) {
+      return {
+        totalSupply: 0,
+        totalValueLocked: 0,
+        fpsMarketCap: 0,
+      };
+    }
+
+    const frankencoinLog = <FrankencoinLogDto>JSON.parse(maxFrankencoinLogEntity.message);
+
+    return {
+      totalSupply: frankencoinLog.totalSupply,
+      totalValueLocked: frankencoinLog.totalValueLocked,
+      fpsMarketCap: frankencoinLog.poolShares.marketCap,
+    };
   }
 }
