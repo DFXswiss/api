@@ -140,7 +140,10 @@ export class BuyCryptoOutService {
           await this.buyCryptoRepo.save(tx);
 
           //update sift transaction status
-          await this.siftService.transaction(tx, TransactionStatus.SUCCESS);
+          const siftResponse = await this.siftService.transaction(tx, TransactionStatus.SUCCESS);
+
+          tx.siftScore = JSON.stringify(siftResponse);
+          await this.buyCryptoRepo.save(tx);
 
           // payment webhook
           await this.buyCryptoWebhookService.triggerWebhook(tx);

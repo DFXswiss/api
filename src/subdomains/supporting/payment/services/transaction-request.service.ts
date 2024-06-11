@@ -98,7 +98,7 @@ export class TransactionRequestService {
       response.id = transactionRequest.id;
 
       // create order at sift
-      await this.siftService.createOrder({
+      const siftResponse = await this.siftService.createOrder({
         $order_id: transactionRequest.id.toString(),
         $user_id: userId.toString(),
         $time: transactionRequest.created.getTime(),
@@ -116,6 +116,10 @@ export class TransactionRequestService {
         ],
         blockchain,
       } as CreateOrder);
+
+      transactionRequest.siftScore = JSON.stringify(siftResponse);
+      // save sift
+      await this.transactionRequestRepo.save(transactionRequest);
     } catch (e) {
       this.logger.error(
         `Failed to store ${type} transaction request for route ${response.routeId}, request was ${JSON.stringify(

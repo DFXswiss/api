@@ -200,6 +200,9 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 256, nullable: true })
   externalTransactionId: string;
 
+  @Column({ length: 'MAX', nullable: true })
+  siftScore: string;
+
   // --- ENTITY METHODS --- //
 
   calculateOutputReferenceAmount(price: Price): this {

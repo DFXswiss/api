@@ -16,7 +16,7 @@ import {
   SiftAssetType,
   SiftAuthenticationStatusMap,
   SiftBase,
-  SiftPaymentMethodMap,
+  SiftResponse,
   Transaction,
   TransactionStatus,
   TransactionType,
@@ -24,12 +24,12 @@ import {
 
 @Injectable()
 export class SiftService {
-  private readonly url = 'https://api.sift.com/v205/events';
+  private readonly url = 'https://api.sift.com/v205/events?return_workflow_status=true&return_route_info';
   private readonly logger = new DfxLogger(SiftService);
 
   constructor(private readonly http: HttpService) {}
 
-  async createAccount(user: User): Promise<void> {
+  async createAccount(user: User): Promise<SiftResponse> {
     const data: CreateAccount = {
       $user_id: user.id.toString(),
       $referrer_user_id: user.ref,
@@ -44,11 +44,11 @@ export class SiftService {
     return this.send(EventType.CREATE_ACCOUNT, data);
   }
 
-  async updateAccount(data: CreateAccount): Promise<void> {
+  async updateAccount(data: CreateAccount): Promise<SiftResponse> {
     return this.send(EventType.UPDATE_ACCOUNT, data);
   }
 
-  async login(user: User, ip: string): Promise<void> {
+  async login(user: User, ip: string): Promise<SiftResponse> {
     const data: SiftBase = {
       $user_id: user.id.toString(),
       $ip: ip,
@@ -58,7 +58,7 @@ export class SiftService {
     return this.send(EventType.LOGIN, data);
   }
 
-  async createOrder(data: CreateOrder): Promise<void> {
+  async createOrder(data: CreateOrder): Promise<SiftResponse> {
     return this.send(EventType.CREATE_ORDER, data);
   }
 
@@ -66,7 +66,7 @@ export class SiftService {
     entity: BuyCrypto,
     status: TransactionStatus,
     declineCategory: DeclineCategory = undefined,
-  ): Promise<void> {
+  ): Promise<SiftResponse> {
     const paymentMethod: {
       $account_holder_name;
       $card_bin;
@@ -125,7 +125,7 @@ export class SiftService {
     return this.send(EventType.TRANSACTION, data);
   }
 
-  async transactionCheckoutDeclined(checkoutTx: CheckoutTx, buy: Buy): Promise<void> {
+  async transactionCheckoutDeclined(checkoutTx: CheckoutTx, buy: Buy): Promise<SiftResponse> {
     const data: Transaction = {
       $transaction_id: checkoutTx.transaction.id.toString(),
       $user_id: buy.user.id.toString(),
@@ -158,14 +158,14 @@ export class SiftService {
     return this.send(EventType.TRANSACTION, data);
   }
 
-  private async send(type: EventType, data: SiftBase): Promise<void> {
+  private async send(type: EventType, data: SiftBase): Promise<SiftResponse> {
     if (!Config.sift.apiKey) return;
 
     data.$type = type;
     data.$api_key = Config.sift.apiKey;
 
     try {
-      await this.http.post(this.url, data);
+      return await this.http.post(this.url, data);
     } catch (error) {
       this.logger.error(`Error sending Sift event ${type} for user ${data.$user_id}:`, error);
     }

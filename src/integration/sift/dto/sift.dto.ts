@@ -958,3 +958,58 @@ export const SiftAuthenticationStatusMap: { [method: string]: DeclineCategory } 
   '89': DeclineCategory.OTHER,
   '90': DeclineCategory.OTHER,
 };
+
+export interface ScoreRsponse {
+  status: number;
+  error_message: string;
+  scores: {
+    score: number;
+    percentiles: {
+      last_1_day?: number;
+      last_5_days?: number;
+      last_7_days?: number;
+      last_10_days?: number;
+    };
+    reasons: [{ name: string; value: string; details: any }];
+  };
+  user_id: string;
+  latest_labels: {
+    payment_abuse: ScoreAbuse;
+    account_abuse: ScoreAbuse;
+    content_abuse: ScoreAbuse;
+    promotion_abuse: ScoreAbuse;
+  };
+  workflow_statuses: [SiftWorkflow];
+}
+
+export interface SiftResponse {
+  status: number;
+  error_message: string;
+  request: string;
+  time: number;
+  score_response: ScoreRsponse;
+}
+
+export interface ScoreAbuse {
+  is_fraud: boolean;
+  time: number;
+  description: string;
+}
+
+export interface SiftWorkflow {
+  id: string;
+  state: string;
+  config: { id: string; version: string };
+  config_display_name: string;
+  abuse_types: string;
+  entity: { type: string; id: string };
+  history: [
+    {
+      app: string;
+      name: string;
+      state: string;
+      config: { decision_id: string; buttions: [{ id: string; name: string }] };
+    },
+  ];
+  route: { name: string };
+}
