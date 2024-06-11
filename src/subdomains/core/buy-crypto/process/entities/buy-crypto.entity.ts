@@ -22,7 +22,6 @@ import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entiti
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
-import { PriceSource } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { AmlReason } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
@@ -212,7 +211,7 @@ export class BuyCrypto extends IEntity {
       this.inputAsset !== this.inputReferenceAsset
         ? [
             PriceStep.create(
-              PriceSource.BANK,
+              'Bank',
               this.inputAsset,
               this.inputReferenceAsset,
               this.inputAmount / this.inputReferenceAmount,

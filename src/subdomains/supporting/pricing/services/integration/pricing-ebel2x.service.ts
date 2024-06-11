@@ -2,15 +2,17 @@ import { Injectable } from '@nestjs/common';
 import { Ebel2xService } from 'src/integration/blockchain/ebel2x/ebel2x.service';
 import { Util } from 'src/shared/utils/util';
 import { Price } from '../../domain/entities/price';
-import { PricingProvider } from '../../domain/interfaces';
+import { PricingProvider } from './pricing-provider';
 
 @Injectable()
-export class PricingEbel2xService implements PricingProvider {
+export class PricingEbel2xService extends PricingProvider {
   private static readonly USDT = 'USDT';
   private static readonly MKX = 'MKX';
   private static readonly ALLOWED_ASSETS = [PricingEbel2xService.USDT, PricingEbel2xService.MKX];
 
-  constructor(private readonly ebel2xService: Ebel2xService) {}
+  constructor(private readonly ebel2xService: Ebel2xService) {
+    super();
+  }
 
   async getPrice(from: string, to: string): Promise<Price> {
     if (!PricingEbel2xService.ALLOWED_ASSETS.includes(from)) throw new Error(`from asset ${from} is not allowed`);

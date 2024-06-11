@@ -3,6 +3,7 @@ import { IEntity } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
+import { PricingProviderMap } from '../interfaces';
 import { Price } from './price';
 
 export enum PriceSource {
@@ -15,7 +16,6 @@ export enum PriceSource {
   CURRENCY = 'Currency',
   FRANKENCOIN = 'Frankencoin',
   EBEL2X = 'Ebel2X',
-  BANK = 'Bank',
 }
 
 export interface Rule {
@@ -99,7 +99,7 @@ export class PriceRule extends IEntity {
     return Util.hoursDiff(this.priceTimestamp) >= 24;
   }
 
-  get price(): Price {
+  getPrice(providers: PricingProviderMap): Price {
     if (!this.currentPrice || !this.priceTimestamp) throw new Error(`No price available for rule ${this.id}`);
 
     return Price.create(
@@ -108,7 +108,7 @@ export class PriceRule extends IEntity {
       this.currentPrice,
       this.isPriceValid,
       this.priceTimestamp,
-      this.rule.source,
+      providers[this.rule.source].getPriceStep(this),
     );
   }
 
