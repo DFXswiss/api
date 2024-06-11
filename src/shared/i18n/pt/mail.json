@@ -164,6 +164,12 @@
         "dfx_ambassador": "You are a true DFX Ambassador - thanks for spreading the word of DFX!"
     },
     "kyc": {
+        "identStarted": {
+            "title": "Online-identification",
+            "salutation": "Online-identification started",
+            "line1": "You have started the online ID process at DFX. If there are any interruptions, you can continue the process at any time using this link:<br>[url:{urlText}]",
+            "line2": "If there are any technical problems, you can also use our Video Ident Service. An employee will check your ID card manually. Please note that this service is only available during opening hours and involves significantly higher costs for DFX than the fully automated process with the button above. We therefore only ask you to use this link if there is a technical problem with the button above:<br>[url:Video Id Link]"
+        },
         "success": {
             "title": "Verification successful",
             "salutation": "Verification successful",
