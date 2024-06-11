@@ -12,7 +12,7 @@ export class Price {
   invert(): Price {
     const price = Price.create(this.target, this.source, 1 / this.price, this.isValid, this.timestamp);
 
-    price.addPriceSteps(this.steps.map((s) => s.invert()).reverse());
+    if (this.steps) price.addPriceSteps(this.steps.map((s) => s.invert()).reverse());
 
     return price;
   }
