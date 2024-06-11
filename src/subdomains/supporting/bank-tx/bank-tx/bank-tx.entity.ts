@@ -1,4 +1,5 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
+import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
@@ -210,6 +211,11 @@ export class BankTx extends IEntity {
       .filter((n) => n)
       .map((n) => n.replace(/[,]/g, '').trim())
       .join(' ');
+  }
+
+  get bankDataName(): string {
+    if (Util.isSameName(this.name, this.ultimateName)) return this.name.replace(/[,]/g, '').trim();
+    return this.completeName;
   }
 
   getSenderAccount(multiAccountIbans: string[]): string | undefined {
