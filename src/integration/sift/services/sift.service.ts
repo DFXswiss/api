@@ -16,6 +16,7 @@ import {
   SiftAssetType,
   SiftAuthenticationStatusMap,
   SiftBase,
+  SiftPaymentMethodMap,
   SiftResponse,
   Transaction,
   TransactionStatus,
