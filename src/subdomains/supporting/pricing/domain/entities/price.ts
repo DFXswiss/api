@@ -1,6 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Util } from 'src/shared/utils/util';
-import { PriceSource } from './price-rule.entity';
 
 export class Price {
   source: string;
@@ -13,9 +12,7 @@ export class Price {
   invert(): Price {
     const price = Price.create(this.target, this.source, 1 / this.price, this.isValid, this.timestamp);
 
-    price.addPriceSteps(
-      this.steps.map((s) => PriceStep.create(s.source, s.to, s.from, 1 / s.price, s.timestamp)).reverse(),
-    );
+    price.addPriceSteps(this.steps.map((s) => s.invert()).reverse());
 
     return price;
   }
@@ -39,7 +36,7 @@ export class Price {
     _price: number,
     _isValid = true,
     _timestamp = new Date(),
-    priceSource?: PriceSource,
+    step?: PriceStep,
   ): Price {
     const price = new Price();
 
@@ -48,7 +45,7 @@ export class Price {
     price.price = _price;
     price.isValid = _isValid;
     price.timestamp = _timestamp;
-    price.steps = priceSource ? [PriceStep.create(priceSource, source, target, _price, _timestamp)] : undefined;
+    price.steps = step ? [step] : undefined;
 
     return price;
   }
@@ -74,8 +71,8 @@ export class Price {
 }
 
 export class PriceStep {
-  @ApiProperty({ enum: PriceSource })
-  source: PriceSource;
+  @ApiProperty()
+  source: string;
 
   @ApiProperty()
   from: string;
@@ -89,7 +86,11 @@ export class PriceStep {
   @ApiProperty()
   timestamp: Date;
 
-  static create(source: PriceSource, from: string, to: string, _price: number, _timestamp = new Date()): PriceStep {
+  invert(): PriceStep {
+    return PriceStep.create(this.source, this.to, this.from, 1 / this.price, this.timestamp);
+  }
+
+  static create(source: string, from: string, to: string, _price: number, _timestamp = new Date()): PriceStep {
     const priceStep = new PriceStep();
 
     priceStep.source = source;

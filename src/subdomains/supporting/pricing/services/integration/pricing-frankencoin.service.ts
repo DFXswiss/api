@@ -2,15 +2,17 @@ import { Injectable } from '@nestjs/common';
 import { FrankencoinService } from 'src/integration/blockchain/frankencoin/frankencoin.service';
 import { Util } from 'src/shared/utils/util';
 import { Price } from '../../domain/entities/price';
-import { PricingProvider } from '../../domain/interfaces';
+import { PricingProvider } from './pricing-provider';
 
 @Injectable()
-export class PricingFrankencoinService implements PricingProvider {
+export class PricingFrankencoinService extends PricingProvider {
   private static readonly ZCHF = 'ZCHF';
   private static readonly FPS = 'FPS';
   private static readonly ALLOWED_ASSETS = [PricingFrankencoinService.ZCHF, PricingFrankencoinService.FPS];
 
-  constructor(private readonly frankencoinService: FrankencoinService) {}
+  constructor(private readonly frankencoinService: FrankencoinService) {
+    super();
+  }
 
   async getPrice(from: string, to: string): Promise<Price> {
     if (!PricingFrankencoinService.ALLOWED_ASSETS.includes(from)) throw new Error(`from asset ${from} is not allowed`);
