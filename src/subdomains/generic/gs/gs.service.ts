@@ -13,6 +13,7 @@ import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-ou
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { DataSource } from 'typeorm';
 import { File } from '../kyc/dto/kyc-file.dto';
 import { DocumentStorageService } from '../kyc/services/integration/document-storage.service';
@@ -62,6 +63,7 @@ export class GsService {
     private readonly bankDataService: BankDataService,
     private readonly notificationService: NotificationService,
     private readonly limitRequestService: LimitRequestService,
+    private readonly supportIssueService: SupportIssueService,
   ) {}
 
   async getDbData(query: DbQueryDto): Promise<DbReturnData> {
@@ -88,8 +90,12 @@ export class GsService {
     const userIds = userData.users.map((u) => u.id);
     const refCodes = userData.users.map((u) => u.ref);
 
+    const { supportIssues, supportMessages } = await this.supportIssueService.getUserSupportTickets(userData.id);
+
     return {
       userData,
+      supportIssues,
+      supportMessages,
       limitRequests: await this.limitRequestService.getUserLimitRequests(userData.id),
       kycSteps: await this.kycAdminService.getKycSteps(userData.id),
       bankData: await this.bankDataService.getAllBankDatasForUser(userData.id),
