@@ -14,6 +14,7 @@ export enum CheckoutPaymentStatus {
   CAPTURED = 'Captured',
   PARTIALLY_REFUNDED = 'Partially Refunded',
   REFUNDED = 'Refunded',
+  REFUNDED_PENDING = 'Refunded Pending',
   DECLINED = 'Declined',
   CANCELED = 'Canceled',
   EXPIRED = 'Expired',

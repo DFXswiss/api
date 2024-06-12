@@ -7,6 +7,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
+import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import {
   SiftAssetType,
   SiftPaymentMethodMap,
@@ -68,6 +70,7 @@ export class BuyCryptoService {
     private readonly transactionService: TransactionService,
     private readonly checkoutTxService: CheckoutTxService,
     private readonly siftService: SiftService,
+    private readonly checkoutService: CheckoutService,
   ) {}
 
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<void> {
@@ -349,6 +352,21 @@ export class BuyCryptoService {
     if (dto.usedRef || dto.amountInEur) await this.updateRefVolume([usedRefBefore, entity.usedRef]);
 
     return entity;
+  }
+
+  async returnBuyCrypto(buyCryptoId: number): Promise<void> {
+    const buyCrypto = await this.buyCryptoRepo.findOne({ where: { id: buyCryptoId }, relations: { checkoutTx: true } });
+    if (!buyCrypto.checkoutTx) throw new BadRequestException('Return is only supported with checkoutTx');
+
+    const chargebackRemittanceInfo = await this.checkoutService.reversePayment(buyCrypto.checkoutTx.paymentId);
+
+    buyCrypto.chargebackDate = new Date();
+    buyCrypto.chargebackRemittanceInfo = JSON.stringify(chargebackRemittanceInfo);
+
+    buyCrypto.checkoutTx.status = CheckoutPaymentStatus.REFUNDED_PENDING;
+
+    await this.checkoutTxService.save(buyCrypto.checkoutTx);
+    await this.buyCryptoRepo.save(buyCrypto);
   }
 
   async delete(buyCrypto: BuyCrypto): Promise<void> {
