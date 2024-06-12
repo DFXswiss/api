@@ -492,6 +492,8 @@ export class KycService {
       case KycStepName.IDENT:
         kycStep.transactionId = IdentService.transactionId(user, kycStep);
         kycStep.sessionId = await this.identService.initiateIdent(user, kycStep);
+
+        if (!user.getStepsWith(KycStepName.IDENT).length) await this.kycNotificationService.sendIdentStartedMail(user);
         break;
     }
 

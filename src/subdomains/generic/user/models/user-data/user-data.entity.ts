@@ -395,6 +395,10 @@ export class UserData extends IEntity {
     return `${Config.frontend.services}/kyc?code=${this.kycHash}`;
   }
 
+  get kycVideoUrl(): string {
+    return `${this.kycUrl}&step=ident/video`;
+  }
+
   get dilisenseUrl(): string | undefined {
     return this.verifiedName ? `https://dilisense.com/en/search/${encodeURIComponent(this.verifiedName)}` : undefined;
   }

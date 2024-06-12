@@ -229,7 +229,7 @@ export class FrankencoinService implements OnModuleInit {
     const fiatUsd = await this.fiatService.getFiatByName('USD');
     const fiatChf = await this.fiatService.getFiatByName('CHF');
 
-    const priceUsdToChf = await this.pricingService.getPrice(fiatUsd, fiatChf, false);
+    const priceUsdToChf = await this.pricingService.getPrice(fiatUsd, fiatChf, true);
 
     return {
       totalSupplyZchf: frankencoinLog.totalSupply,
