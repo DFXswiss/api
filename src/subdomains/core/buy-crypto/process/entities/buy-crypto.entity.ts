@@ -201,7 +201,7 @@ export class BuyCrypto extends IEntity {
   externalTransactionId: string;
 
   @Column({ length: 'MAX', nullable: true })
-  siftScore: string;
+  siftResponse: string;
 
   // --- ENTITY METHODS --- //
 

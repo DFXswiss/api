@@ -76,5 +76,5 @@ export class TransactionRequest extends IEntity {
   user: User;
 
   @Column({ length: 'MAX', nullable: true })
-  siftScore: string;
+  siftResponse: string;
 }

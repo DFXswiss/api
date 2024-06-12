@@ -146,7 +146,7 @@ export class BuyCryptoOutService {
             DeclineCategory.OTHER,
           );
 
-          tx.siftScore = JSON.stringify(siftResponse);
+          tx.siftResponse = JSON.stringify(siftResponse);
           await this.buyCryptoRepo.save(tx);
 
           // payment webhook

@@ -117,7 +117,7 @@ export class TransactionRequestService {
         blockchain,
       } as CreateOrder);
 
-      transactionRequest.siftScore = JSON.stringify(siftResponse);
+      transactionRequest.siftResponse = JSON.stringify(siftResponse);
       await this.transactionRequestRepo.save(transactionRequest);
     } catch (e) {
       this.logger.error(
