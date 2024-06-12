@@ -17,6 +17,7 @@ import { DataSource } from 'typeorm';
 import { File } from '../kyc/dto/kyc-file.dto';
 import { DocumentStorageService } from '../kyc/services/integration/document-storage.service';
 import { KycAdminService } from '../kyc/services/kyc-admin.service';
+import { LimitRequestService } from '../kyc/services/limit-request.service';
 import { BankDataService } from '../user/models/bank-data/bank-data.service';
 import { AccountType } from '../user/models/user-data/account-type.enum';
 import { UserData } from '../user/models/user-data/user-data.entity';
@@ -60,6 +61,7 @@ export class GsService {
     private readonly kycAdminService: KycAdminService,
     private readonly bankDataService: BankDataService,
     private readonly notificationService: NotificationService,
+    private readonly limitRequestService: LimitRequestService,
   ) {}
 
   async getDbData(query: DbQueryDto): Promise<DbReturnData> {
@@ -88,6 +90,7 @@ export class GsService {
 
     return {
       userData,
+      limitRequests: await this.limitRequestService.getUserLimitRequests(userData.id),
       kycSteps: await this.kycAdminService.getKycSteps(userData.id),
       bankData: await this.bankDataService.getAllBankDatasForUser(userData.id),
       notification: await this.notificationService.getMails(userData.id),
