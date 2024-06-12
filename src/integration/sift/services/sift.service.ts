@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/bank-tx.entity';
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import {
   CreateAccount,
@@ -63,63 +65,87 @@ export class SiftService {
     return this.send(EventType.CREATE_ORDER, data);
   }
 
-  async transaction(
-    buyCryptoOrCheckoutTx: BuyCrypto | CheckoutTx,
-    userOrBuy: User | Buy,
+  async buyCryptoTransaction(
+    buyCrypto: BuyCrypto,
     status: TransactionStatus,
     declineCategory: DeclineCategory,
-    isCheckoutTx: boolean,
   ): Promise<SiftResponse> {
-    const paymentMethod = this.createPaymentMethod(buyCryptoOrCheckoutTx, isCheckoutTx);
-
-    const data: Transaction = {
-      $transaction_id: isCheckoutTx
-        ? (buyCryptoOrCheckoutTx as CheckoutTx).transaction.id.toString()
-        : (buyCryptoOrCheckoutTx as BuyCrypto).transaction.id.toString(),
-      $user_id: isCheckoutTx ? (userOrBuy as Buy).user.id.toString() : (userOrBuy as User).id.toString(),
-      $transaction_type: TransactionType.BUY,
-      $decline_category: isCheckoutTx
-        ? SiftAuthenticationStatusMap[(buyCryptoOrCheckoutTx as CheckoutTx).authStatusReason]
-        : declineCategory,
-      $transaction_status: status,
-      $time: isCheckoutTx
-        ? (buyCryptoOrCheckoutTx as CheckoutTx).updated.getTime()
-        : (buyCryptoOrCheckoutTx as BuyCrypto).updated.getTime(),
-      $amount: isCheckoutTx
-        ? (buyCryptoOrCheckoutTx as CheckoutTx).amount * 10000
-        : (buyCryptoOrCheckoutTx as BuyCrypto).inputAmount * 10000, // amount in micros in the base unit
-      $currency_code: isCheckoutTx
-        ? (buyCryptoOrCheckoutTx as CheckoutTx).currency
-        : (buyCryptoOrCheckoutTx as BuyCrypto).inputAsset,
-      $site_country: 'CH',
-      $payment_methods: [
-        {
-          $payment_type: isCheckoutTx
-            ? PaymentType.CREDIT_CARD
-            : SiftPaymentMethodMap[(buyCryptoOrCheckoutTx as BuyCrypto).paymentMethodIn],
-          ...paymentMethod,
-        },
-      ],
-      $digital_orders: [
-        {
-          $digital_asset: isCheckoutTx
-            ? (userOrBuy as Buy).asset.name
-            : (buyCryptoOrCheckoutTx as BuyCrypto).outputAsset.name,
-          $pair: isCheckoutTx
-            ? `${(buyCryptoOrCheckoutTx as CheckoutTx).currency}_${(userOrBuy as Buy).asset.name}`
-            : `${(buyCryptoOrCheckoutTx as BuyCrypto).inputAsset}_${
-                (buyCryptoOrCheckoutTx as BuyCrypto).outputAsset.name
-              }`,
-          $asset_type: SiftAssetType.CRYPTO,
-          $volume: isCheckoutTx ? undefined : (buyCryptoOrCheckoutTx as BuyCrypto).outputAmount?.toString(),
-        },
-      ],
-      blockchain: isCheckoutTx
-        ? (userOrBuy as Buy).asset.blockchain
-        : (buyCryptoOrCheckoutTx as BuyCrypto).outputAsset.blockchain,
-    };
+    const data = this.getTxData(buyCrypto.user, buyCrypto, buyCrypto.outputAsset, status, declineCategory);
 
     return this.send(EventType.TRANSACTION, data);
+  }
+
+  async checkoutTransaction(checkoutTx: CheckoutTx, status: TransactionStatus, buy: Buy): Promise<SiftResponse> {
+    const data = this.getTxData(
+      buy.user,
+      checkoutTx,
+      buy.asset,
+      status,
+      SiftAuthenticationStatusMap[checkoutTx.authStatusReason],
+    );
+
+    return this.send(EventType.TRANSACTION, data);
+  }
+
+  private getTxData(
+    user: User,
+    tx: BuyCrypto | CheckoutTx,
+    asset: Asset,
+    status: TransactionStatus,
+    declineCategory: DeclineCategory,
+  ): Transaction {
+    const isBuyCrypto = tx instanceof BuyCrypto;
+
+    const amount = isBuyCrypto ? tx.inputAmount : tx.amount;
+    const currency = isBuyCrypto ? tx.inputAsset : tx.currency;
+    const paymentMethod = isBuyCrypto
+      ? this.createPaymentMethod(SiftPaymentMethodMap[tx.paymentMethodIn], tx.bankTx ?? tx.checkoutTx)
+      : this.createPaymentMethod(PaymentType.CREDIT_CARD, tx);
+
+    const data: Transaction = {
+      $user_id: user.id.toString(),
+      $transaction_id: tx.transaction.id.toString(),
+      $transaction_type: TransactionType.BUY,
+      $time: tx.updated.getTime(),
+      $site_country: 'CH',
+      $transaction_status: status,
+      $decline_category: declineCategory,
+      $currency_code: currency,
+      $amount: amount * 10000, // amount in micros in the base unit
+      $payment_methods: [paymentMethod],
+      $digital_orders: [
+        {
+          $digital_asset: asset.name,
+          $pair: `${currency}_${asset.name}`,
+          $asset_type: SiftAssetType.CRYPTO,
+          $volume: isBuyCrypto ? tx.outputAmount?.toString() : undefined,
+        },
+      ],
+      blockchain: asset.blockchain,
+    };
+
+    return data;
+  }
+
+  private createPaymentMethod(paymentType: PaymentType, tx: BankTx | CheckoutTx): any {
+    return tx instanceof CheckoutTx
+      ? {
+          $payment_type: paymentType,
+          $account_holder_name: tx.cardName,
+          $card_bin: tx.cardBin,
+          $card_last4: tx.cardLast4,
+          $bank_name: tx.cardIssuer,
+          $bank_country: tx.cardIssuerCountry,
+        }
+      : {
+          $payment_type: paymentType,
+          $account_holder_name: tx.name,
+          $card_bin: tx.iban.slice(0, 6),
+          $card_last4: tx.iban.slice(-4),
+          $bank_name: tx.bankName,
+          $bank_country: tx.country,
+          $routing_number: tx.aba,
+        };
   }
 
   private async send(type: EventType, data: SiftBase): Promise<SiftResponse> {
@@ -133,37 +159,5 @@ export class SiftService {
     } catch (error) {
       this.logger.error(`Error sending Sift event ${type} for user ${data.$user_id}:`, error);
     }
-  }
-
-  private createPaymentMethod(buyCrypto: BuyCrypto | CheckoutTx, isCheckoutTx: boolean): any {
-    const paymentMethod: any = {};
-
-    if (isCheckoutTx) {
-      const tx = buyCrypto as CheckoutTx;
-      paymentMethod.$account_holder_name = tx.cardName;
-      paymentMethod.$card_bin = tx.cardBin;
-      paymentMethod.$card_last4 = tx.cardLast4;
-      paymentMethod.$bank_name = tx.cardIssuer;
-      paymentMethod.$bank_country = tx.cardIssuerCountry;
-    } else {
-      const tx = buyCrypto as BuyCrypto;
-      if (tx.checkoutTx) {
-        paymentMethod.$account_holder_name = tx.checkoutTx.cardName;
-        paymentMethod.$card_bin = tx.checkoutTx.cardBin;
-        paymentMethod.$card_last4 = tx.checkoutTx.cardLast4;
-        paymentMethod.$bank_name = tx.checkoutTx.cardIssuer;
-        paymentMethod.$bank_country = tx.checkoutTx.cardIssuerCountry;
-      }
-      if (tx.bankTx) {
-        paymentMethod.$account_holder_name = tx.bankTx.name;
-        paymentMethod.$card_bin = tx.bankTx.iban.slice(0, 6);
-        paymentMethod.$card_last4 = tx.bankTx.iban.slice(-4);
-        paymentMethod.$bank_name = tx.bankTx.bankName;
-        paymentMethod.$bank_country = tx.bankTx.country;
-        paymentMethod.$routing_number = tx.bankTx.aba;
-      }
-    }
-
-    return paymentMethod;
   }
 }

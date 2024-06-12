@@ -118,7 +118,6 @@ export class TransactionRequestService {
       } as CreateOrder);
 
       transactionRequest.siftScore = JSON.stringify(siftResponse);
-      // save sift
       await this.transactionRequestRepo.save(transactionRequest);
     } catch (e) {
       this.logger.error(

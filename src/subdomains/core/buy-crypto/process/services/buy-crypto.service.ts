@@ -261,15 +261,8 @@ export class BuyCryptoService {
     }
 
     // create sift transaction
-    if (forceUpdate.amlCheck === CheckStatus.FAIL) {
-      await this.siftService.transaction(
-        entity,
-        entity.user,
-        TransactionStatus.FAILURE,
-        DeclineCategory.OTHER,
-        Boolean(entity.checkoutTx),
-      );
-    }
+    if (forceUpdate.amlCheck === CheckStatus.FAIL)
+      await this.siftService.buyCryptoTransaction(entity, TransactionStatus.FAILURE, DeclineCategory.OTHER);
 
     // payment webhook
     if (
