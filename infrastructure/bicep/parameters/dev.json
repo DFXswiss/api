@@ -293,7 +293,7 @@
     "binanceBtcDepositAddress": {
       "value": "xxx"
     },
-    "binancePolygonDepositAddress": {
+    "binanceEvmDepositAddress": {
       "value": "xxx"
     },
     "olkyClient": {
