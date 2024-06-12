@@ -101,7 +101,11 @@ export class SupportIssueService {
     userDataId: number,
   ): Promise<{ supportIssues: SupportIssue[]; supportMessages: SupportMessage[] }> {
     const supportIssues = await this.supportIssueRepo.findBy({ userData: { id: userDataId } });
-    return { supportIssues, supportMessages: await this.messageRepo.findBy({ issue: In(supportIssues) }) };
+    const supportIssueIds = supportIssues?.map((i) => i.id) ?? [];
+    return {
+      supportIssues,
+      supportMessages: await this.messageRepo.findBy({ issue: { id: In(supportIssueIds) } }),
+    };
   }
 
   // --- HELPER METHODS --- //
