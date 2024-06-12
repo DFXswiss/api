@@ -396,7 +396,7 @@ export class UserData extends IEntity {
   }
 
   get kycVideoUrl(): string {
-    return `${Config.frontend.services}/kyc?code=${this.kycHash}&step=ident/video`;
+    return `${this.kycUrl}&step=ident/video`;
   }
 
   get dilisenseUrl(): string | undefined {
