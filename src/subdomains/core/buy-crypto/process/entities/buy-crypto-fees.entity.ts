@@ -53,6 +53,12 @@ export class BuyCryptoFee extends IEntity {
     return entity;
   }
 
+  static update(transaction: BuyCrypto, totalFeeAmount: number): BuyCryptoFee {
+    transaction.fee.allowedTotalFeeAmount = totalFeeAmount;
+
+    return transaction.fee;
+  }
+
   //*** PUBLIC API ***//
 
   addPayoutFeeEstimation(estimatedPayoutFeeAmount: number, transaction: BuyCrypto): UpdateResult<BuyCryptoFee> {
