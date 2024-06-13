@@ -1,0 +1,24 @@
+{
+  "title": "Rechnung Nr. {invoiceId}",
+  "table": {
+    "headers": {
+      "quantity": "Menge *",
+      "description": "Beschreibung",
+      "total": "Gesamt"
+    },
+    "position_row": {
+      "description": "{assetDescription} ({assetName}) geliefert auf {assetBlockchain}"
+    },
+    "total_row": {
+      "total_label": "Gesamt"
+    },
+    "vat_row": {
+      "vat_label": "MwSt.",
+      "vat_amount_label": "MwSt. Betrag"
+    },
+    "invoice_total_row": {
+      "invoice_total_label": "Rechnung Gesamt"
+    }
+  },
+  "info": "* Info: Der effektive Wechselkurs und somit die Menge der tatsächlich gelieferten Menge wird bestimmt, wenn das Geld bei DFX eingegangen und verarbeitet wurde."
+}

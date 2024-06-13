@@ -1,0 +1,24 @@
+{
+  "title": "Invoice No. {invoiceId}",
+  "table": {
+    "headers": {
+      "quantity": "Quantity *",
+      "description": "Description",
+      "total": "Total"
+    },
+    "position_row": {
+      "description": "{assetDescription} ({assetName}) delivered on {assetBlockchain}"
+    },
+    "total_row": {
+      "total_label": "Total"
+    },
+    "vat_row": {
+      "vat_label": "VAT",
+      "vat_amount_label": "VAT Amount"
+    },
+    "invoice_total_row": {
+      "invoice_total_label": "Invoice Total"
+    }
+  },
+  "info": "* Info: The effective exchange rate and thus the amount of the effectively delivered quantity is determined when the money is received and processed by DFX."
+}

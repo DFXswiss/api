@@ -18,6 +18,8 @@ const dfxLogoBall2 =
 const dfxLogoText =
   'M61.5031 0H124.245C170.646 0 208.267 36.5427 208.267 84.0393C208.267 131.536 169.767 170.018 122.288 170.018H61.5031V135.504H114.046C141.825 135.504 164.541 112.789 164.541 85.009C164.541 57.2293 141.825 34.5136 114.046 34.5136H61.5031V0ZM266.25 31.5686V76.4973H338.294V108.066H266.25V170H226.906V0H355.389V31.5686H266.25ZM495.76 170L454.71 110.975L414.396 170H369.216L432.12 83.5365L372.395 0H417.072L456.183 55.1283L494.557 0H537.061L477.803 82.082L541.191 170H495.778H495.76Z';
 
+type SupportedInvoiceLanguages = 'de' | 'en' | 'fr' | 'it';
+
 @Injectable()
 export class SwissQRService {
   constructor(
@@ -25,6 +27,10 @@ export class SwissQRService {
     private readonly fiatService: FiatService,
     private readonly i18n: I18nService,
   ) {}
+
+  isSupportedInvoiceLanguage(lang: string): lang is SupportedInvoiceLanguages {
+    return ['de', 'en', 'fr', 'it'].includes(lang);
+  }
 
   private translate(key: string, lang: string, args?: any): string {
     return this.i18n.translate(key, { lang, args });
@@ -39,6 +45,8 @@ export class SwissQRService {
       throw new Error('Debtor is required');
     }
 
+    const userLanguage = request.user.userData.language.symbol.toLowerCase();
+    const lang: SupportedInvoiceLanguages = this.isSupportedInvoiceLanguage(userLanguage) ? userLanguage : 'en';
     const invoiceId = request.id;
     const currency = (await this.fiatService.getFiat(request.sourceId)).name;
     const asset = await this.assetService.getAssetById(request.targetId);
@@ -50,7 +58,7 @@ export class SwissQRService {
         const pdf = new PDFDocument({ size: 'A4' });
 
         // Store PDF as base64 string
-        let base64 = [];
+        const base64 = [];
         pdf.on('data', (data) => {
           base64.push(data);
         });
@@ -110,7 +118,7 @@ export class SwissQRService {
         // Title
         pdf.fontSize(14);
         pdf.font('Helvetica-Bold');
-        pdf.text(`Invoice No. ${invoiceId}`, mm2pt(20), mm2pt(100), {
+        pdf.text(this.translate('invoice.title', lang, { invoiceId }), mm2pt(20), mm2pt(100), {
           align: 'left',
           width: mm2pt(170),
         });
@@ -131,14 +139,14 @@ export class SwissQRService {
               backgroundColor: '#4A4D51',
               columns: [
                 {
-                  text: 'Quantity *',
+                  text: this.translate('invoice.table.headers.quantity', lang),
                   width: mm2pt(40),
                 },
                 {
-                  text: 'Description',
+                  text: this.translate('invoice.table.headers.description', lang),
                 },
                 {
-                  text: 'Total',
+                  text: this.translate('invoice.table.headers.total', lang),
                   width: mm2pt(30),
                 },
               ],
@@ -155,7 +163,12 @@ export class SwissQRService {
                   width: mm2pt(40),
                 },
                 {
-                  text: `${asset.description} (${asset.name}) delivered on ${asset.blockchain}`,
+                  // text: `${asset.description} (${asset.name}) delivered on ${asset.blockchain}`,
+                  text: this.translate('invoice.table.position_row.description', lang, {
+                    assetDescription: asset.description,
+                    assetName: asset.name,
+                    assetBlockchain: asset.blockchain,
+                  }),
                 },
                 {
                   text: `${currency} ${cost.toFixed(2)}`,
@@ -172,7 +185,7 @@ export class SwissQRService {
                 },
                 {
                   fontName: 'Helvetica-Bold',
-                  text: 'Total',
+                  text: this.translate('invoice.table.total_row.total_label', lang),
                 },
                 {
                   fontName: 'Helvetica-Bold',
@@ -190,7 +203,7 @@ export class SwissQRService {
                   width: mm2pt(40),
                 },
                 {
-                  text: 'VAT',
+                  text: this.translate('invoice.table.vat_row.vat_label', lang),
                 },
                 {
                   text: '0%',
@@ -206,7 +219,7 @@ export class SwissQRService {
                   width: mm2pt(40),
                 },
                 {
-                  text: 'VAT Amount',
+                  text: this.translate('invoice.table.vat_row.vat_amount_label', lang),
                 },
                 {
                   text: `${currency} 0.00`,
@@ -223,7 +236,7 @@ export class SwissQRService {
                 },
                 {
                   fontName: 'Helvetica-Bold',
-                  text: 'Invoice Total',
+                  text: this.translate('invoice.table.invoice_total_row.invoice_total_label', lang),
                 },
                 {
                   fontName: 'Helvetica-Bold',
@@ -237,7 +250,7 @@ export class SwissQRService {
             {
               columns: [
                 {
-                  text: '* Info: The effective exchange rate and thus the amount of the effectively delivered quantity is determined when the money is received and processed by DFX.',
+                  text: this.translate('invoice.info', lang),
                   textOptions: { oblique: true, lineGap: 2 },
                   fontSize: 10,
                   width: mm2pt(170),
@@ -250,7 +263,7 @@ export class SwissQRService {
 
         // QR-Bill
         const qrBill = new SwissQRBill(data, {
-          language: 'EN',
+          language: lang.toUpperCase() as 'DE' | 'EN' | 'FR' | 'IT',
         });
 
         // Attach to PDF
