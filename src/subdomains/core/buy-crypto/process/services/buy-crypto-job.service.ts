@@ -32,7 +32,7 @@ export class BuyCryptoJobService {
   async process() {
     if (DisabledProcess(Process.BUY_CRYPTO)) return;
     if (!DisabledProcess(Process.AUTO_AML_CHECK)) await this.buyCryptoPreparationService.doAmlCheck();
-    if (!DisabledProcess(Process.BUY_CRYPTO_SET_FEE)) await this.buyCryptoPreparationService.setFee();
+    if (!DisabledProcess(Process.BUY_CRYPTO_REFRESH_FEE)) await this.buyCryptoPreparationService.refreshFee();
     await this.buyCryptoBatchService.batchAndOptimizeTransactions();
     await this.buyCryptoDexService.secureLiquidity();
     await this.buyCryptoOutService.payoutTransactions();
