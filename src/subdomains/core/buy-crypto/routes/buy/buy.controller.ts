@@ -45,7 +45,7 @@ import { BuyDto } from './dto/buy.dto';
 import { CreateBuyDto } from './dto/create-buy.dto';
 import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
 import { GetBuyQuoteDto } from './dto/get-buy-quote.dto';
-import { SwissQRInvoiceDto } from './dto/qr-bill.dto';
+import { InvoiceDto } from './dto/invoice.dto';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 
 @ApiTags('Buy')
@@ -165,31 +165,26 @@ export class BuyController {
   @Put('/paymentInfos/:id/invoice')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER), IpGuard)
-  @ApiOkResponse({ type: SwissQRInvoiceDto })
-  async generateInvoicePDF(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<SwissQRInvoiceDto> {
+  @ApiOkResponse({ type: InvoiceDto })
+  async generateInvoicePDF(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<InvoiceDto> {
     const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
     if (!request.user.userData.isDataComplete) throw new BadRequestException('User data is not complete');
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
     if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
 
     const buy = await this.buyService.get(jwt.account, request.routeId);
+    const currency = await this.fiatService.getFiat(request.sourceId);
     const bankInfo = await this.getBankInfo({
       amount: request.amount,
-      currency: (await this.fiatService.getFiat(request.sourceId)).name,
+      currency: currency.name,
       paymentMethod: request.sourcePaymentMethod as FiatPaymentMethod,
       userData: request.user.userData,
     });
 
-    const data = this.generateSwissQrBillData(
-      request.amount,
-      (await this.fiatService.getFiat(request.sourceId)).name,
-      buy.bankUsage,
-      bankInfo,
-      request,
-    );
+    const data = this.generateSwissQrBillData(request.amount, currency.name, buy.bankUsage, bankInfo, request);
 
     return {
-      base64Enc: await this.swissQrService.createSwissQrInvoice(data, request),
+      invoidePdf: await this.swissQrService.createSwissQrInvoice(data, request),
     };
   }
 
