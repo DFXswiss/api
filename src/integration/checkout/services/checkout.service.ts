@@ -108,8 +108,7 @@ export class CheckoutService {
     return balance.data;
   }
 
-  async reversePayment(paymentId: string): Promise<CheckoutReverse> {
-    const reverse = await this.checkout.payments.refund(paymentId);
-    return reverse as CheckoutReverse;
+  async refundPayment(paymentId: string): Promise<CheckoutReverse> {
+    return (await this.checkout.payments.refund(paymentId)) as CheckoutReverse;
   }
 }

@@ -354,7 +354,7 @@ export class BuyCryptoService {
     const buyCrypto = await this.buyCryptoRepo.findOne({ where: { id: buyCryptoId }, relations: { checkoutTx: true } });
     if (!buyCrypto.checkoutTx) throw new BadRequestException('Return is only supported with checkoutTx');
 
-    const chargebackRemittanceInfo = await this.checkoutService.reversePayment(buyCrypto.checkoutTx.paymentId);
+    const chargebackRemittanceInfo = await this.checkoutService.refundPayment(buyCrypto.checkoutTx.paymentId);
 
     buyCrypto.chargebackDate = new Date();
     buyCrypto.chargebackRemittanceInfo = JSON.stringify(chargebackRemittanceInfo);
