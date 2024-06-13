@@ -61,9 +61,7 @@ export class CheckoutTxService {
   }
 
   async save(entity: CheckoutTx): Promise<CheckoutTx> {
-    await this.checkoutTxRepo.save(entity);
-
-    return entity;
+    return this.checkoutTxRepo.save(entity);
   }
 
   async getSyncDate(): Promise<Date> {
