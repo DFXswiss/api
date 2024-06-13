@@ -11,6 +11,7 @@ import { CryptoService } from 'src/integration/blockchain/shared/services/crypto
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { Active } from 'src/shared/models/active';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
+import { LanguageService, ipCountryToLanguage } from 'src/shared/models/language/language.service';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Lock } from 'src/shared/utils/lock';
@@ -52,6 +53,7 @@ export class UserService {
     private readonly walletService: WalletService,
     private readonly geoLocationService: GeoLocationService,
     private readonly feeService: FeeService,
+    private readonly languageService: LanguageService,
   ) {}
 
   async getAllUser(): Promise<User[]> {
@@ -152,11 +154,18 @@ export class UserService {
     let user = this.userRepo.create({ address, signature });
 
     user.ip = userIp;
-    user.ipCountry = await this.geoLocationService.getCountry(userIp); // TODO: set dto language based on IP (if not defined)
+    user.ipCountry = await this.geoLocationService.getCountry(userIp);
     user.wallet = wallet ?? (await this.walletService.getDefault());
     user.usedRef = await this.checkRef(user, usedRef);
     user.origin = userOrigin;
-    user.userData = await this.userDataService.createUserData({ kycType: user.wallet.customKyc ?? KycType.DFX });
+
+    const language = await this.languageService.getLanguageBySymbol(
+      ipCountryToLanguage[user.ipCountry.toLowerCase()] || 'EN',
+    );
+    user.userData = await this.userDataService.createUserData({
+      kycType: user.wallet.customKyc ?? KycType.DFX,
+      language,
+    });
     user = await this.userRepo.save(user);
 
     try {

@@ -16,6 +16,7 @@ import { SiftService } from 'src/integration/sift/services/sift.service';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
+import { LanguageService, ipCountryToLanguage } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
@@ -74,6 +75,7 @@ export class AuthService {
     private readonly notificationService: NotificationService,
     private readonly ipLogService: IpLogService,
     private readonly siftService: SiftService,
+    private readonly languageService: LanguageService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -163,7 +165,7 @@ export class AuthService {
     return { accessToken: this.generateUserToken(user, userIp) };
   }
 
-  async signInByMail(dto: AuthMailDto, url: string): Promise<void> {
+  async signInByMail(dto: AuthMailDto, url: string, ip: string): Promise<void> {
     if (dto.redirectUri) {
       try {
         const redirectUrl = new URL(dto.redirectUri);
@@ -174,6 +176,8 @@ export class AuthService {
       }
     }
 
+    const language = await this.languageService.getLanguageBySymbol(ipCountryToLanguage[ip.toLowerCase()] || 'EN');
+
     const userData =
       (await this.userDataService
         .getUsersByMail(dto.mail)
@@ -181,7 +185,7 @@ export class AuthService {
       (await this.userDataService.createUserData({
         kycType: KycType.DFX,
         mail: dto.mail,
-        language: dto.language, // TODO: set language based on IP (if not defined)
+        language: dto.language ?? language,
         status: UserDataStatus.KYC_ONLY,
       }));
 

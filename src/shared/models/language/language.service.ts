@@ -18,3 +18,12 @@ export class LanguageService {
     return this.languageRepo.findOneCachedBy(symbol, { symbol });
   }
 }
+
+export const ipCountryToLanguage: { [key: string]: string } = {
+  de: 'DE',
+  at: 'DE',
+  ch: 'DE',
+  li: 'DE',
+  it: 'IT',
+  fr: 'FR',
+};
