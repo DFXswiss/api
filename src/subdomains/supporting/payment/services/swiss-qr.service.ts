@@ -53,7 +53,7 @@ export class SwissQRService {
     const userLanguage = request.user.userData.language.symbol.toUpperCase();
     const language = this.isSupportedInvoiceLanguage(userLanguage) ? userLanguage : 'EN';
     const invoiceId = request.id;
-    const currency = (await this.fiatService.getFiat(request.sourceId)).name;
+    const currency = await this.fiatService.getFiat(request.sourceId).then((f) => f.name);
     const asset = await this.assetService.getAssetById(request.targetId);
     const assetAmount = request.estimatedAmount;
     const cost = request.amount;
