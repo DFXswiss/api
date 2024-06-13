@@ -90,4 +90,8 @@ export class LimitRequestService {
 
     return this.limitRequestRepo.save({ ...update, ...entity });
   }
+
+  async getUserLimitRequests(userDataId: number): Promise<LimitRequest[]> {
+    return this.limitRequestRepo.find({ where: { userData: { id: userDataId } }, relations: { userData: true } });
+  }
 }

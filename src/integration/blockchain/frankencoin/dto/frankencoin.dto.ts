@@ -62,6 +62,13 @@ export interface FrankencoinLogDto {
   positions: FrankencoinPositionDto[];
   poolShares: FrankencoinPoolSharesDto;
   totalSupply: number;
+  totalValueLocked: number;
+}
+
+export interface FrankencoinInfoDto {
+  totalSupplyZchf: number;
+  totalValueLockedInChf: number;
+  fpsMarketCapInChf: number;
 }
 
 export interface FrankencoinSwapDto {

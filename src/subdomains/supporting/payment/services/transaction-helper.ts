@@ -346,6 +346,7 @@ export class TransactionHelper implements OnModuleInit {
       sourceAmount: Util.roundReadable(sourceAmount, isFiat(from)),
       estimatedAmount: Util.roundReadable(targetAmount, isFiat(to)),
       exactPrice: price.isValid,
+      priceSteps: price.steps,
       feeSource: {
         rate: feeRate,
         ...sourceSpecs.fee,

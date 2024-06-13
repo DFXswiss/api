@@ -3,6 +3,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { PaymentMethod, PaymentMethodSwagger } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { PriceStep } from '../../pricing/domain/entities/price';
 import { FeeDto } from './fee.dto';
 
 export enum TransactionType {
@@ -147,6 +148,9 @@ export class TransactionDto extends UnassignedTransactionDto {
 
   @ApiPropertyOptional()
   outputTxUrl?: string;
+
+  @ApiPropertyOptional()
+  priceSteps?: PriceStep[];
 
   @ApiPropertyOptional({ description: 'Fee amount in input asset', deprecated: true })
   feeAmount?: number;

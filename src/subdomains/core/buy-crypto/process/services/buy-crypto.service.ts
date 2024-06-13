@@ -17,7 +17,6 @@ import {
   TransactionType,
 } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
-import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -89,10 +88,11 @@ export class BuyCryptoService {
 
     // create bank data
     if (bankTx.senderAccount && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
-      const bankData = await this.bankDataService.getBankDataWithIban(bankTx.senderAccount, buy.user.userData.id);
+      const bankData = await this.bankDataService.getBankDataWithIban(bankTx.senderAccount, buy.userData.id);
 
       if (!bankData)
-        await this.bankDataService.createBankData(buy.user.userData, {
+        await this.bankDataService.createBankData(buy.userData, {
+          name: bankTx.bankDataName,
           iban: bankTx.senderAccount,
           type: BankDataType.BANK_IN,
         });
@@ -130,10 +130,11 @@ export class BuyCryptoService {
 
     // create bank data
     if (checkoutTx.cardFingerPrint && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
-      const bankData = await this.bankDataService.getBankDataWithIban(checkoutTx.cardFingerPrint, buy.user.userData.id);
+      const bankData = await this.bankDataService.getBankDataWithIban(checkoutTx.cardFingerPrint, buy.userData.id);
 
       if (!bankData)
-        await this.bankDataService.createBankData(buy.user.userData, {
+        await this.bankDataService.createBankData(buy.userData, {
+          name: checkoutTx.cardName ?? buy.userData.completeName,
           iban: checkoutTx.cardFingerPrint,
           type: BankDataType.CARD_IN,
         });
@@ -193,7 +194,7 @@ export class BuyCryptoService {
     },
   ) {
     entity.outputAsset = entity.target.asset;
-    entity.outputReferenceAsset = entity.outputAsset.type === AssetType.CUSTOM ? null : entity.outputAsset;
+    entity.outputReferenceAsset = entity.outputAsset;
 
     entity = await this.setTxRequest(entity);
 

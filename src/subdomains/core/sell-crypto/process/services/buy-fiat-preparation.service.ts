@@ -93,6 +93,15 @@ export class BuyFiatPreparationService {
           entity.userData.users,
         );
 
+        const last365dVolume = await this.transactionHelper.getVolumeChfSince(
+          entity.inputReferenceAmount,
+          inputReferenceCurrency,
+          false,
+          Util.daysBefore(365, entity.transaction.created),
+          Util.daysAfter(365, entity.transaction.created),
+          entity.userData.users,
+        );
+
         const { bankData, blacklist } = await this.amlService.getAmlCheckInput(entity);
 
         await this.buyFiatRepo.update(
@@ -102,6 +111,7 @@ export class BuyFiatPreparationService {
             last24hVolume,
             last7dVolume,
             last30dVolume,
+            last365dVolume,
             bankData,
             blacklist,
           ),
@@ -191,7 +201,7 @@ export class BuyFiatPreparationService {
         const price = await this.pricingService.getPrice(asset, currency, false);
 
         await this.buyFiatRepo.update(
-          ...entity.setOutput(price.convert(entity.inputReferenceAmountMinusFee), currency),
+          ...entity.setOutput(price.convert(entity.inputReferenceAmountMinusFee), currency, price.steps),
         );
       } catch (e) {
         this.logger.error(`Error during buy-fiat ${entity.id} output setting:`, e);

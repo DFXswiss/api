@@ -164,6 +164,12 @@
         "dfx_ambassador": "Vous êtes un véritable ambassadeur. Merci de passer le mot à propos de DFX !"
     },
     "kyc": {
+        "identStarted": {
+            "title": "Identification en ligne",
+            "salutation": "Début de l'identification en ligne",
+            "line1": "Vous avez commencé le processus d'identification en ligne à DFX. En cas d'interruption, vous pouvez reprendre la procédure à tout moment en cliquant sur le lien suivant:<br>[url:{urlText}]",
+            "line2": "En cas de problème technique, vous pouvez également utiliser notre service d'identification vidéo. Un employé vérifiera manuellement votre carte d'identité. Veuillez noter que ce service n'est disponible que pendant les heures d'ouverture et qu'il entraîne des coûts nettement plus élevés pour DFX que le processus entièrement automatisé avec le bouton ci-dessus. Nous vous demandons donc de n'utiliser ce lien qu'en cas de problème technique avec le bouton ci-dessus:<br>[url:Video Id Link]"
+        },
         "success": {
             "title": "Vérification réussie",
             "salutation": "Vérification réussie",

@@ -51,6 +51,7 @@ export class Configuration {
     weeklyAmlRule: 5000, // CHF
     monthlyDefault: 500000, // CHF
     yearlyDefault: 1000000000, // CHF
+    yearlyWithoutKyc: 50000, // CHF
     cardDefault: 4000, // CHF
   };
 
@@ -344,6 +345,7 @@ export class Configuration {
       zchfGatewayUrl: process.env.ZCHF_GATEWAY_URL,
       zchfApiKey: process.env.ALCHEMY_API_KEY,
       zchfGraphUrl: process.env.ZCHF_GRAPH_URL,
+      zchfTvlUrl: process.env.ZCHF_TVL_URL,
       contractAddress: {
         zchf: process.env.ZCHF_CONTRACT_ADDRESS,
         equity: process.env.ZCHF_EQUITY_CONTRACT_ADDRESS,

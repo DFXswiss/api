@@ -1,3 +1,4 @@
+import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { FeeDto } from '../fee.dto';
 import { QuoteError } from './quote-error.enum';
 
@@ -7,6 +8,7 @@ export interface TargetEstimation {
   sourceAmount: number;
   estimatedAmount: number;
   exactPrice: boolean;
+  priceSteps: PriceStep[];
   feeSource: FeeDto;
   feeTarget: FeeDto;
 }
