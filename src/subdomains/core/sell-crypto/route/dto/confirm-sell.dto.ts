@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsString, Matches, ValidateNested } from 'class-validator';
+import { IsInt, IsNotEmpty, IsNumber, IsString, Matches, ValidateNested } from 'class-validator';
 import { GetConfig } from 'src/config/config';
 
 export class PermitDto {
@@ -21,6 +21,11 @@ export class PermitDto {
   @IsString()
   @Matches(GetConfig().formats.address)
   signatureTransferContract: string;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsNumber()
+  permittedAmount: number;
 
   @ApiProperty()
   @IsNotEmpty()
