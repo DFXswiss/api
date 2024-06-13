@@ -3,7 +3,6 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { CheckoutPayment } from 'src/integration/checkout/dto/checkout.dto';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { TransactionSourceType } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
@@ -24,10 +23,10 @@ export class FiatPayInSyncService {
 
   // --- JOBS --- //
 
-  @Cron(CronExpression.EVERY_MINUTE)
+  @Cron(CronExpression.EVERY_10_SECONDS)
   @Lock(1800)
   async syncCheckout() {
-    if (DisabledProcess(Process.FIAT_PAY_IN)) return;
+    /*   if (DisabledProcess(Process.FIAT_PAY_IN)) return;
 
     const syncDate = await this.checkoutTxService.getSyncDate();
     const payments = await this.checkoutService.getPayments(syncDate);
@@ -38,6 +37,17 @@ export class FiatPayInSyncService {
 
         if (checkoutTx.approved && !checkoutTx.buyCrypto)
           await this.checkoutTxService.createCheckoutBuyCrypto(checkoutTx);
+      } catch (e) {
+        this.logger.error(`Failed to import checkout transaction:`, e);
+      }
+    } */
+
+    const refundedList = await this.checkoutTxService.getPendingRefundedList();
+    const refundedPayments = await this.checkoutService.getRefundedPayments(refundedList);
+
+    for (const refundedPayment of refundedPayments) {
+      try {
+        await this.createCheckoutTx(refundedPayment);
       } catch (e) {
         this.logger.error(`Failed to import checkout transaction:`, e);
       }

@@ -272,12 +272,6 @@ export class BuyCryptoService {
       if (!update.chargebackBankTx) throw new BadRequestException('Bank TX not found');
     }
 
-    // chargeback checkout tx
-    if (dto.chargebackCheckoutTxId) {
-      update.chargebackCheckoutTx = await this.checkoutTxService.getCheckoutTx(dto.chargebackCheckoutTxId);
-      if (!update.chargebackBankTx) throw new BadRequestException('Bank TX not found');
-    }
-
     // buy
     if (dto.buyId) {
       if (!entity.buy) throw new BadRequestException(`Cannot assign buy-crypto ${id} to a buy route`);
@@ -661,7 +655,6 @@ export class BuyCryptoService {
         'cryptoRoute',
         'cryptoRoute.user',
         'chargebackBankTx',
-        'chargebackCheckoutTx',
       ],
       order: { id: 'DESC' },
     });

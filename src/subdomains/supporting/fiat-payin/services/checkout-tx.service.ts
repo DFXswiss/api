@@ -55,6 +55,10 @@ export class CheckoutTxService {
     return entity;
   }
 
+  async getPendingRefundedList(): Promise<CheckoutTx[]> {
+    return this.checkoutTxRepo.find({ where: { status: CheckoutPaymentStatus.REFUNDED_PENDING } });
+  }
+
   async save(entity: CheckoutTx): Promise<CheckoutTx> {
     await this.checkoutTxRepo.save(entity);
 

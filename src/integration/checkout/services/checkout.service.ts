@@ -4,6 +4,7 @@ import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
+import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { CheckoutHostedPayment, CheckoutLanguages, CheckoutPagedResponse, CheckoutPayment } from '../dto/checkout.dto';
 
 interface CheckoutBalanceData {
@@ -89,6 +90,19 @@ export class CheckoutService {
     payments.reverse();
 
     return payments.filter((p) => !(new Date(p.requested_on) < since));
+  }
+
+  async getRefundedPayments(chargebackList: CheckoutTx[]): Promise<CheckoutPayment[]> {
+    const payments: CheckoutPayment[] = [];
+
+    for (const chargeback of chargebackList) {
+      const payment: CheckoutPagedResponse<CheckoutPayment> = await this.checkout.payments.get(chargeback.paymentId);
+      payments.push(...payment.data);
+    }
+
+    payments.reverse();
+
+    return payments;
   }
 
   async getBalances(): Promise<CheckoutBalanceData[]> {
