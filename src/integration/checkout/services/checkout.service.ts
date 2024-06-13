@@ -96,11 +96,9 @@ export class CheckoutService {
     const payments: CheckoutPayment[] = [];
 
     for (const chargeback of chargebackList) {
-      const payment: CheckoutPagedResponse<CheckoutPayment> = await this.checkout.payments.get(chargeback.paymentId);
-      payments.push(...payment.data);
+      const payment: CheckoutPayment = await this.checkout.payments.get(chargeback.paymentId);
+      payments.push(payment);
     }
-
-    payments.reverse();
 
     return payments;
   }

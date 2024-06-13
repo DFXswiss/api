@@ -67,6 +67,7 @@ export class BuyCryptoService {
     private readonly bankDataService: BankDataService,
     private readonly transactionRequestService: TransactionRequestService,
     private readonly transactionService: TransactionService,
+    @Inject(forwardRef(() => CheckoutTxService))
     private readonly checkoutTxService: CheckoutTxService,
     private readonly siftService: SiftService,
     private readonly checkoutService: CheckoutService,
@@ -349,7 +350,7 @@ export class BuyCryptoService {
     return entity;
   }
 
-  async returnBuyCrypto(buyCryptoId: number): Promise<void> {
+  async refundBuyCrypto(buyCryptoId: number): Promise<void> {
     const buyCrypto = await this.buyCryptoRepo.findOne({ where: { id: buyCryptoId }, relations: { checkoutTx: true } });
     if (!buyCrypto.checkoutTx) throw new BadRequestException('Return is only supported with checkoutTx');
 
@@ -357,7 +358,6 @@ export class BuyCryptoService {
 
     buyCrypto.chargebackDate = new Date();
     buyCrypto.chargebackRemittanceInfo = JSON.stringify(chargebackRemittanceInfo);
-
     buyCrypto.checkoutTx.status = CheckoutPaymentStatus.REFUNDED_PENDING;
 
     await this.checkoutTxService.save(buyCrypto.checkoutTx);
