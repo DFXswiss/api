@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
@@ -45,7 +45,7 @@ export class BuyCryptoBatchService {
       const txWithAssets = await this.buyCryptoRepo.find({
         where: {
           outputReferenceAsset: Not(IsNull()),
-          outputAsset: Not(IsNull()),
+          outputAsset: { type: Not(AssetType.CUSTOM) },
           outputReferenceAmount: IsNull(),
           batch: IsNull(),
           status: In([

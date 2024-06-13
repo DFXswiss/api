@@ -47,7 +47,6 @@ export class BuyCryptoPreparationService {
         amlReason: IsNull(),
         inputAmount: Not(IsNull()),
         inputAsset: Not(IsNull()),
-        status: IsNull(),
         isComplete: false,
       },
       relations: {
@@ -155,21 +154,13 @@ export class BuyCryptoPreparationService {
 
   async refreshFee(): Promise<void> {
     const entities = await this.buyCryptoRepo.find({
-      where: [
-        {
-          amlCheck: CheckStatus.PASS,
-          status: IsNull(),
-          isComplete: false,
-          percentFee: IsNull(),
-          inputReferenceAmount: Not(IsNull()),
-        },
-        {
-          amlCheck: CheckStatus.PASS,
-          status: Not(In([BuyCryptoStatus.READY_FOR_PAYOUT, BuyCryptoStatus.PAYING_OUT, BuyCryptoStatus.COMPLETE])),
-          isComplete: false,
-          inputReferenceAmount: Not(IsNull()),
-        },
-      ],
+      where: {
+        amlCheck: CheckStatus.PASS,
+        status: Not(In([BuyCryptoStatus.READY_FOR_PAYOUT, BuyCryptoStatus.PAYING_OUT, BuyCryptoStatus.COMPLETE])),
+        isComplete: false,
+        percentFee: IsNull(),
+        inputReferenceAmount: Not(IsNull()),
+      },
       relations: {
         bankTx: true,
         checkoutTx: true,
