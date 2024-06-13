@@ -340,12 +340,13 @@ export class BuyController {
   }
 
   private generateQRCode(buy: Buy, bankInfo: BankInfoDto, dto: GetBuyPaymentInfoDto): string {
-    if (dto.currency.name === 'CHF') {
-      const data = this.generateSwissQrBillData(dto.amount, dto.currency.name, buy.bankUsage, bankInfo);
-      return this.swissQrService.createSwissQrCode(data);
-    } else {
-      return this.generateGiroCode(buy, bankInfo, dto);
-    }
+    // TODO: re-enable
+    // if (dto.currency.name === 'CHF') {
+    //   const data = this.generateSwissQrBillData(dto.amount, dto.currency.name, buy.bankUsage, bankInfo);
+    //   return this.swissQrService.createSwissQrCode(data);
+    // } else {
+    return this.generateGiroCode(buy, bankInfo, dto);
+    // }
   }
 
   private generateGiroCode(buy: Buy, bankInfo: BankInfoDto, dto: GetBuyPaymentInfoDto): string {
