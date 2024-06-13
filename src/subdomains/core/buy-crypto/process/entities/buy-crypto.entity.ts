@@ -183,7 +183,7 @@ export class BuyCrypto extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   outputDate: Date;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 256, default: BuyCryptoStatus.CREATED })
   status: BuyCryptoStatus;
 
   @Column({ default: false })
@@ -371,16 +371,18 @@ export class BuyCrypto extends IEntity {
     fee: InternalFeeDto & FeeDto,
     minFeeAmountFiat: number,
     totalFeeAmountChf: number,
-    feeConstraints: BuyCryptoFee,
+    maxNetworkFee: number,
   ): UpdateResult<BuyCrypto> {
     const { usedRef, refProvision } = this.user.specifiedRef;
     const inputReferenceAmountMinusFee = this.inputReferenceAmount - fee.total;
+
+    const feeConstraints = this.fee ?? BuyCryptoFee.create(this);
+    feeConstraints.allowedTotalFeeAmount = maxNetworkFee;
 
     const update: Partial<BuyCrypto> =
       inputReferenceAmountMinusFee < 0
         ? { amlCheck: CheckStatus.FAIL, amlReason: AmlReason.FEE_TOO_HIGH, mailSendDate: null }
         : {
-            status: BuyCryptoStatus.CREATED,
             absoluteFeeAmount: fee.fixed,
             percentFee: fee.rate,
             percentFeeAmount: fee.rate * this.inputReferenceAmount,
@@ -462,7 +464,7 @@ export class BuyCrypto extends IEntity {
       txId: null,
       outputDate: null,
       recipientMail: null,
-      status: null,
+      status: BuyCryptoStatus.CREATED,
       comment: null,
     };
 
